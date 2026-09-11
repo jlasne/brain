@@ -54,11 +54,17 @@ vercel.json        serves app/ as the site root
 
 A brain built in a Claude Code session lands in `brains/` as markdown. A brain built in the app lands in Convex. Nothing crossed between them until now, which is why the Wealth brain existed in the repo and not on the site.
 
-`convex/seed.ts` closes it. It reads `convex/seedData.json`, generated from the markdown, and writes it into the store:
+`convex/seed.ts` closes it. It reads `convex/seedData.json`, generated from the markdown, and writes it into the store.
+
+**Deploy first.** `convex run` only sees code that is already on the deployment, so a new function in git is invisible until it ships:
 
 ```
+git pull
+npx convex deploy
 npx convex run seed:load --prod
 ```
+
+A "Could not find function" error listing the functions that do exist means the deploy step was skipped.
 
 It runs under your deploy key rather than the HTTP gate, so no passphrase is involved, and nothing in it is reachable from a browser. It refuses any brain that already exists, so a second run changes nothing. To reverse one:
 
