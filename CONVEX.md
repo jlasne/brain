@@ -50,6 +50,24 @@ app/
 vercel.json        serves app/ as the site root
 ```
 
+## Two stores, one command
+
+A brain built in a Claude Code session lands in `brains/` as markdown. A brain built in the app lands in Convex. Nothing crossed between them until now, which is why the Wealth brain existed in the repo and not on the site.
+
+`convex/seed.ts` closes it. It reads `convex/seedData.json`, generated from the markdown, and writes it into the store:
+
+```
+npx convex run seed:load --prod
+```
+
+It runs under your deploy key rather than the HTTP gate, so no passphrase is involved, and nothing in it is reachable from a browser. It refuses any brain that already exists, so a second run changes nothing. To reverse one:
+
+```
+npx convex run seed:unload --prod '{"brain":"wealth"}'
+```
+
+Export runs the other way, from the app's sidebar, in the same markdown shape.
+
 ## Routes
 
 | Route | Does | Gated |

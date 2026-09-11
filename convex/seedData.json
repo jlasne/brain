@@ -1,0 +1,724 @@
+{
+ "brains": [
+  {
+   "slug": "wealth",
+   "name": "Wealth",
+   "type": "subject",
+   "scope": "how the world economy shifts, and where to place my own capital as a result",
+   "created": "2026-09-11"
+  }
+ ],
+ "concepts": [
+  {
+   "brain": "wealth",
+   "slug": "risk-and-danger",
+   "n": 1,
+   "title": "Risk and danger",
+   "position": "Volatility and danger are separate axes, and finance measures only the first. Volatility is how much a price moves. Danger is the probability the position reaches zero and stays there. An asset can be calm and lethal, or violent and safe.\n\nFor capital held over 10 or 20 years, danger is the axis that matters. Volatility only costs you when you are forced to sell at a low point.",
+   "summaryLine": "volatility measures movement, danger measures the odds of zero, and they are independent",
+   "evidence": [
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "sovereign debt of a badly run state pays the same coupon every year and barely moves, then goes to zero on a Monday morning when the state stops paying. Argentina has defaulted nine times.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "a salary carries zero volatility and real danger, because it ends in one conversation. A chauffeur's income swings with the season and carries almost no danger, because Paris will not stop needing rides.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "Madoff was detectable from the shape of his curve alone. A claimed 10% a year with near-zero volatility contradicts the relationship between movement and return.",
+     "source": "yt-isLAsLgaOro"
+    }
+   ],
+   "data": [
+    "Bitcoin daily range cited across 60,000 to 100,000 dollars in the same cycle",
+    "S&P 500 annual volatility 15 to 20%, so a 2% day sits near two standard deviations",
+    "Argentina: nine sovereign defaults",
+    "Madoff: claimed 10% a year at zero volatility"
+   ],
+   "conflicts": [],
+   "sources": [
+    "yt-isLAsLgaOro"
+   ],
+   "related": [
+    "Fragility and antifragility in `04-fragility-and-antifragility.md`",
+    "Prudence in `03-prudence.md`"
+   ],
+   "updated": "2026-09-11"
+  },
+  {
+   "brain": "wealth",
+   "slug": "value-displacement",
+   "n": 2,
+   "title": "Value displacement",
+   "position": "Value is what other people want and will pay for. It does not stay put. Each innovation moves it, and whatever held it before goes to zero rather than declining gently. The cart maker was not outcompeted on price, the demand left.\n\nSo the investor's first job is a bet nobody can place on their behalf: where value sits in 10 or 20 years. Holding today's winner is a bet that the move has already finished.",
+   "summaryLine": "value moves when innovation lands, and finding where is the one bet nobody can place for you",
+   "evidence": [
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "the sedan chair carrier loses to the cart, the cart maker loses to the car. Each step destroys the prior holder of value rather than shrinking it.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "value requires an exchange. Mowing your own lawn creates none, mowing a neighbour's for payment creates it, because a resource changed hands for something wanted.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "entertainment counts as value. Two people paying each other 500 dollars produce 1,000 dollars of GDP and real satisfaction, which is why the transaction is not empty.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "China held a 4 to 7 century lead over Europe in the Middle Ages and still missed the industrial revolution, because unlimited labour and an intact social order left no demand for a steam engine.",
+     "source": "yt-isLAsLgaOro"
+    }
+   ],
+   "data": [
+    "China's medieval lead over Europe: 4 to 7 centuries",
+    "3% of a population is enough to force a change, and 3% of assets enough to move value"
+   ],
+   "conflicts": [],
+   "sources": [
+    "yt-isLAsLgaOro"
+   ],
+   "related": [
+    "Diffusive systems in `06-diffusive-systems.md`",
+    "Prudence in `03-prudence.md`"
+   ],
+   "updated": "2026-09-11"
+  },
+  {
+   "brain": "wealth",
+   "slug": "prudence",
+   "n": 3,
+   "title": "Prudence",
+   "position": "Prudence as practised means applying what worked for the last 40 years to the next 40. That is a bet that value stays where it is. When innovation cycles run a decade, the bet loses by construction, and the loss arrives as a step down rather than a drift.\n\nPrudence held for most of history because change was slower than a human life. It stopped holding around the industrial revolution, when progress became visible within one lifetime.",
+   "summaryLine": "repeating what worked for 40 years guarantees missing the move when cycles run 10 years",
+   "evidence": [
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "Russian bonds were bought because Russian bonds had worked. Nobody bought North Korean bonds, because those had no track record to extrapolate. The track record was the whole reason, and it was worthless.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "the three generation pattern. The grandfather speculates and builds, the son inherits a warning to protect it, the grandson is told to preserve value with no risk taken, which the parable of the talents treats as the one unforgivable choice.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "a Roman alive during the fall did not experience a fall. It took roughly 300 years, so at the scale of one life the world had always been as it was.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "refusing danger out of prudence gives a 100% chance of being caught. Speculating gives 20%, which matches the share of civilisations that survived.",
+     "source": "yt-isLAsLgaOro"
+    }
+   ],
+   "data": [
+    "Roman decline: roughly 300 years, longer than any single life",
+    "Civilisations that have disappeared: about 80%",
+    "Species that ever lived and are now extinct: 99.9%",
+    "Odds of survival: 20% by speculating, 0% by refusing"
+   ],
+   "conflicts": [],
+   "sources": [
+    "yt-isLAsLgaOro"
+   ],
+   "related": [
+    "Risk and danger in `01-risk-and-danger.md`",
+    "Value displacement in `02-value-displacement.md`"
+   ],
+   "updated": "2026-09-11"
+  },
+  {
+   "brain": "wealth",
+   "slug": "fragility-and-antifragility",
+   "n": 4,
+   "title": "Fragility and antifragility",
+   "position": "A fragile asset gains value in calm and breaks in disorder. An antifragile asset gains with volatility. The split is measurable: plot excess return against volatility and the slopes run opposite.\n\nThe choice between them is a bet on which part of the distribution the next decade sits in. Fragile assets pay in the 80% that is normal. Antifragile assets pay in the tails, and cost you while nothing happens. Holding the wrong one is not a small error, because systems reconfigure in short violent episodes rather than gradually.",
+   "summaryLine": "fragile assets gain in calm, antifragile ones gain with volatility, and the split is measurable",
+   "evidence": [
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "gold rises as confidence falls. The yen rises in crisis because Japanese savers repatriate capital, which makes it antifragile by social structure rather than by innovation.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "Dubai and Swiss property rise with European political volatility, because wealth relocates and families will not move far. Swiss property rises until Europe runs out of rich people.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "Bitcoin is antifragile in theory, since it answers a crisis of monetary confidence. It has too few observations to confirm it in the measurements yet.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "an antifragile asset in calm conditions is a vaccine with no epidemic. Paper money invented while gold coins work has no buyers.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "snow accumulates as flakes for months, and 30 seconds of avalanche reconfigures the slope. Revolutions, wars and monetary collapses occupy very little time and do all the transformation.",
+     "source": "yt-isLAsLgaOro"
+    }
+   ],
+   "data": [
+    "Normal conditions occupy about 80% of a distribution, tails share the rest",
+    "Antifragile assets named: gold, sugar, yen, Dubai property, Swiss property, Bitcoin",
+    "Measurement: excess return plotted against volatility, opposite slopes"
+   ],
+   "conflicts": [],
+   "sources": [
+    "yt-isLAsLgaOro"
+   ],
+   "related": [
+    "Risk and danger in `01-risk-and-danger.md`",
+    "Decorrelation in `05-decorrelation.md`"
+   ],
+   "updated": "2026-09-11"
+  },
+  {
+   "brain": "wealth",
+   "slug": "decorrelation",
+   "n": 5,
+   "title": "Decorrelation",
+   "position": "Decorrelation is the only way to raise resilience without giving up return. Everything else trades one for the other.\n\nHolding 500 index names looks like 500 bets across pharma, tech and industry. It is one bet, because they fall together. Real decorrelation means assets that are not chained to the same event.",
+   "summaryLine": "holding 500 index names is one bet, and decorrelation is the only resilience that costs no return",
+   "evidence": [
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "owning every S&P 500 name gives the appearance of sector spread. When the index cracks, the whole portfolio goes down at once, so the diversification was nominal.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "his own answer is three burrows, chosen to be uncorrelated and antifragile: Bitcoin, high-yield property in countries that articulate between blocs, and compute capacity.",
+     "source": "yt-isLAsLgaOro"
+    }
+   ],
+   "data": [
+    "Three burrows: Bitcoin, property in intermediary countries, compute",
+    "His co-investment structure: fixed 8 to 12% to lenders depending on size, 100,000 euro minimum, with him absorbing the volatility and validating each move with them"
+   ],
+   "conflicts": [],
+   "sources": [
+    "yt-isLAsLgaOro"
+   ],
+   "related": [
+    "Fragility and antifragility in `04-fragility-and-antifragility.md`"
+   ],
+   "updated": "2026-09-11"
+  },
+  {
+   "brain": "wealth",
+   "slug": "diffusive-systems",
+   "n": 6,
+   "title": "Diffusive systems",
+   "position": "A diffusive system takes energy in, fights to keep its own structure, and emits heat plus information. Since the big bang these systems have grown steadily denser in energy dissipated per unit of mass, and the curve is exponential.\n\nTwo consequences carry into investing. Innovation is structural rather than accidental, so value will keep moving. And the cycles are shortening, which is log-periodicity, so the interval between displacements keeps compressing.\n\nThe denser a system gets, the smaller the space it occupies. Most of the universe is cold and empty while complexity concentrates in tiny pockets. Human societies repeat it: the Sahara empty, Tokyo dense.",
+   "summaryLine": "energy density per unit mass rises across the universe in shortening cycles",
+   "evidence": [
+    {
+     "date": "2026",
+     "author": "Richard Detente, crediting Charles Gave and Didier Darcet",
+     "claim": "economics is treated as a hard science, modelled the way physics models systems, with direct parallels for mass and fragility.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "the universe starts hot, dense and uniform, then expansion cools it, and cooling produces particles, atoms, molecules, life. Macro structures generate micro structures which generate macro structures.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "human societies now dissipate more energy per unit of mass than galaxies, stars or particles, and they sit at the top of an exponential curve running since the big bang.",
+     "source": "yt-isLAsLgaOro"
+    }
+   ],
+   "data": [
+    "Energy dissipated per unit mass: exponential since the big bang",
+    "Human societies rank above galaxies, stars and particles on that measure",
+    "Innovation cycles: about 10 years now, against generations before the industrial revolution",
+    "The concept of progress became perceptible within one lifetime roughly two centuries ago"
+   ],
+   "conflicts": [],
+   "sources": [
+    "yt-isLAsLgaOro"
+   ],
+   "related": [
+    "Value displacement in `02-value-displacement.md`"
+   ],
+   "updated": "2026-09-11"
+  },
+  {
+   "brain": "wealth",
+   "slug": "monetary-debasement",
+   "n": 7,
+   "title": "Monetary debasement",
+   "position": "The dollar prints about 8% a year. Measured in dollars, any portfolio returning less than 8% is losing purchasing power while appearing to hold. No conventionally prudent allocation clears 8%, so prudence and debasement together guarantee erosion.\n\nDebasement is a tax on holders of future money. A government that will not raise taxes and will not cut promises taxes generations not yet born, who cannot object.",
+   "summaryLine": "the dollar prints 8% a year, so anything under 8% loses purchasing power",
+   "evidence": [
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "at 8% annual dollar printing, a portfolio under 8% is being sheared. Nothing marketed as prudent returns more than 8%, which is why the arithmetic is rarely stated publicly.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "the three options for spending beyond revenue are taxes that provoke resistance, debt which taxes the unborn, and printing which erodes existing wealth without a visible act.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "Switzerland runs balanced accounts, France and the United States do not, and China runs internal debt which settles the question with its own population instead.",
+     "source": "yt-isLAsLgaOro"
+    }
+   ],
+   "data": [
+    "Dollar monetary printing: about 8% a year",
+    "No prudent instrument returns above 8%",
+    "Balanced accounts cited: Switzerland. Unbalanced: France, United States"
+   ],
+   "conflicts": [],
+   "sources": [
+    "yt-isLAsLgaOro"
+   ],
+   "related": [
+    "Risk and danger in `01-risk-and-danger.md`",
+    "Prudence in `03-prudence.md`"
+   ],
+   "updated": "2026-09-11"
+  },
+  {
+   "brain": "wealth",
+   "slug": "energy-and-compute",
+   "n": 8,
+   "title": "Energy and compute",
+   "position": "AI's constraint is not how much electricity it needs, it is how much lands on one point of the grid. A grid behaves like a web: spread the load and it carries a lot, concentrate it and it tears. One gigawatt planted in one place deforms everything around it.\n\nThat makes flexible demand valuable rather than merely tolerated. A load that can stop on request raises the grid's load factor when power is cheap and gets paid to disappear when it is scarce. Since a grid is a fixed-cost business, the most expensive kilowatt is the one nobody consumes, because idle capacity still has to be amortised across everything else.\n\nHyperscale data centres cannot offer that flexibility. A three-week training run across 300,000 chips cannot pause, so they demand guaranteed supply, which forces peak capacity upward. Building gas generation takes five years and permits take ten, against AI timelines of months.",
+   "summaryLine": "the grid constraint is density at one point, not total demand, so flexible load is the arbitrage",
+   "evidence": [
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "his bet from 2022 was that AI would exhaust concentrated grid capacity and be forced to distribute, and that no distributed AI network existed yet only meant one had to appear.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "Bitcoin mining was the entry, because it starts and stops instantly. Mining farms in Texas raised the load factor, which lowered prices locally, and got paid to shut off during a polar storm when the megawatt hour went from 40 dollars to 500.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "Data Factory's 2023 fundraising pitched electrical infrastructure rather than mining, despite mining being 100% of revenue, because the thesis was seizing megawatts where nobody wanted them until high performance compute arrived.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "Data Factory merged with Hive and Polycloud into Antimatter, which now runs container-format distributed data centres on the same slabs the mining farms used. Twenty researchers at Inria work on converting centralised data centre algorithms for distributed infrastructure.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "buying CoreWeave at a price to book of 11 means 11 dollars buys 1 dollar of compute capacity, the rest being expected growth. His answer is to sell shares in owned Texas assets at book value instead.",
+     "source": "yt-isLAsLgaOro"
+    }
+   ],
+   "data": [
+    "AI projected at 3% of world electricity by 2030",
+    "Texas power: 40 to 45 dollars a megawatt hour normally, 500 in a polar storm",
+    "Nuclear plant: 10 billion to build, needs about 1 billion a year regardless of output",
+    "Gas generation: 5 years to build, 10 years of permits",
+    "Training runs: 200,000 to 300,000 chips synchronised over 3 weeks",
+    "CoreWeave price to book: 11",
+    "Antimatter revenue approaching 1 billion in 2026",
+    "Polycloud format: 20 and 40 foot shipping containers",
+    "Inria team: 20 researchers"
+   ],
+   "conflicts": [],
+   "sources": [
+    "yt-isLAsLgaOro"
+   ],
+   "related": [
+    "Value displacement in `02-value-displacement.md`",
+    "Fragility and antifragility in `04-fragility-and-antifragility.md`"
+   ],
+   "updated": "2026-09-11"
+  },
+  {
+   "brain": "wealth",
+   "slug": "climate-and-techno-solutionism",
+   "n": 9,
+   "title": "Climate and techno-solutionism",
+   "position": "Atmospheric CO2 has shown no inflection from any protocol or conference. The curve continues on its natural slope, which means political mechanisms have not moved it and the timescale is too short for them to.\n\nActing alone makes it worse for the actor. A region that decarbonises while others grow loses economically, sees the climate degrade anyway, and ends up without the wealth or the technology to protect itself. Losing twice is the prisoner's dilemma outcome.\n\nSo the remaining lever is extraction, which needs roughly the energy that put the carbon up there, plus losses. The route that could work is CO2 becoming an economic input, wanted for carbon fibre or construction materials, so the machine captures it for its own reasons.\n\nThe ozone hole is the precedent. It was not solved by banning refrigerants with nothing to replace them. Substitutes were found, and the problem left the conversation.",
+   "summaryLine": "the CO2 curve shows no inflection from any protocol, so extraction technology is the only lever left",
+   "evidence": [
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "the CO2 density curve shows no inflection or beginning of one, so claiming climate is a media problem is provocation pointed at the gap between discourse and measured effect.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "the ozone hole was resolved by substitute refrigerants rather than by prohibition. It resorbs by 2045 and returns to 1980 levels by 2066.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "before the industrial revolution, civilisations that survived collapse did so through rationing and politics. Tokugawa Japan halted deforestation, medieval Icelanders switched from pigs and cattle to sheep and fishing. The Maya mismanaged irrigation and ended.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente",
+     "claim": "Haber found how to fix atmospheric nitrogen and Bosch industrialised it, which removed the Malthusian ceiling for billions. That is the industrial revolution's answer replacing the political one.",
+     "source": "yt-isLAsLgaOro"
+    },
+    {
+     "date": "2026",
+     "author": "Richard Detente, on Jancovici",
+     "claim": "he has read all of it since 2010 and rates the work as intellectually solid, while disagreeing with the conclusions, because the models assume no technological disruption within the timeframe or at the scale needed.",
+     "source": "yt-isLAsLgaOro"
+    }
+   ],
+   "data": [
+    "CO2 atmospheric density: no inflection despite every protocol",
+    "Ozone hole: resorbed by 2045, 1980 levels by 2066",
+    "Serious climate consequences dated around 2050, a 30 year horizon",
+    "Survivors of pre-industrial collapse: about 20%",
+    "Insurers, then reinsurers, are the first to register rising climate losses"
+   ],
+   "conflicts": [],
+   "sources": [
+    "yt-isLAsLgaOro"
+   ],
+   "related": [
+    "Diffusive systems in `06-diffusive-systems.md`",
+    "Energy and compute in `08-energy-and-compute.md`"
+   ],
+   "updated": "2026-09-11"
+  }
+ ],
+ "sources": [
+  {
+   "sid": "yt-isLAsLgaOro",
+   "link": "https://www.youtube.com/watch?v=isLAsLgaOro",
+   "linkKey": "yt:isLAsLgaOro",
+   "title": "Risk, danger and where value moves next",
+   "author": "Richard Detente, Les Financiers",
+   "date": "2026",
+   "location": "pasted in chat, not kept",
+   "brains": [
+    "wealth"
+   ],
+   "stored": "2026-09-11"
+  }
+ ],
+ "notes": [
+  {
+   "sid": "yt-isLAsLgaOro",
+   "title": "Risk, danger and where value moves next",
+   "author": "Richard Detente, Les Financiers",
+   "date": "2026",
+   "topics": [
+    {
+     "topic": "Risk against danger",
+     "ideas": [
+      "Finance measures volatility and calls it risk. Volatility is the quantity of movement, and it matters only when you are forced to sell at a low point. For capital held 10 to 20 years, movement is noise.",
+      "Danger is separate: the probability the position reaches zero. The two are independent. Sovereign debt of a failing state pays its coupon reliably and goes to zero in one announcement. A salary has zero volatility and ends in one conversation. A chauffeur's income swings hard and carries almost no danger.",
+      "Higher volatility correlates with higher potential return. You can lose money on a volatile asset, but you cannot earn a lot on a placid one. Madoff was detectable from that alone: a claimed 10% a year drawn as a straight line contradicts the relationship."
+     ],
+     "data": []
+    },
+    {
+     "topic": "Value and its displacement",
+     "ideas": [
+      "Value is what others want and will pay for. Mowing your own lawn creates none, mowing a neighbour's for money creates it. Entertainment counts, which is why two people paying each other 500 dollars produce real value alongside the GDP.",
+      "Innovation moves value rather than shrinking it. The cart destroys the sedan chair, the car destroys the cart. The holder does not decline gradually, the demand leaves. So the investor's first bet, which nobody can place for them, is where value sits in 10 or 20 years.",
+      "China held a 4 to 7 century lead in the Middle Ages and missed the industrial revolution. Unlimited labour, working guilds and an intact tax base left no demand for a steam engine. Disruption does not happen in a normal universe."
+     ],
+     "data": []
+    },
+    {
+     "topic": "Prudence as the trap",
+     "ideas": [
+      "Prudence means applying what worked for 40 years to the next 40, so that nobody can accuse you of recklessness. It is a bet that value stays put.",
+      "Russian bonds were bought because Russian bonds had worked. That track record was the entire reason and it was worthless.",
+      "The three generation pattern follows: the grandfather speculates and risks everything, the son inherits a warning, the grandson is told to preserve. The parable of the talents treats burying the talent as the one unforgivable choice, and Detente reads it as a statement about societies rather than about religion.",
+      "Prudence held for most of history because change ran slower than a life. A Roman during the fall experienced no fall, it took 300 years. Progress became perceptible within one lifetime only around the industrial revolution."
+     ],
+     "data": []
+    },
+    {
+     "topic": "Diffusive systems",
+     "ideas": [
+      "A diffusive system takes in energy, fights to keep its structure, and emits heat plus information. Since the big bang these systems have grown denser in energy dissipated per unit mass, on an exponential curve. Human societies now rank above galaxies, stars and particles on that measure.",
+      "Macro structures generate micro structures which generate macro structures: galaxies to planets to DNA to species. Density rises as occupied space shrinks, so most of the universe is cold and empty while complexity concentrates. Human geography repeats it, with the Sahara empty and Tokyo dense.",
+      "The cycles shorten, which is log-periodicity. That is why prudence stopped working."
+     ],
+     "data": []
+    },
+    {
+     "topic": "The norm is death",
+     "ideas": [
+      "99.9% of species that ever lived are extinct. About 80% of civilisations that existed have gone. Fighting collapse starts from a losing base rate.",
+      "Speculating gives 20% odds, matching the civilisational survival rate. Refusing danger out of prudence gives 100% odds of being caught."
+     ],
+     "data": []
+    },
+    {
+     "topic": "Fragile and antifragile",
+     "ideas": [
+      "A fragile asset gains in calm and breaks in disorder. An antifragile asset gains with volatility. Plot excess return against volatility and the slopes run opposite, so the classification is measured rather than asserted.",
+      "Gold rises as confidence falls. The yen rises in crisis because Japanese savers repatriate capital, making it antifragile by social structure rather than innovation. Dubai and Swiss property rise with European political volatility, because wealth relocates and families will not move far.",
+      "Bitcoin is antifragile in theory, answering a crisis of monetary confidence, with too few observations to confirm it yet.",
+      "Holding the wrong one is expensive both ways. An antifragile asset in calm is a vaccine with no epidemic, or paper money invented while gold coins work. A fragile asset in a revolution goes to zero.",
+      "Systems reconfigure in short violent episodes. Snow accumulates for months and 30 seconds of avalanche reshapes the slope. Revolutions, wars and monetary collapses occupy very little time and do all the transformation."
+     ],
+     "data": []
+    },
+    {
+     "topic": "Monetary debasement",
+     "ideas": [
+      "The dollar prints about 8% a year. Under 8% return, a dollar portfolio is losing purchasing power while appearing to hold. Nothing marketed as prudent clears 8%.",
+      "Spending beyond revenue leaves three options: taxes, which provoke resistance; debt, which taxes the unborn; printing, which erodes existing wealth invisibly. Switzerland runs balanced accounts, France and the United States do not, China runs internal debt."
+     ],
+     "data": []
+    },
+    {
+     "topic": "Generational cycles",
+     "ideas": [
+      "Strong men make peaceful times, peaceful times make weak men, weak men make war, war makes strong men. US policy rates rise to the late 1970s then fall to zero, and the cycle maps onto it. Detente credits Dalio for the long debt cycle framing while noting that a civilisation can fail to recover, unlike a cycle that always turns.",
+      "The current generation has no tolerance for volatility, danger or risk, and no longer speculates. Speculation became a slur."
+     ],
+     "data": []
+    },
+    {
+     "topic": "Energy and compute",
+     "ideas": [
+      "The constraint on AI is not total electricity, projected at 3% of world supply by 2030. It is density at one point. A grid behaves like a web: spread the load and it carries, concentrate it and it tears.",
+      "A grid is a fixed-cost business, so the load factor sets the price. Idle capacity still has to be amortised, which makes the most expensive kilowatt the one nobody consumes. French nuclear suffers exactly this as deindustrialisation removes demand.",
+      "Hyperscalers cannot be flexible. A three-week run across 300,000 synchronised chips cannot pause, so they demand guaranteed supply, which pushes peak capacity up. Gas generation takes 5 years to build and 10 years of permits, against AI timelines of months.",
+      "Detente's 2022 bet was that AI would exhaust concentrated capacity and be forced to distribute. Bitcoin mining was the entry, because it starts and stops instantly. Texas farms raised the load factor, lowering prices locally, and were paid to shut off during a polar storm when the megawatt hour went from 40 to 500. They also consume when prices go negative from wind oversupply, which rescues producers.",
+      "Data Factory's 2023 fundraising pitched electrical infrastructure rather than mining, despite mining being 100% of revenue. It merged with Hive and Polycloud into Antimatter, which runs container-format distributed data centres on the same slabs. Twenty researchers at Inria convert centralised data centre algorithms for distributed infrastructure.",
+      "On centralisation, OpenAI's founding bet under Musk was decentralisation: trade efficiency for resilience, because the unknown arriving is too large to risk one wrong choice. A centralised optimised system is efficient, a decentralised one is resilient. Detente rejects the idea that decentralised maps cleanly onto antifragile."
+     ],
+     "data": []
+    },
+    {
+     "topic": "Climate",
+     "ideas": [
+      "Atmospheric CO2 shows no inflection from any protocol. The timescale is too short for political mechanisms, and acting alone makes it worse for the actor: decarbonise while others grow and you lose economically, the climate degrades anyway, and you end up without the wealth or technology to protect yourself.",
+      "Before the industrial revolution, survivors of collapse used rationing and politics. Tokugawa Japan halted deforestation, medieval Icelanders switched from pigs and cattle to sheep and fishing, the Maya mismanaged irrigation and ended.",
+      "After it, science became the mechanism. Haber found how to fix atmospheric nitrogen and Bosch industrialised it, removing the Malthusian ceiling for billions. The ozone hole was resolved by substitute refrigerants rather than prohibition, and resorbs by 2045.",
+      "The remaining climate lever is extraction, needing roughly the energy that put the carbon up plus losses. The route that could work is CO2 becoming an economic input, wanted for carbon fibre or construction, so the machine captures it for its own reasons.",
+      "On Jancovici: read in full since 2010, rated intellectually solid, conclusions rejected because the models assume no technological disruption within the timeframe or at the scale needed."
+     ],
+     "data": []
+    },
+    {
+     "topic": "Unknown unknowns",
+     "ideas": [
+      "There is what you know you can do, what you know you cannot, and what you cannot do without knowing it exists. An entrepreneur lists the risks to the project and fails from somewhere unlisted. A services company founded in 2010 listed employment and margin risks, then met ChatGPT in 2022.",
+      "Kurzweil predicted human-level AI around 2030, writing in 2004 by extrapolating curves, and was treated as a crank. Experts extrapolating the past miss systematically.",
+      "The conclusion is to hold convictions strongly enough to move fast and change them when conditions change."
+     ],
+     "data": []
+    },
+    {
+     "topic": "Portfolio construction",
+     "ideas": [
+      "Decorrelation is the only way to raise resilience without giving up return. Owning every S&P 500 name looks like sector spread and is one bet, because they fall together.",
+      "Three burrows follow from value displacement, antifragility and decorrelation: Bitcoin, high-yield luxury property in countries that articulate between blocs, and compute capacity.",
+      "Buying CoreWeave at a price to book of 11 means 11 dollars buys 1 dollar of compute, the rest being expected growth. His answer is selling shares in owned Texas assets at book value.",
+      "He borrows from his community at a fixed 8 to 12% depending on size, 100,000 euro minimum, stands as guarantor, absorbs the volatility himself, and validates each investment move with them."
+     ],
+     "data": []
+    }
+   ],
+   "quotes": [
+    {
+     "text": "L'evolution par nature, c'est des trucs bizarres qui se produisent.",
+     "speaker": "Richard Detente, 2026"
+    },
+    {
+     "text": "Tu peux pas faire de disruption dans un univers normal.",
+     "speaker": "Richard Detente, 2026"
+    },
+    {
+     "text": "On a une intolerance complete a la volatilite du monde, au danger, au risque. On ne specule plus.",
+     "speaker": "Richard Detente, 2026"
+    },
+    {
+     "text": "L'innovation ne [vient] que quand il y a une crise. Tu as besoin d'avoir un climat ou on appelle a l'aide pour que l'innovation apparaisse.",
+     "speaker": "Richard Detente, 2026"
+    },
+    {
+     "text": "Si tu acceptes de speculer et de te lancer dans le combat pour la survie, tu n'as que 20 % de chance de succes. Mais si tu refuses le danger par prudence, tu as 100 % de chance d'y passer.",
+     "speaker": "Richard Detente, 2026"
+    },
+    {
+     "text": "La prudence c'est appliquer les recettes qui ont marche les 40 dernieres annees en se disant bah si on fait la meme chose les 40 prochaines, on pourra pas nous reprocher d'avoir fait n'importe quoi.",
+     "speaker": "Richard Detente, 2026"
+    },
+    {
+     "text": "Le grand-pere etait un aigle, le fils est un faucon et le petit-fils sera un pigeon.",
+     "speaker": "Richard Detente, 2026, quoting a saying"
+    },
+    {
+     "text": "Le kilowatt qui coute le plus cher, c'est celui qu'on ne consomme pas.",
+     "speaker": "Richard Detente, 2026"
+    },
+    {
+     "text": "Les changements importants, les evenements qui marquent une epoque sont toujours des evenements marginaux. C'est pas la normalite qui transforme, c'est l'exception.",
+     "speaker": "Les Financiers, 2026"
+    }
+   ],
+   "thin": [
+    "Elected politicians deeply represent the people who elected them",
+    "France smothers innovation because it disturbs the social order",
+    "University economics professors are unreliable because they manage no money",
+    "Most people do not care about climate change"
+   ],
+   "connections": [
+    {
+     "idea": "Volatility and danger are independent axes",
+     "concept": "Risk and danger",
+     "brain": "brain-subject-wealth"
+    },
+    {
+     "idea": "Value moves when innovation lands",
+     "concept": "Value displacement",
+     "brain": "brain-subject-wealth"
+    },
+    {
+     "idea": "Extrapolating 40 years guarantees missing the move",
+     "concept": "Prudence",
+     "brain": "brain-subject-wealth"
+    },
+    {
+     "idea": "Opposite slopes of return against volatility",
+     "concept": "Fragility and antifragility",
+     "brain": "brain-subject-wealth"
+    },
+    {
+     "idea": "An index is one bet, not 500",
+     "concept": "Decorrelation",
+     "brain": "brain-subject-wealth"
+    },
+    {
+     "idea": "Energy density rises in shortening cycles",
+     "concept": "Diffusive systems",
+     "brain": "brain-subject-wealth"
+    },
+    {
+     "idea": "8% printing sets the real hurdle rate",
+     "concept": "Monetary debasement",
+     "brain": "brain-subject-wealth"
+    },
+    {
+     "idea": "Grid density, not total demand, is the constraint",
+     "concept": "Energy and compute",
+     "brain": "brain-subject-wealth"
+    },
+    {
+     "idea": "No protocol has moved the CO2 curve",
+     "concept": "Climate and techno-solutionism",
+     "brain": "brain-subject-wealth"
+    },
+    {
+     "idea": "Rates cycle with generational character",
+     "concept": "candidate: Generational cycles",
+     "brain": "brain-subject-wealth"
+    },
+    {
+     "idea": "Countries that articulate between blocs",
+     "concept": "candidate: Rotule countries",
+     "brain": "brain-subject-wealth"
+    },
+    {
+     "idea": "Failure arrives from an unlisted risk",
+     "concept": "candidate: Unknown unknowns",
+     "brain": "brain-subject-wealth"
+    }
+   ],
+   "findings": {
+    "new": 47,
+    "echo": 0,
+    "conflicts": [],
+    "seeded": true
+   },
+   "written": "2026-09-11"
+  }
+ ],
+ "candidates": [
+  {
+   "brain": "wealth",
+   "slug": "generational-cycles",
+   "title": "Generational cycles",
+   "notes": [
+    "yt-isLAsLgaOro"
+   ],
+   "count": 1,
+   "updated": "2026-09-11"
+  },
+  {
+   "brain": "wealth",
+   "slug": "rotule-countries",
+   "title": "Rotule countries",
+   "notes": [
+    "yt-isLAsLgaOro"
+   ],
+   "count": 1,
+   "updated": "2026-09-11"
+  },
+  {
+   "brain": "wealth",
+   "slug": "unknown-unknowns",
+   "title": "Unknown unknowns",
+   "notes": [
+    "yt-isLAsLgaOro"
+   ],
+   "count": 1,
+   "updated": "2026-09-11"
+  }
+ ]
+}
