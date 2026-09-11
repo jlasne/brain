@@ -9,7 +9,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
   ask, parseJson, json, cors, sha256, today, slug,
-  linkKey, sourceId, MODEL, MAX_ATTEMPTS,
+  linkKey, sourceId, MODEL, MAX_ATTEMPTS, CHUNK,
 } from "./lib";
 
 const router = httpRouter();
@@ -76,7 +76,7 @@ route("/api/lock", async (ctx, _req, b) => {
 route("/api/state", async (ctx, _req, b) => {
   await gate(ctx, b);
   const s = await ctx.runQuery(internal.store.everything, {});
-  return { ...s, model: MODEL };
+  return { ...s, model: MODEL, chunk: CHUNK };
 });
 
 route("/api/brain", async (ctx, _req, b) => {
@@ -104,7 +104,11 @@ route("/api/drop/check", async (ctx, _req, b) => {
 route("/api/drop/read", async (ctx, _req, b) => {
   await gate(ctx, b);
   const part = Number(b.part ?? 1), total = Number(b.total ?? 1);
-  const { text } = await ask([
+  const chunk = String(b.chunk ?? "");
+  if (chunk.length > CHUNK * 1.5) {
+    return { error: `that part is ${chunk.length} characters, over the ${CHUNK} the reader takes in one pass` };
+  }
+  const { text, finish } = await ask([
     { role: "system", content: "You extract source material. You write in English whatever language the source is in, except inside quotes, which stay exact in the original. You reply with JSON only." },
     { role: "user", content:
 `Extract everything worth keeping from this source. Cover EVERY topic present, whether or not it looks relevant. This is the only read, so nothing gets a second pass.
@@ -119,9 +123,9 @@ Reply with only JSON:
 "thin" holds claims made with no number or evidence behind them.
 
 SOURCE${total > 1 ? ` (part ${part} of ${total})` : ""}:
-${String(b.chunk ?? "")}` },
-  ], { json: true, maxTokens: 8000 });
-  return { part: parseJson(text) };
+${chunk}` },
+  ], { json: true, maxTokens: 24000 });
+  return { part: parseJson(text, finish) };
 });
 
 /** R3. Summaries only, never whole brains, so this costs the same at any size. */
@@ -142,7 +146,7 @@ route("/api/drop/plan", async (ctx, _req, b) => {
   const ext = b.ext ?? {};
   const recent = sources.slice(-40).map((s: any) => `${s.sid} | ${s.author || "?"} | ${s.title || ""}`).join("\n") || "none";
 
-  const { text } = await ask([
+  const { text, finish } = await ask([
     { role: "system", content: "You file sources into a knowledge base. You write in English. You reply with JSON only." },
     { role: "user", content:
 `Decide where this source goes and what it changes. Use ONLY the brains listed.
@@ -174,10 +178,10 @@ THE NEW SOURCE
 title: ${ext.title ?? ""}
 author: ${ext.author ?? ""}
 date: ${ext.date ?? ""}
-${(ext.topics ?? []).map((t: any) => `### ${t.topic}\n${(t.ideas ?? []).join("\n")}\n${(t.data ?? []).join("\n")}`).join("\n\n").slice(0, 34000)}` },
-  ], { json: true, maxTokens: 6000 });
+${(ext.topics ?? []).map((t: any) => `### ${t.topic}\n${(t.ideas ?? []).join("\n")}\n${(t.data ?? []).join("\n")}`).join("\n\n").slice(0, 30000)}` },
+  ], { json: true, maxTokens: 16000 });
 
-  return { plan: parseJson(text) };
+  return { plan: parseJson(text, finish) };
 });
 
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
@@ -221,7 +225,7 @@ THIS SOURCE ADDS: ${adds ?? ""}
 DECISIONS: ${Object.entries(choices).map(([k, v]) => `${k}=${v}`).join(", ") || "keep both"}`;
     }).join("\n\n");
 
-    const { text } = await ask([
+    const { text, finish } = await ask([
       { role: "system", content: "You maintain a knowledge base. You write in English. You reply with JSON only." },
       { role: "user", content:
 `Rewrite each position below from its WHOLE evidence list, now carrying the new source. Re-derive, never append. A position that reads as a list of who said what has failed.
@@ -244,8 +248,8 @@ ${packet}
 NEW SOURCE
 author: ${ext.author || "unknown"} | date: ${ext.date || today()}
 ${(ext.topics ?? []).map((t: any) => `${t.topic}: ${(t.ideas ?? []).join("; ")} ${(t.data ?? []).join("; ")}`).join("\n").slice(0, 20000)}` },
-    ], { json: true, maxTokens: 8000 });
-    rewrites = parseJson(text)?.rewrites ?? [];
+    ], { json: true, maxTokens: 24000 });
+    rewrites = parseJson(text, finish)?.rewrites ?? [];
   }
 
   for (const { c, adds } of touched) {

@@ -519,7 +519,7 @@ const TOKEN_KEY = "octopus.token.v1";
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "",
-  mode: "ask", scope: "all", transcript: null, busy: false, pendingCard: null,
+  mode: "ask", scope: "all", transcript: null, busy: false, pendingCard: null, chunk: 18000,
 };
 
 const $ = id => document.getElementById(id);
@@ -633,7 +633,7 @@ async function open(){ await refresh(); sizeBox(); $("input").focus(); }
 async function refresh(){
   const d = await api("/api/state");
   S.brains = d.brains || []; S.concepts = d.concepts || []; S.sources = d.sources || [];
-  S.model = d.model || "";
+  S.model = d.model || ""; S.chunk = d.chunk || 18000;
   render();
 }
 
@@ -864,7 +864,7 @@ function openTranscript(){
   ta.value = S.transcript || "";
   const count = () => veil.querySelector("#txHint").textContent =
     `${(ta.value.trim().match(/\S+/g)||[]).length.toLocaleString()} words` +
-    (ta.value.length > 40000 ? ` · read in ${Math.ceil(ta.value.length/40000)} passes` : "");
+    (ta.value.length > S.chunk ? ` · read in ${Math.ceil(ta.value.length/S.chunk)} passes` : "");
   count(); ta.oninput = count;
   const shut = () => veil.remove();
   veil.querySelector("#txCancel").onclick = shut;
@@ -935,7 +935,7 @@ async function doDrop(text){
     return;
   }
 
-  const CH = 40000, chunks = [];
+  const CH = S.chunk, chunks = [];
   for (let i=0; i<bodyTxt.length; i+=CH) chunks.push(bodyTxt.slice(i,i+CH));
   const parts = [];
   try {
