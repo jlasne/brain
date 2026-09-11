@@ -11,6 +11,26 @@ Built. The deployment is `uncommon-wolf-174`, Europe (Ireland), and the model is
 
 Change the model on one line, `MODEL` in `convex/lib.ts`.
 
+## Setup, in order
+
+```
+npm install
+npx convex dev
+```
+
+`convex dev` logs you in, asks which project, then writes `.env.local` with the deployment it configured. Choose the existing project, not a new one. Leave it running while you work, or stop it once it reports connected.
+
+Then put the key on production and push:
+
+```
+npx convex env set OPENROUTER_API_KEY sk-or-v1-... --prod
+npx convex deploy
+```
+
+The `--prod` flag matters. Without it the key lands on the dev deployment, and the live site reads production.
+
+To test locally against dev, set it there too and point `window.OCTOPUS_API` in `app/index.html` at the dev URL that `convex dev` printed.
+
 ## Why it exists
 
 The artifact build cannot call OpenRouter. A published artifact's network is locked to a short allowlist of script hosts, so every other fetch is blocked with no visible error. That is the whole reason a second runtime exists.
