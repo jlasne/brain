@@ -398,6 +398,12 @@
   .closest b{ display:block; font:600 12.5px/1 var(--sans); color:var(--accent); margin-bottom:6px; }
 
   /* ============ gate ============ */
+  .app.locked{ filter:blur(2.5px); pointer-events:none; user-select:none; }
+  .sheet .mk{ width:30px; height:30px; color:var(--accent-fill); margin-bottom:13px; }
+  .sheet .mk svg{ width:100%; height:100%; display:block; }
+  .sheet .bad{ color:var(--accent); font-size:13.5px; line-height:1.5; margin-top:4px; min-height:1.2em; }
+  .sheet .spin{ color:var(--ink-3); font-size:13.5px; line-height:1.5; margin-top:4px; min-height:1.2em; }
+
   .gate{
     position:fixed; inset:0; z-index:100; background:var(--bg);
     display:grid; place-items:center; padding:24px;
@@ -462,7 +468,7 @@
 </style>
 
 
-<div class="app" id="app" hidden>
+<div class="app" id="app">
 
   <aside id="side">
     <div class="brand">
@@ -558,62 +564,85 @@ async function api(path, body = {}) {
 /* ============ the gate ============ */
 const MARK = document.querySelector(".brand .mark").innerHTML;
 
+/** A modal over the app, not a wall in front of it. It has no way out,
+    because every route behind it needs the token it hands back. */
 function gateScreen(firstRun) {
-  const g = el("div","gate");
-  g.innerHTML = `
-    <div class="panel">
-      <div class="mk" aria-hidden="true">${MARK}</div>
-      <h2>${firstRun ? "Set a passphrase" : "Octopus is locked"}</h2>
-      <p>${firstRun
-        ? "It guards every call that spends your OpenRouter credits. Only a salted hash gets stored, on the server."
-        : "Enter the passphrase to read your brains and drop sources."}</p>
+  $("app").classList.add("locked");
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="gh">
+      <header>
+        <div class="mk" aria-hidden="true">${MARK}</div>
+        <h3 id="gh">${firstRun ? "Set a passphrase" : "Welcome back"}</h3>
+        <p>${firstRun
+          ? "It guards every call that spends your OpenRouter credits. Only a salted hash gets stored, on the server."
+          : "Enter your passphrase to read your brains and drop sources."}</p>
+      </header>
       <form>
-        <input type="password" id="gp" autocomplete="${firstRun?"new-password":"current-password"}"
-               placeholder="${firstRun?"At least 8 characters":"Passphrase"}" required>
-        <div class="row"><button class="go" type="submit">${firstRun ? "Lock it and open" : "Unlock"}</button></div>
-        <div id="gmsg" class="bad" role="alert"></div>
+        <div class="f">
+          <label for="gp">Passphrase</label>
+          <input type="password" id="gp" autocomplete="${firstRun?"new-password":"current-password"}"
+                 placeholder="${firstRun?"At least 8 characters":""}" required>
+          <div id="gmsg" class="bad" role="alert"></div>
+        </div>
+        <footer><button class="go" type="submit">${firstRun ? "Lock it and open" : "Unlock"}</button></footer>
       </form>
-      <div class="note">The key never reaches this page. Every model call happens on the server, behind this check.</div>
     </div>`;
-  document.body.append(g);
-  const inp = g.querySelector("#gp"), msg = g.querySelector("#gmsg");
+  document.body.append(veil);
+  const inp = veil.querySelector("#gp"), msg = veil.querySelector("#gmsg");
   setTimeout(() => inp.focus(), 60);
-  g.querySelector("form").onsubmit = async e => {
+  veil.querySelector("form").onsubmit = async e => {
     e.preventDefault();
+    const btn = veil.querySelector(".go");
+    btn.disabled = true;
     msg.className = "spin"; msg.textContent = "Checking";
     try {
       const r = await api("/api/unlock", { pass: inp.value });
       S.token = r.token;
       sessionStorage.setItem(TOKEN_KEY, r.token);
-      g.remove(); open();
+      veil.remove(); $("app").classList.remove("locked");
+      await open();
     } catch (err) {
-      msg.className = "bad"; msg.textContent = String(err.message); inp.select();
+      btn.disabled = false;
+      msg.className = "bad"; msg.textContent = String(err.message);
+      inp.select();
     }
   };
 }
 
+/** Same modal shape when the deployment itself is unreachable. */
+function deadScreen(why) {
+  $("app").classList.add("locked");
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <header>
+        <div class="mk" aria-hidden="true">${MARK}</div>
+        <h3>The server is not answering</h3>
+        <p>Octopus reaches a Convex deployment for every read and every model call. This one stayed quiet.</p>
+      </header>
+      <div class="f"><div class="closest" style="margin:0"><b>What came back</b><div>${esc(why)}</div></div></div>
+      <footer><button class="go" id="again">Try again</button></footer>
+    </div>`;
+  document.body.append(veil);
+  veil.querySelector("#again").onclick = () => location.reload();
+}
+
 /* ============ boot ============ */
 (async () => {
+  render(); sizeBox();                       // the shell paints straight away
   const saved = sessionStorage.getItem(TOKEN_KEY);
   if (saved) {
     S.token = saved;
-    try { await refresh(); open(); return; } catch (_) { sessionStorage.removeItem(TOKEN_KEY); S.token = null; }
+    try { await open(); return; } catch (_) { sessionStorage.removeItem(TOKEN_KEY); S.token = null; }
   }
   let gateSet = true;
   try { gateSet = (await api("/api/status")).gateSet; }
-  catch (e) {
-    document.body.innerHTML = "";
-    const g = document.createElement("div"); g.className = "gate";
-    g.innerHTML = `<div class="panel"><div class="mk">${MARK}</div>
-      <h2>The server is not answering</h2>
-      <p>Octopus talks to a Convex deployment for every read and every model call. This one did not reply.</p>
-      <div class="note">${String(e.message)}</div></div>`;
-    document.body.append(g); return;
-  }
+  catch (e) { deadScreen(e.message); return; }
   gateScreen(!gateSet);
 })();
 
-function open(){ $("app").hidden = false; render(); sizeBox(); $("input").focus(); }
+async function open(){ await refresh(); sizeBox(); $("input").focus(); }
 
 async function refresh(){
   const d = await api("/api/state");
