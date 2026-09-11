@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-11c";
+  window.OCTOPUS_BUILD = "2026-09-11d";
 </script>
 
 <style>
@@ -1042,9 +1042,13 @@ function buildCard(pc, flips, others){
   }
 
   const foot = el("div","card-foot");
+  /* A caveat IS a contradiction, it just does not change a position. Saying
+     "no conflict" while one sits logged above the line reads as a lie. */
   foot.append(el("span","hint", flips.length
-    ? `${flips.length} conflict${flips.length===1?"":"s"}. Silence keeps both, so a long list costs you nothing.`
-    : "No conflict with what you hold."));
+    ? `${flips.length} conflict${flips.length===1?"":"s"} to answer. Silence keeps both, so a long list costs you nothing.`
+    : others.length
+      ? `${others.length} contradiction${others.length===1?"":"s"} logged, none big enough to change a position.`
+      : "Nothing here contradicts what you hold."));
   const skip = el("button","ghost","Reject source");
   const ok   = el("button","go","Store it");
   skip.onclick = () => { card.remove(); S.pendingCard=null;
