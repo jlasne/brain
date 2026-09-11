@@ -1,139 +1,225 @@
 ---
 name: brain
-description: A self-tidying knowledge brain in plain markdown. Four modes (setup, ingest, tidy, ask). Use this skill whenever the user drops an article, video transcript, study, URL, or any resource to store; says "feed the brain", "add this to the brain", "brain this"; says "tidy the brain", "digest", "run a tidy"; asks a question the brain should answer from its stored knowledge; says "set up a brain", "new brain", "create a brain"; or says "/brain". If a brain/ folder exists, read it before doing anything. When unsure about the mode, ask.
+description: A knowledge base split into brains, in plain markdown. A brain is a subject or a person, and it grows without limit while its concepts fit its scope. Use this skill whenever the user drops an article, video transcript, study, URL, or any resource to store; says "feed the brain", "add this to the brain", "brain this", "drop this"; asks a question the brain should answer from its stored knowledge; says "create a brain", "new brain", "set up a brain"; or says "/brain". Read PROTOCOL.md before acting. When unsure whether to drop or ask, ask the user.
 ---
 
 # Brain
 
-You manage a knowledge brain stored in a `brain/` folder. It is plain markdown. No database, no app.
+You manage a knowledge base under `brains/`. Plain markdown. No database, no app, no queue.
 
-The brain has two jobs that never happen in the same step:
-1. INGEST captures a resource fast and touches almost nothing.
-2. TIDY rewrites the synthesis so the brain gets smarter, not just bigger.
+Two functions the user calls: **drop** and **ask**. One rare third: **create a brain**.
 
-Keeping these apart is the whole design. An ingest that also rewrites synthesis files is a bug.
-
-## Folder map
-
-- BRAIN-PROTOCOL.md: the domain, the folder map, and the concept router. Read it first, every time.
-- KNOWLEDGE-SUMMARY.md: the RAM. Hard cap 120 lines. One line per concept, pointing to its synthesis file. Rewritten only by TIDY.
-- INBOX.md: the holding area. "Pending tidy" (notes not yet merged) and "Orphans" (concepts with no home yet, with a mention count).
-- notes/_index.md: the registry. One row per resource: id, source, date, author, status (raw or tidied).
-- notes/{id}.md: one note per resource. Written once by INGEST, never edited after.
-- syntheses/{nn}-{concept}.md: one file per concept. Fixed sections, see below. Rewritten only by TIDY.
-- syntheses/00-quotes.md: quotes, appended only by TIDY.
+The full rule set is `PROTOCOL.md` at the repository root. It is the authority. This file is the working summary and it points at the rules by number.
 
 ## First action, every time
 
-If `brain/BRAIN-PROTOCOL.md` does not exist, go to SETUP.
-Otherwise read BRAIN-PROTOCOL.md and KNOWLEDGE-SUMMARY.md. The summary is capped, so this is cheap. Then read the "Pending tidy" count in INBOX.md. If it is 5 or more, say so before anything else: "5 notes are waiting for a tidy, want me to run it first?"
+1. If `brains/MAP.md` is missing, no brain exists yet. Go to CREATE.
+2. Otherwise read `brains/MAP.md`. Search it, never read it whole (R6.1). It carries the brains table, then one concept section per brain.
+
+Read nothing else until you know the mode.
 
 ## Detect the mode
 
-- SETUP: no brain exists, or "set up a brain", "new brain".
-- INGEST: uploaded file, URL, transcript, or "feed the brain", "add this", "store this", "brain this".
-- TIDY: "tidy", "clean", "digest", "run a tidy", or the user agrees to your tidy offer.
-- ASK: a question about a concept, person, framework, or how something works.
-- UNSURE: ask "Add this to the brain, or ask a question about it?"
+| Mode | Signs |
+|---|---|
+| DROP | An uploaded file, a URL, a transcript, or "feed the brain", "add this", "store this", "brain this" |
+| ASK | A question about a concept, a person, a framework, or how something works |
+| CREATE | "create a brain", "new brain", "I want a brain for X" |
+| UNSURE | Ask: "Add this to the brain, or ask a question about it?" |
 
-## Mode 0: SETUP
+## Mode 1 · DROP
 
-A brain with no domain has no router, and with no router it is just a folder. So setup is an interview. Ask these one at a time, wait for each answer:
+Five steps. The user reads step 4 only.
 
-1. What is this brain about? One sentence. Vague answers get one push back: "Investing" is a folder, "macro regimes and emerging markets, for my own portfolio" is a brain.
-2. Name 5 to 12 main concepts you expect to come up. These become the first synthesis files and the router.
-3. What makes two resources the same for you? Same link, same talk given twice, same idea from two people? This sets the duplicate rule.
-4. Who are the recurring voices, if any? Authors, channels, analysts. Optional.
+### Step 1 · Check (R1.1 to R1.3)
 
-Then create:
-- `brain/BRAIN-PROTOCOL.md` with the domain sentence, the folder map above, the duplicate rule, and the router table (one row per concept from question 2, owner file `syntheses/{nn}-{slug}.md`).
-- one empty synthesis file per concept, using the layout below, with Position reading "No position yet."
-- `brain/KNOWLEDGE-SUMMARY.md` with a title, an empty "Current context" block, and one line per concept: "{concept}: no position yet. syntheses/{file}"
-- `brain/INBOX.md` with "Last tidy: none", an empty Pending tidy table, an empty Orphans table.
-- `brain/notes/_index.md` with the header row only.
+Strip tracking parameters. Pull the YouTube video id from any URL format. Search `brains/SOURCES.md` for that link or id.
 
-End with: "Brain ready. Drop a resource to feed it."
+A match ends the drop. Say "Already stored" and name the note.
 
-## Mode 1: INGEST
+A video link with no transcript: ask the user for the transcript, then wait. The check runs first so a repeat costs zero pasting.
 
-Writes exactly three things: one note, one registry row, one INBOX line. Nothing else. If you find yourself editing a synthesis file or the summary during ingest, stop.
+### Step 2 · Read (R2.1 to R2.4)
 
-Steps:
-1. Normalize the source. Strip tracking params. Extract the YouTube ID from any URL format.
-2. Link check. Search the registry for the id or URL. If found, say "Already stored" and point to the note. Stop.
-3. Read the whole resource in chunks. Do not skim.
-4. Idea check. Compare what the resource says against KNOWLEDGE-SUMMARY.md and the duplicate rule in the protocol. Produce the WHAT'S NEW list: ideas, numbers, names, or reasoning chains the brain does not already have. This list can be empty. An empty list is a valid and useful result.
-5. Write the note with these sections in this order:
-   - Source: URL, id, date published, author, format, length
-   - Context: one paragraph, who is speaking and why
-   - Key ideas by theme
-   - Data points: every specific number, name, date, historical analogy
-   - Key quotes: exact wording with speaker
-   - Connections: table mapping each key idea to a concept from the router, or to "orphan" if none fits
-   - What's new: the list from step 4, or "Nothing new. This resource repeats: [concepts]"
-   - Contradictions: anything that conflicts with the current summary, with the summary line quoted
-6. Add the registry row with status "raw".
-7. Add one line to INBOX "Pending tidy": note id, date ingested, number of new items, number of orphans.
-8. For each orphan concept, add it to INBOX "Orphans" or bump its count by one.
-9. Print the receipt: "Stored {id}. Files touched: note, registry, inbox. {n} new items, {m} orphans, {k} contradictions. Pending tidy: {total}."
+Read the whole transcript. A skim is a failed drop.
 
-The receipt is mandatory. It replaces every "don't forget" rule. If the receipt says a fourth file was touched, the ingest was wrong.
+**Extract wide.** Cover every topic present, whether or not it matches a brain. The transcript gets discarded after this, so there is no second read.
 
-## Mode 2: TIDY
+Keep: ideas, numbers, names, dates, reasoning chains, exact quotes, historical comparisons.
+Drop: repetition, advertising, small talk, verbal filler.
 
-Run when the user asks, or when "Pending tidy" reaches 5, or when it has been more than 7 days since the last tidy (date in INBOX.md). Always confirm before starting, and say roughly how many notes and files it will touch.
+Write `brains/notes/{id}.md` from `templates/note.md`. Six sections, fixed order, uncapped length.
 
-Steps:
-1. Read every note in "Pending tidy". Only read the What's new, Connections, and Contradictions sections. The rest was already captured.
-2. Merge, do not append. For each concept touched, open its synthesis file and rewrite the relevant section so it reads as one position with evidence, not a list of who said what. Sources stay attributed and dated inside the Evidence section. A section that only grew a quote list was not tidied.
-3. Contradictions. Each synthesis file has an "Open contradictions" section. For every new one:
-   - If the newer view is better supported, update the Position and move the older view into Evidence with its date.
-   - If both views hold, keep it in Open contradictions with both dates and the reason they differ.
-   - Never delete a view. Views evolve.
-4. Orphans. Any orphan in INBOX with 3 or more mentions becomes a new synthesis file, gets a router line in BRAIN-PROTOCOL.md, and leaves the orphan list. Below 3, it stays.
-5. Quotes. Add notable quotes from the pending notes to 00-quotes.md.
-6. Compress the summary. Rewrite KNOWLEDGE-SUMMARY.md to reflect the new positions. One line per concept, each line ending with the file path. If it exceeds 120 lines, shorten the weakest lines until it fits. Refresh the "Current context" block with the newest dated data only.
-7. Mark each note "tidied" in the registry. Empty "Pending tidy". Write today's date as last tidy in INBOX.md.
-8. Print the tidy report: notes merged, files rewritten, positions changed, contradictions resolved and left open, orphans promoted.
+Then discard the transcript. Keep the link and the location of the user's own copy.
 
-## Mode 3: ASK
+### Step 3 · Compare (R3.1 to R3.5)
 
-1. Check KNOWLEDGE-SUMMARY.md. If it answers, answer from it and cite the file.
-2. If not, use the router to find the right synthesis files, read them, answer.
-3. Answer as a position, then evidence, then open contradictions if any. Not a list of everything ever said.
-4. Weight by date. A newer view outranks an older view on the same question unless the older one has better data. Say which is which.
-5. If "Pending tidy" is 5 or more, add one line: "Note: {n} recent resources are not merged yet, the answer may lag."
-6. Cite file paths so the user can dig deeper.
+**Read summaries, never whole brains.** One line per concept shortlists what this source touches. Opening every concept file here is the one thing that would make a big brain slow.
 
-## Synthesis file layout
+Then open only the shortlisted concept files. Compare each idea against that file's position and evidence, which is where an echo shows up.
 
-Every synthesis file uses these sections, always in this order:
+Sort findings into three lists for the card:
 
-- Position: the brain's current view in a few lines
-- Evidence: attributed and dated, newest first
-- Data points: numbers and names that back the position
-- Open contradictions: views that still conflict, with dates and the reason
-- Related concepts: links to other synthesis files
-- Last tidied: date
+- **new**: ideas, numbers or reasoning the brain lacks
+- **echo**: what this repeats, naming the note it repeats
+- **conflict**: what contradicts a stored position, naming that position
 
-A file missing a section is not finished.
+Claims carrying no data get marked **thin** in the note. They never enter a concept file and they never reach the card.
 
-## Quality standards
+Rank the conflicts. A flip-level conflict would change a position. A caveat-level conflict adds nuance and gets logged without a question.
 
-- Precise numbers. "$7,000 car", not "cheap car". "0.7 fertility rate", not "very low".
-- Attribution stays. "Ovas argues X", not "X is true".
-- Source views and the brain's Position are different things. The Position is the synthesis, the Evidence is the sources.
-- Cross-reference. The brain's value is in the connections between files.
-- Extract everything on ingest. Ingest is the only time the full resource is read.
+### Step 4 · Card (R4.1 to R4.6)
 
-## Structural guarantees
+One card per source. A batch gets one card, grouped by source.
 
-Each one is enforced by a step above, not by memory.
+```
+{id} · {author} · {date} · {length}
 
-- Ingest touches three files. The receipt proves it.
-- Synthesis files change only in TIDY. Never during ingest, never during ask.
-- The summary has a hard line cap and a single writer.
-- Duplicates are caught twice: by link in step 2, by idea in step 4.
-- Orphans have a threshold. No "misc" file exists.
-- Every synthesis section is a rewrite, never an append. Quotes are the only append-only file.
-- Contradictions have one home and are dated. Nothing is deleted.
+Goes to   {brain} (subject) · {brain} (person)
+Concepts  {n} matched · {n} candidates: {names}
+New       {n} items, top 3: ...
+Echoes    {n}, repeats notes {ids}
+
+Conflicts {n}, all kept both unless you say otherwise
+  1  {concept}   new: {claim}, {number}, {date}
+                 stored: {position line}, {date}
+  2  {concept}   new: ...
+                 stored: ...
+
+Reply: "ok", or "new on 1, old on 2", or change any line.
+```
+
+Every flip-level conflict shows, numbered. No cap. Silence means keep both, so a long list costs the user nothing.
+
+Four outcomes per conflict: accept new, keep old, keep both, reject source.
+
+A source that is pure echo gets flagged, and the user decides whether it stays.
+
+In a **person brain**, a claim contradicting that person's own earlier view is drift, not conflict. Log it with both dates and raise no question.
+
+### Step 5 · Settle (R5.1 to R5.10)
+
+Everything here runs after the reply, in one pass, before you say done.
+
+1. Add the `SOURCES.md` row: id, link, date, author, copy location, destination brains.
+2. Add a source row to each touched concept file. Write the card choices into the note.
+3. **Re-derive each touched position from its full evidence list**, now carrying this source. Rewrite it as one view. A grown quote list is a failed settle.
+4. Superseded views move into evidence with their date. Open conflicts stay dated. Every view survives.
+5. **Seeding**: a brain holding zero concept files turns every concept in its first drop into a file. From the second drop on, a candidate needs 3 mentions.
+6. **Promotion** re-reads the notes that mentioned the candidate, so the new file opens with all of them as evidence.
+7. A candidate outside every scope stays in the map, counted, until the user creates a brain for it.
+8. Rewrite each touched summary as the scope line plus exactly one line per concept file. No cap, no trimming. Refresh that brain's map section.
+9. Keep 12 evidence entries per concept. Older entries agreeing with the position compress to one line carrying the count and the date range. Superseded views never compress. The notes keep every detail.
+10. Verify per touched brain: summary lines equal concept files plus one, map rows equal concept files, every owner resolves, each rewritten position reads as one view matching its own evidence.
+
+Then print the receipt:
+
+```
+Stored {id}. Brains {names}.
+Rewritten: {n} positions · {n} summaries · map
+{a} new · {b} echoes · {c} conflicts flipped · {d} kept both
+Coherent. Open conflicts: {concepts}
+```
+
+The receipt is mandatory. A receipt naming a file outside the allowed set proves the drop went wrong.
+
+## Mode 2 · ASK
+
+Two steps (R6.1 to R6.7).
+
+**Where.** Search the map. Pick at most 3 brains. Read their summaries. Open only the concept files the question needs, following owners across brains.
+
+**What.** Answer the way a well-read colleague would.
+
+- The first sentence answers the question. Natural prose, addressed to the person asking.
+- Numbers, dates and findings sit inside the answer.
+- **Names stay out of the answer text**, because the sources line carries them.
+- Newer evidence wins on the same question, and better data overrides that.
+- An open conflict gets stated in prose when it changes what the user would do.
+- Close with one line: `Sources: {author}, {date} · {author}, {date}`. **No file paths.**
+- A brain fed by fewer than 10 sources still answers, opening by saying it rests on a small brain.
+
+A question about a **person** reads their brain and names them throughout. The names-out rule covers subject brains only.
+
+**Wrong shape**
+
+> Position: Cold exposure helps recovery. Guest A argues 11 minutes a week at 11°C works. Guest B counters that the effect fades.
+> `brain-subject-health/02-cold-exposure.md`
+
+**Right shape**
+
+> Yes, at 11 minutes a week split over 2 or 3 sessions, in water near 11°C. One caveat worth planning around: the effect faded after 8 weeks in one trial group, so run it as a cycle rather than a permanent habit.
+>
+> Sources: Guest A, March 2026 · Guest B, June 2026
+
+## Mode 3 · CREATE
+
+The user creates brains (R7.5, R7.6). Ask for three things, one at a time:
+
+1. **The name.** One or a few words.
+2. **The scope**, in one line. This line is the only test of what belongs, so push back once on a vague answer: "health" is a folder, "sleep, recovery and training load for my own routine" is a brain.
+3. **Subject or person.**
+
+**Before creating**, show the closest existing scope and ask whether a new brain is worth it. A yes creates `brains/brain-{type}-{slug}/SUMMARY.md` from `templates/SUMMARY.md`, holding the scope line and nothing else, plus a map row. A no points the user at the existing brain.
+
+On a first-ever brain, also create `brains/MAP.md` and `brains/SOURCES.md` from their templates, and the `brains/notes/` folder.
+
+End with: "Brain ready. Drop a source to feed it."
+
+## Structure
+
+```
+brains/
+  MAP.md                    brains table, then one concept section per brain
+  SOURCES.md                one row per source
+  notes/{id}.md             one note per source
+
+  brain-subject-{slug}/
+    SUMMARY.md              scope line, then one line per concept
+    {nn}-{slug}.md          one concept
+
+  brain-person-{slug}/
+    SUMMARY.md
+    {nn}-{slug}.md
+```
+
+File shapes live in `templates/`. Read the template before writing a file of that kind.
+
+Notes and the source list sit at the root because raw capture belongs to no brain. That is what lets a repeat get caught across every brain at once.
+
+## Writing rules
+
+Apply to every note, position, summary, answer and card. Quotes are the one exception.
+
+1. No em-dashes.
+2. Under 30 words per sentence.
+3. Data replaces adjectives. "0.7 fertility rate", never "very low".
+4. Weasel words removed.
+5. Every line passes the "so what" test. A failing line gets rewritten.
+6. Simple expression, in whatever language is written.
+7. Positive phrasing. State what holds.
+8. **Quotes stay exact.** Rules 1 to 7 stop at the quote marks, because editing a quote destroys the evidence.
+
+## Guarantees
+
+Each one is held by a rule, not by memory.
+
+- Position text changes only after the card reply.
+- Positions get re-derived from the whole evidence list, never appended to.
+- Every source is checked twice: by link, then by idea.
+- Every view survives, carrying its date.
+- A summary carries one line per concept file, always. Never capped, never trimmed.
+- Candidates carry a threshold, so a misc file never appears.
+- Raw transcripts stay outside the brain.
+- Every drop ends coherent, and the receipt proves it.
+- A brain grows without limit while its concepts fit its scope.
+
+## Pitfalls
+
+- Opening every concept file during Compare. Read summaries first, then only the shortlist.
+- Skimming a transcript. The read happens once.
+- Appending to a position instead of re-deriving it. A grown quote list is a failed settle.
+- Putting names inside an answer to a subject question. They belong on the sources line.
+- Capping or trimming a summary. It carries one line per concept file, whatever the count.
+- Saying done before the verify step passes.
+- Editing a quote to satisfy a writing rule.
