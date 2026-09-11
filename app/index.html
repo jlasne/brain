@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-11d";
+  window.OCTOPUS_BUILD = "2026-09-11e";
 </script>
 
 <style>
@@ -234,6 +234,9 @@
   .cf .side{ font-size:14px; line-height:1.5; margin-bottom:4px; }
   .cf .side span{ font:600 11.5px/1.6 var(--sans); letter-spacing:.03em; text-transform:uppercase; color:var(--ink-3); margin-right:7px; }
   .cf .why{ font-size:13.5px; color:var(--ink-3); margin-top:5px; }
+  .cf .kind{ font:600 11px/1.6 var(--sans); letter-spacing:.03em; text-transform:uppercase;
+    color:var(--ink-3); margin:-4px 0 8px; }
+  .cf .kind.big{ color:var(--accent); }
   .cf .opts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
   .opt{
     font:400 13px/1 var(--sans); padding:6px 11px; border-radius:7px;
@@ -969,17 +972,23 @@ async function doDrop(text){
   try { plan = (await api("/api/drop/plan", { ext, brain: S.scope })).plan; }
   catch(e){ fail(body, e.message); return; }
 
-  const flips  = (plan.conflicts||[]).filter(c=>c.kind==="flip");
-  const others = (plan.conflicts||[]).filter(c=>c.kind!=="flip");
-  const pc = { sid: chk.sid, link, ext, plan, choices:{}, len: bodyTxt.length };
+  /* Position-changing clashes lead, nuance follows. Both get a say, because
+     you are the one who holds these positions. */
+  const decide = [...(plan.conflicts||[]).filter(c=>c.kind==="flip"),
+                  ...(plan.conflicts||[]).filter(c=>c.kind!=="flip")];
+  const pc = { sid: chk.sid, link, ext, plan, choices:{}, byKey:{}, len: bodyTxt.length };
   S.pendingCard = pc; S.transcript = null; renderComposer();
 
   body.innerHTML = "";
-  body.append(buildCard(pc, flips, others));
+  body.append(buildCard(pc, decide));
   bottom();
 }
 
-function buildCard(pc, flips, others){
+/* The decision travels under the concept it concerns, never under a position
+   number, because the rewriter reads it per concept. */
+const ckey = (c, i) => c.conceptId || (c.brain && c.concept ? c.brain+"/"+c.concept : c.concept) || ("c"+i);
+
+function buildCard(pc, decide){
   const { sid, ext, plan } = pc;
   const card = el("div","card");
   const top = el("div","card-top");
@@ -1013,29 +1022,30 @@ function buildCard(pc, flips, others){
   if (!(plan.echo||[]).length) eu.append(el("li","none","none"));
   row(`Echoes ${(plan.echo||[]).length||""}`, eu);
 
-  if (others.length){
-    const ou = el("ul");
-    others.forEach(c => ou.append(el("li",null,`· ${c.concept}: ${c.kind==="drift"?"drift":"caveat"}, logged without a question`)));
-    row("Logged", ou);
-  }
   card.append(dl);
 
-  if (flips.length){
+  if (decide.length){
     const wrap = el("div","conflicts");
-    flips.forEach((c,i) => {
+    decide.forEach((c,i) => {
+      const key = ckey(c,i);
       const f = el("div","cf"); f.append(el("span","n",String(i+1)));
       const r = el("div");
       r.append(el("div","cn", c.concept + (c.brain ? "  ·  "+(S.brains.find(b=>b.slug===c.brain)?.name||c.brain) : "")));
+      r.append(el("div", c.kind==="flip" ? "kind big" : "kind",
+        c.kind==="flip" ? "changes the position"
+        : c.kind==="drift" ? "same person, later view"
+        : "adds nuance, position holds"));
       const mk = (lab,val,date) => { const d=el("div","side"); d.append(el("span",null,lab), document.createTextNode(String(val||"") + (date?`, ${date}`:""))); return d; };
       r.append(mk("new", c.says, c.saysDate), mk("stored", c.stored, c.storedDate));
       if (c.why) r.append(el("div","why","They differ because "+c.why));
       const opts = el("div","opts");
-      [["both","keep both"],["new","accept new"],["old","keep old"],["skip","reject source"]].forEach(([v,lab]) => {
+      [["both","keep both"],["new","new wins"],["old","mine wins"],["skip","reject source"]].forEach(([v,lab]) => {
         const o = el("button","opt"+(v==="both"?" dflt on":""), lab);
-        o.onclick = () => { pc.choices[i]=v; [...opts.children].forEach(x=>x.classList.remove("on")); o.classList.add("on"); };
+        o.onclick = () => { pc.choices[key]=v; [...opts.children].forEach(x=>x.classList.remove("on")); o.classList.add("on"); };
         opts.append(o);
       });
-      pc.choices[i] = "both";
+      pc.choices[key] = "both";
+      pc.byKey[key] = c;
       r.append(opts); f.append(r); wrap.append(f);
     });
     card.append(wrap);
@@ -1043,12 +1053,10 @@ function buildCard(pc, flips, others){
 
   const foot = el("div","card-foot");
   /* A caveat IS a contradiction, it just does not change a position. Saying
-     "no conflict" while one sits logged above the line reads as a lie. */
-  foot.append(el("span","hint", flips.length
-    ? `${flips.length} conflict${flips.length===1?"":"s"} to answer. Silence keeps both, so a long list costs you nothing.`
-    : others.length
-      ? `${others.length} contradiction${others.length===1?"":"s"} logged, none big enough to change a position.`
-      : "Nothing here contradicts what you hold."));
+     "no conflict" while one sits above the line reads as a lie. */
+  foot.append(el("span","hint", decide.length
+    ? `${decide.length} contradiction${decide.length===1?"":"s"} to settle. Silence keeps both, so a long list costs you nothing.`
+    : "Nothing here contradicts what you hold."));
   const skip = el("button","ghost","Reject source");
   const ok   = el("button","go","Store it");
   skip.onclick = () => { card.remove(); S.pendingCard=null;
@@ -1080,7 +1088,7 @@ function receipt(r, pc){
   const ch = Object.values(pc.choices||{});
   const flipped = ch.filter(x=>x==="new").length, both = ch.filter(x=>x==="both").length;
   const open = Object.entries(pc.choices||{}).filter(([,v])=>v==="both")
-    .map(([i]) => (pc.plan.conflicts||[]).filter(c=>c.kind==="flip")[i]?.concept).filter(Boolean);
+    .map(([k]) => (pc.byKey||{})[k]?.concept).filter(Boolean);
   const d = el("div","receipt");
   d.innerHTML =
 `Stored <span class="v">${esc(r.sid)}</span>. Brains <span class="v">${esc(names)}</span>.

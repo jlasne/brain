@@ -234,14 +234,26 @@ route("/api/drop/settle", async (ctx, _req, b) => {
   if (touched.length) {
     const packet = touched.map(({ c, adds }) => {
       const br = brains.find((x: any) => x.slug === c.brain);
-      return `### ${c.brain}/${c.slug}
+      const id = `${c.brain}/${c.slug}`;
+      /* Each concept carries only its own decision, spelled out with the two
+         claims it sits between. Sending every decision to every concept, keyed
+         by a position number, gave the model nothing it could act on. */
+      const mine = (plan.conflicts ?? []).filter((x: any) =>
+        x.conceptId === id || slug(x.concept ?? "") === c.slug);
+      const decisions = mine.map((x: any) => {
+        const pick = choices[x.conceptId ?? ""] ?? choices[`${x.brain}/${x.concept}`]
+          ?? choices[x.concept ?? ""] ?? choices[id] ?? "both";
+        return `${pick.toUpperCase()} on: new claims "${x.says ?? ""}" (${x.saysDate || "undated"}) ` +
+               `against stored "${x.stored ?? ""}" (${x.storedDate || "undated"})`;
+      });
+      return `### ${id}
 brain: ${br?.name} [${br?.type}], scope: ${br?.scope}
 concept: ${c.title}
 CURRENT POSITION: ${c.position || "none yet"}
 FULL EVIDENCE LIST (newest first):
 ${(c.evidence ?? []).map((e: any) => `- ${e.date ?? "?"} ${e.author ?? "?"}: ${e.claim ?? ""}`).join("\n") || "- none"}
 THIS SOURCE ADDS: ${adds ?? ""}
-DECISIONS: ${Object.entries(choices).map(([k, v]) => `${k}=${v}`).join(", ") || "keep both"}`;
+MY DECISION: ${decisions.length ? decisions.join("\n") : "no contradiction here"}`;
     }).join("\n\n");
 
     const { text, finish } = await ask([
@@ -251,9 +263,10 @@ DECISIONS: ${Object.entries(choices).map(([k, v]) => `${k}=${v}`).join(", ") || 
 
 RULES
 - One view per position, a few lines, stating what holds.
-- "new" means the position flips and the old view moves into evidence with its date.
-- "old" means the new claim stays a minority view and the position holds.
-- "both" means the position holds and the clash goes into open conflicts, dated, with the reason.
+- Obey MY DECISION on every concept that carries one. It is the owner's ruling, so it outranks your own reading of the evidence.
+- NEW means the position flips to the new claim, and the old view moves into evidence with its date.
+- OLD means the stored position holds, and the new claim joins the evidence as a minority view.
+- BOTH means the position holds and the clash goes into open conflicts, dated, with the reason.
 - Never delete a view.
 - English, always. No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording.
 - summaryLine is ONE line, under 18 words.
