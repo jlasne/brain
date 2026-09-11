@@ -1,0 +1,1489 @@
+<title>Octopus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+  :root{
+    /* Claude palette, light is the default */
+    --bg:#faf9f5; --surface:#ffffff; --surface-2:#f0eee6; --surface-3:#e9e6dc;
+    --ink:#141413; --ink-2:#3d3d3a; --ink-3:#6e6e68; --ink-4:#93918a;
+    --line:#e5e2d9; --line-2:#d4d0c4;
+    --accent:#bf5a3c; --accent-fill:#d97757; --accent-on:#ffffff;
+    --accent-soft:rgba(217,119,87,.10); --accent-line:rgba(217,119,87,.34);
+    --good:#3f7d5c;
+    --shadow:0 1px 2px rgba(20,20,19,.05), 0 1px 8px rgba(20,20,19,.04);
+    --shadow-lift:0 2px 6px rgba(20,20,19,.07), 0 12px 32px rgba(20,20,19,.10);
+
+    --sans:'Hanken Grotesk',ui-sans-serif,system-ui,'Helvetica Neue',Arial,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --ease:cubic-bezier(.22,.61,.36,1);
+    color-scheme:light;
+  }
+
+  :root:not([data-theme="light"]){
+    @media (prefers-color-scheme:dark){
+      --bg:#262624; --surface:#30302e; --surface-2:#3a3a37; --surface-3:#44443f;
+      --ink:#f5f4ef; --ink-2:#d8d6ce; --ink-3:#a8a69d; --ink-4:#8a887f;
+      --line:#45443f; --line-2:#57564f;
+      --accent:#e79173; --accent-fill:#d97757; --accent-on:#1a1a18;
+      --accent-soft:rgba(217,119,87,.13); --accent-line:rgba(217,119,87,.40);
+      --good:#6fb891;
+      --shadow:0 1px 2px rgba(0,0,0,.22), 0 1px 8px rgba(0,0,0,.18);
+      --shadow-lift:0 2px 6px rgba(0,0,0,.28), 0 12px 32px rgba(0,0,0,.34);
+      color-scheme:dark;
+    }
+  }
+
+  :root[data-theme="dark"]{
+    --bg:#262624; --surface:#30302e; --surface-2:#3a3a37; --surface-3:#44443f;
+    --ink:#f5f4ef; --ink-2:#d8d6ce; --ink-3:#a8a69d; --ink-4:#8a887f;
+    --line:#45443f; --line-2:#57564f;
+    --accent:#e79173; --accent-fill:#d97757; --accent-on:#1a1a18;
+    --accent-soft:rgba(217,119,87,.13); --accent-line:rgba(217,119,87,.40);
+    --good:#6fb891;
+    --shadow:0 1px 2px rgba(0,0,0,.22), 0 1px 8px rgba(0,0,0,.18);
+    --shadow-lift:0 2px 6px rgba(0,0,0,.28), 0 12px 32px rgba(0,0,0,.34);
+    color-scheme:dark;
+  }
+
+  html{ background:var(--bg); }
+  body{
+    background:var(--bg); color:var(--ink-2);
+    font:400 16px/1.62 var(--sans);
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    height:100dvh; overflow:hidden;
+  }
+  ::selection{ background:var(--accent-soft); color:var(--ink); }
+
+  button,input,textarea,select{ font:inherit; color:inherit; background:none; border:none; }
+  button{ cursor:pointer; }
+  :focus-visible{ outline:2px solid var(--accent-fill); outline-offset:2px; border-radius:4px; }
+
+  ::-webkit-scrollbar{ width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line-2); border-radius:10px; border:3px solid transparent; background-clip:content-box; }
+  ::-webkit-scrollbar-thumb:hover{ background:var(--surface-3); background-clip:content-box; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+
+  /* ============ shell ============ */
+  .app{ display:grid; grid-template-columns:264px 1fr; height:100dvh; }
+
+  /* ============ sidebar ============ */
+  aside{
+    background:var(--surface-2); border-right:1px solid var(--line);
+    display:flex; flex-direction:column; min-height:0;
+  }
+  .brand{
+    padding:18px 18px 15px;
+    display:flex; align-items:center; gap:9px;
+  }
+  .brand .mark{ width:24px; height:24px; flex-shrink:0; color:var(--accent-fill); }
+  .brand .mark svg{ width:100%; height:100%; display:block; }
+  .brand h1{ font:600 18px/1 var(--sans); letter-spacing:-.015em; color:var(--ink); }
+
+  .side-scroll{ flex:1; overflow-y:auto; padding:16px 12px; min-height:0; }
+  .side-h{
+    font:500 12.5px/1 var(--sans); letter-spacing:0;
+    color:var(--ink-3); padding:0 9px 10px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .side-h b{ color:var(--accent); font-weight:500; }
+
+  .brain-row{
+    display:block; width:100%; text-align:left;
+    padding:10px 11px; border-radius:9px; margin-bottom:3px;
+    transition:background .15s var(--ease);
+  }
+  .brain-row:hover{ background:var(--surface); }
+  .brain-row.on{ background:var(--surface); box-shadow:inset 2px 0 0 var(--accent-fill), var(--shadow); }
+  .brain-row .bn{ display:flex; align-items:center; gap:7px; }
+  .brain-row .nm{ font:500 14px/1.3 var(--sans); color:var(--ink); }
+  .brain-row .tp{
+    font:400 9px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase;
+    padding:2px 5px; border-radius:3px; flex-shrink:0;
+  }
+  .tp.subject{ color:var(--accent); background:var(--accent-soft); }
+  .tp.person{ color:var(--ink-3); background:var(--surface-3); }
+  .brain-row .sc{
+    font:400 12px/1.45 var(--sans); color:var(--ink-3);
+    margin-top:3px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .brain-row .ct{ font:400 10.5px/1 var(--mono); color:var(--ink-3); margin-top:5px; }
+
+  .empty-side{ padding:8px; font:400 13px/1.55 var(--sans); color:var(--ink-3); }
+
+  .new-brain{
+    margin:9px 0 0; padding:10px 11px; width:100%; text-align:left;
+    border:1px dashed var(--line-2); border-radius:9px;
+    font:500 13px/1 var(--sans); color:var(--accent);
+    transition:background .15s var(--ease), border-color .15s var(--ease);
+  }
+  .new-brain:hover{ background:var(--surface); border-color:var(--accent-fill); }
+
+  .side-foot{
+    border-top:1px solid var(--line); padding:12px 20px;
+    font:400 11px/1.6 var(--mono); color:var(--ink-3);
+    display:flex; justify-content:space-between; gap:8px;
+  }
+  .side-foot button{ color:var(--ink-3); text-decoration:underline; text-underline-offset:2px; }
+  .side-foot button:hover{ color:var(--accent); }
+
+  /* ============ main ============ */
+  main{ display:flex; flex-direction:column; min-height:0; min-width:0; }
+
+  .thread{ flex:1; overflow-y:auto; padding:36px 0 8px; min-height:0; scroll-behavior:smooth; }
+  .col{ width:100%; max-width:760px; margin:0 auto; padding:0 28px; }
+
+  /* ============ messages ============ */
+  .msg{ margin-bottom:30px; animation:rise .28s var(--ease) both; }
+  @keyframes rise{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+
+  .msg.me{ display:flex; justify-content:flex-end; }
+  .msg.me .body{
+    background:var(--surface-2); border-radius:18px 18px 6px 18px;
+    padding:12px 17px; max-width:82%; color:var(--ink);
+    white-space:pre-wrap; overflow-wrap:anywhere;
+  }
+  .msg.me .body .attach{
+    display:block; margin-top:7px; padding-top:7px; border-top:1px solid var(--line);
+    font:400 11.5px/1.5 var(--mono); color:var(--ink-3);
+  }
+
+  .msg.ai .who{
+    font:600 12.5px/1 var(--sans); letter-spacing:0; text-transform:none;
+    color:var(--ink); margin-bottom:10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .msg.ai .who .sc{ color:var(--ink-3); font-weight:400; }
+  .msg.ai .body{ color:var(--ink-2); font-size:16.5px; line-height:1.68; }
+  .msg.ai .body p{ margin-bottom:.85em; }
+  .msg.ai .body p:last-child{ margin-bottom:0; }
+  .msg.ai .body strong{ color:var(--ink); font-weight:500; }
+  .msg.ai .body em{ font-style:normal; color:var(--ink); }
+
+  .srcline{
+    margin-top:14px; padding-top:11px; border-top:1px solid var(--line);
+    font:400 12px/1.6 var(--mono); color:var(--ink-3);
+  }
+  .smallbrain{
+    display:inline-block; margin-bottom:10px;
+    font:400 11px/1.5 var(--mono); color:var(--accent);
+    border:1px solid var(--accent-line); border-radius:4px; padding:3px 8px;
+  }
+
+  .thinking{ display:flex; align-items:center; gap:9px; color:var(--ink-3); font:400 15px/1 var(--sans); }
+  .dots{ display:inline-flex; gap:3px; }
+  .dots i{ width:5px; height:5px; border-radius:50%; background:var(--accent-fill); animation:pulse 1.3s infinite var(--ease); }
+  .dots i:nth-child(2){ animation-delay:.18s; }
+  .dots i:nth-child(3){ animation-delay:.36s; }
+  @keyframes pulse{ 0%,60%,100%{ opacity:.25; transform:translateY(0); } 30%{ opacity:1; transform:translateY(-3px); } }
+
+  .err{
+    border:1px solid var(--accent-line); background:var(--accent-soft);
+    border-radius:12px; padding:13px 15px; color:var(--ink-2); font-size:15px;
+  }
+  .err b{ color:var(--accent); font-weight:500; display:block; margin-bottom:3px; }
+
+  /* ============ the card ============ */
+  .card{
+    border:1px solid var(--accent-line); background:var(--surface);
+    border-radius:16px; overflow:hidden; box-shadow:var(--shadow-lift);
+  }
+  .card-top{
+    padding:14px 16px; border-bottom:1px solid var(--line);
+    display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px;
+  }
+  .card-top .id{ font:700 13px/1.3 var(--mono); color:var(--ink); }
+  .card-top .meta{ font:400 11.5px/1.4 var(--mono); color:var(--ink-3); }
+
+  .card-grid{ display:grid; grid-template-columns:auto 1fr; gap:9px 14px; padding:14px 16px; }
+  .card-grid dt{
+    font:600 12.5px/1.6 var(--sans); letter-spacing:0;
+    color:var(--accent); white-space:nowrap;
+  }
+  .card-grid dd{ font-size:14.5px; line-height:1.55; color:var(--ink-2); }
+  .card-grid dd b{ color:var(--ink); font-weight:500; }
+  .card-grid dd ul{ list-style:none; }
+  .card-grid dd li{ margin-bottom:3px; }
+  .card-grid dd li:last-child{ margin-bottom:0; }
+  .card-grid dd .none{ color:var(--ink-3); }
+
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{
+    font:400 12.5px/1 var(--sans); padding:5px 9px; border-radius:6px;
+    border:1px solid var(--line-2); color:var(--ink-2); background:var(--surface-2);
+  }
+  .chip.new{ color:var(--accent); border-color:var(--line-2); }
+  .chip.cand{ color:var(--accent); border-color:var(--accent-line); }
+
+  .conflicts{ border-top:1px solid var(--line); }
+  .cf{ padding:14px 16px; border-bottom:1px solid var(--line); display:grid; grid-template-columns:2.4ch 1fr; gap:12px; }
+  .cf:last-child{ border-bottom:none; }
+  .cf .n{ font:600 14px/1.55 var(--sans); color:var(--accent); }
+  .cf .cn{ font:600 14.5px/1.4 var(--sans); color:var(--ink); margin-bottom:8px; }
+  .cf .side{ font-size:14px; line-height:1.5; margin-bottom:4px; }
+  .cf .side span{ font:600 11.5px/1.6 var(--sans); letter-spacing:.03em; text-transform:uppercase; color:var(--ink-3); margin-right:7px; }
+  .cf .why{ font-size:13.5px; color:var(--ink-3); margin-top:5px; }
+  .cf .opts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .opt{
+    font:400 13px/1 var(--sans); padding:6px 11px; border-radius:7px;
+    border:1px solid var(--line-2); color:var(--ink-2); background:var(--surface-2);
+    transition:all .15s var(--ease);
+  }
+  .opt:hover{ border-color:var(--accent-fill); color:var(--ink); background:var(--surface-2); }
+  .opt.on{ border-color:var(--accent-fill); color:var(--accent); background:var(--accent-soft); font-weight:500; }
+  .opt.dflt{ border-style:dashed; }
+
+  .card-foot{
+    padding:14px 16px; border-top:1px solid var(--line); background:var(--surface-2);
+    display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+  }
+  .card-foot .hint{ font:400 13px/1.5 var(--sans); color:var(--ink-3); flex:1; min-width:170px; }
+  .go{
+    font:500 14px/1 var(--sans); padding:10px 19px; border-radius:9px;
+    background:var(--accent-fill); color:var(--accent-on);
+    box-shadow:var(--shadow);
+    transition:filter .15s var(--ease);
+  }
+  .go:hover{ filter:brightness(1.12); }
+  .go[disabled]{ opacity:.4; cursor:default; filter:none; }
+  .ghost{
+    font:500 14px/1 var(--sans); padding:10px 15px; border-radius:9px;
+    border:1px solid var(--line-2); color:var(--ink-2);
+  }
+  .ghost:hover{ border-color:var(--accent-fill); color:var(--ink); background:var(--surface); }
+
+  .receipt{
+    border:1px solid var(--line); background:var(--surface-2);
+    border-radius:12px; padding:15px 17px;
+    font:400 12.5px/1.9 var(--mono); color:var(--ink-2);
+    white-space:pre-wrap; overflow-wrap:anywhere;
+  }
+  .receipt .v{ color:var(--accent); }
+  .receipt .ok{ color:var(--good); }
+
+  /* ============ empty state ============ */
+  .zero{ max-width:640px; margin:0 auto; padding:28px 28px 0; }
+  .zero h2{ font:600 30px/1.2 var(--sans); letter-spacing:-.02em; color:var(--ink); text-wrap:balance; }
+  .zero .lede{ margin-top:14px; font-size:17px; line-height:1.62; color:var(--ink-2); }
+  .zero .two{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:1px; margin-top:28px; background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:var(--shadow); }
+  .zero .two div{ background:var(--surface); padding:18px 20px; }
+  .zero .two h3{ font:600 14px/1 var(--sans); color:var(--accent); }
+  .zero .two p{ margin-top:9px; font-size:14px; line-height:1.55; }
+  .zero .suggest{ margin-top:26px; }
+  .zero .suggest .side-h{ padding-left:0; }
+  .sg{
+    display:block; width:100%; text-align:left; padding:13px 15px; margin-bottom:8px;
+    border:1px solid var(--line-2); border-radius:12px; background:var(--surface);
+    transition:all .15s var(--ease);
+  }
+  .sg:hover{ border-color:var(--accent-fill); box-shadow:var(--shadow); }
+  .sg b{ display:block; font:500 14.5px/1.3 var(--sans); color:var(--ink); }
+  .sg span{ display:block; margin-top:3px; font-size:13px; line-height:1.5; color:var(--ink-3); }
+
+  /* ============ composer ============ */
+  .composer-wrap{
+    border-top:1px solid var(--line);
+    background:linear-gradient(to bottom, transparent, var(--bg) 24%);
+    padding-bottom:18px;
+  }
+  .composer{
+    width:100%; max-width:760px; margin:0 auto; padding:14px 28px 0;
+  }
+  .ctrls{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:9px; }
+
+  .seg{ display:inline-flex; border:1px solid var(--line-2); border-radius:9px; overflow:hidden; background:var(--surface); }
+  .seg button{
+    font:500 13px/1 var(--sans); letter-spacing:0;
+    padding:8px 15px; color:var(--ink-3);
+    transition:all .15s var(--ease);
+  }
+  .seg button:hover{ color:var(--ink); }
+  .seg button.on{ background:var(--accent-fill); color:var(--accent-on); }
+
+  .scope{
+    display:inline-flex; align-items:center; gap:7px;
+    border:1px solid var(--line-2); border-radius:9px; padding:0 11px 0 12px; background:var(--surface);
+  }
+  .scope label{ font:400 13px/1 var(--sans); color:var(--ink-3); }
+  .scope select{
+    font:500 13px/1 var(--sans); color:var(--ink); padding:8px 2px 8px 0;
+    appearance:none; cursor:pointer; max-width:170px;
+  }
+  .scope select option{ background:var(--surface); color:var(--ink); }
+  .scope:focus-within{ border-color:var(--accent-fill); }
+  .scope::after{ content:"▾"; color:var(--ink-3); font-size:10px; margin-left:-3px; pointer-events:none; }
+
+  .box{
+    border:1px solid var(--line-2); border-radius:20px; background:var(--surface);
+    box-shadow:var(--shadow);
+    transition:border-color .18s var(--ease), box-shadow .18s var(--ease);
+  }
+  .box:focus-within{ border-color:var(--accent-fill); box-shadow:var(--shadow-lift); }
+  .box textarea{
+    display:block; width:100%; resize:none; padding:15px 18px 6px;
+    font:400 16.5px/1.6 var(--sans); color:var(--ink);
+    max-height:210px; overflow-y:auto;
+  }
+  .box textarea::placeholder{ color:var(--ink-3); }
+  .box .tbar{ display:flex; align-items:center; gap:9px; padding:6px 12px 11px 18px; }
+  .box .tbar .t{ flex:1; font:400 11.5px/1.5 var(--mono); color:var(--ink-3); }
+  .paste{
+    font:400 11.5px/1 var(--mono); padding:6px 10px; border-radius:5px;
+    border:1px solid var(--line); color:var(--ink-3);
+    transition:all .15s var(--ease);
+  }
+  .paste:hover{ border-color:var(--accent); color:var(--ink); }
+  .paste.has{ border-color:var(--good); color:var(--good); }
+  .send{
+    width:34px; height:34px; border-radius:50%; flex-shrink:0;
+    background:var(--accent-fill); color:var(--accent-on);
+    display:grid; place-items:center; box-shadow:var(--shadow);
+    transition:filter .15s var(--ease), opacity .15s var(--ease);
+  }
+  .send:hover{ filter:brightness(1.12); }
+  .send[disabled]{ opacity:.3; cursor:default; filter:none; }
+  .send svg{ width:15px; height:15px; display:block; }
+
+  .foot-note{
+    max-width:760px; margin:9px auto 0; padding:0 28px;
+    font:400 12.5px/1.5 var(--sans); color:var(--ink-3); text-align:center;
+  }
+
+  /* ============ modal ============ */
+  .veil{
+    position:fixed; inset:0; background:rgba(20,20,19,.44); backdrop-filter:blur(3px);
+    display:grid; place-items:center; padding:20px; z-index:50;
+    animation:fade .18s var(--ease) both;
+  }
+  @keyframes fade{ from{opacity:0} to{opacity:1} }
+  .sheet{
+    width:100%; max-width:480px; background:var(--surface);
+    border:1px solid var(--line); border-radius:18px; overflow:hidden;
+    box-shadow:var(--shadow-lift);
+    animation:rise .24s var(--ease) both;
+  }
+  .sheet header{ padding:18px 20px 14px; border-bottom:1px solid var(--line); }
+  .sheet h3{ font:600 19px/1.25 var(--sans); letter-spacing:-.01em; color:var(--ink); }
+  .sheet header p{ margin-top:7px; font-size:13.5px; line-height:1.55; color:var(--ink-3); }
+  .sheet .f{ padding:16px 20px 4px; }
+  .sheet .f + .f{ padding-top:0; }
+  .sheet label{
+    display:block; font:500 13px/1 var(--sans); color:var(--ink);
+    margin-bottom:7px;
+  }
+  .sheet input, .sheet textarea{
+    width:100%; border:1px solid var(--line-2); border-radius:9px; background:var(--bg);
+    padding:10px 12px; font:400 14.5px/1.5 var(--sans); color:var(--ink);
+    transition:border-color .15s var(--ease);
+  }
+  .sheet input:focus, .sheet textarea:focus{ border-color:var(--accent-fill); }
+  .sheet textarea{ resize:vertical; min-height:62px; }
+  .sheet .hint{ margin-top:7px; font:400 13px/1.5 var(--sans); color:var(--ink-3); }
+  .sheet footer{ padding:16px 20px 18px; display:flex; justify-content:flex-end; gap:9px; }
+  .closest{
+    margin:0 20px 4px; padding:12px 14px; border-radius:12px;
+    border:1px solid var(--accent-line); background:var(--accent-soft);
+    font-size:13.5px; line-height:1.55;
+  }
+  .closest b{ display:block; font:600 12.5px/1 var(--sans); color:var(--accent); margin-bottom:6px; }
+
+  /* ============ gate ============ */
+  .gate{
+    position:fixed; inset:0; z-index:100; background:var(--bg);
+    display:grid; place-items:center; padding:24px;
+  }
+  .gate .panel{
+    width:100%; max-width:392px; text-align:left;
+    animation:rise .3s var(--ease) both;
+  }
+  .gate .mk{ width:38px; height:38px; color:var(--accent-fill); margin-bottom:20px; }
+  .gate .mk svg{ width:100%; height:100%; display:block; }
+  .gate h2{ font:600 25px/1.2 var(--sans); letter-spacing:-.02em; color:var(--ink); text-wrap:balance; }
+  .gate p{ margin-top:11px; font-size:15.5px; line-height:1.6; color:var(--ink-3); }
+  .gate form{ margin-top:22px; display:flex; flex-direction:column; gap:10px; }
+  .gate input{
+    width:100%; border:1px solid var(--line-2); border-radius:12px; background:var(--surface);
+    padding:13px 15px; font:400 16px/1.4 var(--sans); color:var(--ink);
+    box-shadow:var(--shadow); transition:border-color .15s var(--ease);
+  }
+  .gate input:focus{ border-color:var(--accent-fill); }
+  .gate .row{ display:flex; gap:9px; align-items:center; }
+  .gate .row .go{ flex:1; justify-content:center; }
+  .gate .note{
+    margin-top:18px; padding-top:16px; border-top:1px solid var(--line);
+    font-size:13.5px; line-height:1.6; color:var(--ink-3);
+  }
+  .gate .bad{ color:var(--accent); font-size:14px; line-height:1.5; }
+  .gate .spin{ font-size:14px; color:var(--ink-3); }
+
+  /* ============ responsive ============ */
+  @media (max-width:860px){
+    .app{ grid-template-columns:1fr; }
+    aside{
+      position:fixed; inset:0 auto 0 0; width:264px; z-index:40;
+      transform:translateX(-100%); transition:transform .22s var(--ease);
+      box-shadow:0 0 40px rgba(0,0,0,.5);
+    }
+    aside.open{ transform:none; }
+    .burger{ display:grid !important; }
+  }
+  .burger{
+    display:none; place-items:center; width:32px; height:32px; border-radius:7px;
+    border:1px solid var(--line); color:var(--ink-2); flex-shrink:0;
+  }
+  .topbar{
+    display:flex; align-items:center; gap:11px; padding:12px 20px;
+    border-bottom:1px solid var(--line); background:var(--surface-2);
+  }
+  @media (min-width:861px){ .topbar{ display:none; } }
+  .topbar h1{ font:600 16px/1 var(--sans); color:var(--ink); }
+
+  @media (max-width:520px){
+    .col, .composer, .foot-note{ padding-left:16px; padding-right:16px; }
+    .zero{ padding-left:16px; padding-right:16px; }
+    .card-grid{ grid-template-columns:1fr; gap:4px 0; }
+    .card-grid dt{ margin-top:8px; }
+    .cf{ grid-template-columns:1fr; gap:4px; }
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *{ animation:none !important; transition:none !important; scroll-behavior:auto !important; }
+  }
+</style>
+
+<div class="app" id="app" hidden>
+
+  <aside id="side">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6c-3.5 0-6.3 2.6-6.3 5.9 0 1.5.6 2.7.6 3.7 0 .9-.5 1.3-1.1 1.7-.7.5-1.5 1-1.5 2.2 0 1.1.9 1.9 1.9 1.9s1.8-.8 1.8-1.8a.7.7 0 0 1 1.4 0c0 1.8-1.4 3.2-3.2 3.2a3.3 3.3 0 0 1-2.4-1 .7.7 0 1 0-1 1 4.7 4.7 0 0 0 3.4 1.4c2.5 0 4.6-2 4.6-4.6a.7.7 0 0 1 1.4 0c0 1.4.5 2.5 1.4 3.3a.7.7 0 1 0 .9-1c-.6-.6-.9-1.3-.9-2.3a.7.7 0 0 1 1.4 0c0 2.6 2 4.6 4.6 4.6a4.7 4.7 0 0 0 3.4-1.4.7.7 0 0 0-1-1 3.3 3.3 0 0 1-2.4 1c-1.8 0-3.2-1.4-3.2-3.2a.7.7 0 0 1 1.4 0c0 1 .8 1.8 1.8 1.8s1.9-.8 1.9-1.9c0-1.2-.8-1.7-1.5-2.2-.6-.4-1.1-.8-1.1-1.7 0-1 .6-2.2.6-3.7 0-3.3-2.8-5.9-6.3-5.9Zm-2.3 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm4.6 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg></span>
+      <h1>Octopus</h1>
+    </div>
+    <div class="side-scroll">
+      <div class="side-h">Brains <b id="bcount"></b></div>
+      <div id="brains"></div>
+      <button class="new-brain" id="newBrain">+ Create a brain</button>
+    </div>
+    <div class="side-foot">
+      <button id="lockBtn">lock</button>
+      <span id="stat">reading</span>
+      <button id="exportBtn">export</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <button class="burger" id="burger" aria-label="Brains">
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+      </button>
+      <h1>Octopus</h1>
+    </div>
+
+    <div class="thread" id="thread"></div>
+
+    <div class="composer-wrap">
+      <div class="composer">
+        <div class="ctrls">
+          <div class="seg" id="mode">
+            <button data-m="ask" class="on">Ask</button>
+            <button data-m="drop">Drop</button>
+          </div>
+          <div class="scope">
+            <label id="scopeLabel">Across</label>
+            <select id="scope"></select>
+          </div>
+        </div>
+        <div class="box">
+          <textarea id="input" rows="1" placeholder="Ask anything your brains have read."></textarea>
+          <div class="tbar">
+            <span class="t" id="tHint"></span>
+            <button class="paste" id="pasteBtn" hidden>+ transcript</button>
+            <button class="send" id="send" disabled aria-label="Send">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M8 3L4 7M8 3l4 4"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="foot-note" id="footNote"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ══════════════════════ state ══════════════════════ */
+const S = {
+  db:null, sample:null,
+  brains:[], concepts:[], sources:[],
+  mode:"ask", scope:"all",
+  transcript:null,
+  busy:false, ctl:null,
+  pendingCard:null,
+};
+
+const $ = id => document.getElementById(id);
+const el = (t,c,txt) => { const n=document.createElement(t); if(c)n.className=c; if(txt!=null)n.textContent=txt; return n; };
+const slug = s => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,48) || "brain";
+const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const pad2 = n => String(n).padStart(2,"0");
+const today = () => new Date().toISOString().slice(0,10);
+
+/* light markdown for answers: **bold**, paragraphs */
+function rich(t){
+  return esc(t).split(/\n{2,}/).map(p =>
+    "<p>" + p.replace(/\n/g,"<br>").replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>") + "</p>"
+  ).join("");
+}
+
+/* ══════════════════════ the gate ══════════════════════ */
+/* Every call that spends Claude usage sits behind this. It is a lock on
+   the door, not a vault: the real key lives server side in the Convex
+   build, where the OpenRouter key is held and never reaches a browser. */
+
+const GATE_KEY = "octopus.unlocked.v1";
+
+async function hash(salt, pass){
+  const buf = new TextEncoder().encode(salt + "\u0000" + pass);
+  const out = await crypto.subtle.digest("SHA-256", buf);
+  return [...new Uint8Array(out)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+function newSalt(){
+  return [...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+const MARK = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6c-3.5 0-6.3 2.6-6.3 5.9 0 1.5.6 2.7.6 3.7 0 .9-.5 1.3-1.1 1.7-.7.5-1.5 1-1.5 2.2 0 1.1.9 1.9 1.9 1.9s1.8-.8 1.8-1.8a.7.7 0 0 1 1.4 0c0 1.8-1.4 3.2-3.2 3.2a3.3 3.3 0 0 1-2.4-1 .7.7 0 1 0-1 1 4.7 4.7 0 0 0 3.4 1.4c2.5 0 4.6-2 4.6-4.6a.7.7 0 0 1 1.4 0c0 1.4.5 2.5 1.4 3.3a.7.7 0 1 0 .9-1c-.6-.6-.9-1.3-.9-2.3a.7.7 0 0 1 1.4 0c0 2.6 2 4.6 4.6 4.6a4.7 4.7 0 0 0 3.4-1.4.7.7 0 0 0-1-1 3.3 3.3 0 0 1-2.4 1c-1.8 0-3.2-1.4-3.2-3.2a.7.7 0 0 1 1.4 0c0 1 .8 1.8 1.8 1.8s1.9-.8 1.9-1.9c0-1.2-.8-1.7-1.5-2.2-.6-.4-1.1-.8-1.1-1.7 0-1 .6-2.2.6-3.7 0-3.3-2.8-5.9-6.3-5.9Zm-2.3 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm4.6 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>';
+
+function gateScreen({ mode, verify, onPass }){
+  const g = el("div","gate");
+  const setup = mode === "setup";
+  g.innerHTML = `
+    <div class="panel">
+      <div class="mk" aria-hidden="true">${MARK}</div>
+      <h2>${setup ? "Set a passphrase" : "Octopus is locked"}</h2>
+      <p>${setup
+        ? "It guards every call that spends AI credits. Pick something you will remember, because only its hash gets stored."
+        : "Enter the passphrase to read your brains and drop sources."}</p>
+      <form>
+        <input type="password" id="gp" autocomplete="${setup?"new-password":"current-password"}"
+               placeholder="${setup?"At least 8 characters":"Passphrase"}" required>
+        ${setup ? '<input type="password" id="gp2" autocomplete="new-password" placeholder="Repeat it" required>' : ""}
+        <div class="row">
+          <button class="go" type="submit">${setup ? "Lock it and open" : "Unlock"}</button>
+        </div>
+        <div id="gmsg" class="bad" role="alert"></div>
+      </form>
+      <div class="note">${setup
+        ? "A lock on the door, not a vault. Anyone who opens this page can read its code, so treat it as a speed bump. The real key belongs server side, which is what the Convex build is for."
+        : "Forgotten it? It can be reset from the Claude Code session that owns this page."}</div>
+    </div>`;
+  document.body.append(g);
+  const inp = g.querySelector("#gp"), msg = g.querySelector("#gmsg");
+  setTimeout(()=>inp.focus(), 60);
+
+  g.querySelector("form").onsubmit = async e => {
+    e.preventDefault();
+    const pass = inp.value;
+    msg.className = "spin"; msg.textContent = "Checking";
+    try {
+      if (setup){
+        const two = g.querySelector("#gp2").value;
+        if (pass.length < 8){ msg.className="bad"; msg.textContent="Use at least 8 characters."; return; }
+        if (pass !== two){ msg.className="bad"; msg.textContent="The two do not match."; return; }
+        const salt = newSalt();
+        await S.db.doc("config/gate").set({ salt, hash: await hash(salt, pass), set: today() });
+        sessionStorage.setItem(GATE_KEY, await hash(salt, pass));
+        g.remove(); onPass();
+      } else {
+        const ok = await verify(pass);
+        if (!ok){ msg.className="bad"; msg.textContent="That is not it. Try again."; inp.select(); return; }
+        g.remove(); onPass();
+      }
+    } catch(_){
+      msg.className="bad"; msg.textContent="The store did not answer. Try again.";
+    }
+  };
+  return g;
+}
+
+/* ══════════════════════ boot ══════════════════════ */
+render();
+sizeBox();
+
+(async () => {
+  const [db, sample] = await Promise.all([
+    claude.use("db").catch(()=>null),
+    claude.use("sample").catch(()=>null),
+  ]);
+  S.db = db; S.sample = sample;
+
+  if (!db) {
+    document.body.innerHTML = "";
+    const g = el("div","gate");
+    g.innerHTML = `<div class="panel"><div class="mk">${MARK}</div>
+      <h2>No store in this view</h2>
+      <p>Octopus keeps your brains server side, and this view cannot reach that store. Open the page from your own Claude account.</p></div>`;
+    document.body.append(g);
+    return;
+  }
+
+  /* the lock, before any brain is read and before Claude is ever called */
+  const gateDoc = await db.doc("config/gate").get().catch(()=>null);
+  const cfg = gateDoc?.exists ? gateDoc.data() : null;
+
+  const open = () => { $("app").hidden = false; start(db, sample); };
+
+  if (!cfg){
+    gateScreen({ mode:"setup", onPass: open });
+  } else if (sessionStorage.getItem(GATE_KEY) === cfg.hash){
+    open();
+  } else {
+    gateScreen({
+      mode:"unlock",
+      verify: async pass => {
+        const h = await hash(cfg.salt, pass);
+        if (h !== cfg.hash) return false;
+        sessionStorage.setItem(GATE_KEY, h);
+        return true;
+      },
+      onPass: open,
+    });
+  }
+})();
+
+function start(db, sample){
+  $("stat").textContent = "reading";
+
+  db.collection("brains").onSnapshot(
+    snap => { S.brains = snap.docs.map(d => ({id:d.id, ...d.data()})); render(); },
+    () => { $("stat").textContent = "store error"; }
+  );
+  db.collection("concepts").onSnapshot(
+    snap => { S.concepts = snap.docs.map(d => ({id:d.id, ...d.data()})); render(); },
+    ()=>{}
+  );
+  db.collection("sources").onSnapshot(
+    snap => { S.sources = snap.docs.map(d => ({id:d.id, ...d.data()})); render(); },
+    ()=>{}
+  );
+  $("stat").textContent = sample ? "ready" : "store only";
+  render();
+  $("input").focus();
+}
+
+/* ══════════════════════ render ══════════════════════ */
+function conceptsOf(b){ return S.concepts.filter(c => c.brain === b).sort((x,y)=>(x.n||0)-(y.n||0)); }
+function sourcesOf(b){ return S.sources.filter(s => (s.brains||[]).includes(b)); }
+
+function render(){
+  renderSide();
+  renderScope();
+  renderComposer();
+  if (!$("thread").dataset.seeded) renderThread();
+}
+
+function renderSide(){
+  const box = $("brains"); box.innerHTML = "";
+  $("bcount").textContent = S.brains.length || "";
+  if (!S.brains.length){
+    box.append(Object.assign(el("div","empty-side"),{textContent:"None yet. A brain is a subject or a person, with a one line scope."}));
+    return;
+  }
+  for (const b of S.brains){
+    const n = conceptsOf(b.id).length, sc = sourcesOf(b.id).length;
+    const row = el("button","brain-row" + (S.scope===b.id ? " on" : ""));
+    const top = el("div","bn");
+    top.append(el("span","nm",b.name), el("span","tp "+(b.type||"subject"),b.type||"subject"));
+    row.append(top, el("div","sc",b.scope||""), el("div","ct",`${n} concept${n===1?"":"s"} · ${sc} source${sc===1?"":"s"}`));
+    row.onclick = () => { S.scope = S.scope===b.id ? "all" : b.id; closeSide(); render(); };
+    box.append(row);
+  }
+}
+
+function renderScope(){
+  const sel = $("scope"), cur = S.scope;
+  sel.innerHTML = "";
+  const all = el("option", null, S.mode==="drop" ? "Suggest for me" : "All brains");
+  all.value = "all"; sel.append(all);
+  for (const b of S.brains){
+    const o = el("option", null, b.name); o.value = b.id; sel.append(o);
+  }
+  sel.value = S.brains.some(b=>b.id===cur) ? cur : "all";
+  if (sel.value !== cur) S.scope = "all";
+  $("scopeLabel").textContent = S.mode==="drop" ? "Into" : "Across";
+}
+
+function renderComposer(){
+  const drop = S.mode==="drop";
+  $("input").placeholder = drop
+    ? "Paste a link, or the text of the source."
+    : S.scope==="all" ? "Ask anything your brains have read." : "Ask " + (S.brains.find(b=>b.id===S.scope)?.name || "this brain") + ".";
+  $("pasteBtn").hidden = !drop;
+  $("pasteBtn").textContent = S.transcript ? `transcript ${Math.round(S.transcript.length/1000)}k ✓` : "+ transcript";
+  $("pasteBtn").classList.toggle("has", !!S.transcript);
+  $("footNote").textContent = !S.sample
+    ? "Claude is unavailable in this view, so drops and answers are paused."
+    : drop ? "The source gets read once, then you reply to one card."
+           : "The answer carries the numbers. Sources sit on one line underneath.";
+  const t = $("input").value.trim();
+  $("send").disabled = S.busy || !t || !S.sample;
+  $("tHint").textContent = S.busy ? "working" : drop && !S.transcript && /^https?:\/\//i.test(t)
+    ? "a link alone needs its transcript" : "";
+}
+
+function renderThread(){
+  const th = $("thread");
+  if (S.brains.length || th.children.length) return;
+  th.innerHTML = "";
+  const z = el("div","zero");
+  z.innerHTML = `
+    <h2>A folder that gets smarter every time you feed it.</h2>
+    <p class="lede">Drop a source and you reply to one card: where it goes, what is new, what it repeats, and every claim that clashes with what your brains already hold. Ask a question and the first sentence answers it.</p>
+    <div class="two">
+      <div><h3>Drop</h3><p>Paste a link or a transcript. It gets read once, filed, and every position it touches gets rewritten before the receipt appears.</p></div>
+      <div><h3>Ask</h3><p>Across every brain, or inside one. Numbers sit in the answer, sources on one line at the end.</p></div>
+    </div>
+    <div class="suggest"><div class="side-h">Start with a brain</div></div>`;
+  const sug = z.querySelector(".suggest");
+  [
+    ["Sleep and recovery","sleep, recovery and training load for my own routine","subject"],
+    ["Macro regimes","macro regimes and emerging markets, for my own portfolio","subject"],
+    ["A person","one guest's own views, dated so their drift shows","person"],
+  ].forEach(([n,sc,tp]) => {
+    const b = el("button","sg");
+    b.append(el("b",null,n), el("span",null,sc));
+    b.onclick = () => openSheet(tp==="person" ? "" : n, tp==="person" ? "" : sc, tp);
+    sug.append(b);
+  });
+  th.append(z);
+  th.dataset.seeded = "1";
+}
+
+/* ══════════════════════ thread helpers ══════════════════════ */
+function clearZero(){ const z=$("thread").querySelector(".zero"); if(z) z.remove(); }
+
+function push(kind, build){
+  clearZero();
+  const th = $("thread");
+  const wrap = el("div","msg "+(kind==="me"?"me":"ai"));
+  const col = el("div","col");
+  if (kind !== "me"){
+    const who = el("div","who");
+    who.append(el("span",null,"Octopus"));
+    if (S.scope!=="all" && kind==="ai"){
+      const b = S.brains.find(x=>x.id===S.scope);
+      if (b) who.append(el("span","sc","· "+b.name));
+    }
+    col.append(who);
+  }
+  const body = el("div","body");
+  col.append(body); wrap.append(col); th.append(wrap);
+  build(body);
+  th.scrollTop = th.scrollHeight;
+  return body;
+}
+
+function says(text, attach){
+  push("me", b => {
+    b.textContent = text;
+    if (attach) b.append(Object.assign(el("span","attach"),{textContent:attach}));
+  });
+}
+
+function thinking(label){
+  return push("ai", b => {
+    const t = el("div","thinking");
+    const d = el("span","dots"); d.append(el("i"),el("i"),el("i"));
+    t.append(d, el("span",null,label||"Thinking"));
+    b.append(t);
+  });
+}
+
+function fail(body, code, msg){
+  const map = {
+    not_granted:"Claude access was declined for this view, so nothing was read.",
+    rate_limited:"Too many requests at once. Wait a moment, then send again.",
+    prompt_too_large:"That source is too long for one pass. Split it and drop each half.",
+    cancelled:"Stopped.",
+    invalid_json:"The reply came back malformed. Send it again.",
+    refused:"Claude declined this one.",
+    sampling_disabled:"Claude access is switched off for this page.",
+    not_declared:"This page cannot reach Claude.",
+  };
+  body.innerHTML = "";
+  const e = el("div","err");
+  e.append(el("b",null,"Nothing was stored"), el("span",null,msg || map[code] || "Something failed on the way. Send it again."));
+  body.append(e);
+}
+
+/* ══════════════════════ input plumbing ══════════════════════ */
+function sizeBox(){
+  const t = $("input");
+  t.style.height = "auto";
+  t.style.height = Math.min(t.scrollHeight, 210) + "px";
+}
+$("input").addEventListener("input", () => { sizeBox(); renderComposer(); });
+$("input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); if(!$("send").disabled) go(); }
+});
+$("send").onclick = go;
+$("mode").onclick = e => {
+  const b = e.target.closest("button[data-m]"); if(!b) return;
+  S.mode = b.dataset.m;
+  [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m===S.mode));
+  renderScope(); renderComposer(); $("input").focus();
+};
+$("scope").onchange = e => { S.scope = e.target.value; renderSide(); renderComposer(); };
+$("burger").onclick = () => $("side").classList.toggle("open");
+function closeSide(){ $("side").classList.remove("open"); }
+$("newBrain").onclick = () => openSheet("","","subject");
+$("pasteBtn").onclick = () => openTranscript();
+$("exportBtn").onclick = exportAll;
+$("lockBtn").onclick = () => { sessionStorage.removeItem(GATE_KEY); location.reload(); };
+
+/* ══════════════════════ create a brain ══════════════════════ */
+function openSheet(name, scope, type){
+  closeSide();
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <header>
+        <h3>Create a brain</h3>
+        <p>A brain is a subject or a person. Its scope line is the only test of what belongs inside, so make it specific.</p>
+      </header>
+      <div class="f"><label for="bName">Name</label><input id="bName" autocomplete="off"></div>
+      <div class="f"><label for="bScope">Scope, in one line</label><textarea id="bScope"></textarea>
+        <div class="hint">"health" is a folder. "sleep, recovery and training load for my own routine" is a brain.</div></div>
+      <div class="f"><label>Kind</label><div class="seg" id="bType">
+        <button data-t="subject">Subject</button><button data-t="person">Person</button></div></div>
+      <div id="closestSlot"></div>
+      <footer><button class="ghost" id="bCancel">Cancel</button><button class="go" id="bMake">Check and create</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const nameI = veil.querySelector("#bName"), scopeI = veil.querySelector("#bScope");
+  nameI.value = name || ""; scopeI.value = scope || "";
+  let kind = type || "subject";
+  const paint = () => [...veil.querySelectorAll("#bType button")].forEach(b => b.classList.toggle("on", b.dataset.t===kind));
+  paint();
+  veil.querySelector("#bType").onclick = e => { const b=e.target.closest("button"); if(b){ kind=b.dataset.t; paint(); } };
+  const shut = () => veil.remove();
+  veil.querySelector("#bCancel").onclick = shut;
+  veil.onclick = e => { if(e.target===veil) shut(); };
+  document.addEventListener("keydown", function k(e){ if(e.key==="Escape"){ shut(); document.removeEventListener("keydown",k); } });
+  setTimeout(()=>nameI.focus(),30);
+
+  let confirmed = false;
+  veil.querySelector("#bMake").onclick = async () => {
+    const nm = nameI.value.trim(), sc = scopeI.value.trim();
+    if (!nm || !sc){ (nm?scopeI:nameI).focus(); return; }
+
+    /* R7.6 — show the closest existing scope before creating */
+    if (!confirmed && S.brains.length){
+      const near = nearest(sc);
+      if (near){
+        const slot = veil.querySelector("#closestSlot");
+        slot.innerHTML = "";
+        const c = el("div","closest");
+        c.append(el("b",null,"Closest brain you already have"));
+        c.append(el("div",null,`${near.name}: ${near.scope}`));
+        c.append(Object.assign(el("div",null,"Create a new one anyway, or cancel and feed that brain instead."),{style:"margin-top:7px;color:var(--ink-3)"}));
+        slot.append(c);
+        veil.querySelector("#bMake").textContent = "Create anyway";
+        confirmed = true;
+        return;
+      }
+    }
+    const id = slug(nm);
+    if (S.brains.some(b=>b.id===id)){ nameI.focus(); return; }
+    shut();
+    await S.db.doc("brains/"+id).set({ name:nm, type:kind, scope:sc, created:today() });
+    S.scope = id; S.mode = "drop";
+    [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="drop"));
+    render();
+    push("ai", b => { b.innerHTML = rich(`**${esc(nm)}** is ready, scoped to "${esc(sc)}". Drop a source to feed it.`); });
+    $("input").focus();
+  };
+}
+
+/* crude overlap score, enough to surface a near neighbour */
+function nearest(scope){
+  const stop = new Set("the a an and or of for my own to in on with about from at by as is are".split(" "));
+  const w = new Set(scope.toLowerCase().match(/[a-z]{3,}/g)?.filter(x=>!stop.has(x)) || []);
+  let best=null, bestN=0;
+  for (const b of S.brains){
+    const o = new Set(String(b.scope||"").toLowerCase().match(/[a-z]{3,}/g)?.filter(x=>!stop.has(x)) || []);
+    let n=0; for(const x of w) if(o.has(x)) n++;
+    if (n>bestN){ bestN=n; best=b; }
+  }
+  return bestN>=2 ? best : null;
+}
+
+/* ══════════════════════ transcript ══════════════════════ */
+function openTranscript(){
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <header><h3>Paste the transcript</h3>
+      <p>It gets read once and thrown away. Only the link and where your copy sits get kept, so the extraction has to be complete the first time.</p></header>
+      <div class="f"><label for="tx">Transcript</label>
+        <textarea id="tx" style="min-height:190px"></textarea>
+        <div class="hint" id="txHint">0 words</div></div>
+      <footer><button class="ghost" id="txCancel">Cancel</button><button class="go" id="txOk">Attach</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const ta = veil.querySelector("#tx");
+  ta.value = S.transcript || "";
+  const count = () => veil.querySelector("#txHint").textContent =
+    `${(ta.value.trim().match(/\S+/g)||[]).length.toLocaleString()} words` +
+    (ta.value.length > 44000 ? ` · read in ${Math.ceil(ta.value.length/44000)} passes` : "");
+  count(); ta.oninput = count;
+  const shut = () => veil.remove();
+  veil.querySelector("#txCancel").onclick = shut;
+  veil.onclick = e => { if(e.target===veil) shut(); };
+  setTimeout(()=>ta.focus(),30);
+  veil.querySelector("#txOk").onclick = () => {
+    S.transcript = ta.value.trim() || null;
+    shut(); renderComposer();
+  };
+}
+
+/* ══════════════════════ go ══════════════════════ */
+async function go(){
+  const text = $("input").value.trim();
+  if (!text || S.busy || !S.sample) return;
+  $("input").value = ""; sizeBox();
+  S.busy = true; renderComposer();
+  try {
+    if (S.mode === "drop") await doDrop(text);
+    else await doAsk(text);
+  } finally {
+    S.busy = false; renderComposer();
+  }
+}
+
+/* ─────────── ASK ─────────── */
+async function doAsk(q){
+  says(q);
+  if (!S.brains.length){
+    push("ai", b => { b.innerHTML = rich("No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again."); });
+    return;
+  }
+  const pool = S.scope==="all" ? S.brains : S.brains.filter(b=>b.id===S.scope);
+  const body = thinking("Reading the map");
+
+  /* R6.1 — summaries first, at most 3 brains */
+  const summaries = pool.map(b => {
+    const cs = conceptsOf(b.id);
+    return `## ${b.name} [${b.type}] (${b.id})\nscope: ${b.scope}\n` +
+      (cs.length ? cs.map(c => `- ${c.title}: ${c.position||"no position yet"}`).join("\n") : "- no concepts yet");
+  }).join("\n\n");
+
+  let picked = pool.slice(0,3).map(b=>b.id);
+  if (pool.length > 3){
+    try {
+      const r = await S.sample.json(
+        `Pick at most 3 brains whose stored concepts could answer the question. Reply with only a JSON array of brain ids.\n\nQUESTION: ${q}\n\nBRAINS:\n${summaries}`,
+        { modelTier:"quick" });
+      if (Array.isArray(r) && r.length) picked = r.slice(0,3).map(String);
+    } catch(_){}
+  }
+
+  const chosen = pool.filter(b=>picked.includes(b.id));
+  const files = [];
+  for (const b of chosen) for (const c of conceptsOf(b.id)) files.push({b, c});
+  const nSources = new Set(chosen.flatMap(b => sourcesOf(b.id).map(s=>s.id))).size;
+  const isPerson = chosen.length===1 && chosen[0].type==="person";
+
+  const dossier = files.length ? files.map(({b,c}) =>
+`### ${c.title} — in ${b.name} [${b.type}]
+POSITION: ${c.position||"none"}
+EVIDENCE: ${(c.evidence||[]).map(e=>`${e.date||"?"} ${e.author||"?"}: ${e.claim||""}`).join(" | ")||"none"}
+DATA: ${(c.data||[]).join(" | ")||"none"}
+OPEN CONFLICTS: ${(c.conflicts||[]).map(x=>`${x.a} (${x.aDate}) vs ${x.b} (${x.bDate}), because ${x.why}`).join(" | ")||"none"}`
+  ).join("\n\n") : "The chosen brains hold no concepts yet.";
+
+  body.innerHTML = "";
+  if (nSources > 0 && nSources < 10){
+    body.append(Object.assign(el("div","smallbrain"),{textContent:`Small brain: ${nSources} source${nSources===1?"":"s"} behind this`}));
+  }
+  const out = el("div"); body.append(out);
+  out.innerHTML = `<div class="thinking"><span class="dots"><i></i><i></i><i></i></span><span>Composing</span></div>`;
+
+  const RULES =
+`Answer the question from the stored knowledge below. You are the user's own knowledge base speaking back.
+
+HOW TO WRITE THE ANSWER
+- The FIRST SENTENCE answers the question. Natural prose, addressed to the person asking.
+- Numbers, dates and findings go INSIDE the answer.
+${isPerson
+  ? "- This is a PERSON brain, so name that person throughout. Their view is the subject."
+  : "- NEVER put a source's name in the answer text. Attribution belongs on the sources line only."}
+- Newer evidence wins on the same question, and better data overrides that.
+- Mention an open conflict only when it changes what the reader would do.
+- No file paths anywhere.
+- Then a blank line, then exactly one final line: "Sources: {author}, {date} · {author}, {date}" listing only sources you used. Omit that line if you used none.
+- No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
+- If the stored knowledge does not answer it, say so plainly in one sentence and name what kind of source would fill the gap. Never invent evidence.
+
+STORED KNOWLEDGE
+${dossier}`;
+
+  S.ctl = new AbortController();
+  try {
+    const { text } = await S.sample(
+      [{role:"user", content:RULES}, {role:"user", content:"QUESTION: "+q}],
+      { signal:S.ctl.signal, cache:false,
+        onText:({text}) => { out.innerHTML = splitAnswer(text); th_bottom(); } }
+    );
+    out.innerHTML = splitAnswer(text);
+    if (S.db) S.db.doc("chat/"+Date.now()).set({ role:"ai", q, a:text, scope:S.scope, ts:new Date().toISOString() }).catch(()=>{});
+  } catch(e){
+    if (e.text) { out.innerHTML = splitAnswer(e.text); }
+    else fail(body, e.code);
+  }
+}
+
+function splitAnswer(t){
+  const m = t.match(/\n\s*(Sources:[^\n]*)\s*$/i);
+  if (!m) return rich(t);
+  return rich(t.slice(0,m.index)) + `<div class="srcline">${esc(m[1])}</div>`;
+}
+function th_bottom(){ const th=$("thread"); th.scrollTop = th.scrollHeight; }
+
+/* ─────────── DROP ─────────── */
+async function doDrop(text){
+  const link = (text.match(/https?:\/\/\S+/)||[])[0] || null;
+  const body_txt = S.transcript || (link ? null : text);
+  says(text, S.transcript ? `transcript attached, ${(S.transcript.match(/\S+/g)||[]).length.toLocaleString()} words` : null);
+
+  if (!S.brains.length){
+    push("ai", b => { b.innerHTML = rich("Create a brain first. A source needs a scope to be filed against."); });
+    return;
+  }
+
+  /* R1.1 — normalise */
+  const id = sourceId(link, text);
+
+  /* R1.2 — duplicate by link, before anything expensive */
+  const dupe = S.sources.find(s => s.id===id || (link && s.link && sameLink(s.link, link)));
+  if (dupe){
+    push("ai", b => { b.innerHTML = rich(`**Already stored.** That link is note \`${esc(dupe.id)}\`, filed ${esc(dupe.date||"earlier")} into ${esc((dupe.brains||[]).join(", ")||"no brain")}. Nothing was read.`); });
+    return;
+  }
+
+  /* R1.3 — a link with no transcript */
+  if (!body_txt){
+    push("ai", b => {
+      b.innerHTML = rich("That link is new. Paste its transcript and I will read it once. The duplicate check ran first, so you pasted nothing for nothing.");
+      const go = el("button","go"); go.textContent = "Paste the transcript";
+      go.style.marginTop = "12px"; go.onclick = openTranscript;
+      b.append(go);
+    });
+    return;
+  }
+
+  const body = thinking("Reading the source");
+
+  /* R2 — read once, extract wide, in passes under the input cap */
+  const CH = 40000;
+  const chunks = [];
+  for (let i=0; i<body_txt.length; i+=CH) chunks.push(body_txt.slice(i, i+CH));
+  const parts = [];
+  try {
+    for (let i=0;i<chunks.length;i++){
+      body.querySelector(".thinking span:last-child").textContent =
+        chunks.length>1 ? `Reading the source, pass ${i+1} of ${chunks.length}` : "Reading the source";
+      const p = await S.sample.json(
+`Extract everything worth keeping from this source. Cover EVERY topic present, whether or not it looks relevant. This is the only read, so nothing gets a second pass.
+
+Keep ideas, numbers, names, dates, reasoning chains, exact quotes and historical comparisons. Drop repetition, advertising, small talk and filler.
+
+Reply with only JSON:
+{"title":"","author":"","date":"YYYY-MM-DD or empty","topics":[{"topic":"","ideas":[""],"data":[""]}],"quotes":[{"text":"","speaker":""}],"thin":[""]}
+
+"thin" holds claims made with no number or evidence behind them.
+
+SOURCE${chunks.length>1?` (part ${i+1} of ${chunks.length})`:""}:
+${chunks[i]}`,
+        { modelTier:"default" });
+      parts.push(p);
+    }
+  } catch(e){ fail(body, e.code); return; }
+
+  const ext = {
+    title: parts.find(p=>p.title)?.title || (link||"Untitled source"),
+    author: parts.find(p=>p.author)?.author || "",
+    date: parts.find(p=>p.date)?.date || "",
+    topics: parts.flatMap(p=>p.topics||[]),
+    quotes: parts.flatMap(p=>p.quotes||[]),
+    thin: parts.flatMap(p=>p.thin||[]),
+  };
+
+  /* R3 — summaries first, never whole brains */
+  body.querySelector(".thinking span:last-child").textContent = "Comparing against what you hold";
+  const pool = S.scope==="all" ? S.brains : S.brains.filter(b=>b.id===S.scope);
+  const summaries = pool.map(b => {
+    const cs = conceptsOf(b.id);
+    return `## ${b.name} [${b.type}] id=${b.id}\nscope: ${b.scope}\n` +
+      (cs.length ? cs.map(c=>`- id=${c.id} | ${c.title}: ${c.position||"no position yet"}`).join("\n") : "- no concepts yet");
+  }).join("\n\n");
+  const otherSources = S.sources.slice(-40).map(s=>`${s.id} | ${s.author||"?"} | ${s.title||""}`).join("\n") || "none";
+
+  let plan;
+  try {
+    plan = await S.sample.json(
+`Decide where this source goes and what it changes. Use ONLY the brains listed.
+
+RULES
+- Propose every brain it belongs to. A subject brain holds the user's own position. A person brain holds one person's view.
+- A concept belongs to a brain only if it fits that brain's scope line.
+- "new" = ideas, numbers or reasoning the brains lack.
+- "echo" = what this repeats, naming the earlier source.
+- "conflict" = a claim contradicting a stored position. Rank each: "flip" if it would change the position, "caveat" if it only adds nuance.
+- In a PERSON brain, a claim contradicting that same person's earlier view is drift, not conflict. Mark it kind "drift".
+- Claims with no data behind them are thin. They never become concepts.
+
+Reply with only JSON:
+{"brains":["id"],
+ "matched":[{"conceptId":"","brain":"","whatItAdds":""}],
+ "candidates":[{"title":"","brain":"","why":""}],
+ "new":[""],
+ "echo":[{"claim":"","repeatsSource":""}],
+ "conflicts":[{"concept":"","conceptId":"","brain":"","kind":"flip|caveat|drift","says":"","saysDate":"","stored":"","storedDate":"","why":""}]}
+
+BRAINS AND THEIR CONCEPTS
+${summaries}
+
+EARLIER SOURCES
+${otherSources}
+
+THE NEW SOURCE
+title: ${ext.title}
+author: ${ext.author}
+date: ${ext.date}
+${ext.topics.map(t=>`### ${t.topic}\n${(t.ideas||[]).join("\n")}\n${(t.data||[]).join("\n")}`).join("\n\n").slice(0,34000)}`,
+      { modelTier:"default" });
+  } catch(e){ fail(body, e.code); return; }
+
+  const flips = (plan.conflicts||[]).filter(c=>c.kind==="flip");
+  const others = (plan.conflicts||[]).filter(c=>c.kind!=="flip");
+  S.pendingCard = { id, link, ext, plan, choices:Object.create(null), body_len:body_txt.length };
+
+  body.innerHTML = "";
+  body.append(buildCard(S.pendingCard, flips, others));
+  th_bottom();
+}
+
+function sameLink(a,b){ return norm(a)===norm(b); }
+function norm(u){
+  try{ const x=new URL(u); x.search=""; x.hash=""; return x.host.replace(/^www\./,"")+x.pathname.replace(/\/$/,""); }
+  catch(_){ return String(u); }
+}
+function sourceId(link, text){
+  if (link){
+    const yt = link.match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{6,})/);
+    if (yt) return "yt-"+yt[1];
+    try{ const u=new URL(link); return slug(u.host.replace(/^www\./,"").split(".")[0]+"-"+u.pathname.split("/").filter(Boolean).pop()||""); }catch(_){}
+  }
+  return slug(text.slice(0,40)) + "-" + String(Date.now()).slice(-4);
+}
+
+/* ─────────── the card ─────────── */
+function buildCard(pc, flips, others){
+  const { id, ext, plan } = pc;
+  const card = el("div","card");
+
+  const top = el("div","card-top");
+  top.append(el("span","id",id));
+  top.append(el("span","meta",[ext.author, ext.date, Math.round(pc.body_len/1000)+"k chars"].filter(Boolean).join(" · ")));
+  card.append(top);
+
+  const dl = el("dl","card-grid");
+  const row = (k, node) => { dl.append(el("dt",null,k)); const d=el("dd"); d.append(node); dl.append(d); };
+
+  const bnames = (plan.brains||[]).map(x => { const b=S.brains.find(y=>y.id===x); return b ? `${b.name} (${b.type})` : x; });
+  row("Goes to", el("span",null, bnames.join(" · ") || "no brain matched"));
+
+  const cc = el("div","chips");
+  (plan.matched||[]).forEach(m => { const c=S.concepts.find(x=>x.id===m.conceptId); cc.append(el("span","chip", c?c.title:m.conceptId)); });
+  (plan.candidates||[]).forEach(m => cc.append(el("span","chip cand","+ "+m.title)));
+  if (!cc.children.length) cc.append(el("span","chip none","none"));
+  row("Concepts", cc);
+
+  const nu = el("ul");
+  (plan.new||[]).slice(0,3).forEach(x => nu.append(el("li",null,"· "+x)));
+  if (!(plan.new||[]).length) nu.append(Object.assign(el("li","none"),{textContent:"nothing new"}));
+  else if ((plan.new||[]).length>3) nu.append(Object.assign(el("li","none"),{textContent:`and ${plan.new.length-3} more`}));
+  row(`New ${(plan.new||[]).length||""}`, nu);
+
+  const eu = el("ul");
+  (plan.echo||[]).slice(0,3).forEach(x => eu.append(el("li",null,`· ${x.claim} — repeats ${x.repeatsSource||"an earlier source"}`)));
+  if (!(plan.echo||[]).length) eu.append(Object.assign(el("li","none"),{textContent:"none"}));
+  row(`Echoes ${(plan.echo||[]).length||""}`, eu);
+
+  if (others.length){
+    const ou = el("ul");
+    others.forEach(c => ou.append(el("li",null,`· ${c.concept}: ${c.kind==="drift"?"drift":"caveat"}, logged without a question`)));
+    row("Logged", ou);
+  }
+  card.append(dl);
+
+  if (flips.length){
+    const wrap = el("div","conflicts");
+    flips.forEach((c,i) => {
+      const f = el("div","cf");
+      f.append(el("span","n",String(i+1)));
+      const r = el("div");
+      r.append(el("div","cn",c.concept + (c.brain ? "  ·  "+(S.brains.find(b=>b.id===c.brain)?.name||c.brain) : "")));
+      const mk = (lab,val,date) => { const d=el("div","side"); d.append(el("span",null,lab), document.createTextNode(val + (date?`, ${date}`:""))); return d; };
+      r.append(mk("new", c.says, c.saysDate), mk("stored", c.stored, c.storedDate));
+      if (c.why) r.append(el("div","why","They differ because "+c.why));
+      const opts = el("div","opts");
+      [["both","keep both"],["new","accept new"],["old","keep old"],["skip","reject source"]].forEach(([v,lab]) => {
+        const o = el("button","opt"+(v==="both"?" dflt on":""), lab);
+        o.onclick = () => { pc.choices[i]=v; [...opts.children].forEach(x=>x.classList.remove("on")); o.classList.add("on"); };
+        opts.append(o);
+      });
+      pc.choices[i] = "both";
+      r.append(opts); f.append(r); wrap.append(f);
+    });
+    card.append(wrap);
+  }
+
+  const foot = el("div","card-foot");
+  foot.append(Object.assign(el("span","hint"),{textContent: flips.length
+    ? `${flips.length} conflict${flips.length===1?"":"s"}. Silence keeps both, so a long list costs you nothing.`
+    : "No conflict with what you hold." }));
+  const skip = el("button","ghost","Reject source");
+  const ok = el("button","go","Store it");
+  skip.onclick = () => { card.remove(); push("ai", b=>{ b.innerHTML = rich("Rejected. Nothing was stored and no position moved."); }); S.pendingCard=null; };
+  ok.onclick = () => { ok.disabled=true; skip.disabled=true; settle(card, pc, flips); };
+  foot.append(skip, ok);
+  card.append(foot);
+  return card;
+}
+
+/* ─────────── settle ─────────── */
+async function settle(card, pc, flips){
+  const { id, link, ext, plan } = pc;
+  const b2 = thinking("Rewriting the positions it touched");
+  const brains = (plan.brains||[]).filter(x => S.brains.some(y=>y.id===x));
+  if (!brains.length && S.scope!=="all") brains.push(S.scope);
+
+  const resolved = flips.map((c,i) => ({ ...c, choice: pc.choices[i] || "both" }));
+  if (resolved.some(r=>r.choice==="skip")){
+    card.remove(); b2.innerHTML="";
+    push("ai", b=>{ b.innerHTML = rich("Rejected on a conflict. Nothing was stored and no position moved."); });
+    S.pendingCard=null; return;
+  }
+
+  /* every concept this drop touches, matched plus promoted candidates */
+  const touched = [];
+  for (const m of (plan.matched||[])){
+    const c = S.concepts.find(x=>x.id===m.conceptId);
+    if (c) touched.push({ concept:c, adds:m.whatItAdds, isNew:false });
+  }
+  /* R5.5 — a brain with zero concepts seeds directly */
+  for (const cand of (plan.candidates||[])){
+    const br = brains.includes(cand.brain) ? cand.brain : brains[0];
+    if (!br) continue;
+    const existing = conceptsOf(br).length;
+    const seeding = existing === 0;
+    const sameTitle = S.concepts.find(x => x.brain===br && x.title.toLowerCase()===String(cand.title).toLowerCase());
+    if (sameTitle){ touched.push({ concept:sameTitle, adds:cand.why, isNew:false }); continue; }
+    if (seeding){
+      touched.push({ concept:{ id:br+"__"+slug(cand.title), brain:br, title:cand.title, n:existing+touched.filter(t=>t.isNew&&t.concept.brain===br).length+1,
+        position:"", evidence:[], data:[], conflicts:[], sources:[], related:[] }, adds:cand.why, isNew:true });
+    } else {
+      /* R5.7 / candidate counting lives in the map doc */
+      await bumpCandidate(br, cand.title, id, touched);
+    }
+  }
+
+  if (!touched.length){
+    /* still store the source and the note: an echo has value */
+    await writeSource(id, link, ext, brains);
+    await writeNote(id, ext, plan, resolved);
+    card.remove(); b2.innerHTML="";
+    push("ai", b => { b.append(receipt(id, brains, 0, plan, resolved, true)); });
+    S.pendingCard=null; return;
+  }
+
+  /* R5.3 — re-derive each touched position from its FULL evidence list */
+  let rewrites = [];
+  try {
+    const packet = touched.map(t => {
+      const c = t.concept;
+      const br = S.brains.find(b=>b.id===c.brain);
+      return `### ${c.id}
+brain: ${br?br.name:c.brain} [${br?br.type:"subject"}], scope: ${br?br.scope:""}
+concept: ${c.title}
+CURRENT POSITION: ${c.position || "none yet"}
+FULL EVIDENCE LIST (oldest last):
+${(c.evidence||[]).map(e=>`- ${e.date||"?"} ${e.author||"?"}: ${e.claim||""}`).join("\n") || "- none"}
+THIS SOURCE ADDS: ${t.adds||""}
+CONFLICT DECISIONS ON THIS CONCEPT: ${resolved.filter(r=>r.conceptId===c.id||r.concept===c.title).map(r=>`${r.choice}: new="${r.says}" old="${r.stored}"`).join(" | ")||"none"}`;
+    }).join("\n\n");
+
+    rewrites = await S.sample.json(
+`Rewrite each position below from its WHOLE evidence list, now carrying the new source. Re-derive, never append. A position that reads as a list of who said what has failed.
+
+RULES
+- One view per position, a few lines, stating what holds.
+- "accept new" means the position flips and the old view moves into evidence with its date.
+- "keep old" means the new claim stays a minority view and the position holds.
+- "keep both" means the position holds and the clash goes into open conflicts, dated, with the reason.
+- Never delete a view.
+- No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording.
+- summaryLine is ONE line, under 18 words, the position compressed.
+
+Reply with only JSON:
+[{"conceptId":"","position":"","summaryLine":"","data":[""],"conflicts":[{"a":"","aDate":"","b":"","bDate":"","why":""}]}]
+
+CONCEPTS
+${packet}
+
+NEW SOURCE
+author: ${ext.author||"unknown"} | date: ${ext.date||today()}
+${ext.topics.map(t=>`${t.topic}: ${(t.ideas||[]).join("; ")} ${(t.data||[]).join("; ")}`).join("\n").slice(0,20000)}`,
+      { modelTier:"default" });
+    if (!Array.isArray(rewrites)) rewrites = [];
+  } catch(e){
+    b2.innerHTML="";
+    fail(b2, e.code, "The positions could not be rewritten, so nothing was stored. Send it again.");
+    return;
+  }
+
+  /* write everything */
+  for (const t of touched){
+    const c = t.concept;
+    const rw = rewrites.find(r => r.conceptId === c.id) || {};
+    const ev = (c.evidence||[]).slice();
+    ev.unshift({ date: ext.date || today(), author: ext.author || "unknown", claim: (t.adds||"").slice(0,240), source:id });
+    const kept = compress(ev);
+    await S.db.doc("concepts/"+c.id).set({
+      brain:c.brain, title:c.title, n:c.n||1,
+      position: rw.position || c.position || "",
+      summaryLine: rw.summaryLine || (rw.position||"").split(/(?<=\.)\s/)[0] || "",
+      evidence: kept,
+      data: Array.isArray(rw.data) && rw.data.length ? rw.data.slice(0,24) : (c.data||[]),
+      conflicts: Array.isArray(rw.conflicts) ? rw.conflicts.slice(0,12) : (c.conflicts||[]),
+      sources: Array.from(new Set([...(c.sources||[]), id])),
+      related: c.related||[],
+      updated: today(),
+    });
+  }
+  await writeSource(id, link, ext, brains);
+  await writeNote(id, ext, plan, resolved);
+
+  card.remove(); b2.innerHTML = "";
+  push("ai", b => { b.append(receipt(id, brains, touched.length, plan, resolved, false)); });
+  S.pendingCard = null;
+}
+
+/* R5.9 — keep 12, compress older agreeing entries, never compress a superseded view */
+function compress(ev){
+  const real = ev.filter(e => !e.rollup);
+  const roll = ev.find(e => e.rollup);
+  if (real.length <= 12) return roll ? [...real, roll] : real;
+  const keep = real.slice(0,12);
+  const fold = real.slice(12);
+  const dates = fold.map(e=>String(e.date||"").slice(0,4)).filter(Boolean).sort();
+  const n = fold.length + (roll?.count || 0);
+  const lo = roll?.from || dates[0] || "";
+  const hi = dates[dates.length-1] || roll?.to || "";
+  return [...keep, { rollup:true, count:n, from:lo, to:hi,
+    claim:`${n} earlier source${n===1?"":"s"} agreed${lo?`, ${lo} to ${hi}`:""}` }];
+}
+
+async function bumpCandidate(brain, title, srcId, touched){
+  const key = "candidates/"+brain+"__"+slug(title);
+  const ref = S.db.doc(key);
+  const snap = await ref.get().catch(()=>null);
+  const prev = snap?.exists ? snap.data() : null;
+  const mentions = [...new Set([...(prev?.notes||[]), srcId])];
+  if (mentions.length >= 3){
+    const n = conceptsOf(brain).length + 1;
+    touched.push({ concept:{ id:brain+"__"+slug(title), brain, title, n,
+      position:"", evidence:[], data:[], conflicts:[], sources:mentions, related:[] },
+      adds:"promoted after 3 mentions", isNew:true });
+    await ref.delete().catch(()=>{});
+  } else {
+    await ref.set({ brain, title, notes:mentions, count:mentions.length, updated:today() });
+  }
+}
+
+async function writeSource(id, link, ext, brains){
+  await S.db.doc("sources/"+id).set({
+    id, link: link||"", title: ext.title||"", author: ext.author||"",
+    date: ext.date || today(), location:"pasted, not kept", brains, stored: today(),
+  });
+}
+async function writeNote(id, ext, plan, resolved){
+  await S.db.doc("notes/"+id).set({
+    source:id, title:ext.title||"", author:ext.author||"", date:ext.date||today(),
+    topics:(ext.topics||[]).slice(0,40), quotes:(ext.quotes||[]).slice(0,40),
+    thin:(ext.thin||[]).slice(0,30),
+    connections:[...(plan.matched||[]), ...(plan.candidates||[])],
+    findings:{ new:plan.new||[], echo:plan.echo||[], conflicts:resolved },
+    written: today(),
+  });
+}
+
+function receipt(id, brains, nPos, plan, resolved, echoOnly){
+  const names = brains.map(x=>S.brains.find(b=>b.id===x)?.name||x).join(", ") || "none";
+  const flipped = resolved.filter(r=>r.choice==="new").length;
+  const both = resolved.filter(r=>r.choice==="both").length;
+  const open = resolved.filter(r=>r.choice==="both").map(r=>r.concept);
+  const d = el("div","receipt");
+  d.innerHTML =
+`Stored <span class="v">${esc(id)}</span>. Brains <span class="v">${esc(names)}</span>.
+Rewritten: <span class="v">${nPos}</span> position${nPos===1?"":"s"} · <span class="v">${brains.length}</span> summar${brains.length===1?"y":"ies"}
+<span class="v">${(plan.new||[]).length}</span> new · <span class="v">${(plan.echo||[]).length}</span> echoes · <span class="v">${flipped}</span> flipped · <span class="v">${both}</span> kept both
+<span class="ok">Coherent.</span>${echoOnly?" Nothing new, so no position moved." : ""} Open conflicts: <span class="v">${esc(open.join(", ")||"none")}</span>`;
+  return d;
+}
+
+/* ══════════════════════ export ══════════════════════ */
+async function exportAll(){
+  const out = [];
+  out.push("# MAP\n\n| Brain | Type | Concepts | Scope |\n|---|---|---|---|");
+  for (const b of S.brains) out.push(`| brain-${b.type}-${b.id} | ${b.type} | ${conceptsOf(b.id).length} | ${b.scope} |`);
+  out.push("\n# SOURCES\n\n| Id | Date | Author | Link | Brains |\n|---|---|---|---|---|");
+  for (const s of S.sources) out.push(`| ${s.id} | ${s.date||""} | ${s.author||""} | ${s.link||""} | ${(s.brains||[]).join(", ")} |`);
+  for (const b of S.brains){
+    out.push(`\n# brain-${b.type}-${b.id}/SUMMARY.md\n\n**Scope:** ${b.scope}\n`);
+    for (const c of conceptsOf(b.id)) out.push(`- ${c.title}: ${c.summaryLine||c.position||"no position yet"}. \`${pad2(c.n||1)}-${slug(c.title)}.md\``);
+    for (const c of conceptsOf(b.id)){
+      out.push(`\n## brain-${b.type}-${b.id}/${pad2(c.n||1)}-${slug(c.title)}.md\n`);
+      out.push(`### Position\n\n${c.position||"none yet"}\n`);
+      out.push(`### Evidence\n\n${(c.evidence||[]).map(e=>`- ${e.date||"?"}, ${e.author||"?"}: ${e.claim||""}`).join("\n")||"- none"}\n`);
+      out.push(`### Data\n\n${(c.data||[]).map(x=>"- "+x).join("\n")||"- none"}\n`);
+      out.push(`### Open conflicts\n\n${(c.conflicts||[]).map(x=>`- ${x.a} (${x.aDate}) against ${x.b} (${x.bDate}). They differ because ${x.why}.`).join("\n")||"- none"}\n`);
+      out.push(`### Sources\n\n${(c.sources||[]).map(x=>"- `notes/"+x+".md`").join("\n")||"- none"}\n`);
+      out.push(`### Updated\n\n${c.updated||""}\n`);
+    }
+  }
+  const md = out.join("\n");
+  clearZero();
+  push("ai", b => {
+    b.innerHTML = rich(`**Export ready.** ${S.brains.length} brain${S.brains.length===1?"":"s"}, ${S.concepts.length} concept${S.concepts.length===1?"":"s"}, ${S.sources.length} source${S.sources.length===1?"":"s"}, as the markdown the repo expects.`);
+    const pre = el("div","receipt");
+    pre.style.cssText = "margin-top:12px;max-height:280px;overflow:auto";
+    pre.textContent = md.slice(0,4000) + (md.length>4000 ? "\n\n... " + (md.length-4000) + " more characters" : "");
+    b.append(pre);
+    const r = el("div"); r.style.cssText="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap";
+    const cp = el("button","go","Copy all");
+    cp.onclick = async () => {
+      try { await navigator.clipboard.writeText(md); cp.textContent = "Copied"; }
+      catch(_){ cp.textContent = "Select it above"; }
+    };
+    r.append(cp); b.append(r);
+  });
+}
+
+})();
+</script>

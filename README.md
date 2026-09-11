@@ -1,10 +1,21 @@
-# brain
+# Octopus
 
-A folder that gets smarter every time you feed it.
+A folder that gets smarter every time you feed it. One arm in each brain.
 
 Drop articles, transcripts, studies, links. The brain stores each one once, files it where it belongs, argues with you when a claim clashes with what it already believes, then rewrites its position instead of piling up quotes. Ask it a question and you get an answer, not a list of everything ever said.
 
-Plain markdown. No app, no database, no accounts.
+Plain markdown at its core, with a chat on top. Brains stay portable whichever way you use it.
+
+## Two ways in
+
+| | Chat | Claude Code |
+|---|---|---|
+| Where | `app/index.html`, published as a page | The `brain` skill, in your terminal |
+| Model | Claude in the artifact build, OpenRouter in the Convex build | Whatever your session runs |
+| Brains | A live store, exportable to markdown | Markdown files under `brains/` |
+| Gate | A passphrase before anything reads or calls | Your own machine |
+
+Same protocol, same three actions, same export format.
 
 ## Why this exists
 
@@ -51,22 +62,28 @@ Words read, estimated. The deep work stays fixed whatever the size.
 
 ## Install
 
-1. Copy `skill/brain/` into your skills folder.
-   Claude Code: `~/.claude/skills/brain/` for personal, `.claude/skills/brain/` for one project.
-   Claude.ai: upload `skill/brain/SKILL.md` as a skill.
-2. Ask for your first brain: "create a brain for X".
-3. Drop a source.
+**The chat.** Publish `app/index.html` as a page with a document store and a call to Claude. First open asks you to set a passphrase. Then create a brain and drop a source.
 
-Runs on Claude Opus 5 or better. A drop reads a full transcript once and ranks what contradicts what, so a weaker model costs you extraction depth you cannot get back without re-dropping.
+**Claude Code.** Copy `skill/brain/` into your skills folder: `~/.claude/skills/brain/` for personal, `.claude/skills/brain/` for one project. On Claude.ai, upload `skill/brain/SKILL.md` as a skill. Then ask for your first brain.
+
+Runs on Claude Opus 5 or better. A drop reads a full transcript once and ranks what contradicts what, so a weaker model costs you extraction depth you cannot get back without re-dropping. `CONVEX.md` carries the numbers for cheaper models.
+
+## The passphrase gate
+
+Nothing reads a brain and nothing reaches the model until the passphrase is entered. Only a salted SHA-256 hash gets stored.
+
+In the artifact build this is a lock on the door: model calls spend each viewer's own Claude usage, so your balance is never at risk. In the Convex build it becomes a real gate, because your OpenRouter key sits on the server and every call spends your money. `CONVEX.md` covers that split.
 
 ## Layout
 
 ```
 README.md              this file
 PROTOCOL.md            the 41 rules, addressable by number
-skill/brain/SKILL.md   the behaviour
-templates/             the shape of every file the brain writes
-brains/                your brains
+CONVEX.md              the server build, and why the key belongs there
+app/index.html         the chat, one file
+skill/brain/SKILL.md   the behaviour, for Claude Code
+templates/             the shape of every file a brain writes
+brains/                your brains, as markdown
 ```
 
 ## The rules
