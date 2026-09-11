@@ -8,6 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
+  window.OCTOPUS_BUILD = "2026-09-11c";
 </script>
 
 <style>
@@ -534,13 +535,20 @@ const rich = t => esc(t).split(/\n{2,}/).map(p =>
 /* every call to the server goes through here, carrying the session token */
 async function api(path, body = {}) {
   let r;
+  const ctl = new AbortController();
+  const cap = setTimeout(() => ctl.abort(), 180000);   // a read can think for a while
   try {
     r = await fetch(API + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: S.token, ...body }),
+      signal: ctl.signal,
     });
-  } catch (_) { throw new Error("The server did not answer. Check your connection."); }
+  } catch (e) {
+    throw new Error(e?.name === "AbortError"
+      ? "That call ran past 3 minutes with no answer. Try a shorter source."
+      : "The server did not answer. Check your connection.");
+  } finally { clearTimeout(cap); }
   if (r.status === 401) { sessionStorage.removeItem(TOKEN_KEY); location.reload(); throw new Error("locked"); }
   const d = await r.json().catch(() => ({ error: "the server sent something unreadable" }));
   if (d.error) throw new Error(d.error);
@@ -647,6 +655,7 @@ function renderSide(){
   const box = $("brains"); box.innerHTML = "";
   $("bcount").textContent = S.brains.length || "";
   $("stat").textContent = S.model ? S.model.split("/").pop() : "";
+  $("stat").title = `build ${window.OCTOPUS_BUILD} · reads in ${S.chunk} character passes`;
   if (!S.brains.length){
     box.append(el("div","empty-side","None yet. A brain is a subject or a person, with a one line scope."));
     return;
