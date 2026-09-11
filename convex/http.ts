@@ -165,6 +165,10 @@ RULES
 - "conflict" = a claim contradicting a stored position. Rank each: "flip" if it would change the position, "caveat" if it only adds nuance.
 - In a PERSON brain, a claim contradicting that same person's earlier view is drift, not conflict. Mark it kind "drift".
 - Claims with no data behind them are thin. They never become concepts.
+- "matched" = an EXISTING concept this source adds to. Copy its id exactly as listed below, in the form brain/slug. One entry per concept touched. "whatItAdds" says what this source contributes to it.
+- "candidates" = a NEW concept this source argues for, one no listed concept covers. Give a short title, the brain slug it belongs in, and why.
+- EVERY item in "new" MUST also be filed: under "matched" when a listed concept covers it, under "candidates" when none does. An idea belonging to no concept and needing no new one is thin, not new.
+- So "matched" and "candidates" are both empty only when "new" is empty too.
 
 Reply with only JSON:
 {"brains":["id"],
@@ -215,6 +219,15 @@ route("/api/drop/settle", async (ctx, _req, b) => {
       const r = await ctx.runMutation(internal.store.bumpCandidate, { brain: br, title: cand.title, sid });
       if (r.promoted) touched.push({ c: { brain: br, slug: slug(cand.title), title: cand.title, position: "", evidence: [], data: [], conflicts: [], sources: r.notes }, adds: "promoted after 3 mentions", isNew: true });
     }
+  }
+
+  /* A plan with findings but nothing filed would write a source row and rewrite
+     no position: the knowledge would not land, and the receipt would read fine.
+     Refuse and say so. */
+  if (!touched.length && ((plan.new ?? []).length > 0 || (plan.candidates ?? []).length > 0)) {
+    return { error:
+      `the plan found ${(plan.new ?? []).length} new items and filed none of them into a concept, ` +
+      `so nothing would be rewritten. Drop the source again.` };
   }
 
   let rewrites: any[] = [];
