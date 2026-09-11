@@ -23,6 +23,7 @@ type Result = {
   usage?: unknown;
   replyChars?: number;
   reply?: string;
+  reasoningTokens?: number;
   error?: string;
 };
 
@@ -33,6 +34,7 @@ async function call(opts: {
   maxTokens: number;
   jsonMode: boolean;
   model?: string;
+  reasoning?: unknown;
 }): Promise<Result> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) return { label: opts.label, ok: false, ms: 0, error: "OPENROUTER_API_KEY is not set" };
@@ -43,6 +45,7 @@ async function call(opts: {
     max_tokens: opts.maxTokens,
   };
   if (opts.jsonMode) body.response_format = { type: "json_object" };
+  if (opts.reasoning !== undefined) body.reasoning = opts.reasoning;
 
   const t0 = Date.now();
   try {
@@ -72,6 +75,7 @@ async function call(opts: {
       status: r.status,
       finish: choice?.finish_reason ?? choice?.native_finish_reason ?? "",
       usage: d?.usage ?? null,
+      reasoningTokens: d?.usage?.completion_tokens_details?.reasoning_tokens ?? 0,
       replyChars: reply.length,
       reply: reply.slice(0, 220),
     };
@@ -129,6 +133,52 @@ export const budget = internalAction({
         maxTokens, jsonMode: true,
       }));
     }
+    return { model: MODEL, results };
+  },
+});
+
+/**
+ * THE ONE THAT DECIDES IT. Identical work, three ways of handling deliberation.
+ *
+ * This model reasons by default, and reasoning tokens are output tokens spent
+ * before any visible reply. So the row that returns fast and complete tells us
+ * what to set, and the reasoningTokens column shows what the others wasted.
+ */
+export const reasoning = internalAction({
+  args: { chars: v.optional(v.number()) },
+  handler: async (_ctx, a): Promise<{ model: string; results: Result[] }> => {
+    const unit =
+      "Le risque et le danger sont deux axes distincts en finance. La volatilite mesure le " +
+      "mouvement, le danger mesure la probabilite d'aller a zero. Un actif peut etre calme et " +
+      "mortel, ou violent et sans danger. Le dollar imprime environ 8 pour cent par an. ";
+    const want = a.chars ?? 18000;
+    let body = "";
+    while (body.length < want) body += unit;
+    body = body.slice(0, want);
+
+    const prompt =
+`Extract everything worth keeping from this source. Cover EVERY topic present.
+Write every field in English. Reply with only JSON:
+{"title":"","author":"","date":"","topics":[{"topic":"","ideas":[""],"data":[""]}],"quotes":[{"text":"","speaker":""}],"thin":[""]}
+
+SOURCE:
+${body}`;
+
+    const results: Result[] = [];
+    results.push(await call({
+      label: "A · reasoning effort none",
+      prompt, maxTokens: 16000, jsonMode: true,
+      reasoning: { effort: "none" },
+    }));
+    results.push(await call({
+      label: "B · reasoning capped at 1024",
+      prompt, maxTokens: 16000, jsonMode: true,
+      reasoning: { max_tokens: 1024 },
+    }));
+    results.push(await call({
+      label: "C · reasoning left alone, as it was failing",
+      prompt, maxTokens: 16000, jsonMode: true,
+    }));
     return { model: MODEL, results };
   },
 });
