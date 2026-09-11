@@ -105,12 +105,21 @@ route("/api/drop/read", async (ctx, _req, b) => {
   await gate(ctx, b);
   const part = Number(b.part ?? 1), total = Number(b.total ?? 1);
   const chunk = String(b.chunk ?? "");
-  if (chunk.length > CHUNK * 1.5) {
-    return { error: `that part is ${chunk.length} characters, over the ${CHUNK} the reader takes in one pass` };
-  }
-  const { text, finish } = await ask([
-    { role: "system", content: "You extract source material. You write in English whatever language the source is in, except inside quotes, which stay exact in the original. You reply with JSON only." },
-    { role: "user", content:
+
+  /* Split whatever arrives into passes this reader can finish, then merge.
+     The caller's chunk size is then irrelevant, so the two can never disagree. */
+  const subs: string[] = [];
+  for (let i = 0; i < chunk.length; i += CHUNK) subs.push(chunk.slice(i, i + CHUNK));
+  if (!subs.length) return { error: "that part was empty" };
+
+  const got: any[] = [];
+  for (let i = 0; i < subs.length; i++) {
+    const label = total > 1 || subs.length > 1
+      ? ` (part ${part}${subs.length > 1 ? `.${i + 1}` : ""} of ${total}${subs.length > 1 ? `, ${subs.length} passes` : ""})`
+      : "";
+    const { text, finish } = await ask([
+      { role: "system", content: "You extract source material. You write in English whatever language the source is in, except inside quotes, which stay exact in the original. You reply with JSON only." },
+      { role: "user", content:
 `Extract everything worth keeping from this source. Cover EVERY topic present, whether or not it looks relevant. This is the only read, so nothing gets a second pass.
 
 Keep ideas, numbers, names, dates, reasoning chains, exact quotes and historical comparisons. Drop repetition, advertising, small talk and filler.
@@ -122,10 +131,21 @@ Reply with only JSON:
 
 "thin" holds claims made with no number or evidence behind them.
 
-SOURCE${total > 1 ? ` (part ${part} of ${total})` : ""}:
-${chunk}` },
-  ], { json: true, maxTokens: 24000 });
-  return { part: parseJson(text, finish) };
+SOURCE${label}:
+${subs[i]}` },
+    ], { json: true, maxTokens: 24000 });
+    got.push(parseJson(text, finish));
+  }
+
+  const merged = {
+    title:  got.find(g => g?.title)?.title  ?? "",
+    author: got.find(g => g?.author)?.author ?? "",
+    date:   got.find(g => g?.date)?.date    ?? "",
+    topics: got.flatMap(g => g?.topics ?? []),
+    quotes: got.flatMap(g => g?.quotes ?? []),
+    thin:   got.flatMap(g => g?.thin   ?? []),
+  };
+  return { part: merged, passes: subs.length };
 });
 
 /** R3. Summaries only, never whole brains, so this costs the same at any size. */
