@@ -105,11 +105,13 @@ route("/api/drop/read", async (ctx, _req, b) => {
   await gate(ctx, b);
   const part = Number(b.part ?? 1), total = Number(b.total ?? 1);
   const { text } = await ask([
-    { role: "system", content: "You extract source material. You reply with JSON only." },
+    { role: "system", content: "You extract source material. You write in English whatever language the source is in, except inside quotes, which stay exact in the original. You reply with JSON only." },
     { role: "user", content:
 `Extract everything worth keeping from this source. Cover EVERY topic present, whether or not it looks relevant. This is the only read, so nothing gets a second pass.
 
 Keep ideas, numbers, names, dates, reasoning chains, exact quotes and historical comparisons. Drop repetition, advertising, small talk and filler.
+
+Write every field in English, whatever language the source uses. The one exception is "quotes", where text stays exact in the original language, because a translated quote stops being evidence.
 
 Reply with only JSON:
 {"title":"","author":"","date":"YYYY-MM-DD or empty","topics":[{"topic":"","ideas":[""],"data":[""]}],"quotes":[{"text":"","speaker":""}],"thin":[""]}
@@ -141,7 +143,7 @@ route("/api/drop/plan", async (ctx, _req, b) => {
   const recent = sources.slice(-40).map((s: any) => `${s.sid} | ${s.author || "?"} | ${s.title || ""}`).join("\n") || "none";
 
   const { text } = await ask([
-    { role: "system", content: "You file sources into a knowledge base. You reply with JSON only." },
+    { role: "system", content: "You file sources into a knowledge base. You write in English. You reply with JSON only." },
     { role: "user", content:
 `Decide where this source goes and what it changes. Use ONLY the brains listed.
 
@@ -220,7 +222,7 @@ DECISIONS: ${Object.entries(choices).map(([k, v]) => `${k}=${v}`).join(", ") || 
     }).join("\n\n");
 
     const { text } = await ask([
-      { role: "system", content: "You maintain a knowledge base. You reply with JSON only." },
+      { role: "system", content: "You maintain a knowledge base. You write in English. You reply with JSON only." },
       { role: "user", content:
 `Rewrite each position below from its WHOLE evidence list, now carrying the new source. Re-derive, never append. A position that reads as a list of who said what has failed.
 
@@ -230,7 +232,7 @@ RULES
 - "old" means the new claim stays a minority view and the position holds.
 - "both" means the position holds and the clash goes into open conflicts, dated, with the reason.
 - Never delete a view.
-- No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording.
+- English, always. No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording.
 - summaryLine is ONE line, under 18 words.
 
 Reply with only JSON:
@@ -317,7 +319,7 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
   const nSources = new Set(sources.filter((s: any) => s.brains.some((x: string) => chosen.some((c: any) => c.slug === x))).map((s: any) => s.sid)).size;
 
   const { text } = await ask([
-    { role: "system", content: "You are the user's own knowledge base, answering from what it holds." },
+    { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You always answer in English." },
     { role: "user", content:
 `Answer the question from the stored knowledge below.
 
@@ -332,7 +334,7 @@ ${isPerson
 - No file paths anywhere.
 ${nSources > 0 && nSources < 10 ? `- This rests on ${nSources} source${nSources === 1 ? "" : "s"} only. Open by saying it is a small brain.` : ""}
 - Then a blank line, then exactly one final line: "Sources: {author}, {date} - {author}, {date}" listing only sources you used. Omit that line if you used none.
-- No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
+- English, always. No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
 - If the stored knowledge does not answer it, say so plainly in one sentence and name what kind of source would fill the gap. Never invent evidence.
 
 STORED KNOWLEDGE

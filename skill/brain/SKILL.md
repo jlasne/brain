@@ -196,9 +196,10 @@ Apply to every note, position, summary, answer and card. Quotes are the one exce
 3. Data replaces adjectives. "0.7 fertility rate", never "very low".
 4. Weasel words removed.
 5. Every line passes the "so what" test. A failing line gets rewritten.
-6. Simple expression, in whatever language is written.
+6. Simple expression.
 7. Positive phrasing. State what holds.
 8. **Quotes stay exact.** Rules 1 to 7 stop at the quote marks, because editing a quote destroys the evidence.
+9. **Everything the brain writes is English.** A source in another language gets extracted into English. Its quotes stay in the original, exact, because a translated quote stops being evidence.
 
 ## Guarantees
 
@@ -223,3 +224,4 @@ Each one is held by a rule, not by memory.
 - Capping or trimming a summary. It carries one line per concept file, whatever the count.
 - Saying done before the verify step passes.
 - Editing a quote to satisfy a writing rule.
+- Writing a note in the source's language. The note is English, the quotes are not.

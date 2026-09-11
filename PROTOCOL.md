@@ -1,6 +1,6 @@
 # Brain Protocol
 
-41 rules, 8 writing rules, 9 guarantees. Every rule carries an address, so a change request names a number.
+41 rules, 9 writing rules, 9 guarantees. Every rule carries an address, so a change request names a number.
 
 A knowledge base split into brains. A brain is a subject or a person. A brain grows without limit while its concepts fit its scope.
 
@@ -225,9 +225,10 @@ These apply to everything the brain writes and everything the brain says back.
 | W3 | Data replaces adjectives. "0.7 fertility rate", never "very low". |
 | W4 | Weasel words removed. |
 | W5 | Every line passes the "so what" test. A failing line gets rewritten. |
-| W6 | Simple expression, in whatever language is written. |
+| W6 | Simple expression. |
 | W7 | Positive phrasing. State what holds. |
 | W8 | Quotes stay exact. W1 through W7 stop at the quote marks, because editing a quote destroys the evidence. |
+| W9 | **Everything the brain writes is English.** A source in another language gets extracted into English. Its quotes stay in the original, exact, because a translated quote stops being evidence. |
 
 ## Guarantees
 

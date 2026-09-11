@@ -275,20 +275,6 @@
   .zero{ max-width:640px; margin:0 auto; padding:28px 28px 0; }
   .zero h2{ font:600 30px/1.2 var(--sans); letter-spacing:-.02em; color:var(--ink); text-wrap:balance; }
   .zero .lede{ margin-top:14px; font-size:17px; line-height:1.62; color:var(--ink-2); }
-  .zero .two{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:1px; margin-top:28px; background:var(--line); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:var(--shadow); }
-  .zero .two div{ background:var(--surface); padding:18px 20px; }
-  .zero .two h3{ font:600 14px/1 var(--sans); color:var(--accent); }
-  .zero .two p{ margin-top:9px; font-size:14px; line-height:1.55; }
-  .zero .suggest{ margin-top:26px; }
-  .zero .suggest .side-h{ padding-left:0; }
-  .sg{
-    display:block; width:100%; text-align:left; padding:13px 15px; margin-bottom:8px;
-    border:1px solid var(--line-2); border-radius:12px; background:var(--surface);
-    transition:all .15s var(--ease);
-  }
-  .sg:hover{ border-color:var(--accent-fill); box-shadow:var(--shadow); }
-  .sg b{ display:block; font:500 14.5px/1.3 var(--sans); color:var(--ink); }
-  .sg span{ display:block; margin-top:3px; font-size:13px; line-height:1.5; color:var(--ink-3); }
 
   /* ============ composer ============ */
   .composer-wrap{
@@ -711,21 +697,11 @@ function renderZero(){
   const z = el("div","zero");
   z.innerHTML = `
     <h2>A folder that gets smarter every time you feed it.</h2>
-    <p class="lede">Drop a source and you reply to one card: where it goes, what is new, what it repeats, and every claim that clashes with what your brains already hold. Ask a question and the first sentence answers it.</p>
-    <div class="two">
-      <div><h3>Drop</h3><p>Paste a link or a transcript. It gets read once, filed, and every position it touches gets rewritten before the receipt appears.</p></div>
-      <div><h3>Ask</h3><p>Across every brain, or inside one. Numbers sit in the answer, sources on one line at the end.</p></div>
-    </div>
-    <div class="suggest"><div class="side-h">Start with a brain</div></div>`;
-  const sug = z.querySelector(".suggest");
-  [["Sleep and recovery","sleep, recovery and training load for my own routine","subject"],
-   ["Macro regimes","macro regimes and emerging markets, for my own portfolio","subject"],
-   ["A person","one guest's own views, dated so their drift shows","person"]].forEach(([n,sc,tp]) => {
-    const b = el("button","sg");
-    b.append(el("b",null,n), el("span",null,sc));
-    b.onclick = () => openSheet(tp==="person"?"":n, tp==="person"?"":sc, tp);
-    sug.append(b);
-  });
+    <p class="lede">Drop a source and you reply to one card: where it goes, what is new, what it repeats, and every claim that clashes with what your brains already hold. Ask a question and the first sentence answers it.</p>`;
+  const start = el("button","go","Create your first brain");
+  start.style.marginTop = "26px";
+  start.onclick = () => openSheet("","","subject");
+  z.append(start);
   th.append(z);
 }
 
