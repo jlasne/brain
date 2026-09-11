@@ -1,5 +1,18 @@
 # The Convex build
 
+Built. The deployment is `uncommon-wolf-174`, Europe (Ireland), and the model is `deepseek/deepseek-v4-flash-0731`.
+
+| | Value |
+|---|---|
+| API the app calls | `https://uncommon-wolf-174.eu-west-1.convex.site` |
+| Model | `deepseek/deepseek-v4-flash-0731` |
+| Key | `OPENROUTER_API_KEY`, a Convex environment variable |
+| Site | `octopus.jeremylasne.com`, its own Vercel project on this repo |
+
+Change the model on one line, `MODEL` in `convex/lib.ts`.
+
+## Why it exists
+
 The artifact build cannot call OpenRouter. A published artifact's network is locked to a short allowlist of script hosts, so every other fetch is blocked with no visible error. That is the whole reason a second runtime exists.
 
 Convex solves the two things the artifact cannot: your OpenRouter key stays server side, and the passphrase becomes a real gate rather than a speed bump.
@@ -8,14 +21,29 @@ Convex solves the two things the artifact cannot: your OpenRouter key stays serv
 
 ```
 convex/
-  schema.ts        brains · concepts · sources · notes · candidates · config
-  auth.ts          passphrase check, salted hash, session tokens
-  model.ts         the one call every step goes through
-  drop.ts          check · read · compare · settle
-  ask.ts           where · what
+  schema.ts        brains · concepts · sources · notes · candidates · config · sessions
+  lib.ts           the model call, the hash, the link key, CORS
+  store.ts         every read and write, reached only through internal functions
+  http.ts          the routes, and the gate every one of them passes
 app/
-  index.html       the same interface, pointed at Convex
+  index.html       the interface, pointed at the deployment
+vercel.json        serves app/ as the site root
 ```
+
+## Routes
+
+| Route | Does | Gated |
+|---|---|---|
+| `/api/status` | Says whether a passphrase exists | No, it leaks nothing |
+| `/api/unlock` | First call sets the passphrase, later calls check it | Rate limited, 8 tries an hour |
+| `/api/state` | Brains, concepts, sources | Yes |
+| `/api/brain` | Creates one | Yes |
+| `/api/drop/check` | The duplicate check, an index lookup | Yes |
+| `/api/drop/read` | One extraction pass over one chunk | Yes |
+| `/api/drop/plan` | Summaries in, the card out | Yes |
+| `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
+| `/api/ask` | The answer | Yes |
+| `/api/lock` | Drops the session | Yes |
 
 ## Why the key has to be server side
 

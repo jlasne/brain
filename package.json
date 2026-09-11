@@ -1,0 +1,15 @@
+{
+  "name": "octopus-brain",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A folder that gets smarter every time you feed it. One arm in each brain.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "convex dev",
+    "deploy": "convex deploy"
+  },
+  "devDependencies": {
+    "convex": "^1.17.0",
+    "typescript": "^5.6.0"
+  }
+}

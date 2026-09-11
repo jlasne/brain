@@ -2,6 +2,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27%23d97757%27 fill-rule=%27evenodd%27%3E%3Cpath d=%27M5 14a7 7 0 0 1 14 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0ZM9.7 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4ZM14.3 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z%27/%3E%3C/svg%3E">
+
+<script>
+  /* The deployment this app talks to. Public by design: the OpenRouter key
+     lives on the server and never reaches a browser. */
+  window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
+</script>
 
 <style>
   *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
@@ -454,11 +461,12 @@
   }
 </style>
 
+
 <div class="app" id="app" hidden>
 
   <aside id="side">
     <div class="brand">
-      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6c-3.5 0-6.3 2.6-6.3 5.9 0 1.5.6 2.7.6 3.7 0 .9-.5 1.3-1.1 1.7-.7.5-1.5 1-1.5 2.2 0 1.1.9 1.9 1.9 1.9s1.8-.8 1.8-1.8a.7.7 0 0 1 1.4 0c0 1.8-1.4 3.2-3.2 3.2a3.3 3.3 0 0 1-2.4-1 .7.7 0 1 0-1 1 4.7 4.7 0 0 0 3.4 1.4c2.5 0 4.6-2 4.6-4.6a.7.7 0 0 1 1.4 0c0 1.4.5 2.5 1.4 3.3a.7.7 0 1 0 .9-1c-.6-.6-.9-1.3-.9-2.3a.7.7 0 0 1 1.4 0c0 2.6 2 4.6 4.6 4.6a4.7 4.7 0 0 0 3.4-1.4.7.7 0 0 0-1-1 3.3 3.3 0 0 1-2.4 1c-1.8 0-3.2-1.4-3.2-3.2a.7.7 0 0 1 1.4 0c0 1 .8 1.8 1.8 1.8s1.9-.8 1.9-1.9c0-1.2-.8-1.7-1.5-2.2-.6-.4-1.1-.8-1.1-1.7 0-1 .6-2.2.6-3.7 0-3.3-2.8-5.9-6.3-5.9Zm-2.3 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm4.6 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg></span>
+      <span class="mark"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M5 14a7 7 0 0 1 14 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0ZM9.7 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4ZM14.3 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z"/></svg></span>
       <h1>Octopus</h1>
     </div>
     <div class="side-scroll">
@@ -468,7 +476,7 @@
     </div>
     <div class="side-foot">
       <button id="lockBtn">lock</button>
-      <span id="stat">reading</span>
+      <span id="stat"></span>
       <button id="exportBtn">export</button>
     </div>
   </aside>
@@ -510,209 +518,143 @@
     </div>
   </main>
 </div>
-
 <script>
 (() => {
 "use strict";
 
-/* ══════════════════════ state ══════════════════════ */
+const API = window.OCTOPUS_API;
+const TOKEN_KEY = "octopus.token.v1";
+
 const S = {
-  db:null, sample:null,
-  brains:[], concepts:[], sources:[],
-  mode:"ask", scope:"all",
-  transcript:null,
-  busy:false, ctl:null,
-  pendingCard:null,
+  token: null, brains: [], concepts: [], sources: [], model: "",
+  mode: "ask", scope: "all", transcript: null, busy: false, pendingCard: null,
 };
 
 const $ = id => document.getElementById(id);
 const el = (t,c,txt) => { const n=document.createElement(t); if(c)n.className=c; if(txt!=null)n.textContent=txt; return n; };
-const slug = s => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,48) || "brain";
 const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const slug = s => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,48)||"item";
 const pad2 = n => String(n).padStart(2,"0");
 const today = () => new Date().toISOString().slice(0,10);
+const rich = t => esc(t).split(/\n{2,}/).map(p =>
+  "<p>" + p.replace(/\n/g,"<br>").replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>") + "</p>").join("");
 
-/* light markdown for answers: **bold**, paragraphs */
-function rich(t){
-  return esc(t).split(/\n{2,}/).map(p =>
-    "<p>" + p.replace(/\n/g,"<br>").replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>") + "</p>"
-  ).join("");
+/* every call to the server goes through here, carrying the session token */
+async function api(path, body = {}) {
+  let r;
+  try {
+    r = await fetch(API + path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: S.token, ...body }),
+    });
+  } catch (_) { throw new Error("The server did not answer. Check your connection."); }
+  if (r.status === 401) { sessionStorage.removeItem(TOKEN_KEY); location.reload(); throw new Error("locked"); }
+  const d = await r.json().catch(() => ({ error: "the server sent something unreadable" }));
+  if (d.error) throw new Error(d.error);
+  return d;
 }
 
-/* ══════════════════════ the gate ══════════════════════ */
-/* Every call that spends Claude usage sits behind this. It is a lock on
-   the door, not a vault: the real key lives server side in the Convex
-   build, where the OpenRouter key is held and never reaches a browser. */
+/* ============ the gate ============ */
+const MARK = document.querySelector(".brand .mark").innerHTML;
 
-const GATE_KEY = "octopus.unlocked.v1";
-
-async function hash(salt, pass){
-  const buf = new TextEncoder().encode(salt + "\u0000" + pass);
-  const out = await crypto.subtle.digest("SHA-256", buf);
-  return [...new Uint8Array(out)].map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-function newSalt(){
-  return [...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,"0")).join("");
-}
-
-const MARK = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6c-3.5 0-6.3 2.6-6.3 5.9 0 1.5.6 2.7.6 3.7 0 .9-.5 1.3-1.1 1.7-.7.5-1.5 1-1.5 2.2 0 1.1.9 1.9 1.9 1.9s1.8-.8 1.8-1.8a.7.7 0 0 1 1.4 0c0 1.8-1.4 3.2-3.2 3.2a3.3 3.3 0 0 1-2.4-1 .7.7 0 1 0-1 1 4.7 4.7 0 0 0 3.4 1.4c2.5 0 4.6-2 4.6-4.6a.7.7 0 0 1 1.4 0c0 1.4.5 2.5 1.4 3.3a.7.7 0 1 0 .9-1c-.6-.6-.9-1.3-.9-2.3a.7.7 0 0 1 1.4 0c0 2.6 2 4.6 4.6 4.6a4.7 4.7 0 0 0 3.4-1.4.7.7 0 0 0-1-1 3.3 3.3 0 0 1-2.4 1c-1.8 0-3.2-1.4-3.2-3.2a.7.7 0 0 1 1.4 0c0 1 .8 1.8 1.8 1.8s1.9-.8 1.9-1.9c0-1.2-.8-1.7-1.5-2.2-.6-.4-1.1-.8-1.1-1.7 0-1 .6-2.2.6-3.7 0-3.3-2.8-5.9-6.3-5.9Zm-2.3 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm4.6 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg>';
-
-function gateScreen({ mode, verify, onPass }){
+function gateScreen(firstRun) {
   const g = el("div","gate");
-  const setup = mode === "setup";
   g.innerHTML = `
     <div class="panel">
       <div class="mk" aria-hidden="true">${MARK}</div>
-      <h2>${setup ? "Set a passphrase" : "Octopus is locked"}</h2>
-      <p>${setup
-        ? "It guards every call that spends AI credits. Pick something you will remember, because only its hash gets stored."
+      <h2>${firstRun ? "Set a passphrase" : "Octopus is locked"}</h2>
+      <p>${firstRun
+        ? "It guards every call that spends your OpenRouter credits. Only a salted hash gets stored, on the server."
         : "Enter the passphrase to read your brains and drop sources."}</p>
       <form>
-        <input type="password" id="gp" autocomplete="${setup?"new-password":"current-password"}"
-               placeholder="${setup?"At least 8 characters":"Passphrase"}" required>
-        ${setup ? '<input type="password" id="gp2" autocomplete="new-password" placeholder="Repeat it" required>' : ""}
-        <div class="row">
-          <button class="go" type="submit">${setup ? "Lock it and open" : "Unlock"}</button>
-        </div>
+        <input type="password" id="gp" autocomplete="${firstRun?"new-password":"current-password"}"
+               placeholder="${firstRun?"At least 8 characters":"Passphrase"}" required>
+        <div class="row"><button class="go" type="submit">${firstRun ? "Lock it and open" : "Unlock"}</button></div>
         <div id="gmsg" class="bad" role="alert"></div>
       </form>
-      <div class="note">${setup
-        ? "A lock on the door, not a vault. Anyone who opens this page can read its code, so treat it as a speed bump. The real key belongs server side, which is what the Convex build is for."
-        : "Forgotten it? It can be reset from the Claude Code session that owns this page."}</div>
+      <div class="note">The key never reaches this page. Every model call happens on the server, behind this check.</div>
     </div>`;
   document.body.append(g);
   const inp = g.querySelector("#gp"), msg = g.querySelector("#gmsg");
-  setTimeout(()=>inp.focus(), 60);
-
+  setTimeout(() => inp.focus(), 60);
   g.querySelector("form").onsubmit = async e => {
     e.preventDefault();
-    const pass = inp.value;
     msg.className = "spin"; msg.textContent = "Checking";
     try {
-      if (setup){
-        const two = g.querySelector("#gp2").value;
-        if (pass.length < 8){ msg.className="bad"; msg.textContent="Use at least 8 characters."; return; }
-        if (pass !== two){ msg.className="bad"; msg.textContent="The two do not match."; return; }
-        const salt = newSalt();
-        await S.db.doc("config/gate").set({ salt, hash: await hash(salt, pass), set: today() });
-        sessionStorage.setItem(GATE_KEY, await hash(salt, pass));
-        g.remove(); onPass();
-      } else {
-        const ok = await verify(pass);
-        if (!ok){ msg.className="bad"; msg.textContent="That is not it. Try again."; inp.select(); return; }
-        g.remove(); onPass();
-      }
-    } catch(_){
-      msg.className="bad"; msg.textContent="The store did not answer. Try again.";
+      const r = await api("/api/unlock", { pass: inp.value });
+      S.token = r.token;
+      sessionStorage.setItem(TOKEN_KEY, r.token);
+      g.remove(); open();
+    } catch (err) {
+      msg.className = "bad"; msg.textContent = String(err.message); inp.select();
     }
   };
-  return g;
 }
 
-/* ══════════════════════ boot ══════════════════════ */
-render();
-sizeBox();
-
+/* ============ boot ============ */
 (async () => {
-  const [db, sample] = await Promise.all([
-    claude.use("db").catch(()=>null),
-    claude.use("sample").catch(()=>null),
-  ]);
-  S.db = db; S.sample = sample;
-
-  if (!db) {
+  const saved = sessionStorage.getItem(TOKEN_KEY);
+  if (saved) {
+    S.token = saved;
+    try { await refresh(); open(); return; } catch (_) { sessionStorage.removeItem(TOKEN_KEY); S.token = null; }
+  }
+  let gateSet = true;
+  try { gateSet = (await api("/api/status")).gateSet; }
+  catch (e) {
     document.body.innerHTML = "";
-    const g = el("div","gate");
+    const g = document.createElement("div"); g.className = "gate";
     g.innerHTML = `<div class="panel"><div class="mk">${MARK}</div>
-      <h2>No store in this view</h2>
-      <p>Octopus keeps your brains server side, and this view cannot reach that store. Open the page from your own Claude account.</p></div>`;
-    document.body.append(g);
-    return;
+      <h2>The server is not answering</h2>
+      <p>Octopus talks to a Convex deployment for every read and every model call. This one did not reply.</p>
+      <div class="note">${String(e.message)}</div></div>`;
+    document.body.append(g); return;
   }
-
-  /* the lock, before any brain is read and before Claude is ever called */
-  const gateDoc = await db.doc("config/gate").get().catch(()=>null);
-  const cfg = gateDoc?.exists ? gateDoc.data() : null;
-
-  const open = () => { $("app").hidden = false; start(db, sample); };
-
-  if (!cfg){
-    gateScreen({ mode:"setup", onPass: open });
-  } else if (sessionStorage.getItem(GATE_KEY) === cfg.hash){
-    open();
-  } else {
-    gateScreen({
-      mode:"unlock",
-      verify: async pass => {
-        const h = await hash(cfg.salt, pass);
-        if (h !== cfg.hash) return false;
-        sessionStorage.setItem(GATE_KEY, h);
-        return true;
-      },
-      onPass: open,
-    });
-  }
+  gateScreen(!gateSet);
 })();
 
-function start(db, sample){
-  $("stat").textContent = "reading";
+function open(){ $("app").hidden = false; render(); sizeBox(); $("input").focus(); }
 
-  db.collection("brains").onSnapshot(
-    snap => { S.brains = snap.docs.map(d => ({id:d.id, ...d.data()})); render(); },
-    () => { $("stat").textContent = "store error"; }
-  );
-  db.collection("concepts").onSnapshot(
-    snap => { S.concepts = snap.docs.map(d => ({id:d.id, ...d.data()})); render(); },
-    ()=>{}
-  );
-  db.collection("sources").onSnapshot(
-    snap => { S.sources = snap.docs.map(d => ({id:d.id, ...d.data()})); render(); },
-    ()=>{}
-  );
-  $("stat").textContent = sample ? "ready" : "store only";
+async function refresh(){
+  const d = await api("/api/state");
+  S.brains = d.brains || []; S.concepts = d.concepts || []; S.sources = d.sources || [];
+  S.model = d.model || "";
   render();
-  $("input").focus();
 }
 
-/* ══════════════════════ render ══════════════════════ */
-function conceptsOf(b){ return S.concepts.filter(c => c.brain === b).sort((x,y)=>(x.n||0)-(y.n||0)); }
-function sourcesOf(b){ return S.sources.filter(s => (s.brains||[]).includes(b)); }
+/* ============ render ============ */
+const conceptsOf = b => S.concepts.filter(c => c.brain === b).sort((x,y)=>(x.n||0)-(y.n||0));
+const sourcesOf  = b => S.sources.filter(s => (s.brains||[]).includes(b));
 
-function render(){
-  renderSide();
-  renderScope();
-  renderComposer();
-  if (!$("thread").dataset.seeded) renderThread();
-}
+function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); }
 
 function renderSide(){
   const box = $("brains"); box.innerHTML = "";
   $("bcount").textContent = S.brains.length || "";
+  $("stat").textContent = S.model ? S.model.split("/").pop() : "";
   if (!S.brains.length){
-    box.append(Object.assign(el("div","empty-side"),{textContent:"None yet. A brain is a subject or a person, with a one line scope."}));
+    box.append(el("div","empty-side","None yet. A brain is a subject or a person, with a one line scope."));
     return;
   }
   for (const b of S.brains){
-    const n = conceptsOf(b.id).length, sc = sourcesOf(b.id).length;
-    const row = el("button","brain-row" + (S.scope===b.id ? " on" : ""));
+    const n = conceptsOf(b.slug).length, sc = sourcesOf(b.slug).length;
+    const row = el("button","brain-row" + (S.scope===b.slug ? " on" : ""));
     const top = el("div","bn");
-    top.append(el("span","nm",b.name), el("span","tp "+(b.type||"subject"),b.type||"subject"));
+    top.append(el("span","nm",b.name), el("span","tp "+b.type,b.type));
     row.append(top, el("div","sc",b.scope||""), el("div","ct",`${n} concept${n===1?"":"s"} · ${sc} source${sc===1?"":"s"}`));
-    row.onclick = () => { S.scope = S.scope===b.id ? "all" : b.id; closeSide(); render(); };
+    row.onclick = () => { S.scope = S.scope===b.slug ? "all" : b.slug; closeSide(); render(); };
     box.append(row);
   }
 }
 
 function renderScope(){
-  const sel = $("scope"), cur = S.scope;
+  const sel = $("scope");
   sel.innerHTML = "";
   const all = el("option", null, S.mode==="drop" ? "Suggest for me" : "All brains");
   all.value = "all"; sel.append(all);
-  for (const b of S.brains){
-    const o = el("option", null, b.name); o.value = b.id; sel.append(o);
-  }
-  sel.value = S.brains.some(b=>b.id===cur) ? cur : "all";
-  if (sel.value !== cur) S.scope = "all";
+  for (const b of S.brains){ const o = el("option", null, b.name); o.value = b.slug; sel.append(o); }
+  if (!S.brains.some(b => b.slug === S.scope)) S.scope = "all";
+  sel.value = S.scope;
   $("scopeLabel").textContent = S.mode==="drop" ? "Into" : "Across";
 }
 
@@ -720,24 +662,23 @@ function renderComposer(){
   const drop = S.mode==="drop";
   $("input").placeholder = drop
     ? "Paste a link, or the text of the source."
-    : S.scope==="all" ? "Ask anything your brains have read." : "Ask " + (S.brains.find(b=>b.id===S.scope)?.name || "this brain") + ".";
+    : S.scope==="all" ? "Ask anything your brains have read."
+                      : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this brain") + ".";
   $("pasteBtn").hidden = !drop;
   $("pasteBtn").textContent = S.transcript ? `transcript ${Math.round(S.transcript.length/1000)}k ✓` : "+ transcript";
   $("pasteBtn").classList.toggle("has", !!S.transcript);
-  $("footNote").textContent = !S.sample
-    ? "Claude is unavailable in this view, so drops and answers are paused."
-    : drop ? "The source gets read once, then you reply to one card."
-           : "The answer carries the numbers. Sources sit on one line underneath.";
+  $("footNote").textContent = drop
+    ? "The source gets read once, then you reply to one card."
+    : "The answer carries the numbers. Sources sit on one line underneath.";
   const t = $("input").value.trim();
-  $("send").disabled = S.busy || !t || !S.sample;
-  $("tHint").textContent = S.busy ? "working" : drop && !S.transcript && /^https?:\/\//i.test(t)
-    ? "a link alone needs its transcript" : "";
+  $("send").disabled = S.busy || !t;
+  $("tHint").textContent = S.busy ? "working"
+    : drop && !S.transcript && /^https?:\/\//i.test(t) ? "a link alone needs its transcript" : "";
 }
 
-function renderThread(){
+function renderZero(){
   const th = $("thread");
   if (S.brains.length || th.children.length) return;
-  th.innerHTML = "";
   const z = el("div","zero");
   z.innerHTML = `
     <h2>A folder that gets smarter every time you feed it.</h2>
@@ -748,86 +689,64 @@ function renderThread(){
     </div>
     <div class="suggest"><div class="side-h">Start with a brain</div></div>`;
   const sug = z.querySelector(".suggest");
-  [
-    ["Sleep and recovery","sleep, recovery and training load for my own routine","subject"],
-    ["Macro regimes","macro regimes and emerging markets, for my own portfolio","subject"],
-    ["A person","one guest's own views, dated so their drift shows","person"],
-  ].forEach(([n,sc,tp]) => {
+  [["Sleep and recovery","sleep, recovery and training load for my own routine","subject"],
+   ["Macro regimes","macro regimes and emerging markets, for my own portfolio","subject"],
+   ["A person","one guest's own views, dated so their drift shows","person"]].forEach(([n,sc,tp]) => {
     const b = el("button","sg");
     b.append(el("b",null,n), el("span",null,sc));
-    b.onclick = () => openSheet(tp==="person" ? "" : n, tp==="person" ? "" : sc, tp);
+    b.onclick = () => openSheet(tp==="person"?"":n, tp==="person"?"":sc, tp);
     sug.append(b);
   });
   th.append(z);
-  th.dataset.seeded = "1";
 }
 
-/* ══════════════════════ thread helpers ══════════════════════ */
-function clearZero(){ const z=$("thread").querySelector(".zero"); if(z) z.remove(); }
+/* ============ thread ============ */
+const clearZero = () => $("thread").querySelector(".zero")?.remove();
+const bottom = () => { const t=$("thread"); t.scrollTop = t.scrollHeight; };
 
 function push(kind, build){
   clearZero();
-  const th = $("thread");
   const wrap = el("div","msg "+(kind==="me"?"me":"ai"));
   const col = el("div","col");
   if (kind !== "me"){
     const who = el("div","who");
     who.append(el("span",null,"Octopus"));
-    if (S.scope!=="all" && kind==="ai"){
-      const b = S.brains.find(x=>x.id===S.scope);
-      if (b) who.append(el("span","sc","· "+b.name));
-    }
+    const b = S.brains.find(x=>x.slug===S.scope);
+    if (b) who.append(el("span","sc","· "+b.name));
     col.append(who);
   }
   const body = el("div","body");
-  col.append(body); wrap.append(col); th.append(wrap);
-  build(body);
-  th.scrollTop = th.scrollHeight;
+  col.append(body); wrap.append(col); $("thread").append(wrap);
+  build(body); bottom();
   return body;
 }
-
 function says(text, attach){
-  push("me", b => {
-    b.textContent = text;
-    if (attach) b.append(Object.assign(el("span","attach"),{textContent:attach}));
-  });
+  push("me", b => { b.textContent = text; if (attach) b.append(el("span","attach",attach)); });
 }
-
 function thinking(label){
   return push("ai", b => {
-    const t = el("div","thinking");
-    const d = el("span","dots"); d.append(el("i"),el("i"),el("i"));
+    const t = el("div","thinking"), d = el("span","dots");
+    d.append(el("i"),el("i"),el("i"));
     t.append(d, el("span",null,label||"Thinking"));
     b.append(t);
   });
 }
-
-function fail(body, code, msg){
-  const map = {
-    not_granted:"Claude access was declined for this view, so nothing was read.",
-    rate_limited:"Too many requests at once. Wait a moment, then send again.",
-    prompt_too_large:"That source is too long for one pass. Split it and drop each half.",
-    cancelled:"Stopped.",
-    invalid_json:"The reply came back malformed. Send it again.",
-    refused:"Claude declined this one.",
-    sampling_disabled:"Claude access is switched off for this page.",
-    not_declared:"This page cannot reach Claude.",
-  };
+function setThinking(body, label){
+  const s = body.querySelector(".thinking span:last-child");
+  if (s) s.textContent = label;
+}
+function fail(body, msg){
   body.innerHTML = "";
   const e = el("div","err");
-  e.append(el("b",null,"Nothing was stored"), el("span",null,msg || map[code] || "Something failed on the way. Send it again."));
+  e.append(el("b",null,"Nothing was stored"), el("span",null,msg || "Something failed on the way. Send it again."));
   body.append(e);
 }
 
-/* ══════════════════════ input plumbing ══════════════════════ */
-function sizeBox(){
-  const t = $("input");
-  t.style.height = "auto";
-  t.style.height = Math.min(t.scrollHeight, 210) + "px";
-}
+/* ============ input ============ */
+function sizeBox(){ const t=$("input"); t.style.height="auto"; t.style.height=Math.min(t.scrollHeight,210)+"px"; }
 $("input").addEventListener("input", () => { sizeBox(); renderComposer(); });
 $("input").addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); if(!$("send").disabled) go(); }
+  if (e.key==="Enter" && !e.shiftKey){ e.preventDefault(); if(!$("send").disabled) go(); }
 });
 $("send").onclick = go;
 $("mode").onclick = e => {
@@ -838,22 +757,23 @@ $("mode").onclick = e => {
 };
 $("scope").onchange = e => { S.scope = e.target.value; renderSide(); renderComposer(); };
 $("burger").onclick = () => $("side").classList.toggle("open");
-function closeSide(){ $("side").classList.remove("open"); }
+const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
-$("pasteBtn").onclick = () => openTranscript();
+$("pasteBtn").onclick = openTranscript;
 $("exportBtn").onclick = exportAll;
-$("lockBtn").onclick = () => { sessionStorage.removeItem(GATE_KEY); location.reload(); };
+$("lockBtn").onclick = async () => {
+  try { await api("/api/lock"); } catch(_){}
+  sessionStorage.removeItem(TOKEN_KEY); location.reload();
+};
 
-/* ══════════════════════ create a brain ══════════════════════ */
+/* ============ create a brain ============ */
 function openSheet(name, scope, type){
   closeSide();
   const veil = el("div","veil");
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
-      <header>
-        <h3>Create a brain</h3>
-        <p>A brain is a subject or a person. Its scope line is the only test of what belongs inside, so make it specific.</p>
-      </header>
+      <header><h3>Create a brain</h3>
+      <p>A brain is a subject or a person. Its scope line is the only test of what belongs inside, so make it specific.</p></header>
       <div class="f"><label for="bName">Name</label><input id="bName" autocomplete="off"></div>
       <div class="f"><label for="bScope">Scope, in one line</label><textarea id="bScope"></textarea>
         <div class="hint">"health" is a folder. "sleep, recovery and training load for my own routine" is a brain.</div></div>
@@ -864,64 +784,65 @@ function openSheet(name, scope, type){
     </div>`;
   document.body.append(veil);
   const nameI = veil.querySelector("#bName"), scopeI = veil.querySelector("#bScope");
-  nameI.value = name || ""; scopeI.value = scope || "";
-  let kind = type || "subject";
+  nameI.value = name||""; scopeI.value = scope||"";
+  let kind = type||"subject";
   const paint = () => [...veil.querySelectorAll("#bType button")].forEach(b => b.classList.toggle("on", b.dataset.t===kind));
   paint();
   veil.querySelector("#bType").onclick = e => { const b=e.target.closest("button"); if(b){ kind=b.dataset.t; paint(); } };
   const shut = () => veil.remove();
   veil.querySelector("#bCancel").onclick = shut;
   veil.onclick = e => { if(e.target===veil) shut(); };
-  document.addEventListener("keydown", function k(e){ if(e.key==="Escape"){ shut(); document.removeEventListener("keydown",k); } });
   setTimeout(()=>nameI.focus(),30);
 
   let confirmed = false;
   veil.querySelector("#bMake").onclick = async () => {
     const nm = nameI.value.trim(), sc = scopeI.value.trim();
     if (!nm || !sc){ (nm?scopeI:nameI).focus(); return; }
-
-    /* R7.6 — show the closest existing scope before creating */
     if (!confirmed && S.brains.length){
       const near = nearest(sc);
       if (near){
-        const slot = veil.querySelector("#closestSlot");
-        slot.innerHTML = "";
+        const slot = veil.querySelector("#closestSlot"); slot.innerHTML = "";
         const c = el("div","closest");
-        c.append(el("b",null,"Closest brain you already have"));
-        c.append(el("div",null,`${near.name}: ${near.scope}`));
-        c.append(Object.assign(el("div",null,"Create a new one anyway, or cancel and feed that brain instead."),{style:"margin-top:7px;color:var(--ink-3)"}));
+        c.append(el("b",null,"Closest brain you already have"), el("div",null,`${near.name}: ${near.scope}`));
+        const p = el("div",null,"Create a new one anyway, or cancel and feed that brain instead.");
+        p.style.cssText = "margin-top:7px;color:var(--ink-3)"; c.append(p);
         slot.append(c);
         veil.querySelector("#bMake").textContent = "Create anyway";
-        confirmed = true;
-        return;
+        confirmed = true; return;
       }
     }
-    const id = slug(nm);
-    if (S.brains.some(b=>b.id===id)){ nameI.focus(); return; }
-    shut();
-    await S.db.doc("brains/"+id).set({ name:nm, type:kind, scope:sc, created:today() });
-    S.scope = id; S.mode = "drop";
-    [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="drop"));
-    render();
-    push("ai", b => { b.innerHTML = rich(`**${esc(nm)}** is ready, scoped to "${esc(sc)}". Drop a source to feed it.`); });
-    $("input").focus();
+    const btn = veil.querySelector("#bMake"); btn.disabled = true; btn.textContent = "Creating";
+    try {
+      const r = await api("/api/brain", { name:nm, scope:sc, type:kind });
+      shut(); await refresh();
+      S.scope = r.slug; S.mode = "drop";
+      [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="drop"));
+      render();
+      push("ai", b => { b.innerHTML = rich(`**${esc(nm)}** is ready, scoped to "${esc(sc)}". Drop a source to feed it.`); });
+      $("input").focus();
+    } catch(e){
+      btn.disabled = false; btn.textContent = "Check and create";
+      const slot = veil.querySelector("#closestSlot");
+      slot.innerHTML = ""; const c = el("div","closest");
+      c.append(el("b",null,"That did not work"), el("div",null,String(e.message)));
+      slot.append(c);
+    }
   };
 }
 
-/* crude overlap score, enough to surface a near neighbour */
 function nearest(scope){
   const stop = new Set("the a an and or of for my own to in on with about from at by as is are".split(" "));
-  const w = new Set(scope.toLowerCase().match(/[a-z]{3,}/g)?.filter(x=>!stop.has(x)) || []);
+  const w = new Set((scope.toLowerCase().match(/[a-z]{3,}/g)||[]).filter(x=>!stop.has(x)));
   let best=null, bestN=0;
   for (const b of S.brains){
-    const o = new Set(String(b.scope||"").toLowerCase().match(/[a-z]{3,}/g)?.filter(x=>!stop.has(x)) || []);
-    let n=0; for(const x of w) if(o.has(x)) n++;
+    const o = new Set((String(b.scope||"").toLowerCase().match(/[a-z]{3,}/g)||[]).filter(x=>!stop.has(x)));
+    let n=0; for (const x of w) if (o.has(x)) n++;
     if (n>bestN){ bestN=n; best=b; }
   }
   return bestN>=2 ? best : null;
 }
 
-/* ══════════════════════ transcript ══════════════════════ */
+/* ============ transcript ============ */
 function openTranscript(){
   const veil = el("div","veil");
   veil.innerHTML = `
@@ -938,125 +859,51 @@ function openTranscript(){
   ta.value = S.transcript || "";
   const count = () => veil.querySelector("#txHint").textContent =
     `${(ta.value.trim().match(/\S+/g)||[]).length.toLocaleString()} words` +
-    (ta.value.length > 44000 ? ` · read in ${Math.ceil(ta.value.length/44000)} passes` : "");
+    (ta.value.length > 40000 ? ` · read in ${Math.ceil(ta.value.length/40000)} passes` : "");
   count(); ta.oninput = count;
   const shut = () => veil.remove();
   veil.querySelector("#txCancel").onclick = shut;
   veil.onclick = e => { if(e.target===veil) shut(); };
   setTimeout(()=>ta.focus(),30);
-  veil.querySelector("#txOk").onclick = () => {
-    S.transcript = ta.value.trim() || null;
-    shut(); renderComposer();
-  };
+  veil.querySelector("#txOk").onclick = () => { S.transcript = ta.value.trim()||null; shut(); renderComposer(); };
 }
 
-/* ══════════════════════ go ══════════════════════ */
+/* ============ go ============ */
 async function go(){
   const text = $("input").value.trim();
-  if (!text || S.busy || !S.sample) return;
+  if (!text || S.busy) return;
   $("input").value = ""; sizeBox();
   S.busy = true; renderComposer();
-  try {
-    if (S.mode === "drop") await doDrop(text);
-    else await doAsk(text);
-  } finally {
-    S.busy = false; renderComposer();
-  }
+  try { S.mode==="drop" ? await doDrop(text) : await doAsk(text); }
+  finally { S.busy = false; renderComposer(); }
 }
 
-/* ─────────── ASK ─────────── */
+/* ---------- ask ---------- */
 async function doAsk(q){
   says(q);
   if (!S.brains.length){
     push("ai", b => { b.innerHTML = rich("No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again."); });
     return;
   }
-  const pool = S.scope==="all" ? S.brains : S.brains.filter(b=>b.id===S.scope);
-  const body = thinking("Reading the map");
-
-  /* R6.1 — summaries first, at most 3 brains */
-  const summaries = pool.map(b => {
-    const cs = conceptsOf(b.id);
-    return `## ${b.name} [${b.type}] (${b.id})\nscope: ${b.scope}\n` +
-      (cs.length ? cs.map(c => `- ${c.title}: ${c.position||"no position yet"}`).join("\n") : "- no concepts yet");
-  }).join("\n\n");
-
-  let picked = pool.slice(0,3).map(b=>b.id);
-  if (pool.length > 3){
-    try {
-      const r = await S.sample.json(
-        `Pick at most 3 brains whose stored concepts could answer the question. Reply with only a JSON array of brain ids.\n\nQUESTION: ${q}\n\nBRAINS:\n${summaries}`,
-        { modelTier:"quick" });
-      if (Array.isArray(r) && r.length) picked = r.slice(0,3).map(String);
-    } catch(_){}
-  }
-
-  const chosen = pool.filter(b=>picked.includes(b.id));
-  const files = [];
-  for (const b of chosen) for (const c of conceptsOf(b.id)) files.push({b, c});
-  const nSources = new Set(chosen.flatMap(b => sourcesOf(b.id).map(s=>s.id))).size;
-  const isPerson = chosen.length===1 && chosen[0].type==="person";
-
-  const dossier = files.length ? files.map(({b,c}) =>
-`### ${c.title} — in ${b.name} [${b.type}]
-POSITION: ${c.position||"none"}
-EVIDENCE: ${(c.evidence||[]).map(e=>`${e.date||"?"} ${e.author||"?"}: ${e.claim||""}`).join(" | ")||"none"}
-DATA: ${(c.data||[]).join(" | ")||"none"}
-OPEN CONFLICTS: ${(c.conflicts||[]).map(x=>`${x.a} (${x.aDate}) vs ${x.b} (${x.bDate}), because ${x.why}`).join(" | ")||"none"}`
-  ).join("\n\n") : "The chosen brains hold no concepts yet.";
-
-  body.innerHTML = "";
-  if (nSources > 0 && nSources < 10){
-    body.append(Object.assign(el("div","smallbrain"),{textContent:`Small brain: ${nSources} source${nSources===1?"":"s"} behind this`}));
-  }
-  const out = el("div"); body.append(out);
-  out.innerHTML = `<div class="thinking"><span class="dots"><i></i><i></i><i></i></span><span>Composing</span></div>`;
-
-  const RULES =
-`Answer the question from the stored knowledge below. You are the user's own knowledge base speaking back.
-
-HOW TO WRITE THE ANSWER
-- The FIRST SENTENCE answers the question. Natural prose, addressed to the person asking.
-- Numbers, dates and findings go INSIDE the answer.
-${isPerson
-  ? "- This is a PERSON brain, so name that person throughout. Their view is the subject."
-  : "- NEVER put a source's name in the answer text. Attribution belongs on the sources line only."}
-- Newer evidence wins on the same question, and better data overrides that.
-- Mention an open conflict only when it changes what the reader would do.
-- No file paths anywhere.
-- Then a blank line, then exactly one final line: "Sources: {author}, {date} · {author}, {date}" listing only sources you used. Omit that line if you used none.
-- No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
-- If the stored knowledge does not answer it, say so plainly in one sentence and name what kind of source would fill the gap. Never invent evidence.
-
-STORED KNOWLEDGE
-${dossier}`;
-
-  S.ctl = new AbortController();
+  const body = thinking("Reading your brains");
   try {
-    const { text } = await S.sample(
-      [{role:"user", content:RULES}, {role:"user", content:"QUESTION: "+q}],
-      { signal:S.ctl.signal, cache:false,
-        onText:({text}) => { out.innerHTML = splitAnswer(text); th_bottom(); } }
-    );
-    out.innerHTML = splitAnswer(text);
-    if (S.db) S.db.doc("chat/"+Date.now()).set({ role:"ai", q, a:text, scope:S.scope, ts:new Date().toISOString() }).catch(()=>{});
-  } catch(e){
-    if (e.text) { out.innerHTML = splitAnswer(e.text); }
-    else fail(body, e.code);
-  }
+    const r = await api("/api/ask", { q, brain: S.scope });
+    body.innerHTML = "";
+    if (r.sources > 0 && r.sources < 10)
+      body.append(el("div","smallbrain",`Small brain: ${r.sources} source${r.sources===1?"":"s"} behind this`));
+    const out = el("div"); out.innerHTML = splitAnswer(r.answer); body.append(out);
+    bottom();
+  } catch(e){ fail(body, e.message); }
 }
-
 function splitAnswer(t){
-  const m = t.match(/\n\s*(Sources:[^\n]*)\s*$/i);
-  if (!m) return rich(t);
-  return rich(t.slice(0,m.index)) + `<div class="srcline">${esc(m[1])}</div>`;
+  const m = String(t).match(/\n\s*(Sources:[^\n]*)\s*$/i);
+  return m ? rich(t.slice(0,m.index)) + `<div class="srcline">${esc(m[1])}</div>` : rich(t);
 }
-function th_bottom(){ const th=$("thread"); th.scrollTop = th.scrollHeight; }
 
-/* ─────────── DROP ─────────── */
+/* ---------- drop ---------- */
 async function doDrop(text){
-  const link = (text.match(/https?:\/\/\S+/)||[])[0] || null;
-  const body_txt = S.transcript || (link ? null : text);
+  const link = (text.match(/https?:\/\/\S+/)||[])[0] || "";
+  const bodyTxt = S.transcript || (link ? null : text);
   says(text, S.transcript ? `transcript attached, ${(S.transcript.match(/\S+/g)||[]).length.toLocaleString()} words` : null);
 
   if (!S.brains.length){
@@ -1064,57 +911,38 @@ async function doDrop(text){
     return;
   }
 
-  /* R1.1 — normalise */
-  const id = sourceId(link, text);
+  let chk;
+  const body = thinking("Checking for a repeat");
+  try { chk = await api("/api/drop/check", { link, text }); }
+  catch(e){ fail(body, e.message); return; }
 
-  /* R1.2 — duplicate by link, before anything expensive */
-  const dupe = S.sources.find(s => s.id===id || (link && s.link && sameLink(s.link, link)));
-  if (dupe){
-    push("ai", b => { b.innerHTML = rich(`**Already stored.** That link is note \`${esc(dupe.id)}\`, filed ${esc(dupe.date||"earlier")} into ${esc((dupe.brains||[]).join(", ")||"no brain")}. Nothing was read.`); });
+  if (chk.duplicate){
+    body.innerHTML = "";
+    body.innerHTML = rich(`**Already stored.** That link is note \`${esc(chk.sid)}\`, filed ${esc(chk.date||"earlier")} into ${esc((chk.brains||[]).join(", ")||"no brain")}. Nothing was read.`);
     return;
   }
 
-  /* R1.3 — a link with no transcript */
-  if (!body_txt){
-    push("ai", b => {
-      b.innerHTML = rich("That link is new. Paste its transcript and I will read it once. The duplicate check ran first, so you pasted nothing for nothing.");
-      const go = el("button","go"); go.textContent = "Paste the transcript";
-      go.style.marginTop = "12px"; go.onclick = openTranscript;
-      b.append(go);
-    });
+  if (!bodyTxt){
+    body.innerHTML = "";
+    body.innerHTML = rich("That link is new. Paste its transcript and it gets read once. The duplicate check ran first, so you pasted nothing for nothing.");
+    const go = el("button","go","Paste the transcript");
+    go.style.marginTop = "12px"; go.onclick = openTranscript; body.append(go);
     return;
   }
 
-  const body = thinking("Reading the source");
-
-  /* R2 — read once, extract wide, in passes under the input cap */
-  const CH = 40000;
-  const chunks = [];
-  for (let i=0; i<body_txt.length; i+=CH) chunks.push(body_txt.slice(i, i+CH));
+  const CH = 40000, chunks = [];
+  for (let i=0; i<bodyTxt.length; i+=CH) chunks.push(bodyTxt.slice(i,i+CH));
   const parts = [];
   try {
     for (let i=0;i<chunks.length;i++){
-      body.querySelector(".thinking span:last-child").textContent =
-        chunks.length>1 ? `Reading the source, pass ${i+1} of ${chunks.length}` : "Reading the source";
-      const p = await S.sample.json(
-`Extract everything worth keeping from this source. Cover EVERY topic present, whether or not it looks relevant. This is the only read, so nothing gets a second pass.
-
-Keep ideas, numbers, names, dates, reasoning chains, exact quotes and historical comparisons. Drop repetition, advertising, small talk and filler.
-
-Reply with only JSON:
-{"title":"","author":"","date":"YYYY-MM-DD or empty","topics":[{"topic":"","ideas":[""],"data":[""]}],"quotes":[{"text":"","speaker":""}],"thin":[""]}
-
-"thin" holds claims made with no number or evidence behind them.
-
-SOURCE${chunks.length>1?` (part ${i+1} of ${chunks.length})`:""}:
-${chunks[i]}`,
-        { modelTier:"default" });
-      parts.push(p);
+      setThinking(body, chunks.length>1 ? `Reading, pass ${i+1} of ${chunks.length}` : "Reading the source");
+      const r = await api("/api/drop/read", { chunk: chunks[i], part: i+1, total: chunks.length });
+      parts.push(r.part||{});
     }
-  } catch(e){ fail(body, e.code); return; }
+  } catch(e){ fail(body, e.message); return; }
 
   const ext = {
-    title: parts.find(p=>p.title)?.title || (link||"Untitled source"),
+    title: parts.find(p=>p.title)?.title || link || "Untitled source",
     author: parts.find(p=>p.author)?.author || "",
     date: parts.find(p=>p.date)?.date || "",
     topics: parts.flatMap(p=>p.topics||[]),
@@ -1122,106 +950,53 @@ ${chunks[i]}`,
     thin: parts.flatMap(p=>p.thin||[]),
   };
 
-  /* R3 — summaries first, never whole brains */
-  body.querySelector(".thinking span:last-child").textContent = "Comparing against what you hold";
-  const pool = S.scope==="all" ? S.brains : S.brains.filter(b=>b.id===S.scope);
-  const summaries = pool.map(b => {
-    const cs = conceptsOf(b.id);
-    return `## ${b.name} [${b.type}] id=${b.id}\nscope: ${b.scope}\n` +
-      (cs.length ? cs.map(c=>`- id=${c.id} | ${c.title}: ${c.position||"no position yet"}`).join("\n") : "- no concepts yet");
-  }).join("\n\n");
-  const otherSources = S.sources.slice(-40).map(s=>`${s.id} | ${s.author||"?"} | ${s.title||""}`).join("\n") || "none";
-
+  setThinking(body, "Comparing against what you hold");
   let plan;
-  try {
-    plan = await S.sample.json(
-`Decide where this source goes and what it changes. Use ONLY the brains listed.
+  try { plan = (await api("/api/drop/plan", { ext, brain: S.scope })).plan; }
+  catch(e){ fail(body, e.message); return; }
 
-RULES
-- Propose every brain it belongs to. A subject brain holds the user's own position. A person brain holds one person's view.
-- A concept belongs to a brain only if it fits that brain's scope line.
-- "new" = ideas, numbers or reasoning the brains lack.
-- "echo" = what this repeats, naming the earlier source.
-- "conflict" = a claim contradicting a stored position. Rank each: "flip" if it would change the position, "caveat" if it only adds nuance.
-- In a PERSON brain, a claim contradicting that same person's earlier view is drift, not conflict. Mark it kind "drift".
-- Claims with no data behind them are thin. They never become concepts.
-
-Reply with only JSON:
-{"brains":["id"],
- "matched":[{"conceptId":"","brain":"","whatItAdds":""}],
- "candidates":[{"title":"","brain":"","why":""}],
- "new":[""],
- "echo":[{"claim":"","repeatsSource":""}],
- "conflicts":[{"concept":"","conceptId":"","brain":"","kind":"flip|caveat|drift","says":"","saysDate":"","stored":"","storedDate":"","why":""}]}
-
-BRAINS AND THEIR CONCEPTS
-${summaries}
-
-EARLIER SOURCES
-${otherSources}
-
-THE NEW SOURCE
-title: ${ext.title}
-author: ${ext.author}
-date: ${ext.date}
-${ext.topics.map(t=>`### ${t.topic}\n${(t.ideas||[]).join("\n")}\n${(t.data||[]).join("\n")}`).join("\n\n").slice(0,34000)}`,
-      { modelTier:"default" });
-  } catch(e){ fail(body, e.code); return; }
-
-  const flips = (plan.conflicts||[]).filter(c=>c.kind==="flip");
+  const flips  = (plan.conflicts||[]).filter(c=>c.kind==="flip");
   const others = (plan.conflicts||[]).filter(c=>c.kind!=="flip");
-  S.pendingCard = { id, link, ext, plan, choices:Object.create(null), body_len:body_txt.length };
+  const pc = { sid: chk.sid, link, ext, plan, choices:{}, len: bodyTxt.length };
+  S.pendingCard = pc; S.transcript = null; renderComposer();
 
   body.innerHTML = "";
-  body.append(buildCard(S.pendingCard, flips, others));
-  th_bottom();
+  body.append(buildCard(pc, flips, others));
+  bottom();
 }
 
-function sameLink(a,b){ return norm(a)===norm(b); }
-function norm(u){
-  try{ const x=new URL(u); x.search=""; x.hash=""; return x.host.replace(/^www\./,"")+x.pathname.replace(/\/$/,""); }
-  catch(_){ return String(u); }
-}
-function sourceId(link, text){
-  if (link){
-    const yt = link.match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{6,})/);
-    if (yt) return "yt-"+yt[1];
-    try{ const u=new URL(link); return slug(u.host.replace(/^www\./,"").split(".")[0]+"-"+u.pathname.split("/").filter(Boolean).pop()||""); }catch(_){}
-  }
-  return slug(text.slice(0,40)) + "-" + String(Date.now()).slice(-4);
-}
-
-/* ─────────── the card ─────────── */
 function buildCard(pc, flips, others){
-  const { id, ext, plan } = pc;
+  const { sid, ext, plan } = pc;
   const card = el("div","card");
-
   const top = el("div","card-top");
-  top.append(el("span","id",id));
-  top.append(el("span","meta",[ext.author, ext.date, Math.round(pc.body_len/1000)+"k chars"].filter(Boolean).join(" · ")));
+  top.append(el("span","id",sid),
+    el("span","meta",[ext.author, ext.date, Math.round(pc.len/1000)+"k chars"].filter(Boolean).join(" · ")));
   card.append(top);
 
   const dl = el("dl","card-grid");
-  const row = (k, node) => { dl.append(el("dt",null,k)); const d=el("dd"); d.append(node); dl.append(d); };
+  const row = (k,node) => { dl.append(el("dt",null,k)); const d=el("dd"); d.append(node); dl.append(d); };
 
-  const bnames = (plan.brains||[]).map(x => { const b=S.brains.find(y=>y.id===x); return b ? `${b.name} (${b.type})` : x; });
-  row("Goes to", el("span",null, bnames.join(" · ") || "no brain matched"));
+  row("Goes to", el("span",null,
+    (plan.brains||[]).map(x => { const b=S.brains.find(y=>y.slug===x); return b?`${b.name} (${b.type})`:x; }).join(" · ") || "no brain matched"));
 
   const cc = el("div","chips");
-  (plan.matched||[]).forEach(m => { const c=S.concepts.find(x=>x.id===m.conceptId); cc.append(el("span","chip", c?c.title:m.conceptId)); });
+  (plan.matched||[]).forEach(m => {
+    const c = S.concepts.find(x => `${x.brain}/${x.slug}` === m.conceptId);
+    cc.append(el("span","chip", c?c.title:String(m.conceptId||"").split("/").pop()));
+  });
   (plan.candidates||[]).forEach(m => cc.append(el("span","chip cand","+ "+m.title)));
   if (!cc.children.length) cc.append(el("span","chip none","none"));
   row("Concepts", cc);
 
   const nu = el("ul");
   (plan.new||[]).slice(0,3).forEach(x => nu.append(el("li",null,"· "+x)));
-  if (!(plan.new||[]).length) nu.append(Object.assign(el("li","none"),{textContent:"nothing new"}));
-  else if ((plan.new||[]).length>3) nu.append(Object.assign(el("li","none"),{textContent:`and ${plan.new.length-3} more`}));
+  if (!(plan.new||[]).length) nu.append(el("li","none","nothing new"));
+  else if ((plan.new||[]).length>3) nu.append(el("li","none",`and ${plan.new.length-3} more`));
   row(`New ${(plan.new||[]).length||""}`, nu);
 
   const eu = el("ul");
   (plan.echo||[]).slice(0,3).forEach(x => eu.append(el("li",null,`· ${x.claim} — repeats ${x.repeatsSource||"an earlier source"}`)));
-  if (!(plan.echo||[]).length) eu.append(Object.assign(el("li","none"),{textContent:"none"}));
+  if (!(plan.echo||[]).length) eu.append(el("li","none","none"));
   row(`Echoes ${(plan.echo||[]).length||""}`, eu);
 
   if (others.length){
@@ -1234,11 +1009,10 @@ function buildCard(pc, flips, others){
   if (flips.length){
     const wrap = el("div","conflicts");
     flips.forEach((c,i) => {
-      const f = el("div","cf");
-      f.append(el("span","n",String(i+1)));
+      const f = el("div","cf"); f.append(el("span","n",String(i+1)));
       const r = el("div");
-      r.append(el("div","cn",c.concept + (c.brain ? "  ·  "+(S.brains.find(b=>b.id===c.brain)?.name||c.brain) : "")));
-      const mk = (lab,val,date) => { const d=el("div","side"); d.append(el("span",null,lab), document.createTextNode(val + (date?`, ${date}`:""))); return d; };
+      r.append(el("div","cn", c.concept + (c.brain ? "  ·  "+(S.brains.find(b=>b.slug===c.brain)?.name||c.brain) : "")));
+      const mk = (lab,val,date) => { const d=el("div","side"); d.append(el("span",null,lab), document.createTextNode(String(val||"") + (date?`, ${date}`:""))); return d; };
       r.append(mk("new", c.says, c.saysDate), mk("stored", c.stored, c.storedDate));
       if (c.why) r.append(el("div","why","They differ because "+c.why));
       const opts = el("div","opts");
@@ -1254,211 +1028,61 @@ function buildCard(pc, flips, others){
   }
 
   const foot = el("div","card-foot");
-  foot.append(Object.assign(el("span","hint"),{textContent: flips.length
+  foot.append(el("span","hint", flips.length
     ? `${flips.length} conflict${flips.length===1?"":"s"}. Silence keeps both, so a long list costs you nothing.`
-    : "No conflict with what you hold." }));
+    : "No conflict with what you hold."));
   const skip = el("button","ghost","Reject source");
-  const ok = el("button","go","Store it");
-  skip.onclick = () => { card.remove(); push("ai", b=>{ b.innerHTML = rich("Rejected. Nothing was stored and no position moved."); }); S.pendingCard=null; };
-  ok.onclick = () => { ok.disabled=true; skip.disabled=true; settle(card, pc, flips); };
-  foot.append(skip, ok);
-  card.append(foot);
+  const ok   = el("button","go","Store it");
+  skip.onclick = () => { card.remove(); S.pendingCard=null;
+    push("ai", b => { b.innerHTML = rich("Rejected. Nothing was stored and no position moved."); }); };
+  ok.onclick = async () => {
+    ok.disabled = skip.disabled = true; ok.textContent = "Storing";
+    if (Object.values(pc.choices).includes("skip")){
+      card.remove(); S.pendingCard=null;
+      push("ai", b => { b.innerHTML = rich("Rejected on a conflict. Nothing was stored and no position moved."); });
+      return;
+    }
+    const b2 = thinking("Rewriting the positions it touched");
+    try {
+      const r = await api("/api/drop/settle", {
+        sid: pc.sid, link: pc.link, ext: pc.ext, plan: pc.plan, choices: pc.choices });
+      card.remove(); await refresh();
+      b2.innerHTML = "";
+      b2.append(receipt(r, pc));
+      bottom();
+    } catch(e){ ok.disabled = skip.disabled = false; ok.textContent = "Store it"; fail(b2, e.message); }
+    S.pendingCard = null;
+  };
+  foot.append(skip, ok); card.append(foot);
   return card;
 }
 
-/* ─────────── settle ─────────── */
-async function settle(card, pc, flips){
-  const { id, link, ext, plan } = pc;
-  const b2 = thinking("Rewriting the positions it touched");
-  const brains = (plan.brains||[]).filter(x => S.brains.some(y=>y.id===x));
-  if (!brains.length && S.scope!=="all") brains.push(S.scope);
-
-  const resolved = flips.map((c,i) => ({ ...c, choice: pc.choices[i] || "both" }));
-  if (resolved.some(r=>r.choice==="skip")){
-    card.remove(); b2.innerHTML="";
-    push("ai", b=>{ b.innerHTML = rich("Rejected on a conflict. Nothing was stored and no position moved."); });
-    S.pendingCard=null; return;
-  }
-
-  /* every concept this drop touches, matched plus promoted candidates */
-  const touched = [];
-  for (const m of (plan.matched||[])){
-    const c = S.concepts.find(x=>x.id===m.conceptId);
-    if (c) touched.push({ concept:c, adds:m.whatItAdds, isNew:false });
-  }
-  /* R5.5 — a brain with zero concepts seeds directly */
-  for (const cand of (plan.candidates||[])){
-    const br = brains.includes(cand.brain) ? cand.brain : brains[0];
-    if (!br) continue;
-    const existing = conceptsOf(br).length;
-    const seeding = existing === 0;
-    const sameTitle = S.concepts.find(x => x.brain===br && x.title.toLowerCase()===String(cand.title).toLowerCase());
-    if (sameTitle){ touched.push({ concept:sameTitle, adds:cand.why, isNew:false }); continue; }
-    if (seeding){
-      touched.push({ concept:{ id:br+"__"+slug(cand.title), brain:br, title:cand.title, n:existing+touched.filter(t=>t.isNew&&t.concept.brain===br).length+1,
-        position:"", evidence:[], data:[], conflicts:[], sources:[], related:[] }, adds:cand.why, isNew:true });
-    } else {
-      /* R5.7 / candidate counting lives in the map doc */
-      await bumpCandidate(br, cand.title, id, touched);
-    }
-  }
-
-  if (!touched.length){
-    /* still store the source and the note: an echo has value */
-    await writeSource(id, link, ext, brains);
-    await writeNote(id, ext, plan, resolved);
-    card.remove(); b2.innerHTML="";
-    push("ai", b => { b.append(receipt(id, brains, 0, plan, resolved, true)); });
-    S.pendingCard=null; return;
-  }
-
-  /* R5.3 — re-derive each touched position from its FULL evidence list */
-  let rewrites = [];
-  try {
-    const packet = touched.map(t => {
-      const c = t.concept;
-      const br = S.brains.find(b=>b.id===c.brain);
-      return `### ${c.id}
-brain: ${br?br.name:c.brain} [${br?br.type:"subject"}], scope: ${br?br.scope:""}
-concept: ${c.title}
-CURRENT POSITION: ${c.position || "none yet"}
-FULL EVIDENCE LIST (oldest last):
-${(c.evidence||[]).map(e=>`- ${e.date||"?"} ${e.author||"?"}: ${e.claim||""}`).join("\n") || "- none"}
-THIS SOURCE ADDS: ${t.adds||""}
-CONFLICT DECISIONS ON THIS CONCEPT: ${resolved.filter(r=>r.conceptId===c.id||r.concept===c.title).map(r=>`${r.choice}: new="${r.says}" old="${r.stored}"`).join(" | ")||"none"}`;
-    }).join("\n\n");
-
-    rewrites = await S.sample.json(
-`Rewrite each position below from its WHOLE evidence list, now carrying the new source. Re-derive, never append. A position that reads as a list of who said what has failed.
-
-RULES
-- One view per position, a few lines, stating what holds.
-- "accept new" means the position flips and the old view moves into evidence with its date.
-- "keep old" means the new claim stays a minority view and the position holds.
-- "keep both" means the position holds and the clash goes into open conflicts, dated, with the reason.
-- Never delete a view.
-- No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording.
-- summaryLine is ONE line, under 18 words, the position compressed.
-
-Reply with only JSON:
-[{"conceptId":"","position":"","summaryLine":"","data":[""],"conflicts":[{"a":"","aDate":"","b":"","bDate":"","why":""}]}]
-
-CONCEPTS
-${packet}
-
-NEW SOURCE
-author: ${ext.author||"unknown"} | date: ${ext.date||today()}
-${ext.topics.map(t=>`${t.topic}: ${(t.ideas||[]).join("; ")} ${(t.data||[]).join("; ")}`).join("\n").slice(0,20000)}`,
-      { modelTier:"default" });
-    if (!Array.isArray(rewrites)) rewrites = [];
-  } catch(e){
-    b2.innerHTML="";
-    fail(b2, e.code, "The positions could not be rewritten, so nothing was stored. Send it again.");
-    return;
-  }
-
-  /* write everything */
-  for (const t of touched){
-    const c = t.concept;
-    const rw = rewrites.find(r => r.conceptId === c.id) || {};
-    const ev = (c.evidence||[]).slice();
-    ev.unshift({ date: ext.date || today(), author: ext.author || "unknown", claim: (t.adds||"").slice(0,240), source:id });
-    const kept = compress(ev);
-    await S.db.doc("concepts/"+c.id).set({
-      brain:c.brain, title:c.title, n:c.n||1,
-      position: rw.position || c.position || "",
-      summaryLine: rw.summaryLine || (rw.position||"").split(/(?<=\.)\s/)[0] || "",
-      evidence: kept,
-      data: Array.isArray(rw.data) && rw.data.length ? rw.data.slice(0,24) : (c.data||[]),
-      conflicts: Array.isArray(rw.conflicts) ? rw.conflicts.slice(0,12) : (c.conflicts||[]),
-      sources: Array.from(new Set([...(c.sources||[]), id])),
-      related: c.related||[],
-      updated: today(),
-    });
-  }
-  await writeSource(id, link, ext, brains);
-  await writeNote(id, ext, plan, resolved);
-
-  card.remove(); b2.innerHTML = "";
-  push("ai", b => { b.append(receipt(id, brains, touched.length, plan, resolved, false)); });
-  S.pendingCard = null;
-}
-
-/* R5.9 — keep 12, compress older agreeing entries, never compress a superseded view */
-function compress(ev){
-  const real = ev.filter(e => !e.rollup);
-  const roll = ev.find(e => e.rollup);
-  if (real.length <= 12) return roll ? [...real, roll] : real;
-  const keep = real.slice(0,12);
-  const fold = real.slice(12);
-  const dates = fold.map(e=>String(e.date||"").slice(0,4)).filter(Boolean).sort();
-  const n = fold.length + (roll?.count || 0);
-  const lo = roll?.from || dates[0] || "";
-  const hi = dates[dates.length-1] || roll?.to || "";
-  return [...keep, { rollup:true, count:n, from:lo, to:hi,
-    claim:`${n} earlier source${n===1?"":"s"} agreed${lo?`, ${lo} to ${hi}`:""}` }];
-}
-
-async function bumpCandidate(brain, title, srcId, touched){
-  const key = "candidates/"+brain+"__"+slug(title);
-  const ref = S.db.doc(key);
-  const snap = await ref.get().catch(()=>null);
-  const prev = snap?.exists ? snap.data() : null;
-  const mentions = [...new Set([...(prev?.notes||[]), srcId])];
-  if (mentions.length >= 3){
-    const n = conceptsOf(brain).length + 1;
-    touched.push({ concept:{ id:brain+"__"+slug(title), brain, title, n,
-      position:"", evidence:[], data:[], conflicts:[], sources:mentions, related:[] },
-      adds:"promoted after 3 mentions", isNew:true });
-    await ref.delete().catch(()=>{});
-  } else {
-    await ref.set({ brain, title, notes:mentions, count:mentions.length, updated:today() });
-  }
-}
-
-async function writeSource(id, link, ext, brains){
-  await S.db.doc("sources/"+id).set({
-    id, link: link||"", title: ext.title||"", author: ext.author||"",
-    date: ext.date || today(), location:"pasted, not kept", brains, stored: today(),
-  });
-}
-async function writeNote(id, ext, plan, resolved){
-  await S.db.doc("notes/"+id).set({
-    source:id, title:ext.title||"", author:ext.author||"", date:ext.date||today(),
-    topics:(ext.topics||[]).slice(0,40), quotes:(ext.quotes||[]).slice(0,40),
-    thin:(ext.thin||[]).slice(0,30),
-    connections:[...(plan.matched||[]), ...(plan.candidates||[])],
-    findings:{ new:plan.new||[], echo:plan.echo||[], conflicts:resolved },
-    written: today(),
-  });
-}
-
-function receipt(id, brains, nPos, plan, resolved, echoOnly){
-  const names = brains.map(x=>S.brains.find(b=>b.id===x)?.name||x).join(", ") || "none";
-  const flipped = resolved.filter(r=>r.choice==="new").length;
-  const both = resolved.filter(r=>r.choice==="both").length;
-  const open = resolved.filter(r=>r.choice==="both").map(r=>r.concept);
+function receipt(r, pc){
+  const names = (r.brains||[]).map(x => S.brains.find(b=>b.slug===x)?.name || x).join(", ") || "none";
+  const ch = Object.values(pc.choices||{});
+  const flipped = ch.filter(x=>x==="new").length, both = ch.filter(x=>x==="both").length;
+  const open = Object.entries(pc.choices||{}).filter(([,v])=>v==="both")
+    .map(([i]) => (pc.plan.conflicts||[]).filter(c=>c.kind==="flip")[i]?.concept).filter(Boolean);
   const d = el("div","receipt");
   d.innerHTML =
-`Stored <span class="v">${esc(id)}</span>. Brains <span class="v">${esc(names)}</span>.
-Rewritten: <span class="v">${nPos}</span> position${nPos===1?"":"s"} · <span class="v">${brains.length}</span> summar${brains.length===1?"y":"ies"}
-<span class="v">${(plan.new||[]).length}</span> new · <span class="v">${(plan.echo||[]).length}</span> echoes · <span class="v">${flipped}</span> flipped · <span class="v">${both}</span> kept both
-<span class="ok">Coherent.</span>${echoOnly?" Nothing new, so no position moved." : ""} Open conflicts: <span class="v">${esc(open.join(", ")||"none")}</span>`;
+`Stored <span class="v">${esc(r.sid)}</span>. Brains <span class="v">${esc(names)}</span>.
+Rewritten: <span class="v">${r.positions}</span> position${r.positions===1?"":"s"} · <span class="v">${(r.brains||[]).length}</span> summar${(r.brains||[]).length===1?"y":"ies"}
+<span class="v">${r.counts?.new ?? 0}</span> new · <span class="v">${r.counts?.echo ?? 0}</span> echoes · <span class="v">${flipped}</span> flipped · <span class="v">${both}</span> kept both
+<span class="ok">Coherent.</span> Open conflicts: <span class="v">${esc(open.join(", ")||"none")}</span>`;
   return d;
 }
 
-/* ══════════════════════ export ══════════════════════ */
-async function exportAll(){
-  const out = [];
-  out.push("# MAP\n\n| Brain | Type | Concepts | Scope |\n|---|---|---|---|");
-  for (const b of S.brains) out.push(`| brain-${b.type}-${b.id} | ${b.type} | ${conceptsOf(b.id).length} | ${b.scope} |`);
+/* ============ export ============ */
+function exportAll(){
+  const out = ["# MAP\n\n| Brain | Type | Concepts | Scope |\n|---|---|---|---|"];
+  for (const b of S.brains) out.push(`| brain-${b.type}-${b.slug} | ${b.type} | ${conceptsOf(b.slug).length} | ${b.scope} |`);
   out.push("\n# SOURCES\n\n| Id | Date | Author | Link | Brains |\n|---|---|---|---|---|");
-  for (const s of S.sources) out.push(`| ${s.id} | ${s.date||""} | ${s.author||""} | ${s.link||""} | ${(s.brains||[]).join(", ")} |`);
+  for (const s of S.sources) out.push(`| ${s.sid} | ${s.date||""} | ${s.author||""} | ${s.link||""} | ${(s.brains||[]).join(", ")} |`);
   for (const b of S.brains){
-    out.push(`\n# brain-${b.type}-${b.id}/SUMMARY.md\n\n**Scope:** ${b.scope}\n`);
-    for (const c of conceptsOf(b.id)) out.push(`- ${c.title}: ${c.summaryLine||c.position||"no position yet"}. \`${pad2(c.n||1)}-${slug(c.title)}.md\``);
-    for (const c of conceptsOf(b.id)){
-      out.push(`\n## brain-${b.type}-${b.id}/${pad2(c.n||1)}-${slug(c.title)}.md\n`);
+    out.push(`\n# brain-${b.type}-${b.slug}/SUMMARY.md\n\n**Scope:** ${b.scope}\n`);
+    for (const c of conceptsOf(b.slug)) out.push(`- ${c.title}: ${c.summaryLine||c.position||"no position yet"}. \`${pad2(c.n||1)}-${slug(c.title)}.md\``);
+    for (const c of conceptsOf(b.slug)){
+      out.push(`\n## brain-${b.type}-${b.slug}/${pad2(c.n||1)}-${slug(c.title)}.md\n`);
       out.push(`### Position\n\n${c.position||"none yet"}\n`);
       out.push(`### Evidence\n\n${(c.evidence||[]).map(e=>`- ${e.date||"?"}, ${e.author||"?"}: ${e.claim||""}`).join("\n")||"- none"}\n`);
       out.push(`### Data\n\n${(c.data||[]).map(x=>"- "+x).join("\n")||"- none"}\n`);
@@ -1468,20 +1092,19 @@ async function exportAll(){
     }
   }
   const md = out.join("\n");
-  clearZero();
   push("ai", b => {
     b.innerHTML = rich(`**Export ready.** ${S.brains.length} brain${S.brains.length===1?"":"s"}, ${S.concepts.length} concept${S.concepts.length===1?"":"s"}, ${S.sources.length} source${S.sources.length===1?"":"s"}, as the markdown the repo expects.`);
     const pre = el("div","receipt");
     pre.style.cssText = "margin-top:12px;max-height:280px;overflow:auto";
-    pre.textContent = md.slice(0,4000) + (md.length>4000 ? "\n\n... " + (md.length-4000) + " more characters" : "");
+    pre.textContent = md.slice(0,4000) + (md.length>4000 ? `\n\n... ${md.length-4000} more characters` : "");
     b.append(pre);
-    const r = el("div"); r.style.cssText="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap";
     const cp = el("button","go","Copy all");
+    cp.style.marginTop = "12px";
     cp.onclick = async () => {
       try { await navigator.clipboard.writeText(md); cp.textContent = "Copied"; }
       catch(_){ cp.textContent = "Select it above"; }
     };
-    r.append(cp); b.append(r);
+    b.append(cp);
   });
 }
 
