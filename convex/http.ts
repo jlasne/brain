@@ -11,6 +11,7 @@ import {
   ask, parseJson, json, cors, sha256, today, slug,
   linkKey, sourceId, MODEL, MAX_ATTEMPTS, CHUNK,
 } from "./lib";
+import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 
 const router = httpRouter();
 
@@ -411,6 +412,79 @@ QUESTION: ${String(b.q ?? "")}` },
   ], { maxTokens: level === "normal" ? 2000 : 3200 });
 
   return { answer: text, sources: nSources, level };
+});
+
+/* ---------- the public MCP endpoint ---------- */
+
+/**
+ * Read-only, unauthenticated, and deliberately so. It calls no model, so it
+ * spends no credit, and it exposes no write, so no visitor can move a position.
+ * The gate above still guards everything the app itself does.
+ */
+const MCP_CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization, MCP-Protocol-Version, Mcp-Session-Id, Last-Event-ID",
+  "Access-Control-Expose-Headers": "Mcp-Session-Id, MCP-Protocol-Version",
+  "Access-Control-Max-Age": "86400",
+};
+
+const mcpJson = (body: unknown, status = 200, extra: Record<string, string> = {}) =>
+  new Response(status === 202 ? null : JSON.stringify(body), {
+    status,
+    headers: { ...(status === 202 ? {} : { "Content-Type": "application/json" }), ...MCP_CORS, ...extra },
+  });
+
+router.route({
+  path: "/mcp", method: "OPTIONS",
+  handler: httpAction(async () => new Response(null, { status: 204, headers: MCP_CORS })),
+});
+
+/* No server-initiated stream, so the spec's answer here is 405. */
+router.route({
+  path: "/mcp", method: "GET",
+  handler: httpAction(async () => mcpJson({ error: "This endpoint answers POST only." }, 405)),
+});
+
+/* Stateless, so there is no session for a client to end. */
+router.route({
+  path: "/mcp", method: "DELETE",
+  handler: httpAction(async () => new Response(null, { status: 405, headers: MCP_CORS })),
+});
+
+router.route({
+  path: "/mcp", method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    /* An unsupported protocol version is a 400 under the spec. An absent header
+       means an older client, which the spec says to read as 2025-03-26. */
+    const ver = req.headers.get("MCP-Protocol-Version");
+    if (ver && !PROTOCOLS.includes(ver)) {
+      return mcpJson({ jsonrpc: "2.0", id: null,
+        error: { code: -32000, message: `Unsupported MCP-Protocol-Version: ${ver}. This server speaks ${PROTOCOLS.join(", ")}.` } }, 400);
+    }
+
+    const who = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+    const gateOk = await ctx.runMutation(internal.store.mcpRate,
+      { who, max: RATE_MAX, windowMs: RATE_WINDOW_MS });
+    if (!gateOk.allowed) {
+      return mcpJson({ jsonrpc: "2.0", id: null,
+        error: { code: -32000, message: `Rate limit reached. ${RATE_MAX} calls per 10 minutes. Try again in ${gateOk.retryAfter} seconds.` } },
+        429, { "Retry-After": String(gateOk.retryAfter) });
+    }
+
+    let msg: any;
+    try { msg = await req.json(); }
+    catch { return mcpJson({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, 400); }
+
+    /* A batch is a list. Notifications drop out, so an all-notification batch
+       gets 202 with no body, exactly as a lone notification does. */
+    if (Array.isArray(msg)) {
+      const out = (await Promise.all(msg.map((m: any) => handleRpc(ctx, m)))).filter(Boolean);
+      return out.length ? mcpJson(out) : mcpJson(null, 202);
+    }
+    const reply = await handleRpc(ctx, msg);
+    return reply ? mcpJson(reply) : mcpJson(null, 202);
+  }),
 });
 
 export default router;

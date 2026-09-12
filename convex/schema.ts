@@ -68,6 +68,14 @@ export default defineSchema({
     written: v.string(),
   }).index("by_sid", ["sid"]),
 
+  /* The public MCP endpoint has no passphrase, so a per-address counter is the
+     only thing standing between a scraping loop and the deployment quota. */
+  mcpHits: defineTable({
+    who: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  }).index("by_who", ["who"]),
+
   candidates: defineTable({
     brain: v.string(),
     slug: v.string(),

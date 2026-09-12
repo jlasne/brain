@@ -88,6 +88,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
 | `/api/ask` | The answer | Yes |
 | `/api/lock` | Drops the session | Yes |
+| `/mcp` | The public MCP server, read only | No, by design |
 
 ## Why the key has to be server side
 
@@ -122,6 +123,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `notes` | the six note sections | source id |
 | `candidates` | brain, title, mentions, count | brain and slug |
 | `config` | the gate salt and hash | one row |
+| `mcpHits` | the public endpoint's per address counter | address |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.
 
@@ -134,6 +136,47 @@ The duplicate check reads `sources` by normalised link, so it stays an index loo
 | The settle write | Positions must be rewritten in one pass, atomically |
 
 Reading brains and rendering the card can stay client side, because that data is already yours.
+
+## The public MCP server
+
+`/mcp` lets anyone read the brains from their own Claude, as a custom connector.
+It carries no passphrase. Three properties make that safe:
+
+| Property | Why it holds |
+|---|---|
+| Spends no credit | No route here calls a model. The reader's own Claude does the thinking |
+| Cannot corrupt a brain | Every tool reads. There is no write, no drop, no settle |
+| Cannot drain the quota | 120 calls per 10 minutes per address, counted in `mcpHits` |
+
+That last property matters because the endpoint is open. At 4 to 6 calls per
+question, the Convex free tier covers roughly 50,000 questions a month, and the
+overage beyond it runs $0.22 per extra gigabyte moved.
+
+The tools:
+
+| Tool | Returns |
+|---|---|
+| `list_brains` | Every brain with its scope line and its counts |
+| `read_brain` | One brain's scope plus one line per concept |
+| `read_concept` | A position, its dated evidence, its data, its open conflicts |
+| `search_brains` | Keyword matches across every concept, title hits ranked first |
+| `list_sources` | What a brain has read, newest first, with links |
+
+Transport is Streamable HTTP. A POST carrying one JSON-RPC request gets one JSON
+object back, which the spec permits in place of an SSE stream, so the server
+stays stateless and issues no session id. `GET` answers 405, since nothing here
+pushes to the client. An unsupported `MCP-Protocol-Version` answers 400.
+
+Raw transcripts never entered the store (R8.6), so opening this endpoint shares
+the synthesis and the source links, never the source text.
+
+To check it is live:
+
+```
+curl -s -X POST https://<deployment>.convex.site/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
 
 ## Export stays the contract
 

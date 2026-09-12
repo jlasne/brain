@@ -148,3 +148,30 @@ export const bumpCandidate = internalMutation({
     return { promoted: false, notes };
   },
 });
+
+/**
+ * Count one public MCP call against an address, and say whether it may proceed.
+ * A fixed window is enough here: the point is to stop a loop, not to meter
+ * anybody precisely.
+ */
+export const mcpRate = internalMutation({
+  args: { who: v.string(), max: v.number(), windowMs: v.number() },
+  handler: async (ctx, a) => {
+    const now = Date.now();
+    const row = await ctx.db.query("mcpHits").withIndex("by_who", q => q.eq("who", a.who)).unique();
+    if (!row) {
+      await ctx.db.insert("mcpHits", { who: a.who, windowStart: now, count: 1 });
+      return { allowed: true, remaining: a.max - 1, retryAfter: 0 };
+    }
+    if (now - row.windowStart > a.windowMs) {
+      await ctx.db.patch(row._id, { windowStart: now, count: 1 });
+      return { allowed: true, remaining: a.max - 1, retryAfter: 0 };
+    }
+    if (row.count >= a.max) {
+      return { allowed: false, remaining: 0,
+        retryAfter: Math.ceil((a.windowMs - (now - row.windowStart)) / 1000) };
+    }
+    await ctx.db.patch(row._id, { count: row.count + 1 });
+    return { allowed: true, remaining: a.max - row.count - 1, retryAfter: 0 };
+  },
+});

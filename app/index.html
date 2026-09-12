@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-12c";
+  window.OCTOPUS_BUILD = "2026-09-12e";
 </script>
 
 <style>
@@ -98,10 +98,6 @@
     display:flex; justify-content:space-between; align-items:center;
   }
   .side-h b{ color:var(--accent); font-weight:500; }
-  button.side-h{ width:100%; cursor:pointer; }
-  button.side-h:hover{ color:var(--ink-2); }
-  .side-h .chev{ font-size:9px; color:var(--ink-3); transition:transform .18s var(--ease); }
-  .side-h.closed .chev{ transform:rotate(-90deg); }
 
   .brain-row{
     display:block; width:100%; text-align:left;
@@ -118,11 +114,21 @@
   }
   .tp.subject{ color:var(--accent); background:var(--accent-soft); }
   .tp.person{ color:var(--ink-3); background:var(--surface-3); }
-  .brain-row .sc{
-    font:400 12px/1.45 var(--sans); color:var(--ink-3);
-    margin-top:3px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  .brain-row .bn{ justify-content:space-between; }
+  .brain-row .chev{ font-size:9px; color:var(--ink-3); margin-left:auto; transition:transform .18s var(--ease); }
+  .brain-row.on .chev{ transform:rotate(180deg); color:var(--accent); }
+
+  /* the panel that opens under the brain you clicked */
+  .bdetail{ padding:2px 12px 12px; margin:-2px 0 6px; }
+  .bdetail .sc{ font:400 12px/1.5 var(--sans); color:var(--ink-2); margin-bottom:10px; }
+  .bdetail .lab{
+    font:600 10px/1.6 var(--mono); letter-spacing:.06em; text-transform:uppercase;
+    color:var(--ink-3); margin:10px 0 4px;
   }
-  .brain-row .ct{ font:400 10.5px/1 var(--mono); color:var(--ink-3); margin-top:5px; }
+  .bdetail ol{ list-style:none; }
+  .bdetail li{ font:400 12.5px/1.5 var(--sans); color:var(--ink-2); padding:2px 0; display:flex; gap:7px; }
+  .bdetail li .i{ font:400 10px/1.8 var(--mono); color:var(--ink-3); flex-shrink:0; }
+  .bdetail .none{ font:400 12px/1.5 var(--sans); color:var(--ink-3); }
 
   .empty-side{ padding:8px; font:400 13px/1.55 var(--sans); color:var(--ink-3); }
 
@@ -133,6 +139,41 @@
     transition:background .15s var(--ease), border-color .15s var(--ease);
   }
   .new-brain:hover{ background:var(--surface); border-color:var(--accent-fill); }
+
+  .connect-row{
+    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+    border-top:1px solid var(--line); padding:11px 20px;
+    font:500 12px/1.3 var(--sans); color:var(--ink-3);
+    transition:color .15s var(--ease), background .15s var(--ease);
+  }
+  .connect-row:hover{ color:var(--accent); background:var(--surface); }
+  .connect-row .dot{
+    width:6px; height:6px; border-radius:50%; background:var(--accent-fill); flex-shrink:0;
+  }
+
+  .urlbox{
+    display:flex; align-items:stretch; gap:0; margin:4px 0 2px;
+    border:1px solid var(--line-2); border-radius:8px; overflow:hidden; background:var(--surface-2);
+  }
+  .urlbox input{
+    flex:1; min-width:0; background:none; border:none;
+    font:400 12px/1.4 var(--mono); color:var(--ink); padding:10px 11px;
+  }
+  .urlbox button{
+    flex-shrink:0; padding:0 13px; border-left:1px solid var(--line-2);
+    font:500 12px/1 var(--sans); color:var(--accent); background:var(--surface);
+  }
+  .urlbox button:hover{ background:var(--accent-soft); }
+  .steps{ counter-reset:st; margin:10px 0 0; }
+  .steps li{
+    counter-increment:st; position:relative; padding:0 0 7px 24px;
+    font:400 13px/1.5 var(--sans); color:var(--ink-2); list-style:none;
+  }
+  .steps li::before{
+    content:counter(st); position:absolute; left:0; top:1px;
+    font:600 10px/1.7 var(--mono); color:var(--accent);
+    width:16px; height:16px; border-radius:50%; background:var(--accent-soft); text-align:center;
+  }
 
   .side-foot{
     border-top:1px solid var(--line); padding:12px 20px;
@@ -473,12 +514,12 @@
     </div>
     <div class="side-scroll">
       <button class="new-brain" id="newBrain">+ Create a brain</button>
-      <button class="side-h" id="brainsToggle" aria-expanded="true">
-        <span>Brains <b id="bcount"></b></span>
-        <span class="chev">▾</span>
-      </button>
+      <div class="side-h">Brains <b id="bcount"></b></div>
       <div id="brains"></div>
     </div>
+    <button class="connect-row" id="connectBtn">
+      <span class="dot"></span><span>Read these brains from your own Claude</span>
+    </button>
     <div class="side-foot">
       <button id="lockBtn">lock</button>
       <span id="stat"></span>
@@ -541,7 +582,7 @@ const TOKEN_KEY = "octopus.token.v1";
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "",
   mode: "ask", scope: "all", transcript: null, busy: false, pendingCard: null, chunk: 18000,
-  level: "normal", sideOpen: true,
+  level: "normal",
 };
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
@@ -549,10 +590,7 @@ const S = {
 const LEVELS = ["normal","educational","expert"];
 try { const v = localStorage.getItem("octopus.level"); if (LEVELS.includes(v)) S.level = v; } catch {}
 const saveLevel = () => { try { localStorage.setItem("octopus.level", S.level); } catch {} };
-try { S.sideOpen = localStorage.getItem("octopus.brains") !== "closed"; } catch {}
-const saveSideOpen = () => {
-  try { localStorage.setItem("octopus.brains", S.sideOpen ? "open" : "closed"); } catch {}
-};
+
 
 const $ = id => document.getElementById(id);
 const el = (t,c,txt) => { const n=document.createElement(t); if(c)n.className=c; if(txt!=null)n.textContent=txt; return n; };
@@ -685,25 +723,55 @@ function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); 
 function renderSide(){
   const box = $("brains"); box.innerHTML = "";
   $("bcount").textContent = S.brains.length || "";
-  box.hidden = !S.sideOpen;
-  const tg = $("brainsToggle");
-  tg.classList.toggle("closed", !S.sideOpen);
-  tg.setAttribute("aria-expanded", String(S.sideOpen));
   $("stat").textContent = S.model ? S.model.split("/").pop() : "";
   $("stat").title = `build ${window.OCTOPUS_BUILD} · reads in ${S.chunk} character passes`;
   if (!S.brains.length){
     box.append(el("div","empty-side","None yet. A brain is a subject or a person, with a one line scope."));
     return;
   }
+  /* One line per brain. Clicking it opens that brain's scope, concepts and
+     sources, and makes it the brain you ask. Clicking again closes both. */
   for (const b of S.brains){
-    const n = conceptsOf(b.slug).length, sc = sourcesOf(b.slug).length;
-    const row = el("button","brain-row" + (S.scope===b.slug ? " on" : ""));
+    const open = S.scope === b.slug;
+    const row = el("button","brain-row" + (open ? " on" : ""));
     const top = el("div","bn");
-    top.append(el("span","nm",b.name), el("span","tp "+b.type,b.type));
-    row.append(top, el("div","sc",b.scope||""), el("div","ct",`${n} concept${n===1?"":"s"} · ${sc} source${sc===1?"":"s"}`));
-    row.onclick = () => { S.scope = S.scope===b.slug ? "all" : b.slug; closeSide(); render(); };
+    top.append(el("span","nm",b.name), el("span","tp "+b.type,b.type), el("span","chev","▾"));
+    row.append(top);
+    row.onclick = () => { S.scope = open ? "all" : b.slug; render(); };
     box.append(row);
+    if (open) box.append(brainDetail(b));
   }
+}
+
+function brainDetail(b){
+  const cs = conceptsOf(b.slug), ss = sourcesOf(b.slug);
+  const d = el("div","bdetail");
+  d.append(el("div","sc", b.scope || "no scope line"));
+
+  d.append(el("div","lab", cs.length ? `Concepts ${cs.length}` : "Concepts"));
+  if (!cs.length) d.append(el("div","none","None yet. Drop a source to seed them."));
+  else {
+    const ol = el("ol");
+    cs.forEach((c,i) => {
+      const li = el("li");
+      li.append(el("span","i", pad2(c.n || i+1)), el("span",null,c.title));
+      ol.append(li);
+    });
+    d.append(ol);
+  }
+
+  d.append(el("div","lab", ss.length ? `Sources ${ss.length}` : "Sources"));
+  if (!ss.length) d.append(el("div","none","None yet."));
+  else {
+    const ol = el("ol");
+    ss.slice().reverse().forEach(x => {
+      const li = el("li");
+      li.append(el("span","i", x.date || "?"), el("span",null, x.title || x.author || x.sid));
+      ol.append(li);
+    });
+    d.append(ol);
+  }
+  return d;
 }
 
 function renderScope(){
@@ -813,7 +881,7 @@ $("level").onchange = e => { S.level = e.target.value; saveLevel(); renderCompos
 $("burger").onclick = () => $("side").classList.toggle("open");
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
-$("brainsToggle").onclick = () => { S.sideOpen = !S.sideOpen; saveSideOpen(); renderSide(); };
+$("connectBtn").onclick = openConnect;
 $("pasteBtn").onclick = openTranscript;
 $("exportBtn").onclick = exportAll;
 $("lockBtn").onclick = async () => {
@@ -822,6 +890,59 @@ $("lockBtn").onclick = async () => {
 };
 
 /* ============ create a brain ============ */
+/* The connector is public and read only, so this panel hands out the address
+   rather than issuing a key. No passphrase, and no model call behind it. */
+function openConnect(){
+  closeSide();
+  const url = window.OCTOPUS_API + "/mcp";
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <header><h3>Read these brains from your own Claude</h3>
+      <p>Add this address as a custom connector. Your Claude then reads the brains directly and reasons over them itself.</p></header>
+      <div class="f"><label for="mcpUrl">Connector address</label>
+        <div class="urlbox">
+          <input id="mcpUrl" readonly spellcheck="false">
+          <button id="mcpCopy">Copy</button>
+        </div>
+        <div class="hint">Works on Free, Pro, Max, Team and Enterprise plans.</div>
+      </div>
+      <div class="f"><label>How to add it</label>
+        <ol class="steps">
+          <li>Open Claude, then Settings, then Connectors.</li>
+          <li>Choose Add custom connector.</li>
+          <li>Paste the address above. Leave authentication empty.</li>
+          <li>Ask your question. Claude reads the brains as it answers.</li>
+        </ol>
+      </div>
+      <div class="f"><label>What a reader can do</label>
+        <ol class="steps">
+          <li>List the brains and read their scope lines.</li>
+          <li>Read any position, its dated evidence and its open conflicts.</li>
+          <li>Search every concept, and list the sources behind a brain.</li>
+        </ol>
+        <div class="hint">Reading only. Nobody can add a source, move a position, or spend your model credits. Capped at 120 calls per 10 minutes per address.</div>
+      </div>
+      <footer><button class="ghost" id="mcpClose">Close</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const inp = veil.querySelector("#mcpUrl");
+  inp.value = url;
+  const shut = () => veil.remove();
+  veil.querySelector("#mcpClose").onclick = shut;
+  veil.onclick = e => { if(e.target===veil) shut(); };
+  veil.querySelector("#mcpCopy").onclick = async () => {
+    const btn = veil.querySelector("#mcpCopy");
+    inp.select();
+    /* The clipboard API needs permission the page may not hold, so fall back
+       to leaving the address selected for a manual copy. */
+    try { await navigator.clipboard.writeText(url); btn.textContent = "Copied"; }
+    catch { btn.textContent = "Press copy"; }
+    setTimeout(() => { btn.textContent = "Copy"; }, 1600);
+  };
+  setTimeout(()=>{ inp.select(); }, 30);
+}
+
 function openSheet(name, scope, type){
   closeSide();
   const veil = el("div","veil");
