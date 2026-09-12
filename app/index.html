@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-12a";
+  window.OCTOPUS_BUILD = "2026-09-12b";
 </script>
 
 <style>
@@ -299,6 +299,8 @@
   }
   .seg button:hover{ color:var(--ink); }
   .seg button.on{ background:var(--accent-fill); color:var(--accent-on); }
+
+  [hidden]{ display:none !important; }
 
   .scope{
     display:inline-flex; align-items:center; gap:7px;
