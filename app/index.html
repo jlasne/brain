@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-11e";
+  window.OCTOPUS_BUILD = "2026-09-12a";
 </script>
 
 <style>
@@ -498,6 +498,14 @@
             <label id="scopeLabel">Across</label>
             <select id="scope"></select>
           </div>
+          <div class="scope" id="levelWrap">
+            <label>Level</label>
+            <select id="level">
+              <option value="normal">Normal</option>
+              <option value="educational">Educational</option>
+              <option value="expert">Expert</option>
+            </select>
+          </div>
         </div>
         <div class="box">
           <textarea id="input" rows="1" placeholder="Ask anything your brains have read."></textarea>
@@ -524,7 +532,14 @@ const TOKEN_KEY = "octopus.token.v1";
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "",
   mode: "ask", scope: "all", transcript: null, busy: false, pendingCard: null, chunk: 18000,
+  level: "normal",
 };
+
+/* The level is a per-browser convenience, so a blocked or cleared store just
+   falls back to normal. */
+const LEVELS = ["normal","educational","expert"];
+try { const v = localStorage.getItem("octopus.level"); if (LEVELS.includes(v)) S.level = v; } catch {}
+const saveLevel = () => { try { localStorage.setItem("octopus.level", S.level); } catch {} };
 
 const $ = id => document.getElementById(id);
 const el = (t,c,txt) => { const n=document.createElement(t); if(c)n.className=c; if(txt!=null)n.textContent=txt; return n; };
@@ -691,11 +706,15 @@ function renderComposer(){
     ? "Paste a link, or the text of the source."
     : S.scope==="all" ? "Ask anything your brains have read."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this brain") + ".";
+  $("levelWrap").hidden = drop;
+  $("level").value = S.level;
   $("pasteBtn").hidden = !drop;
   $("pasteBtn").textContent = S.transcript ? `transcript ${Math.round(S.transcript.length/1000)}k ✓` : "+ transcript";
   $("pasteBtn").classList.toggle("has", !!S.transcript);
   $("footNote").textContent = drop
     ? "The source gets read once, then you reply to one card."
+    : S.level==="educational" ? "Educational: terms defined, mechanism built, one worked example."
+    : S.level==="expert" ? "Expert: the position, then how strong the evidence behind it is."
     : "The answer carries the numbers. Sources sit on one line underneath.";
   const t = $("input").value.trim();
   $("send").disabled = S.busy || !t;
@@ -773,6 +792,7 @@ $("mode").onclick = e => {
   renderScope(); renderComposer(); $("input").focus();
 };
 $("scope").onchange = e => { S.scope = e.target.value; renderSide(); renderComposer(); };
+$("level").onchange = e => { S.level = e.target.value; saveLevel(); renderComposer(); };
 $("burger").onclick = () => $("side").classList.toggle("open");
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
@@ -904,7 +924,7 @@ async function doAsk(q){
   }
   const body = thinking("Reading your brains");
   try {
-    const r = await api("/api/ask", { q, brain: S.scope });
+    const r = await api("/api/ask", { q, brain: S.scope, level: S.level });
     body.innerHTML = "";
     if (r.sources > 0 && r.sources < 10)
       body.append(el("div","smallbrain",`Small brain: ${r.sources} source${r.sources===1?"":"s"} behind this`));

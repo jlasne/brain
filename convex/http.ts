@@ -354,10 +354,41 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
 
   const nSources = new Set(sources.filter((s: any) => s.brains.some((x: string) => chosen.some((c: any) => c.slug === x))).map((s: any) => s.sid)).size;
 
+  /* Three levels. Each changes the shape and the depth of the answer. None of
+     them touches the evidence rules below, so a level can never buy a claim
+     the brain does not hold. */
+  const level = ["normal", "educational", "expert"].includes(String(b.level))
+    ? String(b.level) : "normal";
+  const SHAPE: Record<string, string> = {
+    normal:
+`LEVEL: NORMAL
+- 3 to 6 lines. One answer, no headings, no lists.
+- Assume the reader knows the field. Skip definitions.`,
+    educational:
+`LEVEL: EDUCATIONAL
+- Assume no background at all.
+- Define each term the first time it appears, in one clause.
+- Build the mechanism in order, so each step rests on the one before it.
+- Give ONE worked example carrying real numbers from the evidence.
+- Close with one line naming the single thing worth remembering.
+- 10 to 20 lines. Short paragraphs. No headings.`,
+    expert:
+`LEVEL: EXPERT
+- Write as a reviewer grading this knowledge base, not as a teacher. Define nothing.
+- Open with the position in one or two lines.
+- Then review the evidence behind it: how many sources, how recent, which claims carry numbers and which carry none.
+- Name the thin spots. A position resting on one source, or on no data, gets said plainly.
+- State every open conflict on this question, with both dates.
+- Close with one line naming what evidence would change the position.
+- 8 to 15 lines. Dense. Short paragraphs allowed.`,
+  };
+
   const { text } = await ask([
     { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You always answer in English." },
     { role: "user", content:
 `Answer the question from the stored knowledge below.
+
+${SHAPE[level]}
 
 HOW TO WRITE THE ANSWER
 - The FIRST SENTENCE answers the question. Natural prose, addressed to the person asking.
@@ -366,7 +397,7 @@ ${isPerson
   ? "- This is a PERSON brain, so name that person throughout. Their view is the subject."
   : "- NEVER put a source's name in the answer text. Attribution belongs on the sources line only."}
 - Newer evidence wins on the same question, and better data overrides that.
-- Mention an open conflict only when it changes what the reader would do.
+- Mention an open conflict only when it changes what the reader would do. At the EXPERT level, state every open conflict regardless.
 - No file paths anywhere.
 ${nSources > 0 && nSources < 10 ? `- This rests on ${nSources} source${nSources === 1 ? "" : "s"} only. Open by saying it is a small brain.` : ""}
 - Then a blank line, then exactly one final line: "Sources: {author}, {date} - {author}, {date}" listing only sources you used. Omit that line if you used none.
@@ -377,9 +408,9 @@ STORED KNOWLEDGE
 ${dossier}
 
 QUESTION: ${String(b.q ?? "")}` },
-  ], { maxTokens: 2000 });
+  ], { maxTokens: level === "normal" ? 2000 : 3200 });
 
-  return { answer: text, sources: nSources };
+  return { answer: text, sources: nSources, level };
 });
 
 export default router;
