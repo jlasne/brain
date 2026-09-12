@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-12b";
+  window.OCTOPUS_BUILD = "2026-09-12c";
 </script>
 
 <style>
@@ -98,6 +98,10 @@
     display:flex; justify-content:space-between; align-items:center;
   }
   .side-h b{ color:var(--accent); font-weight:500; }
+  button.side-h{ width:100%; cursor:pointer; }
+  button.side-h:hover{ color:var(--ink-2); }
+  .side-h .chev{ font-size:9px; color:var(--ink-3); transition:transform .18s var(--ease); }
+  .side-h.closed .chev{ transform:rotate(-90deg); }
 
   .brain-row{
     display:block; width:100%; text-align:left;
@@ -123,7 +127,7 @@
   .empty-side{ padding:8px; font:400 13px/1.55 var(--sans); color:var(--ink-3); }
 
   .new-brain{
-    margin:9px 0 0; padding:10px 11px; width:100%; text-align:left;
+    margin:0 0 12px; padding:10px 11px; width:100%; text-align:left;
     border:1px dashed var(--line-2); border-radius:9px;
     font:500 13px/1 var(--sans); color:var(--accent);
     transition:background .15s var(--ease), border-color .15s var(--ease);
@@ -468,9 +472,12 @@
       <h1>Octopus</h1>
     </div>
     <div class="side-scroll">
-      <div class="side-h">Brains <b id="bcount"></b></div>
-      <div id="brains"></div>
       <button class="new-brain" id="newBrain">+ Create a brain</button>
+      <button class="side-h" id="brainsToggle" aria-expanded="true">
+        <span>Brains <b id="bcount"></b></span>
+        <span class="chev">▾</span>
+      </button>
+      <div id="brains"></div>
     </div>
     <div class="side-foot">
       <button id="lockBtn">lock</button>
@@ -534,7 +541,7 @@ const TOKEN_KEY = "octopus.token.v1";
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "",
   mode: "ask", scope: "all", transcript: null, busy: false, pendingCard: null, chunk: 18000,
-  level: "normal",
+  level: "normal", sideOpen: true,
 };
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
@@ -542,6 +549,10 @@ const S = {
 const LEVELS = ["normal","educational","expert"];
 try { const v = localStorage.getItem("octopus.level"); if (LEVELS.includes(v)) S.level = v; } catch {}
 const saveLevel = () => { try { localStorage.setItem("octopus.level", S.level); } catch {} };
+try { S.sideOpen = localStorage.getItem("octopus.brains") !== "closed"; } catch {}
+const saveSideOpen = () => {
+  try { localStorage.setItem("octopus.brains", S.sideOpen ? "open" : "closed"); } catch {}
+};
 
 const $ = id => document.getElementById(id);
 const el = (t,c,txt) => { const n=document.createElement(t); if(c)n.className=c; if(txt!=null)n.textContent=txt; return n; };
@@ -674,6 +685,10 @@ function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); 
 function renderSide(){
   const box = $("brains"); box.innerHTML = "";
   $("bcount").textContent = S.brains.length || "";
+  box.hidden = !S.sideOpen;
+  const tg = $("brainsToggle");
+  tg.classList.toggle("closed", !S.sideOpen);
+  tg.setAttribute("aria-expanded", String(S.sideOpen));
   $("stat").textContent = S.model ? S.model.split("/").pop() : "";
   $("stat").title = `build ${window.OCTOPUS_BUILD} · reads in ${S.chunk} character passes`;
   if (!S.brains.length){
@@ -798,6 +813,7 @@ $("level").onchange = e => { S.level = e.target.value; saveLevel(); renderCompos
 $("burger").onclick = () => $("side").classList.toggle("open");
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
+$("brainsToggle").onclick = () => { S.sideOpen = !S.sideOpen; saveSideOpen(); renderSide(); };
 $("pasteBtn").onclick = openTranscript;
 $("exportBtn").onclick = exportAll;
 $("lockBtn").onclick = async () => {
