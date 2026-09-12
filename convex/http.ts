@@ -97,7 +97,8 @@ route("/api/drop/check", async (ctx, _req, b) => {
   const sid = sourceId(link, String(b.text ?? ""));
   const found = await ctx.runQuery(internal.store.findSource, { linkKey: linkKey(link), sid });
   return found
-    ? { duplicate: true, sid: found.sid, date: found.date, brains: found.brains }
+    ? { duplicate: true, sid: found.sid, date: found.date, brains: found.brains,
+        title: found.title, author: found.author, link: found.link }
     : { duplicate: false, sid };
 });
 

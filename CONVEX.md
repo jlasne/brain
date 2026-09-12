@@ -82,7 +82,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/unlock` | First call sets the passphrase, later calls check it | Rate limited, 8 tries an hour |
 | `/api/state` | Brains, concepts, sources | Yes |
 | `/api/brain` | Creates one | Yes |
-| `/api/drop/check` | The duplicate check, an index lookup | Yes |
+| `/api/drop/check` | The duplicate check, an index lookup. No model call, so the test button is free | Yes |
 | `/api/drop/read` | One extraction pass over one chunk | Yes |
 | `/api/drop/plan` | Summaries in, the card out | Yes |
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
