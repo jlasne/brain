@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-12e";
+  window.OCTOPUS_BUILD = "2026-09-12f";
 </script>
 
 <style>
@@ -76,7 +76,33 @@
   ::-webkit-scrollbar-track{ background:transparent; }
 
   /* ============ shell ============ */
-  .app{ display:grid; grid-template-columns:264px 1fr; height:100dvh; }
+  .app{
+    display:grid; grid-template-columns:264px 1fr; height:100dvh;
+    transition:grid-template-columns .2s var(--ease);
+  }
+
+  /* Folding the nav is a desktop affair. Narrow screens already slide it in
+     and out as a drawer, so these rules must not reach them. */
+  .navtoggle{
+    margin-left:auto; flex-shrink:0; width:24px; height:24px; border-radius:6px;
+    display:grid; place-items:center; color:var(--ink-3);
+    font:400 15px/1 var(--sans);
+    transition:color .15s var(--ease), background .15s var(--ease);
+  }
+  .navtoggle:hover{ color:var(--accent); background:var(--surface-3); }
+  .navopen{
+    display:none; position:fixed; top:13px; left:13px; z-index:30;
+    place-items:center; width:30px; height:30px; border-radius:7px;
+    border:1px solid var(--line-2); background:var(--surface-2); color:var(--ink-3);
+  }
+  .navopen:hover{ color:var(--accent); border-color:var(--accent-fill); }
+  @media (min-width:861px){
+    .app.nav-closed{ grid-template-columns:0 1fr; }
+    .app.nav-closed aside{ opacity:0; pointer-events:none; }
+    .app.nav-closed .navopen{ display:grid; }
+    aside{ transition:opacity .15s var(--ease); }
+  }
+  @media (max-width:860px){ .navtoggle{ display:none; } }
 
   /* ============ sidebar ============ */
   aside{
@@ -119,16 +145,9 @@
   .brain-row.on .chev{ transform:rotate(180deg); color:var(--accent); }
 
   /* the panel that opens under the brain you clicked */
-  .bdetail{ padding:2px 12px 12px; margin:-2px 0 6px; }
-  .bdetail .sc{ font:400 12px/1.5 var(--sans); color:var(--ink-2); margin-bottom:10px; }
-  .bdetail .lab{
-    font:600 10px/1.6 var(--mono); letter-spacing:.06em; text-transform:uppercase;
-    color:var(--ink-3); margin:10px 0 4px;
-  }
-  .bdetail ol{ list-style:none; }
-  .bdetail li{ font:400 12.5px/1.5 var(--sans); color:var(--ink-2); padding:2px 0; display:flex; gap:7px; }
-  .bdetail li .i{ font:400 10px/1.8 var(--mono); color:var(--ink-3); flex-shrink:0; }
-  .bdetail .none{ font:400 12px/1.5 var(--sans); color:var(--ink-3); }
+  .bdetail{ padding:0 12px 11px; margin:-2px 0 5px; }
+  .bdetail .sc{ font:400 12px/1.5 var(--sans); color:var(--ink-2); }
+  .bdetail .ct{ font:400 10.5px/1 var(--mono); color:var(--ink-3); margin-top:7px; }
 
   .empty-side{ padding:8px; font:400 13px/1.55 var(--sans); color:var(--ink-3); }
 
@@ -511,6 +530,7 @@
     <div class="brand">
       <span class="mark"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M5 14a7 7 0 0 1 14 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0ZM9.7 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4ZM14.3 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z"/></svg></span>
       <h1>Octopus</h1>
+      <button class="navtoggle" id="navToggle" aria-label="Hide the brains" title="Hide the brains">&#171;</button>
     </div>
     <div class="side-scroll">
       <button class="new-brain" id="newBrain">+ Create a brain</button>
@@ -518,7 +538,7 @@
       <div id="brains"></div>
     </div>
     <button class="connect-row" id="connectBtn">
-      <span class="dot"></span><span>Read these brains from your own Claude</span>
+      <span class="dot"></span><span>Octopus MCP</span>
     </button>
     <div class="side-foot">
       <button id="lockBtn">lock</button>
@@ -528,6 +548,9 @@
   </aside>
 
   <main>
+    <button class="navopen" id="navOpen" aria-label="Show the brains">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+    </button>
     <div class="topbar">
       <button class="burger" id="burger" aria-label="Brains">
         <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
@@ -590,6 +613,14 @@ const S = {
 const LEVELS = ["normal","educational","expert"];
 try { const v = localStorage.getItem("octopus.level"); if (LEVELS.includes(v)) S.level = v; } catch {}
 const saveLevel = () => { try { localStorage.setItem("octopus.level", S.level); } catch {} };
+
+/* Folded nav, remembered. A blocked store just leaves it open. */
+let navOpen = true;
+try { navOpen = localStorage.getItem("octopus.nav") !== "closed"; } catch {}
+function paintNav(){
+  $("app").classList.toggle("nav-closed", !navOpen);
+  try { localStorage.setItem("octopus.nav", navOpen ? "open" : "closed"); } catch {}
+}
 
 
 const $ = id => document.getElementById(id);
@@ -744,33 +775,10 @@ function renderSide(){
 }
 
 function brainDetail(b){
-  const cs = conceptsOf(b.slug), ss = sourcesOf(b.slug);
+  const n = conceptsOf(b.slug).length, sc = sourcesOf(b.slug).length;
   const d = el("div","bdetail");
-  d.append(el("div","sc", b.scope || "no scope line"));
-
-  d.append(el("div","lab", cs.length ? `Concepts ${cs.length}` : "Concepts"));
-  if (!cs.length) d.append(el("div","none","None yet. Drop a source to seed them."));
-  else {
-    const ol = el("ol");
-    cs.forEach((c,i) => {
-      const li = el("li");
-      li.append(el("span","i", pad2(c.n || i+1)), el("span",null,c.title));
-      ol.append(li);
-    });
-    d.append(ol);
-  }
-
-  d.append(el("div","lab", ss.length ? `Sources ${ss.length}` : "Sources"));
-  if (!ss.length) d.append(el("div","none","None yet."));
-  else {
-    const ol = el("ol");
-    ss.slice().reverse().forEach(x => {
-      const li = el("li");
-      li.append(el("span","i", x.date || "?"), el("span",null, x.title || x.author || x.sid));
-      ol.append(li);
-    });
-    d.append(ol);
-  }
+  d.append(el("div","sc", b.scope || "no scope line"),
+           el("div","ct", `${n} concept${n===1?"":"s"} · ${sc} source${sc===1?"":"s"}`));
   return d;
 }
 
@@ -809,15 +817,11 @@ function renderComposer(){
 
 function renderZero(){
   const th = $("thread");
-  if (S.brains.length || th.children.length) return;
+  if (th.children.length) return;
   const z = el("div","zero");
   z.innerHTML = `
     <h2>A folder that gets smarter every time you feed it.</h2>
-    <p class="lede">Drop a source and you reply to one card: where it goes, what is new, what it repeats, and every claim that clashes with what your brains already hold. Ask a question and the first sentence answers it.</p>`;
-  const start = el("button","go","Create your first brain");
-  start.style.marginTop = "26px";
-  start.onclick = () => openSheet("","","subject");
-  z.append(start);
+    <p class="lede">Feed it any source and it reads the whole thing, files each idea under the right subject, flags every claim that clashes with what you already hold, then answers from dated evidence.</p>`;
   th.append(z);
 }
 
@@ -882,6 +886,9 @@ $("burger").onclick = () => $("side").classList.toggle("open");
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
 $("connectBtn").onclick = openConnect;
+$("navToggle").onclick = () => { navOpen = false; paintNav(); };
+$("navOpen").onclick  = () => { navOpen = true;  paintNav(); };
+paintNav();
 $("pasteBtn").onclick = openTranscript;
 $("exportBtn").onclick = exportAll;
 $("lockBtn").onclick = async () => {
