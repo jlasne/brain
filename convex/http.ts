@@ -13,7 +13,7 @@ import {
 } from "./lib";
 import type { Who } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
-import { dropCheck, dropRead, dropPlan, dropSettle } from "./drop";
+import { dropCheck, dropRead, dropPlan, dropSettle, fetchPage } from "./drop";
 
 const router = httpRouter();
 
@@ -266,6 +266,17 @@ route("/api/brain/visibility", async (ctx, _req, b) => {
 });
 
 /* ---------- drop ---------- */
+
+/**
+ * Read a page so a bare link is enough.
+ *
+ * Nothing fetched is stored. The text goes back to the caller, who reads it
+ * once, and only the extraction ever reaches a brain.
+ */
+route("/api/fetch", async (ctx, _req, b) => {
+  await gate(ctx, b);
+  return await fetchPage(String(b.url ?? ""));
+});
 
 /** R1.2 runs before anything expensive, so a repeat costs zero pasting. */
 route("/api/drop/check", async (ctx, _req, b) => {

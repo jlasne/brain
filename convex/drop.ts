@@ -123,6 +123,86 @@ export async function feedable(ctx: any, who: Who, brain?: string) {
   return { brains, concepts, sources, pool };
 }
 
+/**
+ * Pull a page's readable text.
+ *
+ * It writes nothing, yet it sits behind a token anyway: an open fetcher would
+ * make this deployment a proxy for anyone who found the address. Private and
+ * link-local hosts are refused, because the only reason to aim this at one is
+ * to read something the caller could not reach themselves.
+ *
+ * Nothing fetched is stored. The text goes to the caller, who decides what is
+ * worth keeping, and only that extraction ever reaches a brain.
+ */
+const PRIVATE_HOST =
+  /^(localhost|127\.|0\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[|::1$)/i;
+
+const VIDEO_HOST = /(^|\.)(youtube\.com|youtu\.be|vimeo\.com|tiktok\.com|dailymotion\.com)$/i;
+
+const CAP = 60000;
+
+export async function fetchPage(raw: string): Promise<any> {
+  const want = raw.trim();
+  let u: URL;
+  try { u = new URL(want); }
+  catch { return { error: `"${want.slice(0, 60)}" is not a full address. Include https://` }; }
+  if (u.protocol !== "https:") return { error: "Only https addresses are fetched." };
+  const host = u.hostname.toLowerCase();
+  if (PRIVATE_HOST.test(host) || host.endsWith(".internal") || host.endsWith(".local") || !host.includes(".")) {
+    return { error: `${host} is not a public address.` };
+  }
+  if (VIDEO_HOST.test(host)) {
+    return { error: [
+      `${host} serves captions only to a signed-in browser, so a fetched page carries none.`,
+      `Open the transcript panel under the video, copy it, and drop that text with the link.`,
+      `The link is what catches a repeat later.`,
+    ].join("\n") };
+  }
+
+  let r: Response;
+  try {
+    r = await fetch(u.toString(), {
+      redirect: "follow",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; OctopusBrains/1.0; +https://octopus.jeremylasne.com/doc)",
+        "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9",
+        "Accept-Language": "en,*;q=0.5",
+      },
+    });
+  } catch (e: any) {
+    return { error: `${host} did not answer: ${String(e?.message ?? e).slice(0, 140)}` };
+  }
+  if (!r.ok) {
+    return { error: `${host} answered ${r.status}. ` +
+      (r.status === 401 || r.status === 403
+        ? "That page sits behind a login or a bot check, so paste the text instead."
+        : "Paste the text instead.") };
+  }
+  const kind = (r.headers.get("content-type") ?? "").toLowerCase();
+  if (!kind.includes("html") && !kind.includes("text/plain")) {
+    return { error: `That address serves ${kind || "something that is not a web page"}. ` +
+      `This reads web pages. A file is read directly instead, so attach it.` };
+  }
+
+  const body = await r.text();
+  const clean = body
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<(script|style|svg|noscript|nav|footer|header|form|aside)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<\/(p|div|h[1-6]|li|tr|br)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'")
+    .replace(/[ \t]+/g, " ").replace(/\n\s*\n\s*\n+/g, "\n\n").trim();
+
+  if (clean.length < 200) {
+    return { error: `${host} returned almost no text, which usually means the page builds itself in the ` +
+      `browser. Paste what you read instead.` };
+  }
+  return { url: u.toString(), chars: clean.length,
+           cut: clean.length > CAP, text: clean.slice(0, CAP) };
+}
+
+
 /** R1.2 runs before anything expensive, so a repeat costs zero pasting. */
 export async function dropCheck(ctx: any, b: any) {
   const link = String(b.link ?? "");

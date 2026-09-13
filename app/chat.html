@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13s";
+  window.OCTOPUS_BUILD = "2026-09-13t";
 </script>
 
 <style>
@@ -211,11 +211,18 @@
   .side-foot{
     border-top:1px solid var(--line); padding:12px 20px;
     font:400 11px/1.6 var(--mono); color:var(--ink-3);
-    display:flex; justify-content:space-between; gap:8px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    flex-wrap:nowrap; white-space:nowrap;
   }
-  .side-foot button{ color:var(--ink-3); text-decoration:underline; text-underline-offset:2px; }
+  .side-foot button{
+    color:var(--ink-3); text-decoration:underline; text-underline-offset:2px;
+    min-width:0; overflow:hidden; text-overflow:ellipsis;
+  }
   .side-foot button:hover{ color:var(--accent); }
-  .side-foot #stat{ text-align:right; }
+  /* The model name is the only item that can run long, so it is the one that
+     gives way. The full name sits in its tooltip. */
+  .side-foot #stat{ text-align:center; flex:1; text-decoration:none; color:var(--ink-4); }
+  .side-foot #stat:hover{ text-decoration:underline; }
   .side-foot #stat.pick{ color:var(--accent); }
 
   .mlist{
@@ -594,18 +601,10 @@
       <div class="side-h">Brains <b id="bcount"></b></div>
       <div id="brains"></div>
     </div>
-    <a class="connect-row" href="/doc" title="How to read and feed your brains from any AI client">
-      <span class="dot"></span><span>Use it from your AI</span>
-      <span class="go-out">&#8599;</span>
-    </a>
-    <button class="connect-row" id="mcpRow" title="Your connector addresses, for reading and for feeding">
-      <span class="dot"></span><span>Octopus MCP</span>
-      <span class="go-out">&#8599;</span>
-    </button>
     <div class="side-foot">
-      <button id="keyBtn" title="Change the model key this account uses" hidden>key</button>
-      <button id="lockBtn" title="Sign out and forget your key">lock</button>
+      <button id="keyBtn" title="Your model key, and your address for other AI clients">setup</button>
       <button id="stat" title="The model that answers, and what it costs"></button>
+      <button id="lockBtn" title="Sign out and forget your key">lock</button>
     </div>
   </aside>
 
@@ -943,6 +942,7 @@ async function refresh(){
   if (d.kind) S.who = d.kind === "member" ? (S.who || d.account) : d.kind;
   if (d.hasKey !== undefined){ S.hasKey = d.hasKey; S.keyHint = d.keyHint || ""; }
   $("keyBtn").hidden = S.who === "guest" || !S.account;
+  $("keyBtn").textContent = "setup";
   $("lockBtn").textContent = S.who === "guest" ? "leave" : `sign out ${S.who || ""}`.trim();
   render();
 }
@@ -1186,8 +1186,7 @@ $("burger").onclick = () => $("side").classList.toggle("open");
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
 $("stat").onclick = openModelSheet;
-$("mcpRow").onclick = openConnectorSheet;
-$("keyBtn").onclick = openKeySheet;
+$("keyBtn").onclick = openSetupSheet;
 $("testBtn").onclick = testSource;
 $("navToggle").onclick = () => { navOpen = false; paintNav(); };
 $("navOpen").onclick  = () => { navOpen = true;  paintNav(); };
@@ -1248,42 +1247,56 @@ Drop it to see which brain takes it and what it adds.`;
 }
 
 /**
- * Change the key this account spends, or forget the one it remembers. The key
- * is sent to be sealed on the server, and held in this tab for the calls that
- * follow.
+ * One panel for everything an account holds: the key that pays for its calls,
+ * and the address that lets another AI client reach its brains.
+ *
+ * They were two rows in the sidebar and two sheets behind them, which read as
+ * two unrelated settings. They are the same thing from two sides: what Octopus
+ * spends, and who may reach it.
  */
-function openKeySheet(){
+async function openSetupSheet(){
   closeSide();
   const veil = el("div","veil");
   const saved = !!S.hasKey;
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
-      <header><h3>Your model key</h3>
-      <p>${saved
-        ? `This account remembers a key ending <b>${esc(S.keyHint || "????")}</b>. A new one replaces it.`
-        : "No key is saved on this account, so the one in this tab is used until you close it."}</p></header>
+      <header><h3>Setup</h3>
+      <p>Your key pays for what you ask and drop here. Your address lets another AI client read and feed
+        the same brains.</p></header>
+
       <div class="f">
-        <label for="kNew">New key</label>
+        <label for="kNew">Your model key</label>
         <input type="password" id="kNew" autocomplete="off" spellcheck="false" placeholder="sk-or-..." >
-        <div class="hint">Make a key with a spend limit rather than pasting your main one.</div>
+        <div class="hint">${saved
+          ? `This account remembers a key ending <b>${esc(S.keyHint || "????")}</b>. A new one replaces it.`
+          : "No key is saved, so the one in this tab is used until you close it."}
+          Make a key with a spend limit rather than pasting your main one.</div>
       </div>
       <div class="f"><label class="check"><input type="checkbox" id="kRem" ${saved?"checked":""}> Remember it on my account</label>
-        <div class="hint">Remembered keys are encrypted with a secret held on the server. Unticked, it stays in this tab only.</div>
+        <div class="hint">Remembered keys are encrypted with a secret held on the server.</div>
       </div>
-      <div class="f"><div id="kMsg" class="bad" role="alert"></div></div>
-      <footer>
+      <div class="f" style="padding-top:10px">
         ${saved ? `<button class="ghost" id="kForget">Forget the saved key</button>` : ""}
-        <button class="ghost" id="kCancel">Cancel</button>
-        <button class="go" id="kSave">Save</button>
-      </footer>
+        <button class="go" id="kSave" style="margin-left:${saved?"8px":"0"}">Save the key</button>
+      </div>
+
+      <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
+        <label>Other AI clients</label>
+        <div id="feedSlot"></div>
+      </div>
+
+      <div class="f"><div id="kMsg" class="bad" role="alert"></div></div>
+      <footer><a class="ghost" href="/doc" style="text-decoration:none">MCP setup</a><button class="go" id="kDone">Done</button></footer>
     </div>`;
   document.body.append(veil);
-  const inp = veil.querySelector("#kNew"), msg = veil.querySelector("#kMsg");
+  const inp = veil.querySelector("#kNew"), msg = veil.querySelector("#kMsg"),
+        slot = veil.querySelector("#feedSlot");
   const shut = () => veil.remove();
-  veil.querySelector("#kCancel").onclick = shut;
+  veil.querySelector("#kDone").onclick = shut;
   veil.onclick = e => { if(e.target===veil) shut(); };
   setTimeout(()=>inp.focus(),40);
 
+  /* ---- the key ---- */
   const forget = veil.querySelector("#kForget");
   if (forget) forget.onclick = async () => {
     forget.disabled = true; msg.className="spin"; msg.textContent = "Forgetting";
@@ -1318,60 +1331,22 @@ function openKeySheet(){
         (S.hasKey ? "This account will remember it." : "It lives in this tab only.")); });
     } catch(e){ btn.disabled=false; msg.className="bad"; msg.textContent = e.message; }
   };
-}
 
-/**
- * The two connector addresses.
- *
- * The public one reads every brain and needs nothing. The personal one carries
- * this account's token, so a client holding it can also feed the brains this
- * account may feed. Feeding through a connector runs on that client's own
- * model, so it spends no OpenRouter credit here.
- */
-async function openConnectorSheet(){
-  closeSide();
-  const readUrl = location.origin + "/mcp/v0";
-  const veil = el("div","veil");
-  veil.innerHTML = `
-    <div class="sheet" role="dialog" aria-modal="true">
-      <header><h3>Octopus MCP</h3>
-      <p>Add one of these to any MCP client as a remote server over HTTP. Leave authentication empty.</p></header>
-      <div class="f">
-        <label for="mcpRead">Read every brain</label>
-        <div class="urlbox"><input id="mcpRead" readonly spellcheck="false" value="${esc(readUrl)}"><button id="mcpReadCopy">Copy</button></div>
-        <div class="hint">No key, no account, nothing spent. Anyone can use this one.</div>
-      </div>
-      <div class="f" id="feedSlot"></div>
-      <div class="f"><div id="mcpMsg" class="bad" role="alert"></div></div>
-      <footer><a class="ghost" href="/doc" style="text-decoration:none">How to add it</a><button class="go" id="mcpDone">Done</button></footer>
-    </div>`;
-  document.body.append(veil);
-  const shut = () => veil.remove();
-  veil.querySelector("#mcpDone").onclick = shut;
-  veil.onclick = e => { if(e.target===veil) shut(); };
-  const msg = veil.querySelector("#mcpMsg"), slot = veil.querySelector("#feedSlot");
-  copyTo(veil.querySelector("#mcpReadCopy"), veil.querySelector("#mcpRead"));
-
-  if (S.who === "guest" || !S.account){
-    slot.innerHTML = `<div class="hint">Feeding through a connector belongs to an account. Sign in to get that address.</div>`;
-    return;
-  }
-
+  /* ---- the address ---- */
   const paint = (st) => {
     slot.innerHTML = st.has ? `
-      <label for="mcpFeed">Read and feed, as ${esc(S.account)}</label>
       <div class="urlbox"><input id="mcpFeed" readonly spellcheck="false" value="${esc(location.origin + "/mcp/v0?k=" + st.token)}"><button id="mcpFeedCopy">Copy</button></div>
-      <div class="hint">Made ${esc(st.made || "earlier")}. Keep it private: whoever holds it can feed the brains you may feed.
-        The thinking runs on that client's own model, so nothing is spent here.</div>
-      <div class="row" style="margin-top:10px;display:flex;gap:8px">
+      <div class="hint">Made ${esc(st.made || "earlier")}. Paste it into Claude, ChatGPT or any MCP client.
+        Keep it private: whoever holds it can feed the brains you may feed. The thinking runs on that
+        client's own model, so nothing is spent here.</div>
+      <div style="margin-top:10px;display:flex;gap:8px">
         <button class="ghost" id="mcpNew">Replace it</button>
         <button class="ghost" id="mcpOff">Turn it off</button>
       </div>`
     : `
-      <label>Read and feed</label>
-      <div class="hint">No address yet. Make one and your own Claude can drop sources into your brains.
-        Every step runs on that client's model, so it spends nothing here.</div>
-      <div class="row" style="margin-top:10px"><button class="ghost" id="mcpMake">Make my address</button></div>`;
+      <div class="hint">No address yet. Make one and your own Claude or ChatGPT can read these brains and
+        drop sources into them. Every step runs on that client's model, so it spends nothing here.</div>
+      <div style="margin-top:10px"><button class="ghost" id="mcpMake">Make my address</button></div>`;
 
     const copy = veil.querySelector("#mcpFeedCopy");
     if (copy) copyTo(copy, veil.querySelector("#mcpFeed"));
@@ -1379,7 +1354,8 @@ async function openConnectorSheet(){
       msg.className="spin"; msg.textContent = "Saving";
       try { const r = await api("/api/account/mcp", body);
         if (r.error) throw new Error(r.error);
-        msg.className=""; msg.textContent = note; paint(r);
+        /* A success note is not an alert, so it reads at hint size. */
+        msg.className="hint"; msg.textContent = note; paint(r);
       } catch(e){ msg.className="bad"; msg.textContent = e.message; }
     };
     const mk = veil.querySelector("#mcpMake") || veil.querySelector("#mcpNew");
@@ -1388,9 +1364,9 @@ async function openConnectorSheet(){
     if (off) off.onclick = () => act({ forget: true }, "Turned off. Any client holding it now reads only.");
   };
 
-  msg.className="spin"; msg.textContent = "Checking";
-  try { const st = await api("/api/account/mcp", {}); msg.textContent = ""; msg.className=""; paint(st); }
-  catch(e){ msg.className="bad"; msg.textContent = e.message; }
+  slot.innerHTML = `<div class="hint">Checking</div>`;
+  try { paint(await api("/api/account/mcp", {})); }
+  catch(e){ slot.innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
 }
 
 /* Clipboard access can be refused, so leaving the text selected is the fallback. */
@@ -1649,7 +1625,7 @@ function splitAnswer(t){
 /* ---------- drop ---------- */
 async function doDrop(text){
   const link = (text.match(/https?:\/\/\S+/)||[])[0] || "";
-  const bodyTxt = S.transcript || (link ? null : text);
+  let bodyTxt = S.transcript || (link ? null : text);
   says(text, S.transcript ? `transcript attached, ${(S.transcript.match(/\S+/g)||[]).length.toLocaleString()} words` : null);
 
   if (!S.brains.length){
@@ -1668,12 +1644,25 @@ async function doDrop(text){
     return;
   }
 
+  /* A link on its own. Octopus opens the page, so pasting is only needed when
+     the text sits somewhere a fetch cannot reach, such as a video's captions or
+     a page behind a login. The duplicate check already ran, so a repeat costs
+     nothing here. */
   if (!bodyTxt){
-    body.innerHTML = "";
-    body.innerHTML = rich("That link is new. Paste its transcript and it gets read once. The duplicate check ran first, so you pasted nothing for nothing.");
-    const go = el("button","go","Paste the transcript");
-    go.style.marginTop = "12px"; go.onclick = openTranscript; body.append(go);
-    return;
+    setThinking(body, "Opening the link");
+    let got;
+    try { got = await api("/api/fetch", { url: link }); }
+    catch(e){ got = { error: e.message }; }
+
+    if (got && got.text){
+      bodyTxt = got.text;
+    } else {
+      body.innerHTML = "";
+      body.innerHTML = rich(`**That page needs pasting.** ${esc((got && got.error) || "It gave nothing back.")}`);
+      const go = el("button","go","Paste the text");
+      go.style.marginTop = "12px"; go.onclick = openTranscript; body.append(go);
+      return;
+    }
   }
 
   const CH = S.chunk, chunks = [];
