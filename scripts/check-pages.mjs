@@ -54,7 +54,11 @@ for (const page of pages) {
   const declared = new Set([
     ...[...code.matchAll(/(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g)].map(m => m[1]),
     ...[...code.matchAll(/(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/g)].map(m => m[1]),
-  ]);
+    /* Destructured, and named in a parameter list or a catch. */
+    ...[...code.matchAll(/(?:const|let|var)\s*\{([^}]*)\}/g)].flatMap(m => m[1].split(",").map(x => x.split(":").pop().trim())),
+    ...[...code.matchAll(/\(([^()]*)\)\s*=>/g)].flatMap(m => m[1].split(",").map(x => x.trim().split(/[\s=]/)[0])),
+    ...[...code.matchAll(/function\s*[\w$]*\s*\(([^()]*)\)/g)].flatMap(m => m[1].split(",").map(x => x.trim().split(/[\s=]/)[0])),
+  ].filter(Boolean));
   const used = [
     ...[...code.matchAll(/\.(?:onclick|onchange)\s*=\s*([A-Za-z_$][\w$]*)\s*;/g)].map(m => m[1]),
     ...[...code.matchAll(/addEventListener\("[^"]+",\s*([A-Za-z_$][\w$]*)\s*\)/g)].map(m => m[1]),
@@ -63,6 +67,20 @@ for (const page of pages) {
     if (!declared.has(name) && !(name in globalThis)) {
       ok = false; fail(page, `binds ${name}, which is never declared`);
     }
+  }
+
+  /* 4. Every function it calls still exists.
+        Editing these files by cutting a range is how a whole block of functions
+        once disappeared while the page still parsed and every handler still
+        bound. A call to something deleted is the fingerprint of that. */
+  const KEYWORDS = new Set(("if for while switch catch return typeof function async await new " +
+    "of in do else try throw delete void instanceof yield case " +
+    /* var() is CSS, which these files carry inside template strings. */
+    "var let const").split(" "));
+  const called = [...code.matchAll(/(^|[^.\w$'"`])([a-z_$][\w$]*)\s*\(/gm)].map(m => m[2]);
+  for (const name of new Set(called)) {
+    if (KEYWORDS.has(name) || declared.has(name) || (name in globalThis)) continue;
+    ok = false; fail(page, `calls ${name}(), which is never declared`);
   }
 
   if (ok) console.log(`  ok   ${page}  (${scripts.length} script block${scripts.length === 1 ? "" : "s"}, ${asked.size} elements)`);
