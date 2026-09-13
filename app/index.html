@@ -1,5 +1,5 @@
 <title>Octopus</title>
-<meta name="description" content="You read a lot and keep almost none of the reasoning. Octopus turns each source into a position you hold, dated and checkable, and tells you when something new breaks it.">
+<meta name="description" content="Generic advice is everywhere. The sources you chose and trusted are scattered across saved links and watched videos. Octopus turns each one into a position you can question.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -9,35 +9,33 @@
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
 <style>
-  main{ padding-block:76px 88px; }
-  .hero-wrap{ max-width:660px; }
-  h1.hero{ font-size:clamp(32px,6.4vw,51px); }
-  p.lede{ margin-top:18px; }
-
-  .big{
-    margin-top:72px; font:600 clamp(21px,3.2vw,27px)/1.28 var(--sans);
-    color:var(--ink); max-width:30ch; letter-spacing:-.02em; text-wrap:balance;
+  main{ padding-block:clamp(64px,13vh,132px) 96px; }
+  .hero-wrap{ max-width:19ch; }
+  h1.hero{
+    font-size:clamp(36px,7.4vw,62px); line-height:1.03; letter-spacing:-.035em; font-weight:600;
   }
-  .big.wide{ max-width:38ch; }
-  .big + p, .big + .three, .big + .holds, .big + .tbl, .big + .gain{ margin-top:15px; }
-
-  .three{ display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(228px,1fr)); margin-top:24px; }
-  .three .n{ font:500 11px/1 var(--mono); letter-spacing:.09em; color:var(--accent); margin-bottom:11px; }
-  .three h3{ margin-bottom:7px; font-size:16px; }
-  .three p{ font-size:14.5px; line-height:1.6; color:var(--ink-3); max-width:none; }
-
-  .holds li, .gain li{
-    list-style:none; padding:14px 0; border-top:1px solid var(--line);
-    max-width:66ch;
+  p.lede{
+    margin-top:26px; max-width:50ch; font-size:clamp(16px,2.1vw,18.5px);
+    line-height:1.62; color:var(--ink-2);
   }
-  .holds li:last-child, .gain li:last-child{ border-bottom:1px solid var(--line); }
-  .gain b{ display:block; font:600 15.5px/1.4 var(--sans); color:var(--ink); margin-bottom:3px; }
-  .gain span{ font-size:14.5px; line-height:1.55; color:var(--ink-3); }
-  .holds li{ font-size:15.5px; line-height:1.55; color:var(--ink-2); }
+  .stats{ margin-top:40px; }
 
-  .pull{
-    margin-top:20px; border-left:2px solid var(--accent-line); padding:3px 0 3px 16px;
-    font-size:16px; line-height:1.6; color:var(--ink-2); max-width:62ch;
+  .sections{ margin-top:clamp(72px,11vh,116px); display:grid; gap:clamp(44px,7vh,68px); }
+  .sec{ display:grid; grid-template-columns:minmax(0,20ch) minmax(0,46ch); gap:8px 56px; align-items:baseline; }
+  .sec h2{
+    margin:0; font:500 clamp(17px,2.2vw,20px)/1.32 var(--sans);
+    letter-spacing:-.018em; color:var(--ink); text-wrap:balance;
+  }
+  .sec p{ margin:0; font-size:15.5px; line-height:1.68; color:var(--ink-3); max-width:none; }
+  @media (max-width:720px){
+    .sec{ grid-template-columns:1fr; gap:7px; }
+    .hero-wrap{ max-width:none; }
+  }
+
+  .close{
+    margin-top:clamp(72px,11vh,116px); padding-top:28px; border-top:1px solid var(--line);
+    font:400 clamp(17px,2.4vw,21px)/1.45 var(--sans); letter-spacing:-.015em;
+    color:var(--ink-2); max-width:34ch;
   }
   footer.bot .wrap{ justify-content:space-between; }
 </style>
@@ -48,7 +46,6 @@
   <nav class="links">
     <a href="/brains">Brains</a>
     <a href="/mcp">MCP</a>
-    <a href="https://github.com/jlasne/brain">Source</a>
     <a href="/chat" class="cta">Open the app</a>
   </nav>
 </div></header>
@@ -57,9 +54,9 @@
 
   <div class="hero-wrap">
     <h1 class="hero">Open sourcing specialised knowledge.</h1>
-    <p class="lede">You read a lot and keep almost none of the thinking. Octopus turns each source into a
-      position, dated and checkable, then publishes it. Read every brain here, or feed your own.</p>
   </div>
+  <p class="lede">Generic advice is free and everywhere. The sources you chose, read and trusted sit in
+    saved links and watched videos, and you have forgotten most of them. Octopus keeps the thinking.</p>
 
   <div class="stats" id="stats" hidden>
     <div class="stat"><b id="nBrains">0</b><span>brains</span></div>
@@ -67,96 +64,35 @@
     <div class="stat"><b id="nSources">0</b><span>sources read</span></div>
   </div>
 
-  <p class="big">Six months on, you keep the conclusion and lose every reason for it.</p>
-  <p>You saved the link. You highlighted the paragraph. You wrote the note. What none of that gives back is
-    why you believed it, who said it, on what date, and whether something newer has since contradicted it.</p>
-  <p>So the same question gets researched twice. A view you formed in March survives into November because
-    nothing ever checked it. Two sources disagree in your library and you never find out.</p>
-
-  <p class="big wide">A brain holds a position, not a copy of the page.</p>
-  <p>Feed it a source. It reads the whole thing once, keeps what carries a number, a date or a reason, and
-    throws the text away. What stays is a view, plus the evidence standing behind that view.</p>
-  <p class="pull">When the next source arrives, the view gets rewritten from everything behind it, this one
-    included. It never becomes a longer list of quotes.</p>
-
-  <p class="big">One sentence decides what belongs in a brain.</p>
-  <p>You write that sentence when you create it. Everything you feed the brain is measured against the
-    line, so the brain can grow for years and still answer as one mind.</p>
-  <p>"Health" names a folder. "Sleep, recovery and training load for my own routine" names a brain. The
-    second one can reject things, which is what makes it useful.</p>
-
-  <p class="big">Three things happen, and you decide one of them.</p>
-  <div class="three">
-    <div class="card">
-      <div class="n">01</div>
-      <h3>You feed it</h3>
-      <p>A video, an article, a study. Read once, in passes, then discarded. The link and the author stay so
-        the claim can be traced back.</p>
+  <div class="sections">
+    <div class="sec">
+      <h2>A brain remembers the reasons</h2>
+      <p>Each source is read once and becomes a position, with the evidence, the figures and the dates that
+        support it. Ask in plain words and the answer names what it rests on.</p>
     </div>
-    <div class="card">
-      <div class="n">02</div>
-      <h3>It argues</h3>
-      <p>One card shows what is new, what you already hold, and every claim that contradicts a view. You say
-        which side wins, or keep both.</p>
+    <div class="sec">
+      <h2>It argues before it agrees</h2>
+      <p>When a new source contradicts something a brain holds, it says so and asks which one wins. A view
+        you replace keeps its date and stays in the evidence.</p>
     </div>
-    <div class="card">
-      <div class="n">03</div>
-      <h3>You ask</h3>
-      <p>Ask in plain words. The answer carries the numbers, and names the authors and dates it rests on
-        underneath.</p>
+    <div class="sec">
+      <h2>One subject, one sentence</h2>
+      <p>A brain covers a single subject, and one sentence decides what belongs. That line is why a brain
+        can grow for years and still answer as one mind.</p>
+    </div>
+    <div class="sec">
+      <h2>Read by any assistant</h2>
+      <p>Every brain here is published. Point your assistant at one address and it answers from this
+        library instead of the open internet.</p>
+    </div>
+    <div class="sec">
+      <h2>Yours to feed</h2>
+      <p>Only the person who created a brain feeds it, unless they open it to everyone. Feeding runs on
+        your own model key, so the spending stays yours.</p>
     </div>
   </div>
 
-  <p class="big">What that buys you.</p>
-  <ul class="gain">
-    <li><b>An answer, rather than a search</b>
-      <span>The first sentence answers the question. Figures sit inside the prose. Authors and dates sit on
-        one line at the end, so you can check any of it.</span></li>
-    <li><b>Disagreement surfaces on the way in</b>
-      <span>A contradiction is caught while the source is being filed, not months later when you act on the
-        wrong view.</span></li>
-    <li><b>Nothing lands twice</b>
-      <span>Every source is checked by link, then by idea. A claim you already hold comes back named as a
-        repeat, with the earlier source.</span></li>
-    <li><b>Weak ground says so</b>
-      <span>A brain with fewer than 10 sources opens its answers by admitting it. Ask at expert level and it
-        grades its own evidence and names the thin spots.</span></li>
-    <li><b>Your assistant reads your library</b>
-      <span>Add one address to Claude and it answers from what you gathered. Reading costs nothing, because
-        no model runs on this side.</span></li>
-    <li><b>Cheap to feed</b>
-      <span>A full source, read and filed with every position rewritten, costs under a cent.</span></li>
-  </ul>
-
-  <p class="big wide">It stands in for the tools that keep text and lose the thinking.</p>
-  <div class="tbl"><table>
-    <tr><th>What you use now</th><th>What it keeps</th><th>What Octopus adds</th></tr>
-    <tr><td>Bookmarks</td><td>The link</td><td>Reads it and files each idea under a subject</td></tr>
-    <tr><td>Highlights</td><td>The sentence you liked</td><td>Reconciles it against the view you already hold</td></tr>
-    <tr><td>Notes app</td><td>Your words, as you wrote them</td><td>Rewrites the position when new evidence lands</td></tr>
-    <tr><td>A chat assistant</td><td>Nothing between sessions</td><td>Answers from the library you chose to trust</td></tr>
-  </table></div>
-
-  <p class="big">What keeps it honest.</p>
-  <ul class="holds">
-    <li>A view you replace keeps its date and moves into the evidence. Nothing is deleted.</li>
-    <li>Disagreements stay visible, dated on both sides, until evidence settles them.</li>
-    <li>An idea needs 3 separate mentions before it becomes a concept of its own.</li>
-    <li>Raw source text is never stored. Only the link and the reasoning survive the read.</li>
-    <li>Every answer names its authors and dates, so a claim can be traced to a source.</li>
-  </ul>
-
-  <p class="big">Every brain is readable. Feeding one is the guarded part.</p>
-  <p>Ask any brain here, from this site or from your own Claude through one address. Your assistant does
-    the reasoning over the stored evidence, which reads better than a cheap model would write.</p>
-  <p>Only the person who created a brain feeds it, unless they open it to everyone. That is the switch
-    that turns one brain into a shared one. Feeding runs on your own model key, so what you spend stays
-    yours to see and to cap.</p>
-
-  <p class="big">Open source, and built in the open.</p>
-  <p>The rules the brains follow, the app, and the connector are all public. Read it, fork it, point it at
-    your own database, or bring a brain of your own. Octopus is an entry in The Build Games, a September
-    event judging projects on how well they stand in for paid software.</p>
+  <p class="close">Specialised knowledge, held as positions rather than pages, and open to read.</p>
 
 </div></main>
 

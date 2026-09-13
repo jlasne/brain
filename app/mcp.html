@@ -1,5 +1,5 @@
 <title>Octopus MCP</title>
-<meta name="description" content="Add Octopus as a custom connector and read the brains from your own Claude. One address, no key, reading only.">
+<meta name="description" content="An MCP server over the Octopus brains. Point any MCP client at one address and read the positions and their evidence. No key, reading only.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -30,32 +30,34 @@
   <nav class="links">
     <a href="/brains">Brains</a>
     <a href="/mcp" aria-current="page">MCP</a>
-    <a href="https://github.com/jlasne/brain">Source</a>
     <a href="/chat" class="cta">Open the app</a>
   </nav>
 </div></header>
 
 <main><div class="wrap">
 
-  <div class="eyebrow">Connector</div>
-  <h1 class="hero">Read the brains from your own Claude.</h1>
-  <p class="lede">One address, added once. Your Claude then reads the positions and their evidence, and
-    reasons over them itself. No key, no sign-up, and reading costs nothing.</p>
+  <div class="eyebrow">MCP server</div>
+  <h1 class="hero">Point any MCP client at the brains.</h1>
+  <p class="lede">One address, added once. Your client reads the positions and their evidence, then reasons
+    over them itself. No key, no sign-up, and reading costs nothing.</p>
 
   <h2>The address</h2>
   <div class="urlbox">
     <input id="url" readonly spellcheck="false" value="loading">
     <button id="copy">Copy</button>
   </div>
-  <p class="note">Works on the Free, Pro, Max, Team and Enterprise plans.</p>
+  <p class="note">Any path under <code>/mcp/</code> reaches the same server, so <code id="alt">/mcp/v0</code>
+    works too. Use whichever label your client's settings screen wants.</p>
 
   <h2>How to add it</h2>
   <ol class="steps">
-    <li>Open Claude, then <b>Settings</b>, then <b>Connectors</b>.</li>
-    <li>Choose <b>Add custom connector</b>.</li>
+    <li>Open your client's connector or MCP server settings.</li>
+    <li>Add a remote server over HTTP, sometimes called a custom connector.</li>
     <li>Paste the address above. Leave authentication empty.</li>
-    <li>Ask your question. Claude calls <code>ask</code> and answers from what the brains hold.</li>
+    <li>Ask your question. The client calls <code>ask</code> and answers from what the brains hold.</li>
   </ol>
+  <p class="note">Tested from Claude, where it lives under Settings, then Connectors, then Add custom
+    connector. Any client speaking Streamable HTTP reaches it the same way.</p>
 
   <h2>The tools it exposes</h2>
   <div class="tbl"><table>
@@ -91,9 +93,9 @@
   </div>
 
   <h2>Why it can stay open</h2>
-  <p>No tool here calls a model, so the endpoint spends nothing and the reader's own subscription does the
-    thinking. That reads better than a cheap model would, and it means an open door costs the brains nothing
-    beyond the database reads, which a rate limit caps.</p>
+  <p>No tool here calls a model, so the endpoint spends nothing and the caller's own model does the
+    thinking. That reads better than a cheap model would, and it means an open door costs the brains
+    nothing beyond the database reads, which a rate limit caps.</p>
 
   <h2>Check it yourself</h2>
   <pre id="curl">loading</pre>
@@ -110,6 +112,7 @@
 <script>
   const url = window.OCTOPUS_API + "/mcp";
   document.getElementById("url").value = url;
+  document.getElementById("alt").textContent = url + "/v0";
   document.getElementById("curl").textContent =
 `curl -s -X POST ${url} \\
   -H 'Content-Type: application/json' \\

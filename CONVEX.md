@@ -91,7 +91,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/lock` | Drops the session | Yes |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
 | `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
-| `/mcp` | The public MCP server, read only | No, by design |
+| `/mcp`, and any path under `/mcp/` | The public MCP server, read only. `/mcp/v0` reaches the same handler | No, by design |
 
 ## Why the key has to be server side
 
@@ -237,9 +237,15 @@ The tools:
 | `search_brains` | Keyword matches across every concept, title hits ranked first |
 | `list_sources` | What a brain has read, newest first, with links |
 
-Transport is Streamable HTTP. A POST carrying one JSON-RPC request gets one JSON
-object back, which the spec permits in place of an SSE stream, so the server
-stays stateless and issues no session id. `GET` answers 405, since nothing here
+Transport is Streamable HTTP, so any client speaking it reaches the server, not
+only Claude. A POST carrying one JSON-RPC request gets one JSON object back,
+which the spec permits in place of an SSE stream, so the server stays stateless
+and issues no session id.
+
+Four methods are registered twice, on `/mcp` and on the prefix `/mcp/`. A client
+can be pointed at `/mcp/v0`, or any label its settings screen wants, and reach
+the same handler. That leaves room to pin a version once the tool set changes
+shape. `GET` answers 405, since nothing here
 pushes to the client. An unsupported `MCP-Protocol-Version` answers 400.
 
 Raw transcripts never entered the store (R8.6), so opening this endpoint shares

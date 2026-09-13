@@ -545,26 +545,13 @@ const mcpJson = (body: unknown, status = 200, extra: Record<string, string> = {}
     headers: { ...(status === 202 ? {} : { "Content-Type": "application/json" }), ...MCP_CORS, ...extra },
   });
 
-router.route({
-  path: "/mcp", method: "OPTIONS",
-  handler: httpAction(async () => new Response(null, { status: 204, headers: MCP_CORS })),
-});
-
-/* No server-initiated stream, so the spec's answer here is 405. */
-router.route({
-  path: "/mcp", method: "GET",
-  handler: httpAction(async () => mcpJson({ error: "This endpoint answers POST only." }, 405)),
-});
-
+const mcpOptions = httpAction(async () => new Response(null, { status: 204, headers: MCP_CORS }));
+/* No server-initiated stream, so the spec's answer to a GET is 405. */
+const mcpGet = httpAction(async () => mcpJson({ error: "This endpoint answers POST only." }, 405));
 /* Stateless, so there is no session for a client to end. */
-router.route({
-  path: "/mcp", method: "DELETE",
-  handler: httpAction(async () => new Response(null, { status: 405, headers: MCP_CORS })),
-});
+const mcpDelete = httpAction(async () => new Response(null, { status: 405, headers: MCP_CORS }));
 
-router.route({
-  path: "/mcp", method: "POST",
-  handler: httpAction(async (ctx, req) => {
+const mcpPost = httpAction(async (ctx, req) => {
     /* An unsupported protocol version is a 400 under the spec. An absent header
        means an older client, which the spec says to read as 2025-03-26. */
     const ver = req.headers.get("MCP-Protocol-Version");
@@ -594,7 +581,19 @@ router.route({
     }
     const reply = await handleRpc(ctx, msg);
     return reply ? mcpJson(reply) : mcpJson(null, 202);
-  }),
 });
+
+/**
+ * The bare path, plus anything under it. A client can be pointed at /mcp/v0, or
+ * at any label its settings screen wants, and reach the same server. That keeps
+ * one address per client without a route per name, and leaves room to pin a
+ * version once the tool set changes shape.
+ */
+for (const [method, handler] of [
+  ["OPTIONS", mcpOptions], ["GET", mcpGet], ["DELETE", mcpDelete], ["POST", mcpPost],
+] as const) {
+  router.route({ path: "/mcp", method, handler });
+  router.route({ pathPrefix: "/mcp/", method, handler });
+}
 
 export default router;
