@@ -341,23 +341,32 @@ route("/api/drop/settle", async (ctx, _req, b) => {
     const c = concepts.find((x: any) => `${x.brain}/${x.slug}` === m.conceptId || x.slug === slug(m.conceptId ?? ""));
     if (c) touched.push({ c, adds: m.whatItAdds, isNew: false });
   }
+  /* R5.5. A candidate is an idea the brain does not hold yet. Three separate
+     sources make it a position, so a first mention is counted and kept, never
+     thrown away. Two brains skip the wait: one that is still empty, and one
+     where the owner picked the candidate on the card. */
+  const counted: any[] = [];
+  const promote: string[] = Array.isArray(b.promote) ? b.promote.map(String) : [];
   for (const cand of (plan.candidates ?? [])) {
     const br = targets.includes(cand.brain) ? cand.brain : targets[0];
     const already = concepts.find((x: any) => x.brain === br && x.slug === slug(cand.title));
     if (already) { touched.push({ c: already, adds: cand.why, isNew: false }); continue; }
     const seeding = concepts.filter((x: any) => x.brain === br).length === 0;
-    if (seeding) {
+    const asked = promote.includes(cand.title) || promote.includes(`${br}/${slug(cand.title)}`);
+    if (seeding || asked) {
       touched.push({ c: { brain: br, slug: slug(cand.title), title: cand.title, position: "", evidence: [], data: [], conflicts: [], sources: [] }, adds: cand.why, isNew: true });
     } else {
       const r = await ctx.runMutation(internal.store.bumpCandidate, { brain: br, title: cand.title, sid });
       if (r.promoted) touched.push({ c: { brain: br, slug: slug(cand.title), title: cand.title, position: "", evidence: [], data: [], conflicts: [], sources: r.notes }, adds: "promoted after 3 mentions", isNew: true });
+      else counted.push({ brain: br, title: cand.title, have: r.notes.length, need: 3 - r.notes.length });
     }
   }
 
-  /* A plan with findings but nothing filed would write a source row and rewrite
-     no position: the knowledge would not land, and the receipt would read fine.
-     Refuse and say so. */
-  if (!touched.length && ((plan.new ?? []).length > 0 || (plan.candidates ?? []).length > 0)) {
+  /* A plan with findings that lands nowhere would write a source row and rewrite
+     no position: the knowledge would vanish, and the receipt would read fine.
+     Refuse and say so. A counted candidate is not that case. It landed in the
+     candidate list, and it says so on the receipt. */
+  if (!touched.length && !counted.length && (plan.new ?? []).length > 0) {
     return { error:
       `the plan found ${(plan.new ?? []).length} new items and filed none of them into a concept, ` +
       `so nothing would be rewritten. Drop the source again.` };
@@ -448,7 +457,7 @@ ${(ext.topics ?? []).map((t: any) => `${t.topic}: ${(t.ideas ?? []).join("; ")} 
     findings: { new: plan.new ?? [], echo: plan.echo ?? [], conflicts: plan.conflicts ?? [], choices },
   }});
 
-  return { sid, brains: targets, positions: touched.length,
+  return { sid, brains: targets, positions: touched.length, counted,
     counts: { new: (plan.new ?? []).length, echo: (plan.echo ?? []).length } };
 });
 

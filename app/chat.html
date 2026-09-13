@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13i";
+  window.OCTOPUS_BUILD = "2026-09-13j";
 </script>
 
 <style>
@@ -302,7 +302,11 @@
     border:1px solid var(--line-2); color:var(--ink-2); background:var(--surface-2);
   }
   .chip.new{ color:var(--accent); border-color:var(--line-2); }
-  .chip.cand{ color:var(--accent); border-color:var(--accent-line); }
+  .chip.cand{ color:var(--accent); border-color:var(--accent-line); cursor:pointer;
+    transition:background .15s var(--ease), border-color .15s var(--ease); }
+  .chip.cand:hover{ background:var(--accent-soft); }
+  .chip.cand.on{ background:var(--accent-fill); border-color:var(--accent-fill); color:var(--accent-on); }
+  .chip-note{ font:400 12.5px/1.6 var(--sans); color:var(--ink-3); margin-top:7px; }
 
   .conflicts{ border-top:1px solid var(--line); }
   .cf{ padding:14px 16px; border-bottom:1px solid var(--line); display:grid; grid-template-columns:2.4ch 1fr; gap:12px; }
@@ -1368,7 +1372,7 @@ async function doDrop(text){
      you are the one who holds these positions. */
   const decide = [...(plan.conflicts||[]).filter(c=>c.kind==="flip"),
                   ...(plan.conflicts||[]).filter(c=>c.kind!=="flip")];
-  const pc = { sid: chk.sid, link, ext, plan, choices:{}, byKey:{}, len: bodyTxt.length };
+  const pc = { sid: chk.sid, link, ext, plan, choices:{}, byKey:{}, promote:[], len: bodyTxt.length };
   S.pendingCard = pc; S.transcript = null; renderComposer();
 
   body.innerHTML = "";
@@ -1399,9 +1403,24 @@ function buildCard(pc, decide){
     const c = S.concepts.find(x => `${x.brain}/${x.slug}` === m.conceptId);
     cc.append(el("span","chip", c?c.title:String(m.conceptId||"").split("/").pop()));
   });
-  (plan.candidates||[]).forEach(m => cc.append(el("span","chip cand","+ "+m.title)));
+  /* A candidate waits for a third source before it becomes a position. Clicking
+     it takes it now, because you are the one who decides what this brain holds. */
+  (plan.candidates||[]).forEach(m => {
+    const ch = el("button","chip cand","+ "+m.title);
+    ch.onclick = () => {
+      const i = pc.promote.indexOf(m.title);
+      if (i < 0) { pc.promote.push(m.title); ch.classList.add("on"); }
+      else { pc.promote.splice(i,1); ch.classList.remove("on"); }
+    };
+    cc.append(ch);
+  });
   if (!cc.children.length) cc.append(el("span","chip none","none"));
-  row("Concepts", cc);
+  const cbox = el("div");
+  cbox.append(cc);
+  if ((plan.candidates||[]).length)
+    cbox.append(el("div","chip-note",
+      "Orange ones are new here. They need 3 sources to become a position. Click one to take it now."));
+  row("Concepts", cbox);
 
   const nu = el("ul");
   (plan.new||[]).slice(0,3).forEach(x => nu.append(el("li",null,"· "+x)));
@@ -1463,7 +1482,8 @@ function buildCard(pc, decide){
     const b2 = thinking("Rewriting the positions it touched");
     try {
       const r = await api("/api/drop/settle", {
-        sid: pc.sid, link: pc.link, ext: pc.ext, plan: pc.plan, choices: pc.choices, key: S.key });
+        sid: pc.sid, link: pc.link, ext: pc.ext, plan: pc.plan,
+        choices: pc.choices, promote: pc.promote, key: S.key });
       card.remove(); await refresh();
       b2.innerHTML = "";
       b2.append(receipt(r, pc));
@@ -1487,6 +1507,12 @@ function receipt(r, pc){
 Rewritten: <span class="v">${r.positions}</span> position${r.positions===1?"":"s"} · <span class="v">${(r.brains||[]).length}</span> summar${(r.brains||[]).length===1?"y":"ies"}
 <span class="v">${r.counts?.new ?? 0}</span> new · <span class="v">${r.counts?.echo ?? 0}</span> echoes · <span class="v">${flipped}</span> flipped · <span class="v">${both}</span> kept both
 <span class="ok">Coherent.</span> Open conflicts: <span class="v">${esc(open.join(", ")||"none")}</span>`;
+  /* A counted candidate is stored, just not as a position yet. Saying so keeps
+     the receipt honest about where the idea went. */
+  for (const c of (r.counted||[])){
+    d.innerHTML += `\nCounted <span class="v">${esc(c.title)}</span> at <span class="v">${c.have}</span> of 3. ` +
+      `<span class="v">${c.need}</span> more source${c.need===1?"":"s"} makes it a position.`;
+  }
   return d;
 }
 
