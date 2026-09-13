@@ -9,7 +9,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
   ask, parseJson, json, cors, sha256, today, slug,
-  linkKey, sourceId, MODEL, MAX_ATTEMPTS, CHUNK,
+  linkKey, sourceId, randomHex, canRead, canDrop, MODEL, MAX_ATTEMPTS, CHUNK,
 } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 
@@ -17,10 +17,32 @@ const router = httpRouter();
 
 /* ---------- the gate ---------- */
 
-async function gate(ctx: any, body: any) {
-  const ok = body?.token && await ctx.runQuery(internal.store.checkSession, { token: body.token });
-  if (!ok) throw new Response("locked", { status: 401 });
-  return true;
+/**
+ * Who is calling. The owner arrives with the passphrase and spends the
+ * deployment's model key. A member arrives with a name and their own key, and
+ * spends their own.
+ */
+async function gate(ctx: any, body: any): Promise<{ account: string | null }> {
+  const who = body?.token
+    ? await ctx.runQuery(internal.store.checkSession, { token: body.token })
+    : null;
+  if (!who) throw new Response("locked", { status: 401 });
+  return who;
+}
+
+/**
+ * Whose credit pays for a model call. The owner spends the deployment's key.
+ * A member spends the key their browser just sent.
+ *
+ * That key is read here and passed straight to ask(). It must never reach
+ * runQuery, runMutation, or any table, because Convex records the arguments of
+ * those calls. Nothing stores it, so nothing can leak it later.
+ */
+function modelKey(who: { account: string | null }, body: any): string | undefined {
+  if (who.account === null) return undefined;
+  const k = String(body?.key ?? "").trim();
+  if (!k) throw new Error("this needs your own model key, and none arrived. Sign in again.");
+  return k;
 }
 
 const route = (path: string, fn: (ctx: any, req: Request, body: any) => Promise<any>) => {
@@ -62,6 +84,40 @@ route("/api/unlock", async (ctx, _req, b) => {
 });
 
 /** Leaks nothing: says only whether a passphrase has ever been set. */
+/**
+ * A name and a model key. The key is hashed to find or open the account, and
+ * only that hash is kept. The key itself stays in the browser and pays for that
+ * person's own calls.
+ */
+route("/api/login", async (ctx, _req, b) => {
+  const name = String(b.name ?? "").trim();
+  const key = String(b.key ?? "").trim();
+  if (name.length < 2) return { error: "give a name of at least 2 characters" };
+  if (key.length < 16) return { error: "that does not look like an API key" };
+  const s = slug(name);
+
+  const acc = await ctx.runQuery(internal.store.findAccount, { slug: s });
+  if (!acc) {
+    const salt = randomHex(16);
+    await ctx.runMutation(internal.store.createAccount,
+      { name, slug: s, salt, keyHash: await sha256(salt, key) });
+    return {
+      token: await ctx.runMutation(internal.store.newSession, { account: s }),
+      name, account: s, created: true,
+    };
+  }
+  /* The key is the credential, so a different key under a taken name is a
+     different person. */
+  if (await sha256(acc.salt, key) !== acc.keyHash) {
+    return { error: `"${acc.name}" already belongs to another key` };
+  }
+  await ctx.runMutation(internal.store.touchAccount, { slug: s });
+  return {
+    token: await ctx.runMutation(internal.store.newSession, { account: s }),
+    name: acc.name, account: s,
+  };
+});
+
 route("/api/status", async (ctx) => {
   const g = await ctx.runQuery(internal.store.gateState, {});
   return { gateSet: !!g?.set };
@@ -75,25 +131,26 @@ route("/api/lock", async (ctx, _req, b) => {
 /* ---------- reading ---------- */
 
 route("/api/state", async (ctx, _req, b) => {
-  await gate(ctx, b);
-  const s = await ctx.runQuery(internal.store.everything, {});
-  return { ...s, model: MODEL, chunk: CHUNK };
+  const who = await gate(ctx, b);
+  const s = await ctx.runQuery(internal.store.visibleTo, { account: who.account });
+  return { ...s, model: MODEL, chunk: CHUNK, account: who.account, owner: who.account === null };
 });
 
 route("/api/brain", async (ctx, _req, b) => {
-  await gate(ctx, b);
+  const who = await gate(ctx, b);
   const name = String(b.name ?? "").trim(), scope = String(b.scope ?? "").trim();
   if (!name || !scope) return { error: "a name and a scope line are both required" };
   const type = b.type === "person" ? "person" : "subject";
   const visibility = String(b.visibility ?? "ask");
-  return { slug: await ctx.runMutation(internal.store.createBrain, { name, type, scope, visibility }) };
+  return { slug: await ctx.runMutation(internal.store.createBrain,
+    { name, type, scope, visibility, ...(who.account ? { owner: who.account } : {}) }) };
 });
 
 /* Hide a brain from the public endpoints, or show it again. */
 route("/api/brain/visibility", async (ctx, _req, b) => {
-  await gate(ctx, b);
+  const who = await gate(ctx, b);
   return await ctx.runMutation(internal.store.setVisibility,
-    { slug: String(b.slug ?? ""), visibility: String(b.visibility ?? "ask") });
+    { slug: String(b.slug ?? ""), visibility: String(b.visibility ?? "ask"), account: who.account });
 });
 
 /* ---------- drop ---------- */
@@ -112,7 +169,7 @@ route("/api/drop/check", async (ctx, _req, b) => {
 
 /** R2. One pass over one chunk. The caller loops, the transcript is never stored. */
 route("/api/drop/read", async (ctx, _req, b) => {
-  await gate(ctx, b);
+  const who = await gate(ctx, b);
   const part = Number(b.part ?? 1), total = Number(b.total ?? 1);
   /* ONE model call per request. Several inside one request runs past the
      response deadline, and the caller sees a dead connection rather than an
@@ -140,14 +197,16 @@ Reply with only JSON:
 
 SOURCE${total > 1 ? ` (part ${part} of ${total})` : ""}:
 ${chunk}` },
-  ], { json: true, maxTokens: 24000 });
+  ], { json: true, maxTokens: 24000, key: modelKey(who, b) });
   return { part: parseJson(text, finish) };
 });
 
 /** R3. Summaries only, never whole brains, so this costs the same at any size. */
 route("/api/drop/plan", async (ctx, _req, b) => {
-  await gate(ctx, b);
-  const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
+  const who = await gate(ctx, b);
+  const { brains: seen, concepts, sources } = await ctx.runQuery(internal.store.visibleTo, { account: who.account });
+  /* Only brains this caller may feed. A member sees more than they can write. */
+  const brains = seen.filter((x: any) => canDrop(x, who.account));
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
   if (!pool.length) return { error: "no brain exists yet" };
@@ -199,15 +258,17 @@ title: ${ext.title ?? ""}
 author: ${ext.author ?? ""}
 date: ${ext.date ?? ""}
 ${(ext.topics ?? []).map((t: any) => `### ${t.topic}\n${(t.ideas ?? []).join("\n")}\n${(t.data ?? []).join("\n")}`).join("\n\n").slice(0, 30000)}` },
-  ], { json: true, maxTokens: 16000 });
+  ], { json: true, maxTokens: 16000, key: modelKey(who, b) });
 
   return { plan: parseJson(text, finish) };
 });
 
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
 route("/api/drop/settle", async (ctx, _req, b) => {
-  await gate(ctx, b);
-  const { brains, concepts } = await ctx.runQuery(internal.store.everything, {});
+  const who = await gate(ctx, b);
+  const { brains: seen, concepts } = await ctx.runQuery(internal.store.visibleTo, { account: who.account });
+  /* Re-checked here, because this is where the writing happens. */
+  const brains = seen.filter((x: any) => canDrop(x, who.account));
   const ext = b.ext ?? {}, plan = b.plan ?? {}, sid = String(b.sid ?? "");
   const choices: Record<string, string> = b.choices ?? {};
   const targets: string[] = (plan.brains ?? []).filter((x: string) => brains.some((y: any) => y.slug === x));
@@ -290,7 +351,7 @@ ${packet}
 NEW SOURCE
 author: ${ext.author || "unknown"} | date: ${ext.date || today()}
 ${(ext.topics ?? []).map((t: any) => `${t.topic}: ${(t.ideas ?? []).join("; ")} ${(t.data ?? []).join("; ")}`).join("\n").slice(0, 20000)}` },
-    ], { json: true, maxTokens: 24000 });
+    ], { json: true, maxTokens: 24000, key: modelKey(who, b) });
     rewrites = parseJson(text, finish)?.rewrites ?? [];
   }
 
@@ -315,6 +376,7 @@ ${(ext.topics ?? []).map((t: any) => `${t.topic}: ${(t.ideas ?? []).join("; ")} 
     sid, link: String(b.link ?? ""), linkKey: linkKey(String(b.link ?? "")),
     title: ext.title ?? "", author: ext.author ?? "", date: ext.date || today(),
     location: String(b.location ?? "pasted, not kept"), brains: targets,
+    ...(who.account ? { by: who.account } : {}),
   }});
   await ctx.runMutation(internal.store.writeNote, { doc: {
     sid, title: ext.title ?? "", author: ext.author ?? "", date: ext.date || today(),
@@ -343,8 +405,9 @@ function compress(ev: any[]) {
 /* ---------- ask ---------- */
 
 route("/api/ask", async (ctx, _req, b) => {
-  await gate(ctx, b);
-  const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
+  const who = await gate(ctx, b);
+  const { brains: seen, concepts, sources } = await ctx.runQuery(internal.store.visibleTo, { account: who.account });
+  const brains = seen.filter((x: any) => canRead(x, who.account));
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
   if (!pool.length) return { answer: "No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
@@ -418,7 +481,7 @@ STORED KNOWLEDGE
 ${dossier}
 
 QUESTION: ${String(b.q ?? "")}` },
-  ], { maxTokens: level === "normal" ? 2000 : 3200 });
+  ], { maxTokens: level === "normal" ? 2000 : 3200, key: modelKey(who, b) });
 
   return { answer: text, sources: nSources, level };
 });

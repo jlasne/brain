@@ -46,6 +46,17 @@ reviews the evidence behind the position and names the thin spots.
 private. The closest existing scope gets shown first, so you can decide whether
 a new brain is worth it.
 
+## Two ways into /chat
+
+The gate offers a name and your own model key, or the passphrase for the owner.
+A member's key stays in the tab and travels with the requests that reach a
+model, so a member's questions and drops are paid by that member. The server
+keeps a hash of the key to recognise the account, never the key.
+
+A member reads public brains and creates their own, private ones included. They
+cannot feed a brain that belongs to someone else unless its owner set it to
+accept drops.
+
 ## The passphrase gate
 
 Nothing reads a private brain and nothing reaches the model until the passphrase

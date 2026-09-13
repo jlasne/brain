@@ -39,19 +39,75 @@ export const noteAttempt = internalMutation({
 });
 
 export const newSession = internalMutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { account: v.optional(v.string()) },
+  handler: async (ctx, a) => {
     const token = randomHex(24);
-    await ctx.db.insert("sessions", { token, expires: Date.now() + SESSION_MS });
+    await ctx.db.insert("sessions", {
+      token, expires: Date.now() + SESSION_MS,
+      ...(a.account ? { account: a.account } : {}),
+    });
     return token;
   },
 });
 
+/**
+ * Who is calling. Null means no live session. An `account` of null inside a
+ * live session means the owner, who came in with the passphrase.
+ */
 export const checkSession = internalQuery({
   args: { token: v.string() },
   handler: async (ctx, a) => {
     const s = await ctx.db.query("sessions").withIndex("by_token", q => q.eq("token", a.token)).unique();
-    return !!s && s.expires > Date.now();
+    if (!s || s.expires <= Date.now()) return null;
+    return { account: s.account ?? null };
+  },
+});
+
+/* ---------------- accounts ---------------- */
+
+export const findAccount = internalQuery({
+  args: { slug: v.string() },
+  handler: async (ctx, a) =>
+    await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique(),
+});
+
+export const createAccount = internalMutation({
+  args: { name: v.string(), slug: v.string(), salt: v.string(), keyHash: v.string() },
+  handler: async (ctx, a) => {
+    const seen = await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    if (seen) throw new Error("that name is taken");
+    await ctx.db.insert("accounts", {
+      name: a.name, slug: a.slug, salt: a.salt, keyHash: a.keyHash,
+      created: today(), lastSeen: today(),
+    });
+    return a.slug;
+  },
+});
+
+export const touchAccount = internalMutation({
+  args: { slug: v.string() },
+  handler: async (ctx, a) => {
+    const acc = await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    if (acc) await ctx.db.patch(acc._id, { lastSeen: today() });
+  },
+});
+
+/**
+ * What one caller may see. The owner sees every brain. A member sees the public
+ * ones plus their own, private ones included.
+ */
+export const visibleTo = internalQuery({
+  args: { account: v.union(v.string(), v.null()) },
+  handler: async (ctx, a) => {
+    const all = await ctx.db.query("brains").collect();
+    const brains = a.account === null
+      ? all
+      : all.filter(b => (b.visibility ?? "ask") !== "private" || b.owner === a.account);
+    const live = new Set(brains.map(b => b.slug));
+    const concepts = (await ctx.db.query("concepts").collect()).filter(c => live.has(c.brain));
+    const sources = (await ctx.db.query("sources").collect())
+      .filter(s => (s.brains ?? []).some((x: string) => live.has(x)));
+    return { brains, concepts, sources };
   },
 });
 
@@ -95,7 +151,8 @@ export const conceptsOf = internalQuery({
 /* ---------------- writing ---------------- */
 
 export const createBrain = internalMutation({
-  args: { name: v.string(), type: v.string(), scope: v.string(), visibility: v.optional(v.string()) },
+  args: { name: v.string(), type: v.string(), scope: v.string(),
+          visibility: v.optional(v.string()), owner: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const s = slug(a.name);
     const seen = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", s)).unique();
@@ -103,6 +160,7 @@ export const createBrain = internalMutation({
     await ctx.db.insert("brains", {
       slug: s, name: a.name, type: a.type, scope: a.scope, created: today(),
       visibility: a.visibility === "private" ? "private" : a.visibility === "drop" ? "drop" : "ask",
+      ...(a.owner ? { owner: a.owner } : {}),
     });
     return s;
   },
@@ -110,10 +168,14 @@ export const createBrain = internalMutation({
 
 /** Flip one brain between hidden and readable. */
 export const setVisibility = internalMutation({
-  args: { slug: v.string(), visibility: v.string() },
+  args: { slug: v.string(), visibility: v.string(), account: v.union(v.string(), v.null()) },
   handler: async (ctx, a) => {
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
     if (!b) throw new Error("no such brain");
+    /* The owner may change any brain. A member may change only their own. */
+    if (a.account !== null && (b.owner ?? null) !== a.account) {
+      throw new Error("that brain belongs to someone else");
+    }
     const v2 = a.visibility === "private" ? "private" : a.visibility === "drop" ? "drop" : "ask";
     await ctx.db.patch(b._id, { visibility: v2 });
     return { slug: a.slug, visibility: v2 };

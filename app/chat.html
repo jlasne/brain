@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13b";
+  window.OCTOPUS_BUILD = "2026-09-13c";
 </script>
 
 <style>
@@ -553,7 +553,7 @@
       <span class="dot"></span><span>Octopus MCP</span>
     </button>
     <div class="side-foot">
-      <button id="lockBtn">lock</button>
+      <button id="lockBtn" title="Sign out and forget your key">lock</button>
       <span id="stat"></span>
       <button id="exportBtn">export</button>
     </div>
@@ -614,11 +614,17 @@
 
 const API = window.OCTOPUS_API;
 const TOKEN_KEY = "octopus.token.v1";
+/* A member's own model key. It lives in this tab and travels with the requests
+   that spend a model call. The server hashes it once to know who you are and
+   stores nothing else. */
+const KEY_KEY = "octopus.key.v1";
+const WHO_KEY = "octopus.who.v1";
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "",
   mode: "ask", scope: "all", transcript: null, busy: false, pendingCard: null, chunk: 18000,
   level: "normal",
+  key: null, account: null, who: "",
 };
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
@@ -662,7 +668,10 @@ async function api(path, body = {}) {
       ? "That call ran past 3 minutes with no answer. Try a shorter source."
       : "The server did not answer. Check your connection.");
   } finally { clearTimeout(cap); }
-  if (r.status === 401) { sessionStorage.removeItem(TOKEN_KEY); location.reload(); throw new Error("locked"); }
+  if (r.status === 401) {
+    [TOKEN_KEY, KEY_KEY, WHO_KEY].forEach(k => sessionStorage.removeItem(k));
+    location.reload(); throw new Error("locked");
+  }
   const d = await r.json().catch(() => ({ error: "the server sent something unreadable" }));
   if (d.error) throw new Error(d.error);
   return d;
@@ -676,45 +685,83 @@ const MARK = document.querySelector(".brand .mark").innerHTML;
 function gateScreen(firstRun) {
   $("app").classList.add("locked");
   const veil = el("div","veil");
-  veil.innerHTML = `
-    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="gh">
-      <header>
-        <div class="mk" aria-hidden="true">${MARK}</div>
-        <h3 id="gh">${firstRun ? "Set a passphrase" : "Welcome back"}</h3>
-        <p>${firstRun
-          ? "It guards every call that spends your OpenRouter credits. Only a salted hash gets stored, on the server."
-          : "Enter your passphrase to read your brains and drop sources."}</p>
-      </header>
-      <form>
-        <div class="f">
-          <label for="gp">Passphrase</label>
-          <input type="password" id="gp" autocomplete="${firstRun?"new-password":"current-password"}"
-                 placeholder="${firstRun?"At least 8 characters":""}" required>
-          <div id="gmsg" class="bad" role="alert"></div>
-        </div>
-        <footer><button class="go" type="submit">${firstRun ? "Lock it and open" : "Unlock"}</button></footer>
-      </form>
-    </div>`;
   document.body.append(veil);
-  const inp = veil.querySelector("#gp"), msg = veil.querySelector("#gmsg");
-  setTimeout(() => inp.focus(), 60);
-  veil.querySelector("form").onsubmit = async e => {
-    e.preventDefault();
-    const btn = veil.querySelector(".go");
-    btn.disabled = true;
-    msg.className = "spin"; msg.textContent = "Checking";
-    try {
-      const r = await api("/api/unlock", { pass: inp.value });
-      S.token = r.token;
-      sessionStorage.setItem(TOKEN_KEY, r.token);
-      veil.remove(); $("app").classList.remove("locked");
-      await open();
-    } catch (err) {
-      btn.disabled = false;
-      msg.className = "bad"; msg.textContent = String(err.message);
-      inp.select();
-    }
+  /* Two ways in. A member brings a name and their own key, and pays for their
+     own calls. The owner brings the passphrase, and spends this deployment's
+     key. On a fresh deployment the passphrase has to be set first. */
+  let mode = firstRun ? "owner" : "member";
+
+  const paint = () => {
+    const owner = mode === "owner";
+    veil.innerHTML = `
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="gh">
+        <header>
+          <div class="mk" aria-hidden="true">${MARK}</div>
+          <h3 id="gh">${firstRun ? "Set the passphrase" : owner ? "Owner" : "Sign in"}</h3>
+          <p>${firstRun
+            ? "It guards every call that spends this deployment's own credits. Only a salted hash is kept."
+            : owner
+              ? "The passphrase opens every brain here and spends this deployment's own key."
+              : "Your name, and your own model key. The key pays for what you ask and what you drop, and it stays in this browser."}</p>
+        </header>
+        <form>
+          ${owner ? `
+            <div class="f">
+              <label for="gp">Passphrase</label>
+              <input type="password" id="gp" autocomplete="${firstRun?"new-password":"current-password"}"
+                     placeholder="${firstRun?"At least 8 characters":""}" required>
+            </div>` : `
+            <div class="f">
+              <label for="gn">Name</label>
+              <input type="text" id="gn" autocomplete="nickname" placeholder="What to call you" required>
+            </div>
+            <div class="f">
+              <label for="gk">Your OpenRouter key</label>
+              <input type="password" id="gk" autocomplete="off" spellcheck="false" placeholder="sk-or-..." required>
+              <div class="hint">Make a key with a spend limit rather than pasting your main one. The server keeps a hash of it to recognise you, and never the key.</div>
+            </div>`}
+          <div class="f"><div id="gmsg" class="bad" role="alert"></div></div>
+          <footer>
+            ${firstRun ? "" : `<button class="ghost" type="button" id="gswap">${owner ? "Use a name and key" : "I own this"}</button>`}
+            <button class="go" type="submit">${firstRun ? "Lock it and open" : owner ? "Unlock" : "Open"}</button>
+          </footer>
+        </form>
+      </div>`;
+
+    const msg = veil.querySelector("#gmsg");
+    const swap = veil.querySelector("#gswap");
+    if (swap) swap.onclick = () => { mode = owner ? "member" : "owner"; paint(); };
+    setTimeout(() => veil.querySelector(owner ? "#gp" : "#gn")?.focus(), 60);
+
+    veil.querySelector("form").onsubmit = async e => {
+      e.preventDefault();
+      const btn = veil.querySelector(".go");
+      btn.disabled = true;
+      msg.className = "spin"; msg.textContent = "Checking";
+      try {
+        if (owner) {
+          const r = await api("/api/unlock", { pass: veil.querySelector("#gp").value });
+          S.token = r.token; S.key = null; S.account = null; S.who = "owner";
+          sessionStorage.setItem(TOKEN_KEY, r.token);
+          sessionStorage.removeItem(KEY_KEY);
+          sessionStorage.setItem(WHO_KEY, "owner");
+        } else {
+          const key = veil.querySelector("#gk").value.trim();
+          const r = await api("/api/login", { name: veil.querySelector("#gn").value.trim(), key });
+          S.token = r.token; S.key = key; S.account = r.account; S.who = r.name;
+          sessionStorage.setItem(TOKEN_KEY, r.token);
+          sessionStorage.setItem(KEY_KEY, key);
+          sessionStorage.setItem(WHO_KEY, r.name);
+        }
+        veil.remove(); $("app").classList.remove("locked");
+        await open();
+      } catch (err) {
+        btn.disabled = false;
+        msg.className = "bad"; msg.textContent = String(err.message);
+      }
+    };
   };
+  paint();
 }
 
 /** Same modal shape when the deployment itself is unreachable. */
@@ -741,7 +788,13 @@ function deadScreen(why) {
   const saved = sessionStorage.getItem(TOKEN_KEY);
   if (saved) {
     S.token = saved;
-    try { await open(); return; } catch (_) { sessionStorage.removeItem(TOKEN_KEY); S.token = null; }
+    S.key = sessionStorage.getItem(KEY_KEY);
+    S.who = sessionStorage.getItem(WHO_KEY) || "";
+    try { await open(); return; }
+    catch (_) {
+      [TOKEN_KEY, KEY_KEY, WHO_KEY].forEach(k => sessionStorage.removeItem(k));
+      S.token = null; S.key = null; S.who = "";
+    }
   }
   let gateSet = true;
   try { gateSet = (await api("/api/status")).gateSet; }
@@ -755,6 +808,7 @@ async function refresh(){
   const d = await api("/api/state");
   S.brains = d.brains || []; S.concepts = d.concepts || []; S.sources = d.sources || [];
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
+  if (d.account !== undefined) S.account = d.account;
   render();
 }
 
@@ -924,7 +978,8 @@ $("pasteBtn").onclick = openTranscript;
 $("exportBtn").onclick = exportAll;
 $("lockBtn").onclick = async () => {
   try { await api("/api/lock"); } catch(_){}
-  sessionStorage.removeItem(TOKEN_KEY); location.reload();
+  [TOKEN_KEY, KEY_KEY, WHO_KEY].forEach(k => sessionStorage.removeItem(k));
+  location.reload();
 };
 
 /* ============ create a brain ============ */
@@ -1152,7 +1207,7 @@ async function doAsk(q){
   }
   const body = thinking("Reading your brains");
   try {
-    const r = await api("/api/ask", { q, brain: S.scope, level: S.level });
+    const r = await api("/api/ask", { q, brain: S.scope, level: S.level, key: S.key });
     body.innerHTML = "";
     if (r.sources > 0 && r.sources < 10)
       body.append(el("div","smallbrain",`Small brain: ${r.sources} source${r.sources===1?"":"s"} behind this`));
@@ -1201,7 +1256,7 @@ async function doDrop(text){
   try {
     for (let i=0;i<chunks.length;i++){
       setThinking(body, chunks.length>1 ? `Reading, pass ${i+1} of ${chunks.length}` : "Reading the source");
-      const r = await api("/api/drop/read", { chunk: chunks[i], part: i+1, total: chunks.length });
+      const r = await api("/api/drop/read", { chunk: chunks[i], part: i+1, total: chunks.length, key: S.key });
       parts.push(r.part||{});
     }
   } catch(e){ fail(body, e.message); return; }
@@ -1217,7 +1272,7 @@ async function doDrop(text){
 
   setThinking(body, "Comparing against what you hold");
   let plan;
-  try { plan = (await api("/api/drop/plan", { ext, brain: S.scope })).plan; }
+  try { plan = (await api("/api/drop/plan", { ext, brain: S.scope, key: S.key })).plan; }
   catch(e){ fail(body, e.message); return; }
 
   /* Position-changing clashes lead, nuance follows. Both get a say, because
@@ -1319,7 +1374,7 @@ function buildCard(pc, decide){
     const b2 = thinking("Rewriting the positions it touched");
     try {
       const r = await api("/api/drop/settle", {
-        sid: pc.sid, link: pc.link, ext: pc.ext, plan: pc.plan, choices: pc.choices });
+        sid: pc.sid, link: pc.link, ext: pc.ext, plan: pc.plan, choices: pc.choices, key: S.key });
       card.remove(); await refresh();
       b2.innerHTML = "";
       b2.append(receipt(r, pc));

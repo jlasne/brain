@@ -15,7 +15,24 @@ export default defineSchema({
   sessions: defineTable({
     token: v.string(),
     expires: v.number(),
+    /* The account this session belongs to. Absent means the owner, who got in
+       with the passphrase and spends the deployment's own model key. */
+    account: v.optional(v.string()),
   }).index("by_token", ["token"]),
+
+  /**
+   * A member. Identity is a salted hash of the model key they signed in with,
+   * so name plus key finds the account and the key itself is never stored.
+   * Their key pays for their own model calls, and it lives in their browser.
+   */
+  accounts: defineTable({
+    name: v.string(),
+    slug: v.string(),
+    salt: v.string(),
+    keyHash: v.string(),
+    created: v.string(),
+    lastSeen: v.string(),
+  }).index("by_slug", ["slug"]),
 
   brains: defineTable({
     slug: v.string(),
@@ -28,6 +45,9 @@ export default defineSchema({
        reads as "ask", so brains made before this field keep behaving as they
        did. */
     visibility: v.optional(v.string()),
+    /* The account slug that owns it. Absent means the owner's own brain, from
+       before accounts existed. */
+    owner: v.optional(v.string()),
   }).index("by_slug", ["slug"]),
 
   concepts: defineTable({
@@ -57,6 +77,9 @@ export default defineSchema({
     location: v.string(),
     brains: v.array(v.string()),
     stored: v.string(),
+    /* Which account fed it. Absent means the owner. This is what makes a
+       contribution traceable, and revocable. */
+    by: v.optional(v.string()),
   }).index("by_sid", ["sid"])
     .index("by_linkKey", ["linkKey"]),
 

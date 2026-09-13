@@ -80,6 +80,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 |---|---|---|
 | `/api/status` | Says whether a passphrase exists | No, it leaks nothing |
 | `/api/unlock` | First call sets the passphrase, later calls check it | Rate limited, 8 tries an hour |
+| `/api/login` | A name and a model key. Opens or finds a member account | No, it is the door |
 | `/api/state` | Brains, concepts, sources | Yes |
 | `/api/brain` | Creates one | Yes |
 | `/api/drop/check` | The duplicate check, an index lookup. No model call, so the test button is free | Yes |
@@ -126,6 +127,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `candidates` | brain, title, mentions, count | brain and slug |
 | `config` | the gate salt and hash | one row |
 | `mcpHits` | the public endpoint's per address counter | address |
+| `accounts` | a member's name, and a salted hash of their model key | name slug |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.
 
@@ -153,6 +155,44 @@ It carries no passphrase. Three properties make that safe:
 That last property matters because the endpoint is open. At 4 to 6 calls per
 question, the Convex free tier covers roughly 50,000 questions a month, and the
 overage beyond it runs $0.22 per extra gigabyte moved.
+
+## Accounts, and whose credit pays
+
+Two ways in.
+
+| Way in | Identity | Model calls paid by |
+|---|---|---|
+| Passphrase | The owner. Session carries no account | `OPENROUTER_API_KEY` on this deployment |
+| Name and key | A member. Session carries their account slug | The key their browser sends, per request |
+
+A member's key does two jobs. Salted and hashed once, it becomes their identity,
+so name plus key finds the account. Sent with each request that reaches a model,
+it pays for that call.
+
+**The key is never stored.** It arrives in the HTTP body, is read inside the
+HTTP action, and is handed straight to `ask()`. It must never be passed into
+`runQuery` or `runMutation`, because Convex records the arguments of those
+calls, and it must never be written to a table. Nothing keeps it, so nothing can
+leak it later. The browser holds it in `sessionStorage`, so closing the tab
+forgets it.
+
+### Who may do what
+
+`canRead` and `canDrop` in `lib.ts` decide, and 22 tests cover them.
+
+| | Owner's brains | Their own | Another member's |
+|---|---|---|---|
+| Owner reads | yes | yes | yes |
+| Owner feeds | yes | yes | yes |
+| Member reads | public only | yes, private included | public only |
+| Member feeds | no | yes | only if set to `drop` |
+
+A brain with no `owner` predates accounts and belongs to the owner, so a member
+cannot feed it. That closes the path where an outside drop rewrites the owner's
+positions. Opening a brain to `drop` is the deliberate exception.
+
+Every source row records `by`, the account that fed it, so a contribution can be
+traced and undone.
 
 ## Public and private brains
 
