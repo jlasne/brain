@@ -263,10 +263,14 @@ only Claude. A POST carrying one JSON-RPC request gets one JSON object back,
 which the spec permits in place of an SSE stream, so the server stays stateless
 and issues no session id.
 
-Four methods are registered twice, on `/mcp` and on the prefix `/mcp/`. A client
-can be pointed at `/mcp/v0`, or any label its settings screen wants, and reach
-the same handler. That leaves room to pin a version once the tool set changes
-shape. `GET` answers 405, since nothing here
+Four methods are registered on each of `/mcp`, `/mcp/v0` and `/mcp/v1`, so a
+client can be pointed at the bare path or at a pinned version and reach the same
+handler.
+
+A `pathPrefix` of `/mcp/` was tried first and is not what this router honours
+next to an exact `/mcp`: it registered without error, then matched nothing, and
+every path under it answered 404 on the live deployment. Adding another label is
+one entry in `MCP_PATHS`. `GET` answers 405, since nothing here
 pushes to the client. An unsupported `MCP-Protocol-Version` answers 400.
 
 Raw transcripts never entered the store (R8.6), so opening this endpoint shares

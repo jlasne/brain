@@ -638,16 +638,20 @@ const mcpPost = httpAction(async (ctx, req) => {
 });
 
 /**
- * The bare path, plus anything under it. A client can be pointed at /mcp/v0, or
- * at any label its settings screen wants, and reach the same server. That keeps
- * one address per client without a route per name, and leaves room to pin a
- * version once the tool set changes shape.
+ * One handler on several addresses, so a client can be pointed at /mcp or at a
+ * pinned version and reach the same server.
+ *
+ * A `pathPrefix` of "/mcp/" alongside the exact "/mcp" route registered without
+ * error and then matched nothing: every path under it answered 404 on the live
+ * deployment. Exact paths are what this router honours here, so the labels are
+ * listed. Adding another is one entry in this array.
  */
+const MCP_PATHS = ["/mcp", "/mcp/v0", "/mcp/v1"];
+
 for (const [method, handler] of [
   ["OPTIONS", mcpOptions], ["GET", mcpGet], ["DELETE", mcpDelete], ["POST", mcpPost],
 ] as const) {
-  router.route({ path: "/mcp", method, handler });
-  router.route({ pathPrefix: "/mcp/", method, handler });
+  for (const path of MCP_PATHS) router.route({ path, method, handler });
 }
 
 export default router;
