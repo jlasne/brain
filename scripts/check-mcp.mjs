@@ -103,7 +103,23 @@ const ME = { account:"octopus", name:"Octopus" };
   const signed = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"tools/list" }, ME);
   const an = anon.result.tools.map(t => t.name), sn = signed.result.tools.map(t => t.name);
   check("anonymous sees 6 read tools", an.length === 6 && !an.includes("drop_store"), an.join(","));
-  check("signed sees 11 tools", sn.length === 11 && sn.includes("drop_store"), sn.join(","));
+  check("signed sees 12 tools", sn.length === 12 && sn.includes("drop_store"), sn.join(","));
+}
+
+/* ---- the fetcher refuses what it should, before any network ---- */
+{
+  const no = async (url) => await call("fetch_link", { url }, ME);
+  check("plain http is refused",        (await no("http://example.com/x")).includes("Only https"));
+  check("localhost is refused",         (await no("https://localhost/x")).includes("not a public"));
+  check("a private range is refused",   (await no("https://10.0.0.7/x")).includes("not a public"));
+  check("link local is refused",        (await no("https://169.254.169.254/latest/meta-data")).includes("not a public"));
+  check("a bare host is refused",       (await no("https://intranet/x")).includes("not a public"));
+  check("nonsense is refused",          (await no("just some words")).includes("not a full address"));
+  const yt = await no("https://www.youtube.com/watch?v=abc");
+  check("a video link says what to do instead", yt.includes("transcript panel"), yt.slice(0,80));
+  const anon = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"tools/call",
+    params:{ name:"fetch_link", arguments:{ url:"https://example.com" } } }, null);
+  check("an anonymous caller cannot fetch", /no tool named|reads only/i.test(JSON.stringify(anon)));
 }
 
 /* ---- making a brain ---- */

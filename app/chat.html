@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13r";
+  window.OCTOPUS_BUILD = "2026-09-13s";
 </script>
 
 <style>
@@ -594,8 +594,8 @@
       <div class="side-h">Brains <b id="bcount"></b></div>
       <div id="brains"></div>
     </div>
-    <a class="connect-row" href="/feed" title="How to feed a brain from your own Claude">
-      <span class="dot"></span><span>Feed from your Claude</span>
+    <a class="connect-row" href="/doc" title="How to read and feed your brains from any AI client">
+      <span class="dot"></span><span>Use it from your AI</span>
       <span class="go-out">&#8599;</span>
     </a>
     <button class="connect-row" id="mcpRow" title="Your connector addresses, for reading and for feeding">
@@ -815,7 +815,7 @@ function gateScreen() {
               <b>Create and ask</b>
               <span>Make an account. Feed brains, then read them.</span>
             </button>
-            <a class="pick-row" href="/mcp">
+            <a class="pick-row" href="/doc">
               <b>MCP</b>
               <span>Read the brains from your own AI client.</span>
             </a>
@@ -1343,7 +1343,7 @@ async function openConnectorSheet(){
       </div>
       <div class="f" id="feedSlot"></div>
       <div class="f"><div id="mcpMsg" class="bad" role="alert"></div></div>
-      <footer><a class="ghost" href="/mcp" style="text-decoration:none">How to add it</a><button class="go" id="mcpDone">Done</button></footer>
+      <footer><a class="ghost" href="/doc" style="text-decoration:none">How to add it</a><button class="go" id="mcpDone">Done</button></footer>
     </div>`;
   document.body.append(veil);
   const shut = () => veil.remove();

@@ -52,5 +52,22 @@
       "source": "/api/public/brains",
       "destination": "https://uncommon-wolf-174.eu-west-1.convex.site/api/public/brains"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/mcp",
+      "destination": "/doc",
+      "permanent": true
+    },
+    {
+      "source": "/feed",
+      "destination": "/doc",
+      "permanent": true
+    },
+    {
+      "source": "/brains",
+      "destination": "/doc",
+      "permanent": false
+    }
   ]
 }
