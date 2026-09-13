@@ -46,16 +46,18 @@ reviews the evidence behind the position and names the thin spots.
 anyone may feed it. The closest existing scope gets shown first, so you can
 decide whether a new brain is worth it.
 
-## Two ways into /chat
+## Three ways into /chat
 
-The gate offers a name and your own model key, or the passphrase for the owner.
-A member's key stays in the tab and travels with the requests that reach a
-model, so a member's questions and drops are paid by that member. The server
-keeps a hash of the key to recognise the account, never the key.
+| Door | You enter | Your key |
+|---|---|---|
+| Sign in | A name and a password | Pasted once, or remembered on the account |
+| Just my key | A model key | Held in the tab, forgotten on close |
+| Owner | The passphrase | This deployment's own |
 
-Every brain is readable, by anyone, here and through the connector. Feeding is
-the guarded act, because a source rewrites the positions inside. A member feeds
-the brains they created, and any brain whose creator opened it.
+A remembered key is encrypted on the server under a secret in its environment.
+Unticked, the key never leaves the tab. A guest asks questions and feeds
+nothing, so the Drop side and Create a brain are hidden for them.
+
 
 ## The passphrase gate
 

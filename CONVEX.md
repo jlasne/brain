@@ -80,7 +80,9 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 |---|---|---|
 | `/api/status` | Says whether a passphrase exists | No, it leaks nothing |
 | `/api/unlock` | First call sets the passphrase, later calls check it | Rate limited, 8 tries an hour |
-| `/api/login` | A name and a model key. Opens or finds a member account | No, it is the door |
+| `/api/login` | A name and a password. Opens or finds a member account | No, it is the door |
+| `/api/guest` | A model key alone. Opens a session that asks and never feeds | No, it is the door |
+| `/api/account/key` | Remembers a member's key, sealed, or forgets it | Yes |
 | `/api/state` | Brains, concepts, sources | Yes |
 | `/api/brain` | Creates one | Yes |
 | `/api/drop/check` | The duplicate check, an index lookup. No model call, so the test button is free | Yes |
@@ -127,7 +129,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `candidates` | brain, title, mentions, count | brain and slug |
 | `config` | the gate salt and hash | one row |
 | `mcpHits` | the public endpoint's per address counter | address |
-| `accounts` | a member's name, and a salted hash of their model key | name slug |
+| `accounts` | a member's name, a salted password hash, and optionally their sealed key | name slug |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.
 
@@ -156,25 +158,43 @@ That last property matters because the endpoint is open. At 4 to 6 calls per
 question, the Convex free tier covers roughly 50,000 questions a month, and the
 overage beyond it runs $0.22 per extra gigabyte moved.
 
-## Accounts, and whose credit pays
+## Three doors, and whose credit pays
 
-Two ways in.
-
-| Way in | Identity | Model calls paid by |
+| Door | Credential | Model calls paid by |
 |---|---|---|
-| Passphrase | The owner. Session carries no account | `OPENROUTER_API_KEY` on this deployment |
-| Name and key | A member. Session carries their account slug | The key their browser sends, per request |
+| Owner | The passphrase | `OPENROUTER_API_KEY` on this deployment |
+| Member | A name and a password | Their own key: pasted, or remembered on the account |
+| Guest | A model key, nothing else | Their own key, held in their tab only |
 
-A member's key does two jobs. Salted and hashed once, it becomes their identity,
-so name plus key finds the account. Sent with each request that reaches a model,
-it pays for that call.
+A guest asks questions and feeds nothing, so there is no brain to own and no
+password to keep. A member owns the brains they create.
 
-**The key is never stored.** It arrives in the HTTP body, is read inside the
-HTTP action, and is handed straight to `ask()`. It must never be passed into
-`runQuery` or `runMutation`, because Convex records the arguments of those
-calls, and it must never be written to a table. Nothing keeps it, so nothing can
-leak it later. The browser holds it in `sessionStorage`, so closing the tab
-forgets it.
+Sessions carry a `kind`. Sessions written before guests existed carry none, and
+`checkSession` reads those as the owner, which is what they were.
+
+### Remembering a key
+
+A member may tick "remember it on my account". The key is then sealed with
+AES-GCM under `KEY_SECRET`, a value that lives only in this deployment's
+environment, and the database holds ciphertext, a nonce, and the last 4
+characters so the screen can say which key is saved.
+
+```
+npx convex env set KEY_SECRET "$(openssl rand -base64 32)" --prod
+```
+
+Without that variable, saving is **refused** rather than done weakly, and
+pasting a key each session still works.
+
+The limit is worth stating plainly: anyone who can read both the database and
+`KEY_SECRET` can decrypt these keys. Storing them makes this deployment the
+custodian of other people's paid credentials. That is the tradeoff the feature
+buys, and the reason the tick is opt-in.
+
+Sealing and opening happen in the HTTP action. A plaintext key never reaches
+`runQuery`, `runMutation`, or a table, because Convex records the arguments of
+those calls. Only ciphertext crosses that line.
+
 
 ### Who may do what
 
@@ -211,12 +231,13 @@ who may feed one brain.
 in `lib.ts` reads `drop` as `open` and everything else as closed, so no row
 needs migrating.
 
-`canDrop` is the whole rule, and 18 tests cover it across all three spellings:
+`canDrop` is the whole rule, and 30 tests cover it, the three caller kinds, and the key sealing:
 
 | | Owner's brains | Their own | Another account's |
 |---|---|---|---|
 | Owner feeds | yes | yes | yes |
 | Member feeds | no | yes | only if open |
+| Guest feeds | no | no brain to own | no |
 
 A brain with no `owner` predates accounts and belongs to the owner, so a member
 cannot feed it. Opening a brain is the deliberate exception, and the only way

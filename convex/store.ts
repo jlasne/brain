@@ -39,11 +39,11 @@ export const noteAttempt = internalMutation({
 });
 
 export const newSession = internalMutation({
-  args: { account: v.optional(v.string()) },
+  args: { account: v.optional(v.string()), kind: v.string() },
   handler: async (ctx, a) => {
     const token = randomHex(24);
     await ctx.db.insert("sessions", {
-      token, expires: Date.now() + SESSION_MS,
+      token, expires: Date.now() + SESSION_MS, kind: a.kind,
       ...(a.account ? { account: a.account } : {}),
     });
     return token;
@@ -51,15 +51,16 @@ export const newSession = internalMutation({
 });
 
 /**
- * Who is calling. Null means no live session. An `account` of null inside a
- * live session means the owner, who came in with the passphrase.
+ * Who is calling. Null means no live session. Sessions written before guests
+ * existed carry no kind, and those were all the owner's.
  */
 export const checkSession = internalQuery({
   args: { token: v.string() },
   handler: async (ctx, a) => {
     const s = await ctx.db.query("sessions").withIndex("by_token", q => q.eq("token", a.token)).unique();
     if (!s || s.expires <= Date.now()) return null;
-    return { account: s.account ?? null };
+    const kind = s.kind === "member" || s.kind === "guest" ? s.kind : "owner";
+    return { kind, account: s.account ?? null };
   },
 });
 
@@ -72,15 +73,53 @@ export const findAccount = internalQuery({
 });
 
 export const createAccount = internalMutation({
-  args: { name: v.string(), slug: v.string(), salt: v.string(), keyHash: v.string() },
+  args: { name: v.string(), slug: v.string(), salt: v.string(), passHash: v.string() },
   handler: async (ctx, a) => {
     const seen = await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
     if (seen) throw new Error("that name is taken");
     await ctx.db.insert("accounts", {
-      name: a.name, slug: a.slug, salt: a.salt, keyHash: a.keyHash,
+      name: a.name, slug: a.slug, salt: a.salt, passHash: a.passHash,
       created: today(), lastSeen: today(),
     });
     return a.slug;
+  },
+});
+
+/**
+ * Remember a member's model key, or forget it. Only ciphertext reaches this
+ * mutation: the plaintext key is sealed in the HTTP action and never becomes a
+ * function argument, because Convex records those.
+ */
+export const setAccountKey = internalMutation({
+  args: {
+    slug: v.string(),
+    cipher: v.optional(v.string()),
+    iv: v.optional(v.string()),
+    hint: v.optional(v.string()),
+  },
+  handler: async (ctx, a) => {
+    const acc = await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    if (!acc) throw new Error("no such account");
+    if (!a.cipher) {
+      await ctx.db.patch(acc._id, {
+        keyCipher: undefined, keyIv: undefined, keyHint: undefined, keySavedAt: undefined,
+      });
+      return { saved: false };
+    }
+    await ctx.db.patch(acc._id, {
+      keyCipher: a.cipher, keyIv: a.iv, keyHint: a.hint, keySavedAt: today(),
+    });
+    return { saved: true, hint: a.hint };
+  },
+});
+
+/** The sealed key for one account, for the HTTP action to open. */
+export const accountKey = internalQuery({
+  args: { slug: v.string() },
+  handler: async (ctx, a) => {
+    const acc = await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    if (!acc?.keyCipher || !acc.keyIv) return null;
+    return { cipher: acc.keyCipher, iv: acc.keyIv, hint: acc.keyHint ?? "" };
   },
 });
 

@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13d";
+  window.OCTOPUS_BUILD = "2026-09-13e";
 </script>
 
 <style>
@@ -500,6 +500,12 @@
   .gate .bad{ color:var(--accent); font-size:14px; line-height:1.5; }
   .gate .spin{ font-size:14px; color:var(--ink-3); }
 
+  label.check{
+    display:flex; align-items:flex-start; gap:8px; cursor:pointer;
+    font:400 14px/1.45 var(--sans); color:var(--ink-2);
+  }
+  label.check input{ width:auto; margin-top:2px; accent-color:var(--accent-fill); flex-shrink:0; }
+
   /* ============ responsive ============ */
   @media (max-width:860px){
     .app{ grid-template-columns:1fr; }
@@ -686,52 +692,96 @@ function gateScreen(firstRun) {
   $("app").classList.add("locked");
   const veil = el("div","veil");
   document.body.append(veil);
-  /* Two ways in. A member brings a name and their own key, and pays for their
-     own calls. The owner brings the passphrase, and spends this deployment's
-     key. On a fresh deployment the passphrase has to be set first. */
+
+  /* Three doors.
+       member  a name and a password. The key can be remembered on the account.
+       guest   a key and nothing else, forgotten when the tab closes.
+       owner   the passphrase, spending this deployment's own key.
+     A deployment with no passphrase yet has to set one first. */
   let mode = firstRun ? "owner" : "member";
+  let step = "in";          // "in", then "key" when an account has none saved
+  let acct = null;          // what /api/login handed back
+
+  const HEAD = {
+    member: ["Sign in", "A name and a password. Your model key pays for what you ask and drop, and you choose whether this account remembers it."],
+    guest:  ["Just my key", "No account. Paste a key, use it for this tab, and it is forgotten when you close it. Reading and asking only."],
+    owner:  ["Owner", "The passphrase opens every brain here and spends this deployment's own key."],
+  };
+
+  const finish = (token, who) => {
+    S.token = token; S.who = who;
+    sessionStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.setItem(WHO_KEY, who);
+    if (S.key) sessionStorage.setItem(KEY_KEY, S.key); else sessionStorage.removeItem(KEY_KEY);
+    veil.remove(); $("app").classList.remove("locked");
+    open();
+  };
 
   const paint = () => {
-    const owner = mode === "owner";
+    const [title, blurb] = firstRun ? ["Set the passphrase",
+      "It guards every call that spends this deployment's own credits. Only a salted hash is kept."] : HEAD[mode];
+
+    const form = step === "key" ? `
+        <div class="f">
+          <label for="gk">Your model key</label>
+          <input type="password" id="gk" autocomplete="off" spellcheck="false" placeholder="sk-or-..." required>
+          <div class="hint">Make a key with a spend limit rather than pasting your main one.</div>
+        </div>
+        <div class="f"><label class="check"><input type="checkbox" id="grem"> Remember it on my account</label>
+          <div class="hint">Remembered keys are encrypted with a secret held on the server. Leave it unticked and the key stays in this tab only.</div>
+        </div>`
+      : mode === "owner" ? `
+        <div class="f">
+          <label for="gp">Passphrase</label>
+          <input type="password" id="gp" autocomplete="${firstRun?"new-password":"current-password"}"
+                 placeholder="${firstRun?"At least 8 characters":""}" required>
+        </div>`
+      : mode === "guest" ? `
+        <div class="f">
+          <label for="gk">Your model key</label>
+          <input type="password" id="gk" autocomplete="off" spellcheck="false" placeholder="sk-or-..." required>
+          <div class="hint">Nothing about you is stored. The key lives in this tab and pays for your questions.</div>
+        </div>`
+      : `
+        <div class="f">
+          <label for="gn">Name</label>
+          <input type="text" id="gn" autocomplete="username" placeholder="What to call you" required>
+        </div>
+        <div class="f">
+          <label for="gw">Password</label>
+          <input type="password" id="gw" autocomplete="current-password" placeholder="At least 8 characters" required>
+          <div class="hint">A name nobody has taken opens a new account.</div>
+        </div>`;
+
+    const swaps = firstRun || step === "key" ? "" :
+      mode === "member" ? `<button class="ghost" type="button" data-go="guest">Just my key</button>
+                           <button class="ghost" type="button" data-go="owner">I own this</button>`
+      : mode === "guest" ? `<button class="ghost" type="button" data-go="member">Sign in</button>`
+      : `<button class="ghost" type="button" data-go="member">Sign in</button>`;
+
     veil.innerHTML = `
       <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="gh">
         <header>
           <div class="mk" aria-hidden="true">${MARK}</div>
-          <h3 id="gh">${firstRun ? "Set the passphrase" : owner ? "Owner" : "Sign in"}</h3>
-          <p>${firstRun
-            ? "It guards every call that spends this deployment's own credits. Only a salted hash is kept."
-            : owner
-              ? "The passphrase opens every brain here and spends this deployment's own key."
-              : "Your name, and your own model key. The key pays for what you ask and what you drop, and it stays in this browser."}</p>
+          <h3 id="gh">${step === "key" ? "One more thing" : title}</h3>
+          <p>${step === "key"
+            ? `Signed in as <b>${esc(acct.name)}</b>. This account has no model key saved, so paste one to ask and drop.`
+            : blurb}</p>
         </header>
         <form>
-          ${owner ? `
-            <div class="f">
-              <label for="gp">Passphrase</label>
-              <input type="password" id="gp" autocomplete="${firstRun?"new-password":"current-password"}"
-                     placeholder="${firstRun?"At least 8 characters":""}" required>
-            </div>` : `
-            <div class="f">
-              <label for="gn">Name</label>
-              <input type="text" id="gn" autocomplete="nickname" placeholder="What to call you" required>
-            </div>
-            <div class="f">
-              <label for="gk">Your OpenRouter key</label>
-              <input type="password" id="gk" autocomplete="off" spellcheck="false" placeholder="sk-or-..." required>
-              <div class="hint">Make a key with a spend limit rather than pasting your main one. The server keeps a hash of it to recognise you, and never the key.</div>
-            </div>`}
+          ${form}
           <div class="f"><div id="gmsg" class="bad" role="alert"></div></div>
-          <footer>
-            ${firstRun ? "" : `<button class="ghost" type="button" id="gswap">${owner ? "Use a name and key" : "I own this"}</button>`}
-            <button class="go" type="submit">${firstRun ? "Lock it and open" : owner ? "Unlock" : "Open"}</button>
-          </footer>
+          <footer>${swaps}<button class="go" type="submit">${
+            step === "key" ? "Open" : firstRun ? "Lock it and open" : mode === "owner" ? "Unlock" : "Open"
+          }</button></footer>
         </form>
       </div>`;
 
     const msg = veil.querySelector("#gmsg");
-    const swap = veil.querySelector("#gswap");
-    if (swap) swap.onclick = () => { mode = owner ? "member" : "owner"; paint(); };
-    setTimeout(() => veil.querySelector(owner ? "#gp" : "#gn")?.focus(), 60);
+    veil.querySelectorAll("[data-go]").forEach(btn => {
+      btn.onclick = () => { mode = btn.dataset.go; step = "in"; paint(); };
+    });
+    setTimeout(() => veil.querySelector("#gn, #gp, #gk")?.focus(), 60);
 
     veil.querySelector("form").onsubmit = async e => {
       e.preventDefault();
@@ -739,22 +789,38 @@ function gateScreen(firstRun) {
       btn.disabled = true;
       msg.className = "spin"; msg.textContent = "Checking";
       try {
-        if (owner) {
-          const r = await api("/api/unlock", { pass: veil.querySelector("#gp").value });
-          S.token = r.token; S.key = null; S.account = null; S.who = "owner";
-          sessionStorage.setItem(TOKEN_KEY, r.token);
-          sessionStorage.removeItem(KEY_KEY);
-          sessionStorage.setItem(WHO_KEY, "owner");
-        } else {
+        /* The account exists but has no saved key, so this step supplies one. */
+        if (step === "key") {
           const key = veil.querySelector("#gk").value.trim();
-          const r = await api("/api/login", { name: veil.querySelector("#gn").value.trim(), key });
-          S.token = r.token; S.key = key; S.account = r.account; S.who = r.name;
-          sessionStorage.setItem(TOKEN_KEY, r.token);
-          sessionStorage.setItem(KEY_KEY, key);
-          sessionStorage.setItem(WHO_KEY, r.name);
+          S.key = key;
+          if (veil.querySelector("#grem").checked) {
+            const r = await api("/api/account/key", { key });
+            if (r.error) throw new Error(r.error);
+          }
+          finish(S.token, acct.name);
+          return;
         }
-        veil.remove(); $("app").classList.remove("locked");
-        await open();
+        if (mode === "owner") {
+          const r = await api("/api/unlock", { pass: veil.querySelector("#gp").value });
+          S.key = null; S.account = null;
+          finish(r.token, "owner");
+          return;
+        }
+        if (mode === "guest") {
+          const key = veil.querySelector("#gk").value.trim();
+          const r = await api("/api/guest", { key });
+          S.key = key; S.account = null;
+          finish(r.token, "guest");
+          return;
+        }
+        const r = await api("/api/login", {
+          name: veil.querySelector("#gn").value.trim(),
+          password: veil.querySelector("#gw").value,
+        });
+        S.token = r.token; S.account = r.account; acct = r;
+        if (r.hasKey) { S.key = null; finish(r.token, r.name); return; }
+        /* Held here rather than opening, because every question needs a key. */
+        step = "key"; paint();
       } catch (err) {
         btn.disabled = false;
         msg.className = "bad"; msg.textContent = String(err.message);
@@ -788,7 +854,7 @@ function deadScreen(why) {
   const saved = sessionStorage.getItem(TOKEN_KEY);
   if (saved) {
     S.token = saved;
-    S.key = sessionStorage.getItem(KEY_KEY);
+    S.key = sessionStorage.getItem(KEY_KEY) || null;
     S.who = sessionStorage.getItem(WHO_KEY) || "";
     try { await open(); return; }
     catch (_) {
@@ -809,6 +875,9 @@ async function refresh(){
   S.brains = d.brains || []; S.concepts = d.concepts || []; S.sources = d.sources || [];
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
   if (d.account !== undefined) S.account = d.account;
+  if (d.kind) S.who = d.kind === "member" ? (S.who || d.account) : d.kind;
+  $("lockBtn").textContent = S.who === "owner" ? "lock"
+    : S.who === "guest" ? "leave" : `sign out ${S.who}`;
   render();
 }
 
@@ -880,6 +949,14 @@ function renderScope(){
 }
 
 function renderComposer(){
+  /* A guest feeds nothing, so Drop is not offered and Ask is the only mode. */
+  const guest = S.who === "guest";
+  if (guest && S.mode === "drop") S.mode = "ask";
+  [...$("mode").children].forEach(x => {
+    if (x.dataset.m === "drop") x.hidden = guest;
+    x.classList.toggle("on", x.dataset.m === S.mode);
+  });
+  $("newBrain").hidden = guest;
   const drop = S.mode==="drop";
   $("input").placeholder = drop
     ? "Paste a link, or the text of the source."

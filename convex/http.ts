@@ -9,20 +9,18 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
   ask, parseJson, json, cors, sha256, today, slug,
-  linkKey, sourceId, randomHex, canDrop, isOpen, MODEL, MAX_ATTEMPTS, CHUNK,
+  linkKey, sourceId, randomHex, canDrop, isOpen, sealKey, openKey,
+  MODEL, MAX_ATTEMPTS, CHUNK,
 } from "./lib";
+import type { Who } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 
 const router = httpRouter();
 
 /* ---------- the gate ---------- */
 
-/**
- * Who is calling. The owner arrives with the passphrase and spends the
- * deployment's model key. A member arrives with a name and their own key, and
- * spends their own.
- */
-async function gate(ctx: any, body: any): Promise<{ account: string | null }> {
+/** Who is calling. Three kinds, described on `Who` in lib.ts. */
+async function gate(ctx: any, body: any): Promise<Who> {
   const who = body?.token
     ? await ctx.runQuery(internal.store.checkSession, { token: body.token })
     : null;
@@ -31,18 +29,26 @@ async function gate(ctx: any, body: any): Promise<{ account: string | null }> {
 }
 
 /**
- * Whose credit pays for a model call. The owner spends the deployment's key.
- * A member spends the key their browser just sent.
+ * Whose credit pays for a model call.
  *
- * That key is read here and passed straight to ask(). It must never reach
- * runQuery, runMutation, or any table, because Convex records the arguments of
- * those calls. Nothing stores it, so nothing can leak it later.
+ * The owner spends this deployment's key. Everyone else spends their own: the
+ * one their browser just sent, or the one their account remembers.
+ *
+ * A plaintext key is read here and handed straight to ask(). It must never
+ * reach runQuery, runMutation, or any table, because Convex records the
+ * arguments of those calls. Only sealed ciphertext crosses that line.
  */
-function modelKey(who: { account: string | null }, body: any): string | undefined {
-  if (who.account === null) return undefined;
-  const k = String(body?.key ?? "").trim();
-  if (!k) throw new Error("this needs your own model key, and none arrived. Sign in again.");
-  return k;
+async function modelKey(ctx: any, who: Who, body: any): Promise<string | undefined> {
+  if (who.kind === "owner") return undefined;
+
+  const sent = String(body?.key ?? "").trim();
+  if (sent) return sent;
+
+  if (who.kind === "member" && who.account) {
+    const sealed = await ctx.runQuery(internal.store.accountKey, { slug: who.account });
+    if (sealed) return await openKey(sealed.cipher, sealed.iv);
+  }
+  throw new Error("this needs a model key. Paste yours, or save one on your account.");
 }
 
 const route = (path: string, fn: (ctx: any, req: Request, body: any) => Promise<any>) => {
@@ -72,7 +78,7 @@ route("/api/unlock", async (ctx, _req, b) => {
   if (!g?.set) {
     const salt = [...crypto.getRandomValues(new Uint8Array(16))].map(x => x.toString(16).padStart(2, "0")).join("");
     await ctx.runMutation(internal.store.setGate, { salt, hash: await sha256(salt, pass) });
-    return { token: await ctx.runMutation(internal.store.newSession, {}), created: true };
+    return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner" }), created: true };
   }
 
   if ((g.attempts ?? 0) >= MAX_ATTEMPTS) return { error: "too many attempts, wait an hour" };
@@ -80,7 +86,7 @@ route("/api/unlock", async (ctx, _req, b) => {
   const good = await sha256(g.salt!, pass) === g.hash;
   await ctx.runMutation(internal.store.noteAttempt, { ok: good });
   if (!good) return { error: "that is not it" };
-  return { token: await ctx.runMutation(internal.store.newSession, {}) };
+  return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner" }) };
 });
 
 /** Leaks nothing: says only whether a passphrase has ever been set. */
@@ -89,33 +95,79 @@ route("/api/unlock", async (ctx, _req, b) => {
  * only that hash is kept. The key itself stays in the browser and pays for that
  * person's own calls.
  */
+/**
+ * A name and a password. An unused name opens an account, a taken one has to
+ * match. Only a salted hash of the password is stored.
+ *
+ * The reply says whether this account already remembers a model key, so the
+ * app knows whether to ask for one.
+ */
 route("/api/login", async (ctx, _req, b) => {
   const name = String(b.name ?? "").trim();
-  const key = String(b.key ?? "").trim();
+  const pass = String(b.password ?? "");
   if (name.length < 2) return { error: "give a name of at least 2 characters" };
-  if (key.length < 16) return { error: "that does not look like an API key" };
+  if (pass.length < 8) return { error: "use a password of at least 8 characters" };
   const s = slug(name);
 
   const acc = await ctx.runQuery(internal.store.findAccount, { slug: s });
   if (!acc) {
     const salt = randomHex(16);
     await ctx.runMutation(internal.store.createAccount,
-      { name, slug: s, salt, keyHash: await sha256(salt, key) });
+      { name, slug: s, salt, passHash: await sha256(salt, pass) });
     return {
-      token: await ctx.runMutation(internal.store.newSession, { account: s }),
-      name, account: s, created: true,
+      token: await ctx.runMutation(internal.store.newSession, { account: s, kind: "member" }),
+      name, account: s, created: true, hasKey: false, keyHint: "",
     };
   }
-  /* The key is the credential, so a different key under a taken name is a
-     different person. */
-  if (await sha256(acc.salt, key) !== acc.keyHash) {
-    return { error: `"${acc.name}" already belongs to another key` };
+  /* An account from the earlier scheme has no password yet, so it cannot be
+     opened this way. Saying so beats a wrong "that is not it". */
+  if (!acc.passHash) {
+    return { error: `"${acc.name}" was made before passwords. Pick another name.` };
+  }
+  if (await sha256(acc.salt, pass) !== acc.passHash) {
+    return { error: "that name and password do not match" };
   }
   await ctx.runMutation(internal.store.touchAccount, { slug: s });
   return {
-    token: await ctx.runMutation(internal.store.newSession, { account: s }),
+    token: await ctx.runMutation(internal.store.newSession, { account: s, kind: "member" }),
     name: acc.name, account: s,
+    hasKey: !!acc.keyCipher, keyHint: acc.keyHint ?? "",
   };
+});
+
+/**
+ * No account. A key, used for this tab and remembered nowhere. A guest asks
+ * questions and feeds nothing, so there is no brain to own and nothing to
+ * protect with a password.
+ */
+route("/api/guest", async (ctx, _req, b) => {
+  const key = String(b.key ?? "").trim();
+  if (key.length < 16) return { error: "that does not look like an API key" };
+  return {
+    token: await ctx.runMutation(internal.store.newSession, { kind: "guest" }),
+    guest: true,
+  };
+});
+
+/**
+ * Remember a member's key, or forget it. The key is sealed here, so only
+ * ciphertext reaches the database.
+ */
+route("/api/account/key", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  if (who.kind !== "member" || !who.account) {
+    return { error: "only a signed-in account can remember a key" };
+  }
+  if (b.forget) {
+    await ctx.runMutation(internal.store.setAccountKey, { slug: who.account });
+    return { saved: false };
+  }
+  const key = String(b.key ?? "").trim();
+  if (key.length < 16) return { error: "that does not look like an API key" };
+  const sealed = await sealKey(key);
+  await ctx.runMutation(internal.store.setAccountKey,
+    { slug: who.account, cipher: sealed.cipher, iv: sealed.iv, hint: sealed.hint });
+  return { saved: true, keyHint: sealed.hint };
 });
 
 route("/api/status", async (ctx) => {
@@ -133,7 +185,8 @@ route("/api/lock", async (ctx, _req, b) => {
 route("/api/state", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   const s = await ctx.runQuery(internal.store.everything, {});
-  return { ...s, model: MODEL, chunk: CHUNK, account: who.account, owner: who.account === null };
+  return { ...s, model: MODEL, chunk: CHUNK,
+           account: who.account, kind: who.kind, owner: who.kind === "owner" };
 });
 
 route("/api/brain", async (ctx, _req, b) => {
@@ -141,7 +194,8 @@ route("/api/brain", async (ctx, _req, b) => {
   const name = String(b.name ?? "").trim(), scope = String(b.scope ?? "").trim();
   if (!name || !scope) return { error: "a name and a scope line are both required" };
   const type = b.type === "person" ? "person" : "subject";
-  const visibility = String(b.visibility ?? "ask");
+  if (who.kind === "guest") return { error: "creating a brain needs an account" };
+  const visibility = String(b.visibility ?? "closed");
   return { slug: await ctx.runMutation(internal.store.createBrain,
     { name, type, scope, visibility, ...(who.account ? { owner: who.account } : {}) }) };
 });
@@ -197,7 +251,7 @@ Reply with only JSON:
 
 SOURCE${total > 1 ? ` (part ${part} of ${total})` : ""}:
 ${chunk}` },
-  ], { json: true, maxTokens: 24000, key: modelKey(who, b) });
+  ], { json: true, maxTokens: 24000, key: await modelKey(ctx, who, b) });
   return { part: parseJson(text, finish) };
 });
 
@@ -206,7 +260,7 @@ route("/api/drop/plan", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   const { brains: seen, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
   /* Only brains this caller may feed. Everyone reads more than they can write. */
-  const brains = seen.filter((x: any) => canDrop(x, who.account));
+  const brains = seen.filter((x: any) => canDrop(x, who));
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
   if (!pool.length) return { error: "no brain exists yet" };
@@ -258,7 +312,7 @@ title: ${ext.title ?? ""}
 author: ${ext.author ?? ""}
 date: ${ext.date ?? ""}
 ${(ext.topics ?? []).map((t: any) => `### ${t.topic}\n${(t.ideas ?? []).join("\n")}\n${(t.data ?? []).join("\n")}`).join("\n\n").slice(0, 30000)}` },
-  ], { json: true, maxTokens: 16000, key: modelKey(who, b) });
+  ], { json: true, maxTokens: 16000, key: await modelKey(ctx, who, b) });
 
   return { plan: parseJson(text, finish) };
 });
@@ -268,7 +322,7 @@ route("/api/drop/settle", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   const { brains: seen, concepts } = await ctx.runQuery(internal.store.everything, {});
   /* Re-checked here, because this is where the writing happens. */
-  const brains = seen.filter((x: any) => canDrop(x, who.account));
+  const brains = seen.filter((x: any) => canDrop(x, who));
   const ext = b.ext ?? {}, plan = b.plan ?? {}, sid = String(b.sid ?? "");
   const choices: Record<string, string> = b.choices ?? {};
   const targets: string[] = (plan.brains ?? []).filter((x: string) => brains.some((y: any) => y.slug === x));
@@ -351,7 +405,7 @@ ${packet}
 NEW SOURCE
 author: ${ext.author || "unknown"} | date: ${ext.date || today()}
 ${(ext.topics ?? []).map((t: any) => `${t.topic}: ${(t.ideas ?? []).join("; ")} ${(t.data ?? []).join("; ")}`).join("\n").slice(0, 20000)}` },
-    ], { json: true, maxTokens: 24000, key: modelKey(who, b) });
+    ], { json: true, maxTokens: 24000, key: await modelKey(ctx, who, b) });
     rewrites = parseJson(text, finish)?.rewrites ?? [];
   }
 
@@ -481,7 +535,7 @@ STORED KNOWLEDGE
 ${dossier}
 
 QUESTION: ${String(b.q ?? "")}` },
-  ], { maxTokens: level === "normal" ? 2000 : 3200, key: modelKey(who, b) });
+  ], { maxTokens: level === "normal" ? 2000 : 3200, key: await modelKey(ctx, who, b) });
 
   return { answer: text, sources: nSources, level };
 });

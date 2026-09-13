@@ -15,21 +15,32 @@ export default defineSchema({
   sessions: defineTable({
     token: v.string(),
     expires: v.number(),
-    /* The account this session belongs to. Absent means the owner, who got in
-       with the passphrase and spends the deployment's own model key. */
+    /* The account this session belongs to, when there is one. */
     account: v.optional(v.string()),
+    /* "owner", "member" or "guest". Absent reads as "owner", which is what the
+       sessions written before guests existed were. */
+    kind: v.optional(v.string()),
   }).index("by_token", ["token"]),
 
   /**
-   * A member. Identity is a salted hash of the model key they signed in with,
-   * so name plus key finds the account and the key itself is never stored.
-   * Their key pays for their own model calls, and it lives in their browser.
+   * A member. A name and a password get them in. Their model key pays for their
+   * own calls, and they choose whether it is remembered.
+   *
+   * A remembered key is stored sealed: AES-GCM ciphertext plus its nonce, under
+   * a secret held in this deployment's environment. Only the last 4 characters
+   * are kept in the clear, so the account screen can say which key is saved.
    */
   accounts: defineTable({
     name: v.string(),
     slug: v.string(),
     salt: v.string(),
-    keyHash: v.string(),
+    passHash: v.optional(v.string()),
+    /* The earlier scheme used the model key itself as the credential. */
+    keyHash: v.optional(v.string()),
+    keyCipher: v.optional(v.string()),
+    keyIv: v.optional(v.string()),
+    keyHint: v.optional(v.string()),
+    keySavedAt: v.optional(v.string()),
     created: v.string(),
     lastSeen: v.string(),
   }).index("by_slug", ["slug"]),
