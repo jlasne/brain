@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13l";
+  window.OCTOPUS_BUILD = "2026-09-13m";
 </script>
 
 <style>
@@ -934,26 +934,33 @@ function brainDetail(b){
   d.append(el("div","sc", b.scope || "no scope line"),
            el("div","ct", `${n} concept${n===1?"":"s"} · ${sc} source${sc===1?"":"s"}`));
 
-  /* Who may feed it, and one click to change that. Reading is never restricted. */
+  /* Whoever owns a brain sets who feeds it and what it is called. That is what
+     the server enforces, so the actions appear for them alone. Everyone else
+     reads the state, which tells them whether their own drop would land. */
+  const mine = S.who === "owner" || (!!b.owner && b.owner === S.account);
+
   const v = el("div","vis" + (open ? "" : " priv"));
-  v.append(el("span","lbl", open ? "Anyone feeds" : "Only me feeds"),
-           el("span","act", open ? "close it" : "open it"));
+  v.append(el("span","lbl", open ? "Anyone feeds" : mine ? "Only me feeds" : "Only its creator feeds"));
   v.title = open
     ? "Any signed-in person can drop sources into this brain"
-    : "Only you can drop sources into this brain";
-  v.onclick = async e => {
-    e.stopPropagation();
-    v.querySelector(".act").textContent = "saving";
-    try {
-      await api("/api/brain/visibility", { slug: b.slug, visibility: open ? "closed" : "open" });
-      await refresh(); render();
-    } catch(err){ v.querySelector(".act").textContent = err.message || "failed"; }
-  };
+    : mine ? "Only you can drop sources into this brain"
+           : "Only the account that created this brain can drop sources into it";
+  if (mine) {
+    v.append(el("span","act", open ? "close it" : "open it"));
+    v.onclick = async e => {
+      e.stopPropagation();
+      v.querySelector(".act").textContent = "saving";
+      try {
+        await api("/api/brain/visibility", { slug: b.slug, visibility: open ? "closed" : "open" });
+        await refresh(); render();
+      } catch(err){ v.querySelector(".act").textContent = err.message || "failed"; }
+    };
+  } else {
+    v.style.cursor = "default";
+  }
   d.append(v);
 
-  /* Only whoever owns a brain renames it, which is what the server enforces, so
-     the control shows for them alone. */
-  if (S.who === "owner" || (b.owner && b.owner === S.account)) {
+  if (mine) {
     const rn = el("div","vis");
     rn.append(el("span","lbl","Name and scope"), el("span","act","edit"));
     rn.title = "Rename this brain, or change the line that decides what belongs inside";
