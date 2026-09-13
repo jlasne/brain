@@ -92,24 +92,6 @@ export const touchAccount = internalMutation({
   },
 });
 
-/**
- * What one caller may see. The owner sees every brain. A member sees the public
- * ones plus their own, private ones included.
- */
-export const visibleTo = internalQuery({
-  args: { account: v.union(v.string(), v.null()) },
-  handler: async (ctx, a) => {
-    const all = await ctx.db.query("brains").collect();
-    const brains = a.account === null
-      ? all
-      : all.filter(b => (b.visibility ?? "ask") !== "private" || b.owner === a.account);
-    const live = new Set(brains.map(b => b.slug));
-    const concepts = (await ctx.db.query("concepts").collect()).filter(c => live.has(c.brain));
-    const sources = (await ctx.db.query("sources").collect())
-      .filter(s => (s.brains ?? []).some((x: string) => live.has(x)));
-    return { brains, concepts, sources };
-  },
-});
 
 export const dropSession = internalMutation({
   args: { token: v.string() },
@@ -167,6 +149,7 @@ export const createBrain = internalMutation({
 });
 
 /** Flip one brain between hidden and readable. */
+/** Open a brain to everyone's sources, or close it to its creator's. */
 export const setVisibility = internalMutation({
   args: { slug: v.string(), visibility: v.string(), account: v.union(v.string(), v.null()) },
   handler: async (ctx, a) => {
@@ -176,28 +159,12 @@ export const setVisibility = internalMutation({
     if (a.account !== null && (b.owner ?? null) !== a.account) {
       throw new Error("that brain belongs to someone else");
     }
-    const v2 = a.visibility === "private" ? "private" : a.visibility === "drop" ? "drop" : "ask";
+    const v2 = a.visibility === "open" || a.visibility === "drop" ? "open" : "closed";
     await ctx.db.patch(b._id, { visibility: v2 });
     return { slug: a.slug, visibility: v2 };
   },
 });
 
-/**
- * What the public endpoints may see. A private brain, and everything under it,
- * never leaves this function.
- */
-export const publicEverything = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    const all = await ctx.db.query("brains").collect();
-    const brains = all.filter(b => (b.visibility ?? "ask") !== "private");
-    const live = new Set(brains.map(b => b.slug));
-    const concepts = (await ctx.db.query("concepts").collect()).filter(c => live.has(c.brain));
-    const sources = (await ctx.db.query("sources").collect())
-      .filter(s => (s.brains ?? []).some((x: string) => live.has(x)));
-    return { brains, concepts, sources };
-  },
-});
 
 export const upsertConcept = internalMutation({
   args: { brain: v.string(), title: v.string(), doc: v.any() },

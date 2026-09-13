@@ -28,8 +28,8 @@ reaches a browser.
 | `/mcp` | Nothing. It prints an address | No |
 | `/chat` | Every `/api/*` route | Yes, the passphrase |
 
-`/api/public/brains` and `/mcp` exclude private brains and everything under
-them, so the only way to widen what the world sees is to mark a brain public.
+`/api/public/brains` and `/mcp` read every brain, because every brain is
+published. Neither one writes.
 
 ## The three actions in the app
 
@@ -42,9 +42,9 @@ your summaries, and you reply to one card.
 three to six lines. Educational defines the terms and works an example. Expert
 reviews the evidence behind the position and names the thin spots.
 
-**Create a brain.** A name, a one-line scope, subject or person, public or
-private. The closest existing scope gets shown first, so you can decide whether
-a new brain is worth it.
+**Create a brain.** A name, a one-line scope, subject or person, and whether
+anyone may feed it. The closest existing scope gets shown first, so you can
+decide whether a new brain is worth it.
 
 ## Two ways into /chat
 
@@ -53,14 +53,14 @@ A member's key stays in the tab and travels with the requests that reach a
 model, so a member's questions and drops are paid by that member. The server
 keeps a hash of the key to recognise the account, never the key.
 
-A member reads public brains and creates their own, private ones included. They
-cannot feed a brain that belongs to someone else unless its owner set it to
-accept drops.
+Every brain is readable, by anyone, here and through the connector. Feeding is
+the guarded act, because a source rewrites the positions inside. A member feeds
+the brains they created, and any brain whose creator opened it.
 
 ## The passphrase gate
 
-Nothing reads a private brain and nothing reaches the model until the passphrase
-is entered. Only a salted SHA-256 hash is stored. The lock matters here because
+Nothing reaches the model from this app until the passphrase or a key is
+entered. Only a salted SHA-256 hash is stored. The lock matters here because
 the OpenRouter key sits on the server, so a visitor would spend real money.
 
 Public reads sit outside the gate on purpose. They call no model, so they cost

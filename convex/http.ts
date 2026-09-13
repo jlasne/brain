@@ -9,7 +9,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
   ask, parseJson, json, cors, sha256, today, slug,
-  linkKey, sourceId, randomHex, canRead, canDrop, MODEL, MAX_ATTEMPTS, CHUNK,
+  linkKey, sourceId, randomHex, canDrop, isOpen, MODEL, MAX_ATTEMPTS, CHUNK,
 } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 
@@ -132,7 +132,7 @@ route("/api/lock", async (ctx, _req, b) => {
 
 route("/api/state", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const s = await ctx.runQuery(internal.store.visibleTo, { account: who.account });
+  const s = await ctx.runQuery(internal.store.everything, {});
   return { ...s, model: MODEL, chunk: CHUNK, account: who.account, owner: who.account === null };
 });
 
@@ -204,8 +204,8 @@ ${chunk}` },
 /** R3. Summaries only, never whole brains, so this costs the same at any size. */
 route("/api/drop/plan", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const { brains: seen, concepts, sources } = await ctx.runQuery(internal.store.visibleTo, { account: who.account });
-  /* Only brains this caller may feed. A member sees more than they can write. */
+  const { brains: seen, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
+  /* Only brains this caller may feed. Everyone reads more than they can write. */
   const brains = seen.filter((x: any) => canDrop(x, who.account));
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
@@ -266,7 +266,7 @@ ${(ext.topics ?? []).map((t: any) => `### ${t.topic}\n${(t.ideas ?? []).join("\n
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
 route("/api/drop/settle", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const { brains: seen, concepts } = await ctx.runQuery(internal.store.visibleTo, { account: who.account });
+  const { brains: seen, concepts } = await ctx.runQuery(internal.store.everything, {});
   /* Re-checked here, because this is where the writing happens. */
   const brains = seen.filter((x: any) => canDrop(x, who.account));
   const ext = b.ext ?? {}, plan = b.plan ?? {}, sid = String(b.sid ?? "");
@@ -406,8 +406,8 @@ function compress(ev: any[]) {
 
 route("/api/ask", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const { brains: seen, concepts, sources } = await ctx.runQuery(internal.store.visibleTo, { account: who.account });
-  const brains = seen.filter((x: any) => canRead(x, who.account));
+  /* Every brain answers questions, whoever is asking. */
+  const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
   if (!pool.length) return { answer: "No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
@@ -495,11 +495,11 @@ QUESTION: ${String(b.q ?? "")}` },
 router.route({
   path: "/api/public/brains", method: "GET",
   handler: httpAction(async (ctx, req) => {
-    const { brains, concepts, sources } = await ctx.runQuery(internal.store.publicEverything, {});
+    const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
     return new Response(JSON.stringify({
       brains: brains.map((b: any) => ({
         slug: b.slug, name: b.name, type: b.type, scope: b.scope,
-        visibility: b.visibility ?? "ask",
+        open: isOpen(b),
         concepts: concepts.filter((c: any) => c.brain === b.slug).length,
         sources: sources.filter((s: any) => (s.brains ?? []).includes(b.slug)).length,
       })),

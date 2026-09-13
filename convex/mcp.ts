@@ -187,9 +187,9 @@ function conceptFull(c: any, brainName: string) {
 /* ---------- dispatch ---------- */
 
 export async function runTool(ctx: any, name: string, args: any) {
-  /* publicEverything drops private brains and everything under them, so no
-     tool below has to remember to check. */
-  const { brains, concepts, sources } = await ctx.runQuery(internal.store.publicEverything, {});
+  /* Every brain is published, so there is nothing to filter here. Feeding is
+     the guarded act, and no tool on this server writes. */
+  const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
 
   if (name === "ask") {
     const q = String(args?.question ?? "").trim();

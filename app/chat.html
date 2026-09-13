@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13c";
+  window.OCTOPUS_BUILD = "2026-09-13d";
 </script>
 
 <style>
@@ -843,23 +843,26 @@ function renderSide(){
 
 function brainDetail(b){
   const n = conceptsOf(b.slug).length, sc = sourcesOf(b.slug).length;
-  const priv = (b.visibility ?? "ask") === "private";
+  const v0 = String(b.visibility ?? "");
+  const open = v0 === "open" || v0 === "drop";
   const d = el("div","bdetail");
   d.append(el("div","sc", b.scope || "no scope line"),
            el("div","ct", `${n} concept${n===1?"":"s"} · ${sc} source${sc===1?"":"s"}`));
 
-  /* Whether the world can read this brain, and one click to change it. */
-  const v = el("div","vis" + (priv ? " priv" : ""));
-  v.append(el("span","lbl", priv ? "Private" : "Public"),
-           el("span","act", priv ? "make public" : "make private"));
-  v.title = priv ? "Only this app can read it" : "Anyone with the MCP address can read its positions";
+  /* Who may feed it, and one click to change that. Reading is never restricted. */
+  const v = el("div","vis" + (open ? "" : " priv"));
+  v.append(el("span","lbl", open ? "Anyone feeds" : "Only me feeds"),
+           el("span","act", open ? "close it" : "open it"));
+  v.title = open
+    ? "Any signed-in person can drop sources into this brain"
+    : "Only you can drop sources into this brain";
   v.onclick = async e => {
     e.stopPropagation();
     v.querySelector(".act").textContent = "saving";
     try {
-      await api("/api/brain/visibility", { slug: b.slug, visibility: priv ? "ask" : "private" });
+      await api("/api/brain/visibility", { slug: b.slug, visibility: open ? "closed" : "open" });
       await refresh(); render();
-    } catch(err){ v.querySelector(".act").textContent = "failed"; }
+    } catch(err){ v.querySelector(".act").textContent = err.message || "failed"; }
   };
   d.append(v);
   return d;
@@ -1092,16 +1095,16 @@ function openSheet(name, scope, type){
         <div class="hint">"health" is a folder. "sleep, recovery and training load for my own routine" is a brain.</div></div>
       <div class="f"><label>Kind</label><div class="seg" id="bType">
         <button data-t="subject">Subject</button><button data-t="person">Person</button></div></div>
-      <div class="f"><label>Who can read it</label><div class="seg" id="bVis">
-        <button data-v="ask">Public</button><button data-v="private">Private</button></div>
-        <div class="hint">Public means anyone with the Octopus MCP address reads its positions. Private keeps it to this app.</div></div>
+      <div class="f"><label>Who can feed it</label><div class="seg" id="bVis">
+        <button data-v="closed">Only me</button><button data-v="open">Anyone</button></div>
+        <div class="hint">Every brain is readable by anyone. This decides who may drop sources into it, because a source rewrites the positions inside.</div></div>
       <div id="closestSlot"></div>
       <footer><button class="ghost" id="bCancel">Cancel</button><button class="go" id="bMake">Check and create</button></footer>
     </div>`;
   document.body.append(veil);
   const nameI = veil.querySelector("#bName"), scopeI = veil.querySelector("#bScope");
   nameI.value = name||""; scopeI.value = scope||"";
-  let kind = type||"subject", vis = "ask";
+  let kind = type||"subject", vis = "closed";
   const paint = () => {
     [...veil.querySelectorAll("#bType button")].forEach(b => b.classList.toggle("on", b.dataset.t===kind));
     [...veil.querySelectorAll("#bVis button")].forEach(b => b.classList.toggle("on", b.dataset.v===vis));

@@ -9,73 +9,94 @@
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
 <style>
-  main{ padding-block:40px 72px; }
-  h1.hero{ font-size:clamp(27px,5vw,38px); }
+  main{ padding-block:36px 72px; }
+  .wrap{ max-width:1040px; }
+  h1.hero{ font-size:clamp(26px,4.6vw,36px); }
+  .tally{
+    margin-top:10px; font:400 13px/1.6 var(--mono); color:var(--ink-3);
+  }
+  .tally b{ color:var(--accent); font-weight:500; }
 
   /* search */
   .find{
-    display:flex; align-items:center; gap:9px; margin-top:24px; max-width:460px;
+    display:flex; align-items:center; gap:9px; margin-top:20px; max-width:420px;
     border:1px solid var(--line-2); border-radius:10px; background:var(--surface);
-    padding:0 13px; transition:border-color .15s var(--ease);
+    padding:0 12px; transition:border-color .15s var(--ease);
   }
   .find:focus-within{ border-color:var(--accent-fill); }
-  .find svg{ width:15px; height:15px; color:var(--ink-4); flex-shrink:0; }
+  .find svg{ width:14px; height:14px; color:var(--ink-4); flex-shrink:0; }
   .find input{
     flex:1; min-width:0; border:none; background:none; color:var(--ink);
-    font:400 15px/1 var(--sans); padding:13px 0;
+    font:400 14.5px/1 var(--sans); padding:11px 0;
   }
   .find input::placeholder{ color:var(--ink-4); }
   .find button{ color:var(--ink-4); font:400 17px/1 var(--sans); padding:4px; }
   .find button:hover{ color:var(--accent); }
-  .count{ margin-top:11px; font:400 11.5px/1 var(--mono); color:var(--ink-3); }
 
-  /* the list */
-  .list{ margin-top:22px; display:grid; gap:9px; }
-  .row{
-    border:1px solid var(--line); border-radius:11px; background:var(--surface);
-    overflow:hidden; transition:border-color .15s var(--ease), box-shadow .15s var(--ease);
+  /* the dense grid */
+  .grid2{
+    margin-top:18px; display:grid; gap:8px;
+    grid-template-columns:repeat(auto-fill,minmax(212px,1fr));
   }
-  .row:hover{ border-color:var(--line-2); }
-  .row.open{ border-color:var(--accent-line); box-shadow:var(--shadow); }
-  .row > button{
-    width:100%; text-align:left; padding:15px 17px;
-    display:grid; grid-template-columns:1fr auto; gap:4px 14px; align-items:center;
+  .tile{
+    display:flex; align-items:center; gap:11px; text-align:left; width:100%;
+    border:1px solid var(--line); border-radius:10px; background:var(--surface);
+    padding:11px 12px;
+    transition:border-color .14s var(--ease), background .14s var(--ease), transform .14s var(--ease);
   }
-  .row .nm{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .row .nm b{ font:600 16.5px/1.3 var(--sans); letter-spacing:-.012em; color:var(--ink); }
+  .tile:hover{ border-color:var(--accent-line); transform:translateY(-1px); }
+  .tile.on{ border-color:var(--accent-fill); background:var(--accent-soft); }
+  .glyph{
+    width:34px; height:34px; border-radius:8px; flex-shrink:0;
+    display:grid; place-items:center;
+    font:600 15px/1 var(--sans); color:var(--accent); background:var(--accent-soft);
+  }
+  .tile.on .glyph{ background:var(--surface); }
+  .tile .txt{ min-width:0; }
+  .tile .nm{
+    font:600 14.5px/1.3 var(--sans); letter-spacing:-.01em; color:var(--ink);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .tile .mt{ margin-top:3px; font:400 10.5px/1.3 var(--mono); color:var(--ink-3); }
+  .tile .mt .op{ color:var(--good); }
+  .tile .mt .sm{ color:var(--accent); }
+
+  /* the panel that opens under the grid */
+  .panel{
+    margin-top:16px; border:1px solid var(--accent-line); border-radius:12px;
+    background:var(--surface); box-shadow:var(--shadow); overflow:hidden;
+  }
+  .panel .ph{ padding:16px 18px 14px; border-bottom:1px solid var(--line); }
+  .panel .ph .r1{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+  .panel .ph h2{ margin:0; font:600 19px/1.25 var(--sans); letter-spacing:-.018em; color:var(--ink); }
   .tp{
     font:400 9px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase;
     padding:3px 5px; border-radius:3px; flex-shrink:0;
     color:var(--accent); background:var(--accent-soft);
   }
   .tp.person{ color:var(--ink-3); background:var(--surface-3); }
-  .row .sc{
-    grid-column:1; font-size:14px; line-height:1.45; color:var(--ink-3);
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  }
-  .row .side{
-    grid-row:1 / span 2; grid-column:2; display:flex; align-items:center; gap:11px;
-    font:400 10.5px/1 var(--mono); color:var(--ink-3); white-space:nowrap;
-  }
-  .row .chev{ font-size:9px; color:var(--ink-4); transition:transform .18s var(--ease); }
-  .row.open .chev{ transform:rotate(180deg); color:var(--accent); }
-
-  .body{ border-top:1px solid var(--line); padding:14px 17px 16px; }
-  .body .full{ font-size:14.5px; line-height:1.55; color:var(--ink-2); margin-bottom:14px; }
-  .body .lab{
+  .tp.feed{ color:var(--good); background:rgba(63,125,92,.12); }
+  .panel .ph .close{ margin-left:auto; color:var(--ink-3); font:400 19px/1 var(--sans); }
+  .panel .ph .close:hover{ color:var(--accent); }
+  .panel .ph .sc{ margin-top:9px; font-size:14.5px; line-height:1.55; color:var(--ink-2); max-width:70ch; }
+  .panel .ph .ct{ margin-top:10px; font:400 10.5px/1 var(--mono); color:var(--ink-3); }
+  .panel .pb{ padding:12px 18px 16px; }
+  .panel .lab{
     font:500 10px/1.6 var(--mono); letter-spacing:.07em; text-transform:uppercase;
     color:var(--ink-3); margin-bottom:6px;
   }
-  .body ol{ list-style:none; }
-  .body li{ padding:6px 0; border-bottom:1px solid var(--line); }
-  .body li:last-child{ border-bottom:none; }
-  .body .ti{ display:flex; gap:9px; align-items:baseline; }
-  .body .i{ font:400 10px/1.7 var(--mono); color:var(--ink-4); flex-shrink:0; }
-  .body .t{ font:500 14px/1.45 var(--sans); color:var(--ink); }
-  .body .ln{ font-size:13px; line-height:1.5; color:var(--ink-3); padding-left:19px; margin-top:1px; }
-  .body .none{ font-size:13.5px; color:var(--ink-3); }
+  .panel ol{ list-style:none; }
+  .panel li{ padding:7px 0; border-bottom:1px solid var(--line); }
+  .panel li:last-child{ border-bottom:none; }
+  .panel .ti{ display:flex; gap:9px; align-items:baseline; }
+  .panel .i{ font:400 10px/1.7 var(--mono); color:var(--ink-4); flex-shrink:0; }
+  .panel .t{ font:500 14.5px/1.45 var(--sans); color:var(--ink); }
+  .panel .ln{ font-size:13.5px; line-height:1.5; color:var(--ink-3); padding-left:19px; margin-top:1px; }
+  .panel .none{ font-size:13.5px; color:var(--ink-3); }
+
   mark{ background:var(--accent-soft); color:var(--accent); border-radius:2px; padding:0 1px; }
-  .state{ margin-top:22px; font-size:15px; color:var(--ink-3); }
+  .state{ margin-top:20px; font-size:15px; color:var(--ink-3); }
+  footer.bot .wrap{ justify-content:space-between; }
 </style>
 
 <header class="top"><div class="wrap">
@@ -90,18 +111,17 @@
 </div></header>
 
 <main><div class="wrap">
-  <h1 class="hero">Brains you can read.</h1>
-  <p class="lede">Each one covers a single subject and states what belongs in it. Open a brain to see the
-    ideas it holds.</p>
+  <h1 class="hero">Specialised knowledge, published.</h1>
+  <div class="tally" id="tally">loading</div>
 
   <div class="find">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
     <input id="q" type="search" placeholder="Search subjects and ideas" autocomplete="off" spellcheck="false">
     <button id="clear" hidden aria-label="Clear">&times;</button>
   </div>
-  <div class="count" id="count"></div>
 
-  <div class="list" id="list"></div>
+  <div class="grid2" id="grid"></div>
+  <div id="slot"></div>
   <p class="state" id="state" hidden></p>
 </div></main>
 
@@ -119,7 +139,7 @@
 
   let BRAINS = [], CONCEPTS = [], openSlug = null, query = "";
 
-  /* Wrap every hit so the reason a row survived the filter is visible. */
+  /* Mark the hits, so the reason a tile survived the filter is visible. */
   function hl(str, words){
     let out = esc(str);
     for (const w of words){
@@ -129,23 +149,66 @@
     return out;
   }
 
+  const own = slug => CONCEPTS.filter(c => c.brain === slug).sort((x,y)=>(x.n||0)-(y.n||0));
+
   function matches(b, words){
     if (!words.length) return true;
-    const own = CONCEPTS.filter(c => c.brain === b.slug);
     const hay = norm([b.name, b.scope, b.type,
-      own.map(c => c.title + " " + (c.summaryLine||"") + " " + (c.position||"")).join(" ")].join(" "));
+      own(b.slug).map(c => `${c.title} ${c.summaryLine||""} ${c.position||""}`).join(" ")].join(" "));
     return words.every(w => hay.includes(w));
+  }
+
+  function panel(b, words){
+    const cs = own(b.slug);
+    const p = el("div","panel");
+    const h = el("div","ph");
+    const r1 = el("div","r1");
+    const h2 = document.createElement("h2"); h2.innerHTML = hl(b.name, words);
+    r1.append(h2, el("span","tp "+(b.type==="person"?"person":"subject"), b.type));
+    if (b.open) r1.append(el("span","tp feed","anyone can feed"));
+    const x = el("button","close","\u00d7"); x.setAttribute("aria-label","Close");
+    x.onclick = () => { openSlug = null; draw(); };
+    r1.append(x);
+    const sc = el("div","sc"); sc.innerHTML = hl(b.scope || "no scope line", words);
+    h.append(r1, sc);
+    h.append(el("div","ct",
+      `${cs.length} concept${cs.length===1?"":"s"} · ${b.sources||0} source${(b.sources||0)===1?"":"s"}` +
+      ((b.sources||0) < 10 ? " · small brain" : "")));
+    p.append(h);
+
+    const pb = el("div","pb");
+    pb.append(el("div","lab","What it holds"));
+    if (!cs.length) pb.append(el("div","none","Nothing yet. This brain is waiting for its first source."));
+    else {
+      const ol = document.createElement("ol");
+      cs.forEach((c,i) => {
+        const li = document.createElement("li");
+        const ti = el("div","ti");
+        const t = el("span","t"); t.innerHTML = hl(c.title, words);
+        ti.append(el("span","i",pad2(c.n || i+1)), t);
+        li.append(ti);
+        const line = c.summaryLine || c.position || "";
+        if (line){ const d = el("div","ln"); d.innerHTML = hl(line, words); li.append(d); }
+        ol.append(li);
+      });
+      pb.append(ol);
+    }
+    p.append(pb);
+    return p;
   }
 
   function draw(){
     const words = norm(query).split(/\s+/).filter(Boolean);
     const shown = BRAINS.filter(b => matches(b, words));
-    const list = $("list"); list.innerHTML = "";
-
-    $("count").textContent = words.length
-      ? `${shown.length} of ${BRAINS.length} brains`
-      : `${BRAINS.length} brain${BRAINS.length===1?"":"s"}`;
+    const grid = $("grid"), slot = $("slot");
+    grid.innerHTML = ""; slot.innerHTML = "";
     $("clear").hidden = !query;
+
+    const ideas = CONCEPTS.length;
+    const sources = BRAINS.reduce((n,b) => n + (b.sources||0), 0);
+    $("tally").innerHTML = words.length
+      ? `<b>${shown.length}</b> of ${BRAINS.length} brains match`
+      : `<b>${ideas}</b> ideas · <b>${sources}</b> sources read · across <b>${BRAINS.length}</b> brains`;
 
     if (!shown.length){
       $("state").textContent = `Nothing matches "${query}". Try one word, or a subject.`;
@@ -154,50 +217,27 @@
     }
     $("state").hidden = true;
 
+    /* A closed tile carries three facts. Everything else waits for a click. */
     for (const b of shown){
-      const own = CONCEPTS.filter(c => c.brain === b.slug).sort((x,y)=>(x.n||0)-(y.n||0));
-      const open = openSlug === b.slug;
-      const row = el("div","row" + (open ? " open" : ""));
-
-      const head = document.createElement("button");
-      head.setAttribute("aria-expanded", String(open));
-      const nm = el("div","nm");
-      const nb = document.createElement("b"); nb.innerHTML = hl(b.name, words);
-      nm.append(nb, el("span","tp "+(b.type==="person"?"person":"subject"), b.type));
-      const sc = el("div","sc"); sc.innerHTML = hl(b.scope || "no scope line", words);
-      const side = el("div","side");
-      side.append(el("span",null,`${own.length} · ${b.sources||0}`), el("span","chev","▾"));
-      head.append(nm, sc, side);
-      head.title = `${own.length} concept${own.length===1?"":"s"}, ${b.sources||0} source${(b.sources||0)===1?"":"s"}`;
-      head.onclick = () => { openSlug = open ? null : b.slug; draw(); };
-      row.append(head);
-
-      if (open){
-        const body = el("div","body");
-        const full = el("div","full"); full.innerHTML = hl(b.scope || "no scope line", words);
-        body.append(full);
-        body.append(el("div","lab",
-          `${own.length} concept${own.length===1?"":"s"} · ${b.sources||0} source${(b.sources||0)===1?"":"s"}` +
-          ((b.sources||0) < 10 ? " · small brain" : "")));
-        if (!own.length) body.append(el("div","none","Nothing yet. This brain is waiting for its first source."));
-        else {
-          const ol = document.createElement("ol");
-          own.forEach((c,i) => {
-            const li = document.createElement("li");
-            const ti = el("div","ti");
-            const t = el("span","t"); t.innerHTML = hl(c.title, words);
-            ti.append(el("span","i",pad2(c.n || i+1)), t);
-            li.append(ti);
-            const line = c.summaryLine || c.position || "";
-            if (line){ const d = el("div","ln"); d.innerHTML = hl(line, words); li.append(d); }
-            ol.append(li);
-          });
-          body.append(ol);
-        }
-        row.append(body);
-      }
-      list.append(row);
+      const cs = own(b.slug);
+      const t = document.createElement("button");
+      t.className = "tile" + (openSlug === b.slug ? " on" : "");
+      t.append(el("div","glyph",(b.name||"?").trim().charAt(0).toUpperCase()));
+      const txt = el("div","txt");
+      const nm = el("div","nm"); nm.innerHTML = hl(b.name, words);
+      const mt = el("div","mt");
+      mt.append(el("span",null,`${cs.length} idea${cs.length===1?"":"s"} · `));
+      mt.append(el("span",(b.sources||0) < 10 ? "sm" : null, `${b.sources||0} source${(b.sources||0)===1?"":"s"}`));
+      if (b.open) mt.append(el("span","op"," · open"));
+      txt.append(nm, mt);
+      t.append(txt);
+      t.title = b.scope || "";
+      t.onclick = () => { openSlug = openSlug === b.slug ? null : b.slug; draw(); };
+      grid.append(t);
     }
+
+    const sel = shown.find(b => b.slug === openSlug);
+    if (sel) slot.append(panel(sel, words));
   }
 
   $("q").addEventListener("input", e => { query = e.target.value; draw(); });
@@ -210,17 +250,18 @@
       const d = await r.json();
       BRAINS = d.brains || []; CONCEPTS = d.concepts || [];
     } catch (e) {
+      $("tally").textContent = "";
       $("state").textContent = "The brains did not load. " + (e.message || "no answer") + ". Reload in a moment.";
       $("state").hidden = false;
       return;
     }
     if (!BRAINS.length){
-      $("state").textContent = "Every brain is private right now, so this list is empty.";
+      $("tally").textContent = "";
+      $("state").textContent = "No brains exist yet.";
       $("state").hidden = false;
       return;
     }
-    const sources = BRAINS.reduce((n,b) => n + (b.sources||0), 0);
-    $("foot").textContent = `${BRAINS.length} brains · ${CONCEPTS.length} concepts · ${sources} sources`;
+    $("foot").textContent = `${BRAINS.length} brains, all readable`;
     draw();
   })();
 </script>

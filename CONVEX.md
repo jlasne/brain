@@ -90,7 +90,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/ask` | The answer | Yes |
 | `/api/lock` | Drops the session | Yes |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
-| `/api/public/brains` | Public brains and their concepts, for the `/brains` page | No, by design |
+| `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
 | `/mcp` | The public MCP server, read only | No, by design |
 
 ## Why the key has to be server side
@@ -120,7 +120,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 
 | Table | Holds | Indexed by |
 |---|---|---|
-| `brains` | name, type, scope, created, visibility | slug |
+| `brains` | name, type, scope, created, visibility, owner | slug |
 | `concepts` | brain, title, position, summaryLine, evidence, data, conflicts, sources | brain, then slug |
 | `sources` | id, link, date, author, location, brains | link, and the normalised link |
 | `notes` | the six note sections | source id |
@@ -194,20 +194,37 @@ positions. Opening a brain to `drop` is the deliberate exception.
 Every source row records `by`, the account that fed it, so a contribution can be
 traced and undone.
 
-## Public and private brains
+## Every brain is readable. Feeding is the guarded act.
 
-A brain carries a `visibility`. Absent reads as `ask`, so brains made before the
-field behave as they did.
+Reading is never restricted, on this site or through the connector. That is the
+point of the place: the brains are published.
 
-| Value | Who reads it | Who feeds it |
-|---|---|---|
-| `private` | The app only | You |
-| `ask` | Anyone, through `/mcp` and `/brains` | You |
-| `drop` | Anyone | Reserved for the API key phase |
+A source rewrites positions, so feeding is what needs a rule. `visibility` says
+who may feed one brain.
 
-One query enforces it. `store.publicEverything` drops private brains and every
-concept and source under them, and both public endpoints read through it, so no
-tool has to remember the check.
+| Value | Who may feed it |
+|---|---|
+| absent, `closed` | The account that created it. The owner, for brains made before accounts |
+| `open` | Any signed-in account |
+
+`ask`, `private` and `drop` are earlier spellings still in the store. `isOpen`
+in `lib.ts` reads `drop` as `open` and everything else as closed, so no row
+needs migrating.
+
+`canDrop` is the whole rule, and 18 tests cover it across all three spellings:
+
+| | Owner's brains | Their own | Another account's |
+|---|---|---|---|
+| Owner feeds | yes | yes | yes |
+| Member feeds | no | yes | only if open |
+
+A brain with no `owner` predates accounts and belongs to the owner, so a member
+cannot feed it. Opening a brain is the deliberate exception, and the only way
+an outside source reaches someone else's positions.
+
+Every source row records `by`, the account that fed it, so a contribution can be
+traced and undone.
+
 
 The tools:
 
