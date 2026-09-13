@@ -3,22 +3,38 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27%23d97757%27 fill-rule=%27evenodd%27%3E%3Cpath d=%27M5 14a7 7 0 0 1 14 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0ZM9.7 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4ZM14.3 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z%27/%3E%3C/svg%3E">
+<link rel="icon" href="/brand/logo-mark.png">
 <link rel="stylesheet" href="/octopus.css">
 
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
 <style>
-  main{ padding-block:clamp(64px,13vh,132px) 96px; }
-  .hero-wrap{ max-width:19ch; }
-  h1.hero{
-    font-size:clamp(36px,7.4vw,62px); line-height:1.03; letter-spacing:-.035em; font-weight:600;
+  main{ padding-block:clamp(52px,10vh,104px) 96px; }
+
+  .hero-wrap{ text-align:center; }
+  /* The square mark takes its height from its width. A percentage height here
+     has no definite parent to resolve against, and stretches into a spike. */
+  .bigmark{ width:clamp(62px,10vw,86px); aspect-ratio:1; margin:0 auto 22px; }
+  .bigmark img{ width:100%; height:auto; display:block; }
+  .eyebrow{
+    margin-bottom:18px; font:500 11px/1.7 var(--mono); letter-spacing:.11em;
+    text-transform:uppercase; color:var(--accent);
   }
-  p.lede{
-    margin-top:26px; max-width:50ch; font-size:clamp(16px,2.1vw,18.5px);
+  h1.hero{
+    font-size:clamp(34px,6.6vw,58px); line-height:1.04; letter-spacing:-.035em; font-weight:600;
+    max-width:24ch; margin-inline:auto;
+  }
+  h1.hero em{ font-style:italic; font-weight:600; color:var(--accent); }
+  .subs{ margin-top:24px; }
+  .subs p{
+    margin:0 auto; max-width:58ch; font-size:clamp(15.5px,2vw,17.5px);
     line-height:1.62; color:var(--ink-2);
   }
-  .stats{ margin-top:40px; }
+  .subs p + p{ margin-top:5px; }
+  .quiet{
+    margin-top:20px; font:italic 400 15px/1.6 var(--sans); color:var(--ink-3);
+  }
+  .stats{ margin-top:36px; justify-content:center; }
 
   .sections{ margin-top:clamp(72px,11vh,116px); display:grid; gap:clamp(44px,7vh,68px); }
   .sec{ display:grid; grid-template-columns:minmax(0,20ch) minmax(0,46ch); gap:8px 56px; align-items:baseline; }
@@ -41,7 +57,7 @@
 </style>
 
 <header class="top"><div class="wrap">
-  <span class="mark"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M5 14a7 7 0 0 1 14 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0ZM9.7 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4ZM14.3 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z"/></svg></span>
+  <span class="mark"><img src="/brand/logo-mark.png" alt="Octopus" width="48" height="48"></span>
   <span class="wordmark">Octopus</span>
   <nav class="links">
     <a href="/brains">Brains</a>
@@ -53,10 +69,16 @@
 <main><div class="wrap">
 
   <div class="hero-wrap">
-    <h1 class="hero">Open sourcing specialised knowledge.</h1>
+    <div class="bigmark"><img src="/brand/logo-mark.png" alt="Octopus" width="120" height="120"></div>
+    <div class="eyebrow">Open source &middot; Your key &middot; Your brains</div>
+    <h1 class="hero">The AI that <em>sharpens</em> your thinking.</h1>
+    <div class="subs">
+      <p>Generic advice is free and everywhere. What you actually read and trusted is not.</p>
+      <p>Drop a video, an article or a study. It keeps the reasoning, the figures and the dates.</p>
+      <p>Ask in plain words, here or from the assistant you already use.</p>
+    </div>
+    <p class="quiet">No subscription. Your key, your spending, your brains.</p>
   </div>
-  <p class="lede">Generic advice is free and everywhere. The sources you chose, read and trusted sit in
-    saved links and watched videos, and you have forgotten most of them. Octopus keeps the thinking.</p>
 
   <div class="stats" id="stats" hidden>
     <div class="stat"><b id="nBrains">0</b><span>brains</span></div>

@@ -62,7 +62,7 @@ header.top{
 }
 header.top .wrap{ display:flex; align-items:center; gap:11px; padding-block:13px; }
 .mark{ width:24px; height:24px; flex-shrink:0; color:var(--accent-fill); }
-.mark svg{ width:100%; height:100%; display:block; }
+.mark svg, .mark img{ width:100%; height:100%; display:block; }
 .wordmark{ font:600 18px/1 var(--sans); letter-spacing:-.015em; color:var(--ink); }
 nav.links{ margin-left:auto; display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
 nav.links a{
