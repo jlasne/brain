@@ -9,11 +9,6 @@
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
 <style>
-  pre{
-    margin-top:14px; padding:14px 16px; border-radius:10px; overflow-x:auto;
-    background:var(--surface-2); border:1px solid var(--line);
-    font:400 12.5px/1.65 var(--mono); color:var(--ink-2);
-  }
   .two{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(252px,1fr)); margin-top:14px; }
   .two .card h3{ display:flex; align-items:center; gap:7px; }
   .two .card .tick{ color:var(--good); font-size:13px; }
@@ -38,16 +33,12 @@
 
   <div class="eyebrow">MCP server</div>
   <h1 class="hero">Point any MCP client at the brains.</h1>
-  <p class="lede">One address, added once. Your client reads the positions and their evidence, then reasons
-    over them itself. No key, no sign-up, and reading costs nothing.</p>
 
   <h2>The address</h2>
   <div class="urlbox">
     <input id="url" readonly spellcheck="false" value="loading">
     <button id="copy">Copy</button>
   </div>
-  <p class="note"><code>/mcp/v1</code> reaches the same server, for a client that wants to pin a
-    version. The deployment answers directly too, at <code id="alt">loading</code>.</p>
 
   <h2>How to add it</h2>
   <ol class="steps">
@@ -56,8 +47,6 @@
     <li>Paste the address above. Leave authentication empty.</li>
     <li>Ask your question. The client calls <code>ask</code> and answers from what the brains hold.</li>
   </ol>
-  <p class="note">Tested from Claude, where it lives under Settings, then Connectors, then Add custom
-    connector. Any client speaking Streamable HTTP reaches it the same way.</p>
 
   <h2>The tools it exposes</h2>
   <div class="tbl"><table>
@@ -92,15 +81,6 @@
     </div>
   </div>
 
-  <h2>Why it can stay open</h2>
-  <p>No tool here calls a model, so the endpoint spends nothing and the caller's own model does the
-    thinking. That reads better than a cheap model would, and it means an open door costs the brains
-    nothing beyond the database reads, which a rate limit caps.</p>
-
-  <h2>Check it yourself</h2>
-  <pre id="curl">loading</pre>
-  <p class="note">Transport is Streamable HTTP. A POST carrying one JSON-RPC request gets one JSON object
-    back, so the server holds no session. A GET answers 405.</p>
 
 </div></main>
 
@@ -115,11 +95,6 @@
      answers, and the page names it as the fallback. */
   const url = location.origin + "/mcp/v0";
   document.getElementById("url").value = url;
-  document.getElementById("alt").textContent = window.OCTOPUS_API + "/mcp";
-  document.getElementById("curl").textContent =
-`curl -s -X POST ${url} \\
-  -H 'Content-Type: application/json' \\
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`;
 
   document.getElementById("copy").onclick = async () => {
     const btn = document.getElementById("copy"), inp = document.getElementById("url");
