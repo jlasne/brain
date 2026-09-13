@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13m";
+  window.OCTOPUS_BUILD = "2026-09-13o";
 </script>
 
 <style>
@@ -230,6 +230,24 @@
   .mrow span{ display:block; margin-top:2px; font:400 11.5px/1.6 var(--mono); color:var(--ink-3); }
   .mrow.on b{ color:var(--accent); }
   .mnone{ padding:14px 12px; font:400 13px/1.5 var(--sans); color:var(--ink-3); }
+
+  /* The three ways in, on the first screen of the door. */
+  .picks{ padding:16px 20px 2px; }
+  .pick-row{
+    display:block; width:100%; text-align:left; padding:13px 14px; margin-bottom:9px;
+    border:1px solid var(--line-2); border-radius:11px; background:var(--bg);
+    transition:border-color .15s var(--ease), background .15s var(--ease);
+  }
+  a.pick-row, a.pick-row:hover{ color:inherit; text-decoration:none; }
+  .pick-row:hover{ border-color:var(--accent-fill); background:var(--surface-2); text-decoration:none; }
+  .pick-row b{ display:block; font:600 14.5px/1.35 var(--sans); color:var(--ink); }
+  .pick-row span{ display:block; margin-top:4px; font:400 13px/1.5 var(--sans); color:var(--ink-3); }
+  .pick-row em{ font-style:normal; color:var(--accent); }
+  .sheet .home{
+    margin-right:auto; font:400 13px/1 var(--sans); color:var(--ink-3);
+    text-decoration:underline; text-underline-offset:2px; align-self:center;
+  }
+  .sheet .home:hover{ color:var(--accent); }
 
   /* ============ main ============ */
   main{ display:flex; flex-direction:column; min-height:0; min-width:0; }
@@ -721,18 +739,20 @@ function gateScreen() {
   const veil = el("div","veil");
   document.body.append(veil);
 
-  /* Two doors.
+  /* Three ways in, named on the first screen so the choice is made before any
+     field appears.
+       guest   a key and nothing else, forgotten when the tab closes. Reading only.
        member  a name and a password. The key can be remembered on the account.
-       guest   a key and nothing else, forgotten when the tab closes.
+       mcp     a link out, because the connector needs no key and no account.
      The passphrase door is gone. Its route still answers, so a deployment that
      loses every account password has a way back in through the API. */
   let mode = "member";
-  let step = "in";          // "in", then "key" when an account has none saved
+  let step = "pick";        // "pick", then "in", then "key" when an account has none saved
   let acct = null;          // what /api/login handed back
 
   const HEAD = {
-    member: ["Sign in", "A name and a password. Your model key pays for what you ask and drop, and you choose whether this account remembers it."],
-    guest:  ["Read access", "No account. Paste a key, ask anything, and the key is forgotten when this tab closes. Reading only, so no source lands and no position moves."],
+    member: ["Create or connect", "A name and a password. An unused name opens an account. Your model key pays for what you ask and drop."],
+    guest:  ["Read access", "Paste a key, ask anything. The key is forgotten when this tab closes."],
   };
 
   const finish = (token, who) => {
@@ -773,9 +793,39 @@ function gateScreen() {
           <div class="hint">A name nobody has taken opens a new account.</div>
         </div>`;
 
+    /* The first screen names the three ways in and asks for nothing. */
+    if (step === "pick") {
+      veil.innerHTML = `
+        <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="gh">
+          <header>
+            <div class="mk" aria-hidden="true">${MARK}</div>
+            <h3 id="gh">Three ways in</h3>
+            <p>Every brain is readable. What changes is whether you can feed one, and whether anything is remembered.</p>
+          </header>
+          <div class="picks">
+            <button class="pick-row" type="button" data-pick="guest">
+              <b>Read only, nothing kept</b>
+              <span>Paste your model key and ask. The key goes when this tab closes. <em>No account.</em></span>
+            </button>
+            <button class="pick-row" type="button" data-pick="member">
+              <b>Feed and read</b>
+              <span>A name and a password. Drop sources, create brains, and save your key if you want it remembered. <em>Creates the account if the name is free.</em></span>
+            </button>
+            <a class="pick-row" href="/mcp">
+              <b>From your own AI client</b>
+              <span>Add the Octopus connector and read every brain where you already work. <em>No key, no account.</em></span>
+            </a>
+          </div>
+          <footer><a class="home" href="/">Octopus home</a></footer>
+        </div>`;
+      veil.querySelectorAll("[data-pick]").forEach(btn => {
+        btn.onclick = () => { mode = btn.dataset.pick; step = "in"; paint(); };
+      });
+      return;
+    }
+
     const swaps = step === "key" ? ""
-      : mode === "member" ? `<button class="ghost" type="button" data-go="guest">Read access</button>`
-      : `<button class="ghost" type="button" data-go="member">Sign in</button>`;
+      : `<button class="ghost" type="button" data-go="pick">Back</button>`;
 
     veil.innerHTML = `
       <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="gh">
@@ -789,13 +839,13 @@ function gateScreen() {
         <form>
           ${form}
           <div class="f"><div id="gmsg" class="bad" role="alert"></div></div>
-          <footer>${swaps}<button class="go" type="submit">Open</button></footer>
+          <footer><a class="home" href="/">Octopus home</a>${swaps}<button class="go" type="submit">Open</button></footer>
         </form>
       </div>`;
 
     const msg = veil.querySelector("#gmsg");
     veil.querySelectorAll("[data-go]").forEach(btn => {
-      btn.onclick = () => { mode = btn.dataset.go; step = "in"; paint(); };
+      btn.onclick = () => { step = btn.dataset.go; paint(); };
     });
     setTimeout(() => veil.querySelector("#gn, #gk")?.focus(), 60);
 
