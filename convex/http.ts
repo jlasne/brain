@@ -357,6 +357,18 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
 - 8 to 15 sentences, one per line. A blank line may separate two groups.`,
   };
 
+  /**
+   * The last few turns of this thread, so "what about the second one" means
+   * something.
+   *
+   * They arrive from the browser and are never written down. They set what a
+   * follow-up refers to, and nothing else: every claim in the answer still has
+   * to come from the stored knowledge, which the rules below say plainly.
+   */
+  const history = (Array.isArray(b.history) ? b.history : []).slice(-4);
+  const earlier = history.map((h: any) =>
+    `Q: ${String(h.q ?? "").slice(0, 400)}\nA: ${String(h.a ?? "").slice(0, 1200)}`).join("\n\n");
+
   const { text } = await ask([
     { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You always answer in English." },
     { role: "user", content:
@@ -380,7 +392,13 @@ ${nSources > 0 && nSources < 10 ? `- This rests on ${nSources} source${nSources 
 - Then a blank line, then exactly one final line: "Sources: {author}, {date} - {author}, {date}" listing only sources you used. Omit that line if you used none.
 - English, always. No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
 - If the stored knowledge does not answer it, say so plainly in one sentence and name what kind of source would fill the gap. Never invent evidence.
+${earlier ? `- The question may be a follow-up. Read it against the conversation below, so a pronoun or "the second one" points at the right thing.` : ""}
+${earlier ? `
+EARLIER IN THIS CONVERSATION
+${earlier}
 
+That is context for reading the question, never a source. Every claim in your answer comes from the stored knowledge below. A claim you made earlier that the stored knowledge does not carry is dropped, not repeated.
+` : ""}
 STORED KNOWLEDGE
 ${dossier}
 
