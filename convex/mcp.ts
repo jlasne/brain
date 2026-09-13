@@ -1,13 +1,15 @@
 /**
- * A public, read-only MCP server over the brains.
+ * An MCP server over the brains: public for reading, signed for feeding.
  *
  * Anyone can add this as a custom connector in their own Claude and read what
  * the brains hold. Three properties make that safe to leave open:
  *
  *   1. No model call happens here, so no OpenRouter credit is ever spent. The
  *      reader's own Claude subscription does the thinking.
- *   2. Every tool reads. Nothing writes, so no visitor can move a position,
- *      add a source, or reject one.
+ *   2. Every public tool reads. Writing needs a personal address carrying an
+ *      account's own token, so an anonymous visitor cannot move a position,
+ *      add a source, or reject one. The write tools are not even listed
+ *      without that token.
  *   3. A per-address rate limit caps how fast one caller can pull, so a
  *      scraping loop cannot exhaust the deployment's quota.
  *
@@ -17,6 +19,8 @@
  */
 
 import { internal } from "./_generated/api";
+import { randomHex, today } from "./lib";
+import { dropCheck, dropSettle, feedable, planContext, PLAN_RULES } from "./drop";
 
 /** Versions this server speaks. The newest sits first, so it wins by default. */
 export const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -124,6 +128,149 @@ export const TOOLS = [
   },
 ];
 
+/**
+ * Feeding, in four steps, listed only for a caller whose address carries a token.
+ *
+ * No step calls a model here. The client's own model does every piece of
+ * thinking, and each tool hands back the exact instructions for the next piece.
+ * So a drop through a connector costs this deployment nothing, and costs the
+ * person only what their own client already charges them.
+ *
+ * The rules are the same ones the app pays a model to follow, and the writing
+ * side validates whatever comes back, so a brain cannot be filled with junk by
+ * a client that ignores them.
+ */
+export const WRITE_TOOLS = [
+  {
+    name: "drop_source",
+    title: "Start a drop",
+    description:
+      "Step 1 of 4 of feeding a source into the brains. YOU read the source and fill in `extraction`. " +
+      "Cover every topic present, whether or not it looks relevant, because this is the only read. " +
+      "Keep ideas, numbers, names, dates, reasoning chains, exact quotes and historical comparisons. " +
+      "Drop repetition, advertising, small talk and filler. Write every field in English whatever " +
+      "language the source is in, except quotes, which stay exact in the original, because a " +
+      "translated quote stops being evidence. `thin` holds claims made with no number behind them. " +
+      "The source text itself is never sent and never stored. Returns the next instructions.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        extraction: {
+          type: "object",
+          description: "Everything worth keeping from the source.",
+          properties: {
+            title: { type: "string" },
+            author: { type: "string" },
+            date: { type: "string", description: "YYYY-MM-DD, or empty when the source carries none." },
+            topics: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  topic: { type: "string" },
+                  ideas: { type: "array", items: { type: "string" } },
+                  data: { type: "array", items: { type: "string" }, description: "Numbers, with what they measure." },
+                },
+                required: ["topic"],
+              },
+            },
+            quotes: {
+              type: "array",
+              items: { type: "object", properties: { text: { type: "string" }, speaker: { type: "string" } } },
+            },
+            thin: { type: "array", items: { type: "string" } },
+          },
+          required: ["title", "topics"],
+        },
+        link: { type: "string", description: "The source URL, when there is one. Used to catch a repeat." },
+        brain: { type: "string", description: "Optional brain slug. Omit and the scope lines route it." },
+      },
+      required: ["extraction"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "drop_plan",
+    title: "File the source against what the brains hold",
+    description:
+      "Step 2 of 4. Call drop_source first: it returns the brains, their concepts and the filing " +
+      "rules. Follow those rules, then send the plan here. The plan is checked against the real " +
+      "concept ids, stored, and returned as a card for the person. Nothing is written yet.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        draft: { type: "string", description: "The draft id from drop_source." },
+        plan: { type: "object", description: "The plan, in the shape drop_source asked for." },
+      },
+      required: ["draft", "plan"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "drop_prepare",
+    title: "Settle the contradictions and take the rewrite job",
+    description:
+      "Step 3 of 4. Show the card from drop_plan to the person and get their ruling on every " +
+      'contradiction first. "new" means the source wins and the old view moves into evidence. ' +
+      '"old" means the stored position holds and the new claim joins the evidence. "both" keeps ' +
+      "the position and records the clash. A contradiction left out keeps both. Returns the whole " +
+      "evidence list behind each position it touches, plus the rewriting rules. Still nothing written.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        draft: { type: "string", description: "The draft id from drop_source." },
+        rulings: {
+          type: "object",
+          description: 'Concept id to "new", "old" or "both". Ids come from the card.',
+          additionalProperties: { type: "string", enum: ["new", "old", "both"] },
+        },
+        take: {
+          type: "array", items: { type: "string" },
+          description: "Candidate concept titles to create in this drop rather than count toward three.",
+        },
+      },
+      required: ["draft"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "drop_store",
+    title: "Write the rewritten positions",
+    description:
+      "Step 4 of 4. This writes. Send the rewrites you produced from the job drop_prepare returned. " +
+      "Each position is re-derived from its whole evidence list, never appended to. The source row " +
+      "and the note are written, and the receipt comes back. Tell the person what moved.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        draft: { type: "string", description: "The draft id from drop_source." },
+        rewrites: {
+          type: "array",
+          description: "One entry per concept in the job.",
+          items: {
+            type: "object",
+            properties: {
+              conceptId: { type: "string" },
+              position: { type: "string" },
+              summaryLine: { type: "string", description: "One line, under 18 words." },
+              data: { type: "array", items: { type: "string" } },
+              conflicts: {
+                type: "array",
+                items: { type: "object", properties: {
+                  a: { type: "string" }, aDate: { type: "string" },
+                  b: { type: "string" }, bDate: { type: "string" }, why: { type: "string" } } },
+              },
+            },
+            required: ["conceptId", "position", "summaryLine"],
+          },
+        },
+      },
+      required: ["draft", "rewrites"],
+      additionalProperties: false,
+    },
+  },
+];
+
 /* ---------- helpers over the snapshot ---------- */
 
 const norm = (s: any) => String(s ?? "").toLowerCase().trim();
@@ -184,9 +331,224 @@ function conceptFull(c: any, brainName: string) {
   ].join("\n");
 }
 
+/* ---------- feeding ---------- */
+
+/** Who a personal address resolves to. Null is an anonymous reader. */
+export type Caller = { account: string; name: string } | null;
+
+/** Parts arrive one call at a time and read as one source. */
+const mergeExt = (a: any, b: any) => ({
+  title: a?.title || b?.title || "",
+  author: a?.author || b?.author || "",
+  date: a?.date || b?.date || "",
+  topics: [...(a?.topics ?? []), ...(b?.topics ?? [])],
+  quotes: [...(a?.quotes ?? []), ...(b?.quotes ?? [])],
+  thin: [...(a?.thin ?? []), ...(b?.thin ?? [])],
+});
+
+/** The card, as text, because a connector has no card to click. */
+function cardText(plan: any, brains: any[], concepts: any[], draft: string) {
+  const named = (s2: string) => brains.find((b: any) => b.slug === s2)?.name ?? s2;
+  const matched = (plan.matched ?? []).map((m: any) => {
+    const c = concepts.find((x: any) => `${x.brain}/${x.slug}` === m.conceptId);
+    return `- ${c ? c.title : m.conceptId}  [${m.conceptId}]\n  adds: ${m.whatItAdds ?? ""}`;
+  });
+  const cands = (plan.candidates ?? []).map((c: any) =>
+    `- ${c.title} in ${named(c.brain)}\n  why: ${c.why ?? ""}`);
+  const clashes = (plan.conflicts ?? []).map((c: any, i: number) => {
+    const id = c.conceptId || `${c.brain}/${c.concept}`;
+    return [
+      `${i + 1}. ${c.concept}  [${id}]`,
+      `   ${c.kind === "flip" ? "changes the position" : c.kind === "drift" ? "same person, later view" : "adds nuance, position holds"}`,
+      `   new:    ${c.says ?? ""} (${c.saysDate || "undated"})`,
+      `   stored: ${c.stored ?? ""} (${c.storedDate || "undated"})`,
+      ...(c.why ? [`   they differ because ${c.why}`] : []),
+    ].join("\n");
+  });
+
+  return [
+    `DRAFT ${draft}`,
+    `GOES TO: ${(plan.brains ?? []).map(named).join(", ") || "no brain matched"}`,
+    ``,
+    `POSITIONS IT TOUCHES (${matched.length})`,
+    matched.join("\n") || "- none",
+    ``,
+    `NEW CONCEPTS PROPOSED (${cands.length})`,
+    cands.join("\n") || "- none",
+    ...(cands.length ? [`A new concept needs 3 separate sources. Name one in "take" to create it now.`] : []),
+    ``,
+    `NEW CLAIMS (${(plan.new ?? []).length})`,
+    (plan.new ?? []).map((x: string) => `- ${x}`).join("\n") || "- none",
+    ``,
+    `ECHOES (${(plan.echo ?? []).length})`,
+    (plan.echo ?? []).map((e: any) => `- ${e.claim} repeats ${e.repeatsSource || "an earlier source"}`).join("\n") || "- none",
+    ``,
+    `CONTRADICTIONS TO SETTLE (${clashes.length})`,
+    clashes.join("\n\n") || "none",
+    ``,
+    `===== WHAT TO DO NOW =====`,
+    clashes.length
+      ? `Show every contradiction above to the person and ask which side holds. Then call drop_prepare with rulings, keyed by the concept id in brackets: "new", "old" or "both". Silence keeps both.`
+      : `Nothing here contradicts what the brains hold. Ask the person to confirm, then call drop_prepare.`,
+    `Nothing is written until drop_store, which comes after drop_prepare.`,
+  ].join("\n");
+}
+
+async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
+  if (!caller) {
+    return text("This address reads only. Feeding needs the personal connector address from your Octopus account.");
+  }
+  /* A member, so the same permission rules apply here as in the app: a brain is
+     feedable by the account that owns it, or by anyone when it is open. */
+  const who = { kind: "member" as const, account: caller.account };
+  const draftOf = async (token: string) =>
+    await ctx.runQuery(internal.store.getDraft, { token, account: caller.account });
+
+  if (name === "drop_source") {
+    const part = args?.extraction;
+    if (!part || typeof part !== "object" || !Array.isArray(part.topics) || !part.topics.length) {
+      return text("Send the extraction with at least one topic. Read the source yourself and fill it in.");
+    }
+    const link = String(args?.link ?? "").trim();
+    const brain = String(args?.brain ?? "").trim();
+
+    const chk = await dropCheck(ctx, { link, text: JSON.stringify(part).slice(0, 400) });
+    if (chk.duplicate) {
+      return text(`Already stored as ${chk.sid}, filed ${chk.date || "earlier"} into ` +
+        `${(chk.brains ?? []).join(", ") || "no brain"}. Nothing to do.`);
+    }
+
+    const ext = mergeExt(part, {});
+    const draft = randomHex(16);
+    await ctx.runMutation(internal.store.newDraft,
+      { token: draft, account: caller.account, link, sid: chk.sid, brain, ext });
+
+    const { concepts, sources, pool } = await feedable(ctx, who, brain || "all");
+    if (!pool.length) {
+      return text(brain
+        ? `You cannot feed "${brain}". Either it does not exist, or its owner keeps it closed.`
+        : "There is no brain you may feed. Create one in Octopus, or ask an owner to open theirs.");
+    }
+
+    return text([
+      `DRAFT ${draft}`,
+      `read: ${ext.title || "untitled"} | ${ext.author || "unknown author"} | ${ext.date || "undated"}`,
+      `${ext.topics.length} topic${ext.topics.length === 1 ? "" : "s"} kept.`,
+      ``,
+      `===== NOW FILE IT. Send the result to drop_plan with this draft id. =====`,
+      ``,
+      PLAN_RULES,
+      planContext(pool, concepts, sources, ext),
+    ].join("\n"));
+  }
+
+  if (name === "drop_plan") {
+    const token = String(args?.draft ?? "").trim();
+    const d = await draftOf(token);
+    if (!d) return text(`Draft ${token} is gone. Start again with drop_source.`);
+    const plan = args?.plan;
+    if (!plan || typeof plan !== "object") return text("Send the plan, in the shape drop_source asked for.");
+
+    const { brains, concepts, pool } = await feedable(ctx, who, d.brain || "all");
+    const targets = (plan.brains ?? []).filter((x: string) => pool.some((y: any) => y.slug === x));
+    if (!targets.length) {
+      return text(`"brains" named none you may feed. Pick from: ${pool.map((b: any) => b.slug).join(", ")}.`);
+    }
+    /* A concept id the brains do not carry would file the source nowhere, so it
+       is caught here rather than after a rewrite that goes nowhere. */
+    const bad = (plan.matched ?? [])
+      .map((m: any) => String(m.conceptId ?? ""))
+      .filter((id: string) => !concepts.some((c: any) => `${c.brain}/${c.slug}` === id));
+    if (bad.length) {
+      return text(`These concept ids do not exist: ${bad.join(", ")}.\n` +
+        `Use the ids listed under BRAINS AND THEIR CONCEPTS, exactly, in the form brain/slug. ` +
+        `An idea no listed concept covers belongs under "candidates", not "matched".`);
+    }
+
+    await ctx.runMutation(internal.store.saveDraft, { token, account: caller.account, plan });
+    return text(cardText(plan, brains, concepts, token));
+  }
+
+  if (name === "drop_prepare") {
+    const token = String(args?.draft ?? "").trim();
+    const d = await draftOf(token);
+    if (!d) return text(`Draft ${token} is gone. Start again with drop_source.`);
+    if (!d.plan) return text(`Draft ${token} has no plan yet. Call drop_plan first.`);
+
+    const { choices, promote } = rulings(args);
+    await ctx.runMutation(internal.store.saveDraft,
+      { token, account: caller.account, plan: { ...d.plan, choices, promote } });
+
+    const r = await dropSettle(ctx, who, {
+      ext: d.ext, plan: d.plan, sid: d.sid, link: d.link, choices, promote, packetOnly: true });
+    if (r.error) return text(String(r.error));
+    if (!r.job) {
+      return text([
+        `Nothing to rewrite in draft ${token}.`,
+        ...(r.counted ?? []).map((c: any) =>
+          `- ${c.title}: counted at ${c.have} of 3, ${c.need} more source${c.need === 1 ? "" : "s"} makes it a position`),
+        ``,
+        `Call drop_store with an empty rewrites list to file the source anyway.`,
+      ].join("\n"));
+    }
+    return text([
+      `DRAFT ${token}: ${r.positions} position${r.positions === 1 ? "" : "s"} to rewrite.`,
+      ``,
+      `===== DO THIS, THEN SEND THE RESULT TO drop_store =====`,
+      ``,
+      r.job,
+    ].join("\n"));
+  }
+
+  if (name === "drop_store") {
+    const token = String(args?.draft ?? "").trim();
+    const d = await draftOf(token);
+    if (!d) return text(`Draft ${token} is gone. Start again with drop_source.`);
+    if (!d.plan) return text(`Draft ${token} has no plan yet. Call drop_plan first.`);
+    const rw = Array.isArray(args?.rewrites) ? args.rewrites : [];
+
+    /* The rulings were fixed at drop_prepare, so they cannot change under the
+       rewrites they produced. */
+    const choices = d.plan.choices ?? {};
+    const promote = d.plan.promote ?? [];
+
+    const r = await dropSettle(ctx, who, {
+      ext: d.ext, plan: d.plan, sid: d.sid, link: d.link,
+      location: "sent through a connector", choices, promote, rewrites: rw });
+    if (r.error) return text(String(r.error));
+
+    await ctx.runMutation(internal.store.killDraft, { token, account: caller.account });
+    const counted = (r.counted ?? []).map((c: any) =>
+      `- ${c.title}: counted at ${c.have} of 3, ${c.need} more source${c.need === 1 ? "" : "s"} makes it a position`);
+    return text([
+      `STORED ${r.sid} on ${today()}, by ${caller.name}.`,
+      `Brains: ${(r.brains ?? []).join(", ")}`,
+      `Positions rewritten: ${r.positions}`,
+      `New claims: ${r.counts?.new ?? 0} | echoes: ${r.counts?.echo ?? 0}`,
+      ...(counted.length ? [``, `COUNTED, NOT YET A POSITION`, ...counted] : []),
+      ``,
+      `Tell the person what moved, in one or two lines.`,
+    ].join("\n"));
+  }
+
+  return null;
+}
+
+/** The person's ruling on each contradiction, and any candidate they take now. */
+function rulings(args: any) {
+  const raw = args?.rulings && typeof args.rulings === "object" ? args.rulings : {};
+  const choices: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (v === "new" || v === "old" || v === "both") choices[k] = v;
+  }
+  return { choices, promote: Array.isArray(args?.take) ? args.take.map(String) : [] };
+}
+
 /* ---------- dispatch ---------- */
 
-export async function runTool(ctx: any, name: string, args: any) {
+export async function runTool(ctx: any, name: string, args: any, caller: Caller = null) {
+  if (WRITE_TOOLS.some(t => t.name === name)) return await runWriteTool(ctx, caller, name, args);
+
   /* Every brain is published, so there is nothing to filter here. Feeding is
      the guarded act, and no tool on this server writes. */
   const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
@@ -372,7 +734,7 @@ export async function runTool(ctx: any, name: string, args: any) {
 }
 
 /** One JSON-RPC message in, one reply out. Null means the caller sent a notification. */
-export async function handleRpc(ctx: any, msg: any): Promise<any | null> {
+export async function handleRpc(ctx: any, msg: any, caller: Caller = null): Promise<any | null> {
   const { id, method, params } = msg ?? {};
   const isNotification = id === undefined || id === null;
 
@@ -389,22 +751,33 @@ export async function handleRpc(ctx: any, msg: any): Promise<any | null> {
         "conflict, and the rules for writing the answer. The other tools are for browsing: list_brains, " +
         "read_brain, read_concept, search_brains, list_sources. Answer from what the tools return, cite the " +
         "authors and dates they carry, and say plainly when the brains do not cover a question rather than " +
-        "filling the gap yourself.",
+        "filling the gap yourself." +
+        (caller
+          ? ` This address is signed as ${caller.name}, so it can also feed a brain. Feeding runs in three ` +
+            "steps: drop_source reads the text, drop_plan compares it against what the brains hold and " +
+            "returns the contradictions, drop_store writes. Always show the plan to the person and get " +
+            "their ruling on each contradiction before calling drop_store."
+          : ""),
     });
   }
 
   /* Notifications carry no id and expect no reply. */
   if (String(method ?? "").startsWith("notifications/")) return null;
   if (method === "ping") return isNotification ? null : ok(id, {});
-  if (method === "tools/list") return ok(id, { tools: TOOLS });
+  /* The write tools are not listed for an anonymous reader, so a public client
+     never sees a door it cannot open. */
+  if (method === "tools/list") {
+    return ok(id, { tools: caller ? [...TOOLS, ...WRITE_TOOLS] : TOOLS });
+  }
 
   if (method === "tools/call") {
     const name = String(params?.name ?? "");
-    if (!TOOLS.some(t => t.name === name)) {
+    const known = caller ? [...TOOLS, ...WRITE_TOOLS] : TOOLS;
+    if (!known.some(t => t.name === name)) {
       return ok(id, { ...text(`This server has no tool named "${name}".`), isError: true });
     }
     try {
-      const out = await runTool(ctx, name, params?.arguments ?? {});
+      const out = await runTool(ctx, name, params?.arguments ?? {}, caller);
       if (!out) return ok(id, { ...text(`Tool "${name}" returned nothing.`), isError: true });
       return ok(id, out);
     } catch (e: any) {

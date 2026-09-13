@@ -43,7 +43,13 @@ export default defineSchema({
     keySavedAt: v.optional(v.string()),
     created: v.string(),
     lastSeen: v.string(),
-  }).index("by_slug", ["slug"]),
+    /* The secret that signs this account's personal connector address. It
+       travels in the URL a client stores, so it is the only credential an MCP
+       call can carry. Absent means the account has no connector yet. */
+    mcpToken: v.optional(v.string()),
+    mcpMade: v.optional(v.string()),
+  }).index("by_slug", ["slug"])
+    .index("by_mcpToken", ["mcpToken"]),
 
   brains: defineTable({
     slug: v.string(),
@@ -114,6 +120,28 @@ export default defineSchema({
     windowStart: v.number(),
     count: v.number(),
   }).index("by_who", ["who"]),
+
+  /**
+   * A drop in progress, held between MCP calls.
+   *
+   * The app keeps this in the browser across three requests. A connector has no
+   * browser, so the steps meet here instead. Only the extraction is kept, never
+   * the raw source, which is the same rule the notes follow.
+   *
+   * Rows expire, so an abandoned draft leaves nothing behind.
+   */
+  drafts: defineTable({
+    token: v.string(),
+    account: v.string(),
+    link: v.string(),
+    sid: v.string(),
+    brain: v.string(),
+    ext: v.any(),
+    plan: v.any(),
+    parts: v.number(),
+    created: v.string(),
+    expires: v.number(),
+  }).index("by_token", ["token"]),
 
   candidates: defineTable({
     brain: v.string(),

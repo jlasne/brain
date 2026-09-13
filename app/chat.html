@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13p";
+  window.OCTOPUS_BUILD = "2026-09-13q";
 </script>
 
 <style>
@@ -594,10 +594,10 @@
       <div class="side-h">Brains <b id="bcount"></b></div>
       <div id="brains"></div>
     </div>
-    <a class="connect-row" href="/mcp" title="The connector address and how to add it">
+    <button class="connect-row" id="mcpRow" title="Your connector addresses, for reading and for feeding">
       <span class="dot"></span><span>Octopus MCP</span>
       <span class="go-out">&#8599;</span>
-    </a>
+    </button>
     <div class="side-foot">
       <button id="keyBtn" title="Change the model key this account uses" hidden>key</button>
       <button id="lockBtn" title="Sign out and forget your key">lock</button>
@@ -1182,6 +1182,7 @@ $("burger").onclick = () => $("side").classList.toggle("open");
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
 $("stat").onclick = openModelSheet;
+$("mcpRow").onclick = openConnectorSheet;
 $("keyBtn").onclick = openKeySheet;
 $("testBtn").onclick = testSource;
 $("navToggle").onclick = () => { navOpen = false; paintNav(); };
@@ -1312,6 +1313,89 @@ function openKeySheet(){
         `Key set, ending **${esc(key.slice(-4))}**. ` +
         (S.hasKey ? "This account will remember it." : "It lives in this tab only.")); });
     } catch(e){ btn.disabled=false; msg.className="bad"; msg.textContent = e.message; }
+  };
+}
+
+/**
+ * The two connector addresses.
+ *
+ * The public one reads every brain and needs nothing. The personal one carries
+ * this account's token, so a client holding it can also feed the brains this
+ * account may feed. Feeding through a connector runs on that client's own
+ * model, so it spends no OpenRouter credit here.
+ */
+async function openConnectorSheet(){
+  closeSide();
+  const readUrl = location.origin + "/mcp/v0";
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <header><h3>Octopus MCP</h3>
+      <p>Add one of these to any MCP client as a remote server over HTTP. Leave authentication empty.</p></header>
+      <div class="f">
+        <label for="mcpRead">Read every brain</label>
+        <div class="urlbox"><input id="mcpRead" readonly spellcheck="false" value="${esc(readUrl)}"><button id="mcpReadCopy">Copy</button></div>
+        <div class="hint">No key, no account, nothing spent. Anyone can use this one.</div>
+      </div>
+      <div class="f" id="feedSlot"></div>
+      <div class="f"><div id="mcpMsg" class="bad" role="alert"></div></div>
+      <footer><a class="ghost" href="/mcp" style="text-decoration:none">How to add it</a><button class="go" id="mcpDone">Done</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const shut = () => veil.remove();
+  veil.querySelector("#mcpDone").onclick = shut;
+  veil.onclick = e => { if(e.target===veil) shut(); };
+  const msg = veil.querySelector("#mcpMsg"), slot = veil.querySelector("#feedSlot");
+  copyTo(veil.querySelector("#mcpReadCopy"), veil.querySelector("#mcpRead"));
+
+  if (S.who === "guest" || !S.account){
+    slot.innerHTML = `<div class="hint">Feeding through a connector belongs to an account. Sign in to get that address.</div>`;
+    return;
+  }
+
+  const paint = (st) => {
+    slot.innerHTML = st.has ? `
+      <label for="mcpFeed">Read and feed, as ${esc(S.account)}</label>
+      <div class="urlbox"><input id="mcpFeed" readonly spellcheck="false" value="${esc(location.origin + "/mcp/v0?k=" + st.token)}"><button id="mcpFeedCopy">Copy</button></div>
+      <div class="hint">Made ${esc(st.made || "earlier")}. Keep it private: whoever holds it can feed the brains you may feed.
+        The thinking runs on that client's own model, so nothing is spent here.</div>
+      <div class="row" style="margin-top:10px;display:flex;gap:8px">
+        <button class="ghost" id="mcpNew">Replace it</button>
+        <button class="ghost" id="mcpOff">Turn it off</button>
+      </div>`
+    : `
+      <label>Read and feed</label>
+      <div class="hint">No address yet. Make one and your own Claude can drop sources into your brains.
+        Every step runs on that client's model, so it spends nothing here.</div>
+      <div class="row" style="margin-top:10px"><button class="ghost" id="mcpMake">Make my address</button></div>`;
+
+    const copy = veil.querySelector("#mcpFeedCopy");
+    if (copy) copyTo(copy, veil.querySelector("#mcpFeed"));
+    const act = async (body, note) => {
+      msg.className="spin"; msg.textContent = "Saving";
+      try { const r = await api("/api/account/mcp", body);
+        if (r.error) throw new Error(r.error);
+        msg.className=""; msg.textContent = note; paint(r);
+      } catch(e){ msg.className="bad"; msg.textContent = e.message; }
+    };
+    const mk = veil.querySelector("#mcpMake") || veil.querySelector("#mcpNew");
+    if (mk) mk.onclick = () => act({ make: true }, "Address ready. Paste it into your client.");
+    const off = veil.querySelector("#mcpOff");
+    if (off) off.onclick = () => act({ forget: true }, "Turned off. Any client holding it now reads only.");
+  };
+
+  msg.className="spin"; msg.textContent = "Checking";
+  try { const st = await api("/api/account/mcp", {}); msg.textContent = ""; msg.className=""; paint(st); }
+  catch(e){ msg.className="bad"; msg.textContent = e.message; }
+}
+
+/* Clipboard access can be refused, so leaving the text selected is the fallback. */
+function copyTo(btn, input){
+  btn.onclick = async () => {
+    input.select();
+    try { await navigator.clipboard.writeText(input.value); btn.textContent = "Copied"; }
+    catch { btn.textContent = "Press copy"; }
+    setTimeout(() => { btn.textContent = "Copy"; }, 1600);
   };
 }
 

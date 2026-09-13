@@ -215,6 +215,117 @@ export const setVisibility = internalMutation({
  * The notes keep the old slug inside their raw findings. Nothing reads that for
  * routing, so it stays as the record of what the plan said at the time.
  */
+/* ---------------- the personal connector ---------------- */
+
+/**
+ * The account behind a connector address.
+ *
+ * The token is the whole credential, so it is matched on its own index and
+ * nothing else is accepted. An empty token never matches, because a row with no
+ * token stores undefined rather than "".
+ */
+export const accountByMcpToken = internalQuery({
+  args: { token: v.string() },
+  handler: async (ctx, a) => {
+    if (a.token.length < 24) return null;
+    const acc = await ctx.db.query("accounts")
+      .withIndex("by_mcpToken", q => q.eq("mcpToken", a.token)).unique();
+    return acc ? { slug: acc.slug, name: acc.name } : null;
+  },
+});
+
+/** Issue, replace or withdraw an account's connector address. */
+export const setMcpToken = internalMutation({
+  args: { slug: v.string(), token: v.union(v.string(), v.null()) },
+  handler: async (ctx, a) => {
+    const acc = await ctx.db.query("accounts")
+      .withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    if (!acc) throw new Error("no such account");
+    await ctx.db.patch(acc._id, a.token
+      ? { mcpToken: a.token, mcpMade: today() }
+      : { mcpToken: undefined, mcpMade: undefined });
+    return { token: a.token, made: a.token ? today() : "" };
+  },
+});
+
+/**
+ * The account's own address, token included.
+ *
+ * Only a signed-in session reaches this, and that same session can already
+ * write to these brains directly, so showing the token to it adds no reach.
+ * Hiding it would only mean the owner has to replace a working address every
+ * time they want to paste it into a second client.
+ */
+export const mcpState = internalQuery({
+  args: { slug: v.string() },
+  handler: async (ctx, a) => {
+    const acc = await ctx.db.query("accounts")
+      .withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    return { has: !!acc?.mcpToken, token: acc?.mcpToken ?? "", made: acc?.mcpMade ?? "" };
+  },
+});
+
+/* ---------------- a drop in progress ---------------- */
+
+/** Twelve hours is long enough for a conversation and short enough to forget. */
+const DRAFT_MS = 1000 * 60 * 60 * 12;
+
+export const newDraft = internalMutation({
+  args: { token: v.string(), account: v.string(), link: v.string(), sid: v.string(),
+          brain: v.string(), ext: v.any() },
+  handler: async (ctx, a) => {
+    await ctx.db.insert("drafts", {
+      ...a, plan: null, parts: 1, created: today(), expires: Date.now() + DRAFT_MS,
+    });
+    return { token: a.token };
+  },
+});
+
+export const getDraft = internalQuery({
+  args: { token: v.string(), account: v.string() },
+  handler: async (ctx, a) => {
+    const d = await ctx.db.query("drafts")
+      .withIndex("by_token", q => q.eq("token", a.token)).unique();
+    /* A draft belongs to the account that started it, so another connector
+       cannot read or store it. */
+    if (!d || d.account !== a.account) return null;
+    if (d.expires < Date.now()) return null;
+    return { token: d.token, link: d.link, sid: d.sid, brain: d.brain,
+             ext: d.ext, plan: d.plan, parts: d.parts };
+  },
+});
+
+export const saveDraft = internalMutation({
+  args: { token: v.string(), account: v.string(), ext: v.optional(v.any()),
+          plan: v.optional(v.any()), parts: v.optional(v.number()) },
+  handler: async (ctx, a) => {
+    const d = await ctx.db.query("drafts")
+      .withIndex("by_token", q => q.eq("token", a.token)).unique();
+    if (!d || d.account !== a.account) throw new Error("that draft is gone");
+    await ctx.db.patch(d._id, {
+      ...(a.ext !== undefined ? { ext: a.ext } : {}),
+      ...(a.plan !== undefined ? { plan: a.plan } : {}),
+      ...(a.parts !== undefined ? { parts: a.parts } : {}),
+    });
+    return { ok: true };
+  },
+});
+
+/** Drop the draft once it has landed, and sweep whatever has gone stale. */
+export const killDraft = internalMutation({
+  args: { token: v.string(), account: v.string() },
+  handler: async (ctx, a) => {
+    const d = await ctx.db.query("drafts")
+      .withIndex("by_token", q => q.eq("token", a.token)).unique();
+    if (d && d.account === a.account) await ctx.db.delete(d._id);
+    const now = Date.now();
+    for (const old of await ctx.db.query("drafts").collect()) {
+      if (old.expires < now) await ctx.db.delete(old._id);
+    }
+    return { ok: true };
+  },
+});
+
 export const renameBrain = internalMutation({
   args: { slug: v.string(), name: v.string(), scope: v.optional(v.string()),
           account: v.union(v.string(), v.null()) },

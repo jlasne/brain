@@ -1,5 +1,5 @@
 <title>Octopus MCP</title>
-<meta name="description" content="An MCP server over the Octopus brains. Point any MCP client at one address and read the positions and their evidence. No key, reading only.">
+<meta name="description" content="An MCP server over the Octopus brains. Point any MCP client at one address and read the positions and their evidence. Sign in for an address that also feeds.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -49,6 +49,14 @@
     <li>Ask your question. The client calls <code>ask</code> and answers from what the brains hold.</li>
   </ol>
 
+  <h2>Feeding from your own client</h2>
+  <p>The address above reads. To drop sources from your client, sign in to Octopus, open
+    <b>Octopus MCP</b> in the sidebar and make your personal address. It carries your account, so it can
+    feed the brains you own and any brain marked open.</p>
+  <div class="note">Feeding spends nothing here. Your client's own model does the reading, the filing
+    and the rewriting. Each tool hands back the exact rules for the next step, and Octopus checks the
+    result before it writes.</div>
+
   <h2>The tools it exposes</h2>
   <div class="tbl"><table>
     <tr><th>Tool</th><th>What it returns</th></tr>
@@ -59,6 +67,20 @@
     <tr><td><code>read_concept</code></td><td>A position, its evidence with authors and dates, its data, its open conflicts.</td></tr>
     <tr><td><code>search_brains</code></td><td>Keyword matches across every concept, title hits ranked first.</td></tr>
     <tr><td><code>list_sources</code></td><td>What a brain has read, newest first, with links.</td></tr>
+  </table></div>
+
+  <p class="muted" style="margin-top:14px">With a personal address, four more appear. They run in order,
+    and nothing is written until the last one.</p>
+  <div class="tbl"><table>
+    <tr><th>Tool</th><th>What it does</th></tr>
+    <tr><td><code>drop_source</code></td><td>You read the source and send what is worth keeping. Returns
+      the brains, their concepts, and the rules for filing it.</td></tr>
+    <tr><td><code>drop_plan</code></td><td>You send the filing. Returns the card: where it lands, what it
+      touches, what is new, and every contradiction with the date on both sides.</td></tr>
+    <tr><td><code>drop_prepare</code></td><td>You send the person's ruling on each contradiction. Returns
+      the whole evidence list behind each position, and the rewriting rules.</td></tr>
+    <tr><td><code>drop_store</code></td><td>You send the rewritten positions. This writes, and returns the
+      receipt.</td></tr>
   </table></div>
 
   <h2>What a reader gets</h2>
@@ -75,7 +97,7 @@
     <div class="card">
       <h3><span class="bar">&#8212;</span> Held back</h3>
       <ul>
-        <li>Writing: no source lands, no position moves</li>
+        <li>Writing, without a personal address</li>
         <li>Raw source text, which was never stored</li>
         <li>Anything past 120 calls per 10 minutes</li>
       </ul>
