@@ -8,7 +8,6 @@ file name becomes its path.
 | `index.html` | `/` | The landing page. What Octopus is, how a source lands, the rules that hold |
 | `chat.html` | `/chat` | The app: drop, ask, create a brain. Behind the passphrase |
 | `mcp.html` | `/mcp` | The connector address, the setup steps, the tools it exposes |
-| `brains.html` | `/brains` | One tile per public brain, with the concepts inside it |
 | `octopus.css` | `/octopus.css` | Tokens and layout shared by the three pages around the app |
 
 `chat.html` stays self contained, styles and script inline. Pulling its layout
