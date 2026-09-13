@@ -1,5 +1,5 @@
 <title>Octopus Brains</title>
-<meta name="description" content="Every public Octopus brain, its scope line, and the concepts it holds.">
+<meta name="description" content="Every public Octopus brain. Search by subject, open one to see the ideas it holds.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -9,45 +9,73 @@
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
 <style>
-  .tiles{ display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(292px,1fr)); }
-  .tile{
-    border:1px solid var(--line); border-radius:13px; background:var(--surface);
-    box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column;
-    transition:border-color .16s var(--ease), box-shadow .16s var(--ease);
+  main{ padding-block:40px 72px; }
+  h1.hero{ font-size:clamp(27px,5vw,38px); }
+
+  /* search */
+  .find{
+    display:flex; align-items:center; gap:9px; margin-top:24px; max-width:460px;
+    border:1px solid var(--line-2); border-radius:10px; background:var(--surface);
+    padding:0 13px; transition:border-color .15s var(--ease);
   }
-  .tile:hover{ border-color:var(--line-2); box-shadow:var(--shadow-lift); }
-  .tile-h{ padding:17px 18px 14px; border-bottom:1px solid var(--line); }
-  .tile-h .r1{ display:flex; align-items:center; gap:8px; margin-bottom:7px; }
-  .tile-h h2{
-    font:600 17.5px/1.25 var(--sans); letter-spacing:-.015em; color:var(--ink); margin:0;
+  .find:focus-within{ border-color:var(--accent-fill); }
+  .find svg{ width:15px; height:15px; color:var(--ink-4); flex-shrink:0; }
+  .find input{
+    flex:1; min-width:0; border:none; background:none; color:var(--ink);
+    font:400 15px/1 var(--sans); padding:13px 0;
   }
+  .find input::placeholder{ color:var(--ink-4); }
+  .find button{ color:var(--ink-4); font:400 17px/1 var(--sans); padding:4px; }
+  .find button:hover{ color:var(--accent); }
+  .count{ margin-top:11px; font:400 11.5px/1 var(--mono); color:var(--ink-3); }
+
+  /* the list */
+  .list{ margin-top:22px; display:grid; gap:9px; }
+  .row{
+    border:1px solid var(--line); border-radius:11px; background:var(--surface);
+    overflow:hidden; transition:border-color .15s var(--ease), box-shadow .15s var(--ease);
+  }
+  .row:hover{ border-color:var(--line-2); }
+  .row.open{ border-color:var(--accent-line); box-shadow:var(--shadow); }
+  .row > button{
+    width:100%; text-align:left; padding:15px 17px;
+    display:grid; grid-template-columns:1fr auto; gap:4px 14px; align-items:center;
+  }
+  .row .nm{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .row .nm b{ font:600 16.5px/1.3 var(--sans); letter-spacing:-.012em; color:var(--ink); }
   .tp{
     font:400 9px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase;
     padding:3px 5px; border-radius:3px; flex-shrink:0;
     color:var(--accent); background:var(--accent-soft);
   }
   .tp.person{ color:var(--ink-3); background:var(--surface-3); }
-  .tile-h .scope{ font-size:14px; line-height:1.5; color:var(--ink-2); }
-  .tile-h .ct{
-    margin-top:10px; font:400 10.5px/1 var(--mono); letter-spacing:.04em;
-    text-transform:uppercase; color:var(--ink-3);
+  .row .sc{
+    grid-column:1; font-size:14px; line-height:1.45; color:var(--ink-3);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
-  .tile-h .ct .small{ color:var(--accent); }
+  .row .side{
+    grid-row:1 / span 2; grid-column:2; display:flex; align-items:center; gap:11px;
+    font:400 10.5px/1 var(--mono); color:var(--ink-3); white-space:nowrap;
+  }
+  .row .chev{ font-size:9px; color:var(--ink-4); transition:transform .18s var(--ease); }
+  .row.open .chev{ transform:rotate(180deg); color:var(--accent); }
 
-  .tile-b{ padding:12px 18px 16px; flex:1; }
-  .tile-b .lab{
+  .body{ border-top:1px solid var(--line); padding:14px 17px 16px; }
+  .body .full{ font-size:14.5px; line-height:1.55; color:var(--ink-2); margin-bottom:14px; }
+  .body .lab{
     font:500 10px/1.6 var(--mono); letter-spacing:.07em; text-transform:uppercase;
-    color:var(--ink-3); margin-bottom:7px;
+    color:var(--ink-3); margin-bottom:6px;
   }
-  .tile-b ol{ list-style:none; }
-  .tile-b li{ padding:5px 0; border-bottom:1px solid var(--line); }
-  .tile-b li:last-child{ border-bottom:none; }
-  .tile-b .ti{ display:flex; gap:8px; align-items:baseline; }
-  .tile-b .i{ font:400 10px/1.7 var(--mono); color:var(--ink-4); flex-shrink:0; }
-  .tile-b .nm{ font:500 14px/1.45 var(--sans); color:var(--ink); }
-  .tile-b .ln{ font-size:13px; line-height:1.5; color:var(--ink-3); padding-left:18px; }
-  .tile-b .empty{ font-size:13.5px; color:var(--ink-3); }
-  .state{ font-size:15px; color:var(--ink-3); }
+  .body ol{ list-style:none; }
+  .body li{ padding:6px 0; border-bottom:1px solid var(--line); }
+  .body li:last-child{ border-bottom:none; }
+  .body .ti{ display:flex; gap:9px; align-items:baseline; }
+  .body .i{ font:400 10px/1.7 var(--mono); color:var(--ink-4); flex-shrink:0; }
+  .body .t{ font:500 14px/1.45 var(--sans); color:var(--ink); }
+  .body .ln{ font-size:13px; line-height:1.5; color:var(--ink-3); padding-left:19px; margin-top:1px; }
+  .body .none{ font-size:13.5px; color:var(--ink-3); }
+  mark{ background:var(--accent-soft); color:var(--accent); border-radius:2px; padding:0 1px; }
+  .state{ margin-top:22px; font-size:15px; color:var(--ink-3); }
 </style>
 
 <header class="top"><div class="wrap">
@@ -56,34 +84,29 @@
   <nav class="links">
     <a href="/brains" aria-current="page">Brains</a>
     <a href="/mcp">MCP</a>
+    <a href="https://github.com/jlasne/brain">Source</a>
     <a href="/chat" class="cta">Open the app</a>
   </nav>
 </div></header>
 
 <main><div class="wrap">
-  <div class="eyebrow">Public brains</div>
-  <h1 class="hero">What Octopus holds.</h1>
-  <p class="lede">One brain per subject, each with the line that decides what belongs inside it, and the
-    concepts it has built from the sources it read. Private brains are left out of this list.</p>
+  <h1 class="hero">Brains you can read.</h1>
+  <p class="lede">Each one covers a single subject and states what belongs in it. Open a brain to see the
+    ideas it holds.</p>
 
-  <div class="stats" id="stats" hidden>
-    <div class="stat"><b id="nBrains">0</b><span>brains</span></div>
-    <div class="stat"><b id="nConcepts">0</b><span>concepts</span></div>
-    <div class="stat"><b id="nSources">0</b><span>sources read</span></div>
+  <div class="find">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+    <input id="q" type="search" placeholder="Search subjects and ideas" autocomplete="off" spellcheck="false">
+    <button id="clear" hidden aria-label="Clear">&times;</button>
   </div>
+  <div class="count" id="count"></div>
 
-  <h2 id="head">Loading</h2>
-  <div class="tiles" id="tiles"></div>
+  <div class="list" id="list"></div>
   <p class="state" id="state" hidden></p>
-
-  <p class="note">Every position here was re-derived from its whole evidence list, not appended to. To read
-    the evidence and the dates behind any of them, <a href="/mcp">add the connector</a> and ask your own Claude.</p>
 </div></main>
 
 <footer class="bot"><div class="wrap">
-  <a href="/brains">brains</a>
-  <a href="/mcp">mcp</a>
-  <a href="/chat">app</a>
+  <span style="margin:0">Octopus</span>
   <span id="foot">public brains only</span>
 </div></footer>
 
@@ -91,77 +114,113 @@
   const $ = id => document.getElementById(id);
   const el = (t,c,x) => { const n=document.createElement(t); if(c)n.className=c; if(x!=null)n.textContent=x; return n; };
   const pad2 = n => String(n).padStart(2,"0");
+  const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+  const norm = s => String(s??"").toLowerCase();
+
+  let BRAINS = [], CONCEPTS = [], openSlug = null, query = "";
+
+  /* Wrap every hit so the reason a row survived the filter is visible. */
+  function hl(str, words){
+    let out = esc(str);
+    for (const w of words){
+      if (!w) continue;
+      out = out.replace(new RegExp("(" + w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&") + ")", "gi"), "<mark>$1</mark>");
+    }
+    return out;
+  }
+
+  function matches(b, words){
+    if (!words.length) return true;
+    const own = CONCEPTS.filter(c => c.brain === b.slug);
+    const hay = norm([b.name, b.scope, b.type,
+      own.map(c => c.title + " " + (c.summaryLine||"") + " " + (c.position||"")).join(" ")].join(" "));
+    return words.every(w => hay.includes(w));
+  }
+
+  function draw(){
+    const words = norm(query).split(/\s+/).filter(Boolean);
+    const shown = BRAINS.filter(b => matches(b, words));
+    const list = $("list"); list.innerHTML = "";
+
+    $("count").textContent = words.length
+      ? `${shown.length} of ${BRAINS.length} brains`
+      : `${BRAINS.length} brain${BRAINS.length===1?"":"s"}`;
+    $("clear").hidden = !query;
+
+    if (!shown.length){
+      $("state").textContent = `Nothing matches "${query}". Try one word, or a subject.`;
+      $("state").hidden = false;
+      return;
+    }
+    $("state").hidden = true;
+
+    for (const b of shown){
+      const own = CONCEPTS.filter(c => c.brain === b.slug).sort((x,y)=>(x.n||0)-(y.n||0));
+      const open = openSlug === b.slug;
+      const row = el("div","row" + (open ? " open" : ""));
+
+      const head = document.createElement("button");
+      head.setAttribute("aria-expanded", String(open));
+      const nm = el("div","nm");
+      const nb = document.createElement("b"); nb.innerHTML = hl(b.name, words);
+      nm.append(nb, el("span","tp "+(b.type==="person"?"person":"subject"), b.type));
+      const sc = el("div","sc"); sc.innerHTML = hl(b.scope || "no scope line", words);
+      const side = el("div","side");
+      side.append(el("span",null,`${own.length} · ${b.sources||0}`), el("span","chev","▾"));
+      head.append(nm, sc, side);
+      head.title = `${own.length} concept${own.length===1?"":"s"}, ${b.sources||0} source${(b.sources||0)===1?"":"s"}`;
+      head.onclick = () => { openSlug = open ? null : b.slug; draw(); };
+      row.append(head);
+
+      if (open){
+        const body = el("div","body");
+        const full = el("div","full"); full.innerHTML = hl(b.scope || "no scope line", words);
+        body.append(full);
+        body.append(el("div","lab",
+          `${own.length} concept${own.length===1?"":"s"} · ${b.sources||0} source${(b.sources||0)===1?"":"s"}` +
+          ((b.sources||0) < 10 ? " · small brain" : "")));
+        if (!own.length) body.append(el("div","none","Nothing yet. This brain is waiting for its first source."));
+        else {
+          const ol = document.createElement("ol");
+          own.forEach((c,i) => {
+            const li = document.createElement("li");
+            const ti = el("div","ti");
+            const t = el("span","t"); t.innerHTML = hl(c.title, words);
+            ti.append(el("span","i",pad2(c.n || i+1)), t);
+            li.append(ti);
+            const line = c.summaryLine || c.position || "";
+            if (line){ const d = el("div","ln"); d.innerHTML = hl(line, words); li.append(d); }
+            ol.append(li);
+          });
+          body.append(ol);
+        }
+        row.append(body);
+      }
+      list.append(row);
+    }
+  }
+
+  $("q").addEventListener("input", e => { query = e.target.value; draw(); });
+  $("clear").onclick = () => { query = ""; $("q").value = ""; $("q").focus(); draw(); };
 
   (async () => {
-    let d;
     try {
       const r = await fetch(window.OCTOPUS_API + "/api/public/brains");
       if (!r.ok) throw new Error("the server answered " + r.status);
-      d = await r.json();
+      const d = await r.json();
+      BRAINS = d.brains || []; CONCEPTS = d.concepts || [];
     } catch (e) {
-      $("head").textContent = "The brains did not load";
-      $("state").textContent = "Reason: " + (e.message || "no answer") + ". Reload in a moment.";
+      $("state").textContent = "The brains did not load. " + (e.message || "no answer") + ". Reload in a moment.";
       $("state").hidden = false;
       return;
     }
-
-    const brains = d.brains || [], concepts = d.concepts || [];
-    const sources = brains.reduce((n,b) => n + (b.sources||0), 0);
-
-    $("nBrains").textContent = brains.length;
-    $("nConcepts").textContent = concepts.length;
-    $("nSources").textContent = sources;
-    $("stats").hidden = false;
-
-    if (!brains.length) {
-      $("head").textContent = "Nothing public yet";
-      $("state").textContent = "Every brain is currently private, so this list is empty.";
+    if (!BRAINS.length){
+      $("state").textContent = "Every brain is private right now, so this list is empty.";
       $("state").hidden = false;
       return;
     }
-
-    $("head").textContent = `${brains.length} brain${brains.length===1?"":"s"}`;
-    const box = $("tiles");
-
-    for (const b of brains) {
-      const own = concepts.filter(c => c.brain === b.slug).sort((x,y) => (x.n||0)-(y.n||0));
-      const tile = el("div","tile");
-
-      const h = el("div","tile-h");
-      const r1 = el("div","r1");
-      r1.append(el("h2",null,b.name), el("span","tp "+(b.type==="person"?"person":"subject"), b.type));
-      h.append(r1, el("div","scope", b.scope || "no scope line"));
-
-      /* Under 10 sources is a small brain, and the number says so plainly. */
-      const ct = el("div","ct");
-      ct.append(el("span",null,`${own.length} concept${own.length===1?"":"s"} · `));
-      const sc = el("span", (b.sources||0) < 10 ? "small" : null,
-        `${b.sources||0} source${(b.sources||0)===1?"":"s"}`);
-      ct.append(sc);
-      if ((b.sources||0) < 10) ct.append(el("span",null," · small brain"));
-      h.append(ct);
-      tile.append(h);
-
-      const body = el("div","tile-b");
-      body.append(el("div","lab","Concepts"));
-      if (!own.length) body.append(el("div","empty","None yet. This brain is waiting for its first source."));
-      else {
-        const ol = el("ol");
-        own.forEach((c,i) => {
-          const li = el("li");
-          const ti = el("div","ti");
-          ti.append(el("span","i",pad2(c.n || i+1)), el("span","nm", c.title));
-          li.append(ti);
-          const line = c.summaryLine || c.position || "";
-          if (line) li.append(el("div","ln", line));
-          ol.append(li);
-        });
-        body.append(ol);
-      }
-      tile.append(body);
-      box.append(tile);
-    }
-
-    $("foot").textContent = `${concepts.length} concepts · ${sources} sources`;
+    const sources = BRAINS.reduce((n,b) => n + (b.sources||0), 0);
+    $("foot").textContent = `${BRAINS.length} brains · ${CONCEPTS.length} concepts · ${sources} sources`;
+    draw();
   })();
 </script>

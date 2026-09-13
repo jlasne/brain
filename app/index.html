@@ -1,5 +1,5 @@
 <title>Octopus</title>
-<meta name="description" content="Octopus keeps the thinking behind what you read. Each source becomes a position you hold, and it tells you when something new disagrees with it.">
+<meta name="description" content="You read a lot and keep almost none of the reasoning. Octopus turns each source into a position you hold, dated and checkable, and tells you when something new breaks it.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -9,26 +9,36 @@
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
 <style>
-  main{ padding-block:72px 84px; }
-  .hero-wrap{ max-width:640px; }
-  h1.hero{ font-size:clamp(32px,6.4vw,50px); }
+  main{ padding-block:76px 88px; }
+  .hero-wrap{ max-width:660px; }
+  h1.hero{ font-size:clamp(32px,6.4vw,51px); }
   p.lede{ margin-top:18px; }
+
   .big{
-    margin-top:68px; font:400 clamp(19px,3vw,23px)/1.5 var(--sans);
-    color:var(--ink); max-width:26ch; letter-spacing:-.012em; text-wrap:balance;
+    margin-top:72px; font:600 clamp(21px,3.2vw,27px)/1.28 var(--sans);
+    color:var(--ink); max-width:30ch; letter-spacing:-.02em; text-wrap:balance;
   }
-  .big + p{ margin-top:16px; }
-  .three{ display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(228px,1fr)); margin-top:22px; }
-  .three .n{
-    font:500 11px/1 var(--mono); letter-spacing:.09em; color:var(--accent); margin-bottom:11px;
-  }
+  .big.wide{ max-width:38ch; }
+  .big + p, .big + .three, .big + .holds, .big + .tbl, .big + .gain{ margin-top:15px; }
+
+  .three{ display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(228px,1fr)); margin-top:24px; }
+  .three .n{ font:500 11px/1 var(--mono); letter-spacing:.09em; color:var(--accent); margin-bottom:11px; }
   .three h3{ margin-bottom:7px; font-size:16px; }
   .three p{ font-size:14.5px; line-height:1.6; color:var(--ink-3); max-width:none; }
-  .holds li{
-    list-style:none; padding:13px 0; border-top:1px solid var(--line);
-    font-size:15.5px; line-height:1.55; color:var(--ink-2); max-width:64ch;
+
+  .holds li, .gain li{
+    list-style:none; padding:14px 0; border-top:1px solid var(--line);
+    max-width:66ch;
   }
-  .holds li:last-child{ border-bottom:1px solid var(--line); }
+  .holds li:last-child, .gain li:last-child{ border-bottom:1px solid var(--line); }
+  .gain b{ display:block; font:600 15.5px/1.4 var(--sans); color:var(--ink); margin-bottom:3px; }
+  .gain span{ font-size:14.5px; line-height:1.55; color:var(--ink-3); }
+  .holds li{ font-size:15.5px; line-height:1.55; color:var(--ink-2); }
+
+  .pull{
+    margin-top:20px; border-left:2px solid var(--accent-line); padding:3px 0 3px 16px;
+    font-size:16px; line-height:1.6; color:var(--ink-2); max-width:62ch;
+  }
   footer.bot .wrap{ justify-content:space-between; }
 </style>
 
@@ -47,8 +57,8 @@
 
   <div class="hero-wrap">
     <h1 class="hero">Read it once. Keep the reasoning.</h1>
-    <p class="lede">Most of what you read leaves nothing behind. Octopus keeps the thinking. Every source
-      becomes a view you hold, and it tells you when something new disagrees with it.</p>
+    <p class="lede">You read a lot and keep almost none of the thinking. Octopus turns each source into a
+      position you hold, dated and checkable, then tells you when something new breaks it.</p>
   </div>
 
   <div class="stats" id="stats" hidden>
@@ -57,50 +67,95 @@
     <div class="stat"><b id="nSources">0</b><span>sources read</span></div>
   </div>
 
-  <p class="big">A brain is one subject, and one sentence decides what belongs in it.</p>
-  <p>Write that sentence and the brain has a gate. Everything you feed it is measured against the line, so
-    it can grow for years and still answer as one mind. "Health" names a folder. "Sleep, recovery and
-    training load for my own routine" names a brain.</p>
+  <p class="big">Six months on, you keep the conclusion and lose every reason for it.</p>
+  <p>You saved the link. You highlighted the paragraph. You wrote the note. What none of that gives back is
+    why you believed it, who said it, on what date, and whether something newer has since contradicted it.</p>
+  <p>So the same question gets researched twice. A view you formed in March survives into November because
+    nothing ever checked it. Two sources disagree in your library and you never find out.</p>
 
-  <p class="big">Three things happen, and you are in the middle of one.</p>
+  <p class="big wide">A brain holds a position, not a copy of the page.</p>
+  <p>Feed it a source. It reads the whole thing once, keeps what carries a number, a date or a reason, and
+    throws the text away. What stays is a view, plus the evidence standing behind that view.</p>
+  <p class="pull">When the next source arrives, the view gets rewritten from everything behind it, this one
+    included. It never becomes a longer list of quotes.</p>
+
+  <p class="big">One sentence decides what belongs in a brain.</p>
+  <p>You write that sentence when you create it. Everything you feed the brain is measured against the
+    line, so the brain can grow for years and still answer as one mind.</p>
+  <p>"Health" names a folder. "Sleep, recovery and training load for my own routine" names a brain. The
+    second one can reject things, which is what makes it useful.</p>
+
+  <p class="big">Three things happen, and you decide one of them.</p>
   <div class="three">
     <div class="card">
       <div class="n">01</div>
       <h3>You feed it</h3>
-      <p>A video, an article, a study. It reads the whole thing once and keeps what carries a number, a date
-        or a reason. The text itself is thrown away.</p>
+      <p>A video, an article, a study. Read once, in passes, then discarded. The link and the author stay so
+        the claim can be traced back.</p>
     </div>
     <div class="card">
       <div class="n">02</div>
       <h3>It argues</h3>
-      <p>Before anything is kept, it shows you what is new, what you already knew, and what contradicts a
-        view you hold. You say which one wins.</p>
+      <p>One card shows what is new, what you already hold, and every claim that contradicts a view. You say
+        which side wins, or keep both.</p>
     </div>
     <div class="card">
       <div class="n">03</div>
       <h3>You ask</h3>
-      <p>Ask in plain words. The answer carries the numbers inside it, and the people and dates it rests on
-        sit underneath.</p>
+      <p>Ask in plain words. The answer carries the numbers, and names the authors and dates it rests on
+        underneath.</p>
     </div>
   </div>
+
+  <p class="big">What that buys you.</p>
+  <ul class="gain">
+    <li><b>An answer, rather than a search</b>
+      <span>The first sentence answers the question. Figures sit inside the prose. Authors and dates sit on
+        one line at the end, so you can check any of it.</span></li>
+    <li><b>Disagreement surfaces on the way in</b>
+      <span>A contradiction is caught while the source is being filed, not months later when you act on the
+        wrong view.</span></li>
+    <li><b>Nothing lands twice</b>
+      <span>Every source is checked by link, then by idea. A claim you already hold comes back named as a
+        repeat, with the earlier source.</span></li>
+    <li><b>Weak ground says so</b>
+      <span>A brain with fewer than 10 sources opens its answers by admitting it. Ask at expert level and it
+        grades its own evidence and names the thin spots.</span></li>
+    <li><b>Your assistant reads your library</b>
+      <span>Add one address to Claude and it answers from what you gathered. Reading costs nothing, because
+        no model runs on this side.</span></li>
+    <li><b>Cheap to feed</b>
+      <span>A full source, read and filed with every position rewritten, costs under a cent.</span></li>
+  </ul>
+
+  <p class="big wide">It stands in for the tools that keep text and lose the thinking.</p>
+  <div class="tbl"><table>
+    <tr><th>What you use now</th><th>What it keeps</th><th>What Octopus adds</th></tr>
+    <tr><td>Bookmarks</td><td>The link</td><td>Reads it and files each idea under a subject</td></tr>
+    <tr><td>Highlights</td><td>The sentence you liked</td><td>Reconciles it against the view you already hold</td></tr>
+    <tr><td>Notes app</td><td>Your words, as you wrote them</td><td>Rewrites the position when new evidence lands</td></tr>
+    <tr><td>A chat assistant</td><td>Nothing between sessions</td><td>Answers from the library you chose to trust</td></tr>
+  </table></div>
 
   <p class="big">What keeps it honest.</p>
   <ul class="holds">
     <li>A view you replace keeps its date and moves into the evidence. Nothing is deleted.</li>
-    <li>Each view is rewritten from everything standing behind it, so it reads as one position rather than
-      a pile of quotes.</li>
-    <li>Disagreements stay visible, both sides dated, instead of being smoothed over.</li>
-    <li>The same source never lands twice, and a claim you already hold is named as a repeat.</li>
+    <li>Disagreements stay visible, dated on both sides, until evidence settles them.</li>
+    <li>An idea needs 3 separate mentions before it becomes a concept of its own.</li>
+    <li>Raw source text is never stored. Only the link and the reasoning survive the read.</li>
+    <li>Every answer names its authors and dates, so a claim can be traced to a source.</li>
   </ul>
 
-  <p class="big">Your brains, read by any assistant you use.</p>
-  <p>A brain you mark public can be read from your own Claude, so the assistant answers from what you have
-    gathered rather than from the open internet. A brain you keep private stays with you.</p>
+  <p class="big">Your brains, read by the assistant you already pay for.</p>
+  <p>A brain marked public can be read from your own Claude through one address. Your assistant does the
+    reasoning over your evidence, which is stronger than what a cheap model would write.</p>
+  <p>A brain marked private stays with you. Feeding a brain runs on your own model key, so what you spend
+    is yours to see and cap.</p>
 
   <p class="big">Open source, and built in the open.</p>
-  <p>All of it is public: the rules the brains follow, the app, the connector. Read it, fork it, run it
-    against your own database, or bring a brain of your own to the shared ones. Octopus is an entry in
-    The Build Games, a September event judging projects on how well they stand in for paid software.</p>
+  <p>The rules the brains follow, the app, and the connector are all public. Read it, fork it, point it at
+    your own database, or bring a brain of your own. Octopus is an entry in The Build Games, a September
+    event judging projects on how well they stand in for paid software.</p>
 
 </div></main>
 
