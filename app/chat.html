@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13e";
+  window.OCTOPUS_BUILD = "2026-09-13f";
 </script>
 
 <style>
@@ -704,8 +704,8 @@ function gateScreen(firstRun) {
 
   const HEAD = {
     member: ["Sign in", "A name and a password. Your model key pays for what you ask and drop, and you choose whether this account remembers it."],
-    guest:  ["Just my key", "No account. Paste a key, use it for this tab, and it is forgotten when you close it. Reading and asking only."],
-    owner:  ["Owner", "The passphrase opens every brain here and spends this deployment's own key."],
+    guest:  ["Read access", "No account. Paste a key, ask anything, and the key is forgotten when this tab closes. Reading only, so no source lands and no position moves."],
+    owner:  ["Passphrase", "The passphrase opens every brain here and spends this deployment's own key."],
   };
 
   const finish = (token, who) => {
@@ -754,8 +754,8 @@ function gateScreen(firstRun) {
         </div>`;
 
     const swaps = firstRun || step === "key" ? "" :
-      mode === "member" ? `<button class="ghost" type="button" data-go="guest">Just my key</button>
-                           <button class="ghost" type="button" data-go="owner">I own this</button>`
+      mode === "member" ? `<button class="ghost" type="button" data-go="guest">Read access</button>
+                           <button class="ghost" type="button" data-go="owner">Passphrase</button>`
       : mode === "guest" ? `<button class="ghost" type="button" data-go="member">Sign in</button>`
       : `<button class="ghost" type="button" data-go="member">Sign in</button>`;
 

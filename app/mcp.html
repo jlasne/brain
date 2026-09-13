@@ -46,8 +46,8 @@
     <input id="url" readonly spellcheck="false" value="loading">
     <button id="copy">Copy</button>
   </div>
-  <p class="note"><code id="alt">/mcp/v0</code> and <code>/mcp/v1</code> reach the same server, for a
-    client that wants a version in the address.</p>
+  <p class="note"><code>/mcp/v1</code> reaches the same server, for a client that wants to pin a
+    version. The deployment answers directly too, at <code id="alt">loading</code>.</p>
 
   <h2>How to add it</h2>
   <ol class="steps">
@@ -110,9 +110,12 @@
 </div></footer>
 
 <script>
-  const url = window.OCTOPUS_API + "/mcp";
+  /* Vercel proxies /mcp/v0 to the Convex deployment, so the address a person
+     copies carries this site's own domain. The convex.site address still
+     answers, and the page names it as the fallback. */
+  const url = location.origin + "/mcp/v0";
   document.getElementById("url").value = url;
-  document.getElementById("alt").textContent = url + "/v0";
+  document.getElementById("alt").textContent = window.OCTOPUS_API + "/mcp";
   document.getElementById("curl").textContent =
 `curl -s -X POST ${url} \\
   -H 'Content-Type: application/json' \\
