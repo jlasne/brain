@@ -176,7 +176,15 @@ passphrase alone. Closing that door means they need a real owner, so
 
 ```
 npx convex run admin:state --prod
-npx convex run admin:claim '{"account":"octopus"}' --prod
+npx convex run admin:claim --prod
+```
+
+`claim` takes no argument while one account exists. PowerShell strips the inner
+quotes out of a JSON argument, so the common case avoids passing any. With
+several accounts, name one, escaping the quotes on Windows:
+
+```
+npx convex run admin:claim '{\"account\":\"octopus\"}' --prod
 ```
 
 A guest asks questions and feeds nothing, so there is no brain to own and no
