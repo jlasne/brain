@@ -1,0 +1,132 @@
+<title>Feed Octopus from your Claude</title>
+<meta name="description" content="Drop a source inside your own Claude and it lands in the right brain, rewritten into a dated position. Your client does the thinking, so Octopus spends nothing.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="icon" href="/brand/logo-mark.png">
+<link rel="stylesheet" href="/octopus.css">
+
+<style>
+  .says{
+    margin-top:12px; display:grid; gap:9px;
+    grid-template-columns:repeat(auto-fit,minmax(258px,1fr));
+  }
+  .says div{
+    border:1px solid var(--line); border-left:2px solid var(--accent-line);
+    border-radius:10px; background:var(--surface); padding:12px 14px;
+    font:400 14px/1.5 var(--sans); color:var(--ink-2);
+  }
+  .card ol{ margin:0; padding-left:18px; }
+  .card li{ font-size:14px; line-height:1.6; color:var(--ink-3); margin-bottom:5px; }
+  .card li:last-child{ margin-bottom:0; }
+  .card li b{ color:var(--ink); font-weight:600; }
+  footer.bot .wrap{ justify-content:space-between; }
+</style>
+
+<header class="top"><div class="wrap">
+  <span class="mark"><img src="/brand/logo-mark.png" alt="Octopus" width="48" height="48"></span>
+  <a class="wordmark" href="/" style="color:var(--ink)">Octopus</a>
+  <nav class="links">
+    <a href="/feed" aria-current="page">Feed</a>
+    <a href="/mcp">MCP</a>
+    <a href="/chat" class="cta">Open the app</a>
+  </nav>
+</div></header>
+
+<main><div class="wrap">
+
+  <div class="eyebrow">From your own client</div>
+  <h1 class="hero">Drop a source inside Claude. It lands in the right brain.</h1>
+  <p class="lede">Paste a link, say which brain, and answer one question about what wins. Octopus rewrites
+    the position it touches and files the evidence with its date.</p>
+
+  <div class="note">It spends nothing here. Your client reads the source, files it and writes the new
+    position. Your model key stays for the web app.</div>
+
+  <h2>Set it up once</h2>
+  <ol class="steps">
+    <li>Open Octopus and sign in. <b>A name and a password</b> is the whole account.</li>
+    <li>In the sidebar click <b>Octopus MCP</b>, then <b>Make my address</b>. Copy it.</li>
+    <li>In Claude open <b>Settings, Connectors, Add custom connector</b>. Paste the address.
+      Leave authentication empty.</li>
+    <li>A <b>Connect</b> or <b>Sign in</b> button can be skipped. Octopus has no login, so that
+      handshake has nothing to answer.</li>
+  </ol>
+  <p class="muted">The public address reads every brain. Yours also feeds the brains you own, plus any
+    brain its owner marked open.</p>
+
+  <h2>Then talk to it</h2>
+  <div class="says">
+    <div>"Drop this into Content: https://..."</div>
+    <div>"Make me a brain for negotiation tactics."</div>
+    <div>"Read this article and file it wherever it fits."</div>
+    <div>"What do my brains say about hooks?"</div>
+  </div>
+
+  <h2>What a link alone gets you</h2>
+  <div class="tbl"><table>
+    <tr><th>You send</th><th>What happens</th></tr>
+    <tr><td>An article or a blog post</td><td>Your client opens the page and files it. The link is enough.</td></tr>
+    <tr><td>A paper or a study</td><td>Same, when the text sits on the page rather than behind a login.</td></tr>
+    <tr><td>A YouTube link</td><td>Paste the transcript with it. YouTube serves captions only to a signed-in
+      browser, so a fetched watch page carries none.</td></tr>
+    <tr><td>A podcast or a video file</td><td>Paste the transcript. Octopus reads text.</td></tr>
+  </table></div>
+  <p class="muted">Open the transcript panel under a YouTube video, copy it, and paste it in the same
+    message as the link. The link is what catches a repeat later.</p>
+
+  <h2>What you see before anything is stored</h2>
+  <p>Claude shows the card, then waits. The card names where the source lands, which positions it
+    touches, what is new, what repeats an earlier source, and every claim that contradicts what you
+    already hold, with the date on both sides.</p>
+  <div class="grid" style="margin-top:14px">
+    <div class="card">
+      <h3>You rule each contradiction</h3>
+      <ol>
+        <li><b>New wins.</b> The position flips, and the old view moves into the evidence with its date.</li>
+        <li><b>Mine wins.</b> The stored position holds, and the new claim joins the evidence.</li>
+        <li><b>Keep both.</b> The position holds and the clash is recorded, dated, with the reason.</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3>Then it writes</h3>
+      <p>Each position is re-derived from its whole evidence list, never appended to. A new idea needs
+        3 separate sources before it becomes a position of its own. You can take one earlier by saying so.</p>
+    </div>
+  </div>
+
+  <h2>The four steps, and who does what</h2>
+  <div class="tbl"><table>
+    <tr><th>Step</th><th>Your Claude</th><th>Octopus</th></tr>
+    <tr><td><code>drop_source</code></td><td>Reads the source, keeps what matters</td>
+      <td>Catches a repeat, hands back your brains and the filing rules</td></tr>
+    <tr><td><code>drop_plan</code></td><td>Files it against your concepts</td>
+      <td>Checks every concept id, returns the card</td></tr>
+    <tr><td><code>drop_prepare</code></td><td>Asks you which side holds</td>
+      <td>Returns the whole evidence list and the rewriting rules</td></tr>
+    <tr><td><code>drop_store</code></td><td>Rewrites each position</td>
+      <td>Writes it, returns the receipt</td></tr>
+  </table></div>
+  <p class="muted">Octopus checks the result at every step. A client that ignores the rules gets the
+    rules back rather than a brain full of junk.</p>
+
+  <h2>Two things worth knowing</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Keep your address private</h3>
+      <p>Whoever holds it can feed the brains you can feed. Replace it or turn it off from the same
+        sidebar panel, and any client holding the old one drops back to reading.</p>
+    </div>
+    <div class="card">
+      <h3>The source text is never stored</h3>
+      <p>Only what your client kept from it: the ideas, the numbers, the dates and the exact quotes.
+        The transcript itself lands nowhere.</p>
+    </div>
+  </div>
+
+</div></main>
+
+<footer class="bot"><div class="wrap">
+  <span style="margin:0">Octopus</span>
+  <span>your client thinks, Octopus keeps</span>
+</div></footer>

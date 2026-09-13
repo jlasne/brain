@@ -72,6 +72,13 @@ const ctx = {
       DB.candidates.set(k, notes);
       return notes.length >= 3 ? { promoted:true, notes } : { promoted:false, notes };
     }
+    if (fn === "store.createBrain") {
+      const sl = a.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      if (DB.brains.some(b => b.slug === sl)) throw new Error("a brain with that name exists");
+      DB.brains.push({ slug: sl, name: a.name, type: a.type, scope: a.scope, owner: a.owner,
+                       visibility: a.visibility });
+      return sl;
+    }
     if (fn === "store.upsertConcept") { DB.writes.push({ kind:"concept", ...a }); return {}; }
     if (fn === "store.writeSource")  { DB.writes.push({ kind:"source", ...a }); return {}; }
     if (fn === "store.writeNote")    { DB.writes.push({ kind:"note", ...a }); return {}; }
@@ -96,7 +103,23 @@ const ME = { account:"octopus", name:"Octopus" };
   const signed = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"tools/list" }, ME);
   const an = anon.result.tools.map(t => t.name), sn = signed.result.tools.map(t => t.name);
   check("anonymous sees 6 read tools", an.length === 6 && !an.includes("drop_store"), an.join(","));
-  check("signed sees 10 tools", sn.length === 10 && sn.includes("drop_store"), sn.join(","));
+  check("signed sees 11 tools", sn.length === 11 && sn.includes("drop_store"), sn.join(","));
+}
+
+/* ---- making a brain ---- */
+{
+  const thin = await call("create_brain", { name:"Sport", scope:"sport" }, ME);
+  check("a one word scope is refused", thin.includes("only test of what belongs"), thin.slice(0,90));
+  const dup = await call("create_brain", { name:"Content", scope:"something else entirely, in one line" }, ME);
+  check("a name already taken is refused", dup.includes("already exists"), dup.slice(0,90));
+  const made = await call("create_brain",
+    { name:"Negotiation", scope:"how a deal is framed, anchored and closed", type:"person" }, ME);
+  check("a brain is made", made.startsWith("Made Negotiation (negotiation)"), made.slice(0,90));
+  check("the new brain belongs to the caller", DB.brains.at(-1).owner === "octopus");
+  check("the new brain is closed by default", DB.brains.at(-1).visibility === "closed");
+  const anon = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"tools/call",
+    params:{ name:"create_brain", arguments:{ name:"X", scope:"a line long enough to pass" } } }, null);
+  check("an anonymous caller cannot make one", /no tool named|reads only/i.test(JSON.stringify(anon)));
 }
 
 /* ---- an anonymous caller cannot feed ---- */

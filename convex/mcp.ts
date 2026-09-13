@@ -19,7 +19,7 @@
  */
 
 import { internal } from "./_generated/api";
-import { randomHex, today } from "./lib";
+import { randomHex, today, slug as slugOf } from "./lib";
 import { dropCheck, dropSettle, feedable, planContext, PLAN_RULES } from "./drop";
 
 /** Versions this server speaks. The newest sits first, so it wins by default. */
@@ -141,6 +141,28 @@ export const TOOLS = [
  * a client that ignores them.
  */
 export const WRITE_TOOLS = [
+  {
+    name: "create_brain",
+    title: "Make a new brain",
+    description:
+      "Make a brain. A brain is one subject or one person, and its scope line is the only test of what " +
+      'belongs inside, so make it specific: "health" is a folder, "sleep, recovery and training load for ' +
+      'my own routine" is a brain. Call list_brains first. A source that fits a scope line already there ' +
+      "belongs in that brain, and a second brain covering the same ground splits the evidence in two. " +
+      "The person who owns this address owns the brain. Writes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Short, one or two words, like Wealth or Content." },
+        scope: { type: "string", description: "One line naming exactly what belongs inside." },
+        type: { type: "string", enum: ["subject", "person"],
+          description: "subject holds your own position, person holds one person's view. Default subject." },
+        open: { type: "boolean", description: "true lets any signed-in person feed it. Default false." },
+      },
+      required: ["name", "scope"],
+      additionalProperties: false,
+    },
+  },
   {
     name: "drop_source",
     title: "Start a drop",
@@ -403,6 +425,36 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
   const who = { kind: "member" as const, account: caller.account };
   const draftOf = async (token: string) =>
     await ctx.runQuery(internal.store.getDraft, { token, account: caller.account });
+
+  if (name === "create_brain") {
+    const bname = String(args?.name ?? "").trim();
+    const scope = String(args?.scope ?? "").trim();
+    if (bname.length < 2) return text("Give the brain a name of at least 2 characters.");
+    if (scope.length < 10) {
+      return text("Give a scope line. It is the only test of what belongs inside, so one word will not do.");
+    }
+    const { brains } = await feedable(ctx, who, "all");
+    const taken = brains.find((b: any) => b.slug === slugOf(bname));
+    if (taken) return text(`A brain called ${taken.name} already exists, scoped to "${taken.scope}".`);
+    try {
+      const made = await ctx.runMutation(internal.store.createBrain, {
+        name: bname, scope,
+        type: args?.type === "person" ? "person" : "subject",
+        visibility: args?.open === true ? "open" : "closed",
+        owner: caller.account,
+      });
+      return text([
+        `Made ${bname} (${made}), a ${args?.type === "person" ? "person" : "subject"} brain.`,
+        `scope: ${scope}`,
+        `feeding: ${args?.open === true ? "anyone signed in" : `${caller.name} only`}`,
+        ``,
+        `It holds nothing yet. The first source seeds it, so every concept in that first drop becomes a`,
+        `position straight away. Call drop_source when you have one.`,
+      ].join("\n"));
+    } catch (e: any) {
+      return text(`That did not work: ${String(e?.message ?? e).slice(0, 200)}`);
+    }
+  }
 
   if (name === "drop_source") {
     const part = args?.extraction;
