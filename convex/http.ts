@@ -336,7 +336,7 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
   const SHAPE: Record<string, string> = {
     normal:
 `LEVEL: NORMAL
-- 3 to 6 lines. One answer, no headings, no lists.
+- 3 to 6 sentences, one per line. No headings, no bullet characters.
 - Assume the reader knows the field. Skip definitions.`,
     educational:
 `LEVEL: EDUCATIONAL
@@ -345,7 +345,7 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
 - Build the mechanism in order, so each step rests on the one before it.
 - Give ONE worked example carrying real numbers from the evidence.
 - Close with one line naming the single thing worth remembering.
-- 10 to 20 lines. Short paragraphs. No headings.`,
+- 10 to 20 sentences, one per line. A blank line may separate two groups. No headings.`,
     expert:
 `LEVEL: EXPERT
 - Write as a reviewer grading this knowledge base, not as a teacher. Define nothing.
@@ -354,7 +354,7 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
 - Name the thin spots. A position resting on one source, or on no data, gets said plainly.
 - State every open conflict on this question, with both dates.
 - Close with one line naming what evidence would change the position.
-- 8 to 15 lines. Dense. Short paragraphs allowed.`,
+- 8 to 15 sentences, one per line. A blank line may separate two groups. No headings.`,
   };
 
   const { text } = await ask([
@@ -365,6 +365,8 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
 ${SHAPE[level]}
 
 HOW TO WRITE THE ANSWER
+- ONE SENTENCE PER LINE. End every sentence with a full stop, then a line break.
+- A full stop, never a semicolon. Two ideas are two sentences on two lines.
 - The FIRST SENTENCE answers the question. Natural prose, addressed to the person asking.
 - Numbers, dates and findings go INSIDE the answer.
 ${isPerson

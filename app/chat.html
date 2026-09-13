@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13x";
+  window.OCTOPUS_BUILD = "2026-09-13y";
 </script>
 
 <style>
@@ -284,6 +284,10 @@
   .msg.ai .body{ color:var(--ink-2); font-size:16.5px; line-height:1.68; }
   .msg.ai .body p{ margin-bottom:.85em; }
   .msg.ai .body p:last-child{ margin-bottom:0; }
+  /* One sentence per line. A line gets air under it, a group gets more. */
+  .msg.ai .body p.ln{ margin:0; }
+  .msg.ai .body p.ln + p.ln{ margin-top:.42em; }
+  .msg.ai .body .para + .para{ margin-top:1.1em; }
   .msg.ai .body strong{ color:var(--ink); font-weight:500; }
   .msg.ai .body em{ font-style:normal; color:var(--ink); }
 
@@ -1606,9 +1610,22 @@ async function doAsk(q){
     bottom();
   } catch(e){ fail(body, e.message); }
 }
+/**
+ * The answer arrives as one sentence per line, which is what the prompt asks
+ * for. Each line becomes its own block, so the gap between sentences is a
+ * setting rather than whatever a line break happens to give.
+ *
+ * A blank line in the answer starts a new group, with a wider gap.
+ */
 function splitAnswer(t){
   const m = String(t).match(/\n\s*(Sources:[^\n]*)\s*$/i);
-  return m ? rich(t.slice(0,m.index)) + `<div class="srcline">${esc(m[1])}</div>` : rich(t);
+  const body = m ? String(t).slice(0, m.index) : String(t);
+  const html = body.split(/\n{2,}/).map(group =>
+    `<div class="para">` +
+    group.split("\n").map(l => l.trim()).filter(Boolean)
+      .map(l => `<p class="ln">${esc(l).replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>")}</p>`)
+      .join("") + `</div>`).filter(x => x !== `<div class="para"></div>`).join("");
+  return html + (m ? `<div class="srcline">${esc(m[1])}</div>` : "");
 }
 
 /* ---------- drop ---------- */

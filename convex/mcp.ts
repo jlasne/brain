@@ -711,6 +711,8 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
         `Call read_concept on any of those if the question needs it.`] : []),
       ``,
       `===== HOW TO WRITE THE ANSWER =====`,
+      `- One sentence per line. End every sentence with a full stop, then a line break.`,
+      `- A full stop, never a semicolon. Two ideas are two sentences on two lines.`,
       `- The first sentence answers the question. Natural prose, addressed to the person asking.`,
       `- Put the numbers, dates and findings inside the answer.`,
       person
