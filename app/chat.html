@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13h";
+  window.OCTOPUS_BUILD = "2026-09-13i";
 </script>
 
 <style>
@@ -1052,6 +1052,50 @@ $("lockBtn").onclick = async () => {
 };
 
 /* ============ create a brain ============ */
+/**
+ * Has this source landed already, and where. The route behind this reads one
+ * indexed row and calls no model, so testing is free however often you do it.
+ */
+async function testSource(){
+  const btn = $("testBtn");
+  const raw = $("input").value.trim();
+  const link = (raw.match(/https?:\/\/\S+/)||[])[0] || "";
+
+  if (!link){
+    push("ai", b => { b.innerHTML = rich(raw
+      ? "The repeat check reads the link. Paste the URL and test again, because text alone carries no stable id."
+      : "Paste a link first, then test."); });
+    bottom(); return;
+  }
+
+  btn.disabled = true; btn.textContent = "checking";
+  try {
+    const r = await api("/api/drop/check", { link, text: "" });
+    push("ai", b => {
+      const d = el("div","receipt");
+      if (r.duplicate){
+        const where = (r.brains||[]).map(x => S.brains.find(y=>y.slug===x)?.name || x).join(", ") || "no brain";
+        d.innerHTML =
+`Already stored as <span class="v">${esc(r.sid)}</span>.
+Dropped <span class="v">${esc(r.date||"undated")}</span>${r.author?` by <span class="v">${esc(r.author)}</span>`:""}
+Lives in <span class="v">${esc(where)}</span>
+Dropping it again reaches the same card, so no position moves.`;
+      } else {
+        d.innerHTML =
+`<span class="ok">Not stored.</span> It would land as <span class="v">${esc(r.sid)}</span>.
+Drop it to see which brain takes it and what it adds.`;
+      }
+      b.append(d);
+    });
+    bottom();
+  } catch(e){
+    push("ai", b => { b.innerHTML = rich("The check failed: " + (e.message || "no answer")); });
+    bottom();
+  } finally {
+    btn.disabled = false; btn.textContent = "already stored?";
+  }
+}
+
 /**
  * Change the key this account spends, or forget the one it remembers. The key
  * is sent to be sealed on the server, and held in this tab for the calls that
