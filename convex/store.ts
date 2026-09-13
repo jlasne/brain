@@ -95,13 +95,45 @@ export const conceptsOf = internalQuery({
 /* ---------------- writing ---------------- */
 
 export const createBrain = internalMutation({
-  args: { name: v.string(), type: v.string(), scope: v.string() },
+  args: { name: v.string(), type: v.string(), scope: v.string(), visibility: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const s = slug(a.name);
     const seen = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", s)).unique();
     if (seen) throw new Error("a brain with that name exists");
-    await ctx.db.insert("brains", { slug: s, name: a.name, type: a.type, scope: a.scope, created: today() });
+    await ctx.db.insert("brains", {
+      slug: s, name: a.name, type: a.type, scope: a.scope, created: today(),
+      visibility: a.visibility === "private" ? "private" : a.visibility === "drop" ? "drop" : "ask",
+    });
     return s;
+  },
+});
+
+/** Flip one brain between hidden and readable. */
+export const setVisibility = internalMutation({
+  args: { slug: v.string(), visibility: v.string() },
+  handler: async (ctx, a) => {
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    if (!b) throw new Error("no such brain");
+    const v2 = a.visibility === "private" ? "private" : a.visibility === "drop" ? "drop" : "ask";
+    await ctx.db.patch(b._id, { visibility: v2 });
+    return { slug: a.slug, visibility: v2 };
+  },
+});
+
+/**
+ * What the public endpoints may see. A private brain, and everything under it,
+ * never leaves this function.
+ */
+export const publicEverything = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("brains").collect();
+    const brains = all.filter(b => (b.visibility ?? "ask") !== "private");
+    const live = new Set(brains.map(b => b.slug));
+    const concepts = (await ctx.db.query("concepts").collect()).filter(c => live.has(c.brain));
+    const sources = (await ctx.db.query("sources").collect())
+      .filter(s => (s.brains ?? []).some((x: string) => live.has(x)));
+    return { brains, concepts, sources };
   },
 });
 

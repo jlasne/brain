@@ -1,0 +1,167 @@
+<title>Octopus Brains</title>
+<meta name="description" content="Every public Octopus brain, its scope line, and the concepts it holds.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27%23d97757%27 fill-rule=%27evenodd%27%3E%3Cpath d=%27M5 14a7 7 0 0 1 14 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0ZM9.7 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4ZM14.3 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/octopus.css">
+
+<script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
+
+<style>
+  .tiles{ display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(292px,1fr)); }
+  .tile{
+    border:1px solid var(--line); border-radius:13px; background:var(--surface);
+    box-shadow:var(--shadow); overflow:hidden; display:flex; flex-direction:column;
+    transition:border-color .16s var(--ease), box-shadow .16s var(--ease);
+  }
+  .tile:hover{ border-color:var(--line-2); box-shadow:var(--shadow-lift); }
+  .tile-h{ padding:17px 18px 14px; border-bottom:1px solid var(--line); }
+  .tile-h .r1{ display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+  .tile-h h2{
+    font:600 17.5px/1.25 var(--sans); letter-spacing:-.015em; color:var(--ink); margin:0;
+  }
+  .tp{
+    font:400 9px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase;
+    padding:3px 5px; border-radius:3px; flex-shrink:0;
+    color:var(--accent); background:var(--accent-soft);
+  }
+  .tp.person{ color:var(--ink-3); background:var(--surface-3); }
+  .tile-h .scope{ font-size:14px; line-height:1.5; color:var(--ink-2); }
+  .tile-h .ct{
+    margin-top:10px; font:400 10.5px/1 var(--mono); letter-spacing:.04em;
+    text-transform:uppercase; color:var(--ink-3);
+  }
+  .tile-h .ct .small{ color:var(--accent); }
+
+  .tile-b{ padding:12px 18px 16px; flex:1; }
+  .tile-b .lab{
+    font:500 10px/1.6 var(--mono); letter-spacing:.07em; text-transform:uppercase;
+    color:var(--ink-3); margin-bottom:7px;
+  }
+  .tile-b ol{ list-style:none; }
+  .tile-b li{ padding:5px 0; border-bottom:1px solid var(--line); }
+  .tile-b li:last-child{ border-bottom:none; }
+  .tile-b .ti{ display:flex; gap:8px; align-items:baseline; }
+  .tile-b .i{ font:400 10px/1.7 var(--mono); color:var(--ink-4); flex-shrink:0; }
+  .tile-b .nm{ font:500 14px/1.45 var(--sans); color:var(--ink); }
+  .tile-b .ln{ font-size:13px; line-height:1.5; color:var(--ink-3); padding-left:18px; }
+  .tile-b .empty{ font-size:13.5px; color:var(--ink-3); }
+  .state{ font-size:15px; color:var(--ink-3); }
+</style>
+
+<header class="top"><div class="wrap">
+  <span class="mark"><svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M5 14a7 7 0 0 1 14 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0ZM9.7 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4ZM14.3 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z"/></svg></span>
+  <a class="wordmark" href="/" style="color:var(--ink)">Octopus</a>
+  <nav class="links">
+    <a href="/brains" aria-current="page">Brains</a>
+    <a href="/mcp">MCP</a>
+    <a href="/chat" class="cta">Open the app</a>
+  </nav>
+</div></header>
+
+<main><div class="wrap">
+  <div class="eyebrow">Public brains</div>
+  <h1 class="hero">What Octopus holds.</h1>
+  <p class="lede">One brain per subject, each with the line that decides what belongs inside it, and the
+    concepts it has built from the sources it read. Private brains are left out of this list.</p>
+
+  <div class="stats" id="stats" hidden>
+    <div class="stat"><b id="nBrains">0</b><span>brains</span></div>
+    <div class="stat"><b id="nConcepts">0</b><span>concepts</span></div>
+    <div class="stat"><b id="nSources">0</b><span>sources read</span></div>
+  </div>
+
+  <h2 id="head">Loading</h2>
+  <div class="tiles" id="tiles"></div>
+  <p class="state" id="state" hidden></p>
+
+  <p class="note">Every position here was re-derived from its whole evidence list, not appended to. To read
+    the evidence and the dates behind any of them, <a href="/mcp">add the connector</a> and ask your own Claude.</p>
+</div></main>
+
+<footer class="bot"><div class="wrap">
+  <a href="/brains">brains</a>
+  <a href="/mcp">mcp</a>
+  <a href="/chat">app</a>
+  <span id="foot">public brains only</span>
+</div></footer>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const el = (t,c,x) => { const n=document.createElement(t); if(c)n.className=c; if(x!=null)n.textContent=x; return n; };
+  const pad2 = n => String(n).padStart(2,"0");
+
+  (async () => {
+    let d;
+    try {
+      const r = await fetch(window.OCTOPUS_API + "/api/public/brains");
+      if (!r.ok) throw new Error("the server answered " + r.status);
+      d = await r.json();
+    } catch (e) {
+      $("head").textContent = "The brains did not load";
+      $("state").textContent = "Reason: " + (e.message || "no answer") + ". Reload in a moment.";
+      $("state").hidden = false;
+      return;
+    }
+
+    const brains = d.brains || [], concepts = d.concepts || [];
+    const sources = brains.reduce((n,b) => n + (b.sources||0), 0);
+
+    $("nBrains").textContent = brains.length;
+    $("nConcepts").textContent = concepts.length;
+    $("nSources").textContent = sources;
+    $("stats").hidden = false;
+
+    if (!brains.length) {
+      $("head").textContent = "Nothing public yet";
+      $("state").textContent = "Every brain is currently private, so this list is empty.";
+      $("state").hidden = false;
+      return;
+    }
+
+    $("head").textContent = `${brains.length} brain${brains.length===1?"":"s"}`;
+    const box = $("tiles");
+
+    for (const b of brains) {
+      const own = concepts.filter(c => c.brain === b.slug).sort((x,y) => (x.n||0)-(y.n||0));
+      const tile = el("div","tile");
+
+      const h = el("div","tile-h");
+      const r1 = el("div","r1");
+      r1.append(el("h2",null,b.name), el("span","tp "+(b.type==="person"?"person":"subject"), b.type));
+      h.append(r1, el("div","scope", b.scope || "no scope line"));
+
+      /* Under 10 sources is a small brain, and the number says so plainly. */
+      const ct = el("div","ct");
+      ct.append(el("span",null,`${own.length} concept${own.length===1?"":"s"} · `));
+      const sc = el("span", (b.sources||0) < 10 ? "small" : null,
+        `${b.sources||0} source${(b.sources||0)===1?"":"s"}`);
+      ct.append(sc);
+      if ((b.sources||0) < 10) ct.append(el("span",null," · small brain"));
+      h.append(ct);
+      tile.append(h);
+
+      const body = el("div","tile-b");
+      body.append(el("div","lab","Concepts"));
+      if (!own.length) body.append(el("div","empty","None yet. This brain is waiting for its first source."));
+      else {
+        const ol = el("ol");
+        own.forEach((c,i) => {
+          const li = el("li");
+          const ti = el("div","ti");
+          ti.append(el("span","i",pad2(c.n || i+1)), el("span","nm", c.title));
+          li.append(ti);
+          const line = c.summaryLine || c.position || "";
+          if (line) li.append(el("div","ln", line));
+          ol.append(li);
+        });
+        body.append(ol);
+      }
+      tile.append(body);
+      box.append(tile);
+    }
+
+    $("foot").textContent = `${concepts.length} concepts · ${sources} sources`;
+  })();
+</script>

@@ -187,7 +187,9 @@ function conceptFull(c: any, brainName: string) {
 /* ---------- dispatch ---------- */
 
 export async function runTool(ctx: any, name: string, args: any) {
-  const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
+  /* publicEverything drops private brains and everything under them, so no
+     tool below has to remember to check. */
+  const { brains, concepts, sources } = await ctx.runQuery(internal.store.publicEverything, {});
 
   if (name === "ask") {
     const q = String(args?.question ?? "").trim();

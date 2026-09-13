@@ -85,7 +85,15 @@ route("/api/brain", async (ctx, _req, b) => {
   const name = String(b.name ?? "").trim(), scope = String(b.scope ?? "").trim();
   if (!name || !scope) return { error: "a name and a scope line are both required" };
   const type = b.type === "person" ? "person" : "subject";
-  return { slug: await ctx.runMutation(internal.store.createBrain, { name, type, scope }) };
+  const visibility = String(b.visibility ?? "ask");
+  return { slug: await ctx.runMutation(internal.store.createBrain, { name, type, scope, visibility }) };
+});
+
+/* Hide a brain from the public endpoints, or show it again. */
+route("/api/brain/visibility", async (ctx, _req, b) => {
+  await gate(ctx, b);
+  return await ctx.runMutation(internal.store.setVisibility,
+    { slug: String(b.slug ?? ""), visibility: String(b.visibility ?? "ask") });
 });
 
 /* ---------- drop ---------- */
@@ -413,6 +421,44 @@ QUESTION: ${String(b.q ?? "")}` },
   ], { maxTokens: level === "normal" ? 2000 : 3200 });
 
   return { answer: text, sources: nSources, level };
+});
+
+/* ---------- the public read the /brains page uses ---------- */
+
+/**
+ * Same exposure as the MCP server, in one JSON document, so a static page can
+ * render the brains without a passphrase. Private brains never appear.
+ */
+router.route({
+  path: "/api/public/brains", method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const { brains, concepts, sources } = await ctx.runQuery(internal.store.publicEverything, {});
+    return new Response(JSON.stringify({
+      brains: brains.map((b: any) => ({
+        slug: b.slug, name: b.name, type: b.type, scope: b.scope,
+        visibility: b.visibility ?? "ask",
+        concepts: concepts.filter((c: any) => c.brain === b.slug).length,
+        sources: sources.filter((s: any) => (s.brains ?? []).includes(b.slug)).length,
+      })),
+      concepts: concepts.map((c: any) => ({
+        brain: c.brain, slug: c.slug, n: c.n, title: c.title,
+        summaryLine: c.summaryLine, position: c.position,
+        sources: (c.sources ?? []).length, updated: c.updated,
+      })),
+    }), {
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=60",
+      },
+    });
+  }),
+});
+router.route({
+  path: "/api/public/brains", method: "OPTIONS",
+  handler: httpAction(async () => new Response(null, { status: 204, headers: {
+    "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, OPTIONS",
+  }})),
 });
 
 /* ---------- the public MCP endpoint ---------- */

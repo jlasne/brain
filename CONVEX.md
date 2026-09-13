@@ -88,6 +88,8 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
 | `/api/ask` | The answer | Yes |
 | `/api/lock` | Drops the session | Yes |
+| `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
+| `/api/public/brains` | Public brains and their concepts, for the `/brains` page | No, by design |
 | `/mcp` | The public MCP server, read only | No, by design |
 
 ## Why the key has to be server side
@@ -117,7 +119,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 
 | Table | Holds | Indexed by |
 |---|---|---|
-| `brains` | name, type, scope, created | slug |
+| `brains` | name, type, scope, created, visibility | slug |
 | `concepts` | brain, title, position, summaryLine, evidence, data, conflicts, sources | brain, then slug |
 | `sources` | id, link, date, author, location, brains | link, and the normalised link |
 | `notes` | the six note sections | source id |
@@ -152,11 +154,27 @@ That last property matters because the endpoint is open. At 4 to 6 calls per
 question, the Convex free tier covers roughly 50,000 questions a month, and the
 overage beyond it runs $0.22 per extra gigabyte moved.
 
+## Public and private brains
+
+A brain carries a `visibility`. Absent reads as `ask`, so brains made before the
+field behave as they did.
+
+| Value | Who reads it | Who feeds it |
+|---|---|---|
+| `private` | The app only | You |
+| `ask` | Anyone, through `/mcp` and `/brains` | You |
+| `drop` | Anyone | Reserved for the API key phase |
+
+One query enforces it. `store.publicEverything` drops private brains and every
+concept and source under them, and both public endpoints read through it, so no
+tool has to remember the check.
+
 The tools:
 
 | Tool | Returns |
 |---|---|
-| `list_brains` | Every brain with its scope line and its counts |
+| `ask` | The positions bearing on a question, their dated evidence, open conflicts, and how to write the answer |
+| `list_brains` | Every readable brain with its scope line and its counts |
 | `read_brain` | One brain's scope plus one line per concept |
 | `read_concept` | A position, its dated evidence, its data, its open conflicts |
 | `search_brains` | Keyword matches across every concept, title hits ranked first |

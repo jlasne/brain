@@ -23,6 +23,11 @@ export default defineSchema({
     type: v.string(),          // "subject" | "person"
     scope: v.string(),         // the one line that decides what belongs
     created: v.string(),
+    /* "private" hides the brain from the public endpoints. "ask" lets anyone
+       read it. "drop" will also let a key feed it, once keys exist. Absent
+       reads as "ask", so brains made before this field keep behaving as they
+       did. */
+    visibility: v.optional(v.string()),
   }).index("by_slug", ["slug"]),
 
   concepts: defineTable({
