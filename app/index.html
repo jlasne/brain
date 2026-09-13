@@ -20,17 +20,12 @@
     gap:clamp(28px,5vw,72px); align-items:center;
   }
 
-  .tldr .tl-h{
-    font:500 10px/1.7 var(--mono); letter-spacing:.13em; text-transform:uppercase;
-    color:var(--ink-4); padding-bottom:9px; border-bottom:1px solid var(--line);
+  .tldr{ border-left:2px solid var(--accent-line); padding-left:clamp(16px,2vw,22px); }
+  .tldr p{
+    margin:0; font-size:14.5px; line-height:1.62; color:var(--ink-3); max-width:none;
   }
-  .tldr ul{ list-style:none; }
-  .tldr li{
-    padding:10px 0; border-bottom:1px solid var(--line);
-    font-size:13.5px; line-height:1.5; color:var(--ink-3);
-  }
-  .tldr li:last-child{ border-bottom:none; }
-  .tldr li b{ color:var(--ink); font-weight:600; }
+  .tldr p + p{ margin-top:14px; }
+  .tldr p b{ color:var(--ink-2); font-weight:500; }
 
   .eyebrow{
     margin-bottom:18px; font:500 11px/1.7 var(--mono); letter-spacing:.11em;
@@ -73,13 +68,11 @@
 <main><div class="wrap">
   <div class="hero-wrap">
     <aside class="tldr">
-      <div class="tl-h">In short</div>
-      <ul>
-        <li>You read a lot. Six months on, the conclusion stays and the reasons go.</li>
-        <li>Drop a source. It keeps the <b>reasoning</b>, and throws the page away.</li>
-        <li>It flags what <b>breaks a view</b> you already hold.</li>
-        <li>Ask in plain words. Answers carry <b>figures, authors and dates</b>.</li>
-      </ul>
+      <p>You learn from articles, videos and studies, week after week.</p>
+      <p>Octopus reads each one and files it where it belongs, so the folder stays
+        <b>coherent</b> instead of piling up.</p>
+      <p>Ask it anything later, from here or from the assistant you already use.</p>
+      <p>Pick a subject and your <b>expertise in it deepens</b> with every source you add.</p>
     </aside>
 
     <div class="hero-main">
@@ -91,7 +84,7 @@
 </div></main>
 
 <footer class="bot"><div class="wrap">
-  <span style="margin:0">No subscription. Your key, your spending, your brains.</span>
+  <span style="margin:0">Your key, your spending, your brains.</span>
   <span id="tally">one brain per subject</span>
 </div></footer>
 
