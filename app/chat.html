@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13j";
+  window.OCTOPUS_BUILD = "2026-09-13l";
 </script>
 
 <style>
@@ -215,6 +215,21 @@
   }
   .side-foot button{ color:var(--ink-3); text-decoration:underline; text-underline-offset:2px; }
   .side-foot button:hover{ color:var(--accent); }
+  .side-foot #stat{ text-align:right; }
+  .side-foot #stat.pick{ color:var(--accent); }
+
+  .mlist{
+    max-height:44vh; overflow-y:auto; margin-top:10px;
+    border:1px solid var(--line); border-radius:10px; background:var(--bg);
+  }
+  .mrow{ display:block; width:100%; text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); }
+  .mrow:last-child{ border-bottom:none; }
+  .mrow:hover{ background:var(--surface-2); }
+  .mrow.on{ background:var(--accent-soft); }
+  .mrow b{ display:block; font:500 13.5px/1.4 var(--sans); color:var(--ink); }
+  .mrow span{ display:block; margin-top:2px; font:400 11.5px/1.6 var(--mono); color:var(--ink-3); }
+  .mrow.on b{ color:var(--accent); }
+  .mnone{ padding:14px 12px; font:400 13px/1.5 var(--sans); color:var(--ink-3); }
 
   /* ============ main ============ */
   main{ display:flex; flex-direction:column; min-height:0; min-width:0; }
@@ -568,7 +583,7 @@
     <div class="side-foot">
       <button id="keyBtn" title="Change the model key this account uses" hidden>key</button>
       <button id="lockBtn" title="Sign out and forget your key">lock</button>
-      <span id="stat"></span>
+      <button id="stat" title="The model that answers, and what it costs"></button>
     </div>
   </aside>
 
@@ -634,7 +649,7 @@ const KEY_KEY = "octopus.key.v1";
 const WHO_KEY = "octopus.who.v1";
 
 const S = {
-  token: null, brains: [], concepts: [], sources: [], model: "",
+  token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
   mode: "ask", scope: "all", transcript: null, busy: false, pendingCard: null, chunk: 18000,
   level: "normal",
   key: null, account: null, who: "", hasKey: false, keyHint: "",
@@ -645,6 +660,12 @@ const S = {
 const LEVELS = ["normal","educational","expert"];
 try { const v = localStorage.getItem("octopus.level"); if (LEVELS.includes(v)) S.level = v; } catch {}
 const saveLevel = () => { try { localStorage.setItem("octopus.level", S.level); } catch {} };
+
+/* The model this browser asks for. Empty means the one the server runs. Your
+   key pays for it, so the choice sits with whoever holds the key. */
+const PICK_KEY = "octopus.model";
+try { S.pick = localStorage.getItem(PICK_KEY) || ""; } catch {}
+const savePick = () => { try { S.pick ? localStorage.setItem(PICK_KEY, S.pick) : localStorage.removeItem(PICK_KEY); } catch {} };
 
 /* Folded nav, remembered. A blocked store just leaves it open. */
 let navOpen = true;
@@ -673,7 +694,7 @@ async function api(path, body = {}) {
     r = await fetch(API + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: S.token, ...body }),
+      body: JSON.stringify({ token: S.token, ...(S.pick ? { model: S.pick } : {}), ...body }),
       signal: ctl.signal,
     });
   } catch (e) {
@@ -881,8 +902,12 @@ function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); 
 function renderSide(){
   const box = $("brains"); box.innerHTML = "";
   $("bcount").textContent = S.brains.length || "";
-  $("stat").textContent = S.model ? S.model.split("/").pop() : "";
-  $("stat").title = `build ${window.OCTOPUS_BUILD} · reads in ${S.chunk} character passes`;
+  const live = S.pick || S.model;
+  $("stat").textContent = live ? live.split("/").pop() : "model";
+  $("stat").classList.toggle("pick", !!S.pick);
+  $("stat").title = S.pick
+    ? `${S.pick}, your choice. Click to change it. Build ${window.OCTOPUS_BUILD}.`
+    : `${S.model || "the server default"}. Click to pick another. Build ${window.OCTOPUS_BUILD}.`;
   if (!S.brains.length){
     box.append(el("div","empty-side","None yet. A brain is a subject or a person, with a one line scope."));
     return;
@@ -925,7 +950,66 @@ function brainDetail(b){
     } catch(err){ v.querySelector(".act").textContent = err.message || "failed"; }
   };
   d.append(v);
+
+  /* Only whoever owns a brain renames it, which is what the server enforces, so
+     the control shows for them alone. */
+  if (S.who === "owner" || (b.owner && b.owner === S.account)) {
+    const rn = el("div","vis");
+    rn.append(el("span","lbl","Name and scope"), el("span","act","edit"));
+    rn.title = "Rename this brain, or change the line that decides what belongs inside";
+    rn.onclick = e => { e.stopPropagation(); openRenameSheet(b); };
+    d.append(rn);
+  }
   return d;
+}
+
+/**
+ * Rename a brain, and change its scope line.
+ *
+ * A new name moves the slug, and the slug is how concepts, source rows and
+ * counted candidates find their brain. The server moves all three in one write
+ * and reports the counts, which is what the receipt below shows.
+ */
+function openRenameSheet(b){
+  closeSide();
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <header><h3>Rename ${esc(b.name)}</h3>
+      <p>The scope line is the only test of what belongs inside. Change it and the next drop is judged against the new line.</p></header>
+      <div class="f"><label for="rName">Name</label><input id="rName" autocomplete="off"></div>
+      <div class="f"><label for="rScope">Scope, in one line</label><textarea id="rScope"></textarea></div>
+      <div class="f"><div id="rMsg" class="bad" role="alert"></div></div>
+      <footer><button class="ghost" id="rCancel">Cancel</button><button class="go" id="rSave">Save</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const nameI = veil.querySelector("#rName"), scopeI = veil.querySelector("#rScope"),
+        msg = veil.querySelector("#rMsg"), save = veil.querySelector("#rSave");
+  nameI.value = b.name || ""; scopeI.value = b.scope || "";
+  const shut = () => veil.remove();
+  veil.querySelector("#rCancel").onclick = shut;
+  veil.onclick = e => { if(e.target===veil) shut(); };
+  setTimeout(()=>nameI.focus(),30);
+
+  save.onclick = async () => {
+    const nm = nameI.value.trim(), sc = scopeI.value.trim();
+    if (nm.length < 2){ msg.className="bad"; msg.textContent="give a name of at least 2 characters"; nameI.focus(); return; }
+    save.disabled = true; msg.className="spin"; msg.textContent = "Saving";
+    try {
+      const r = await api("/api/brain/rename", { slug: b.slug, name: nm, scope: sc });
+      if (r.error) throw new Error(r.error);
+      shut(); await refresh();
+      if (S.scope === b.slug) S.scope = r.slug;
+      render();
+      const m = r.moved || {};
+      push("ai", x => { x.innerHTML = rich(
+        `**${esc(b.name)}** is now **${esc(r.name)}**, at \`${esc(r.slug)}\`.` +
+        (r.slug !== b.slug
+          ? ` Moved with it: ${m.concepts||0} concepts, ${m.sources||0} sources, ${m.candidates||0} counted candidates.`
+          : " The address did not change.") +
+        `\n\nScope: ${esc(r.scope || sc)}`); });
+    } catch(e){ save.disabled=false; msg.className="bad"; msg.textContent = e.message; }
+  };
 }
 
 function renderScope(){
@@ -1040,6 +1124,7 @@ $("level").onchange = e => { S.level = e.target.value; saveLevel(); renderCompos
 $("burger").onclick = () => $("side").classList.toggle("open");
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
+$("stat").onclick = openModelSheet;
 $("keyBtn").onclick = openKeySheet;
 $("testBtn").onclick = testSource;
 $("navToggle").onclick = () => { navOpen = false; paintNav(); };
@@ -1170,6 +1255,109 @@ function openKeySheet(){
         `Key set, ending **${esc(key.slice(-4))}**. ` +
         (S.hasKey ? "This account will remember it." : "It lives in this tab only.")); });
     } catch(e){ btn.disabled=false; msg.className="bad"; msg.textContent = e.message; }
+  };
+}
+
+/**
+ * The model list comes from OpenRouter itself, so the prices shown are the ones
+ * that get billed. Only models that accept a JSON response format are offered,
+ * because every drop asks for JSON and the rest fail on the first call.
+ *
+ * Fetched once per tab. A failed fetch leaves the text field, which still works.
+ */
+let MODELS = null;
+async function models(){
+  if (MODELS) return MODELS;
+  const r = await fetch("https://openrouter.ai/api/v1/models");
+  if (!r.ok) throw new Error("OpenRouter did not answer with its model list");
+  const d = await r.json();
+  MODELS = (d.data || [])
+    .filter(m => (m.supported_parameters || []).includes("response_format"))
+    .map(m => ({
+      id: m.id, name: m.name || m.id,
+      inp: Number(m.pricing?.prompt || 0) * 1e6,
+      out: Number(m.pricing?.completion || 0) * 1e6,
+      ctx: Number(m.context_length || 0),
+    }))
+    /* A negative price means the router decides at call time, so no number can
+       be shown. Those rows would read as "$-1000000 in". */
+    .filter(m => m.inp >= 0 && m.out >= 0)
+    .sort((a, b) => (a.inp + a.out) - (b.inp + b.out));
+  return MODELS;
+}
+
+const money = n => n === 0 ? "free" : n < 1 ? "$" + n.toFixed(3).replace(/0+$/,"").replace(/\.$/,"") : "$" + n.toFixed(2);
+const ctxOf = n => n >= 1000000 ? Math.round(n/1000000) + "M" : n >= 1000 ? Math.round(n/1000) + "k" : String(n);
+
+/**
+ * Pick the model that answers. Your key pays for the call, so the choice is
+ * yours. Picking nothing leaves the one this deployment runs.
+ */
+function openModelSheet(){
+  closeSide();
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <header><h3>Model</h3>
+      <p>Your key pays for every call, so the model is your choice. Prices are per million tokens, read from OpenRouter.</p></header>
+      <div class="f"><label for="mQ">Search</label><input id="mQ" autocomplete="off" spellcheck="false" placeholder="claude, gemini, free, ...">
+        <div class="mlist" id="mList"><div class="mnone">Loading the list</div></div>
+      </div>
+      <div class="f"><div id="mMsg" class="bad" role="alert"></div></div>
+      <footer>
+        <button class="ghost" id="mReset">Use the default</button>
+        <button class="ghost" id="mCancel">Cancel</button>
+        <button class="go" id="mSave">Use this one</button>
+      </footer>
+    </div>`;
+  document.body.append(veil);
+  const q = veil.querySelector("#mQ"), list = veil.querySelector("#mList"),
+        msg = veil.querySelector("#mMsg"), save = veil.querySelector("#mSave");
+  const shut = () => veil.remove();
+  veil.querySelector("#mCancel").onclick = shut;
+  veil.onclick = e => { if(e.target===veil) shut(); };
+
+  let chosen = S.pick || S.model || "";
+  let all = [];
+
+  const paint = () => {
+    const t = q.value.trim().toLowerCase();
+    /* Cheapest first, with the one this deployment runs pinned to the top, so
+       the list opens on the model you are already paying for. */
+    const hits = (t ? all.filter(m => m.id.toLowerCase().includes(t) || m.name.toLowerCase().includes(t)
+                                      || (t === "free" && m.inp === 0 && m.out === 0))
+                    : [...all.filter(m => m.id === S.model), ...all.filter(m => m.id !== S.model)]).slice(0, 120);
+    list.innerHTML = "";
+    if (!hits.length){ list.append(el("div","mnone", all.length ? "No model matches that." : "The list did not load. Nothing to pick from.")); return; }
+    for (const m of hits){
+      const row = el("button","mrow" + (m.id === chosen ? " on" : ""));
+      row.append(el("b",null,m.name));
+      row.append(el("span",null,
+        `${m.id}  ·  ${money(m.inp)} in / ${money(m.out)} out per M  ·  ${ctxOf(m.ctx)} ctx` +
+        (m.id === S.model ? "  ·  default" : "")));
+      row.onclick = () => { chosen = m.id; paint(); };
+      list.append(row);
+    }
+  };
+  q.oninput = paint;
+
+  models().then(ms => { all = ms; paint(); setTimeout(()=>q.focus(),30); })
+    .catch(e => { msg.className="bad"; msg.textContent = e.message; list.innerHTML = ""; list.append(el("div","mnone","The list did not load.")); });
+
+  veil.querySelector("#mReset").onclick = () => {
+    S.pick = ""; savePick(); shut(); render();
+    push("ai", b => { b.innerHTML = rich(`Back to the default, **${esc(S.model || "the server model")}**.`); });
+  };
+
+  save.onclick = () => {
+    if (!chosen){ msg.className="bad"; msg.textContent="pick one from the list"; return; }
+    const m = all.find(x => x.id === chosen);
+    S.pick = chosen === S.model ? "" : chosen;
+    savePick(); shut(); render();
+    push("ai", b => { b.innerHTML = rich(
+      `Now asking **${esc(chosen)}**.` +
+      (m ? ` ${money(m.inp)} in, ${money(m.out)} out per million tokens, ${ctxOf(m.ctx)} of context.` : "") +
+      " Your key pays for it."); });
   };
 }
 

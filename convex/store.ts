@@ -205,6 +205,54 @@ export const setVisibility = internalMutation({
 });
 
 
+/**
+ * Rename a brain, and carry everything that points at it.
+ *
+ * A brain is addressed by its slug in three other tables, so a name that
+ * changes the slug has to move the concepts, the source rows and the counted
+ * candidates with it. Miss one and the concepts orphan.
+ *
+ * The notes keep the old slug inside their raw findings. Nothing reads that for
+ * routing, so it stays as the record of what the plan said at the time.
+ */
+export const renameBrain = internalMutation({
+  args: { slug: v.string(), name: v.string(), scope: v.optional(v.string()),
+          account: v.union(v.string(), v.null()) },
+  handler: async (ctx, a) => {
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    if (!b) throw new Error("no such brain");
+    if (a.account !== null && (b.owner ?? null) !== a.account) {
+      throw new Error("that brain belongs to someone else");
+    }
+    const name = a.name.trim();
+    if (name.length < 2) throw new Error("give a name of at least 2 characters");
+    const to = slug(name);
+
+    if (to !== a.slug) {
+      const clash = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", to)).unique();
+      if (clash) throw new Error(`"${name}" would collide with the brain already at ${to}`);
+    }
+
+    await ctx.db.patch(b._id, { name, slug: to, ...(a.scope?.trim() ? { scope: a.scope.trim() } : {}) });
+
+    const moved = { concepts: 0, sources: 0, candidates: 0 };
+    if (to !== a.slug) {
+      for (const c of await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.slug)).collect()) {
+        await ctx.db.patch(c._id, { brain: to }); moved.concepts++;
+      }
+      for (const s2 of await ctx.db.query("sources").collect()) {
+        if (!s2.brains.includes(a.slug)) continue;
+        await ctx.db.patch(s2._id, { brains: s2.brains.map(x => x === a.slug ? to : x) }); moved.sources++;
+      }
+      for (const c of await ctx.db.query("candidates").collect()) {
+        if (c.brain !== a.slug) continue;
+        await ctx.db.patch(c._id, { brain: to }); moved.candidates++;
+      }
+    }
+    return { from: a.slug, slug: to, name, scope: a.scope?.trim() || b.scope, moved };
+  },
+});
+
 export const upsertConcept = internalMutation({
   args: { brain: v.string(), title: v.string(), doc: v.any() },
   handler: async (ctx, a) => {

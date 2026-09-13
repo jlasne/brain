@@ -51,6 +51,23 @@ async function modelKey(ctx: any, who: Who, body: any): Promise<string | undefin
   throw new Error("this needs a model key. Paste yours, or save one on your account.");
 }
 
+/**
+ * Which model answers.
+ *
+ * The default is the one this deployment runs. A caller spending their own key
+ * names another, because the bill is theirs. An owner session spends this
+ * deployment's key, so it stays on the default.
+ */
+function modelName(who: Who, body: any): string | undefined {
+  if (who.kind === "owner") return undefined;
+  const m = String(body?.model ?? "").trim();
+  if (!m || m === MODEL) return undefined;
+  if (m.length > 80 || !/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i.test(m)) {
+    throw new Error(`"${m.slice(0, 40)}" is not a model id. They read vendor/model, like ${MODEL}.`);
+  }
+  return m;
+}
+
 const route = (path: string, fn: (ctx: any, req: Request, body: any) => Promise<any>) => {
   router.route({ path, method: "OPTIONS", handler: httpAction(async (_c, req) => new Response(null, { status: 204, headers: cors(req) })) });
   router.route({
@@ -208,6 +225,15 @@ route("/api/brain", async (ctx, _req, b) => {
     { name, type, scope, visibility, ...(who.account ? { owner: who.account } : {}) }) };
 });
 
+/** Rename a brain, and move its concepts, sources and candidates with it. */
+route("/api/brain/rename", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  if (who.kind === "guest") return { error: "renaming a brain needs an account" };
+  return await ctx.runMutation(internal.store.renameBrain, {
+    slug: String(b.slug ?? ""), name: String(b.name ?? ""),
+    scope: String(b.scope ?? ""), account: who.account ?? null });
+});
+
 /* Hide a brain from the public endpoints, or show it again. */
 route("/api/brain/visibility", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
@@ -259,7 +285,7 @@ Reply with only JSON:
 
 SOURCE${total > 1 ? ` (part ${part} of ${total})` : ""}:
 ${chunk}` },
-  ], { json: true, maxTokens: 24000, key: await modelKey(ctx, who, b) });
+  ], { json: true, maxTokens: 24000, key: await modelKey(ctx, who, b), model: modelName(who, b) });
   return { part: parseJson(text, finish) };
 });
 
@@ -320,7 +346,7 @@ title: ${ext.title ?? ""}
 author: ${ext.author ?? ""}
 date: ${ext.date ?? ""}
 ${(ext.topics ?? []).map((t: any) => `### ${t.topic}\n${(t.ideas ?? []).join("\n")}\n${(t.data ?? []).join("\n")}`).join("\n\n").slice(0, 30000)}` },
-  ], { json: true, maxTokens: 16000, key: await modelKey(ctx, who, b) });
+  ], { json: true, maxTokens: 16000, key: await modelKey(ctx, who, b), model: modelName(who, b) });
 
   return { plan: parseJson(text, finish) };
 });
@@ -422,7 +448,7 @@ ${packet}
 NEW SOURCE
 author: ${ext.author || "unknown"} | date: ${ext.date || today()}
 ${(ext.topics ?? []).map((t: any) => `${t.topic}: ${(t.ideas ?? []).join("; ")} ${(t.data ?? []).join("; ")}`).join("\n").slice(0, 20000)}` },
-    ], { json: true, maxTokens: 24000, key: await modelKey(ctx, who, b) });
+    ], { json: true, maxTokens: 24000, key: await modelKey(ctx, who, b), model: modelName(who, b) });
     rewrites = parseJson(text, finish)?.rewrites ?? [];
   }
 
@@ -552,7 +578,7 @@ STORED KNOWLEDGE
 ${dossier}
 
 QUESTION: ${String(b.q ?? "")}` },
-  ], { maxTokens: level === "normal" ? 2000 : 3200, key: await modelKey(ctx, who, b) });
+  ], { maxTokens: level === "normal" ? 2000 : 3200, key: await modelKey(ctx, who, b), model: modelName(who, b) });
 
   return { answer: text, sources: nSources, level };
 });
