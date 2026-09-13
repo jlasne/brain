@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13o";
+  window.OCTOPUS_BUILD = "2026-09-13p";
 </script>
 
 <style>
@@ -800,20 +800,20 @@ function gateScreen() {
           <header>
             <div class="mk" aria-hidden="true">${MARK}</div>
             <h3 id="gh">Three ways in</h3>
-            <p>Every brain is readable. What changes is whether you can feed one, and whether anything is remembered.</p>
+            <p>Every brain is readable.</p>
           </header>
           <div class="picks">
             <button class="pick-row" type="button" data-pick="guest">
-              <b>Read only, nothing kept</b>
-              <span>Paste your model key and ask. The key goes when this tab closes. <em>No account.</em></span>
+              <b>Read only</b>
+              <span>Drop your key. It goes when the tab closes.</span>
             </button>
             <button class="pick-row" type="button" data-pick="member">
-              <b>Feed and read</b>
-              <span>A name and a password. Drop sources, create brains, and save your key if you want it remembered. <em>Creates the account if the name is free.</em></span>
+              <b>Create and ask</b>
+              <span>Make an account. Feed brains, then read them.</span>
             </button>
             <a class="pick-row" href="/mcp">
-              <b>From your own AI client</b>
-              <span>Add the Octopus connector and read every brain where you already work. <em>No key, no account.</em></span>
+              <b>MCP</b>
+              <span>Read the brains from your own AI client.</span>
             </a>
           </div>
           <footer><a class="home" href="/">Octopus home</a></footer>
