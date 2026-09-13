@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13t";
+  window.OCTOPUS_BUILD = "2026-09-13u";
 </script>
 
 <style>
@@ -120,48 +120,6 @@
   .brand h1 a:hover, .topbar h1 a:hover{ color:var(--accent); }
 
   .side-scroll{ flex:1; overflow-y:auto; padding:16px 12px; min-height:0; }
-  .side-h{
-    font:500 12.5px/1 var(--sans); letter-spacing:0;
-    color:var(--ink-3); padding:0 9px 10px;
-    display:flex; justify-content:space-between; align-items:center;
-  }
-  .side-h b{ color:var(--accent); font-weight:500; }
-
-  .brain-row{
-    display:block; width:100%; text-align:left;
-    padding:10px 11px; border-radius:9px; margin-bottom:3px;
-    transition:background .15s var(--ease);
-  }
-  .brain-row:hover{ background:var(--surface); }
-  .brain-row.on{ background:var(--surface); box-shadow:inset 2px 0 0 var(--accent-fill), var(--shadow); }
-  .brain-row .bn{ display:flex; align-items:center; gap:7px; }
-  .brain-row .nm{ font:500 14px/1.3 var(--sans); color:var(--ink); }
-  .brain-row .tp{
-    font:400 9px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase;
-    padding:2px 5px; border-radius:3px; flex-shrink:0;
-  }
-  .tp.subject{ color:var(--accent); background:var(--accent-soft); }
-  .tp.person{ color:var(--ink-3); background:var(--surface-3); }
-  .brain-row .bn{ justify-content:space-between; }
-  .brain-row .chev{ font-size:9px; color:var(--ink-3); margin-left:auto; transition:transform .18s var(--ease); }
-  .brain-row.on .chev{ transform:rotate(180deg); color:var(--accent); }
-
-  /* the panel that opens under the brain you clicked */
-  .bdetail{ padding:0 12px 11px; margin:-2px 0 5px; }
-  .bdetail .sc{ font:400 12px/1.5 var(--sans); color:var(--ink-2); }
-  .bdetail .ct{ font:400 10.5px/1 var(--mono); color:var(--ink-3); margin-top:7px; }
-  .bdetail .vis{
-    display:flex; align-items:center; gap:7px; margin-top:9px; cursor:pointer;
-    font:400 10.5px/1 var(--mono);
-  }
-  .bdetail .vis .lbl{
-    padding:3px 6px; border-radius:4px; color:var(--accent); background:var(--accent-soft);
-  }
-  .bdetail .vis.priv .lbl{ color:var(--ink-3); background:var(--surface-3); }
-  .bdetail .vis .act{ color:var(--ink-3); text-decoration:underline; text-underline-offset:2px; }
-  .bdetail .vis:hover .act{ color:var(--accent); }
-
-  .empty-side{ padding:8px; font:400 13px/1.55 var(--sans); color:var(--ink-3); }
 
   .new-brain{
     margin:0 0 12px; padding:10px 11px; width:100%; text-align:left;
@@ -208,22 +166,49 @@
     width:16px; height:16px; border-radius:50%; background:var(--accent-soft); text-align:center;
   }
 
-  .side-foot{
-    border-top:1px solid var(--line); padding:12px 20px;
-    font:400 11px/1.6 var(--mono); color:var(--ink-3);
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    flex-wrap:nowrap; white-space:nowrap;
+  /* Three controls that look like controls. Underlined words read as footnotes,
+     and a person hunting for the model picker never found one. */
+  .side-foot{ border-top:1px solid var(--line); padding:12px; display:grid; gap:7px; }
+  .foot-btn{
+    display:flex; align-items:center; gap:9px; width:100%; min-width:0;
+    border:1px solid var(--line-2); border-radius:8px; background:var(--surface);
+    padding:9px 11px; font:500 12.5px/1.2 var(--sans); color:var(--ink-2);
+    transition:border-color .15s var(--ease), color .15s var(--ease), background .15s var(--ease);
   }
-  .side-foot button{
-    color:var(--ink-3); text-decoration:underline; text-underline-offset:2px;
-    min-width:0; overflow:hidden; text-overflow:ellipsis;
+  .foot-btn:hover{ border-color:var(--accent-fill); color:var(--ink); background:var(--surface-2); }
+  .foot-btn .lbl{
+    flex-shrink:0; font:400 10px/1 var(--mono); letter-spacing:.07em;
+    text-transform:uppercase; color:var(--ink-4);
   }
-  .side-foot button:hover{ color:var(--accent); }
-  /* The model name is the only item that can run long, so it is the one that
-     gives way. The full name sits in its tooltip. */
-  .side-foot #stat{ text-align:center; flex:1; text-decoration:none; color:var(--ink-4); }
-  .side-foot #stat:hover{ text-decoration:underline; }
-  .side-foot #stat.pick{ color:var(--accent); }
+  .foot-btn .val{
+    margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font:400 11.5px/1.3 var(--mono); color:var(--ink-3);
+  }
+  #stat.pick .val{ color:var(--accent); }
+  .foot-row{ display:flex; gap:7px; }
+  .foot-row .foot-btn{ justify-content:center; }
+
+  /* The chosen brain, described where the choice is made. */
+  .brain-strip{
+    display:flex; align-items:center; flex-wrap:wrap; gap:7px 11px;
+    margin:0 0 10px; padding:8px 12px;
+    border:1px solid var(--line); border-radius:9px; background:var(--surface-2);
+    font:400 12.5px/1.45 var(--sans); color:var(--ink-3);
+  }
+  .brain-strip .sc{ flex:1; min-width:150px; color:var(--ink-2); }
+  .brain-strip .ct{ font:400 10.5px/1.6 var(--mono); color:var(--ink-4); white-space:nowrap; }
+  .brain-strip .pill{
+    font:400 10.5px/1 var(--mono); padding:4px 7px; border-radius:5px; white-space:nowrap;
+    color:var(--accent); background:var(--accent-soft); border:1px solid transparent;
+  }
+  .brain-strip .pill.priv{ color:var(--ink-3); background:var(--surface-3); }
+  .brain-strip button.pill{ cursor:pointer; }
+  .brain-strip button.pill:hover{ border-color:var(--accent-fill); }
+  .brain-strip .edit{
+    font:500 11.5px/1 var(--sans); color:var(--ink-3);
+    border:1px solid var(--line-2); border-radius:6px; padding:5px 9px; background:var(--surface);
+  }
+  .brain-strip .edit:hover{ color:var(--accent); border-color:var(--accent-fill); }
 
   .mlist{
     max-height:44vh; overflow-y:auto; margin-top:10px;
@@ -598,13 +583,15 @@
     </div>
     <div class="side-scroll">
       <button class="new-brain" id="newBrain">+ Create a brain</button>
-      <div class="side-h">Brains <b id="bcount"></b></div>
-      <div id="brains"></div>
     </div>
     <div class="side-foot">
-      <button id="keyBtn" title="Your model key, and your address for other AI clients">setup</button>
-      <button id="stat" title="The model that answers, and what it costs"></button>
-      <button id="lockBtn" title="Sign out and forget your key">lock</button>
+      <button class="foot-btn" id="stat" title="The model that answers, and what it costs">
+        <span class="lbl">Model</span><span class="val"></span>
+      </button>
+      <div class="foot-row">
+        <button class="foot-btn" id="keyBtn" title="Your model key, and your address for other AI clients">Setup</button>
+        <button class="foot-btn" id="lockBtn" title="Sign out and forget your key">Sign out</button>
+      </div>
     </div>
   </aside>
 
@@ -641,6 +628,7 @@
             </select>
           </div>
         </div>
+        <div class="brain-strip" id="brainStrip" hidden></div>
         <div class="box">
           <textarea id="input" rows="1" placeholder="Ask anything your brains have read."></textarea>
           <div class="tbar">
@@ -942,8 +930,7 @@ async function refresh(){
   if (d.kind) S.who = d.kind === "member" ? (S.who || d.account) : d.kind;
   if (d.hasKey !== undefined){ S.hasKey = d.hasKey; S.keyHint = d.keyHint || ""; }
   $("keyBtn").hidden = S.who === "guest" || !S.account;
-  $("keyBtn").textContent = "setup";
-  $("lockBtn").textContent = S.who === "guest" ? "leave" : `sign out ${S.who || ""}`.trim();
+  $("lockBtn").textContent = S.who === "guest" ? "Leave" : "Sign out";
   render();
 }
 
@@ -953,75 +940,66 @@ const sourcesOf  = b => S.sources.filter(s => (s.brains||[]).includes(b));
 
 function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); }
 
+/* The sidebar holds what you do, not what you have. What you have lives in the
+   picker above the composer, next to the choice it belongs to. */
 function renderSide(){
-  const box = $("brains"); box.innerHTML = "";
-  $("bcount").textContent = S.brains.length || "";
   const live = S.pick || S.model;
-  $("stat").textContent = live ? live.split("/").pop() : "model";
+  $("stat").querySelector(".val").textContent = live ? live.split("/").pop() : "default";
   $("stat").classList.toggle("pick", !!S.pick);
   $("stat").title = S.pick
     ? `${S.pick}, your choice. Click to change it. Build ${window.OCTOPUS_BUILD}.`
     : `${S.model || "the server default"}. Click to pick another. Build ${window.OCTOPUS_BUILD}.`;
-  if (!S.brains.length){
-    box.append(el("div","empty-side","None yet. A brain is a subject or a person, with a one line scope."));
-    return;
-  }
-  /* One line per brain. Clicking it opens that brain's scope, concepts and
-     sources, and makes it the brain you ask. Clicking again closes both. */
-  for (const b of S.brains){
-    const open = S.scope === b.slug;
-    const row = el("button","brain-row" + (open ? " on" : ""));
-    const top = el("div","bn");
-    top.append(el("span","nm",b.name), el("span","tp "+b.type,b.type), el("span","chev","▾"));
-    row.append(top);
-    row.onclick = () => { S.scope = open ? "all" : b.slug; render(); };
-    box.append(row);
-    if (open) box.append(brainDetail(b));
-  }
 }
 
-function brainDetail(b){
+/**
+ * The brain the composer points at: its scope line, what it holds, who may feed
+ * it, and the way to change any of that.
+ *
+ * It replaced a list in the sidebar. A list of six names told you nothing the
+ * picker does not, and it pushed the one line that matters, the scope, three
+ * clicks away.
+ */
+function paintStrip(){
+  const strip = $("brainStrip");
+  const b = S.brains.find(x => x.slug === S.scope);
+  strip.innerHTML = "";
+  strip.hidden = !b;
+  if (!b) return;
+
   const n = conceptsOf(b.slug).length, sc = sourcesOf(b.slug).length;
   const v0 = String(b.visibility ?? "");
   const open = v0 === "open" || v0 === "drop";
-  const d = el("div","bdetail");
-  d.append(el("div","sc", b.scope || "no scope line"),
-           el("div","ct", `${n} concept${n===1?"":"s"} · ${sc} source${sc===1?"":"s"}`));
-
   /* Whoever owns a brain sets who feeds it and what it is called. That is what
      the server enforces, so the actions appear for them alone. Everyone else
      reads the state, which tells them whether their own drop would land. */
   const mine = S.who === "owner" || (!!b.owner && b.owner === S.account);
 
-  const v = el("div","vis" + (open ? "" : " priv"));
-  v.append(el("span","lbl", open ? "Anyone feeds" : mine ? "Only me feeds" : "Only its creator feeds"));
-  v.title = open
-    ? "Any signed-in person can drop sources into this brain"
-    : mine ? "Only you can drop sources into this brain"
-           : "Only the account that created this brain can drop sources into it";
-  if (mine) {
-    v.append(el("span","act", open ? "close it" : "open it"));
-    v.onclick = async e => {
-      e.stopPropagation();
-      v.querySelector(".act").textContent = "saving";
+  strip.append(el("span","sc", b.scope || "no scope line"));
+  strip.append(el("span","ct", `${n} concept${n===1?"":"s"} · ${sc} source${sc===1?"":"s"}`));
+
+  const label = open ? "Anyone feeds" : mine ? "Only me feeds" : "Only its creator feeds";
+  if (mine){
+    const v = el("button","pill" + (open ? "" : " priv"), label);
+    v.title = open ? "Click to close it to your own sources" : "Click to let anyone signed in feed it";
+    v.onclick = async () => {
+      v.textContent = "saving";
       try {
         await api("/api/brain/visibility", { slug: b.slug, visibility: open ? "closed" : "open" });
         await refresh(); render();
-      } catch(err){ v.querySelector(".act").textContent = err.message || "failed"; }
+      } catch(err){ v.textContent = err.message || "failed"; }
     };
-  } else {
-    v.style.cursor = "default";
-  }
-  d.append(v);
-
-  if (mine) {
-    const rn = el("div","vis");
-    rn.append(el("span","lbl","Name and scope"), el("span","act","edit"));
+    strip.append(v);
+    const rn = el("button","edit","Edit");
     rn.title = "Rename this brain, or change the line that decides what belongs inside";
-    rn.onclick = e => { e.stopPropagation(); openRenameSheet(b); };
-    d.append(rn);
+    rn.onclick = () => openRenameSheet(b);
+    strip.append(rn);
+  } else {
+    const v = el("span","pill" + (open ? "" : " priv"), label);
+    v.title = open
+      ? "Any signed-in person can drop sources into this brain"
+      : "Only the account that created this brain can drop sources into it";
+    strip.append(v);
   }
-  return d;
 }
 
 /**
@@ -1082,6 +1060,7 @@ function renderScope(){
   if (!S.brains.some(b => b.slug === S.scope)) S.scope = "all";
   sel.value = S.scope;
   $("scopeLabel").textContent = S.mode==="drop" ? "Into" : "Across";
+  paintStrip();
 }
 
 function renderComposer(){
@@ -1180,7 +1159,7 @@ $("mode").onclick = e => {
   [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m===S.mode));
   renderScope(); renderComposer(); $("input").focus();
 };
-$("scope").onchange = e => { S.scope = e.target.value; renderSide(); renderComposer(); };
+$("scope").onchange = e => { S.scope = e.target.value; render(); };
 $("level").onchange = e => { S.level = e.target.value; saveLevel(); renderComposer(); };
 $("burger").onclick = () => $("side").classList.toggle("open");
 const closeSide = () => $("side").classList.remove("open");
