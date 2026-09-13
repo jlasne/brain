@@ -162,9 +162,22 @@ overage beyond it runs $0.22 per extra gigabyte moved.
 
 | Door | Credential | Model calls paid by |
 |---|---|---|
-| Owner | The passphrase | `OPENROUTER_API_KEY` on this deployment |
 | Member | A name and a password | Their own key: pasted, or remembered on the account |
 | Guest | A model key, nothing else | Their own key, held in their tab only |
+| Owner | The passphrase, no longer offered on screen | `OPENROUTER_API_KEY` on this deployment |
+
+The passphrase door was removed from the app once accounts existed. Its route
+still answers, so a deployment that loses every account password has a way back
+in through the API. Nothing new obtains an owner session through the UI.
+
+Brains made before accounts carry no `owner`, which left them feedable by the
+passphrase alone. Closing that door means they need a real owner, so
+`admin:claim` hands them to an account:
+
+```
+npx convex run admin:state --prod
+npx convex run admin:claim '{"account":"octopus"}' --prod
+```
 
 A guest asks questions and feeds nothing, so there is no brain to own and no
 password to keep. A member owns the brains they create.

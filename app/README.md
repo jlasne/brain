@@ -46,30 +46,30 @@ reviews the evidence behind the position and names the thin spots.
 anyone may feed it. The closest existing scope gets shown first, so you can
 decide whether a new brain is worth it.
 
-## Three ways into /chat
+## Two ways into /chat
 
 | Door | You enter | Your key |
 |---|---|---|
 | Sign in | A name and a password | Pasted once, or remembered on the account |
-| Just my key | A model key | Held in the tab, forgotten on close |
-| Owner | The passphrase | This deployment's own |
+| Read access | A model key | Held in the tab, forgotten on close |
 
 A remembered key is encrypted on the server under a secret in its environment.
-Unticked, the key never leaves the tab. A guest asks questions and feeds
-nothing, so the Drop side and Create a brain are hidden for them.
+Unticked, the key never leaves the tab. Read access asks questions and feeds
+nothing, so the Drop side and Create a brain are hidden for it.
+
+The passphrase door is gone from the screen. `/api/unlock` still answers, so a
+deployment that loses every account password has a way back in through the API.
 
 
-## The passphrase gate
+## Why there is still a gate
 
-Nothing reaches the model from this app until the passphrase or a key is
-entered. Only a salted SHA-256 hash is stored. The lock matters here because
-the OpenRouter key sits on the server, so a visitor would spend real money.
-
-Public reads sit outside the gate on purpose. They call no model, so they cost
-nothing to serve.
+Nothing reaches a model from this app until a key is present, because a model
+call costs somebody money. Public reads sit outside the gate on purpose: they
+call no model, so they cost nothing to serve.
 
 ## Export
 
-The sidebar `export` button prints every brain as the markdown `../PROTOCOL.md`
-specifies: a map, a source list, one summary per brain, one file per concept.
-That keeps the plain-markdown format portable and the store swappable.
+`window.octopusExport()` in the console prints every brain as the markdown
+`../PROTOCOL.md` specifies: a map, a source list, one summary per brain, one
+file per concept. That keeps the plain-markdown format portable and the store
+swappable. It lost its sidebar button, not its job.

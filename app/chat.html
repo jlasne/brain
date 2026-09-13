@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13f";
+  window.OCTOPUS_BUILD = "2026-09-13g";
 </script>
 
 <style>
@@ -561,7 +561,6 @@
     <div class="side-foot">
       <button id="lockBtn" title="Sign out and forget your key">lock</button>
       <span id="stat"></span>
-      <button id="exportBtn">export</button>
     </div>
   </aside>
 
@@ -688,24 +687,23 @@ const MARK = document.querySelector(".brand .mark").innerHTML;
 
 /** A modal over the app, not a wall in front of it. It has no way out,
     because every route behind it needs the token it hands back. */
-function gateScreen(firstRun) {
+function gateScreen() {
   $("app").classList.add("locked");
   const veil = el("div","veil");
   document.body.append(veil);
 
-  /* Three doors.
+  /* Two doors.
        member  a name and a password. The key can be remembered on the account.
        guest   a key and nothing else, forgotten when the tab closes.
-       owner   the passphrase, spending this deployment's own key.
-     A deployment with no passphrase yet has to set one first. */
-  let mode = firstRun ? "owner" : "member";
+     The passphrase door is gone. Its route still answers, so a deployment that
+     loses every account password has a way back in through the API. */
+  let mode = "member";
   let step = "in";          // "in", then "key" when an account has none saved
   let acct = null;          // what /api/login handed back
 
   const HEAD = {
     member: ["Sign in", "A name and a password. Your model key pays for what you ask and drop, and you choose whether this account remembers it."],
     guest:  ["Read access", "No account. Paste a key, ask anything, and the key is forgotten when this tab closes. Reading only, so no source lands and no position moves."],
-    owner:  ["Passphrase", "The passphrase opens every brain here and spends this deployment's own key."],
   };
 
   const finish = (token, who) => {
@@ -718,8 +716,7 @@ function gateScreen(firstRun) {
   };
 
   const paint = () => {
-    const [title, blurb] = firstRun ? ["Set the passphrase",
-      "It guards every call that spends this deployment's own credits. Only a salted hash is kept."] : HEAD[mode];
+    const [title, blurb] = HEAD[mode];
 
     const form = step === "key" ? `
         <div class="f">
@@ -729,12 +726,6 @@ function gateScreen(firstRun) {
         </div>
         <div class="f"><label class="check"><input type="checkbox" id="grem"> Remember it on my account</label>
           <div class="hint">Remembered keys are encrypted with a secret held on the server. Leave it unticked and the key stays in this tab only.</div>
-        </div>`
-      : mode === "owner" ? `
-        <div class="f">
-          <label for="gp">Passphrase</label>
-          <input type="password" id="gp" autocomplete="${firstRun?"new-password":"current-password"}"
-                 placeholder="${firstRun?"At least 8 characters":""}" required>
         </div>`
       : mode === "guest" ? `
         <div class="f">
@@ -753,10 +744,8 @@ function gateScreen(firstRun) {
           <div class="hint">A name nobody has taken opens a new account.</div>
         </div>`;
 
-    const swaps = firstRun || step === "key" ? "" :
-      mode === "member" ? `<button class="ghost" type="button" data-go="guest">Read access</button>
-                           <button class="ghost" type="button" data-go="owner">Passphrase</button>`
-      : mode === "guest" ? `<button class="ghost" type="button" data-go="member">Sign in</button>`
+    const swaps = step === "key" ? ""
+      : mode === "member" ? `<button class="ghost" type="button" data-go="guest">Read access</button>`
       : `<button class="ghost" type="button" data-go="member">Sign in</button>`;
 
     veil.innerHTML = `
@@ -771,9 +760,7 @@ function gateScreen(firstRun) {
         <form>
           ${form}
           <div class="f"><div id="gmsg" class="bad" role="alert"></div></div>
-          <footer>${swaps}<button class="go" type="submit">${
-            step === "key" ? "Open" : firstRun ? "Lock it and open" : mode === "owner" ? "Unlock" : "Open"
-          }</button></footer>
+          <footer>${swaps}<button class="go" type="submit">Open</button></footer>
         </form>
       </div>`;
 
@@ -781,7 +768,7 @@ function gateScreen(firstRun) {
     veil.querySelectorAll("[data-go]").forEach(btn => {
       btn.onclick = () => { mode = btn.dataset.go; step = "in"; paint(); };
     });
-    setTimeout(() => veil.querySelector("#gn, #gp, #gk")?.focus(), 60);
+    setTimeout(() => veil.querySelector("#gn, #gk")?.focus(), 60);
 
     veil.querySelector("form").onsubmit = async e => {
       e.preventDefault();
@@ -798,12 +785,6 @@ function gateScreen(firstRun) {
             if (r.error) throw new Error(r.error);
           }
           finish(S.token, acct.name);
-          return;
-        }
-        if (mode === "owner") {
-          const r = await api("/api/unlock", { pass: veil.querySelector("#gp").value });
-          S.key = null; S.account = null;
-          finish(r.token, "owner");
           return;
         }
         if (mode === "guest") {
@@ -862,10 +843,11 @@ function deadScreen(why) {
       S.token = null; S.key = null; S.who = "";
     }
   }
-  let gateSet = true;
-  try { gateSet = (await api("/api/status")).gateSet; }
+  /* The status call is only a reachability probe now, so an unreachable
+     deployment says so rather than showing a sign-in that cannot work. */
+  try { await api("/api/status"); }
   catch (e) { deadScreen(e.message); return; }
-  gateScreen(!gateSet);
+  gateScreen();
 })();
 
 async function open(){ await refresh(); sizeBox(); $("input").focus(); }
@@ -876,8 +858,7 @@ async function refresh(){
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
   if (d.account !== undefined) S.account = d.account;
   if (d.kind) S.who = d.kind === "member" ? (S.who || d.account) : d.kind;
-  $("lockBtn").textContent = S.who === "owner" ? "lock"
-    : S.who === "guest" ? "leave" : `sign out ${S.who}`;
+  $("lockBtn").textContent = S.who === "guest" ? "leave" : `sign out ${S.who || ""}`.trim();
   render();
 }
 
@@ -1055,7 +1036,9 @@ $("navToggle").onclick = () => { navOpen = false; paintNav(); };
 $("navOpen").onclick  = () => { navOpen = true;  paintNav(); };
 paintNav();
 $("pasteBtn").onclick = openTranscript;
-$("exportBtn").onclick = exportAll;
+/* No button any more. The markdown export stays reachable from the console as
+   window.octopusExport(), because it is the portable form of the brains. */
+window.octopusExport = exportAll;
 $("lockBtn").onclick = async () => {
   try { await api("/api/lock"); } catch(_){}
   [TOKEN_KEY, KEY_KEY, WHO_KEY].forEach(k => sessionStorage.removeItem(k));

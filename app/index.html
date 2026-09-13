@@ -17,10 +17,6 @@
     align-items:center; justify-content:center; text-align:center;
     padding-block:64px 48px;
   }
-  /* The square mark takes its height from its width. A percentage height here
-     has no definite parent to resolve against, and stretches into a spike. */
-  .bigmark{ width:clamp(72px,11vw,104px); aspect-ratio:1; margin-bottom:26px; }
-  .bigmark img{ width:100%; height:auto; display:block; }
   .eyebrow{
     margin-bottom:20px; font:500 11px/1.7 var(--mono); letter-spacing:.11em;
     text-transform:uppercase; color:var(--accent);
@@ -48,22 +44,47 @@
   .does span{ font-size:14.5px; line-height:1.6; color:var(--ink-3); }
   .stats{ margin-top:34px; }
 
-  .sections{ margin-top:clamp(56px,9vh,92px); display:grid; gap:clamp(44px,7vh,68px); }
-  .sec{ display:grid; grid-template-columns:minmax(0,20ch) minmax(0,46ch); gap:8px 56px; align-items:baseline; }
+  .lede-h{
+    margin-top:clamp(56px,9vh,88px); margin-bottom:clamp(26px,4vh,40px);
+    font:500 11px/1.7 var(--mono); letter-spacing:.11em; text-transform:uppercase; color:var(--ink-4);
+    padding-bottom:12px; border-bottom:1px solid var(--line);
+  }
+
+  .sections{ display:grid; gap:0; }
+  .sec{
+    display:grid; grid-template-columns:2.6ch minmax(0,19ch) minmax(0,44ch);
+    gap:4px 40px; align-items:start;
+    padding-block:clamp(22px,3.4vh,30px);
+    border-bottom:1px solid var(--line);
+  }
+  .sec:first-child{ border-top:1px solid var(--line); }
+  .sec .i{
+    font:500 10.5px/1.9 var(--mono); color:var(--accent);
+    grid-row:1 / span 2;
+  }
   .sec h2{
-    margin:0; font:500 clamp(17px,2.2vw,20px)/1.32 var(--sans);
+    margin:0; grid-column:2; font:500 clamp(17px,2.2vw,20px)/1.32 var(--sans);
     letter-spacing:-.018em; color:var(--ink); text-wrap:balance;
   }
-  .sec p{ margin:0; font-size:15.5px; line-height:1.68; color:var(--ink-3); max-width:none; }
-  @media (max-width:720px){
-    .sec{ grid-template-columns:1fr; gap:7px; }
-    .hero-wrap{ max-width:none; }
+  .sec p{
+    margin:0; grid-column:3; grid-row:1;
+    font-size:15.5px; line-height:1.68; color:var(--ink-3); max-width:none;
+  }
+  @media (max-width:760px){
+    .sec{ grid-template-columns:2.6ch 1fr; gap:5px 14px; }
+    .sec h2{ grid-column:2; }
+    .sec p{ grid-column:2; grid-row:auto; }
   }
 
   .close{
-    margin-top:clamp(72px,11vh,116px); padding-top:28px; border-top:1px solid var(--line);
-    font:400 clamp(17px,2.4vw,21px)/1.45 var(--sans); letter-spacing:-.015em;
-    color:var(--ink-2); max-width:34ch;
+    margin-top:clamp(56px,9vh,92px);
+    display:grid; grid-template-columns:auto 1fr; gap:0 18px; align-items:center;
+  }
+  .close .m{ width:34px; opacity:.9; }
+  .close .m img{ width:100%; height:auto; display:block; }
+  .close p{
+    margin:0; font:400 clamp(17px,2.4vw,21px)/1.42 var(--sans); letter-spacing:-.015em;
+    color:var(--ink-2); max-width:32ch;
   }
   footer.bot .wrap{ justify-content:space-between; }
 </style>
@@ -81,7 +102,6 @@
 <main><div class="wrap">
 
   <div class="hero-wrap">
-    <div class="bigmark"><img src="/brand/logo-mark.png" alt="Octopus" width="120" height="120"></div>
     <div class="eyebrow">Open source &middot; Your key &middot; Your brains</div>
     <h1 class="hero">The AI that <em>sharpens</em> your thinking.</h1>
     <p class="one">Generic advice is free and everywhere. What you actually read and trusted is not.</p>
@@ -117,35 +137,45 @@
 
 <div class="wrap">
 
+  <div class="lede-h">What holds it together</div>
+
   <div class="sections">
     <div class="sec">
+      <span class="i">01</span>
       <h2>A brain remembers the reasons</h2>
       <p>Each source is read once and becomes a position, with the evidence, the figures and the dates that
         support it. Ask in plain words and the answer names what it rests on.</p>
     </div>
     <div class="sec">
+      <span class="i">02</span>
       <h2>It argues before it agrees</h2>
       <p>When a new source contradicts something a brain holds, it says so and asks which one wins. A view
         you replace keeps its date and stays in the evidence.</p>
     </div>
     <div class="sec">
+      <span class="i">03</span>
       <h2>One subject, one sentence</h2>
       <p>A brain covers a single subject, and one sentence decides what belongs. That line is why a brain
         can grow for years and still answer as one mind.</p>
     </div>
     <div class="sec">
+      <span class="i">04</span>
       <h2>Read by any assistant</h2>
       <p>Every brain here is published. Point your assistant at one address and it answers from this
         library instead of the open internet.</p>
     </div>
     <div class="sec">
+      <span class="i">05</span>
       <h2>Yours to feed</h2>
       <p>Only the person who created a brain feeds it, unless they open it to everyone. Feeding runs on
         your own model key, so the spending stays yours.</p>
     </div>
   </div>
 
-  <p class="close">Specialised knowledge, held as positions rather than pages, and open to read.</p>
+  <div class="close">
+    <div class="m"><img src="/brand/logo-mark.png" alt="" width="68" height="68"></div>
+    <p>Specialised knowledge, held as positions rather than pages, and open to read.</p>
+  </div>
 
 </div></main>
 
