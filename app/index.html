@@ -11,27 +11,54 @@
 <style>
   main{ padding-block:0 96px; }
 
-  /* The hero owns the first screen. Everything else starts below it. */
+  /* The hero owns the first screen: the claim on the right, the short version
+     of what this is on the left. */
   .hero-wrap{
-    min-height:min(76vh,700px); display:flex; flex-direction:column;
-    align-items:center; justify-content:center; text-align:center;
-    padding-block:64px 48px;
+    min-height:min(78vh,720px);
+    display:grid; grid-template-columns:minmax(0,24ch) minmax(0,1fr);
+    gap:clamp(30px,5vw,74px); align-items:center;
+    padding-block:64px 52px;
   }
+
+  .tldr .tl-h{
+    font:500 10.5px/1.7 var(--mono); letter-spacing:.13em; text-transform:uppercase;
+    color:var(--ink-4); padding-bottom:10px; margin-bottom:4px;
+    border-bottom:1px solid var(--line);
+  }
+  .tldr ul{ list-style:none; }
+  .tldr li{
+    padding:11px 0; border-bottom:1px solid var(--line);
+    font-size:14px; line-height:1.5; color:var(--ink-3);
+  }
+  .tldr li:last-child{ border-bottom:none; color:var(--ink-2); }
+  .tldr li b{ color:var(--ink); font-weight:600; }
+
   .eyebrow{
     margin-bottom:20px; font:500 11px/1.7 var(--mono); letter-spacing:.11em;
     text-transform:uppercase; color:var(--accent);
   }
   h1.hero{
-    font-size:clamp(38px,7.6vw,68px); line-height:1.02; letter-spacing:-.036em; font-weight:600;
-    max-width:22ch;
+    font-size:clamp(36px,5.6vw,60px); line-height:1.03; letter-spacing:-.036em; font-weight:600;
+    max-width:16ch;
   }
   h1.hero em{ font-style:italic; font-weight:600; color:var(--accent); }
-  .hero-wrap .one{
-    margin-top:24px; max-width:48ch;
-    font-size:clamp(16px,2.1vw,18.5px); line-height:1.6; color:var(--ink-2);
+  .hero-main .one{
+    margin-top:24px; max-width:44ch;
+    font-size:clamp(15.5px,1.9vw,18px); line-height:1.6; color:var(--ink-2);
   }
-  .hero-wrap .quiet{
-    margin-top:18px; font:italic 400 14.5px/1.6 var(--sans); color:var(--ink-3);
+  .hero-main .quiet{
+    margin-top:16px; font:italic 400 14.5px/1.6 var(--sans); color:var(--ink-3);
+  }
+
+  /* Narrow screens read the claim first, then the short version. */
+  @media (max-width:860px){
+    .hero-wrap{
+      grid-template-columns:1fr; min-height:0; gap:36px;
+      padding-block:52px 44px;
+    }
+    .hero-main{ order:1; }
+    .tldr{ order:2; }
+    h1.hero{ max-width:none; }
   }
 
   /* The quick answer to "what does it do", straight under the hero. */
@@ -102,10 +129,23 @@
 <main><div class="wrap">
 
   <div class="hero-wrap">
-    <div class="eyebrow">Open source &middot; Your key &middot; Your brains</div>
-    <h1 class="hero">The AI that <em>sharpens</em> your thinking.</h1>
-    <p class="one">Generic advice is free and everywhere. What you actually read and trusted is not.</p>
-    <p class="quiet">No subscription. Your key, your spending, your brains.</p>
+    <aside class="tldr">
+      <div class="tl-h">In short</div>
+      <ul>
+        <li>You read a lot. Six months on, the conclusion stays and the reasons go.</li>
+        <li>Drop a source. It keeps the <b>reasoning</b>, and throws the page away.</li>
+        <li>It flags every claim that <b>breaks a view</b> you already hold.</li>
+        <li>Ask in plain words. Answers carry <b>figures, authors and dates</b>.</li>
+        <li>Open source. Your key, your spending, your brains.</li>
+      </ul>
+    </aside>
+
+    <div class="hero-main">
+      <div class="eyebrow">Open source &middot; Your key &middot; Your brains</div>
+      <h1 class="hero">The AI that <em>sharpens</em> your thinking.</h1>
+      <p class="one">Generic advice is free and everywhere. What you actually read and trusted is not.</p>
+      <p class="quiet">No subscription. Your key, your spending, your brains.</p>
+    </div>
   </div>
 </div>
 
