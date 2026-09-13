@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Octopus">
+  <title>Octopus</title>
+  <rect width="512" height="512" rx="112" fill="#262624"/>
+  <g transform="translate(-32.00 -12.20) scale(24.0000)">
+    <path fill="#d97757" fill-rule="evenodd" d="M5 14a7 7 0 0 1 14 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0q-1.75 2.7-3.5 0ZM9.7 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4ZM14.3 12a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z"/>
+  </g>
+</svg>

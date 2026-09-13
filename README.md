@@ -10,9 +10,9 @@ Plain markdown at its core, with a chat on top. Brains stay portable whichever w
 
 | | Chat | Claude Code |
 |---|---|---|
-| Where | `app/index.html`, published as a page | The `brain` skill, in your terminal |
-| Model | Claude in the artifact build, OpenRouter in the Convex build | Whatever your session runs |
-| Brains | A live store, exportable to markdown | Markdown files under `brains/` |
+| Where | `octopus.jeremylasne.com`, four pages under `app/` | The `brain` skill, in your terminal |
+| Model | OpenRouter, your key, server side | Whatever your session runs |
+| Brains | Convex tables, exportable to markdown | Markdown files under `brains/` |
 | Gate | A passphrase before anything reads or calls | Your own machine |
 
 Same protocol, same three actions, same export format.

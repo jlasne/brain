@@ -1,5 +1,5 @@
 <title>Octopus</title>
-<meta name="description" content="Octopus turns the sources you read into positions you can question. It files each idea by subject, flags what clashes with what you hold, and answers from dated evidence.">
+<meta name="description" content="Octopus keeps the thinking behind what you read. Each source becomes a position you hold, and it tells you when something new disagrees with it.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -9,27 +9,27 @@
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
 <style>
-  .hero-wrap{ padding-block:14px 0; }
-  .pill{
-    display:inline-flex; align-items:center; gap:7px; margin-bottom:20px;
-    border:1px solid var(--line-2); border-radius:99px; padding:5px 12px 5px 9px;
-    font:400 12px/1 var(--mono); color:var(--ink-3); background:var(--surface);
+  main{ padding-block:72px 84px; }
+  .hero-wrap{ max-width:640px; }
+  h1.hero{ font-size:clamp(32px,6.4vw,50px); }
+  p.lede{ margin-top:18px; }
+  .big{
+    margin-top:68px; font:400 clamp(19px,3vw,23px)/1.5 var(--sans);
+    color:var(--ink); max-width:26ch; letter-spacing:-.012em; text-wrap:balance;
   }
-  .pill .dot{ width:6px; height:6px; border-radius:50%; background:var(--good); }
-  .flow{ margin-top:16px; }
-  .rules li{
-    list-style:none; padding:11px 0; border-bottom:1px solid var(--line);
-    display:grid; grid-template-columns:1fr; gap:3px; max-width:72ch;
+  .big + p{ margin-top:16px; }
+  .three{ display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(228px,1fr)); margin-top:22px; }
+  .three .n{
+    font:500 11px/1 var(--mono); letter-spacing:.09em; color:var(--accent); margin-bottom:11px;
   }
-  .rules li:last-child{ border-bottom:none; }
-  .rules b{ font:600 15px/1.4 var(--sans); color:var(--ink); }
-  .rules span{ font-size:14.5px; line-height:1.55; color:var(--ink-3); }
-  .soon{
-    margin-top:56px; border:1px dashed var(--line-2); border-radius:12px;
-    padding:20px 22px; background:var(--surface-2);
+  .three h3{ margin-bottom:7px; font-size:16px; }
+  .three p{ font-size:14.5px; line-height:1.6; color:var(--ink-3); max-width:none; }
+  .holds li{
+    list-style:none; padding:13px 0; border-top:1px solid var(--line);
+    font-size:15.5px; line-height:1.55; color:var(--ink-2); max-width:64ch;
   }
-  .soon .eyebrow{ margin-bottom:8px; }
-  .soon p{ max-width:64ch; }
+  .holds li:last-child{ border-bottom:1px solid var(--line); }
+  footer.bot .wrap{ justify-content:space-between; }
 </style>
 
 <header class="top"><div class="wrap">
@@ -38,6 +38,7 @@
   <nav class="links">
     <a href="/brains">Brains</a>
     <a href="/mcp">MCP</a>
+    <a href="https://github.com/jlasne/brain">Source</a>
     <a href="/chat" class="cta">Open the app</a>
   </nav>
 </div></header>
@@ -45,97 +46,72 @@
 <main><div class="wrap">
 
   <div class="hero-wrap">
-    <span class="pill"><span class="dot"></span>Live, and readable from any Claude</span>
     <h1 class="hero">Read it once. Keep the reasoning.</h1>
-    <p class="lede">Octopus turns sources into positions. Feed it a transcript, an article or a study.
-      It reads the whole thing, files each idea under the subject it belongs to, and tells you which
-      claims clash with what you already hold.</p>
+    <p class="lede">Most of what you read leaves nothing behind. Octopus keeps the thinking. Every source
+      becomes a view you hold, and it tells you when something new disagrees with it.</p>
+  </div>
 
-    <div class="row">
-      <a class="btn primary" href="/chat">Open the app</a>
-      <a class="btn" href="/brains">Browse the brains</a>
-      <a class="btn" href="/mcp">Connect your Claude</a>
+  <div class="stats" id="stats" hidden>
+    <div class="stat"><b id="nBrains">0</b><span>brains</span></div>
+    <div class="stat"><b id="nConcepts">0</b><span>ideas held</span></div>
+    <div class="stat"><b id="nSources">0</b><span>sources read</span></div>
+  </div>
+
+  <p class="big">A brain is one subject, and one sentence decides what belongs in it.</p>
+  <p>Write that sentence and the brain has a gate. Everything you feed it is measured against the line, so
+    it can grow for years and still answer as one mind. "Health" names a folder. "Sleep, recovery and
+    training load for my own routine" names a brain.</p>
+
+  <p class="big">Three things happen, and you are in the middle of one.</p>
+  <div class="three">
+    <div class="card">
+      <div class="n">01</div>
+      <h3>You feed it</h3>
+      <p>A video, an article, a study. It reads the whole thing once and keeps what carries a number, a date
+        or a reason. The text itself is thrown away.</p>
     </div>
-
-    <div class="stats" id="stats" hidden>
-      <div class="stat"><b id="nBrains">0</b><span>brains</span></div>
-      <div class="stat"><b id="nConcepts">0</b><span>concepts</span></div>
-      <div class="stat"><b id="nSources">0</b><span>sources read</span></div>
+    <div class="card">
+      <div class="n">02</div>
+      <h3>It argues</h3>
+      <p>Before anything is kept, it shows you what is new, what you already knew, and what contradicts a
+        view you hold. You say which one wins.</p>
+    </div>
+    <div class="card">
+      <div class="n">03</div>
+      <h3>You ask</h3>
+      <p>Ask in plain words. The answer carries the numbers inside it, and the people and dates it rests on
+        sit underneath.</p>
     </div>
   </div>
 
-  <h2>A brain is one subject, with one line deciding what belongs</h2>
-  <p>A scope line is the whole gate. "Health" names a folder. "Sleep, recovery and training load for my
-    own routine" names a brain. That line is what lets a brain grow to any size and stay coherent, because
-    every new idea is measured against it.</p>
-
-  <h2>How a source lands</h2>
-  <ol class="steps flow">
-    <li><b>Check.</b> The link is normalised and looked up. A source already stored ends here, at no cost.</li>
-    <li><b>Read.</b> The whole source is read once, and every topic in it is extracted, whether or not a
-      brain covers it. Then the text is discarded and the link is kept.</li>
-    <li><b>Compare.</b> Each idea is measured against the stored position on that concept, which is where
-      repeats and contradictions show up.</li>
-    <li><b>Card.</b> One card reports where it goes, what is new, what it repeats, and every claim that
-      clashes. You rule on each clash.</li>
-    <li><b>Settle.</b> Each touched position is rewritten from its whole evidence list, your ruling
-      included, and a receipt proves what moved.</li>
-  </ol>
-
-  <h2>Rules that hold on every drop</h2>
-  <ul class="rules">
-    <li><b>Positions get re-derived, never appended to</b>
-      <span>A position reads as one view. A growing list of who said what is a failed drop.</span></li>
-    <li><b>Every view survives, carrying its date</b>
-      <span>A superseded view moves into the evidence. An open conflict stays open, dated on both sides.</span></li>
-    <li><b>Each source is checked twice</b>
-      <span>Once by link, once by idea. The second check is what catches a claim you already hold.</span></li>
-    <li><b>A summary keeps one line per concept</b>
-      <span>At 9 concepts or 900. Nothing is capped and nothing is trimmed away.</span></li>
-    <li><b>Raw transcripts stay outside the brain</b>
-      <span>The link and the location of your own copy are kept. The text itself is discarded after one read.</span></li>
-    <li><b>A concept needs three mentions to exist</b>
-      <span>That threshold is what stops a brain filling with one-off ideas.</span></li>
+  <p class="big">What keeps it honest.</p>
+  <ul class="holds">
+    <li>A view you replace keeps its date and moves into the evidence. Nothing is deleted.</li>
+    <li>Each view is rewritten from everything standing behind it, so it reads as one position rather than
+      a pile of quotes.</li>
+    <li>Disagreements stay visible, both sides dated, instead of being smoothed over.</li>
+    <li>The same source never lands twice, and a claim you already hold is named as a repeat.</li>
   </ul>
 
-  <h2>Asking, at the depth you want</h2>
-  <div class="grid">
-    <div class="card"><h3>Normal</h3><p>Three to six lines. Answers straight, numbers inside the prose,
-      sources on one line at the end.</p></div>
-    <div class="card"><h3>Educational</h3><p>Defines each term on first use, builds the mechanism in order,
-      and carries one worked example with real numbers.</p></div>
-    <div class="card"><h3>Expert</h3><p>Reviews the knowledge base: how many sources stand behind a position,
-      how recent they are, and where the evidence is thin.</p></div>
-  </div>
-  <p class="note">Every answer closes with the authors and dates it used. Names stay out of the answer text,
-    because attribution belongs on the sources line.</p>
+  <p class="big">Your brains, read by any assistant you use.</p>
+  <p>A brain you mark public can be read from your own Claude, so the assistant answers from what you have
+    gathered rather than from the open internet. A brain you keep private stays with you.</p>
 
-  <h2>Read the brains from your own Claude</h2>
-  <p>Octopus publishes an MCP server. Add one address as a custom connector and your Claude reads the
-    positions and their evidence directly, then reasons over them itself. Reading costs nothing, because
-    no model runs on this side.</p>
-  <div class="row"><a class="btn" href="/mcp">Set up the connector</a></div>
-
-  <div class="soon">
-    <div class="eyebrow">Coming</div>
-    <h3>Bring your own key</h3>
-    <p>An API so an authorised key can ask and feed the brains from Claude, from GPT, or from a script.
-      Public brains will accept questions and sources. Private brains stay yours. Today the app itself
-      sits behind a passphrase.</p>
-  </div>
+  <p class="big">Open source, and built in the open.</p>
+  <p>All of it is public: the rules the brains follow, the app, the connector. Read it, fork it, run it
+    against your own database, or bring a brain of your own to the shared ones. Octopus is an entry in
+    The Build Games, a September event judging projects on how well they stand in for paid software.</p>
 
 </div></main>
 
 <footer class="bot"><div class="wrap">
-  <a href="/brains">brains</a>
-  <a href="/mcp">mcp</a>
-  <a href="/chat">app</a>
+  <span style="margin:0">Octopus</span>
   <span>one brain per subject</span>
 </div></footer>
 
 <script>
-  /* Live counts, so the page states what the brains actually hold rather than
-     a number that rots. A failure just leaves the row hidden. */
+  /* Live counts, so the page states what the brains hold rather than a number
+     that rots. A failure just leaves the row hidden. */
   (async () => {
     try {
       const r = await fetch(window.OCTOPUS_API + "/api/public/brains");
@@ -143,10 +119,10 @@
       const d = await r.json();
       const brains = d.brains || [];
       if (!brains.length) return;
-      const sources = brains.reduce((n, b) => n + (b.sources || 0), 0);
       document.getElementById("nBrains").textContent = brains.length;
       document.getElementById("nConcepts").textContent = (d.concepts || []).length;
-      document.getElementById("nSources").textContent = sources;
+      document.getElementById("nSources").textContent =
+        brains.reduce((n, b) => n + (b.sources || 0), 0);
       document.getElementById("stats").hidden = false;
     } catch {}
   })();
