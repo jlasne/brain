@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13u";
+  window.OCTOPUS_BUILD = "2026-09-13v";
 </script>
 
 <style>
@@ -204,6 +204,25 @@
   .brain-strip .pill.priv{ color:var(--ink-3); background:var(--surface-3); }
   .brain-strip button.pill{ cursor:pointer; }
   .brain-strip button.pill:hover{ border-color:var(--accent-fill); }
+  /* Every brain, always in view, one chip each. The picker chooses, these show
+     what there is to choose from and how much each one holds. */
+  .brain-strip .all{ display:flex; align-items:center; flex-wrap:wrap; gap:6px; flex:1; min-width:0; }
+  .b-chip{
+    display:inline-flex; align-items:baseline; gap:6px;
+    border:1px solid var(--line-2); border-radius:7px; background:var(--surface);
+    padding:5px 9px; font:500 12.5px/1.2 var(--sans); color:var(--ink-2);
+    transition:border-color .15s var(--ease), color .15s var(--ease);
+  }
+  .b-chip:hover{ border-color:var(--accent-fill); color:var(--accent); }
+  .b-chip.on{ border-color:var(--accent-fill); color:var(--accent); background:var(--accent-soft); }
+  .b-chip i{ font-style:normal; font:400 10.5px/1 var(--mono); color:var(--ink-4); }
+  .b-chip:hover i, .b-chip.on i{ color:var(--accent); }
+  .brain-strip .back{
+    font:500 11.5px/1 var(--sans); color:var(--ink-3);
+    border:1px solid var(--line-2); border-radius:6px; padding:5px 9px; background:var(--surface);
+    white-space:nowrap;
+  }
+  .brain-strip .back:hover{ color:var(--accent); border-color:var(--accent-fill); }
   .brain-strip .edit{
     font:500 11.5px/1 var(--sans); color:var(--ink-3);
     border:1px solid var(--line-2); border-radius:6px; padding:5px 9px; background:var(--surface);
@@ -963,8 +982,27 @@ function paintStrip(){
   const strip = $("brainStrip");
   const b = S.brains.find(x => x.slug === S.scope);
   strip.innerHTML = "";
-  strip.hidden = !b;
-  if (!b) return;
+  strip.hidden = !S.brains.length;
+  if (!S.brains.length) return;
+
+  /* No brain chosen, so show them all. Each chip carries what that brain holds,
+     which is the thing a list of names never told you. */
+  if (!b){
+    const row = el("div","all");
+    for (const x of S.brains){
+      const chip = el("button","b-chip");
+      chip.append(el("span",null,x.name),
+                  el("i",null,`${conceptsOf(x.slug).length}·${sourcesOf(x.slug).length}`));
+      chip.title = `${x.scope || "no scope line"}\n${conceptsOf(x.slug).length} concepts, ${sourcesOf(x.slug).length} sources`;
+      chip.onclick = () => { S.scope = x.slug; render(); };
+      row.append(chip);
+    }
+    strip.append(row);
+    /* The pair on each chip is concepts then sources. Its tooltip spells that
+       out, so the line here stays a count rather than a legend. */
+    strip.append(el("span","ct", `${S.brains.length} brain${S.brains.length===1?"":"s"}`));
+    return;
+  }
 
   const n = conceptsOf(b.slug).length, sc = sourcesOf(b.slug).length;
   const v0 = String(b.visibility ?? "");
@@ -974,6 +1012,10 @@ function paintStrip(){
      reads the state, which tells them whether their own drop would land. */
   const mine = S.who === "owner" || (!!b.owner && b.owner === S.account);
 
+  const back = el("button","back","All brains");
+  back.title = "Back to every brain";
+  back.onclick = () => { S.scope = "all"; render(); };
+  strip.append(back);
   strip.append(el("span","sc", b.scope || "no scope line"));
   strip.append(el("span","ct", `${n} concept${n===1?"":"s"} · ${sc} source${sc===1?"":"s"}`));
 
