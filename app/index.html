@@ -13,69 +13,40 @@
      page never scrolls on a normal desktop. */
   body{ height:100dvh; overflow:hidden; }
   main{ display:grid; place-items:center; padding-block:0; min-height:0; }
-  main > .wrap{ width:100%; max-width:1120px; }
+  main > .wrap{ width:100%; max-width:1000px; }
 
-  /* Words on the left, the video on the right. */
   .hero-wrap{
-    display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.08fr);
-    gap:clamp(26px,4.4vw,58px); align-items:center;
+    display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);
+    gap:clamp(30px,5vw,72px); align-items:center;
   }
 
   .eyebrow{
-    margin-bottom:16px; font:500 11px/1.7 var(--mono); letter-spacing:.11em;
+    margin-bottom:18px; font:500 11px/1.7 var(--mono); letter-spacing:.11em;
     text-transform:uppercase; color:var(--accent);
   }
   h1.hero{
-    font-size:clamp(30px,4.2vw,46px); line-height:1.04; letter-spacing:-.034em; font-weight:600;
-    max-width:15ch;
+    font-size:clamp(31px,4.4vw,50px); line-height:1.05; letter-spacing:-.035em; font-weight:600;
+    max-width:17ch;
   }
   h1.hero em{ font-style:italic; font-weight:600; color:var(--accent); }
   .hero-main .one{
-    margin-top:16px; max-width:40ch;
-    font-size:clamp(15px,1.7vw,16.5px); line-height:1.58; color:var(--ink-2);
+    margin-top:20px; max-width:40ch;
+    font-size:clamp(15px,1.8vw,17px); line-height:1.58; color:var(--ink-2);
   }
 
-  .tldr{ margin-top:20px; border-left:2px solid var(--accent-line); padding-left:16px; }
-  .tldr p{ margin:0; font-size:13.5px; line-height:1.55; color:var(--ink-3); max-width:46ch; }
-  .tldr p + p{ margin-top:9px; }
+  .tldr{ border-left:2px solid var(--accent-line); padding-left:clamp(16px,2vw,22px); }
+  .tldr p{ margin:0; font-size:14.5px; line-height:1.6; color:var(--ink-3); max-width:42ch; }
+  .tldr p + p{ margin-top:13px; }
   .tldr p b{ color:var(--ink-2); font-weight:500; }
 
-  /* The video. YouTube supplies the picture, this page supplies the click:
-     anywhere on the frame starts it and stops it, the way a file player does. */
-  .tube{
-    position:relative; aspect-ratio:16/9; width:100%; max-width:100%;
-    border:1px solid var(--line); border-radius:14px; overflow:hidden;
-    background:#000; box-shadow:var(--shadow-lift);
-  }
-  .tube iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; display:block; }
-  .tube-hit{
-    position:absolute; inset:0; width:100%; height:100%;
-    background:transparent; border:0; cursor:pointer; padding:0;
-  }
-  .tube-glyph{
-    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
-    width:62px; height:62px; border-radius:50%; pointer-events:none;
-    background:rgba(20,20,19,.58); border:1px solid rgba(255,255,255,.22);
-    display:grid; place-items:center;
-    transition:opacity .2s var(--ease), transform .2s var(--ease);
-  }
-  .tube-glyph svg{ width:22px; height:22px; fill:#fff; display:block; }
-  .tube-glyph .bars{ display:none; }
-  /* Playing: the button steps out of the way, and comes back on hover. */
-  .tube.playing .tube-glyph{ opacity:0; transform:translate(-50%,-50%) scale(.86); }
-  .tube.playing:hover .tube-glyph{ opacity:1; transform:translate(-50%,-50%) scale(1); }
-  .tube.playing .tube-glyph .tri{ display:none; }
-  .tube.playing .tube-glyph .bars{ display:block; }
-  .tube-hit:focus-visible{ outline:2px solid var(--accent-fill); outline-offset:-4px; border-radius:14px; }
-
-  footer.bot .wrap{ justify-content:space-between; max-width:1120px; }
+  footer.bot .wrap{ justify-content:space-between; max-width:1000px; }
   footer.bot b{ color:var(--accent); font-weight:500; }
 
   /* A phone cannot hold both columns on one screen, so it scrolls. */
-  @media (max-width:900px){
+  @media (max-width:880px){
     body{ height:auto; overflow:auto; }
-    main{ padding-block:40px 52px; }
-    .hero-wrap{ grid-template-columns:1fr; gap:28px; }
+    main{ padding-block:44px 56px; }
+    .hero-wrap{ grid-template-columns:1fr; gap:30px; }
     h1.hero{ max-width:none; }
   }
 </style>
@@ -93,25 +64,18 @@
   <div class="hero-wrap">
     <div class="hero-main">
       <div class="eyebrow">Open source &middot; Your key &middot; Your brains</div>
-      <h1 class="hero">The AI that <em>sharpens</em> your thinking.</h1>
-      <p class="one">One brain per subject. Each keeps what it read, and the reasons behind it.</p>
-      <aside class="tldr">
-        <p>You learn from articles, videos and studies, week after week.</p>
-        <p>An octopus carries <b>500 million neurons</b>, and two thirds of them work out in its arms.</p>
-        <p>This one is built the same way: <b>one brain per subject</b>, each organised on its own,
-          all reachable from anywhere.</p>
-        <p>Ask any of them in plain words, and your <b>expertise deepens</b> with every source you add.</p>
-      </aside>
+      <h1 class="hero">Every AI knows the same things. This one knows <em>what you read</em>.</h1>
+      <p class="one">One brain per subject. Each holds a position, the evidence under it, and a date on
+        every claim.</p>
     </div>
 
-    <div class="tube" id="tube">
-      <div id="yt"></div>
-      <button class="tube-hit" id="tubeHit" aria-label="Play or pause the video"></button>
-      <div class="tube-glyph" aria-hidden="true">
-        <svg class="tri" viewBox="0 0 24 24"><path d="M8 5.2v13.6L19 12z"></path></svg>
-        <svg class="bars" viewBox="0 0 24 24"><path d="M7 5h3.4v14H7zM13.6 5H17v14h-3.4z"></path></svg>
-      </div>
-    </div>
+    <aside class="tldr">
+      <p>You learn from articles, videos and studies, week after week.</p>
+      <p>An octopus carries <b>500 million neurons</b>, and two thirds of them work out in its arms.</p>
+      <p>This one is built the same way: <b>one brain per subject</b>, each organised on its own.</p>
+      <p>When a source disagrees with what you hold, <b>you rule which side wins</b>, and the position
+        changes with it.</p>
+    </aside>
   </div>
 </div></main>
 
@@ -120,34 +84,6 @@
   <span id="tally">one brain per subject</span>
 </div></footer>
 
-<script>
-  /* The picture comes from YouTube, the click comes from here.
-     Its own controls are off, so one hit area covers the whole frame and
-     toggles play and pause, which is what a file player does. */
-  const VIDEO = "VjbvMuGNErg";
-  const tube = document.getElementById("tube"), hit = document.getElementById("tubeHit");
-  let player = null;
-
-  window.onYouTubeIframeAPIReady = () => {
-    player = new YT.Player("yt", {
-      videoId: VIDEO,
-      host: "https://www.youtube-nocookie.com",
-      playerVars: { controls:0, disablekb:1, modestbranding:1, rel:0, playsinline:1, iv_load_policy:3 },
-      events: {
-        onStateChange: e => tube.classList.toggle("playing", e.data === YT.PlayerState.PLAYING),
-      },
-    });
-  };
-
-  /* A click before the player loads would do nothing, so it is ignored rather
-     than queued. The frame still shows the poster, so nothing looks broken. */
-  hit.onclick = () => {
-    if (!player || !player.getPlayerState) return;
-    const playing = player.getPlayerState() === 1;
-    playing ? player.pauseVideo() : player.playVideo();
-  };
-</script>
-<script src="https://www.youtube.com/iframe_api" async></script>
 
 <script>
   /* The footer states what the brains actually hold. A failure leaves the line
