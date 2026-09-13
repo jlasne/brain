@@ -167,7 +167,9 @@ export const WRITE_TOOLS = [
     name: "drop_source",
     title: "Start a drop",
     description:
-      "Step 1 of 4 of feeding a source into the brains. YOU read the source and fill in `extraction`. " +
+      "Step 1 of 4 of feeding a source into the brains. The source is whatever the person gave you: a " +
+      "file attached in this conversation, a PDF, slides, a screenshot, text they pasted, or a page you " +
+      "opened from a link. YOU read it and fill in `extraction`. " +
       "Cover every topic present, whether or not it looks relevant, because this is the only read. " +
       "Keep ideas, numbers, names, dates, reasoning chains, exact quotes and historical comparisons. " +
       "Drop repetition, advertising, small talk and filler. Write every field in English whatever " +
