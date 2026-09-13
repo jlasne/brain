@@ -9,111 +9,55 @@
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
 <style>
-  main{ padding-block:0 96px; }
+  /* One screen. The header, the hero and the footer share the viewport, so the
+     page never scrolls on a normal desktop. */
+  body{ height:100dvh; overflow:hidden; }
+  main{ display:grid; place-items:center; padding-block:0; min-height:0; }
+  main > .wrap{ width:100%; }
 
-  /* The hero owns the first screen: the claim on the right, the short version
-     of what this is on the left. */
   .hero-wrap{
-    min-height:min(78vh,720px);
-    display:grid; grid-template-columns:minmax(0,24ch) minmax(0,1fr);
-    gap:clamp(30px,5vw,74px); align-items:center;
-    padding-block:64px 52px;
+    display:grid; grid-template-columns:minmax(0,23ch) minmax(0,1fr);
+    gap:clamp(28px,5vw,72px); align-items:center;
   }
 
   .tldr .tl-h{
-    font:500 10.5px/1.7 var(--mono); letter-spacing:.13em; text-transform:uppercase;
-    color:var(--ink-4); padding-bottom:10px; margin-bottom:4px;
-    border-bottom:1px solid var(--line);
+    font:500 10px/1.7 var(--mono); letter-spacing:.13em; text-transform:uppercase;
+    color:var(--ink-4); padding-bottom:9px; border-bottom:1px solid var(--line);
   }
   .tldr ul{ list-style:none; }
   .tldr li{
-    padding:11px 0; border-bottom:1px solid var(--line);
-    font-size:14px; line-height:1.5; color:var(--ink-3);
+    padding:10px 0; border-bottom:1px solid var(--line);
+    font-size:13.5px; line-height:1.5; color:var(--ink-3);
   }
-  .tldr li:last-child{ border-bottom:none; color:var(--ink-2); }
+  .tldr li:last-child{ border-bottom:none; }
   .tldr li b{ color:var(--ink); font-weight:600; }
 
   .eyebrow{
-    margin-bottom:20px; font:500 11px/1.7 var(--mono); letter-spacing:.11em;
+    margin-bottom:18px; font:500 11px/1.7 var(--mono); letter-spacing:.11em;
     text-transform:uppercase; color:var(--accent);
   }
   h1.hero{
-    font-size:clamp(36px,5.6vw,60px); line-height:1.03; letter-spacing:-.036em; font-weight:600;
+    font-size:clamp(34px,5.4vw,58px); line-height:1.03; letter-spacing:-.036em; font-weight:600;
     max-width:16ch;
   }
   h1.hero em{ font-style:italic; font-weight:600; color:var(--accent); }
   .hero-main .one{
-    margin-top:24px; max-width:44ch;
-    font-size:clamp(15.5px,1.9vw,18px); line-height:1.6; color:var(--ink-2);
-  }
-  .hero-main .quiet{
-    margin-top:16px; font:italic 400 14.5px/1.6 var(--sans); color:var(--ink-3);
+    margin-top:22px; max-width:42ch;
+    font-size:clamp(15.5px,1.9vw,17.5px); line-height:1.6; color:var(--ink-2);
   }
 
-  /* Narrow screens read the claim first, then the short version. */
+  footer.bot .wrap{ justify-content:space-between; }
+  footer.bot b{ color:var(--accent); font-weight:500; }
+
+  /* A phone cannot hold both columns on one screen, so it scrolls. */
   @media (max-width:860px){
-    .hero-wrap{
-      grid-template-columns:1fr; min-height:0; gap:36px;
-      padding-block:52px 44px;
-    }
+    body{ height:auto; overflow:auto; }
+    main{ padding-block:44px 56px; }
+    .hero-wrap{ grid-template-columns:1fr; gap:34px; }
     .hero-main{ order:1; }
     .tldr{ order:2; }
     h1.hero{ max-width:none; }
   }
-
-  /* The quick answer to "what does it do", straight under the hero. */
-  .band{ border-top:1px solid var(--line); padding-block:clamp(40px,6vh,64px); }
-  .does{ display:grid; gap:28px; grid-template-columns:repeat(auto-fit,minmax(212px,1fr)); }
-  .does .n{
-    font:500 10.5px/1 var(--mono); letter-spacing:.1em; color:var(--accent); margin-bottom:10px;
-  }
-  .does b{ display:block; font:600 16px/1.35 var(--sans); color:var(--ink); margin-bottom:6px; }
-  .does span{ font-size:14.5px; line-height:1.6; color:var(--ink-3); }
-  .stats{ margin-top:34px; }
-
-  .lede-h{
-    margin-top:clamp(56px,9vh,88px); margin-bottom:clamp(26px,4vh,40px);
-    font:500 11px/1.7 var(--mono); letter-spacing:.11em; text-transform:uppercase; color:var(--ink-4);
-    padding-bottom:12px; border-bottom:1px solid var(--line);
-  }
-
-  .sections{ display:grid; gap:0; }
-  .sec{
-    display:grid; grid-template-columns:2.6ch minmax(0,19ch) minmax(0,44ch);
-    gap:4px 40px; align-items:start;
-    padding-block:clamp(22px,3.4vh,30px);
-    border-bottom:1px solid var(--line);
-  }
-  .sec:first-child{ border-top:1px solid var(--line); }
-  .sec .i{
-    font:500 10.5px/1.9 var(--mono); color:var(--accent);
-    grid-row:1 / span 2;
-  }
-  .sec h2{
-    margin:0; grid-column:2; font:500 clamp(17px,2.2vw,20px)/1.32 var(--sans);
-    letter-spacing:-.018em; color:var(--ink); text-wrap:balance;
-  }
-  .sec p{
-    margin:0; grid-column:3; grid-row:1;
-    font-size:15.5px; line-height:1.68; color:var(--ink-3); max-width:none;
-  }
-  @media (max-width:760px){
-    .sec{ grid-template-columns:2.6ch 1fr; gap:5px 14px; }
-    .sec h2{ grid-column:2; }
-    .sec p{ grid-column:2; grid-row:auto; }
-  }
-
-  .close{
-    margin-top:clamp(56px,9vh,92px);
-    display:grid; grid-template-columns:auto 1fr; gap:0 18px; align-items:center;
-  }
-  .close .m{ width:34px; opacity:.9; }
-  .close .m img{ width:100%; height:auto; display:block; }
-  .close p{
-    margin:0; font:400 clamp(17px,2.4vw,21px)/1.42 var(--sans); letter-spacing:-.015em;
-    color:var(--ink-2); max-width:32ch;
-  }
-  footer.bot .wrap{ justify-content:space-between; }
 </style>
 
 <header class="top"><div class="wrap">
@@ -127,16 +71,14 @@
 </div></header>
 
 <main><div class="wrap">
-
   <div class="hero-wrap">
     <aside class="tldr">
       <div class="tl-h">In short</div>
       <ul>
         <li>You read a lot. Six months on, the conclusion stays and the reasons go.</li>
         <li>Drop a source. It keeps the <b>reasoning</b>, and throws the page away.</li>
-        <li>It flags every claim that <b>breaks a view</b> you already hold.</li>
+        <li>It flags what <b>breaks a view</b> you already hold.</li>
         <li>Ask in plain words. Answers carry <b>figures, authors and dates</b>.</li>
-        <li>Open source. Your key, your spending, your brains.</li>
       </ul>
     </aside>
 
@@ -144,89 +86,18 @@
       <div class="eyebrow">Open source &middot; Your key &middot; Your brains</div>
       <h1 class="hero">The AI that <em>sharpens</em> your thinking.</h1>
       <p class="one">Generic advice is free and everywhere. What you actually read and trusted is not.</p>
-      <p class="quiet">No subscription. Your key, your spending, your brains.</p>
     </div>
   </div>
-</div>
-
-<div class="band"><div class="wrap">
-  <div class="does">
-    <div>
-      <div class="n">01</div>
-      <b>Drop it</b>
-      <span>A video, an article, a study. Read once, then the text is thrown away and the reasoning stays.</span>
-    </div>
-    <div>
-      <div class="n">02</div>
-      <b>It argues</b>
-      <span>You see what is new, what repeats, and every claim that breaks a view you hold. You rule on each.</span>
-    </div>
-    <div>
-      <div class="n">03</div>
-      <b>Ask anything</b>
-      <span>In plain words, here or from the assistant you already use. Answers carry figures, authors and dates.</span>
-    </div>
-  </div>
-
-  <div class="stats" id="stats" hidden>
-    <div class="stat"><b id="nBrains">0</b><span>brains</span></div>
-    <div class="stat"><b id="nConcepts">0</b><span>ideas held</span></div>
-    <div class="stat"><b id="nSources">0</b><span>sources read</span></div>
-  </div>
-</div></div>
-
-<div class="wrap">
-
-  <div class="lede-h">What holds it together</div>
-
-  <div class="sections">
-    <div class="sec">
-      <span class="i">01</span>
-      <h2>A brain remembers the reasons</h2>
-      <p>Each source is read once and becomes a position, with the evidence, the figures and the dates that
-        support it. Ask in plain words and the answer names what it rests on.</p>
-    </div>
-    <div class="sec">
-      <span class="i">02</span>
-      <h2>It argues before it agrees</h2>
-      <p>When a new source contradicts something a brain holds, it says so and asks which one wins. A view
-        you replace keeps its date and stays in the evidence.</p>
-    </div>
-    <div class="sec">
-      <span class="i">03</span>
-      <h2>One subject, one sentence</h2>
-      <p>A brain covers a single subject, and one sentence decides what belongs. That line is why a brain
-        can grow for years and still answer as one mind.</p>
-    </div>
-    <div class="sec">
-      <span class="i">04</span>
-      <h2>Read by any assistant</h2>
-      <p>Every brain here is published. Point your assistant at one address and it answers from this
-        library instead of the open internet.</p>
-    </div>
-    <div class="sec">
-      <span class="i">05</span>
-      <h2>Yours to feed</h2>
-      <p>Only the person who created a brain feeds it, unless they open it to everyone. Feeding runs on
-        your own model key, so the spending stays yours.</p>
-    </div>
-  </div>
-
-  <div class="close">
-    <div class="m"><img src="/brand/logo-mark.png" alt="" width="68" height="68"></div>
-    <p>Specialised knowledge, held as positions rather than pages, and open to read.</p>
-  </div>
-
 </div></main>
 
 <footer class="bot"><div class="wrap">
-  <span style="margin:0">Octopus</span>
-  <span>one brain per subject</span>
+  <span style="margin:0">No subscription. Your key, your spending, your brains.</span>
+  <span id="tally">one brain per subject</span>
 </div></footer>
 
 <script>
-  /* Live counts, so the page states what the brains hold rather than a number
-     that rots. A failure just leaves the row hidden. */
+  /* The footer states what the brains actually hold. A failure leaves the line
+     it was born with. */
   (async () => {
     try {
       const r = await fetch(window.OCTOPUS_API + "/api/public/brains");
@@ -234,11 +105,9 @@
       const d = await r.json();
       const brains = d.brains || [];
       if (!brains.length) return;
-      document.getElementById("nBrains").textContent = brains.length;
-      document.getElementById("nConcepts").textContent = (d.concepts || []).length;
-      document.getElementById("nSources").textContent =
-        brains.reduce((n, b) => n + (b.sources || 0), 0);
-      document.getElementById("stats").hidden = false;
+      const sources = brains.reduce((n, b) => n + (b.sources || 0), 0);
+      document.getElementById("tally").innerHTML =
+        `<b>${brains.length}</b> brains · <b>${(d.concepts||[]).length}</b> ideas · <b>${sources}</b> sources read`;
     } catch {}
   })();
 </script>

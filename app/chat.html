@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13g";
+  window.OCTOPUS_BUILD = "2026-09-13h";
 </script>
 
 <style>
@@ -177,7 +177,9 @@
     font:500 12px/1.3 var(--sans); color:var(--ink-3);
     transition:color .15s var(--ease), background .15s var(--ease);
   }
-  .connect-row:hover{ color:var(--accent); background:var(--surface); }
+  .connect-row:hover{ color:var(--accent); background:var(--surface); text-decoration:none; }
+  .connect-row .go-out{ margin-left:auto; font-size:12px; color:var(--ink-4); }
+  .connect-row:hover .go-out{ color:var(--accent); }
   .connect-row .dot{
     width:6px; height:6px; border-radius:50%; background:var(--accent-fill); flex-shrink:0;
   }
@@ -555,10 +557,12 @@
       <div class="side-h">Brains <b id="bcount"></b></div>
       <div id="brains"></div>
     </div>
-    <button class="connect-row" id="connectBtn">
+    <a class="connect-row" href="/mcp" title="The connector address and how to add it">
       <span class="dot"></span><span>Octopus MCP</span>
-    </button>
+      <span class="go-out">&#8599;</span>
+    </a>
     <div class="side-foot">
+      <button id="keyBtn" title="Change the model key this account uses" hidden>key</button>
       <button id="lockBtn" title="Sign out and forget your key">lock</button>
       <span id="stat"></span>
     </div>
@@ -629,7 +633,7 @@ const S = {
   token: null, brains: [], concepts: [], sources: [], model: "",
   mode: "ask", scope: "all", transcript: null, busy: false, pendingCard: null, chunk: 18000,
   level: "normal",
-  key: null, account: null, who: "",
+  key: null, account: null, who: "", hasKey: false, keyHint: "",
 };
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
@@ -858,6 +862,8 @@ async function refresh(){
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
   if (d.account !== undefined) S.account = d.account;
   if (d.kind) S.who = d.kind === "member" ? (S.who || d.account) : d.kind;
+  if (d.hasKey !== undefined){ S.hasKey = d.hasKey; S.keyHint = d.keyHint || ""; }
+  $("keyBtn").hidden = S.who === "guest" || !S.account;
   $("lockBtn").textContent = S.who === "guest" ? "leave" : `sign out ${S.who || ""}`.trim();
   render();
 }
@@ -1030,7 +1036,7 @@ $("level").onchange = e => { S.level = e.target.value; saveLevel(); renderCompos
 $("burger").onclick = () => $("side").classList.toggle("open");
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
-$("connectBtn").onclick = openConnect;
+$("keyBtn").onclick = openKeySheet;
 $("testBtn").onclick = testSource;
 $("navToggle").onclick = () => { navOpen = false; paintNav(); };
 $("navOpen").onclick  = () => { navOpen = true;  paintNav(); };
@@ -1046,101 +1052,77 @@ $("lockBtn").onclick = async () => {
 };
 
 /* ============ create a brain ============ */
-/* The connector is public and read only, so this panel hands out the address
-   rather than issuing a key. No passphrase, and no model call behind it. */
 /**
- * Has this source landed already, and where. The route behind this reads one
- * indexed row and calls no model, so testing is free however often you do it.
+ * Change the key this account spends, or forget the one it remembers. The key
+ * is sent to be sealed on the server, and held in this tab for the calls that
+ * follow.
  */
-async function testSource(){
-  const btn = $("testBtn");
-  const raw = $("input").value.trim();
-  const link = (raw.match(/https?:\/\/\S+/)||[])[0] || "";
-
-  if (!link){
-    push("ai", b => { b.innerHTML = rich(raw
-      ? "The repeat check reads the link. Paste the URL and test again, because text alone carries no stable id."
-      : "Paste a link first, then test."); });
-    bottom(); return;
-  }
-
-  btn.disabled = true; btn.textContent = "checking";
-  try {
-    const r = await api("/api/drop/check", { link, text: "" });
-    push("ai", b => {
-      const d = el("div","receipt");
-      if (r.duplicate){
-        const where = (r.brains||[]).map(x => S.brains.find(y=>y.slug===x)?.name || x).join(", ") || "no brain";
-        d.innerHTML =
-`Already stored as <span class="v">${esc(r.sid)}</span>.
-Dropped <span class="v">${esc(r.date||"undated")}</span>${r.author?` by <span class="v">${esc(r.author)}</span>`:""}
-Lives in <span class="v">${esc(where)}</span>
-Dropping it again reaches the same card, so no position moves.`;
-      } else {
-        d.innerHTML =
-`<span class="ok">Not stored.</span> It would land as <span class="v">${esc(r.sid)}</span>.
-Drop it to see which brain takes it and what it adds.`;
-      }
-      b.append(d);
-    });
-    bottom();
-  } catch(e){
-    push("ai", b => { b.innerHTML = rich("The check failed: " + (e.message || "no answer")); });
-    bottom();
-  } finally {
-    btn.disabled = false; btn.textContent = "already stored?";
-  }
-}
-
-function openConnect(){
+function openKeySheet(){
   closeSide();
-  const url = window.OCTOPUS_API + "/mcp";
   const veil = el("div","veil");
+  const saved = !!S.hasKey;
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
-      <header><h3>Read these brains from your own Claude</h3>
-      <p>Add this address as a custom connector. Your Claude then reads the brains directly and reasons over them itself.</p></header>
-      <div class="f"><label for="mcpUrl">Connector address</label>
-        <div class="urlbox">
-          <input id="mcpUrl" readonly spellcheck="false">
-          <button id="mcpCopy">Copy</button>
-        </div>
-        <div class="hint">Works on Free, Pro, Max, Team and Enterprise plans.</div>
+      <header><h3>Your model key</h3>
+      <p>${saved
+        ? `This account remembers a key ending <b>${esc(S.keyHint || "????")}</b>. A new one replaces it.`
+        : "No key is saved on this account, so the one in this tab is used until you close it."}</p></header>
+      <div class="f">
+        <label for="kNew">New key</label>
+        <input type="password" id="kNew" autocomplete="off" spellcheck="false" placeholder="sk-or-..." >
+        <div class="hint">Make a key with a spend limit rather than pasting your main one.</div>
       </div>
-      <div class="f"><label>How to add it</label>
-        <ol class="steps">
-          <li>Open Claude, then Settings, then Connectors.</li>
-          <li>Choose Add custom connector.</li>
-          <li>Paste the address above. Leave authentication empty.</li>
-          <li>Ask your question. Claude reads the brains as it answers.</li>
-        </ol>
+      <div class="f"><label class="check"><input type="checkbox" id="kRem" ${saved?"checked":""}> Remember it on my account</label>
+        <div class="hint">Remembered keys are encrypted with a secret held on the server. Unticked, it stays in this tab only.</div>
       </div>
-      <div class="f"><label>What a reader can do</label>
-        <ol class="steps">
-          <li>List the brains and read their scope lines.</li>
-          <li>Read any position, its dated evidence and its open conflicts.</li>
-          <li>Search every concept, and list the sources behind a brain.</li>
-        </ol>
-        <div class="hint">Reading only. Nobody can add a source, move a position, or spend your model credits. Capped at 120 calls per 10 minutes per address.</div>
-      </div>
-      <footer><button class="ghost" id="mcpClose">Close</button></footer>
+      <div class="f"><div id="kMsg" class="bad" role="alert"></div></div>
+      <footer>
+        ${saved ? `<button class="ghost" id="kForget">Forget the saved key</button>` : ""}
+        <button class="ghost" id="kCancel">Cancel</button>
+        <button class="go" id="kSave">Save</button>
+      </footer>
     </div>`;
   document.body.append(veil);
-  const inp = veil.querySelector("#mcpUrl");
-  inp.value = url;
+  const inp = veil.querySelector("#kNew"), msg = veil.querySelector("#kMsg");
   const shut = () => veil.remove();
-  veil.querySelector("#mcpClose").onclick = shut;
+  veil.querySelector("#kCancel").onclick = shut;
   veil.onclick = e => { if(e.target===veil) shut(); };
-  veil.querySelector("#mcpCopy").onclick = async () => {
-    const btn = veil.querySelector("#mcpCopy");
-    inp.select();
-    /* The clipboard API needs permission the page may not hold, so fall back
-       to leaving the address selected for a manual copy. */
-    try { await navigator.clipboard.writeText(url); btn.textContent = "Copied"; }
-    catch { btn.textContent = "Press copy"; }
-    setTimeout(() => { btn.textContent = "Copy"; }, 1600);
+  setTimeout(()=>inp.focus(),40);
+
+  const forget = veil.querySelector("#kForget");
+  if (forget) forget.onclick = async () => {
+    forget.disabled = true; msg.className="spin"; msg.textContent = "Forgetting";
+    try {
+      await api("/api/account/key", { forget: true });
+      S.hasKey = false; S.keyHint = "";
+      shut();
+      push("ai", b => { b.innerHTML = rich("The saved key is gone. Paste one when you next ask or drop."); });
+    } catch(e){ forget.disabled=false; msg.className="bad"; msg.textContent = e.message; }
   };
-  setTimeout(()=>{ inp.select(); }, 30);
+
+  veil.querySelector("#kSave").onclick = async () => {
+    const key = inp.value.trim();
+    if (key.length < 16){ msg.className="bad"; msg.textContent="that does not look like an API key"; inp.focus(); return; }
+    const btn = veil.querySelector("#kSave");
+    btn.disabled = true; msg.className="spin"; msg.textContent = "Saving";
+    try {
+      if (veil.querySelector("#kRem").checked){
+        const r = await api("/api/account/key", { key });
+        if (r.error) throw new Error(r.error);
+        S.hasKey = true; S.keyHint = r.keyHint || key.slice(-4);
+      } else {
+        /* Not remembered, so the old saved one would still be used. Drop it. */
+        if (saved) await api("/api/account/key", { forget: true });
+        S.hasKey = false; S.keyHint = "";
+      }
+      S.key = key;
+      try { sessionStorage.setItem(KEY_KEY, key); } catch {}
+      shut();
+      push("ai", b => { b.innerHTML = rich(
+        `Key set, ending **${esc(key.slice(-4))}**. ` +
+        (S.hasKey ? "This account will remember it." : "It lives in this tab only.")); });
+    } catch(e){ btn.disabled=false; msg.className="bad"; msg.textContent = e.message; }
+  };
 }
 
 function openSheet(name, scope, type){

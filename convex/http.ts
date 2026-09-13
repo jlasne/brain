@@ -185,8 +185,16 @@ route("/api/lock", async (ctx, _req, b) => {
 route("/api/state", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   const s = await ctx.runQuery(internal.store.everything, {});
+  /* Whether this account remembers a key, and the last 4 of it, so the app can
+     say which one it would spend. The key itself stays sealed. */
+  let hasKey = false, keyHint = "";
+  if (who.kind === "member" && who.account) {
+    const sealed = await ctx.runQuery(internal.store.accountKey, { slug: who.account });
+    if (sealed) { hasKey = true; keyHint = sealed.hint; }
+  }
   return { ...s, model: MODEL, chunk: CHUNK,
-           account: who.account, kind: who.kind, owner: who.kind === "owner" };
+           account: who.account, kind: who.kind, owner: who.kind === "owner",
+           hasKey, keyHint };
 });
 
 route("/api/brain", async (ctx, _req, b) => {
