@@ -13,7 +13,7 @@ Plain markdown at its core, with a chat on top. Brains stay portable whichever w
 | Where | `octopus.jeremylasne.com`, four pages under `app/` | The `brain` skill, in your terminal |
 | Model | OpenRouter, your key, server side | Whatever your session runs |
 | Brains | Convex tables, exportable to markdown | Markdown files under `brains/` |
-| Gate | A passphrase before anything reads or calls | Your own machine |
+| Gate | A name and a password, or a key you bring for one tab | Your own machine |
 
 Same protocol, same three actions, same export format.
 
@@ -62,7 +62,18 @@ Words read, estimated. The deep work stays fixed whatever the size.
 
 ## Install
 
-**The chat.** Publish `app/index.html` as a page with a document store and a call to Claude. First open asks you to set a passphrase. Then create a brain and drop a source.
+**The chat.** A Convex deployment holds the data, any static host serves `app/`.
+
+```
+git clone https://github.com/jlasne/brain
+cd brain && npm install
+npx convex dev
+npx convex env set OPENROUTER_API_KEY sk-or-... --prod
+npx convex env set KEY_SECRET "$(openssl rand -base64 32)" --prod
+npx convex deploy
+```
+
+Then serve `app/` as the site root. `vercel.json` already does it. First open asks for a name and a password, which opens your account. Then create a brain and drop a source.
 
 **Claude Code.** Copy `skill/brain/` into your skills folder: `~/.claude/skills/brain/` for personal, `.claude/skills/brain/` for one project. On Claude.ai, upload `skill/brain/SKILL.md` as a skill. Then ask for your first brain.
 

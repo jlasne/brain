@@ -1,5 +1,5 @@
 <title>Octopus</title>
-<meta name="description" content="One brain per subject, each keeping what it read and the reasons behind it. Drop an article, a video or a study, then ask any brain in plain words.">
+<meta name="description" content="An open source knowledge base. One brain per subject, each holding a position, the evidence under it and a date on every claim. MIT licensed, run it yourself.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -9,44 +9,51 @@
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
 <style>
-  /* One screen. The header, the hero and the footer share the viewport, so the
-     page never scrolls on a normal desktop. */
-  body{ height:100dvh; overflow:hidden; }
-  main{ display:grid; place-items:center; padding-block:0; min-height:0; }
-  main > .wrap{ width:100%; max-width:1000px; }
+  main > .wrap{ max-width:940px; }
 
   .hero-wrap{
     display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);
-    gap:clamp(30px,5vw,72px); align-items:center;
+    gap:clamp(26px,4.4vw,56px); align-items:center;
   }
-
   .eyebrow{
     margin-bottom:18px; font:500 11px/1.7 var(--mono); letter-spacing:.11em;
     text-transform:uppercase; color:var(--accent);
   }
   h1.hero{
-    font-size:clamp(31px,4.4vw,50px); line-height:1.05; letter-spacing:-.035em; font-weight:600;
+    font-size:clamp(30px,4.2vw,46px); line-height:1.05; letter-spacing:-.034em; font-weight:600;
     max-width:17ch;
   }
   h1.hero em{ font-style:italic; font-weight:600; color:var(--accent); }
   .hero-main .one{
-    margin-top:20px; max-width:40ch;
+    margin-top:16px; max-width:40ch;
     font-size:clamp(15px,1.8vw,17px); line-height:1.58; color:var(--ink-2);
   }
-
   .tldr{ border-left:2px solid var(--accent-line); padding-left:clamp(16px,2vw,22px); }
-  .tldr p{ margin:0; font-size:14.5px; line-height:1.6; color:var(--ink-3); max-width:42ch; }
-  .tldr p + p{ margin-top:13px; }
+  .tldr p{ margin:0; font-size:14px; line-height:1.58; color:var(--ink-3); max-width:42ch; }
+  .tldr p + p{ margin-top:11px; }
   .tldr p b{ color:var(--ink-2); font-weight:500; }
 
-  footer.bot .wrap{ justify-content:space-between; max-width:1000px; }
+  /* A command you can copy, and nothing around it. */
+  .cmd{
+    margin-top:12px; border:1px solid var(--line); border-radius:10px;
+    background:var(--surface-2); padding:13px 15px; overflow-x:auto;
+  }
+  .cmd code{ display:block; white-space:pre; font:400 13px/1.85 var(--mono); color:var(--ink-2); }
+  .cmd code b{ color:var(--accent); font-weight:400; }
+  .cmd code i{ color:var(--ink-4); font-style:normal; }
+
+  .grid.three{ grid-template-columns:repeat(auto-fit,minmax(214px,1fr)); }
+  .card .k{
+    display:block; margin-bottom:7px;
+    font:400 10.5px/1.6 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--accent);
+  }
+  h3.sub{ margin-top:26px; }
+
+  footer.bot .wrap{ justify-content:space-between; max-width:940px; }
   footer.bot b{ color:var(--accent); font-weight:500; }
 
-  /* A phone cannot hold both columns on one screen, so it scrolls. */
   @media (max-width:880px){
-    body{ height:auto; overflow:auto; }
-    main{ padding-block:44px 56px; }
-    .hero-wrap{ grid-template-columns:1fr; gap:30px; }
+    .hero-wrap{ grid-template-columns:1fr; gap:26px; }
     h1.hero{ max-width:none; }
   }
 </style>
@@ -55,18 +62,24 @@
   <span class="mark"><img src="/brand/logo-mark.png" alt="Octopus" width="48" height="48"></span>
   <span class="wordmark">Octopus</span>
   <nav class="links">
+    <a href="https://github.com/jlasne/brain">Code</a>
     <a href="/doc">Doc</a>
     <a href="/chat" class="cta">Open the app</a>
   </nav>
 </div></header>
 
 <main><div class="wrap">
+
   <div class="hero-wrap">
     <div class="hero-main">
-      <div class="eyebrow">Open source &middot; Your key &middot; Your brains</div>
+      <div class="eyebrow">MIT licensed &middot; Run it yourself &middot; Your key</div>
       <h1 class="hero">Every AI knows the same things. This one knows <em>what you read</em>.</h1>
       <p class="one">One brain per subject. Each holds a position, the evidence under it, and a date on
         every claim.</p>
+      <div class="row">
+        <a class="btn primary" href="/chat">Open the app</a>
+        <a class="btn" href="https://github.com/jlasne/brain">Read the code</a>
+      </div>
     </div>
 
     <aside class="tldr">
@@ -77,13 +90,76 @@
         changes with it.</p>
     </aside>
   </div>
+
+  <h2>Three things you do</h2>
+  <div class="grid three">
+    <div class="card">
+      <span class="k">Drop</span>
+      <h3>Feed it a source</h3>
+      <p>Paste a link and it opens the page. One card comes back: where it lands, what is new, what
+        repeats, and every claim that contradicts what you hold. You rule each one, then it writes.</p>
+    </div>
+    <div class="card">
+      <span class="k">Ask</span>
+      <h3>Ask in plain words</h3>
+      <p>The first sentence answers. Numbers sit inside the answer, sources on one line underneath.
+        A follow-up question reads against the ones before it.</p>
+    </div>
+    <div class="card">
+      <span class="k">Connect</span>
+      <h3>Use it from your own AI</h3>
+      <p>One address makes any MCP client a reader. A second one lets it feed. Your client does the
+        thinking, so a drop through it spends nothing here. <a href="/doc">How to add it</a>.</p>
+    </div>
+  </div>
+
+  <h2>Run your own</h2>
+  <p>The whole thing is MIT licensed and public. Two ways to run it, and a brain exports to plain
+    markdown either way.</p>
+
+  <h3 class="sub">As a web app</h3>
+  <p class="muted">A Convex deployment holds the data. Any static host serves the pages.</p>
+  <div class="cmd"><code><b>git</b> clone https://github.com/jlasne/brain
+<b>cd</b> brain && <b>npm</b> install
+
+<i># a deployment of your own</i>
+<b>npx</b> convex dev
+
+<i># the key that pays for reading and rewriting</i>
+<b>npx</b> convex env set OPENROUTER_API_KEY sk-or-... --prod
+<b>npx</b> convex env set KEY_SECRET "$(openssl rand -base64 32)" --prod
+<b>npx</b> convex deploy</code></div>
+  <p class="muted" style="margin-top:12px">Then serve <code>app/</code> as the site root. The repo
+    carries a <code>vercel.json</code> that already does it. Open the app, take a name and a password,
+    and create your first brain.</p>
+
+  <h3 class="sub">As files on your machine</h3>
+  <p class="muted">No server, no database. A brain is a markdown folder you can open in any editor.</p>
+  <div class="cmd"><code><b>cp</b> -r brain/skill/brain ~/.claude/skills/brain</code></div>
+  <p class="muted" style="margin-top:12px">Then ask Claude Code for your first brain. Same three
+    actions, same rules, same export format as the web app.</p>
+
+  <h2>What is in the repo</h2>
+  <div class="tbl"><table>
+    <tr><th>Path</th><th>What it holds</th></tr>
+    <tr><td><code>PROTOCOL.md</code></td><td>Every rule the brain follows, numbered: how a source is filed,
+      how evidence compresses, what the receipt has to prove.</td></tr>
+    <tr><td><code>convex/</code></td><td>The server. The routes, the four drop steps, the MCP server, the schema.</td></tr>
+    <tr><td><code>app/</code></td><td>The pages. Each one is a single HTML file with no build step.</td></tr>
+    <tr><td><code>skill/brain/</code></td><td>The Claude Code skill, for running the whole thing as files.</td></tr>
+    <tr><td><code>templates/</code></td><td>The markdown a brain exports to: the map, a concept, a note.</td></tr>
+    <tr><td><code>scripts/</code></td><td>The checks. One reads every page, one drives a whole drop with no network.</td></tr>
+  </table></div>
+
+  <div class="note">Nothing here locks you in. A brain exports to markdown, and the protocol that
+    produced it sits in the same repo, so it can be rebuilt anywhere.</div>
+
 </div></main>
 
 <footer class="bot"><div class="wrap">
-  <span style="margin:0">Your key, your spending, your brains.</span>
+  <span style="margin:0">MIT licensed &middot; <a href="https://github.com/jlasne/brain">jlasne/brain</a></span>
   <span id="tally">one brain per subject</span>
 </div></footer>
-
 
 <script>
   /* The footer states what the brains actually hold. A failure leaves the line
