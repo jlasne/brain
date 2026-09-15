@@ -244,8 +244,17 @@ export async function dropPlan(ctx: any, who: Who, b: any, key?: string, model?:
   /* Only brains this caller may feed. Everyone reads more than they can write. */
   const brains = seen.filter((x: any) => canDrop(x, who));
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
-  const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
-  if (!pool.length) return { error: "no brain exists yet" };
+  let pool = only ? brains.filter((x: any) => x.slug === only) : brains;
+  /* Filing a stored source into a second brain. The brains already holding it
+     drop out, so the plan proposes somewhere new rather than rewriting the same
+     positions with a source they already carry. */
+  const held: string[] = Array.isArray(b.exclude) ? b.exclude.map(String) : [];
+  if (held.length) pool = pool.filter((x: any) => !held.includes(x.slug));
+  if (!pool.length) {
+    return { error: held.length
+      ? "every brain you can feed already holds this source."
+      : "no brain exists yet" };
+  }
 
   const ext = b.ext ?? {};
 

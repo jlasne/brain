@@ -1678,9 +1678,33 @@ async function doDrop(text){
   try { chk = await api("/api/drop/check", { link, text }); }
   catch(e){ fail(body, e.message); return; }
 
+  /* Already held somewhere. That is worth knowing, not a reason to stop: the
+     same source often belongs in a second brain. Reusing the extraction it
+     already gave up means the second filing reads nothing. */
   if (chk.duplicate){
+    const names = (chk.brains||[]).map(x => S.brains.find(y=>y.slug===x)?.name || x);
     body.innerHTML = "";
-    body.innerHTML = rich(`**Already stored.** That link is note \`${esc(chk.sid)}\`, filed ${esc(chk.date||"earlier")} into ${esc((chk.brains||[]).join(", ")||"no brain")}. Nothing was read.`);
+    body.innerHTML = rich(
+      `**Already stored** as \`${esc(chk.sid)}\`, filed ${esc(chk.date||"earlier")} into ` +
+      `**${esc(names.join(", ")||"no brain")}**.\n\n` +
+      `Filing it into another brain reuses what it already gave up, so nothing gets read twice.`);
+    const row = el("div"); row.style.cssText = "display:flex;gap:8px;margin-top:14px";
+    const go = el("button","go","File it elsewhere");
+    const no = el("button","ghost","Stop");
+    no.onclick = () => {
+      row.remove();
+      push("ai", b => { b.innerHTML = rich("Stopped. Nothing was read and no position moved."); });
+    };
+    go.onclick = async () => {
+      go.disabled = no.disabled = true; row.remove();
+      const b2 = thinking("Reading back what it already gave up");
+      let got;
+      try { got = await api("/api/drop/again", { sid: chk.sid }); }
+      catch(e){ fail(b2, e.message); return; }
+      if (got.error){ fail(b2, got.error); return; }
+      await planAndCard(b2, chk.sid, chk.link || link, got.ext, 0, chk.brains || []);
+    };
+    row.append(go, no); body.append(row);
     return;
   }
 
@@ -1725,16 +1749,30 @@ async function doDrop(text){
     thin: parts.flatMap(p=>p.thin||[]),
   };
 
+  await planAndCard(body, chk.sid, link, ext, bodyTxt.length);
+}
+
+/**
+ * The plan and the card, from an extraction however it arrived: read just now,
+ * or reused from a source already stored.
+ *
+ * `held` names the brains that already carry it, which the plan leaves out so
+ * it proposes somewhere new rather than rewriting positions with a source they
+ * already hold.
+ */
+async function planAndCard(body, sid, link, ext, len, held){
   setThinking(body, "Comparing against what you hold");
   let plan;
-  try { plan = (await api("/api/drop/plan", { ext, brain: S.scope, key: S.key })).plan; }
-  catch(e){ fail(body, e.message); return; }
+  try {
+    plan = (await api("/api/drop/plan", { ext, brain: S.scope, key: S.key,
+      ...(held && held.length ? { exclude: held } : {}) })).plan;
+  } catch(e){ fail(body, e.message); return; }
 
   /* Position-changing clashes lead, nuance follows. Both get a say, because
      you are the one who holds these positions. */
   const decide = [...(plan.conflicts||[]).filter(c=>c.kind==="flip"),
                   ...(plan.conflicts||[]).filter(c=>c.kind!=="flip")];
-  const pc = { sid: chk.sid, link, ext, plan, choices:{}, byKey:{}, promote:[], len: bodyTxt.length };
+  const pc = { sid, link, ext, plan, choices:{}, byKey:{}, promote:[], len };
   S.pendingCard = pc; S.transcript = null; renderComposer();
 
   body.innerHTML = "";
@@ -1751,7 +1789,8 @@ function buildCard(pc, decide){
   const card = el("div","card");
   const top = el("div","card-top");
   top.append(el("span","id",sid),
-    el("span","meta",[ext.author, ext.date, Math.round(pc.len/1000)+"k chars"].filter(Boolean).join(" · ")));
+    el("span","meta",[ext.author, ext.date,
+      pc.len ? Math.round(pc.len/1000)+"k chars" : "read already"].filter(Boolean).join(" · ")));
   card.append(top);
 
   const dl = el("dl","card-grid");

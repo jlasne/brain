@@ -307,6 +307,22 @@ route("/api/drop/check", async (ctx, _req, b) => {
   return await dropCheck(ctx, b);
 });
 
+/**
+ * The extraction a stored source already gave up.
+ *
+ * Filing it into a second brain reuses it, so a source is read once in its life
+ * however many brains end up holding it. That makes the second filing cost one
+ * model call instead of three.
+ */
+route("/api/drop/again", async (ctx, _req, b) => {
+  await gate(ctx, b);
+  const ext = await ctx.runQuery(internal.store.noteBySid, { sid: String(b.sid ?? "") });
+  if (!ext) {
+    return { error: "no note was kept for that source, so it has to be read again. Paste it once more." };
+  }
+  return { ext };
+});
+
 /** R2. One pass over one chunk. The caller loops, the transcript is never stored. */
 route("/api/drop/read", async (ctx, _req, b) => {
   const who = await gate(ctx, b);

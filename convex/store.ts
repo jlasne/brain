@@ -380,14 +380,52 @@ export const upsertConcept = internalMutation({
   },
 });
 
+/**
+ * One row per source, whatever it takes to get there.
+ *
+ * The same source can be filed into a second brain later, so this patches the
+ * row it already has and unions the brain list. A blind insert left two rows
+ * carrying one sid, and the duplicate check reads whichever came first.
+ */
 export const writeSource = internalMutation({
   args: { doc: v.any() },
-  handler: async (ctx, a) => { await ctx.db.insert("sources", { ...a.doc, stored: today() }); },
+  handler: async (ctx, a) => {
+    const seen = await ctx.db.query("sources")
+      .withIndex("by_sid", q => q.eq("sid", a.doc.sid)).first();
+    if (!seen) { await ctx.db.insert("sources", { ...a.doc, stored: today() }); return; }
+    await ctx.db.patch(seen._id, {
+      ...a.doc,
+      brains: Array.from(new Set([...(seen.brains ?? []), ...(a.doc.brains ?? [])])),
+      stored: seen.stored,
+    });
+  },
 });
 
+/** One note per source too, replaced rather than stacked. */
 export const writeNote = internalMutation({
   args: { doc: v.any() },
-  handler: async (ctx, a) => { await ctx.db.insert("notes", { ...a.doc, written: today() }); },
+  handler: async (ctx, a) => {
+    const seen = await ctx.db.query("notes")
+      .withIndex("by_sid", q => q.eq("sid", a.doc.sid)).first();
+    if (seen) await ctx.db.patch(seen._id, { ...a.doc, written: seen.written });
+    else await ctx.db.insert("notes", { ...a.doc, written: today() });
+  },
+});
+
+/**
+ * The extraction a source already gave up.
+ *
+ * Filing it into a second brain reuses this, so a source is read once in its
+ * life however many brains end up holding it.
+ */
+export const noteBySid = internalQuery({
+  args: { sid: v.string() },
+  handler: async (ctx, a) => {
+    const n = await ctx.db.query("notes").withIndex("by_sid", q => q.eq("sid", a.sid)).first();
+    if (!n) return null;
+    return { title: n.title, author: n.author, date: n.date,
+             topics: n.topics ?? [], quotes: n.quotes ?? [], thin: n.thin ?? [] };
+  },
 });
 
 /** R5.5 seeding and the 3 mention rule both live here. */
