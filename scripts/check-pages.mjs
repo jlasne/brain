@@ -42,8 +42,17 @@ for (const page of pages) {
     try { unlinkSync(tmp); } catch {}
   }
 
-  /* 2. Every element it reaches for exists in the markup. */
+  /* 2. Every element it reaches for exists in the markup.
+        A page whose body arrives from the deployment can reach for an id the
+        file does not carry. It has to say so, in one line, so the exemption is
+        a decision on the page rather than a hole in the check:
+
+            <!-- check-pages: external-ids docUrl docCopy -->
+   */
   const ids = new Set([...src.matchAll(/id="([^"]+)"/g)].map(m => m[1]));
+  for (const m of src.matchAll(/<!--\s*check-pages:\s*external-ids([^>]*?)-->/g)) {
+    for (const id of m[1].trim().split(/\s+/).filter(Boolean)) ids.add(id);
+  }
   const asked = new Set([...code.matchAll(/\$\("([^"]+)"\)/g)].map(m => m[1]));
   const alsoAsked = [...code.matchAll(/getElementById\("([^"]+)"\)/g)].map(m => m[1]);
   for (const id of new Set([...asked, ...alsoAsked])) {

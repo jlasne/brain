@@ -14,6 +14,7 @@ import {
 import type { Who } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 import { dropCheck, dropRead, dropPlan, dropSettle, fetchPage } from "./drop";
+import { DOC_STYLE, DOC_BODY } from "./doc";
 
 const router = httpRouter();
 
@@ -229,6 +230,18 @@ route("/api/account/mcp", async (ctx, _req, b) => {
     return { has: true, token, made: r.made };
   }
   return await ctx.runQuery(internal.store.mcpState, { slug: who.account });
+});
+
+/**
+ * The connector documentation.
+ *
+ * Gated because it is served, not published. A static page could be hidden by a
+ * script and still hand its words to anyone who read the file. These words live
+ * on the deployment, so an unsigned request gets the refusal instead.
+ */
+route("/api/doc", async (ctx, _req, b) => {
+  await gate(ctx, b);
+  return { style: DOC_STYLE, body: DOC_BODY };
 });
 
 /* ---------- reading ---------- */
