@@ -13,7 +13,7 @@ Plain markdown at its core, with a chat on top. Brains stay portable whichever w
 | Where | `octopus.jeremylasne.com`, four pages under `app/` | The `brain` skill, in your terminal |
 | Model | OpenRouter, your key, server side | Whatever your session runs |
 | Brains | Convex tables, exportable to markdown | Markdown files under `brains/` |
-| Gate | A name and a password, or a key you bring for one tab | Your own machine |
+| Gate | A name and a password. `ONLY_ACCOUNT` narrows it to one | Your own machine |
 
 Same protocol, same three actions, same export format.
 
@@ -71,6 +71,12 @@ npx convex dev
 npx convex env set OPENROUTER_API_KEY sk-or-... --prod
 npx convex env set KEY_SECRET "$(openssl rand -base64 32)" --prod
 npx convex deploy
+```
+
+One more command makes the deployment personal. With `ONLY_ACCOUNT` set, that account is the only one that signs in, no new account is made, and the key-for-one-tab door closes. Reading the brains through the connector still needs nothing.
+
+```
+npx convex env set ONLY_ACCOUNT yourname --prod
 ```
 
 Then serve `app/` as the site root. `vercel.json` already does it. First open asks for a name and a password, which opens your account. Then create a brain and drop a source.

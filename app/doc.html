@@ -224,6 +224,43 @@
 </div></footer>
 
 <script>
+  /**
+   * A curtain, not a lock.
+   *
+   * This page is a static file, and the same words sit in a public repository,
+   * so nothing here is a secret worth guarding. What the check buys is that a
+   * stranger who lands on the address sees the door instead of instructions for
+   * an account they do not have.
+   *
+   * The session token lives in sessionStorage, which is per tab, so this works
+   * when the page is opened from the app. A fresh tab gets the curtain and one
+   * link back.
+   */
+  (() => {
+    let signedIn = false;
+    try { signedIn = !!sessionStorage.getItem("octopus.token.v1"); } catch {}
+    if (signedIn) return;
+    fetch(window.OCTOPUS_API + "/api/status")
+      .then(r => r.json())
+      .then(d => { if (d && d.personal) curtain(); })
+      .catch(() => {});
+    function curtain(){
+      document.querySelector("main").innerHTML = `
+        <div class="wrap">
+          <div class="eyebrow">One account</div>
+          <h1 class="hero">This one belongs to someone.</h1>
+          <p class="lede">The connector setup lives behind the app, because it hands out an address tied
+            to an account. Open the app to read it.</p>
+          <div class="row">
+            <a class="btn primary" href="/chat">Open the app</a>
+            <a class="btn" href="https://github.com/jlasne/brain">Run your own</a>
+          </div>
+          <div class="note">Reading the brains needs no account. Point any MCP client at
+            <code>${location.origin}/mcp/v0</code> and every brain answers.</div>
+        </div>`;
+    }
+  })();
+
   /* Vercel proxies /mcp/v0 to the Convex deployment, so the address a person
      copies carries this site's own domain. */
   const url = location.origin + "/mcp/v0";

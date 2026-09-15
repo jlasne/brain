@@ -77,9 +77,12 @@
       <p class="one">One brain per subject. Each holds a position, the evidence under it, and a date on
         every claim.</p>
       <div class="row">
-        <a class="btn primary" href="/chat">Open the app</a>
-        <a class="btn" href="https://github.com/jlasne/brain">Read the code</a>
+        <a class="btn primary" href="https://github.com/jlasne/brain">Run your own</a>
+        <a class="btn" href="/chat">Open the app</a>
       </div>
+      <p class="muted" style="margin-top:12px;font-size:13.5px">This instance holds one person's brains,
+        so the app asks for their account. Reading them needs nothing:
+        <a href="/doc">point any AI client at it</a>.</p>
     </div>
 
     <aside class="tldr">
@@ -128,7 +131,10 @@
 <i># the key that pays for reading and rewriting</i>
 <b>npx</b> convex env set OPENROUTER_API_KEY sk-or-... --prod
 <b>npx</b> convex env set KEY_SECRET "$(openssl rand -base64 32)" --prod
-<b>npx</b> convex deploy</code></div>
+<b>npx</b> convex deploy
+
+<i># optional: one owner, no sign-ups</i>
+<b>npx</b> convex env set ONLY_ACCOUNT yourname --prod</code></div>
   <p class="muted" style="margin-top:12px">Then serve <code>app/</code> as the site root. The repo
     carries a <code>vercel.json</code> that already does it. Open the app, take a name and a password,
     and create your first brain.</p>

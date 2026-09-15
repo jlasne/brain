@@ -8,7 +8,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
-  ask, json, cors, sha256, slug, randomHex, isOpen, sealKey, openKey,
+  ask, json, cors, sha256, slug, randomHex, isOpen, sealKey, openKey, onlyAccount,
   MODEL, MAX_ATTEMPTS, CHUNK,
 } from "./lib";
 import type { Who } from "./lib";
@@ -126,8 +126,14 @@ route("/api/login", async (ctx, _req, b) => {
   if (pass.length < 8) return { error: "use a password of at least 8 characters" };
   const s = slug(name);
 
+  /* A personal deployment answers to one account. Refusing before the lookup
+     means a wrong name learns nothing about which accounts exist. */
+  const only = onlyAccount();
+  if (only && s !== only) return { error: "this deployment belongs to one account." };
+
   const acc = await ctx.runQuery(internal.store.findAccount, { slug: s });
   if (!acc) {
+    if (only) return { error: "this deployment belongs to one account." };
     const salt = randomHex(16);
     await ctx.runMutation(internal.store.createAccount,
       { name, slug: s, salt, passHash: await sha256(salt, pass) });
@@ -158,6 +164,8 @@ route("/api/login", async (ctx, _req, b) => {
  * protect with a password.
  */
 route("/api/guest", async (ctx, _req, b) => {
+  /* Closed on a personal deployment, where reading belongs to the owner. */
+  if (onlyAccount()) return { error: "this deployment belongs to one account." };
   const key = String(b.key ?? "").trim();
   if (key.length < 16) return { error: "that does not look like an API key" };
   return {
@@ -188,8 +196,10 @@ route("/api/account/key", async (ctx, _req, b) => {
 });
 
 route("/api/status", async (ctx) => {
+  /* Whether this deployment is personal. It names no account, so a visitor
+     learns only that there is nothing here to sign up for. */
   const g = await ctx.runQuery(internal.store.gateState, {});
-  return { gateSet: !!g?.set };
+  return { gateSet: !!g?.set, personal: !!onlyAccount() };
 });
 
 route("/api/lock", async (ctx, _req, b) => {

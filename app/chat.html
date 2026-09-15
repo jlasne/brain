@@ -8,7 +8,7 @@
   /* The deployment this app talks to. Public by design: the OpenRouter key
      lives on the server and never reaches a browser. */
   window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
-  window.OCTOPUS_BUILD = "2026-09-13z";
+  window.OCTOPUS_BUILD = "2026-09-15a";
 </script>
 
 <style>
@@ -693,6 +693,8 @@ const S = {
   thread: [],
   level: "normal",
   key: null, account: null, who: "", hasKey: false, keyHint: "",
+  /* A personal deployment answers to one account: no sign-up, no key-for-one-tab. */
+  personal: false,
 };
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
@@ -769,11 +771,14 @@ function gateScreen() {
      The passphrase door is gone. Its route still answers, so a deployment that
      loses every account password has a way back in through the API. */
   let mode = "member";
-  let step = "pick";        // "pick", then "in", then "key" when an account has none saved
+  /* Personal deployment: one door, and it is the account's. Nothing to pick. */
+  let step = S.personal ? "in" : "pick";  // "pick", then "in", then "key" when an account has none saved
   let acct = null;          // what /api/login handed back
 
   const HEAD = {
-    member: ["Create or connect", "A name and a password. An unused name opens an account. Your model key pays for what you ask and drop."],
+    member: S.personal
+      ? ["Sign in", "This deployment answers to one account."]
+      : ["Create or connect", "A name and a password. An unused name opens an account. Your model key pays for what you ask and drop."],
     guest:  ["Read access", "Paste a key, ask anything. The key is forgotten when this tab closes."],
   };
 
@@ -812,7 +817,9 @@ function gateScreen() {
         <div class="f">
           <label for="gw">Password</label>
           <input type="password" id="gw" autocomplete="current-password" placeholder="At least 8 characters" required>
-          <div class="hint">A name nobody has taken opens a new account.</div>
+          <div class="hint">${S.personal
+            ? "The brains here belong to one account. Reading them from your own AI needs no account: see <a href=\"/doc\">the connector</a>."
+            : "A name nobody has taken opens a new account."}</div>
         </div>`;
 
     /* The first screen names the three ways in and asks for nothing. */
@@ -846,7 +853,7 @@ function gateScreen() {
       return;
     }
 
-    const swaps = step === "key" ? ""
+    const swaps = step === "key" || S.personal ? ""
       : `<button class="ghost" type="button" data-go="pick">Back</button>`;
 
     veil.innerHTML = `
@@ -946,7 +953,7 @@ function deadScreen(why) {
   }
   /* The status call is only a reachability probe now, so an unreachable
      deployment says so rather than showing a sign-in that cannot work. */
-  try { await api("/api/status"); }
+  try { const st = await api("/api/status"); S.personal = !!st.personal; }
   catch (e) { deadScreen(e.message); return; }
   gateScreen();
 })();
