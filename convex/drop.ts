@@ -141,6 +141,74 @@ const VIDEO_HOST = /(^|\.)(youtube\.com|youtu\.be|vimeo\.com|tiktok\.com|dailymo
 
 const CAP = 60000;
 
+/**
+ * A video's own captions, through Supadata.
+ *
+ * YouTube hands captions to a signed-in browser and to nothing else, which a
+ * deployment is not. Supadata fetches them on its own infrastructure and this
+ * asks it for the text. Unset key means the paste instruction, so a deployment
+ * without one behaves exactly as it did before.
+ *
+ * mode=native is the default because it costs one credit and only returns
+ * captions that already exist. mode=auto falls back to generating them from the
+ * audio at 2 credits per minute, so a one hour video costs 120 credits instead
+ * of 1. That is a bill worth asking for on purpose.
+ */
+const SUPADATA_HOST =
+  /(^|\.)(youtube\.com|youtu\.be|tiktok\.com|instagram\.com|twitter\.com|x\.com|facebook\.com)$/i;
+
+async function videoTranscript(url: string, host: string): Promise<any | null> {
+  const key = (process.env.SUPADATA_API_KEY ?? "").trim();
+  if (!key) return null;
+  /* Supadata covers these. The rest keep the paste instruction rather than
+     spending a credit on a refusal. */
+  if (!SUPADATA_HOST.test(host)) return null;
+
+  const mode = (process.env.SUPADATA_MODE ?? "native").trim() === "auto" ? "auto" : "native";
+  const ask = `https://api.supadata.ai/v1/transcript?url=${encodeURIComponent(url)}&text=true&mode=${mode}`;
+
+  let r: Response;
+  try {
+    r = await fetch(ask, { headers: { "x-api-key": key, "Accept": "application/json" } });
+  } catch (e: any) {
+    return { error: `the transcript service did not answer: ${String(e?.message ?? e).slice(0, 140)}` };
+  }
+
+  const raw = await r.text();
+  let d: any = {};
+  try { d = JSON.parse(raw); } catch { /* an error page, handled below */ }
+
+  if (!r.ok) {
+    const why = String(d?.message ?? d?.error ?? raw).slice(0, 200);
+    if (r.status === 402 || r.status === 429) {
+      return { error: `the transcript service is out of credits or rate limited: ${why}` };
+    }
+    if (r.status === 401 || r.status === 403) {
+      return { error: `the transcript service refused the key: ${why}` };
+    }
+    /* No captions on the video, which is the common case for a 404 here. */
+    return { error: [
+      `${host} has no transcript to fetch for that video: ${why}`,
+      `Paste the text with the link instead.`,
+    ].join("\n") };
+  }
+
+  /* text=true asks for a string. An array of timed chunks is what comes back
+     without it, so both shapes are read. */
+  const body = Array.isArray(d?.content)
+    ? d.content.map((c: any) => String(c?.text ?? "")).join(" ")
+    : String(d?.content ?? "");
+  const clean = body.replace(/\s+/g, " ").trim();
+  if (clean.length < 200) {
+    return { error: [
+      `the transcript came back with ${clean.length} characters, which is too little to read.`,
+      `Paste the text with the link instead.`,
+    ].join("\n") };
+  }
+  return { url, chars: clean.length, cut: clean.length > CAP, text: clean.slice(0, CAP),
+           lang: d?.lang ?? "" };
+}
+
 export async function fetchPage(raw: string): Promise<any> {
   const want = raw.trim();
   let u: URL;
@@ -152,6 +220,8 @@ export async function fetchPage(raw: string): Promise<any> {
     return { error: `${host} is not a public address.` };
   }
   if (VIDEO_HOST.test(host)) {
+    const t = await videoTranscript(u.toString(), host);
+    if (t) return t;
     return { error: [
       `${host} serves captions only to a signed-in browser, so a fetched page carries none.`,
       `Open the transcript panel under the video, copy it, and drop that text with the link.`,

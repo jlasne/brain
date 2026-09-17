@@ -79,6 +79,14 @@ One more command makes the deployment personal. With `ONLY_ACCOUNT` set, that ac
 npx convex env set ONLY_ACCOUNT yourname --prod
 ```
 
+A video link carries no transcript on its own: YouTube hands captions to a signed-in browser and to nothing else, which a deployment is not. Set a [Supadata](https://supadata.ai) key and a video link becomes enough.
+
+```
+npx convex env set SUPADATA_API_KEY sd_... --prod
+```
+
+It asks for captions that already exist, at one credit each, and says to paste when a video has none. `SUPADATA_MODE=auto` generates them from the audio instead, at 2 credits per minute, so one hour costs 120 credits rather than 1. Unset, a video link asks you to paste, which is what it did before.
+
 Then serve `app/` as the site root. `vercel.json` already does it. First open asks for a name and a password, which opens your account. Then create a brain and drop a source.
 
 **Claude Code.** Copy `skill/brain/` into your skills folder: `~/.claude/skills/brain/` for personal, `.claude/skills/brain/` for one project. On Claude.ai, upload `skill/brain/SKILL.md` as a skill. Then ask for your first brain.

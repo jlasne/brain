@@ -117,6 +117,18 @@ const ME = { account:"octopus", name:"Octopus" };
   check("nonsense is refused",          (await no("just some words")).includes("not a full address"));
   const yt = await no("https://www.youtube.com/watch?v=abc");
   check("a video link says what to do instead", yt.includes("transcript panel"), yt.slice(0,80));
+
+  /* With a transcript service configured, the hosts it covers route to it and
+     the hosts it does not keep the paste instruction, so no credit is spent on
+     a refusal that was knowable up front. */
+  process.env.SUPADATA_API_KEY = "test-key-not-real";
+  const vimeo = await no("https://vimeo.com/123456");
+  check("a host the service does not cover still says paste", vimeo.includes("transcript panel"), vimeo.slice(0,80));
+  const dm = await no("https://www.dailymotion.com/video/x123");
+  check("same for dailymotion", dm.includes("transcript panel"), dm.slice(0,80));
+  delete process.env.SUPADATA_API_KEY;
+  const ytAgain = await no("https://youtu.be/abc");
+  check("no key means the old behaviour", ytAgain.includes("transcript panel"), ytAgain.slice(0,80));
   const anon = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"tools/call",
     params:{ name:"fetch_link", arguments:{ url:"https://example.com" } } }, null);
   check("an anonymous caller cannot fetch", /no tool named|reads only/i.test(JSON.stringify(anon)));

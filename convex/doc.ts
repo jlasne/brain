@@ -107,9 +107,10 @@ export const DOC_BODY = `
     <tr><td>An article or a blog link</td><td>The link alone is enough. Your client opens the page, or calls
       <code>fetch_link</code> when it cannot browse.</td></tr>
     <tr><td>A paper or a study link</td><td>Same, when the text sits on the page rather than behind a login.</td></tr>
-    <tr><td>A YouTube link</td><td>Paste the transcript with it. YouTube serves captions only to a signed-in
-      browser, so a fetched page carries none.</td></tr>
-    <tr><td>A podcast or a video file</td><td>Paste the transcript. Octopus reads text.</td></tr>
+    <tr><td>A YouTube, TikTok, Instagram or X link</td><td>The link alone is enough when a transcript
+      service is configured, because YouTube hands captions to a signed-in browser and to nothing else.
+      Without one, paste the transcript with the link.</td></tr>
+    <tr><td>A podcast or another video host</td><td>Paste the transcript. Octopus reads text.</td></tr>
   </table></div>
   <p class="muted">Always send the link when one exists. It is what catches a repeat later.</p>
 
