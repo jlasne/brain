@@ -137,8 +137,8 @@ export const DOC_BODY = `
     </div>
     <div class="card">
       <h3>Then it writes</h3>
-      <p>Each position is re-derived from its whole evidence list, never appended to. A new idea needs
-        3 separate sources before it becomes a position of its own. You can take one earlier by saying so.</p>
+      <p>Each position is re-derived from its whole evidence list, never appended to. A new idea the
+        source argues for becomes a position of its own in the same drop.</p>
     </div>
   </div>
 

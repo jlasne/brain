@@ -13,7 +13,7 @@
 
 import { internal } from "./_generated/api";
 import {
-  ask, parseJson, today, slug, linkKey, sourceId, canDrop, CHUNK,
+  ask, parseJson, today, slug, linkKey, sourceId, canDrop, CHUNK, MENTIONS,
 } from "./lib";
 import type { Who } from "./lib";
 
@@ -373,8 +373,8 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
     const c = concepts.find((x: any) => `${x.brain}/${x.slug}` === m.conceptId || x.slug === slug(m.conceptId ?? ""));
     if (c) touched.push({ c, adds: m.whatItAdds, isNew: false });
   }
-  /* R5.5. A candidate is an idea the brain does not hold yet. Three separate
-     sources make it a position, so a first mention is counted and kept, never
+  /* R5.5. A candidate is an idea the brain does not hold yet. MENTIONS separate
+     sources make it a position, so an early mention is counted and kept, never
      thrown away. Two brains skip the wait: one that is still empty, and one
      where the owner picked the candidate on the card. */
   const counted: any[] = [];
@@ -385,12 +385,15 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
     if (already) { touched.push({ c: already, adds: cand.why, isNew: false }); continue; }
     const seeding = concepts.filter((x: any) => x.brain === br).length === 0;
     const asked = promote.includes(cand.title) || promote.includes(`${br}/${slug(cand.title)}`);
-    if (seeding || asked) {
+    /* At a threshold of 1 there is nothing to wait for, so the candidate is
+       taken here with what the source argued as its first evidence, rather than
+       through a counter that would promote it on the same call anyway. */
+    if (seeding || asked || MENTIONS <= 1) {
       touched.push({ c: { brain: br, slug: slug(cand.title), title: cand.title, position: "", evidence: [], data: [], conflicts: [], sources: [] }, adds: cand.why, isNew: true });
     } else {
       const r = await ctx.runMutation(internal.store.bumpCandidate, { brain: br, title: cand.title, sid });
-      if (r.promoted) touched.push({ c: { brain: br, slug: slug(cand.title), title: cand.title, position: "", evidence: [], data: [], conflicts: [], sources: r.notes }, adds: "promoted after 3 mentions", isNew: true });
-      else counted.push({ brain: br, title: cand.title, have: r.notes.length, need: 3 - r.notes.length });
+      if (r.promoted) touched.push({ c: { brain: br, slug: slug(cand.title), title: cand.title, position: "", evidence: [], data: [], conflicts: [], sources: r.notes }, adds: `promoted after ${MENTIONS} mentions`, isNew: true });
+      else counted.push({ brain: br, title: cand.title, have: r.notes.length, need: MENTIONS - r.notes.length });
     }
   }
 

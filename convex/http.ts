@@ -9,7 +9,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
   ask, json, cors, sha256, slug, randomHex, isOpen, sealKey, openKey, onlyAccount,
-  MODEL, MAX_ATTEMPTS, CHUNK,
+  MODEL, MAX_ATTEMPTS, CHUNK, MENTIONS,
 } from "./lib";
 import type { Who } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
@@ -290,7 +290,7 @@ route("/api/state", async (ctx, _req, b) => {
     const sealed = await ctx.runQuery(internal.store.accountKey, { slug: who.account });
     if (sealed) { hasKey = true; keyHint = sealed.hint; }
   }
-  return { ...s, model: MODEL, chunk: CHUNK,
+  return { ...s, model: MODEL, chunk: CHUNK, mentions: MENTIONS,
            account: who.account, kind: who.kind, owner: who.kind === "owner",
            hasKey, keyHint };
 });

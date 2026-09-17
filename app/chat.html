@@ -697,6 +697,7 @@ const WHO_KEY = "octopus.who.v1";
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
   mode: "ask", scope: "all", transcript: null, busy: false, pendingCard: null, chunk: 18000,
+  mentions: 1,
   /* The last few turns of the current thread. It travels with each question so
      a follow-up means something, and it is never written down: closing the tab
      ends it. */
@@ -974,6 +975,9 @@ async function refresh(){
   const d = await api("/api/state");
   S.brains = d.brains || []; S.concepts = d.concepts || []; S.sources = d.sources || [];
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
+  /* The deployment decides how many sources an idea needs, so the card and the
+     receipt say the number the rule actually runs on. */
+  S.mentions = Number(d.mentions) || 1;
   if (d.account !== undefined) S.account = d.account;
   if (d.kind) S.who = d.kind === "member" ? (S.who || d.account) : d.kind;
   if (d.hasKey !== undefined){ S.hasKey = d.hasKey; S.keyHint = d.keyHint || ""; }
@@ -1858,6 +1862,7 @@ function buildCard(pc, decide){
   /* A candidate waits for a third source before it becomes a position. Clicking
      it takes it now, because you are the one who decides what this brain holds. */
   (plan.candidates||[]).forEach(m => {
+    if (S.mentions <= 1){ cc.append(el("span","chip cand","+ "+m.title)); return; }
     const ch = el("button","chip cand","+ "+m.title);
     ch.onclick = () => {
       const i = pc.promote.indexOf(m.title);
@@ -1871,7 +1876,9 @@ function buildCard(pc, decide){
   cbox.append(cc);
   if ((plan.candidates||[]).length)
     cbox.append(el("div","chip-note",
-      "Orange ones are new here. They need 3 sources to become a position. Click one to take it now."));
+      S.mentions <= 1
+        ? "Orange ones are new here. Each becomes a position when you store it."
+        : `Orange ones are new here. They need ${S.mentions} sources to become a position. Click one to take it now.`));
   row("Concepts", cbox);
 
   const nu = el("ul");
@@ -1962,7 +1969,7 @@ Rewritten: <span class="v">${r.positions}</span> position${r.positions===1?"":"s
   /* A counted candidate is stored, just not as a position yet. Saying so keeps
      the receipt honest about where the idea went. */
   for (const c of (r.counted||[])){
-    d.innerHTML += `\nCounted <span class="v">${esc(c.title)}</span> at <span class="v">${c.have}</span> of 3. ` +
+    d.innerHTML += `\nCounted <span class="v">${esc(c.title)}</span> at <span class="v">${c.have}</span> of ${S.mentions}. ` +
       `<span class="v">${c.need}</span> more source${c.need===1?"":"s"} makes it a position.`;
   }
   return d;

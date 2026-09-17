@@ -23,7 +23,7 @@ The front door. Searched, never read whole.
 
 ## Candidates
 
-Concepts mentioned but not yet promoted. 3 mentions earns a file. A candidate outside every scope waits here until a brain is created for it.
+Concepts mentioned but not yet promoted. At a mention threshold of one this stays empty. A candidate outside every scope waits here until a brain is created for it.
 
 | Candidate | Mentions | Notes | Fits |
 |---|---|---|---|

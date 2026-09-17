@@ -19,7 +19,8 @@
  */
 
 import { internal } from "./_generated/api";
-import { randomHex, today, slug as slugOf } from "./lib";
+import { randomHex, today, slug as slugOf, MENTIONS } from "./lib";
+export { MENTIONS };
 import { dropCheck, dropSettle, feedable, fetchPage, planContext, PLAN_RULES } from "./drop";
 
 /** Versions this server speaks. The newest sits first, so it wins by default. */
@@ -265,7 +266,7 @@ export const WRITE_TOOLS = [
         },
         take: {
           type: "array", items: { type: "string" },
-          description: "Candidate concept titles to create in this drop rather than count toward three.",
+          description: "Candidate concept titles to create in this drop rather than count toward the threshold.",
         },
       },
       required: ["draft"],
@@ -414,7 +415,9 @@ function cardText(plan: any, brains: any[], concepts: any[], draft: string) {
     ``,
     `NEW CONCEPTS PROPOSED (${cands.length})`,
     cands.join("\n") || "- none",
-    ...(cands.length ? [`A new concept needs 3 separate sources. Name one in "take" to create it now.`] : []),
+    ...(cands.length ? [MENTIONS <= 1
+      ? `Each becomes a position when the drop is stored.`
+      : `A new concept needs ${MENTIONS} separate sources. Name one in "take" to create it now.`] : []),
     ``,
     `NEW CLAIMS (${(plan.new ?? []).length})`,
     (plan.new ?? []).map((x: string) => `- ${x}`).join("\n") || "- none",
@@ -567,7 +570,7 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
       return text([
         `Nothing to rewrite in draft ${token}.`,
         ...(r.counted ?? []).map((c: any) =>
-          `- ${c.title}: counted at ${c.have} of 3, ${c.need} more source${c.need === 1 ? "" : "s"} makes it a position`),
+          `- ${c.title}: counted at ${c.have} of ${MENTIONS}, ${c.need} more source${c.need === 1 ? "" : "s"} makes it a position`),
         ``,
         `Call drop_store with an empty rewrites list to file the source anyway.`,
       ].join("\n"));
@@ -600,7 +603,7 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
 
     await ctx.runMutation(internal.store.killDraft, { token, account: caller.account });
     const counted = (r.counted ?? []).map((c: any) =>
-      `- ${c.title}: counted at ${c.have} of 3, ${c.need} more source${c.need === 1 ? "" : "s"} makes it a position`);
+      `- ${c.title}: counted at ${c.have} of ${MENTIONS}, ${c.need} more source${c.need === 1 ? "" : "s"} makes it a position`);
     return text([
       `STORED ${r.sid} on ${today()}, by ${caller.name}.`,
       `Brains: ${(r.brains ?? []).join(", ")}`,

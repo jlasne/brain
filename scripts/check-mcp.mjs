@@ -27,7 +27,7 @@ writeFileSync(join(dir, "_generated/api.ts"),
   "new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 await esbuild.build({ entryPoints: [join(dir, "mcp.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { handleRpc } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { handleRpc, MENTIONS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 const DB = {
   brains: [
@@ -70,7 +70,8 @@ const ctx = {
       const k = a.brain + "/" + a.title;
       const notes = Array.from(new Set([...(DB.candidates.get(k) ?? []), a.sid]));
       DB.candidates.set(k, notes);
-      return notes.length >= 3 ? { promoted:true, notes } : { promoted:false, notes };
+      /* The real threshold, so the harness cannot drift from the rule. */
+      return notes.length >= MENTIONS ? { promoted:true, notes } : { promoted:false, notes };
     }
     if (fn === "store.createBrain") {
       const sl = a.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -201,20 +202,30 @@ let job = "";
   check("the job carries the rewrite rules", job.includes("Re-derive, never append"));
   check("the ruling reaches the job", job.includes("NEW on:"), job.slice(0,300));
   check("the whole evidence list is handed over", job.includes("FULL EVIDENCE LIST"));
-  check("the counted candidate is not in the job", !job.includes("Hook writing for short video"));
+  check("the candidate is in the job only when it is a position",
+    job.includes("Hook writing for short video") === (MENTIONS <= 1), job.slice(0,200));
 }
 
 /* ---- step 4 ---- */
 {
   const before = DB.writes.length;
-  const r = await call("drop_store", { draft, rewrites:[
+  const rw = [
     { conceptId:"content/personal-brand", position:"Hooks decide the watch. A named face still compounds distribution.",
-      summaryLine:"Hooks decide the first 2 seconds.", data:["retention 42% at 3s"], conflicts:[] } ] }, ME);
+      summaryLine:"Hooks decide the first 2 seconds.", data:["retention 42% at 3s"], conflicts:[] },
+  ];
+  /* At a threshold above one the candidate is still counted, so only the
+     matched position comes back in the job. At one it is a position already. */
+  if (MENTIONS <= 1) rw.push({ conceptId:"content/hook-writing-for-short-video",
+    position:"The first seconds carry the hook.", summaryLine:"Hooks carry the open.", data:[], conflicts:[] });
+  const r = await call("drop_store", { draft, rewrites: rw }, ME);
   check("the receipt says it stored", r.startsWith("STORED"), r.slice(0,120));
-  check("one position was rewritten", r.includes("Positions rewritten: 1"), r.slice(0,200));
-  check("the counted candidate is reported", r.includes("counted at 1 of 3"), r.slice(0,300));
+  check(`${MENTIONS <= 1 ? "two positions" : "one position"} rewritten`,
+    r.includes(`Positions rewritten: ${MENTIONS <= 1 ? 2 : 1}`), r.slice(0,200));
+  check("the candidate is reported the right way",
+    MENTIONS <= 1 ? !r.includes("COUNTED") : r.includes(`counted at 1 of ${MENTIONS}`), r.slice(0,300));
   const kinds = DB.writes.slice(before).map(w => w.kind);
-  check("a concept, a source and a note were written", kinds.join(",") === "concept,source,note", kinds.join(","));
+  const want = MENTIONS <= 1 ? "concept,concept,source,note" : "concept,source,note";
+  check("the concepts, the source and the note were written", kinds.join(",") === want, kinds.join(","));
   const c = DB.writes.slice(before).find(w => w.kind === "concept");
   check("the rewrite landed on the position", c.doc.position.startsWith("Hooks decide the watch"), c.doc.position);
   check("the draft is gone", !DB.drafts.has(draft));

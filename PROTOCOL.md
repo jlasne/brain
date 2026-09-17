@@ -167,7 +167,7 @@ Filing and rewriting happen together, in one pass, after your reply. The receipt
 | R5.2 | Add a source row to each touched concept file, and write your card choices into the note. |
 | R5.3 | Re-derive each touched position from its full evidence list, now carrying this source. Rewrite it as one view. A grown quote list is a failed settle. |
 | R5.4 | Superseded views move into evidence with their date. Open conflicts stay dated. Every view survives. |
-| R5.5 | A brain holding zero concept files seeds directly: every concept in the first drop becomes a file. From the second drop on, candidates need 3 mentions. The owner overrides the wait by picking a candidate on the card, and that candidate becomes a file in the same drop. |
+| R5.5 | A candidate becomes a file on the drop that argues for it. The mention threshold is one, set in `MENTIONS`. Above one, a candidate waits for that many separate sources, an empty brain seeds directly anyway, and the owner overrides the wait by picking a candidate on the card. |
 | R5.5b | A drop whose only finding is a first or second mention still stores the source and the note, and the receipt names the count it reached. Refuse a drop only when nothing lands anywhere. |
 | R5.6 | Promotion re-reads the notes that mentioned the candidate, so the new file opens with all of them as evidence, not only the latest. |
 | R5.7 | A candidate outside every scope stays in the map, counted, until you create a brain for it. |

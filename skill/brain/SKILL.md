@@ -105,7 +105,7 @@ Everything here runs after the reply, in one pass, before you say done.
 2. Add a source row to each touched concept file. Write the card choices into the note.
 3. **Re-derive each touched position from its full evidence list**, now carrying this source. Rewrite it as one view. A grown quote list is a failed settle.
 4. Superseded views move into evidence with their date. Open conflicts stay dated. Every view survives.
-5. **Seeding**: a brain holding zero concept files turns every concept in its first drop into a file. From the second drop on, a candidate needs 3 mentions.
+5. **Seeding**: a candidate becomes a file on the drop that argues for it. Where the mention threshold is above one, a candidate waits for that many separate sources and an empty brain seeds directly anyway.
 6. **Promotion** re-reads the notes that mentioned the candidate, so the new file opens with all of them as evidence.
 7. A candidate outside every scope stays in the map, counted, until the user creates a brain for it.
 8. Rewrite each touched summary as the scope line plus exactly one line per concept file. No cap, no trimming. Refresh that brain's map section.

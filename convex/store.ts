@@ -2,7 +2,7 @@
 
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { sha256, randomHex, today, slug, SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS } from "./lib";
+import { sha256, randomHex, today, slug, MENTIONS, SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS } from "./lib";
 
 /* ---------------- the gate ---------------- */
 
@@ -460,7 +460,7 @@ export const fetchCount = internalQuery({
   },
 });
 
-/** R5.5 seeding and the 3 mention rule both live here. */
+/** R5.5 seeding and the mention threshold both live here. */
 export const bumpCandidate = internalMutation({
   args: { brain: v.string(), title: v.string(), sid: v.string() },
   handler: async (ctx, a) => {
@@ -468,7 +468,7 @@ export const bumpCandidate = internalMutation({
     const row = await ctx.db.query("candidates")
       .withIndex("by_brain_slug", q => q.eq("brain", a.brain).eq("slug", s)).unique();
     const notes = Array.from(new Set([...(row?.notes ?? []), a.sid]));
-    if (notes.length >= 3) {
+    if (notes.length >= MENTIONS) {
       if (row) await ctx.db.delete(row._id);
       return { promoted: true, notes };
     }
