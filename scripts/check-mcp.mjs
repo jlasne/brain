@@ -128,7 +128,11 @@ const ME = { account:"octopus", name:"Octopus" };
   check("same for dailymotion", dm.includes("transcript panel"), dm.slice(0,80));
   delete process.env.SUPADATA_API_KEY;
   const ytAgain = await no("https://youtu.be/abc");
-  check("no key means the old behaviour", ytAgain.includes("transcript panel"), ytAgain.slice(0,80));
+  check("no key still says paste", ytAgain.includes("transcript panel"), ytAgain.slice(0,80));
+  /* A setting that looks done and is not should say so, rather than reading as
+     though this host simply cannot be fetched. */
+  check("a covered host names the missing key", ytAgain.includes("SUPADATA_API_KEY is empty"), ytAgain.slice(0,140));
+  check("an uncovered host does not", !vimeo.includes("SUPADATA_API_KEY"), vimeo.slice(0,100));
   const anon = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"tools/call",
     params:{ name:"fetch_link", arguments:{ url:"https://example.com" } } }, null);
   check("an anonymous caller cannot fetch", /no tool named|reads only/i.test(JSON.stringify(anon)));

@@ -233,8 +233,17 @@ export async function fetchPage(ctx: any, raw: string): Promise<any> {
   if (VIDEO_HOST.test(host)) {
     const t = await videoTranscript(ctx, u.toString(), host);
     if (t) return t;
+    /* No service reached it. Which of the two reasons applies matters: one is
+       how this host works, the other is a setting that looks done and is not. */
+    const covered = SUPADATA_HOST.test(host);
+    const keyed = !!(process.env.SUPADATA_API_KEY ?? "").trim();
     return { error: [
       `${host} serves captions only to a signed-in browser, so a fetched page carries none.`,
+      ...(covered && !keyed
+        ? [`A transcript service could fetch it, and none is configured on this deployment.`,
+           `SUPADATA_API_KEY is empty here. Set it with --prod, because a key set without that`,
+           `flag lands on the dev deployment while the live site reads production.`]
+        : []),
       `Open the transcript panel under the video, copy it, and drop that text with the link.`,
       `The link is what catches a repeat later.`,
     ].join("\n") };
