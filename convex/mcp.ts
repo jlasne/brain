@@ -444,7 +444,7 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     await ctx.runQuery(internal.store.getDraft, { token, account: caller.account });
 
   if (name === "fetch_link") {
-    const r = await fetchPage(String(args?.url ?? ""));
+    const r = await fetchPage(ctx, String(args?.url ?? ""));
     if (r.error) return text(r.error);
     return text([
       `FETCHED ${r.url}`,

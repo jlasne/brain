@@ -143,6 +143,20 @@ export default defineSchema({
     expires: v.number(),
   }).index("by_token", ["token"]),
 
+  /**
+   * One row per transcript fetch, so the pace is visible before the quota runs
+   * out. The vendor reports its own billing period, which is the number that
+   * decides when to paste instead. This is the local view: what Octopus itself
+   * spent, over any window, and it survives changing provider.
+   */
+  fetches: defineTable({
+    at: v.number(),
+    host: v.string(),
+    ok: v.boolean(),
+    chars: v.number(),
+    why: v.string(),
+  }).index("by_at", ["at"]),
+
   candidates: defineTable({
     brain: v.string(),
     slug: v.string(),

@@ -236,6 +236,16 @@
   .mrow.on b{ color:var(--accent); }
   .mnone{ padding:14px 12px; font:400 13px/1.5 var(--sans); color:var(--ink-3); }
 
+  /* How much of the transcript quota is gone. */
+  .bar{
+    height:6px; border-radius:3px; background:var(--surface-3); overflow:hidden; margin-bottom:9px;
+  }
+  .bar i{ display:block; height:100%; background:var(--accent-fill); border-radius:3px; }
+  .bar i.tight{ background:var(--accent); }
+  .meter{ font:400 13px/1.55 var(--sans); color:var(--ink-3); }
+  .meter + .meter{ margin-top:4px; }
+  .meter b{ color:var(--ink); font-weight:600; }
+
   /* The three ways in, on the first screen of the door. */
   .picks{ padding:16px 20px 2px; }
   .pick-row{
@@ -1306,6 +1316,11 @@ async function openSetupSheet(){
         <div id="feedSlot"></div>
       </div>
 
+      <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
+        <label>Video transcripts</label>
+        <div id="useSlot"></div>
+      </div>
+
       <div class="f"><div id="kMsg" class="bad" role="alert"></div></div>
       <footer><a class="ghost" href="/doc" style="text-decoration:none">MCP setup</a><button class="go" id="kDone">Done</button></footer>
     </div>`;
@@ -1388,6 +1403,42 @@ async function openSetupSheet(){
   slot.innerHTML = `<div class="hint">Checking</div>`;
   try { paint(await api("/api/account/mcp", {})); }
   catch(e){ slot.innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
+
+  /* ---- what the transcript service has cost ---- */
+  const use = veil.querySelector("#useSlot");
+  use.innerHTML = `<div class="hint">Checking</div>`;
+  try { use.innerHTML = usageLines(await api("/api/usage", { days: 30 })); }
+  catch(e){ use.innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
+}
+
+/**
+ * Two counts, because they answer different questions.
+ *
+ * The vendor's is the one the quota is measured against, so it decides when to
+ * start pasting instead. The local one is the pace Octopus itself runs at over
+ * the last 30 days, which is what says whether the quota will hold.
+ */
+function usageLines(u){
+  if (!u.configured){
+    return `<div class="hint">No transcript service is set, so a video link asks you to paste.
+      <a href="/doc">How to turn it on</a>.</div>`;
+  }
+  const m = u.mine || {}, p = u.plan;
+  const mine = `<div class="meter">${m.got || 0} fetched through Octopus in the last ${m.days || 30} days` +
+    (m.failed ? `, ${m.failed} asked you to paste` : "") + `.</div>`;
+
+  if (!p){
+    return `<div class="hint bad-ish">The service did not report its own count: ${esc(u.why || "no reason given")}</div>` + mine;
+  }
+  const left = Math.max((p.max || 0) - (p.used || 0), 0);
+  const pct = p.max ? Math.min(Math.round((p.used / p.max) * 100), 100) : 0;
+  const tight = p.max && left <= Math.max(Math.ceil(p.max * 0.15), 5);
+  return `
+    <div class="bar"><i style="width:${pct}%" class="${tight?"tight":""}"></i></div>
+    <div class="meter"><b>${p.used}</b> of <b>${p.max}</b> credits used this billing period
+      &middot; ${esc(p.name)} plan${u.mode === "auto" ? " &middot; generating when captions are missing" : ""}</div>
+    ${mine}
+    ${tight ? `<div class="hint" style="color:var(--accent)">${left} left. Paste transcripts until it resets.</div>` : ""}`;
 }
 
 /* Clipboard access can be refused, so leaving the text selected is the fallback. */

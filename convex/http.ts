@@ -244,6 +244,40 @@ route("/api/doc", async (ctx, _req, b) => {
   return { style: DOC_STYLE, body: DOC_BODY };
 });
 
+/**
+ * What the transcript service has cost, from both sides.
+ *
+ * The vendor's own count decides when to start pasting, because it is the one
+ * the quota is measured against and it includes anything spent outside this
+ * app. The local count answers a different question: the pace Octopus itself is
+ * running at, over a window you choose.
+ */
+route("/api/usage", async (ctx, _req, b) => {
+  await gate(ctx, b);
+  const days = Math.min(Math.max(Number(b.days) || 30, 1), 365);
+  const mine = await ctx.runQuery(internal.store.fetchCount, { days });
+
+  const key = (process.env.SUPADATA_API_KEY ?? "").trim();
+  if (!key) return { configured: false, mine };
+
+  let plan: any = null, why = "";
+  try {
+    const r = await fetch("https://api.supadata.ai/v1/me", {
+      headers: { "x-api-key": key, "Accept": "application/json" },
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) {
+      plan = { name: String(d?.plan ?? "unknown"),
+               used: Number(d?.usedCredits ?? 0), max: Number(d?.maxCredits ?? 0) };
+    } else {
+      why = String(d?.message ?? d?.error ?? `HTTP ${r.status}`).slice(0, 140);
+    }
+  } catch (e: any) {
+    why = String(e?.message ?? e).slice(0, 140);
+  }
+  return { configured: true, mode: (process.env.SUPADATA_MODE ?? "native").trim(), plan, why, mine };
+});
+
 /* ---------- reading ---------- */
 
 route("/api/state", async (ctx, _req, b) => {
@@ -298,7 +332,7 @@ route("/api/brain/visibility", async (ctx, _req, b) => {
  */
 route("/api/fetch", async (ctx, _req, b) => {
   await gate(ctx, b);
-  return await fetchPage(String(b.url ?? ""));
+  return await fetchPage(ctx, String(b.url ?? ""));
 });
 
 /** R1.2 runs before anything expensive, so a repeat costs zero pasting. */

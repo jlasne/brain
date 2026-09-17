@@ -157,7 +157,7 @@ const CAP = 60000;
 const SUPADATA_HOST =
   /(^|\.)(youtube\.com|youtu\.be|tiktok\.com|instagram\.com|twitter\.com|x\.com|facebook\.com)$/i;
 
-async function videoTranscript(url: string, host: string): Promise<any | null> {
+async function videoTranscript(ctx: any, url: string, host: string): Promise<any | null> {
   const key = (process.env.SUPADATA_API_KEY ?? "").trim();
   if (!key) return null;
   /* Supadata covers these. The rest keep the paste instruction rather than
@@ -171,7 +171,8 @@ async function videoTranscript(url: string, host: string): Promise<any | null> {
   try {
     r = await fetch(ask, { headers: { "x-api-key": key, "Accept": "application/json" } });
   } catch (e: any) {
-    return { error: `the transcript service did not answer: ${String(e?.message ?? e).slice(0, 140)}` };
+    return await note(ctx, host, false, 0, "no answer",
+      { error: `the transcript service did not answer: ${String(e?.message ?? e).slice(0, 140)}` });
   }
 
   const raw = await r.text();
@@ -181,16 +182,18 @@ async function videoTranscript(url: string, host: string): Promise<any | null> {
   if (!r.ok) {
     const why = String(d?.message ?? d?.error ?? raw).slice(0, 200);
     if (r.status === 402 || r.status === 429) {
-      return { error: `the transcript service is out of credits or rate limited: ${why}` };
+      return await note(ctx, host, false, 0, "out of credits",
+        { error: `the transcript service is out of credits or rate limited: ${why}` });
     }
     if (r.status === 401 || r.status === 403) {
-      return { error: `the transcript service refused the key: ${why}` };
+      return await note(ctx, host, false, 0, "key refused",
+        { error: `the transcript service refused the key: ${why}` });
     }
     /* No captions on the video, which is the common case for a 404 here. */
-    return { error: [
+    return await note(ctx, host, false, 0, "no captions", { error: [
       `${host} has no transcript to fetch for that video: ${why}`,
       `Paste the text with the link instead.`,
-    ].join("\n") };
+    ].join("\n") });
   }
 
   /* text=true asks for a string. An array of timed chunks is what comes back
@@ -200,16 +203,24 @@ async function videoTranscript(url: string, host: string): Promise<any | null> {
     : String(d?.content ?? "");
   const clean = body.replace(/\s+/g, " ").trim();
   if (clean.length < 200) {
-    return { error: [
+    return await note(ctx, host, false, clean.length, "too short", { error: [
       `the transcript came back with ${clean.length} characters, which is too little to read.`,
       `Paste the text with the link instead.`,
-    ].join("\n") };
+    ].join("\n") });
   }
-  return { url, chars: clean.length, cut: clean.length > CAP, text: clean.slice(0, CAP),
-           lang: d?.lang ?? "" };
+  return await note(ctx, host, true, clean.length, mode,
+    { url, chars: clean.length, cut: clean.length > CAP, text: clean.slice(0, CAP),
+      lang: d?.lang ?? "" });
 }
 
-export async function fetchPage(raw: string): Promise<any> {
+/** Record the attempt, then hand back the answer unchanged. */
+async function note(ctx: any, host: string, ok: boolean, chars: number, why: string, out: any) {
+  try { await ctx.runMutation(internal.store.logFetch, { host, ok, chars, why }); }
+  catch { /* the count is a convenience, never a reason to fail a drop */ }
+  return out;
+}
+
+export async function fetchPage(ctx: any, raw: string): Promise<any> {
   const want = raw.trim();
   let u: URL;
   try { u = new URL(want); }
@@ -220,7 +231,7 @@ export async function fetchPage(raw: string): Promise<any> {
     return { error: `${host} is not a public address.` };
   }
   if (VIDEO_HOST.test(host)) {
-    const t = await videoTranscript(u.toString(), host);
+    const t = await videoTranscript(ctx, u.toString(), host);
     if (t) return t;
     return { error: [
       `${host} serves captions only to a signed-in browser, so a fetched page carries none.`,

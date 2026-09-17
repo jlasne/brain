@@ -428,6 +428,38 @@ export const noteBySid = internalQuery({
   },
 });
 
+/* ---------------- what the transcript service cost ---------------- */
+
+export const logFetch = internalMutation({
+  args: { host: v.string(), ok: v.boolean(), chars: v.number(), why: v.string() },
+  handler: async (ctx, a) => {
+    await ctx.db.insert("fetches", { ...a, at: Date.now() });
+  },
+});
+
+/**
+ * How many transcripts were fetched, and how they went.
+ *
+ * A failed fetch still spends nothing on most plans, so the two are counted
+ * apart: the successful ones are the quota, the failures are the noise.
+ */
+export const fetchCount = internalQuery({
+  args: { days: v.number() },
+  handler: async (ctx, a) => {
+    const since = Date.now() - a.days * 24 * 60 * 60 * 1000;
+    const rows = await ctx.db.query("fetches")
+      .withIndex("by_at", q => q.gte("at", since)).collect();
+    const ok = rows.filter(r => r.ok);
+    /* Oldest first, so a caller can see whether the pace is rising. */
+    const byDay: Record<string, number> = {};
+    for (const r of ok) {
+      const d = new Date(r.at).toISOString().slice(0, 10);
+      byDay[d] = (byDay[d] ?? 0) + 1;
+    }
+    return { days: a.days, got: ok.length, failed: rows.length - ok.length, byDay };
+  },
+});
+
 /** R5.5 seeding and the 3 mention rule both live here. */
 export const bumpCandidate = internalMutation({
   args: { brain: v.string(), title: v.string(), sid: v.string() },
