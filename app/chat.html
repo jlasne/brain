@@ -1836,6 +1836,22 @@ async function planAndCard(body, sid, link, ext, len, held){
       ...(held && held.length ? { exclude: held } : {}) })).plan;
   } catch(e){ fail(body, e.message); return; }
 
+  /* A plan that files nothing anywhere is a failed read, not an empty source.
+     Rendering the card would offer Store it on a source that touches no
+     position, and the store would refuse. Say what happened instead. */
+  const lands = (plan.matched||[]).length + (plan.candidates||[]).length + (plan.new||[]).length;
+  if (!lands){
+    body.innerHTML = "";
+    body.innerHTML = rich(
+      `**The plan found nothing to file.** ${len ? `${Math.round(len/1000)}k characters were read` : "The stored extraction was reused"}, ` +
+      `and no concept, candidate or new claim came back.\n\n` +
+      `An auto-caption with no punctuation is the usual cause. Paste the transcript from the video's own panel, which carries sentences.`);
+    const go = el("button","go","Paste the text");
+    go.style.marginTop = "12px"; go.onclick = openTranscript; body.append(go);
+    S.pendingCard = null; renderComposer();
+    return;
+  }
+
   /* Position-changing clashes lead, nuance follows. Both get a say, because
      you are the one who holds these positions. */
   const decide = [...(plan.conflicts||[]).filter(c=>c.kind==="flip"),

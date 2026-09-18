@@ -171,12 +171,24 @@ async function videoTranscript(ctx: any, url: string, host: string): Promise<any
      reader then faces one unbroken run tens of thousands of characters long. */
   const ask = `https://api.supadata.ai/v1/transcript?url=${encodeURIComponent(url)}&mode=${mode}`;
 
+  /* A deadline, because the caller's own is three minutes and a hang there
+     spends all of it to say nothing useful. Generating a transcript from audio
+     is slower than reading one, so the wait allowed depends on which was asked
+     for. */
   let r: Response;
   try {
-    r = await fetch(ask, { headers: { "x-api-key": key, "Accept": "application/json" } });
+    r = await fetch(ask, {
+      headers: { "x-api-key": key, "Accept": "application/json" },
+      signal: AbortSignal.timeout(mode === "auto" ? 120000 : 45000),
+    });
   } catch (e: any) {
-    return await note(ctx, host, false, 0, "no answer",
-      { error: `the transcript service did not answer: ${String(e?.message ?? e).slice(0, 140)}` });
+    const why = String(e?.name === "TimeoutError" || e?.name === "AbortError"
+      ? `it did not answer within ${mode === "auto" ? 120 : 45} seconds`
+      : String(e?.message ?? e).slice(0, 140));
+    return await note(ctx, host, false, 0, "no answer", { error: [
+      `the transcript service did not answer: ${why}.`,
+      `Paste the transcript with the link instead.`,
+    ].join("\n") });
   }
 
   const raw = await r.text();
@@ -259,6 +271,7 @@ export async function fetchPage(ctx: any, raw: string): Promise<any> {
   try {
     r = await fetch(u.toString(), {
       redirect: "follow",
+      signal: AbortSignal.timeout(25000),
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; OctopusBrains/1.0; +https://octopus.jeremylasne.com/doc)",
         "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9",
@@ -266,7 +279,10 @@ export async function fetchPage(ctx: any, raw: string): Promise<any> {
       },
     });
   } catch (e: any) {
-    return { error: `${host} did not answer: ${String(e?.message ?? e).slice(0, 140)}` };
+    const why = e?.name === "TimeoutError" || e?.name === "AbortError"
+      ? "it did not answer within 25 seconds"
+      : String(e?.message ?? e).slice(0, 140);
+    return { error: `${host} did not answer: ${why}. Paste the text instead.` };
   }
   if (!r.ok) {
     return { error: `${host} answered ${r.status}. ` +
