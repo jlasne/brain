@@ -165,7 +165,11 @@ async function videoTranscript(ctx: any, url: string, host: string): Promise<any
   if (!SUPADATA_HOST.test(host)) return null;
 
   const mode = (process.env.SUPADATA_MODE ?? "native").trim() === "auto" ? "auto" : "native";
-  const ask = `https://api.supadata.ai/v1/transcript?url=${encodeURIComponent(url)}&text=true&mode=${mode}`;
+  /* Timed chunks rather than one string, because each chunk is a caption cue
+     and one cue per line is the shape a pasted transcript arrives in. Asking
+     for text=true returns the same words with every break removed, and the
+     reader then faces one unbroken run tens of thousands of characters long. */
+  const ask = `https://api.supadata.ai/v1/transcript?url=${encodeURIComponent(url)}&mode=${mode}`;
 
   let r: Response;
   try {
@@ -196,12 +200,14 @@ async function videoTranscript(ctx: any, url: string, host: string): Promise<any
     ].join("\n") });
   }
 
-  /* text=true asks for a string. An array of timed chunks is what comes back
-     without it, so both shapes are read. */
+  /* One cue per line. A plain string still arrives when the service decides to
+     send one, and it keeps whatever breaks it came with. */
   const body = Array.isArray(d?.content)
-    ? d.content.map((c: any) => String(c?.text ?? "")).join(" ")
+    ? d.content.map((c: any) => String(c?.text ?? "").trim()).filter(Boolean).join("\n")
     : String(d?.content ?? "");
-  const clean = body.replace(/\s+/g, " ").trim();
+  /* Runs of spaces collapse, line breaks stay. They are the only structure an
+     auto-caption has, and the reader needs it. */
+  const clean = body.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
   if (clean.length < 200) {
     return await note(ctx, host, false, clean.length, "too short", { error: [
       `the transcript came back with ${clean.length} characters, which is too little to read.`,

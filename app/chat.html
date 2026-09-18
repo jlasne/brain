@@ -1804,6 +1804,19 @@ async function doDrop(text){
     thin: parts.flatMap(p=>p.thin||[]),
   };
 
+  /* An extraction with no topics means the read came back empty, which is a
+     different thing from a source that holds nothing. Left alone, the plan runs
+     on nothing and the card reads "nothing new", which blames the source. */
+  if (!ext.topics.length){
+    body.innerHTML = "";
+    body.innerHTML = rich(
+      `**The read came back empty.** ${Math.round(bodyTxt.length/1000)}k characters went in and no topic came out.\n\n` +
+      `Auto-captions with no punctuation are the usual cause. Paste the transcript from the video's own panel, which carries line breaks.`);
+    const go = el("button","go","Paste the text");
+    go.style.marginTop = "12px"; go.onclick = openTranscript; body.append(go);
+    return;
+  }
+
   await planAndCard(body, chk.sid, link, ext, bodyTxt.length);
 }
 
