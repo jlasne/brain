@@ -219,6 +219,24 @@ route("/api/lock", async (ctx, _req, b) => {
 });
 
 /**
+ * Which account a caller acts as.
+ *
+ * A member is their own account. A passphrase session carries none, and the
+ * connector address belongs to one, so it resolves to the account this
+ * deployment names, or to the single account that exists. With several and no
+ * ONLY_ACCOUNT there is nothing to guess, and it says so.
+ */
+async function actingAccount(ctx: any, who: Who): Promise<string | null> {
+  if (who.account) return who.account;
+  if (who.kind !== "owner") return null;
+  const named = onlyAccount();
+  /* Named but never opened is a fresh deployment, where the single account that
+     does exist is the better answer than a slug nothing is stored under. */
+  if (named && await ctx.runQuery(internal.store.findAccount, { slug: named })) return named;
+  return await ctx.runQuery(internal.store.soleAccount, {});
+}
+
+/**
  * The personal connector address.
  *
  * The token is shown once per call and never leaves this route, so a browser
@@ -227,19 +245,25 @@ route("/api/lock", async (ctx, _req, b) => {
  */
 route("/api/account/mcp", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  if (who.kind !== "member" || !who.account) {
-    return { error: "a connector address belongs to an account. Sign in first." };
+  /* The connector reads Octopus, so an address handed out inside another space
+     would point somewhere its holder did not come from. */
+  if (who.space !== HOME) {
+    return { error: `the connector serves ${SPACE_NAME[HOME]}. Open that door to set one up.` };
+  }
+  const account = await actingAccount(ctx, who);
+  if (!account) {
+    return { error: "a connector address belongs to an account, and this deployment names none. Set ONLY_ACCOUNT, or sign in." };
   }
   if (b.forget) {
-    await ctx.runMutation(internal.store.setMcpToken, { slug: who.account, token: null });
+    await ctx.runMutation(internal.store.setMcpToken, { slug: account, token: null });
     return { has: false, token: "" };
   }
   if (b.make) {
     const token = randomHex(24);
-    const r = await ctx.runMutation(internal.store.setMcpToken, { slug: who.account, token });
+    const r = await ctx.runMutation(internal.store.setMcpToken, { slug: account, token });
     return { has: true, token, made: r.made };
   }
-  return await ctx.runQuery(internal.store.mcpState, { slug: who.account });
+  return await ctx.runQuery(internal.store.mcpState, { slug: account });
 });
 
 /**

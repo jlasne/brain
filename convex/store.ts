@@ -89,6 +89,22 @@ export const findAccount = internalQuery({
     await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique(),
 });
 
+/**
+ * The one account, when there is exactly one.
+ *
+ * A passphrase session carries no account, and the connector address belongs to
+ * one. On a personal deployment there is a single account to resolve to, and
+ * with several there is no way to guess, so this says nothing rather than
+ * picking.
+ */
+export const soleAccount = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("accounts").take(2);
+    return rows.length === 1 ? rows[0].slug : null;
+  },
+});
+
 export const createAccount = internalMutation({
   args: { name: v.string(), slug: v.string(), salt: v.string(), passHash: v.string() },
   handler: async (ctx, a) => {
