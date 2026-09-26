@@ -59,9 +59,8 @@ against your summaries, and you reply to one card.
 page. The first two read stored positions and call no model. Copy it, print it,
 or mail it through Resend.
 
-**Ask.** Across every brain or inside one, at three depths. Normal answers in
-three to six lines. Educational defines the terms and works an example. Expert
-reviews the evidence behind the position and names the thin spots.
+**Ask.** Across every brain or inside one, at two depths. Normal answers in
+three to six lines. Educational defines the terms and works an example.
 
 **Create a brain.** A name, a one-line scope, subject or person, and whether
 anyone may feed it. The closest existing scope gets shown first, so you can
