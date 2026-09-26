@@ -2535,7 +2535,11 @@ async function storeAll(pc, progress){
      plan, and the server keeps both with the source's note; the other parts
      send their slice and the server reads the text back from the note. */
   const slim = { title: pc.ext.title, author: pc.ext.author, date: pc.ext.date, kind: pc.ext.kind };
+  /* A note keeps 500 passages at most, to fit a database row. A longer source
+     sends its text with every part, so no part reads a note cut short. */
+  const every = (pc.ext.topics || []).length > 450;
   const body = (i, whole) => {
+    whole = whole || every;
     const part = batches[i];
     return {
       sid: pc.sid, link: pc.link, key: S.key, linkLater: true,
