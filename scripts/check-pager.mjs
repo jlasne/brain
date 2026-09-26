@@ -21,7 +21,7 @@ for (const f of ["onepager.ts", "lib.ts", "words.ts", "route.ts"]) copyFileSync(
 writeFileSync(join(dir, "_generated/api.ts"), "export const internal = {};\n");
 await esbuild.build({ entryPoints: [join(dir, "onepager.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { assemble, fromQuestion, asText, asHtml, looksLikeMail, bulletText } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { assemble, fromQuestion, asText, asHtml, looksLikeMail, bulletText, addedLine } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -59,8 +59,8 @@ const sources = [
   check("and carries its scope line", p.line === "brand and content for business", p.line);
   check("one brain needs no section heading", p.sections[0].head === "", `"${p.sections[0].head}"`);
   const [b0, b1] = p.sections[0].bullets;
-  check("the fullest position leads", b0.k === "Fat idea" && b0.say === "Three sources agree.", JSON.stringify(b0));
-  check("a bullet names its concept, then says it", b1.k === "Thin idea" && b1.say === "One source says so.", JSON.stringify(b1));
+  check("the fullest position leads", b0.k === "Fat idea" && b0.say.startsWith("Three sources agree"), JSON.stringify(b0));
+  check("a bullet names its concept, then says it", b1.k === "Thin idea" && b1.say.startsWith("One source says so"), JSON.stringify(b1));
   check("a bullet carries no source, author or date",
     p.sections[0].bullets.every(b => !/2026-|\(|·/.test(b.k + b.say)), JSON.stringify(p.sections[0].bullets));
   const long = assemble("octopus", [brains[0]], [concept("content", 1, "Long", "word ".repeat(80).trim(), [], [], "2026-01-01")], [], "content");
@@ -68,6 +68,25 @@ const sources = [
   check("what it says stays within two lines", say.length <= 184 && say.endsWith("..."), `${say.length}: ${say.slice(-20)}`);
   check("the foot counts what was read", /3 sources read/.test(p.foot), p.foot);
   check("and how much of the brain is shown", /2 of 2 positions/.test(p.foot), p.foot);
+}
+
+/* ---- what a bullet says adds to its name ---- */
+{
+  /* Real titles from a brain, whose summary lines restated them. */
+  const ai = addedLine({ title: "AI compute constrained by energy density, not total supply",
+    summaryLine: "AI compute limited by energy density and physical security; consumption 1-2% world.",
+    position: "AI compute is limited by energy density, not total energy supply. Data centres need 100 MW on one site, which few grids deliver. AI consumes 1-2% of world electricity." });
+  check("a sentence that restates the title is left out", !/limited by energy density/i.test(ai), ai);
+  check("the sentences that add facts are kept", /100 MW/.test(ai) && /1-2%/.test(ai), ai);
+  const vol = addedLine({ title: "Volatility is not risk; danger is probability of zero",
+    summaryLine: "Volatility is not danger; danger is probability of zero.",
+    position: "Volatility is not risk. The danger is the probability of going to zero. A 40% drawdown is survivable; a margin call that wipes the account is not." });
+  check("a summary that only repeats the title never shows", !/probability of zero/i.test(vol) && /40% drawdown/.test(vol), vol);
+  const two = addedLine({ title: "Gold", summaryLine: "",
+    position: "Gold kept its purchasing power for 2000 years. Gold kept its purchasing power across two millennia. Central banks bought 1037 tonnes in 2023." });
+  check("the second sentence says something the first did not", !/two millennia/.test(two) && /1037 tonnes/.test(two), two);
+  const bare = addedLine({ title: "Offer first", summaryLine: "Offer first.", position: "Offer first." });
+  check("a concept with nothing to add shows its name alone", bare === "", bare);
 }
 
 /* ---- a group ---- */
@@ -103,7 +122,7 @@ const sources = [
   const p = assemble("octopus", [brains[0]], concepts, sources, "content");
   const text = asText(p);
   check("the text carries every bullet", p.sections[0].bullets.every(b => text.includes(bulletText(b))));
-  check("as the concept, then what it says", text.includes("- Fat idea: Three sources agree."), text);
+  check("as the concept, then what it says", text.includes("- Fat idea: Three sources agree"), text);
   const html = asHtml(p, "Octopus");
   check("the html carries every bullet", p.sections[0].bullets.every(b => html.includes(`${b.k}</strong><br>${b.say}`)));
   check("the html names the space", html.includes(">Octopus<"));

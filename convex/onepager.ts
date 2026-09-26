@@ -11,7 +11,7 @@
 
 import { ask, SPACE_NAME } from "./lib";
 import type { Who, Space } from "./lib";
-import { dossierFor } from "./words";
+import { dossierFor, keywords } from "./words";
 import { routeQuestion } from "./route";
 
 /* A bullet names its concept, then says it in one or two lines. */
@@ -37,12 +37,6 @@ const stop = (s: string) => {
   return !t || /[.!?]$/.test(t) ? t : t + ".";
 };
 
-/** The first sentence, for a position written as several. */
-const firstLine = (s: string) => {
-  const t = String(s ?? "").trim();
-  const cut = t.search(/[.!?]\s/);
-  return cut > 0 ? t.slice(0, cut + 1) : t;
-};
 
 /** At most two lines, cut at a word. */
 const clamp = (s: string) => {
@@ -52,14 +46,54 @@ const clamp = (s: string) => {
   return cut.replace(/[,;:]$/, "") + "...";
 };
 
+/* A word's stem, near enough: "decorrelate" and "decorrelation" match. */
+const stems = (s: string) => keywords(s).map(w => w.slice(0, 5));
+
 /**
- * One concept, as one bullet: its name, then what it holds in a line or two.
+ * What a concept adds to its own name, in a line or two.
  *
- * The summary line is written to be exactly this, so it leads. Sources and
- * dates stay out of the bullet; the foot of the page counts them once.
+ * The summary line often restates the title, so every clause of the position
+ * and the summary is weighed by the words it adds that the title, and the
+ * clauses already taken, do not hold. A clause with a figure weighs more. The
+ * best two are kept in the order they were written; a clause that adds too
+ * little is left out rather than repeated.
+ */
+export function addedLine(c: any): string {
+  const seen = new Set(stems(String(c.title ?? "")));
+  const units = [String(c.position ?? ""), String(c.summaryLine ?? "")]
+    .flatMap(t => t.split(/(?<=[.!?])\s+|;\s*/))
+    .map(u => u.trim().replace(/[.!?;,:\s]+$/, ""))
+    .filter(u => u.length > 8);
+  const scored = units.map((u, i) => {
+    const w = [...new Set(stems(u))];
+    const fresh = w.filter(x => !seen.has(x));
+    const figure = /\d/.test(u);
+    return { u, i, w, fresh: fresh.length, share: w.length ? fresh.length / w.length : 0, figure };
+  }).filter(x => x.fresh >= (x.figure ? 2 : 3) && x.share >= 0.5)
+    .sort((a, b) => (b.fresh + (b.figure ? 2 : 0)) - (a.fresh + (a.figure ? 2 : 0)) || a.i - b.i);
+
+  const kept: typeof scored = [];
+  let size = 0;
+  for (const x of scored) {
+    if (kept.length === 2) break;
+    /* Weighed again against what is already kept, so the second clause
+       says something the first did not. */
+    const fresh = x.w.filter(y => !seen.has(y)).length;
+    if (fresh < (x.figure ? 2 : 3) || fresh / x.w.length < 0.5) continue;
+    if (kept.length && size + x.u.length > SAY_MAX) continue;
+    kept.push(x); size += x.u.length + 2;
+    for (const y of x.w) seen.add(y);
+  }
+  const cap = (u: string) => u.charAt(0).toUpperCase() + u.slice(1);
+  return clamp(kept.sort((a, b) => a.i - b.i).map(x => stop(cap(x.u))).join(" "));
+}
+
+/**
+ * One concept, as one bullet: its name, then what it adds in a line or two.
+ * Sources and dates stay out of the bullet; the foot of the page counts them once.
  */
 function bulletOf(c: any): Bullet {
-  return { k: String(c.title ?? "").trim(), say: clamp(stop(c.summaryLine || firstLine(c.position))) };
+  return { k: String(c.title ?? "").trim(), say: addedLine(c) };
 }
 
 /** A bullet as one line of plain text. */
@@ -120,6 +154,8 @@ SHAPE
   - Core concept: what it says
 - The core concept is 2 to 6 words, with no colon inside it.
 - What it says fits in one or two lines: under 30 words.
+- What it says ADDS to the core concept: a number, a cause, a consequence or
+  an example. It never restates the core concept in other words.
 - The FIRST bullet answers the question outright.
 - Put the numbers and the findings in what it says.
 - Order them so someone reading only the first three still has the answer.
