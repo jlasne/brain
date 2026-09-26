@@ -14,7 +14,7 @@ import {
 } from "./lib";
 import type { Who } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
-import { dropCheck, dropRead, dropPlan, dropSettle, fetchPage } from "./drop";
+import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from "./drop";
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromQuestion, asText, mail, looksLikeMail, pageIds } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ } from "./words";
@@ -428,6 +428,12 @@ route("/api/drop/read", async (ctx, _req, b) => {
 route("/api/drop/plan", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   return await dropPlan(ctx, who, b, await modelKey(ctx, who, b), modelName(who, b));
+});
+
+/** Parts planned in parallel can name one idea twice. This groups them. */
+route("/api/drop/merge", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return await dropMerge(ctx, who, b, await modelKey(ctx, who, b), modelName(who, b));
 });
 
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */

@@ -364,7 +364,7 @@ for (const kind of ["study", "argument"]) {
     proposed: window.__plans.map(p => (p.proposed || []).length),
     note: document.querySelector(".coverage")?.textContent || "" }));
   check("60 topics are planned in 3 batches", planned.n === 3 && planned.sizes.join(",") === "25,25,10", planned.sizes.join(","));
-  check("each batch sees the titles proposed before it", planned.proposed.join(",") === "0,25,50", planned.proposed.join(","));
+  check("the first part plans alone, the next ones see its titles", planned.proposed.join(",") === "0,25,25", planned.proposed.join(","));
   check("and every topic is filed", /60 passages read, filed into 60 concepts/.test(planned.note), planned.note);
 
   await page.click(".card-foot .go"); await page.waitForTimeout(900);
@@ -501,6 +501,53 @@ for (const kind of ["study", "argument"]) {
   check("the receipt counts what the server wrote", /Rewritten: 1 position\b/.test(stored.msg), stored.msg.slice(0, 160));
   check("and claims nothing it did not check", !/Coherent|summar/.test(stored.msg), stored.msg.slice(0, 200));
   check("nothing threw", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- a long source plans three parts at a time, then merges twin titles ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    const topics = Array.from({ length: 250 }, (_, i) => ({ topic: `Rule ${i + 1}`, ideas: [`Rule ${i + 1} works like this.`], data: [] }));
+    window.__plans = []; window.__live = 0; window.__peak = 0; window.__merge = null;
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/drop/check")) return Response.json({ duplicate: false, sid: "s-par" });
+      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Big manual", kind: "study", topics } });
+      if (s.includes("/api/drop/plan")) {
+        window.__live++; window.__peak = Math.max(window.__peak, window.__live);
+        window.__plans.push((body.proposed || []).length);
+        await new Promise(ok => setTimeout(ok, 30));
+        window.__live--;
+        const first = body.ext.topics[0].topic;
+        /* Two parts name one idea in two ways. */
+        const extra = first === "Rule 26" ? [{ title: "Hedging with forwards", brain: "content", why: "part two" }]
+          : first === "Rule 51" ? [{ title: "Forward contract hedging", brain: "content", why: "part three" }] : [];
+        return Response.json({ plan: { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
+          candidates: [...body.ext.topics.map(t => ({ title: t.topic, brain: "content", why: "taught" })), ...extra] } });
+      }
+      if (s.includes("/api/drop/merge")) {
+        window.__merge = body.candidates;
+        const a = body.candidates.findIndex(c => c.title === "Hedging with forwards");
+        const b = body.candidates.findIndex(c => c.title === "Forward contract hedging");
+        return Response.json({ same: [[a + 1 - 1, b + 1 - 1].map(x => x)] });
+      }
+      return Response.json({});
+    };
+  }, STATE);
+  await page.click('#mode button[data-m="drop"]');
+  await page.fill("#srcInput", "Big manual.pdf");
+  await page.fill("#input", "Two hundred fifty rules.");
+  await page.click("#send"); await page.waitForTimeout(1500);
+  const r = await page.evaluate(() => ({ plans: window.__plans, peak: window.__peak, merge: window.__merge,
+    note: document.querySelector(".coverage")?.textContent || "" }));
+  check("ten parts are planned", r.plans.length === 10, String(r.plans.length));
+  check("three at a time, never more", r.peak === 3, String(r.peak));
+  check("the first part plans before the rest start", r.plans[0] === 0 && r.plans.slice(1).every(n => n > 0), r.plans.join(","));
+  check("twin titles from parts planned together are merged into one concept",
+    !!r.merge && /filed into 251 concepts/.test(r.note), r.note);
+  check("nothing threw planning in parallel", !bad.length, bad.join(" | "));
   await page.close();
 }
 

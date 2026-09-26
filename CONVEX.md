@@ -135,6 +135,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/plan` | Summaries in, the card out | Yes |
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
 | `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
+| `/api/drop/merge` | Groups titles that name one idea twice after parts were planned in parallel | Yes |
 | `/api/ask` | The answer | Yes |
 | `/api/onepager` | A brain, a group or a question as bullets. Sends it too, when given an address | Yes |
 | `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |

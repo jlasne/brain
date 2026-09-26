@@ -30,7 +30,7 @@ await esbuild.build({ entryPoints: [join(dir, "mcp.ts")], bundle: true, format: 
 const { handleRpc, MENTIONS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle-drop.mjs"), logLevel: "silent" });
-const { dropSettle, fetchPage, planContext } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
+const { dropSettle, fetchPage, planContext, dropMerge } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle-words.mjs"), logLevel: "silent" });
 const { findByTitle, cardOf } = await import(pathToFileURL(join(dir, "bundle-words.mjs")).href);
@@ -423,6 +423,22 @@ let job = "";
     `${count(t1200)} listed`);
   const small = planContext(pool, make(40), [], ext);
   check("a small brain is listed whole with every summary", count(small) === 40 && !/more concepts, not listed/.test(small));
+}
+
+/* ---- the twin-title pass never merges across brains, and never breaks a drop ---- */
+{
+  const real = globalThis.fetch;
+  process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "test";
+  const cands = [{ brain: "acc", title: "Hedging with forwards" }, { brain: "acc", title: "Forward contract hedging" },
+                 { brain: "wealth", title: "Forward hedges" }, { brain: "acc", title: "Money market hedge" }];
+  globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content:
+    JSON.stringify({ same: [[1, 2, 3], [4, 99], [2, 4]] }) }, finish_reason: "stop" }] }), { status: 200 });
+  const r = await dropMerge(ctx, { space: "octopus" }, { candidates: cands });
+  check("twins in one brain are grouped", JSON.stringify(r.same) === "[[0,1]]", JSON.stringify(r.same));
+  globalThis.fetch = async () => new Response("down", { status: 503 });
+  const off = await dropMerge(ctx, { space: "octopus" }, { candidates: cands });
+  check("a failed pass merges nothing and keeps the drop going", Array.isArray(off.same) && off.same.length === 0);
+  globalThis.fetch = real;
 }
 
 rmSync(dir, { recursive: true, force: true });

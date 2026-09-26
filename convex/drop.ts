@@ -486,6 +486,51 @@ export function excerptFor(topics: any[], touched: any[], limit = 20000): string
   return picked.sort((a, b) => a.i - b.i).map(r => r.text).join("\n");
 }
 
+const MERGE_RULES = `Below are concept titles proposed by separate readers of ONE source, each reading a different part of it at the same time. Some may name the same idea in different words.
+
+- Group titles only when they would hold the SAME position: the same rule, method, claim or idea, worded differently.
+- Related ideas stay apart: a method and its limits, a rule and its exception, two steps of one process, the same topic seen from two angles.
+- Only titles of the same brain can be grouped.
+- When unsure, keep them apart. A missed merge costs little; a wrong merge loses an idea.
+
+Reply with only JSON, groups of title numbers, the best title first: {"same":[[3,12],[7,9,21]]}. An empty list is a correct answer.`;
+
+/**
+ * Titles that name one idea twice, after planning ran in parallel.
+ *
+ * Parts planned at the same time cannot see each other's titles, so the same
+ * idea can come back under two names. One cheap call groups them; if it fails,
+ * nothing is merged and every concept is kept.
+ */
+export async function dropMerge(ctx: any, who: Who, b: any, key?: string, model?: string) {
+  const items = (Array.isArray(b.candidates) ? b.candidates : []).slice(0, 600)
+    .map((c: any) => ({ brain: String(c?.brain ?? ""), title: String(c?.title ?? "").slice(0, 200) }));
+  if (items.length < 2) return { same: [] };
+  const list = items.map((c: any, i: number) => `${i + 1}|${c.brain}|${c.title}`).join("\n");
+  try {
+    const { text, finish } = await ask([
+      { role: "system", content: "You find duplicate entries in a list of concept titles. You reply with JSON only." },
+      { role: "user", content: `${MERGE_RULES}\n\nTITLES (number|brain|title)\n${list}` },
+    ], { json: true, maxTokens: 3000, timeout: 60000, key, model });
+    const d = parseJson(String(text), finish);
+    const used = new Set<number>();
+    const same: number[][] = [];
+    for (const g of Array.isArray(d?.same) ? d.same : []) {
+      const idx = (Array.isArray(g) ? g : []).map((n: any) => Number(n) - 1)
+        .filter((i: number) => Number.isInteger(i) && i >= 0 && i < items.length && !used.has(i));
+      /* One brain per group, whatever the model sent. */
+      const one = idx.filter((i: number) => items[i].brain === items[idx[0]]?.brain);
+      if (one.length < 2) continue;
+      one.forEach((i: number) => used.add(i));
+      same.push(one);
+    }
+    return { same };
+  } catch (e: any) {
+    console.log(`merge pass skipped: ${String(e?.message ?? e).slice(0, 160)}`);
+    return { same: [] };
+  }
+}
+
 /** Text, whatever the model sent: a list of authors, a year as a number. */
 export const str = (x: any): string =>
   typeof x === "string" ? x : Array.isArray(x) ? x.map(str).filter(Boolean).join(", ")

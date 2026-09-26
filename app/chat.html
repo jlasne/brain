@@ -2393,6 +2393,8 @@ async function doDrop(src, content, again){
    time. Both now go in batches, sized from what was measured. */
 const PLAN_TOPICS = 25, PLAN_CHARS = 20000;
 const STORE_BATCH = 8, STORE_PARALLEL = 3;
+/* Parts of a long source planned at the same time, after the first. */
+const PLAN_PARALLEL = 3;
 
 const topicText = t => `### ${t.topic}\n${(t.ideas||[]).join("\n")}\n${(t.data||[]).join("\n")}`;
 
@@ -2432,13 +2434,12 @@ async function planAll(ext, held, progress){
     const id = conceptSlug(title), t = String(title || "").trim().toLowerCase();
     return S.concepts.find(x => x.brain === brain && (x.slug === id || String(x.title || "").trim().toLowerCase() === t));
   };
-  for (let i = 0; i < batches.length; i++){
-    if (batches.length > 1) progress(i + 1, batches.length);
-    const p = (await apiRetry("/api/drop/plan", {
+  const planOne = i => apiRetry("/api/drop/plan", {
       ext: { ...ext, topics: batches[i] }, brain: S.scope, key: S.key,
       ...(held && held.length ? { exclude: held } : {}),
       ...(merged.candidates.length ? { proposed: merged.candidates.map(c => `${c.brain} | ${c.title}`) } : {}),
-    })).plan || {};
+    }).then(r => r.plan || {});
+  const absorb = p => {
     for (const b of p.brains || []) if (!merged.brains.includes(b)) merged.brains.push(b);
     for (const m of p.matched || []) addMatched(m);
     for (const c of p.candidates || []){
@@ -2465,7 +2466,42 @@ async function planAll(ext, held, progress){
       if (seenX.has(k)) continue;
       seenX.add(k); merged.conflicts.push(x);
     }
+  };
+
+  /* The first part alone, so its titles are the vocabulary the others reuse.
+     Then three parts at a time, each seeing every title proposed before its
+     group: a 207 page source plans in about a third of the time. */
+  let done = 0;
+  const tick = () => { if (batches.length > 1) progress(++done, batches.length); };
+  absorb(await planOne(0)); tick();
+  for (let i = 1; i < batches.length; i += PLAN_PARALLEL){
+    const group = await Promise.all(batches.slice(i, i + PLAN_PARALLEL).map((_, k) => planOne(i + k).then(p => { tick(); return p; })));
+    for (const p of group) absorb(p);
   }
+
+  /* Parts planned side by side cannot see each other's titles, so one idea
+     can come back under two names. One call groups those; if it fails, every
+     concept is kept as it is. */
+  if (batches.length > 2 && merged.candidates.length > 1){
+    try {
+      const { same } = await api("/api/drop/merge", { key: S.key,
+        candidates: merged.candidates.map(c => ({ brain: c.brain, title: c.title })) });
+      const gone = new Set();
+      for (const g of same || []){
+        const keep = merged.candidates[g[0]];
+        if (!keep) continue;
+        for (const j of g.slice(1)){
+          const x = merged.candidates[j];
+          if (!x || x === keep || x.brain !== keep.brain) continue;
+          keep.why = `${keep.why || ""} ${x.why || ""}`.trim().slice(0, 600);
+          keep.related = [...new Set([...(keep.related || []), ...(x.related || [])])];
+          gone.add(x);
+        }
+      }
+      if (gone.size) merged.candidates = merged.candidates.filter(c => !gone.has(c));
+    } catch (_) {}
+  }
+
   /* A ruling only lands on a concept this drop rewrites, so every concept a
      conflict names is rewritten. */
   for (const x of merged.conflicts){
