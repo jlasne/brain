@@ -227,7 +227,9 @@ export async function mail(to: string, p: Pager, space: Space): Promise<{ sent: 
       "mailing needs RESEND_API_KEY on this deployment. Set it with --prod, because a key " +
       "set without that flag lands on the dev deployment while the live site reads production.");
   }
-  const address = (process.env.MAIL_FROM ?? "hey@jeremylasne.com").trim();
+  /* MAIL_FROM wins. The fallback is the address this deployment sends from, so
+     a MAIL_FROM set on dev instead of prod still sends from the verified domain. */
+  const address = (process.env.MAIL_FROM || "hello@kaught.app").trim();
   const name = SPACE_NAME[space];
 
   let r: Response;

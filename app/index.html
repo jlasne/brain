@@ -60,20 +60,13 @@
   .door:focus-within{ background:color-mix(in srgb, var(--tint) 11%, transparent); }
   .door > *{ width:100%; max-width:340px; }
 
-  .mk{
-    width:56px; height:56px; display:grid; place-items:center;
-    border-radius:14px; background:var(--tint); color:var(--tint-on);
-    overflow:hidden; margin-bottom:20px;
-  }
-  .mk img{ width:100%; height:100%; object-fit:cover; display:block; }
-  .mk b{ font:600 26px/1 var(--sans); letter-spacing:-.02em; }
-  /* The Squidgy mark has no background of its own, and a dachshund is long, so a
-     square tile would shrink it to a third of the door. It sits on the panel at
-     its own length instead, at the Octopus tile's height so the doors line up. */
-  .door.squidgy .mk{ display:block; background:none; width:auto; height:auto; border-radius:0; }
-  /* A fixed height, because a percentage inside the tile never resolves and the
-     image falls back to its own 180 pixels, over the name below it. */
-  .door.squidgy .mk img{ width:auto; height:56px; object-fit:contain; }
+  /* Both marks sit straight on the panel. Each file is transparent around its
+     animal, and a tile in the brand colour behind an animal in the same colour
+     left the octopus orange on orange. Both run 56 pixels tall so the doors line
+     up; the dachshund runs at its own length. */
+  .mk{ display:block; height:56px; margin-bottom:20px; color:var(--tint); }
+  .mk img{ height:56px; width:auto; display:block; }
+  .mk b{ font:600 40px/56px var(--sans); letter-spacing:-.02em; }
 
   .door h1{
     font-size:clamp(27px,3.3vw,36px); line-height:1.04; letter-spacing:-.032em;
@@ -128,7 +121,7 @@
 
   <form class="door octopus" id="dOctopus">
     <span class="mk" aria-hidden="true">
-      <img id="imgOctopus" src="/brand/logo-mark.png" alt="" width="56" height="56">
+      <img id="imgOctopus" src="/brand/octopus-door.png" alt="" width="75" height="56">
       <b id="letterOctopus" hidden>O</b>
     </span>
     <h1>Octopus</h1>

@@ -123,7 +123,7 @@ npx convex env set RESEND_API_KEY re_... --prod
 npx convex env set MAIL_FROM hey@yourdomain.com --prod
 ```
 
-`MAIL_FROM` defaults to `hey@jeremylasne.com`, so set it to your own. The space names itself as the sender. Unset `RESEND_API_KEY` and the page still builds, copies and prints.
+`MAIL_FROM` defaults to `hello@kaught.app`, so set it to your own. The space names itself as the sender. Unset `RESEND_API_KEY` and the page still builds, copies and prints.
 
 Then serve `app/` as the site root. `vercel.json` already does it. The landing page is two doors, one per space, and the first passphrase typed at a door becomes that door's passphrase. Set them from a terminal first if the site is public. Then create a brain and drop a source.
 
