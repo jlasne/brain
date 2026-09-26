@@ -267,6 +267,33 @@ let job = "";
   check("a stranger's draft id finds nothing", t.includes("is gone"));
 }
 
+/* ---- two long titles that open the same way are two concepts ---- */
+{
+  const A = "Forward contract hedge for Ziggy receivables: detailed borrowing and investing steps";
+  const B = "Forward contract hedge for Ziggy receivables: detailed cost comparison";
+  const C = "Discount offer analysis for Ziggy Indonesia: comparison with money market hedge";
+  /* A stored under the old 48 character cut, as a concept dropped before this fix. */
+  const old = A.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
+  DB.concepts.push({ brain:"content", slug:old, n:3, title:A, position:"Borrow, convert, invest.", summaryLine:"",
+    evidence:[], data:[], conflicts:[], sources:["s-old"], updated:"2026-03-01" });
+  const t = await call("drop_source", { extraction: EXT, link:"https://example.com/ziggy", brain:"content" }, ME);
+  const d = (t.match(/DRAFT (\w+)/) ?? [])[1] ?? "";
+  const plan = { brains:["content"], matched:[], new:["hedge costs"], echo:[], conflicts:[],
+    candidates:[A, B, C, "Discount offer analysis for Ziggy Indonesia: comparison with forward contract"]
+      .map(title => ({ title, brain:"content", why:"the source walks through it" })) };
+  await call("drop_plan", { draft:d, plan }, ME);
+  await call("drop_prepare", { draft:d }, ME);
+  const before = DB.writes.length;
+  const r = await call("drop_store", { draft:d, rewrites:[] }, ME);
+  const wrote = DB.writes.slice(before).filter(w => w.kind === "concept").map(w => w.title);
+  check("four look-alike titles make four concepts", new Set(wrote).size === 4, r.slice(0, 200) + " | " + wrote.join(" | "));
+  const link = DB.scheduled.at(-1);
+  check("each gets its own id", link && new Set(link.ids).size === 4 && link.ids.includes(`content/${old}`),
+    JSON.stringify(link?.ids));
+  check("a stored long title is fed, not doubled", link.ids.filter(x => x.startsWith("content/forward-contract")).length === 2);
+  DB.concepts.pop();
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(fail ? `\n${fail} failed, ${pass} passed` : `\nall ${pass} passed`);
 process.exit(fail ? 1 : 0);

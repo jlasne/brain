@@ -144,8 +144,8 @@ export const idOf = (c: any) => `${c.brain}/${c.slug}`;
 export function linkId(entry: string, fromBrain: string): string {
   const t = String(entry ?? "").replace(/\s+in\s+`[^`]*`\s*$/, "").trim();
   if (/^[a-z0-9-]+\/[a-z0-9-]+$/.test(t)) return t;
-  if (t.includes("/")) { const [b, ...rest] = t.split("/"); return `${slugOf(b)}/${slugOf(rest.join("/"))}`; }
-  return `${fromBrain}/${slugOf(t)}`;
+  if (t.includes("/")) { const [b, ...rest] = t.split("/"); return `${slugOf(b)}/${conceptSlug(rest.join("/"))}`; }
+  return `${fromBrain}/${conceptSlug(t)}`;
 }
 
 /**
@@ -154,11 +154,15 @@ export function linkId(entry: string, fromBrain: string): string {
  */
 export function neighbours(seeds: any[], all: any[]): any[] {
   const seedIds = new Set(seeds.map(idOf));
-  const byId = new Map(all.map((c: any) => [idOf(c), c]));
+  /* A concept answers to its id and to the id its title makes now, so a link
+     written either way reaches it. */
+  const byId = new Map<string, any>();
+  for (const c of all) { byId.set(`${c.brain}/${conceptSlug(c.title)}`, c); byId.set(idOf(c), c); }
+  const real = (id: string) => { const c = byId.get(id); return c ? idOf(c) : id; };
   const count = new Map<string, number>();
-  const bump = (id: string) => { if (!seedIds.has(id) && byId.has(id)) count.set(id, (count.get(id) ?? 0) + 1); };
+  const bump = (raw: string) => { const id = real(raw); if (!seedIds.has(id) && byId.has(id)) count.set(id, (count.get(id) ?? 0) + 1); };
   for (const s of seeds) for (const r of s.related ?? []) bump(linkId(r, s.brain));
-  for (const c of all) for (const r of c.related ?? []) if (seedIds.has(linkId(r, c.brain))) bump(idOf(c));
+  for (const c of all) for (const r of c.related ?? []) if (seedIds.has(real(linkId(r, c.brain)))) bump(idOf(c));
   return [...count.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => byId.get(id));
 }
 
@@ -268,4 +272,40 @@ export function linkCandidates(concepts: any[], sources: any[] = [], per = 6, fl
     out.set(idOf(concepts[i]), best.map(([j, s]) => ({ id: idOf(concepts[j]), score: Math.round(s * 100) / 100 })));
   }
   return out;
+}
+
+/* ---------- a concept's name ---------- */
+
+/**
+ * The id part of a concept, from its title.
+ *
+ * Every id used to be the title cut to 48 characters, so two long titles that
+ * start alike became one concept: "Discount offer analysis for Ziggy Indonesia:
+ * comparison with money market hedge" and "... with forward contract" merged,
+ * and the second was lost. A title up to 48 characters keeps exactly the id it
+ * always had. A longer one keeps its first 41 and a 6 character fingerprint of
+ * the whole title, so two different titles never share an id. Still 48 at most.
+ */
+export function conceptSlug(title: string): string {
+  const full = String(title ?? "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "item";
+  if (full.length <= 48) return full;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < full.length; i++) { h ^= full.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return `${full.slice(0, 41).replace(/-+$/, "")}-${h.toString(36).padStart(6, "0").slice(-6)}`;
+}
+
+/** The id a long title was given before, cut at 48, so stored concepts stay findable. */
+export const legacySlug = (title: string) => slugOf(title);
+
+export const sameTitle = (a: string, b: string) => norm(a).replace(/\s+/g, " ") === norm(b).replace(/\s+/g, " ");
+
+/**
+ * The stored concept a title names in a brain: by its id, or, for a concept
+ * stored under the old cut id, by that id when the whole title matches too.
+ * A different title that merely starts the same way is not it.
+ */
+export function findByTitle(concepts: any[], brain: string, title: string): any {
+  const id = conceptSlug(title), old = legacySlug(title);
+  return concepts.find((x: any) => x.brain === brain && x.slug === id)
+    ?? (old !== id ? concepts.find((x: any) => x.brain === brain && x.slug === old && sameTitle(x.title, title)) : undefined);
 }

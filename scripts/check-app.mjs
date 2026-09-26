@@ -387,6 +387,38 @@ for (const kind of ["study", "argument"]) {
   await page.close();
 }
 
+/* ---- long titles that open the same way stay apart ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    const topics = Array.from({ length: 30 }, (_, i) => ({ topic: `Part ${i + 1}`, ideas: ["x"], data: [] }));
+    const A = "Forward contract hedge for Ziggy receivables: detailed borrowing and investing steps";
+    const B = "Forward contract hedge for Ziggy receivables: detailed cost comparison";
+    const C = "Discount offer analysis for Ziggy Indonesia: comparison with money market hedge";
+    const D = "Discount offer analysis for Ziggy Indonesia: comparison with forward contract";
+    /* The second batch names A again: that one is the same idea, so it merges. */
+    const byBatch = [[A, B], [C, D, A]];
+    window.__n = 0;
+    window.fetch = async (u, opt) => {
+      const s = String(u);
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/drop/check")) return Response.json({ duplicate: false, sid: "s-zig" });
+      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Ziggy case", kind: "study", topics } });
+      if (s.includes("/api/drop/plan")) return Response.json({ plan: { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
+        candidates: byBatch[window.__n++ % 2].map(title => ({ title, brain: "content", why: "taught" })) } });
+      return Response.json({});
+    };
+  }, STATE);
+  await page.click('#mode button[data-m="drop"]');
+  await page.fill("#srcInput", "Ziggy case.pdf");
+  await page.fill("#input", "A hedging case study.");
+  await page.click("#send"); await page.waitForTimeout(700);
+  const note = await page.evaluate(() => document.querySelector(".coverage")?.textContent || "");
+  check("four look-alike long titles are four concepts", /filed into 4 concepts/.test(note), note);
+  check("nothing threw with long titles", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- on a phone ---- */
 {
   /* isMobile makes the browser honour the viewport tag the way a phone does,

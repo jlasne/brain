@@ -21,8 +21,8 @@
 import { internalMutation, internalQuery, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { slug, today, sha256, randomHex, gateKey, readSpace, SPACES, ask } from "./lib";
-import { linkCandidates, linkId, idOf } from "./words";
+import { today, sha256, randomHex, gateKey, readSpace, SPACES, ask } from "./lib";
+import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle } from "./words";
 
 /** Who exists, and who owns what. Read this before and after a claim. */
 export const state = internalQuery({
@@ -123,9 +123,10 @@ export const promoteAll = internalMutation({
         .withIndex("by_slug", q => q.eq("slug", c.brain)).unique();
       if (!brain) { skipped.push(`${c.title}: no brain "${c.brain}"`); continue; }
 
-      const s2 = slug(c.title);
-      const seen = await ctx.db.query("concepts")
-        .withIndex("by_brain_slug", q => q.eq("brain", c.brain).eq("slug", s2)).unique();
+      const s2 = conceptSlug(c.title);
+      const held = await ctx.db.query("concepts")
+        .withIndex("by_brain", q => q.eq("brain", c.brain)).collect();
+      const seen = findByTitle(held, c.brain, c.title);
       if (seen) {
         /* Already a position, so the row is stale rather than pending. */
         if (!a.dry) await ctx.db.delete(c._id);
@@ -139,7 +140,7 @@ export const promoteAll = internalMutation({
         const src = await ctx.db.query("sources").withIndex("by_sid", q => q.eq("sid", sid)).first();
         const note = await ctx.db.query("notes").withIndex("by_sid", q => q.eq("sid", sid)).first();
         const said = ((note?.connections ?? []) as any[])
-          .find(x => slug(String(x?.title ?? "")) === s2);
+          .find(x => sameTitle(String(x?.title ?? ""), c.title));
         evidence.push({
           date: src?.date || note?.date || today(),
           author: src?.author || note?.author || "unknown",

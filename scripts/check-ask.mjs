@@ -9,7 +9,7 @@
  *     node scripts/check-ask.mjs
  */
 
-import { mkdtempSync, copyFileSync } from "node:fs";
+import { mkdtempSync, copyFileSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
@@ -20,7 +20,7 @@ const dir = mkdtempSync(join(tmpdir(), "octo-ask-"));
 copyFileSync(join(ROOT, "convex", "words.ts"), join(dir, "words.ts"));
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { dossierFor, indexFor, linkId, neighbours, linkCandidates, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { dossierFor, indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -159,6 +159,45 @@ const tokens = s => Math.round(s.length / 4);
   const ms = performance.now() - t0;
   check("1001 concepts are compared in under 3 seconds", ms < 3000, `${Math.round(ms)} ms`);
   console.log(`       ${Math.round(ms)} ms for 1001 concepts, ${[...big.values()].reduce((n, l) => n + l.length, 0)} candidate links`);
+}
+
+{
+  /* Long titles used to be cut at 48 characters, so ideas that open the same
+     way landed on one concept and the second was lost. Real titles from a
+     207-page drop. */
+  const pairs = [
+    ["Forward contract hedge for Ziggy receivables: detailed borrowing and investing steps",
+     "Forward contract hedge for Ziggy receivables: detailed cost comparison"],
+    ["Discount offer analysis for Ziggy Indonesia: comparison with money market hedge",
+     "Discount offer analysis for Ziggy Indonesia: comparison with forward contract"],
+    ["Hedging Strategies for Foreign Currency Exposure",
+     "Hedging Strategies for Foreign Currency Exposure: money market hedge"],
+  ];
+  check("the old cut merged these titles", pairs.every(([a, b]) => legacySlug(a) === legacySlug(b)));
+  check("each long title gets its own concept", pairs.every(([a, b]) => conceptSlug(a) !== conceptSlug(b)),
+    pairs.map(([a, b]) => `${conceptSlug(a)} | ${conceptSlug(b)}`).join("; "));
+  check("an id stays 48 characters or less", pairs.flat().every(t => conceptSlug(t).length <= 48));
+  check("the same title always gives the same id", pairs.flat().every(t => conceptSlug(t) === conceptSlug(t.toUpperCase())));
+  check("a short title keeps the id it had", ["Net present value", "Gold as a hedge", "x".repeat(48)]
+    .every(t => conceptSlug(t) === legacySlug(t)));
+
+  /* A concept stored under the old cut is still found by its exact title, and
+     only by it. */
+  const [a, b] = pairs[0];
+  const stored = [{ brain: "acc", slug: legacySlug(a), title: a }];
+  check("a stored long title is still found", findByTitle(stored, "acc", a) === stored[0]);
+  check("its neighbour title is a new concept", findByTitle(stored, "acc", b) === undefined);
+  check("a new long title is found by its new id",
+    findByTitle([{ brain: "acc", slug: conceptSlug(b), title: b }], "acc", b)?.title === b);
+  check("links written with a long title reach the right concept",
+    linkId(b, "acc") === `acc/${conceptSlug(b)}` && linkId(a, "acc") !== linkId(b, "acc"));
+
+  /* The app keeps its own copy to merge batches; both must agree. */
+  const html = readFileSync(join(ROOT, "app", "chat.html"), "utf8");
+  const src = html.match(/const conceptSlug = t => \{[\s\S]*?\n\};/);
+  const client = src ? new Function(`${src[0]}; return conceptSlug;`)() : null;
+  const titles = [...pairs.flat(), "Net present value", "Élan vital: a note on what the café économique argued in 1920"];
+  check("the app and the server name concepts alike", !!client && titles.every(t => client(t) === conceptSlug(t)));
 }
 
 console.log(failures ? `\n${failures} failed` : "\nthe question finds its answer at any size");

@@ -2,7 +2,7 @@
 
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { linkId } from "./words";
+import { linkId, conceptSlug, legacySlug, sameTitle } from "./words";
 import { sha256, randomHex, today, slug, gateKey, readSpace, HOME,
          MENTIONS, SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS } from "./lib";
 
@@ -413,12 +413,27 @@ export const renameBrain = internalMutation({
   },
 });
 
+/**
+ * The row a title already has. Titles over 48 characters used to be cut to a
+ * shared prefix, so two ideas could land on one row. The new id keeps them
+ * apart; a row stored under the old cut is still found, but only when its
+ * full title matches.
+ */
+async function byTitle(ctx: any, table: "concepts" | "candidates", brain: string, title: string) {
+  const id = conceptSlug(title), old = legacySlug(title);
+  const hit = await ctx.db.query(table)
+    .withIndex("by_brain_slug", (q: any) => q.eq("brain", brain).eq("slug", id)).unique();
+  if (hit || old === id) return hit;
+  const was = await ctx.db.query(table)
+    .withIndex("by_brain_slug", (q: any) => q.eq("brain", brain).eq("slug", old)).unique();
+  return was && sameTitle(was.title, title) ? was : null;
+}
+
 export const upsertConcept = internalMutation({
   args: { brain: v.string(), title: v.string(), doc: v.any() },
   handler: async (ctx, a) => {
-    const s = slug(a.title);
-    const seen = await ctx.db.query("concepts")
-      .withIndex("by_brain_slug", q => q.eq("brain", a.brain).eq("slug", s)).unique();
+    const s = conceptSlug(a.title);
+    const seen = await byTitle(ctx, "concepts", a.brain, a.title);
     if (seen) { await ctx.db.patch(seen._id, { ...a.doc, updated: today() }); return seen._id; }
     const count = (await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain)).collect()).length;
     return await ctx.db.insert("concepts", {
@@ -513,9 +528,8 @@ export const fetchCount = internalQuery({
 export const bumpCandidate = internalMutation({
   args: { brain: v.string(), title: v.string(), sid: v.string() },
   handler: async (ctx, a) => {
-    const s = slug(a.title);
-    const row = await ctx.db.query("candidates")
-      .withIndex("by_brain_slug", q => q.eq("brain", a.brain).eq("slug", s)).unique();
+    const s = conceptSlug(a.title);
+    const row = await byTitle(ctx, "candidates", a.brain, a.title);
     const notes = Array.from(new Set([...(row?.notes ?? []), a.sid]));
     if (notes.length >= MENTIONS) {
       if (row) await ctx.db.delete(row._id);

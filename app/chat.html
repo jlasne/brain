@@ -926,6 +926,16 @@ const $ = id => document.getElementById(id);
 const el = (t,c,txt) => { const n=document.createElement(t); if(c)n.className=c; if(txt!=null)n.textContent=txt; return n; };
 const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
 const slug = s => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,48)||"item";
+/* A concept's id. A long title keeps its first 41 characters and a short
+   hash of the rest, so two ideas that open the same way stay two concepts.
+   Same rule as the server's conceptSlug. */
+const conceptSlug = t => {
+  const full = String(t ?? "").toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || "item";
+  if (full.length <= 48) return full;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < full.length; i++){ h ^= full.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return `${full.slice(0, 41).replace(/-+$/,"")}-${h.toString(36).padStart(6,"0").slice(-6)}`;
+};
 const pad2 = n => String(n).padStart(2,"0");
 const today = () => new Date().toISOString().slice(0,10);
 const rich = t => esc(t).split(/\n{2,}/).map(p =>
@@ -2356,7 +2366,7 @@ function topicBatches(topics){
   return out.length ? out : [[]];
 }
 
-const unitKey = (brain, title) => `${brain}/${slug(title)}`;
+const unitKey = (brain, title) => `${brain}/${conceptSlug(title)}`;
 
 /**
  * The whole source planned, a batch at a time, merged into one plan.
@@ -2652,9 +2662,9 @@ function exportAll(){
   for (const s of S.sources) out.push(`| ${s.sid} | ${s.date||""} | ${s.author||""} | ${s.link||""} | ${(s.brains||[]).join(", ")} |`);
   for (const b of S.brains){
     out.push(`\n# brain-${b.type}-${b.slug}/SUMMARY.md\n\n**Scope:** ${b.scope}\n`);
-    for (const c of conceptsOf(b.slug)) out.push(`- ${c.title}: ${c.summaryLine||c.position||"no position yet"}. \`${pad2(c.n||1)}-${slug(c.title)}.md\``);
+    for (const c of conceptsOf(b.slug)) out.push(`- ${c.title}: ${c.summaryLine||c.position||"no position yet"}. \`${pad2(c.n||1)}-${c.slug||conceptSlug(c.title)}.md\``);
     for (const c of conceptsOf(b.slug)){
-      out.push(`\n## brain-${b.type}-${b.slug}/${pad2(c.n||1)}-${slug(c.title)}.md\n`);
+      out.push(`\n## brain-${b.type}-${b.slug}/${pad2(c.n||1)}-${c.slug||conceptSlug(c.title)}.md\n`);
       out.push(`### Position\n\n${c.position||"none yet"}\n`);
       out.push(`### Evidence\n\n${(c.evidence||[]).map(e=>`- ${e.date||"?"}, ${e.author||"?"}: ${e.claim||""}`).join("\n")||"- none"}\n`);
       out.push(`### Data\n\n${(c.data||[]).map(x=>"- "+x).join("\n")||"- none"}\n`);
