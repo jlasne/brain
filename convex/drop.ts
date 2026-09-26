@@ -42,7 +42,9 @@ Write every field in English, whatever language the source uses. The one excepti
 Reply with only JSON:
 {"title":"","author":"","date":"YYYY-MM-DD or empty","topics":[{"topic":"","ideas":[""],"data":[""]}],"quotes":[{"text":"","speaker":""}],"thin":[""]}
 
-"thin" holds claims made with no number or evidence behind them.`;
+"thin" holds only opinions or predictions asserted with nothing behind them. A definition, a rule, a method, a procedure, a formula, a framework or a worked example is knowledge, not thin: it goes in "ideas" even with no number attached. A document that teaches is made of these.
+
+Keep one topic per distinct subject the source covers. A source that teaches twelve things has twelve topics, not one topic called after the document.`;
 
 export const PLAN_SYSTEM =
   "You file sources into a knowledge base. You write in English. You reply with JSON only.";
@@ -57,7 +59,9 @@ RULES
 - "echo" = what this repeats, naming the earlier source.
 - "conflict" = a claim contradicting a stored position. Rank each: "flip" if it would change the position, "caveat" if it only adds nuance.
 - In a PERSON brain, a claim contradicting that same person's earlier view is drift, not conflict. Mark it kind "drift".
-- Claims with no data behind them are thin. They never become concepts.
+- Thin means an opinion or prediction asserted with nothing behind it. Only those stay out of concepts. A definition, rule, method, procedure, formula, framework or worked example is knowledge and gets filed, number or not.
+- ONE CONCEPT PER DISTINCT IDEA a reader could look up on its own. Never fold several into one umbrella concept named after the document or its subject. A source that teaches twelve distinct things files twelve concepts. When unsure, file narrower concepts, more of them.
+- Before replying, walk every "###" topic under THE NEW SOURCE. Each one ends up under "matched" or "candidates", unless it falls outside every brain's scope or is thin.
 - "matched" = an EXISTING concept this source adds to. Copy its id exactly as listed below, in the form brain/slug. One entry per concept touched. "whatItAdds" says what this source contributes to it.
 - "candidates" = a NEW concept this source argues for, one no listed concept covers. Give a short title, the brain slug it belongs in, and why.
 - EVERY item in "new" MUST also be filed: under "matched" when a listed concept covers it, under "candidates" when none does. An idea belonging to no concept and needing no new one is thin, not new.
@@ -371,11 +375,18 @@ export async function dropPlan(ctx: any, who: Who, b: any, key?: string, model?:
 
   const ext = b.ext ?? {};
 
+  /* Asked for from the card when a plan filed fewer ideas than the source
+     holds. It re-plans the same extraction, so nothing is read twice. */
+  const THOROUGH = b.thorough ? `
+THOROUGH PASS
+The owner asked for every topic to be filed. Give each "###" topic below its own entry: "matched" when a listed concept covers it, a "candidates" entry of its own when none does. Split a topic that holds several distinct ideas. Leave out only what fits no brain's scope.
+` : "";
+
   const { text, finish } = await ask([
     { role: "system", content: PLAN_SYSTEM },
     { role: "user", content:
 `${PLAN_RULES}
-${planContext(pool, concepts, sources, ext)}` },
+${THOROUGH}${planContext(pool, concepts, sources, ext)}` },
   ], { json: true, maxTokens: 16000, key, model });
 
   return { plan: parseJson(text, finish) };

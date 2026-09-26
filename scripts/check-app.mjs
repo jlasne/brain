@@ -257,6 +257,45 @@ async function boot(path, init, arg) {
   await page.close();
 }
 
+/* ---- a plan that files less than the source holds ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__plans = [];
+    const topics = ["Accruals", "Depreciation", "Deferred revenue", "Matching", "Reconciliation"]
+      .map(t => ({ topic: t, ideas: [t + " works like this."], data: [] }));
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/drop/check")) return Response.json({ duplicate: false, sid: "s-acc" });
+      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Accounting basics", author: "A", date: "2026-09-01", topics } });
+      if (s.includes("/api/drop/plan")) {
+        window.__plans.push(body);
+        const n = body.thorough ? 5 : 1;
+        return Response.json({ plan: { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
+          candidates: topics.slice(0, n).map(t => ({ title: t.topic, brain: "content", why: "taught here" })) } });
+      }
+      return Response.json({});
+    };
+  }, STATE);
+  await page.click('#mode button[data-m="drop"]');
+  await page.fill("#srcInput", "Accounting basics.pdf");
+  await page.fill("#input", "Accruals, depreciation, deferred revenue, matching and reconciliation, each explained.");
+  await page.click("#send"); await page.waitForTimeout(500);
+  const note = await page.evaluate(() => document.querySelector(".coverage")?.textContent || "");
+  check("a plan filing 1 of 5 topics says so", /Filed 1 of 5 topics/.test(note), note);
+  check("and offers to file every topic", /File every topic/.test(note), note);
+  await page.click(".coverage button"); await page.waitForTimeout(400);
+  const after = await page.evaluate(() => ({
+    note: document.querySelector(".coverage")?.textContent || "",
+    last: window.__plans[window.__plans.length - 1] }));
+  check("the second plan asks for the thorough pass", after.last?.thorough === true, JSON.stringify(after.last?.thorough));
+  check("and reuses the same reading", after.last?.ext?.topics?.length === 5);
+  check("a plan filing every topic shows no warning", after.note === "", after.note);
+  check("nothing threw on the way", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- on a phone ---- */
 {
   /* isMobile makes the browser honour the viewport tag the way a phone does,

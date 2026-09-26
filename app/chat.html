@@ -456,6 +456,12 @@
   .receipt .v{ color:var(--accent); }
   .receipt .ok{ color:var(--good); }
 
+  /* How much of a source the plan filed. */
+  .coverage{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px;
+    font:400 13px/1.5 var(--sans); color:var(--ink-3);
+  }
+
   /* ============ one page ============ */
   .pager{
     border:1px solid var(--line-2); border-radius:14px; background:var(--surface);
@@ -2301,12 +2307,15 @@ async function doDrop(src, content){
  * it proposes somewhere new rather than rewriting positions with a source they
  * already hold.
  */
-async function planAndCard(body, sid, link, ext, len, held){
-  setThinking(body, "Comparing against what you hold");
+async function planAndCard(body, sid, link, ext, len, held, thorough){
+  if (thorough){ body.innerHTML = ""; const t = el("div","thinking"), m = el("span","spinner");
+    t.append(m, el("span",null,"Filing every topic")); body.append(t); }
+  else setThinking(body, "Comparing against what you hold");
   let plan;
   try {
     plan = (await api("/api/drop/plan", { ext, brain: S.scope, key: S.key,
-      ...(held && held.length ? { exclude: held } : {}) })).plan;
+      ...(held && held.length ? { exclude: held } : {}),
+      ...(thorough ? { thorough: true } : {}) })).plan;
   } catch(e){ fail(body, e.message); return; }
 
   /* A plan that files nothing anywhere is a failed read, not an empty source.
@@ -2334,6 +2343,23 @@ async function planAndCard(body, sid, link, ext, len, held){
 
   body.innerHTML = "";
   body.append(buildCard(pc, decide));
+
+  /* How much of the source the plan filed, against how many topics the read
+     found. A plan can fold a whole document into one concept, and the count is
+     what shows it. A second plan costs one model call and reads nothing again. */
+  const topics = (ext.topics||[]).length;
+  const filed = (plan.matched||[]).length + (plan.candidates||[]).length;
+  if (topics >= 3 && filed < topics){
+    const note = el("div","coverage");
+    note.append(el("span",null,`Filed ${filed} of ${topics} topics the read found.`));
+    if (!thorough){
+      const again = el("button","fresh","File every topic");
+      again.title = "Plans the same reading again, one concept per topic. One model call, nothing is read twice.";
+      again.onclick = () => planAndCard(body, sid, link, ext, len, held, true);
+      note.append(again);
+    }
+    body.append(note);
+  }
   bottom();
 }
 
