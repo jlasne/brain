@@ -515,6 +515,10 @@
   }
   .seg button:hover{ color:var(--ink); }
   .seg button.on{ background:var(--accent-solid); color:var(--accent-on); }
+  /* The answer levels: an icon beside each name. */
+  .seg.lv button{ display:inline-flex; align-items:center; gap:6px; }
+  .seg.lv svg{ width:15px; height:15px; flex:none; fill:none; stroke:currentColor; stroke-width:1.8;
+               stroke-linecap:round; stroke-linejoin:round; }
 
   [hidden]{ display:none !important; }
 
@@ -773,6 +777,10 @@
   @keyframes up{ from{ transform:translateY(24px); opacity:0; } }
 
   @media (max-width:520px){
+    /* On a phone the icons carry the levels, and the line under the box names
+       the one picked. */
+    .seg.lv button span{ display:none; }
+    .seg.lv button{ padding:0 14px; }
     .col, .composer, .foot-note{ padding-left:16px; padding-right:16px; }
     .zero{ padding-left:16px; padding-right:16px; }
     .card-grid{ grid-template-columns:1fr; gap:4px 0; }
@@ -839,13 +847,15 @@
           </div>
           <button class="fresh" id="freshBtn" hidden title="Forget the questions so far and clear the screen">New thread</button>
           <button class="fresh" id="pagerBtn" title="A brain, a group, or a question, as bullets on one page">One-pager</button>
-          <div class="scope" id="levelWrap">
-            <label>Level</label>
-            <select id="level">
-              <option value="normal">Normal</option>
-              <option value="educational">Educational</option>
-              <option value="learning">Learning</option>
-            </select>
+          <div id="levelWrap">
+            <div class="seg lv" id="level" role="radiogroup" aria-label="Level of the answer">
+              <button data-v="normal" role="radio" title="Normal: the answer, with its numbers" aria-label="Normal">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg><span>Normal</span></button>
+              <button data-v="educational" role="radio" title="Educational: terms defined, mechanism built, one worked example" aria-label="Educational">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5C5.5 4 8.5 4 12 6c3.5-2 6.5-2 9-.5V19c-2.5-1.5-5.5-1.5-9 .5-3.5-2-6.5-2-9-.5z"/><path d="M12 6v13.5"/></svg><span>Educational</span></button>
+              <button data-v="learning" role="radio" title="Learning: no answer given, steps and hints to reach it yourself" aria-label="Learning">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z"/></svg><span>Learning</span></button>
+            </div>
           </div>
         </div>
         <div class="box">
@@ -1264,7 +1274,10 @@ function renderComposer(){
     : S.scope==="all" ? "Ask anything your brains have read."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this brain") + ".";
   $("levelWrap").hidden = drop;
-  $("level").value = S.level;
+  for (const x of $("level").children){
+    const on = x.dataset.v === S.level;
+    x.classList.toggle("on", on); x.setAttribute("aria-checked", on ? "true" : "false");
+  }
   $("testBtn").hidden = !drop;
   $("fileBtn").hidden = !drop;
   $("pasteBtn").hidden = !drop;
@@ -1274,7 +1287,7 @@ function renderComposer(){
     ? "The source gets read once, then you reply to one card."
     : S.level==="educational" ? "Educational: terms defined, mechanism built, one worked example."
     : S.level==="learning" ? "Learning: no answer given. Steps and hints to reach it yourself."
-    : "The answer carries the numbers. Sources sit on one line underneath.";
+    : "Normal: the answer carries the numbers. Sources sit on one line underneath.";
 
   const t = $("input").value.trim();
   const src = drop ? $("srcInput").value.trim() : "";
@@ -1384,7 +1397,11 @@ $("mode").onclick = e => {
   renderScope(); renderComposer(); $("input").focus();
 };
 $("scope").onchange = e => { S.scope = e.target.value; render(); };
-$("level").onchange = e => { S.level = e.target.value; saveLevel(); renderComposer(); };
+$("level").onclick = e => {
+  const b = e.target.closest("button[data-v]");
+  if (!b) return;
+  S.level = b.dataset.v; saveLevel(); renderComposer();
+};
 $("burger").onclick = () => $("side").classList.toggle("open");
 $("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");

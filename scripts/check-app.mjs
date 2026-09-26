@@ -269,9 +269,15 @@ async function boot(path, init, arg) {
     exported.slice(0, 200));
 
   /* ---- Learning: steps toward the answer, never the answer ---- */
-  const levels = await page.evaluate(() => [...document.querySelectorAll("#level option")].map(o => o.value));
-  check("the levels are Normal, Educational and Learning", levels.join(",") === "normal,educational,learning", levels.join(","));
-  await page.selectOption("#level", "learning");
+  const levels = await page.evaluate(() => [...document.querySelectorAll("#level button")].map(b => ({
+    v: b.dataset.v, icon: !!b.querySelector("svg path"), name: b.getAttribute("aria-label"), on: b.classList.contains("on") })));
+  check("the levels are Normal, Educational and Learning", levels.map(l => l.v).join(",") === "normal,educational,learning",
+    levels.map(l => l.v).join(","));
+  check("each level carries an icon and a name", levels.every(l => l.icon && l.name));
+  check("the level in use is lit", levels.filter(l => l.on).length === 1 && levels.find(l => l.on).v === "normal");
+  await page.click('#level button[data-v="learning"]');
+  const lit = await page.evaluate(() => document.querySelector("#level button.on")?.dataset.v);
+  check("picking a level lights it", lit === "learning", String(lit));
   const note = await page.evaluate(() => document.getElementById("footNote").textContent);
   check("Learning says it gives steps, not the answer", /no answer given/i.test(note), note);
   await page.fill("#input", "why does gold hold value");
