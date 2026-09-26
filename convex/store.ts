@@ -689,25 +689,38 @@ export async function syncCard(ctx: any, id: any) {
 const CARDS_READY = "cards:v1", CARDS_BUILDING = "cards:building";
 
 /**
- * A space as the lists see it: its brains, a card per concept, its sources.
- *
- * Until the cards have been built once, they are made from the concepts on
- * the fly, so nothing waits for the build and nothing reads differently.
+ * A space's brains and sources, and whether the cards are built. The cards
+ * themselves come a page at a time, from cardsPage: one list of every card
+ * stopped at 8,192, the most a single returned list may hold.
  */
-export const cardsOf = internalQuery({
+export const spaceHead = internalQuery({
   args: { space: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const space = readSpace(a.space);
     const brains = (await ctx.db.query("brains").collect()).filter(b => readSpace(b.space) === space);
     const mine = new Set(brains.map(b => b.slug));
     const ready = !!(await ctx.db.query("config").withIndex("by_key", q => q.eq("key", CARDS_READY)).unique());
-    const cards = ready
-      ? (await Promise.all(brains.map(b => ctx.db.query("cards").withIndex("by_brain", q => q.eq("brain", b.slug)).collect()))).flat()
-      : (await Promise.all(brains.map(b => ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", b.slug)).collect())))
-          .flat().map(c => ({ cid: c._id, ...cardOf(c) }));
     const sources = (await ctx.db.query("sources").collect())
       .filter(s => (s.brains ?? []).some((x: string) => mine.has(x)));
-    return { brains, cards, sources, ready };
+    return { brains, sources, ready };
+  },
+});
+
+/**
+ * One page of a brain's cards. Until the cards are built, the page is made
+ * from the concepts, in smaller pages since a concept weighs more.
+ */
+export const cardsPage = internalQuery({
+  args: { brain: v.string(), cursor: v.union(v.string(), v.null()), ready: v.boolean() },
+  handler: async (ctx, a) => {
+    if (a.ready) {
+      const p = await ctx.db.query("cards").withIndex("by_brain", q => q.eq("brain", a.brain))
+        .paginate({ numItems: 4000, cursor: a.cursor });
+      return { cards: p.page, done: p.isDone, cursor: p.continueCursor };
+    }
+    const p = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain))
+      .paginate({ numItems: 800, cursor: a.cursor });
+    return { cards: p.page.map(c => ({ cid: c._id, ...cardOf(c) })), done: p.isDone, cursor: p.continueCursor };
   },
 });
 

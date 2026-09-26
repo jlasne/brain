@@ -2498,7 +2498,23 @@ async function planAll(ext, held, progress){
           gone.add(x);
         }
       }
-      if (gone.size) merged.candidates = merged.candidates.filter(c => !gone.has(c));
+      if (gone.size){
+        /* Links that named a merged title now name the one kept, so none
+           points at a concept that will never exist. */
+        const to = new Map();
+        for (const g of same || []){
+          const keep = merged.candidates[g[0]];
+          for (const j of g.slice(1)){
+            const x = merged.candidates[j];
+            if (!x || !gone.has(x)) continue;
+            for (const k of [`${x.brain}/${x.title}`, x.title, `${x.brain}/${conceptSlug(x.title)}`]) to.set(k, `${keep.brain}/${keep.title}`);
+          }
+        }
+        const remap = l => [...new Set((l || []).map(r => to.get(r) ?? r))];
+        for (const c of merged.candidates) if (c.related) c.related = remap(c.related);
+        for (const m of merged.matched) if (m.related) m.related = remap(m.related);
+        merged.candidates = merged.candidates.filter(c => !gone.has(c));
+      }
     } catch (_) {}
   }
 
@@ -2539,7 +2555,7 @@ async function storeAll(pc, progress){
      sends its text with every part, so no part reads a note cut short. */
   const every = (pc.ext.topics || []).length > 450;
   const body = (i, whole) => {
-    whole = whole || every;
+    whole = whole || every || pc.sendAll;
     const part = batches[i];
     return {
       sid: pc.sid, link: pc.link, key: S.key, linkLater: true,
@@ -2559,6 +2575,9 @@ async function storeAll(pc, progress){
     results.push(r); pc.stored.add(i);
     for (const id of r.written || []) pc.written.add(id);
     if (whole) pc.noted = true;
+    /* The note kept fewer passages than the source has: the other parts send
+       the text themselves rather than read a note cut short. */
+    if (whole && r.noteTopics != null && r.noteTopics < (pc.ext.topics || []).length) pc.sendAll = true;
     progress(++done, batches.length);
   };
   /* The first part alone, so the note exists before any part reads it. */
@@ -2584,7 +2603,7 @@ async function storeAll(pc, progress){
     err.partial = true; throw err;
   }
   /* Linking runs once, in the background, over everything this drop wrote. */
-  try { await api("/api/drop/link", { ids: [...pc.written] }); } catch (_) {}
+  try { await api("/api/drop/link", { sid: pc.sid, ids: [...pc.written] }); } catch (_) {}
   const last = results[results.length - 1] || {};
   /* What the server wrote, not what the plan hoped for. A resumed store counts
      the parts that landed earlier from the plan, since their answers are gone. */

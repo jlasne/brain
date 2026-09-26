@@ -21,7 +21,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-mcp-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["mcp.ts", "drop.ts", "lib.ts", "words.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["mcp.ts", "drop.ts", "lib.ts", "words.ts", "space.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => " +
   "new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
@@ -66,9 +66,14 @@ const ctx = {
       return { brains: DB.brains, concepts: DB.concepts, sources: DB.sources };
     }
     /* The slim copies, made from the concepts the way the store makes them. */
-    if (fn === "store.cardsOf") {
+    if (fn === "store.spaceHead") {
       DB.spacesRead.push(a?.space ?? null);
-      return { brains: DB.brains, cards: DB.concepts.map(cardOf), sources: DB.sources, ready: true };
+      return { brains: DB.brains, sources: DB.sources, ready: true };
+    }
+    /* Pages of 3, so every reader is checked to walk all of them. */
+    if (fn === "store.cardsPage") {
+      const all = DB.concepts.filter(c => c.brain === a.brain).map(cardOf), from = Number(a.cursor ?? 0);
+      return { cards: all.slice(from, from + 3), done: from + 3 >= all.length, cursor: String(from + 3) };
     }
     if (fn === "store.conceptsByIds") {
       DB.spacesRead.push(a?.space ?? null);
@@ -76,10 +81,11 @@ const ctx = {
     }
     if (fn === "store.settleReads") {
       DB.spacesRead.push(a?.space ?? null);
+      /* The real query's caps, so a caller that sends too much is caught. */
       const byId = {};
-      for (const id of a.ids) { const c = DB.concepts.find(x => `${x.brain}/${x.slug}` === id); if (c) byId[id] = c; }
+      for (const id of [...new Set(a.ids)].slice(0, 400)) { const c = DB.concepts.find(x => `${x.brain}/${x.slug}` === id); if (c) byId[id] = c; }
       return { brains: DB.brains, byId,
-        byTitle: a.titles.map(t => findByTitle(DB.concepts, t.brain, t.title) ?? null),
+        byTitle: a.titles.slice(0, 200).map(t => findByTitle(DB.concepts, t.brain, t.title) ?? null),
         empty: Object.fromEntries(DB.brains.map(b => [b.slug, !DB.concepts.some(c => c.brain === b.slug)])) };
     }
     if (fn === "store.noteBySid") {
@@ -439,6 +445,25 @@ let job = "";
   const off = await dropMerge(ctx, { space: "octopus" }, { candidates: cands });
   check("a failed pass merges nothing and keeps the drop going", Array.isArray(off.same) && off.same.length === 0);
   globalThis.fetch = real;
+}
+
+/* ---- a store of any size looks up every title, and says what its note kept ---- */
+{
+  const WHO = { account:"octopus", kind:"member", space:"octopus" };
+  DB.concepts.push({ brain:"content", slug:"late-idea", n:9, title:"Late idea", position:"STORED SYNTHESIS", summaryLine:"",
+    evidence:[], data:[], conflicts:[], sources:[], related:[], updated:"2026-01-01" });
+  const candidates = Array.from({ length: 250 }, (_, i) => ({ title: i === 240 ? "Late idea" : `Fresh idea ${i}`, brain:"content", why:"x" }));
+  const plan = { brains:["content"], matched:[], new:["x"], echo:[], conflicts:[], candidates };
+  const r = await dropSettle(ctx, WHO, { sid:"s-big", ext: EXT, plan, fullPlan: plan, packetOnly: true });
+  check("the 241st title of one big store is still found as the concept it is",
+    /### content\/late-idea[\s\S]*?CURRENT POSITION: STORED SYNTHESIS/.test(r.job ?? ""), (r.job ?? JSON.stringify(r)).slice(0, 160));
+  DB.concepts.pop();
+
+  const huge = { ...EXT, topics: Array.from({ length: 300 }, (_, i) => ({ topic:`T${i}`, ideas:["y".repeat(4000)], data:[] })) };
+  const plan2 = { brains:["content"], matched:[{ conceptId:"content/personal-brand", whatItAdds:"z" }], new:[], echo:[], conflicts:[], candidates:[] };
+  const r2 = await dropSettle(ctx, WHO, { sid:"s-huge", ext: huge, plan: plan2, fullPlan: plan2,
+    rewrites:[{ conceptId:"content/personal-brand", position:"P.", summaryLine:"", conflicts:[] }], linkLater: true });
+  check("a note too big for a row says how many passages it kept", r2.noteTopics > 0 && r2.noteTopics < 300, String(r2.noteTopics));
 }
 
 rmSync(dir, { recursive: true, force: true });

@@ -185,13 +185,25 @@ function seed() {
   check("each space reads only its brains, concepts and sources",
     oc.brains.length === 1 && oc.concepts.length === 2 && oc.sources.length === 1 &&
     sq.brains.length === 1 && sq.concepts.length === 0 && sq.sources.length === 1);
+  const head = await run(store.spaceHead, ctx, { space: "squidgy" });
+  check("a space's head names only its own brains and sources", head.brains.length === 1 && head.brains[0].slug === "dogs" && head.sources.length === 1);
 }
 
 /* ---- the slim copies follow every write ---- */
 {
   const { T, ctx } = seed();
   const cardFor = slug => (T.cards ?? []).find(c => c.slug === slug);
-  const before = await run(store.cardsOf, ctx, { space: "octopus" });
+  /* The space the way loadSpace reads it: the head, then each brain's pages. */
+  const space = async sp => {
+    const head = await run(store.spaceHead, ctx, { space: sp });
+    const cards = [];
+    for (const b of head.brains) {
+      let cursor = null;
+      for (;;) { const p = await run(store.cardsPage, ctx, { brain: b.slug, cursor, ready: head.ready }); cards.push(...p.cards); if (p.done) break; cursor = p.cursor; }
+    }
+    return { ...head, cards };
+  };
+  const before = await space("octopus");
   check("before the build, cards are made from the concepts", !before.ready && before.cards.length === 2 && before.cards[0].title === "Gold");
   check("and never carry the evidence", before.cards.every(c => !("evidence" in c) && !("position" in c)));
 
@@ -200,7 +212,7 @@ function seed() {
   let cursor = null;
   for (;;) { const r = await run(store.cardsBatch, ctx, { cursor }); if (r.done) break; cursor = r.cursor; }
   await run(store.markCardsReady, ctx, {});
-  const after = await run(store.cardsOf, ctx, { space: "octopus" });
+  const after = await space("octopus");
   check("after the build, every concept has one card", after.ready && T.cards.length === 2 && after.cards.length === 2);
   check("a finished build is never claimed again", (await run(store.claimCardBuild, ctx, {})) === false);
 

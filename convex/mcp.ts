@@ -23,6 +23,7 @@ import { randomHex, today, slug as slugOf, HOME, MENTIONS } from "./lib";
 import { norm, keywords, planDossier, scoreConcept, idOf } from "./words";
 export { MENTIONS };
 import { dropCheck, dropSettle, feedable, fetchPage, planContext, PLAN_RULES } from "./drop";
+import { loadSpace } from "./space";
 
 /** Versions this server speaks. The newest sits first, so it wins by default. */
 export const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -627,7 +628,7 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
    * reads it: a client pointed here sees the published brains and nothing else.
    */
   /* Slim copies for every list; a concept is read whole only when opened. */
-  const { brains, cards: concepts, sources } = await ctx.runQuery(internal.store.cardsOf, { space: HOME });
+  const { brains, cards: concepts, sources } = await loadSpace(ctx, HOME);
   const whole = async (ids: string[]) => ids.length
     ? await ctx.runQuery(internal.store.conceptsByIds, { space: HOME, ids }) : [];
 

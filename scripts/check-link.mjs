@@ -19,7 +19,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-link-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["admin.ts", "lib.ts", "words.ts", "store.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["admin.ts", "lib.ts", "words.ts", "store.ts", "space.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/server.ts"),
   "export const internalQuery = (x: any) => x; export const internalMutation = (x: any) => x; export const internalAction = (x: any) => x;\n");
 writeFileSync(join(dir, "_generated/api.ts"),
@@ -62,10 +62,12 @@ const DB = {
 const ctx = {
   runQuery: async (fn, a) => {
     /* Linking reads the slim copies, made the way the store makes them. */
-    if (fn === "store.cardsOf") {
-      const brains = DB.brains.filter(b => (b.space ?? "octopus") === a.space);
-      const mine = new Set(brains.map(b => b.slug));
-      return { brains, cards: DB.concepts.filter(c => mine.has(c.brain)).map(cardOf), sources: [], ready: true };
+    if (fn === "store.spaceHead") {
+      return { brains: DB.brains.filter(b => (b.space ?? "octopus") === a.space), sources: [], ready: true };
+    }
+    if (fn === "store.cardsPage") {
+      const all = DB.concepts.filter(c => c.brain === a.brain).map(cardOf), from = Number(a.cursor ?? 0);
+      return { cards: all.slice(from, from + 500), done: from + 500 >= all.length, cursor: String(from + 500) };
     }
     throw new Error("unexpected query " + fn);
   },
@@ -98,7 +100,7 @@ globalThis.fetch = async (_u, opt) => {
 /* Runs the scheduled steps the way the platform would, one after another. */
 const drain = async () => {
   let guard = 0;
-  while (DB.scheduled.length && guard++ < 50) {
+  while (DB.scheduled.length && guard++ < 500) {
     const { fn, ...args } = DB.scheduled.shift();
     await admin[fn.split(".")[1]].handler(ctx, args);
   }
@@ -189,6 +191,17 @@ const talk = () => { console.log = quiet; };
   DB.brains.splice(0, DB.brains.length, ...brains);
 }
 
+/* ---- a drop's linking is kept to what its source fed ---- */
+{
+  for (const c of DB.concepts) c.related = [];
+  DB.concepts.find(c => c.slug === "npv").sources = ["s-drop"];
+  const writes = DB.writes.length;
+  hush(); await admin.linkConcepts.handler(ctx, { space: "squidgy", ids: ["acc/npv", "acc/irr"], sid: "s-drop" }); talk();
+  const touched = new Set(DB.writes.slice(writes).map(w => `${w.brain}/${w.slug}`));
+  check("ids the source never fed are left alone", touched.has("acc/npv") && !touched.has("acc/irr"), [...touched].join(","));
+  DB.concepts.find(c => c.slug === "npv").sources = [];
+}
+
 /* ---- a drop's linking reaches everything it wrote, whatever the number ---- */
 {
   const saved = DB.concepts.slice(), brains = DB.brains.slice();
@@ -201,10 +214,11 @@ const talk = () => { console.log = quiet; };
     ids.push(`huge/a${i}`, `huge/b${i}`);
   }
   const t0 = performance.now();
-  hush(); await admin.linkConcepts.handler(ctx, { space: "octopus", ids }); talk();
+  hush(); await admin.linkConcepts.handler(ctx, { space: "octopus", ids }); await drain(); talk();
   const ms = performance.now() - t0;
   const bare = DB.concepts.filter(c => c.brain === "huge" && !c.related.length);
   check("a drop of 1,400 concepts links every one", bare.length === 0, `${bare.length} never linked`);
+  check("a long link run hands the rest to fresh runs", logs.some(l => /handed on/.test(l)), logs.slice(-3).join(" | "));
   console.log(`       1,400 concepts linked in ${Math.round(ms)} ms of local work`);
   DB.concepts.splice(0, DB.concepts.length, ...saved);
   DB.brains.splice(0, DB.brains.length, ...brains);

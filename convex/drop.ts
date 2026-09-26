@@ -17,6 +17,7 @@ import {
 } from "./lib";
 import type { Who } from "./lib";
 import { keywords, rankConcepts, linkId, conceptSlug, compress, unionCap } from "./words";
+import { loadSpace } from "./space";
 export { compress } from "./words";
 
 /* ---------- the rules, named so two thinkers can share them ---------- */
@@ -163,7 +164,7 @@ Reply with only JSON:
 /** The brains a caller may feed in their own space, and the ones the plan was
     pointed at. */
 export async function feedable(ctx: any, who: Who, brain?: string) {
-  const { brains: seen, cards: concepts, sources } = await ctx.runQuery(internal.store.cardsOf, { space: who.space });
+  const { brains: seen, cards: concepts, sources } = await loadSpace(ctx, who.space);
   const brains = seen.filter((x: any) => canDrop(x, who));
   const only = brain && brain !== "all" ? String(brain) : null;
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
@@ -421,7 +422,7 @@ ${chunk}` },
 
 /** R3. Summaries only, never whole brains, so this costs the same at any size. */
 export async function dropPlan(ctx: any, who: Who, b: any, key?: string, model?: string) {
-  const { brains: seen, cards: concepts, sources } = await ctx.runQuery(internal.store.cardsOf, { space: who.space });
+  const { brains: seen, cards: concepts, sources } = await loadSpace(ctx, who.space);
   /* Only brains this caller may feed. Everyone reads more than they can write. */
   const brains = seen.filter((x: any) => canDrop(x, who));
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
@@ -547,9 +548,10 @@ function cleanExt(e: any) {
 const NOTE_BYTES = 800_000;
 function fitNote(n: any) {
   const size = () => JSON.stringify(n).length;
+  /* The passages go last: later store parts read them back from here. */
+  while (size() > NOTE_BYTES && n.connections.length > 20) n.connections = n.connections.slice(0, Math.floor(n.connections.length * 0.7));
   while (size() > NOTE_BYTES && n.quotes.length > 20) n.quotes = n.quotes.slice(0, Math.floor(n.quotes.length * 0.7));
   while (size() > NOTE_BYTES && n.topics.length > 20) n.topics = n.topics.slice(0, Math.floor(n.topics.length * 0.8));
-  while (size() > NOTE_BYTES && n.connections.length > 20) n.connections = n.connections.slice(0, Math.floor(n.connections.length * 0.7));
   return n;
 }
 
@@ -569,14 +571,25 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
       ids.add(`${br}/${slug(id)}`); ids.add(`${br}/${conceptSlug(id)}`);
     }
   }
+  const seenT = new Set<string>();
   for (const c of plan.candidates ?? []) for (const br of [String(c.brain ?? ""), ...planned]) {
-    if (br) titles.push({ brain: br, title: String(c.title ?? "") });
+    const k = `${br}|${String(c.title ?? "")}`;
+    if (br && !seenT.has(k)) { seenT.add(k); titles.push({ brain: br, title: String(c.title ?? "") }); }
   }
-  const read = await ctx.runQuery(internal.store.settleReads, { space: who.space, ids: [...ids], titles });
-  const titleAt = (br: string, t: string) => {
-    const i = titles.findIndex(x => x.brain === br && x.title === t);
-    return i >= 0 ? read.byTitle[i] : null;
-  };
+  /* Read in slices of 150, so a plan of any size is looked up whole: a store
+     from a connector sends every concept in one call. */
+  const idList = [...ids];
+  const read: any = { brains: [], byId: {}, empty: {} };
+  const found = new Map<string, any>();
+  for (let i = 0, j = 0; i < idList.length || j < titles.length || i === 0; i += 150, j += 150) {
+    const part = await ctx.runQuery(internal.store.settleReads,
+      { space: who.space, ids: idList.slice(i, i + 150), titles: titles.slice(j, j + 150) });
+    read.brains = part.brains; read.empty = part.empty;
+    Object.assign(read.byId, part.byId);
+    titles.slice(j, j + 150).forEach((t, k) => found.set(`${t.brain}|${t.title}`, part.byTitle[k] ?? null));
+    if (i + 150 >= idList.length && j + 150 >= titles.length) break;
+  }
+  const titleAt = (br: string, t: string) => found.get(`${br}|${t}`) ?? null;
   /* Re-checked here, because this is where the writing happens. */
   const brains = read.brains.filter((x: any) => canDrop(x, who));
   const ext = cleanExt(b.ext ?? {});
@@ -737,14 +750,15 @@ ${excerptFor(ext.topics ?? [], touched)}`;
   /* The whole extraction is kept, so filing into another brain later reuses
      every topic. It held 40 before, and a 229 topic document lost the rest. The
      ceilings keep one note well under a database row's 1MB. */
-  if (uploaded) await ctx.runMutation(internal.store.writeNote, { space: who.space, doc: fitNote({
+  let noteTopics: number | null = null;
+  if (uploaded) await ctx.runMutation(internal.store.writeNote, { space: who.space, doc: ((n: any) => { noteTopics = n.topics.length; return n; })(fitNote({
     sid, title: ext.title ?? "", author: ext.author ?? "", date: ext.date || today(),
     topics: (ext.topics ?? []).slice(0, 500), quotes: (ext.quotes ?? []).slice(0, 200),
     thin: (ext.thin ?? []).slice(0, 150),
     connections: [...(full.matched ?? []), ...(full.candidates ?? [])],
     findings: { new: full.new ?? [], echo: full.echo ?? [], conflicts: full.conflicts ?? [], choices,
                 ...(ext.kind ? { kind: ext.kind } : {}) },
-  }) });
+  })) });
 
   for (const { c, adds, rel } of touched) {
     const id = `${c.brain}/${c.slug}`;
@@ -788,7 +802,9 @@ ${excerptFor(ext.topics ?? [], touched)}`;
     await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: who.space, ids: written });
   }
 
-  return { sid, brains: targets, positions: touched.length, counted, missed, written,
+  /* How many passages the note kept, so the app knows whether later parts
+     can read the text back from it or must send it again. */
+  return { sid, brains: targets, positions: touched.length, counted, missed, written, noteTopics,
     counts: { new: (full.new ?? []).length, echo: (full.echo ?? []).length } };
 }
 

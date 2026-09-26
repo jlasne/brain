@@ -90,7 +90,7 @@ export function scoreConcept(c: any, words: string[], brainText = "", weight?: (
 export function rankConcepts(concepts: any[], words: string[], brains: any[] = [], weight?: (w: string) => number) {
   const brainText = new Map(brains.map((b: any) => [b.slug, `${b.name} ${b.scope}`]));
   return concepts.map((c: any) => ({ c, score: scoreConcept(c, words, brainText.get(c.brain) ?? "", weight) }))
-    .sort((a, b) => b.score - a.score || (b.c.evidence?.length ?? 0) - (a.c.evidence?.length ?? 0));
+    .sort((a, b) => b.score - a.score || (b.c.evidence?.length ?? b.c.ev ?? 0) - (a.c.evidence?.length ?? a.c.ev ?? 0));
 }
 
 /* What one question may send: 30 concepts in full within 60,000 characters,

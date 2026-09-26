@@ -24,6 +24,7 @@ import { v } from "convex/values";
 import { today, sha256, randomHex, gateKey, readSpace, SPACES, ask, parseJson } from "./lib";
 import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle } from "./words";
 import { syncCard } from "./store";
+import { loadSpace } from "./space";
 
 /** Who exists, and who owns what. Read this before and after a claim. */
 export const state = internalQuery({
@@ -248,7 +249,7 @@ export const moveBrain = internalMutation({
 async function spaceOf(ctx: any, space: string) {
   /* Cards, not whole concepts: about 1 KB each, so a space of 10,000 still
      fits in one read and in the action's memory. */
-  const { brains, cards: concepts } = await ctx.runQuery(internal.store.cardsOf, { space });
+  const { brains, cards: concepts } = await loadSpace(ctx, space);
   return { brains, concepts: [...concepts].sort((a: any, b: any) =>
     a.brain.localeCompare(b.brain) || (a.n ?? 0) - (b.n ?? 0)) };
 }
@@ -445,17 +446,26 @@ export const linkStep = internalAction({
  * Scheduled by each store batch, so it never slows the drop down.
  */
 export const linkConcepts = internalAction({
-  args: { space: v.string(), ids: v.array(v.string()) },
+  args: { space: v.string(), ids: v.array(v.string()), sid: v.optional(v.string()) },
   handler: async (ctx, a) => {
     /* Every concept is reached, however many. The shortlists are worked out
-       once, for what the drop wrote, and walked 30 at a time. */
+       once, for what the drop wrote, and walked 30 at a time. After four
+       batches the rest is handed to a fresh run, so no run nears the
+       10 minute limit an action has. */
     const { brains, concepts } = await spaceOf(ctx, a.space);
     const name = new Map(brains.map((b: any) => [b.slug, b.name]));
-    const work = linkWork(concepts, new Set(a.ids)).sort((x, y) => idOf(x.c).localeCompare(idOf(y.c)));
+    /* With a source id, only concepts that source fed are linked: the ids
+       come from the browser, and this keeps them to what the drop wrote. */
+    const fed = a.sid ? new Set(concepts.filter((c: any) => (c.srcIds ?? c.sources ?? []).includes(a.sid)).map(idOf)) : null;
+    const want = new Set<string>((a.ids as string[]).filter((id: string) => !fed || fed.has(id)));
+    const work = linkWork(concepts, want).sort((x, y) => idOf(x.c).localeCompare(idOf(y.c)));
+    const RUN = LINK_BATCH * 4;
     let added = 0;
-    for (let i = 0; i < work.length; i += LINK_BATCH) {
+    for (let i = 0; i < Math.min(work.length, RUN); i += LINK_BATCH) {
       added += (await confirmLinks(ctx, toItems(work.slice(i, i + LINK_BATCH), name))) ?? 0;
     }
-    console.log(`linked ${added} for ${a.ids.length} concepts just stored`);
+    const rest = work.slice(RUN).map(w => idOf(w.c));
+    if (rest.length) await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: a.space, ids: rest, ...(a.sid ? { sid: a.sid } : {}) });
+    console.log(`linked ${added} for ${Math.min(work.length, RUN)} concepts just stored${rest.length ? `, ${rest.length} handed on` : ""}`);
   },
 });

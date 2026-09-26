@@ -20,7 +20,7 @@ const dir = mkdtempSync(join(tmpdir(), "octo-ask-"));
 copyFileSync(join(ROOT, "convex", "words.ts"), join(dir, "words.ts"));
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { dossierFor, indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, keywords, scoreConcept, mergeEvidence, cardOf, planDossier, writeDossier, idOf, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { dossierFor, indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, keywords, scoreConcept, mergeEvidence, cardOf, planDossier, writeDossier, idOf, rankConcepts, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -262,6 +262,13 @@ const tokens = s => Math.round(s.length / 4);
   const cardBytes = JSON.stringify(cards).length / cards.length, fullBytes = JSON.stringify(concepts).length / concepts.length;
   check("a card is a fraction of its concept", cardBytes < fullBytes / 2, `${Math.round(cardBytes)} vs ${Math.round(fullBytes)} bytes`);
   console.log(`       a card is ${Math.round(cardBytes)} bytes, its concept ${Math.round(fullBytes)}`);
+}
+
+{
+  /* Cards carry an evidence count, not the list: ties still go to the fuller. */
+  const thin = { brain: "x", slug: "thin", title: "Thin", evidence: [{}] }, full = { brain: "x", slug: "full", title: "Full", evidence: [{}, {}, {}] };
+  const onCards = rankConcepts([thin, full].map(cardOf), []).map(r => r.c.slug).join(",");
+  check("on cards, the fuller concept still leads a tie", onCards === "full,thin", onCards);
 }
 
 console.log(failures ? `\n${failures} failed` : "\nthe question finds its answer at any size");

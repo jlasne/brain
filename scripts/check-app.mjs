@@ -523,10 +523,17 @@ for (const kind of ["study", "argument"]) {
         const first = body.ext.topics[0].topic;
         /* Two parts name one idea in two ways. */
         const extra = first === "Rule 26" ? [{ title: "Hedging with forwards", brain: "content", why: "part two" }]
-          : first === "Rule 51" ? [{ title: "Forward contract hedging", brain: "content", why: "part three" }] : [];
+          : first === "Rule 51" ? [{ title: "Forward contract hedging", brain: "content", why: "part three" },
+                                   { title: "Money market hedge", brain: "content", why: "x", related: ["content/Forward contract hedging"] }] : [];
         return Response.json({ plan: { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
           candidates: [...body.ext.topics.map(t => ({ title: t.topic, brain: "content", why: "taught" })), ...extra] } });
       }
+      if (s.includes("/api/drop/settle")) {
+        (window.__stored ??= []).push(...body.plan.candidates);
+        return Response.json({ sid: "s-par", brains: ["content"], positions: body.plan.candidates.length, counted: [],
+          written: body.plan.candidates.map(c => `content/${c.title.toLowerCase().replace(/\W+/g, "-")}`) });
+      }
+      if (s.includes("/api/drop/link")) { window.__link = body; return Response.json({ linking: body.ids.length }); }
       if (s.includes("/api/drop/merge")) {
         window.__merge = body.candidates;
         const a = body.candidates.findIndex(c => c.title === "Hedging with forwards");
@@ -546,7 +553,12 @@ for (const kind of ["study", "argument"]) {
   check("three at a time, never more", r.peak === 3, String(r.peak));
   check("the first part plans before the rest start", r.plans[0] === 0 && r.plans.slice(1).every(n => n > 0), r.plans.join(","));
   check("twin titles from parts planned together are merged into one concept",
-    !!r.merge && /filed into 251 concepts/.test(r.note), r.note);
+    !!r.merge && /filed into 252 concepts/.test(r.note), r.note);
+  await page.click(".card-foot .go"); await page.waitForTimeout(1500);
+  const st = await page.evaluate(() => ({ mm: (window.__stored || []).find(c => c.title === "Money market hedge"), link: window.__link }));
+  check("a link to a merged title now names the title kept", JSON.stringify(st.mm?.related) === JSON.stringify(["content/Hedging with forwards"]),
+    JSON.stringify(st.mm?.related));
+  check("linking is asked for with the drop's source", st.link?.sid === "s-par" && st.link?.ids?.length === 252, JSON.stringify(st.link)?.slice(0, 120));
   check("nothing threw planning in parallel", !bad.length, bad.join(" | "));
   await page.close();
 }

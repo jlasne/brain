@@ -11,6 +11,7 @@ import {
   ask, json, cors, sha256, slug, randomHex, isOpen, sealKey, openKey, onlyAccount,
   readSpace, SPACE_NAME, HOME,
   MODEL, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, CHUNK, MENTIONS,
+  canDrop,
 } from "./lib";
 import type { Who } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
@@ -19,6 +20,7 @@ import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromQuestion, asText, mail, looksLikeMail, pageIds } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
+import { loadSpace } from "./space";
 
 const router = httpRouter();
 
@@ -326,10 +328,13 @@ route("/api/usage", async (ctx, _req, b) => {
 
 route("/api/state", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const { brains, cards, sources, ready } = await ctx.runQuery(internal.store.cardsOf, { space: who.space });
   /* The slim copies are built once, in the background, the first time the app
-     opens after they arrive. Until then the same lists come from the concepts. */
-  if (!ready && ctx.scheduler) await ctx.scheduler.runAfter(0, internal.admin.buildCards, {});
+     opens after they arrive: started before the lists are read, so a space
+     too big to read whole still gets them. Until then the lists come from the
+     concepts, a page at a time. */
+  const { brains, cards, sources } = await loadSpace(ctx, who.space, async head => {
+    if (!head.ready && ctx.scheduler) await ctx.scheduler.runAfter(0, internal.admin.buildCards, {});
+  });
   /* The app lists and counts concepts, so it gets their names and summary
      lines. The whole concept travels only for the export. */
   const s = { brains, sources, concepts: cards.map((c: any) => ({
@@ -450,9 +455,15 @@ route("/api/drop/settle", async (ctx, _req, b) => {
 route("/api/drop/link", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   if (who.kind === "guest") return { error: "linking needs an account" };
+  const sid = String(b.sid ?? "");
+  if (!sid) return { error: "linking needs the source it follows" };
+  /* Only brains this caller may feed, and only concepts that source fed: the
+     ids come from the browser, so they are checked against both. */
+  const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
+  const mine = new Set(head.brains.filter((x: any) => canDrop(x, who)).map((x: any) => x.slug));
   const ids = [...new Set<string>((Array.isArray(b.ids) ? b.ids : []).map(String))]
-    .filter(x => /^[a-z0-9-]+\/[a-z0-9-]+$/.test(x)).slice(0, 5000);
-  if (ids.length) await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: who.space, ids });
+    .filter(x => /^[a-z0-9-]+\/[a-z0-9-]+$/.test(x) && mine.has(x.split("/")[0])).slice(0, 5000);
+  if (ids.length) await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: who.space, ids, sid });
   return { linking: ids.length };
 });
 
@@ -461,7 +472,7 @@ route("/api/drop/link", async (ctx, _req, b) => {
 route("/api/ask", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   /* Every brain in this space answers questions, whoever is asking. */
-  const { brains, cards: concepts, sources } = await ctx.runQuery(internal.store.cardsOf, { space: who.space });
+  const { brains, cards: concepts, sources } = await loadSpace(ctx, who.space);
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
   if (!pool.length) return { answer: "No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
@@ -593,7 +604,7 @@ QUESTION: ${String(b.q ?? "")}` },
  */
 route("/api/onepager", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const { brains: all, cards: concepts, sources } = await ctx.runQuery(internal.store.cardsOf, { space: who.space });
+  const { brains: all, cards: concepts, sources } = await loadSpace(ctx, who.space);
   if (!all.length) return { error: "no brain exists yet, so there is nothing to put on a page" };
   const load = async (ids: string[]) => await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids });
 
@@ -655,7 +666,7 @@ router.route({
   handler: httpAction(async (ctx, req) => {
     /* Octopus only. Squidgy sits behind its own passphrase and is published
        nowhere, so no unsigned route reads it. */
-    const { brains, cards: concepts, sources } = await ctx.runQuery(internal.store.cardsOf, { space: HOME });
+    const { brains, cards: concepts, sources } = await loadSpace(ctx, HOME);
     return new Response(JSON.stringify({
       brains: brains.map((b: any) => ({
         slug: b.slug, name: b.name, type: b.type, scope: b.scope,
