@@ -12,6 +12,7 @@
 import { ask, SPACE_NAME } from "./lib";
 import type { Who, Space } from "./lib";
 import { dossierFor } from "./words";
+import { routeQuestion } from "./route";
 
 export type Pager = {
   title: string;
@@ -135,7 +136,7 @@ export async function fromQuestion(
     { role: "user", content: `${BULLET_RULES}
 
 STORED KNOWLEDGE
-${dossierFor(brains, concepts, q).dossier}
+${dossierFor(brains, concepts, q, undefined, await routeQuestion(brains, concepts, q, undefined, key, model)).dossier}
 
 QUESTION: ${q}` },
   ], { maxTokens: 2000, key, model });

@@ -18,6 +18,7 @@ import { dropCheck, dropRead, dropPlan, dropSettle, fetchPage } from "./drop";
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromQuestion, asText, mail, looksLikeMail } from "./onepager";
 import { dossierFor } from "./words";
+import { routeQuestion } from "./route";
 
 const router = httpRouter();
 
@@ -433,7 +434,9 @@ route("/api/ask", async (ctx, _req, b) => {
    * budget, and the next ones are named by title so the answer knows what else
    * is held. A follow-up borrows the words of the question before it.
    */
-  const pick = dossierFor(pool, concepts, String(b.q ?? ""), b.history);
+  const mKey = await modelKey(ctx, who, b), mName = modelName(who, b);
+  const route = await routeQuestion(pool, concepts, String(b.q ?? ""), b.history, mKey, mName);
+  const pick = dossierFor(pool, concepts, String(b.q ?? ""), b.history, route);
   const dossier = pick.dossier;
   const reading = pool.filter((x: any) => pick.opened.some((c: any) => c.brain === x.slug));
   const isPerson = reading.length === 1 && reading[0].type === "person";
@@ -507,7 +510,7 @@ The concepts that bear on this question are opened in full. Others are named und
 ${dossier}
 
 QUESTION: ${String(b.q ?? "")}` },
-  ], { maxTokens: level === "normal" ? 2000 : 3200, key: await modelKey(ctx, who, b), model: modelName(who, b) });
+  ], { maxTokens: level === "normal" ? 2000 : 3200, key: mKey, model: mName });
 
   return { answer: text, sources: nSources, level };
 });

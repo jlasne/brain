@@ -2375,6 +2375,7 @@ async function planAll(ext, held, thorough, progress){
       if (seenM.has(m.conceptId)){
         const had = merged.matched.find(x => x.conceptId === m.conceptId);
         if (had && m.whatItAdds) had.whatItAdds = `${had.whatItAdds || ""} ${m.whatItAdds}`.trim().slice(0, 600);
+        if (had && m.related) had.related = [...new Set([...(had.related || []), ...m.related])];
         continue;
       }
       seenM.add(m.conceptId); merged.matched.push(m);

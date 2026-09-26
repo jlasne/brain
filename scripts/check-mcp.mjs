@@ -198,7 +198,8 @@ let draft = "";
 const PLAN = {
   brains:["content"],
   matched:[{ conceptId:"content/personal-brand", brain:"content", whatItAdds:"retention data behind the first 2 seconds" }],
-  candidates:[{ title:"Hook writing for short video", brain:"content", why:"no concept covers hooks" }],
+  candidates:[{ title:"Hook writing for short video", brain:"content", why:"no concept covers hooks",
+    related:["content/personal-brand", "content/Hook writing for short video"] }],
   new:["First 2 seconds decide the watch"],
   echo:[],
   conflicts:[{ concept:"Personal brand as growth strategy", conceptId:"content/personal-brand", brain:"content",
@@ -244,6 +245,12 @@ let job = "";
   check("the concepts, the source and the note were written", kinds.join(",") === want, kinds.join(","));
   const c = DB.writes.slice(before).find(w => w.kind === "concept");
   check("the rewrite landed on the position", c.doc.position.startsWith("Hooks decide the watch"), c.doc.position);
+  if (MENTIONS <= 1) {
+    const hook = DB.writes.slice(before).find(w => w.kind === "concept" && w.title === "Hook writing for short video");
+    check("a new concept keeps the links the plan gave it", hook?.doc?.related?.join(",") === "content/personal-brand",
+      JSON.stringify(hook?.doc?.related));
+    check("and never links to itself", !(hook?.doc?.related ?? []).includes("content/hook-writing-for-short-video"));
+  }
   check("the draft is gone", !DB.drafts.has(draft));
 }
 

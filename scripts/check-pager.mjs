@@ -17,7 +17,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-pager-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["onepager.ts", "lib.ts", "words.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["onepager.ts", "lib.ts", "words.ts", "route.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"), "export const internal = {};\n");
 await esbuild.build({ entryPoints: [join(dir, "onepager.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });

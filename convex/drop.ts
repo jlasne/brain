@@ -16,7 +16,7 @@ import {
   ask, parseJson, today, slug, linkKey, sourceId, canDrop, CHUNK, MENTIONS,
 } from "./lib";
 import type { Who } from "./lib";
-import { keywords, rankConcepts } from "./words";
+import { keywords, rankConcepts, linkId } from "./words";
 
 /* ---------- the rules, named so two thinkers can share them ---------- */
 
@@ -67,11 +67,12 @@ RULES
 - "candidates" = a NEW concept this source argues for, one no listed concept covers. Give a short title, the brain slug it belongs in, and why.
 - EVERY item in "new" MUST also be filed: under "matched" when a listed concept covers it, under "candidates" when none does. An idea belonging to no concept and needing no new one is thin, not new.
 - So "matched" and "candidates" are both empty only when "new" is empty too.
+- "related" links a concept to up to 4 others it builds on, explains, or is used with: a listed concept by its id brain/slug, or a candidate proposed in this reply by brain/its title. Leave it empty when nothing connects. These links are how an answer moves from one concept to the next.
 
 Reply with only JSON:
 {"brains":["id"],
- "matched":[{"conceptId":"","brain":"","whatItAdds":""}],
- "candidates":[{"title":"","brain":"","why":""}],
+ "matched":[{"conceptId":"","brain":"","whatItAdds":"","related":["brain/slug"]}],
+ "candidates":[{"title":"","brain":"","why":"","related":["brain/slug"]}],
  "new":[""],
  "echo":[{"claim":"","repeatsSource":""}],
  "conflicts":[{"concept":"","conceptId":"","brain":"","kind":"flip|caveat|drift","says":"","saysDate":"","stored":"","storedDate":"","why":""}]}`;
@@ -468,7 +469,7 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
   const touched: any[] = [];
   for (const m of (plan.matched ?? [])) {
     const c = concepts.find((x: any) => `${x.brain}/${x.slug}` === m.conceptId || x.slug === slug(m.conceptId ?? ""));
-    if (c) touched.push({ c, adds: m.whatItAdds, isNew: false });
+    if (c) touched.push({ c, adds: m.whatItAdds, isNew: false, rel: m.related });
   }
   /* R5.5. A candidate is an idea the brain does not hold yet. MENTIONS separate
      sources make it a position, so an early mention is counted and kept, never
@@ -479,14 +480,14 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
   for (const cand of (plan.candidates ?? [])) {
     const br = targets.includes(cand.brain) ? cand.brain : targets[0];
     const already = concepts.find((x: any) => x.brain === br && x.slug === slug(cand.title));
-    if (already) { touched.push({ c: already, adds: cand.why, isNew: false }); continue; }
+    if (already) { touched.push({ c: already, adds: cand.why, isNew: false, rel: cand.related }); continue; }
     const seeding = concepts.filter((x: any) => x.brain === br).length === 0;
     const asked = promote.includes(cand.title) || promote.includes(`${br}/${slug(cand.title)}`);
     /* At a threshold of 1 there is nothing to wait for, so the candidate is
        taken here with what the source argued as its first evidence, rather than
        through a counter that would promote it on the same call anyway. */
     if (seeding || asked || MENTIONS <= 1) {
-      touched.push({ c: { brain: br, slug: slug(cand.title), title: cand.title, position: "", evidence: [], data: [], conflicts: [], sources: [] }, adds: cand.why, isNew: true });
+      touched.push({ c: { brain: br, slug: slug(cand.title), title: cand.title, position: "", evidence: [], data: [], conflicts: [], sources: [] }, adds: cand.why, isNew: true, rel: cand.related });
     } else {
       const r = await ctx.runMutation(internal.store.bumpCandidate, { brain: br, title: cand.title, sid });
       if (r.promoted) touched.push({ c: { brain: br, slug: slug(cand.title), title: cand.title, position: "", evidence: [], data: [], conflicts: [], sources: r.notes }, adds: `promoted after ${MENTIONS} mentions`, isNew: true });
@@ -562,8 +563,12 @@ ${excerptFor(ext.topics ?? [], touched)}`;
     return { job: "", counted, positions: 0, concepts: [] };
   }
 
-  for (const { c, adds } of touched) {
+  for (const { c, adds, rel } of touched) {
     const id = `${c.brain}/${c.slug}`;
+    /* Links from this drop join the ones the concept had, as brain/slug ids,
+       never to itself, twelve at most. */
+    const links = Array.from(new Set([...(c.related ?? []), ...(Array.isArray(rel) ? rel : [])]
+      .map((r: any) => linkId(String(r), c.brain)).filter((r: string) => r !== id))).slice(0, 12);
     const rw = rewrites.find((r: any) => r.conceptId === id || r.conceptId === c.slug) ?? {};
     /* A concept already carrying this source keeps its evidence as it is. That
        makes a resumed store, and a source read again, add nothing twice. */
@@ -580,6 +585,7 @@ ${excerptFor(ext.topics ?? [], touched)}`;
         data: Array.isArray(rw.data) && rw.data.length ? rw.data.slice(0, 24) : (c.data ?? []),
         conflicts: Array.isArray(rw.conflicts) ? rw.conflicts.slice(0, 12) : (c.conflicts ?? []),
         sources: Array.from(new Set([...(c.sources ?? []), sid])),
+        related: links,
       },
     });
   }

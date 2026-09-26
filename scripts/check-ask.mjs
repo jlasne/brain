@@ -20,7 +20,7 @@ const dir = mkdtempSync(join(tmpdir(), "octo-ask-"));
 copyFileSync(join(ROOT, "convex", "words.ts"), join(dir, "words.ts"));
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { dossierFor, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { dossierFor, indexFor, linkId, neighbours, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -81,6 +81,49 @@ const tokens = s => Math.round(s.length / 4);
   const small = concepts.filter(c => c.brain === "b10").slice(0, 5);
   const r = dossierFor([brains[10]], small, "tax");
   check("a small brain opens every concept", r.opened.length === 5 && r.left === 0 && r.named === 0, `${r.opened.length} opened`);
+}
+
+/* ---- the router's picks, and its English terms ---- */
+{
+  const fr = "comment fonctionne l amortissement lineaire ?";
+  const alone = dossierFor(brains, concepts, fr);
+  check("a French question alone misses the concept", !alone.opened.some(c => c.slug === "depreciation"));
+  const withTerms = dossierFor(brains, concepts, fr, undefined, { terms: ["straight line depreciation", "useful life"] });
+  check("the router's English terms find it", withTerms.opened[0]?.slug === "depreciation", withTerms.opened[0]?.slug);
+  const withPick = dossierFor(brains, concepts, fr, undefined, { picked: ["b10/depreciation"] });
+  check("a routed pick opens first", withPick.opened[0]?.slug === "depreciation" && withPick.picked === 1, withPick.opened[0]?.slug);
+  const ghost = dossierFor(brains, concepts, "pricing", undefined, { picked: ["b99/nothing"] });
+  check("a pick naming no concept is ignored", ghost.picked === 0 && ghost.opened.length > 0);
+}
+
+/* ---- the numbered title list ---- */
+{
+  const idx = indexFor(brains, concepts, "depreciation");
+  check("the title list numbers every concept that fits", idx.ids.length === 1001 && idx.text.startsWith("1|"), `${idx.ids.length} of ${idx.total}`);
+  check("the closest by wording come first", idx.ids[0] === "b10/depreciation", idx.ids[0]);
+  check("under 80,000 characters", idx.text.length <= 80000, String(idx.text.length));
+}
+
+/* ---- links ---- */
+{
+  check("a drop's link reads as written", linkId("b10/straight-line-depreciation", "b0") === "b10/straight-line-depreciation");
+  check("a starter link in prose reads as a concept of its brain",
+    linkId("Prudence in `03-prudence.md`", "wealth") === "wealth/prudence", linkId("Prudence in `03-prudence.md`", "wealth"));
+  check("a title with a brain reads as that brain's concept",
+    linkId("b0/Price to earnings multiple", "b3") === "b0/price-to-earnings-multiple");
+
+  const a = { brain: "k", slug: "npv", title: "Net present value", related: ["k/discount-rate"], evidence: [] };
+  const b = { brain: "k", slug: "discount-rate", title: "Discount rate", related: [], evidence: [] };
+  const c = { brain: "k", slug: "irr", title: "Internal rate of return", related: ["k/npv"], evidence: [] };
+  const d = { brain: "k", slug: "gold", title: "Gold", related: [], evidence: [] };
+  const n = neighbours([a], [a, b, c, d]).map(x => x.slug);
+  check("links are followed both ways", n.includes("discount-rate") && n.includes("irr") && !n.includes("gold"), n.join(","));
+
+  const kb = [{ slug: "k", name: "Finance", type: "subject", scope: "corporate finance" }];
+  const r = dossierFor(kb, [a, b, c, d], "what is net present value?");
+  const order = r.opened.map(x => x.slug);
+  check("an answer opens what its concept links to, next", order[0] === "npv" && order.slice(1, 3).sort().join(",") === "discount-rate,irr", order.join(","));
+  check("and leaves out what it does not link to", !order.includes("gold") || order.indexOf("gold") > 2, order.join(","));
 }
 
 console.log(failures ? `\n${failures} failed` : "\nthe question finds its answer at any size");
