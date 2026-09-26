@@ -93,8 +93,9 @@ export const REWRITE_SYSTEM =
 /* The concept list the plan matches against stays under this, so a batch costs
    the same at 50 concepts and at 5000. Below it, every concept is listed. */
 const PLAN_LIST_CHARS = 60000;
-/* Past that: the closest concepts with their summary, the rest by title. */
-const PLAN_FULL_CHARS = 36000, PLAN_TITLE_CHARS = 44000;
+/* Past that: the closest concepts with their summary, every other one by
+   title, up to 1,000 concepts listed. At 1,000 that is about 30,000 tokens. */
+const PLAN_FULL_CHARS = 36000, PLAN_MAX = 1000;
 
 export function planContext(pool: any[], concepts: any[], sources: any[], ext: any) {
   const line = (c: any) => `- id=${c.brain}/${c.slug} | ${c.title}: ${c.summaryLine || c.position || "no position yet"}`;
@@ -103,17 +104,17 @@ export function planContext(pool: any[], concepts: any[], sources: any[], ext: a
   const full = new Set<any>(all), titled = new Set<any>();
   if (all.reduce((n: number, c: any) => n + line(c).length + 1, 0) > PLAN_LIST_CHARS) {
     /* Too many to list whole. The ones sharing words with this batch of the
-       source come with their summary line; the rest still come by title, so
-       an idea the brain holds is matched rather than filed a second time.
-       Summaries alone stopped fitting at about 280 concepts; titles carry
-       the list to about 700. */
+       source come with their summary line, and every other one still comes by
+       title, up to PLAN_MAX in all, so an idea the brain holds is matched
+       rather than filed a second time. Past PLAN_MAX, the closest are listed. */
     const words = keywords((ext?.topics ?? []).map((t: any) => `${t.topic} ${(t.ideas ?? []).join(" ")}`).join(" "));
     full.clear();
-    let used = 0, usedT = 0;
+    let used = 0;
     for (const { c } of rankConcepts(all, words, pool)) {
-      const n = line(c).length + 1, t = bare(c).length + 1;
-      if (used + n <= PLAN_FULL_CHARS) { full.add(c); used += n; continue; }
-      if (usedT + t <= PLAN_TITLE_CHARS) { titled.add(c); usedT += t; }
+      if (full.size + titled.size >= PLAN_MAX) break;
+      const n = line(c).length + 1;
+      if (used + n <= PLAN_FULL_CHARS) { full.add(c); used += n; }
+      else titled.add(c);
     }
   }
   const summaries = pool.map((br: any) => {

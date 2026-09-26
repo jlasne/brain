@@ -377,17 +377,28 @@ let job = "";
   globalThis.fetch = real;
 }
 
-/* ---- the planner sees every title of a big brain ---- */
+/* ---- the planner sees every concept of a brain up to 1,000 ---- */
 {
   const pool = [{ slug: "acc", name: "Accountant", type: "subject", scope: "accounting" }];
-  const many = Array.from({ length: 600 }, (_, i) => ({ brain: "acc", slug: `c${i}`, n: i + 1, title: `Rule ${i} of costing`,
-    summaryLine: `Rule ${i} spreads a cost over the periods that use it, measured in units of output. `.repeat(2) }));
-  many.push({ brain: "acc", slug: "hedge", n: 601, title: "Forward contract hedge", summaryLine: "Locks the rate for a future receivable." });
-  const txt = planContext(pool, many, [], { kind: "study", topics: [{ topic: "Forward contract hedge", ideas: ["lock the rate"] }] });
-  const ids = (txt.match(/id=acc\/\w+/g) ?? []).length;
-  check("a 601 concept brain is listed whole to the planner", ids === 601, `${ids} listed`);
-  check("the concept this part is about comes with its summary", /Forward contract hedge: Locks the rate/.test(txt));
-  check("and the list stays near 20,000 tokens", txt.length < 90000, `${txt.length} chars`);
+  const make = n => {
+    const many = Array.from({ length: n - 1 }, (_, i) => ({ brain: "acc", slug: `c${i}`, n: i + 1,
+      title: `Rule ${i} of costing for a long descriptive title`,
+      summaryLine: `Rule ${i} spreads a cost over the periods that use it, measured in units of output. `.repeat(2) }));
+    many.push({ brain: "acc", slug: "hedge", n, title: "Forward contract hedge", summaryLine: "Locks the rate for a future receivable." });
+    return many;
+  };
+  const ext = { kind: "study", topics: [{ topic: "Forward contract hedge", ideas: ["lock the rate"] }] };
+  const count = t => new Set(t.match(/id=acc\/\w+/g) ?? []).size;
+  const t1000 = planContext(pool, make(1000), [], ext);
+  check("a 1,000 concept brain is listed whole to the planner", count(t1000) === 1000, `${count(t1000)} listed`);
+  check("the concept this part is about comes with its summary", /Forward contract hedge: Locks the rate/.test(t1000));
+  console.log(`       1,000 concepts: ${t1000.length} characters, about ${Math.round(t1000.length / 4000)}k tokens`);
+  check("and 1,000 concepts stay near 30,000 tokens", t1000.length < 150000, `${t1000.length} chars`);
+  const t1200 = planContext(pool, make(1200), [], ext);
+  check("past 1,000, the 1,000 closest are listed", count(t1200) === 1000 && /Forward contract hedge: Locks/.test(t1200) && /200 more concepts/.test(t1200),
+    `${count(t1200)} listed`);
+  const small = planContext(pool, make(40), [], ext);
+  check("a small brain is listed whole with every summary", count(small) === 40 && !/more concepts, not listed/.test(small));
 }
 
 rmSync(dir, { recursive: true, force: true });
