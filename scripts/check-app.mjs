@@ -296,6 +296,37 @@ async function boot(path, init, arg) {
   await page.close();
 }
 
+/* ---- a stored source read again into the same brain ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__reads = 0;
+    window.fetch = async (u, opt) => {
+      const s = String(u);
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/drop/check")) return Response.json({ duplicate: true, sid: "s-acc", brains: ["content"], date: "2026-09-01" });
+      if (s.includes("/api/drop/read")) { window.__reads++; return Response.json({ part: { title: "Accounting basics",
+        topics: [{ topic: "Accruals", ideas: ["x"], data: [] }] } }); }
+      if (s.includes("/api/drop/plan")) return Response.json({ plan: { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
+        candidates: [{ title: "Accruals", brain: "content", why: "taught" }] } });
+      return Response.json({});
+    };
+  }, STATE);
+  await page.click('#mode button[data-m="drop"]');
+  await page.fill("#srcInput", "Accounting basics.pdf");
+  await page.fill("#input", "Accruals explained.");
+  await page.click("#send"); await page.waitForTimeout(300);
+  const offered = await page.evaluate(() => [...document.querySelectorAll(".msg.ai button")].map(b => b.textContent));
+  check("a stored source offers to read it again here", offered.includes("Read it again here"), offered.join(","));
+  await page.click("text=Read it again here"); await page.waitForTimeout(500);
+  const r = await page.evaluate(() => ({ reads: window.__reads, card: !!document.querySelector(".msg.ai .card, .msg.ai [class*=card]"),
+    mine: document.querySelectorAll(".msg.me").length }));
+  check("and reads it again", r.reads === 1, String(r.reads));
+  check("without repeating your message", r.mine === 1, String(r.mine));
+  check("nothing threw reading it again", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- on a phone ---- */
 {
   /* isMobile makes the browser honour the viewport tag the way a phone does,

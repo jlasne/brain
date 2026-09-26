@@ -2184,7 +2184,7 @@ function splitAnswer(t){
 }
 
 /* ---------- drop ---------- */
-async function doDrop(src, content){
+async function doDrop(src, content, again){
   /* The link decides whether the source can be opened, and it is what catches a
      repeat later. It is read from the source line, and from the content as a
      fallback, because a pasted transcript often starts with its own URL. */
@@ -2192,8 +2192,8 @@ async function doDrop(src, content){
   let bodyTxt = S.transcript || content || null;
   const said = src || link || content.slice(0, 120);
   const words = t => (t.match(/\S+/g)||[]).length.toLocaleString();
-  says(said, S.transcript ? `transcript attached, ${words(S.transcript)} words`
-           : content ? `${words(content)} words` : null);
+  if (!again) says(said, S.transcript ? `transcript attached, ${words(S.transcript)} words`
+                      : content ? `${words(content)} words` : null);
 
   if (!S.brains.length){
     push("ai", b => { b.innerHTML = rich("Create a brain first. A source needs a scope to be filed against."); });
@@ -2208,7 +2208,7 @@ async function doDrop(src, content){
   /* Already held somewhere. That is worth knowing, not a reason to stop: the
      same source often belongs in a second brain. Reusing the extraction it
      already gave up means the second filing reads nothing. */
-  if (chk.duplicate){
+  if (chk.duplicate && !again){
     const names = (chk.brains||[]).map(x => S.brains.find(y=>y.slug===x)?.name || x);
     body.innerHTML = "";
     body.innerHTML = rich(
@@ -2231,7 +2231,19 @@ async function doDrop(src, content){
       if (got.error){ fail(b2, got.error); return; }
       await planAndCard(b2, chk.sid, chk.link || link, got.ext, 0, chk.brains || []);
     };
-    row.append(go, no); body.append(row);
+    /* A source filed under older rules, or filed thinly, deserves a second
+       read into the same brain. It needs the text, which a link fetches again
+       and pasted text or a document still holds. */
+    const redo = el("button","ghost","Read it again here");
+    redo.title = "Reads the source again with the current rules and files it into the brain you picked.";
+    const text = bodyTxt;
+    redo.onclick = async () => {
+      row.remove();
+      S.busy = true; renderComposer();
+      try { await doDrop(src, text || "", true); }
+      finally { S.busy = false; renderComposer(); }
+    };
+    row.append(go, redo, no); body.append(row);
     return;
   }
 
