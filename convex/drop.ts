@@ -41,11 +41,15 @@ Keep ideas, numbers, names, dates, reasoning chains, exact quotes and historical
 Write every field in English, whatever language the source uses. The one exception is "quotes", where text stays exact in the original language, because a translated quote stops being evidence.
 
 Reply with only JSON:
-{"title":"","author":"","date":"YYYY-MM-DD or empty","topics":[{"topic":"","ideas":[""],"data":[""]}],"quotes":[{"text":"","speaker":""}],"thin":[""]}
+{"title":"","author":"","date":"YYYY-MM-DD or empty","kind":"study|argument","topics":[{"topic":"","ideas":[""],"data":[""]}],"quotes":[{"text":"","speaker":""}],"thin":[""]}
 
 "thin" holds only opinions or predictions asserted with nothing behind them. A definition, a rule, a method, a procedure, a formula, a framework or a worked example is knowledge, not thin: it goes in "ideas" even with no number attached. A document that teaches is made of these.
 
-Keep one topic per distinct subject the source covers. A source that teaches twelve things has twelve topics, not one topic called after the document.`;
+Keep one topic per distinct subject the source covers. A source that teaches twelve things has twelve topics, not one topic called after the document.
+
+"kind" says what the source is:
+"study" when it teaches or lists rules, formulas, methods or definitions: a course, textbook, syllabus, formula sheet, manual, exam material, documentation.
+"argument" when it argues, tells or reports: a video, interview, podcast, article, essay, opinion piece, news.`;
 
 export const PLAN_SYSTEM =
   "You file sources into a knowledge base. You write in English. You reply with JSON only.";
@@ -61,7 +65,11 @@ RULES
 - "conflict" = a claim contradicting a stored position. Rank each: "flip" if it would change the position, "caveat" if it only adds nuance.
 - In a PERSON brain, a claim contradicting that same person's earlier view is drift, not conflict. Mark it kind "drift".
 - Thin means an opinion or prediction asserted with nothing behind it. Only those stay out of concepts. A definition, rule, method, procedure, formula, framework or worked example is knowledge and gets filed, number or not.
-- ONE CONCEPT PER DISTINCT IDEA a reader could look up on its own. Never fold several into one umbrella concept named after the document or its subject. A source that teaches twelve distinct things files twelve concepts. When unsure, file narrower concepts, more of them.
+- ONE CONCEPT PER DISTINCT IDEA a reader could look up on its own. Never fold several into one umbrella concept named after the document or its subject.
+- The grain follows SOURCE KIND, stated under THE NEW SOURCE:
+  study: every rule, formula, method, definition and worked procedure is its own concept, so each can be asked about exactly. Two formulas are two concepts. Nearly every topic gets its own entry.
+  argument: passages arguing the same idea from several angles are one concept. File the ideas, not the passages.
+  unknown: judge from the topics which of the two the source is.
 - Before replying, walk every "###" topic under THE NEW SOURCE. Each one ends up under "matched" or "candidates", unless it falls outside every brain's scope or is thin.
 - "matched" = an EXISTING concept this source adds to. Copy its id exactly as listed below, in the form brain/slug. One entry per concept touched. "whatItAdds" says what this source contributes to it.
 - "candidates" = a NEW concept this source argues for, one no listed concept covers. Give a short title, the brain slug it belongs in, and why.
@@ -119,6 +127,7 @@ EARLIER SOURCES
 ${recent}
 
 THE NEW SOURCE
+SOURCE KIND: ${ext?.kind === "study" || ext?.kind === "argument" ? ext.kind : "unknown"}
 title: ${ext?.title ?? ""}
 author: ${ext?.author ?? ""}
 date: ${ext?.date ?? ""}
@@ -398,13 +407,6 @@ export async function dropPlan(ctx: any, who: Who, b: any, key?: string, model?:
 
   const ext = b.ext ?? {};
 
-  /* Asked for from the card when a plan filed fewer ideas than the source
-     holds. It re-plans the same extraction, so nothing is read twice. */
-  const THOROUGH = b.thorough ? `
-THOROUGH PASS
-The owner asked for every topic to be filed. Give each "###" topic below its own entry: "matched" when a listed concept covers it, a "candidates" entry of its own when none does. Split a topic that holds several distinct ideas. Leave out only what fits no brain's scope.
-` : "";
-
   /* A long source is planned in batches of topics, one request each. A batch
      sees the titles the earlier ones proposed, so an idea spread across the
      document lands under one name instead of three near-duplicates. */
@@ -419,7 +421,7 @@ When an idea below belongs under one of these, propose it as a candidate with th
     { role: "system", content: PLAN_SYSTEM },
     { role: "user", content:
 `${PLAN_RULES}
-${THOROUGH}${SO_FAR}${planContext(pool, concepts, sources, ext)}` },
+${SO_FAR}${planContext(pool, concepts, sources, ext)}` },
   ], { json: true, maxTokens: 16000, key, model });
 
   return { plan: parseJson(text, finish) };
@@ -613,7 +615,8 @@ ${excerptFor(ext.topics ?? [], touched)}`;
     topics: (ext.topics ?? []).slice(0, 500), quotes: (ext.quotes ?? []).slice(0, 200),
     thin: (ext.thin ?? []).slice(0, 150),
     connections: [...(full.matched ?? []), ...(full.candidates ?? [])],
-    findings: { new: full.new ?? [], echo: full.echo ?? [], conflicts: full.conflicts ?? [], choices },
+    findings: { new: full.new ?? [], echo: full.echo ?? [], conflicts: full.conflicts ?? [], choices,
+                ...(ext.kind ? { kind: ext.kind } : {}) },
   }});
 
   return { sid, brains: targets, positions: touched.length, counted,

@@ -2298,6 +2298,12 @@ async function doDrop(src, content, again){
     title: parts.find(p=>p.title)?.title || src || link || "Untitled source",
     author: parts.find(p=>p.author)?.author || "",
     date: parts.find(p=>p.date)?.date || "",
+    /* What the passes agreed the source is: study material or an argument. */
+    kind: (() => {
+      const n = { study: 0, argument: 0 };
+      for (const p of parts) if (n[p.kind] !== undefined) n[p.kind]++;
+      return n.study || n.argument ? (n.study >= n.argument ? "study" : "argument") : "";
+    })(),
     topics: parts.flatMap(p=>p.topics||[]),
     quotes: parts.flatMap(p=>p.quotes||[]),
     thin: parts.flatMap(p=>p.thin||[]),
@@ -2358,7 +2364,9 @@ const unitKey = (brain, title) => `${brain}/${slug(title)}`;
  * Batches run in order, and each sees the titles proposed before it, so an
  * idea that recurs through the document is filed under one name.
  */
-async function planAll(ext, held, thorough, progress){
+async function planAll(ext, held, progress){
+  /* A stored extraction keeps its kind with the note's findings. */
+  if (!ext.kind && ext.findings && ext.findings.kind) ext = { ...ext, kind: ext.findings.kind };
   const batches = topicBatches(ext.topics || []);
   const merged = { brains: [], matched: [], candidates: [], new: [], echo: [], conflicts: [] };
   const seenM = new Set(), seenC = new Set();
@@ -2367,7 +2375,6 @@ async function planAll(ext, held, thorough, progress){
     const p = (await api("/api/drop/plan", {
       ext: { ...ext, topics: batches[i] }, brain: S.scope, key: S.key,
       ...(held && held.length ? { exclude: held } : {}),
-      ...(thorough ? { thorough: true } : {}),
       ...(merged.candidates.length ? { proposed: merged.candidates.map(c => `${c.brain} | ${c.title}`) } : {}),
     })).plan || {};
     for (const b of p.brains || []) if (!merged.brains.includes(b)) merged.brains.push(b);
@@ -2443,13 +2450,11 @@ async function storeAll(pc, progress){
   };
 }
 
-async function planAndCard(body, sid, link, ext, len, held, thorough){
-  if (thorough){ body.innerHTML = ""; const t = el("div","thinking"), m = el("span","spinner");
-    t.append(m, el("span",null,"Filing every topic")); body.append(t); }
-  else setThinking(body, "Comparing against what you hold");
+async function planAndCard(body, sid, link, ext, len, held){
+  setThinking(body, "Comparing against what you hold");
   let plan;
   try {
-    plan = await planAll(ext, held, thorough, (i, n) => setThinking(body,
+    plan = await planAll(ext, held, (i, n) => setThinking(body,
       `Comparing against what you hold, part ${i} of ${n}`));
   } catch(e){ fail(body, e.message); return; }
 
@@ -2479,21 +2484,18 @@ async function planAndCard(body, sid, link, ext, len, held, thorough){
   body.innerHTML = "";
   body.append(buildCard(pc, decide));
 
-  /* How much of the source the plan filed, against how many topics the read
-     found. A plan can fold a whole document into one concept, and the count is
-     what shows it. A second plan costs one model call and reads nothing again. */
+  /* How the source was read, which decided the grain. The AI picks it from
+     the source itself: every rule its own concept for study material, ideas
+     rather than passages for an argument. */
+  const kind = ext.kind || (ext.findings && ext.findings.kind) || "";
   const topics = (ext.topics||[]).length;
   const filed = (plan.matched||[]).length + (plan.candidates||[]).length;
-  if (topics >= 3 && filed < topics){
-    const note = el("div","coverage");
-    note.append(el("span",null,`Filed ${filed} of ${topics} topics the read found.`));
-    if (!thorough){
-      const again = el("button","fresh","File every topic");
-      again.title = "Plans the same reading again, one concept per topic. One model call, nothing is read twice.";
-      again.onclick = () => planAndCard(body, sid, link, ext, len, held, true);
-      note.append(again);
-    }
-    body.append(note);
+  if (topics >= 3){
+    const how = kind === "study" ? "Read as study material: one concept per rule, formula and method."
+      : kind === "argument" ? "Read as an argument: passages making the same point share one concept."
+      : "";
+    body.append(el("div","coverage",
+      `${how}${how ? " " : ""}${topics} passage${topics === 1 ? "" : "s"} read, filed into ${filed} concept${filed === 1 ? "" : "s"}.`));
   }
   bottom();
 }

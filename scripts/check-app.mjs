@@ -257,9 +257,9 @@ async function boot(path, init, arg) {
   await page.close();
 }
 
-/* ---- a plan that files less than the source holds ---- */
-{
-  const { page, bad } = await boot("/chat.html", state => {
+/* ---- the AI picks the grain from what the source is ---- */
+for (const kind of ["study", "argument"]) {
+  const { page, bad } = await boot("/chat.html", ([state, kind]) => {
     sessionStorage.setItem("octopus.token.v1", "test");
     window.__plans = [];
     const topics = ["Accruals", "Depreciation", "Deferred revenue", "Matching", "Reconciliation"]
@@ -268,31 +268,29 @@ async function boot(path, init, arg) {
       const s = String(u), body = JSON.parse(opt?.body || "{}");
       if (s.includes("/api/state")) return Response.json(state);
       if (s.includes("/api/drop/check")) return Response.json({ duplicate: false, sid: "s-acc" });
-      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Accounting basics", author: "A", date: "2026-09-01", topics } });
+      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Accounting basics", kind, topics } });
       if (s.includes("/api/drop/plan")) {
         window.__plans.push(body);
-        const n = body.thorough ? 5 : 1;
         return Response.json({ plan: { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
-          candidates: topics.slice(0, n).map(t => ({ title: t.topic, brain: "content", why: "taught here" })) } });
+          candidates: topics.slice(0, kind === "study" ? 5 : 2).map(t => ({ title: t.topic, brain: "content", why: "taught" })) } });
       }
       return Response.json({});
     };
-  }, STATE);
+  }, [STATE, kind]);
   await page.click('#mode button[data-m="drop"]');
   await page.fill("#srcInput", "Accounting basics.pdf");
-  await page.fill("#input", "Accruals, depreciation, deferred revenue, matching and reconciliation, each explained.");
+  await page.fill("#input", "Five rules, each explained.");
   await page.click("#send"); await page.waitForTimeout(500);
-  const note = await page.evaluate(() => document.querySelector(".coverage")?.textContent || "");
-  check("a plan filing 1 of 5 topics says so", /Filed 1 of 5 topics/.test(note), note);
-  check("and offers to file every topic", /File every topic/.test(note), note);
-  await page.click(".coverage button"); await page.waitForTimeout(400);
-  const after = await page.evaluate(() => ({
+  const r = await page.evaluate(() => ({
+    sent: window.__plans[0]?.ext?.kind,
     note: document.querySelector(".coverage")?.textContent || "",
-    last: window.__plans[window.__plans.length - 1] }));
-  check("the second plan asks for the thorough pass", after.last?.thorough === true, JSON.stringify(after.last?.thorough));
-  check("and reuses the same reading", after.last?.ext?.topics?.length === 5);
-  check("a plan filing every topic shows no warning", after.note === "", after.note);
-  check("nothing threw on the way", !bad.length, bad.join(" | "));
+    button: [...document.querySelectorAll(".msg.ai button")].some(b => /File every topic/.test(b.textContent)) }));
+  check(`a source read as ${kind} tells the plan so`, r.sent === kind, String(r.sent));
+  check(`and the card says how it was read`,
+    kind === "study" ? /Read as study material/.test(r.note) && /5 passages read, filed into 5 concepts/.test(r.note)
+                     : /Read as an argument/.test(r.note) && /filed into 2 concepts/.test(r.note), r.note);
+  check("with no button to second-guess it", !r.button);
+  check("nothing threw", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -338,7 +336,7 @@ async function boot(path, init, arg) {
     note: document.querySelector(".coverage")?.textContent || "" }));
   check("60 topics are planned in 3 batches", planned.n === 3 && planned.sizes.join(",") === "25,25,10", planned.sizes.join(","));
   check("each batch sees the titles proposed before it", planned.proposed.join(",") === "0,25,50", planned.proposed.join(","));
-  check("and every topic is filed", planned.note === "", planned.note);
+  check("and every topic is filed", /60 passages read, filed into 60 concepts/.test(planned.note), planned.note);
 
   await page.click(".card-foot .go"); await page.waitForTimeout(900);
   const first = await page.evaluate(() => ({ stored: window.__settles.flat().length, peak: window.__peak,
