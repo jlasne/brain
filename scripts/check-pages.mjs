@@ -84,6 +84,8 @@ for (const page of pages) {
         bound. A call to something deleted is the fingerprint of that. */
   const KEYWORDS = new Set(("if for while switch catch return typeof function async await new " +
     "of in do else try throw delete void instanceof yield case " +
+    /* import() loads a library on the branch that needs it. */
+    "import " +
     /* var() is CSS, which these files carry inside template strings. */
     "var let const").split(" "));
   const called = [...code.matchAll(/(^|[^.\w$'"`])([a-z_$][\w$]*)\s*\(/gm)].map(m => m[2]);

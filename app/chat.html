@@ -163,6 +163,23 @@
   }
   .group-h:first-child{ margin-top:0; }
 
+  /* The source line. It shares the composer box with the content, divided by one
+     rule, so the two read as halves of one drop rather than two forms. */
+  .srcline{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 14px 9px 15px; border-bottom:1px solid var(--line);
+  }
+  .srcline label{
+    font:500 11px/1 var(--mono); letter-spacing:.07em; text-transform:uppercase;
+    color:var(--ink-4); flex-shrink:0;
+  }
+  .srcline input{
+    flex:1; min-width:0; border:none; background:none; padding:0;
+    font:400 14px/1.5 var(--sans); color:var(--ink);
+  }
+  .srcline input:focus{ outline:none; }
+  .srcline input::placeholder{ color:var(--ink-4); }
+
   /* One line per brain: the name, and what it holds. The scope line and the
      controls live above the composer, next to the choice they belong to, so a
      row here stays a row. */
@@ -504,6 +521,10 @@
     max-height:210px; overflow-y:auto;
   }
   .box textarea::placeholder{ color:var(--ink-3); }
+  /* The box shows the focus for both fields. Without this the global focus ring
+     draws a second rounded rectangle inside the first, cutting the source line
+     off from the content it belongs to. */
+  .box textarea:focus-visible, .srcline input:focus-visible{ outline:none; }
   .box .tbar{ display:flex; align-items:center; gap:9px; padding:6px 12px 11px 18px; }
   .box .tbar .t{ flex:1; font:400 11.5px/1.5 var(--mono); color:var(--ink-3); }
   .paste{
@@ -702,9 +723,20 @@
           </div>
         </div>
         <div class="box">
+          <!-- A drop is two things: where it comes from, and what it says. They
+               were one box, and a link pasted alone read as a source with no
+               content. Named separately, each one says what it wants. -->
+          <div class="srcline" id="srcLine" hidden>
+            <label for="srcInput">Source</label>
+            <input id="srcInput" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="The link, or where it comes from">
+          </div>
           <textarea id="input" rows="1" placeholder="Ask anything your brains have read."></textarea>
+          <input type="file" id="fileIn" hidden
+                 accept=".pdf,.txt,.md,.markdown,.text,.docx,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
           <div class="tbar">
             <span class="t" id="tHint"></span>
+            <button class="paste" id="fileBtn" hidden title="Read a PDF, a Word file or a text file into the content">+ document</button>
             <button class="paste" id="testBtn" hidden title="Check for a repeat without reading the source">already stored?</button>
             <button class="paste" id="pasteBtn" hidden>+ transcript</button>
             <button class="send" id="send" disabled aria-label="Send">
@@ -1056,13 +1088,15 @@ function renderComposer(){
   /* It appears once there is something to forget. */
   $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length;
   const drop = S.mode==="drop";
+  $("srcLine").hidden = !drop;
   $("input").placeholder = drop
-    ? "Paste a link, or the text of the source."
+    ? "What it says. A link on its own is read for you."
     : S.scope==="all" ? "Ask anything your brains have read."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this brain") + ".";
   $("levelWrap").hidden = drop;
   $("level").value = S.level;
   $("testBtn").hidden = !drop;
+  $("fileBtn").hidden = !drop;
   $("pasteBtn").hidden = !drop;
   $("pasteBtn").textContent = S.transcript ? `transcript ${Math.round(S.transcript.length/1000)}k ✓` : "+ transcript";
   $("pasteBtn").classList.toggle("has", !!S.transcript);
@@ -1071,10 +1105,36 @@ function renderComposer(){
     : S.level==="educational" ? "Educational: terms defined, mechanism built, one worked example."
     : S.level==="expert" ? "Expert: the position, then how strong the evidence behind it is."
     : "The answer carries the numbers. Sources sit on one line underneath.";
+
   const t = $("input").value.trim();
-  $("send").disabled = S.busy || !t;
-  $("tHint").textContent = S.busy ? "working"
-    : drop && !S.transcript && /^https?:\/\//i.test(t) ? "a link alone needs its transcript" : "";
+  const src = drop ? $("srcInput").value.trim() : "";
+  /* A drop needs something to read: content, an attached transcript, or a link
+     the server can open. A source named with neither is a title and nothing
+     else, so the button stays off and the hint says what is missing. */
+  const ready = hasContent(src, t);
+  $("send").disabled = S.busy || (drop ? !ready : !t);
+  $("tHint").textContent = S.busy ? "working" : drop ? dropHint(src, t) : "";
+}
+
+/* Declarations, not consts: renderComposer runs once before this line is
+   reached, when the shell paints ahead of the first state call. */
+function linkIn(s){ return /https?:\/\/\S+/i.test(s || ""); }
+function hasContent(src, content){
+  return !!(content || S.transcript || linkIn(src) || linkIn(content));
+}
+
+/**
+ * What the drop still needs, in one line.
+ *
+ * It says the next move rather than the rule, because the rule only matters at
+ * the moment a field is empty.
+ */
+function dropHint(src, content){
+  if (!src && !content && !S.transcript) return "";
+  if (!src && (content || S.transcript)) return "name the source, so a repeat is caught later";
+  if (hasContent(src, content)) return linkIn(src) && !content && !S.transcript
+    ? "the link gets opened, video or article" : "";
+  return "paste what it says, drop a document, or give a link";
 }
 
 function renderZero(){
@@ -1132,6 +1192,10 @@ function fail(body, msg){
 /* ============ input ============ */
 function sizeBox(){ const t=$("input"); t.style.height="auto"; t.style.height=Math.min(t.scrollHeight,210)+"px"; }
 $("input").addEventListener("input", () => { sizeBox(); renderComposer(); });
+$("srcInput").addEventListener("input", renderComposer);
+$("srcInput").addEventListener("keydown", e => {
+  if (e.key === "Enter"){ e.preventDefault(); if (!$("send").disabled) go(); }
+});
 $("input").addEventListener("keydown", e => {
   if (e.key==="Enter" && !e.shiftKey){ e.preventDefault(); if(!$("send").disabled) go(); }
 });
@@ -1160,6 +1224,22 @@ $("navToggle").onclick = () => { navOpen = false; paintNav(); };
 $("navOpen").onclick  = () => { navOpen = true;  paintNav(); };
 paintNav();
 $("pasteBtn").onclick = openTranscript;
+$("fileBtn").onclick = () => $("fileIn").click();
+$("fileIn").onchange = e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = "";          // the same file twice still fires
+  takeDocument(f);
+};
+/* Dropping a file on the composer does the same thing, because that is where a
+   document goes. */
+$("input").addEventListener("dragover", e => { e.preventDefault(); });
+$("input").addEventListener("drop", e => {
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!f) return;
+  e.preventDefault();
+  if (S.mode !== "drop"){ S.mode = "drop"; [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="drop")); renderScope(); }
+  takeDocument(f);
+});
 /* No button any more. The markdown export stays reachable from the console as
    window.octopusExport(), because it is the portable form of the brains. */
 window.octopusExport = exportAll;
@@ -1176,13 +1256,13 @@ $("lockBtn").onclick = async () => {
  */
 async function testSource(){
   const btn = $("testBtn");
-  const raw = $("input").value.trim();
+  const raw = ($("srcInput").value + " " + $("input").value).trim();
   const link = (raw.match(/https?:\/\/\S+/)||[])[0] || "";
 
   if (!link){
     push("ai", b => { b.innerHTML = rich(raw
-      ? "The repeat check reads the link. Paste the URL and test again, because text alone carries no stable id."
-      : "Paste a link first, then test."); });
+      ? "The repeat check reads the link. Put the URL on the source line and test again, because text alone carries no stable id."
+      : "Put a link on the source line first, then test."); });
     bottom(); return;
   }
 
@@ -1574,6 +1654,104 @@ function nearest(scope){
 }
 
 /* ============ transcript ============ */
+/* ============ a document ============ */
+
+/**
+ * Where the two readers come from.
+ *
+ * Both load only when a file of that kind is chosen, so opening the app costs
+ * neither of them. Pinned by version, because a moving "latest" would change
+ * what runs here without a commit.
+ */
+const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.3.289/";
+const MAMMOTH = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.12.3/mammoth.browser.min.js";
+
+/**
+ * A PDF, as text with its lines kept.
+ *
+ * The line breaks matter. A transcript once arrived as one 34,000 character
+ * line and the read came back with nothing, because a wall of words carries no
+ * shape to extract. pdf.js marks the end of each line, so each one survives.
+ */
+async function pdfText(file, say){
+  const pdfjs = await import(PDFJS + "pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.mjs";
+  const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+  for (let n = 1; n <= doc.numPages; n++){
+    say(`Reading page ${n} of ${doc.numPages}`);
+    const page = await doc.getPage(n);
+    const c = await page.getTextContent();
+    pages.push(c.items.map(i => (i.str || "") + (i.hasEOL ? "\n" : "")).join("").trim());
+  }
+  return pages.filter(Boolean).join("\n\n");
+}
+
+/** A Word file. mammoth carries no types, so it goes in as a plain script. */
+async function docxText(file){
+  if (!window.mammoth){
+    await new Promise((ok, no) => {
+      const t = document.createElement("script");
+      t.src = MAMMOTH; t.onload = ok;
+      t.onerror = () => no(new Error("the Word reader did not load. Check the connection."));
+      document.head.append(t);
+    });
+  }
+  const r = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+  return String(r?.value ?? "").trim();
+}
+
+/**
+ * A dropped document becomes the content.
+ *
+ * PDF, Word, and anything that is already text. The file itself is never
+ * uploaded: it is read in this tab, and only the extraction ever reaches a
+ * brain, which is the same rule a pasted transcript follows.
+ */
+async function readDocument(file){
+  const name = file.name || "document";
+  const ext = name.toLowerCase().split(".").pop();
+  const big = Math.round(file.size / 1024);
+  if (file.size > 30 * 1024 * 1024) throw new Error(`${name} is ${big}KB. 30MB is the ceiling.`);
+
+  const btn = $("fileBtn");
+  const say = t => { btn.textContent = t; };
+  say("Reading");
+  try {
+    if (ext === "pdf") return { name, text: await pdfText(file, say) };
+    if (ext === "docx") return { name, text: await docxText(file) };
+    if (["txt", "md", "markdown", "text", "csv", "srt", "vtt"].includes(ext) || file.type.startsWith("text/")) {
+      return { name, text: (await file.text()).trim() };
+    }
+    throw new Error(`${name} is a .${ext}. PDF, Word, and text files are read here.`);
+  } finally {
+    say("+ document");
+  }
+}
+
+/** The chosen file fills the content, and names the source when nothing has. */
+async function takeDocument(file){
+  if (!file) return;
+  let got;
+  try { got = await readDocument(file); }
+  catch (e) {
+    push("ai", b => { b.innerHTML = rich("**That document did not open.** " + esc(e.message)); });
+    bottom(); return;
+  }
+  if (!got.text){
+    push("ai", b => { b.innerHTML = rich(
+      `**${esc(got.name)} gave no text.** A scanned PDF holds pictures of words, so it needs the text pasted instead.`); });
+    bottom(); return;
+  }
+  $("input").value = got.text;
+  if (!$("srcInput").value.trim()) $("srcInput").value = got.name;
+  sizeBox(); renderComposer();
+  const n = (got.text.match(/\S+/g)||[]).length.toLocaleString();
+  push("ai", b => { b.innerHTML = rich(
+    `**${esc(got.name)}** read, ${n} words. It sits in the content box. Send it when the source line is right.`); });
+  bottom();
+}
+
 function openTranscript(){
   const veil = el("div","veil");
   veil.innerHTML = `
@@ -1601,11 +1779,14 @@ function openTranscript(){
 
 /* ============ go ============ */
 async function go(){
+  if (S.busy) return;
   const text = $("input").value.trim();
-  if (!text || S.busy) return;
+  const src = $("srcInput").value.trim();
+  if (S.mode === "drop" ? !hasContent(src, text) : !text) return;
   $("input").value = ""; sizeBox();
+  if (S.mode === "drop") $("srcInput").value = "";
   S.busy = true; renderComposer();
-  try { S.mode==="drop" ? await doDrop(text) : await doAsk(text); }
+  try { S.mode==="drop" ? await doDrop(src, text) : await doAsk(text); }
   finally { S.busy = false; renderComposer(); }
 }
 
@@ -1651,10 +1832,16 @@ function splitAnswer(t){
 }
 
 /* ---------- drop ---------- */
-async function doDrop(text){
-  const link = (text.match(/https?:\/\/\S+/)||[])[0] || "";
-  let bodyTxt = S.transcript || (link ? null : text);
-  says(text, S.transcript ? `transcript attached, ${(S.transcript.match(/\S+/g)||[]).length.toLocaleString()} words` : null);
+async function doDrop(src, content){
+  /* The link decides whether the source can be opened, and it is what catches a
+     repeat later. It is read from the source line, and from the content as a
+     fallback, because a pasted transcript often starts with its own URL. */
+  const link = (src.match(/https?:\/\/\S+/)||[])[0] || (content.match(/https?:\/\/\S+/)||[])[0] || "";
+  let bodyTxt = S.transcript || content || null;
+  const said = src || link || content.slice(0, 120);
+  const words = t => (t.match(/\S+/g)||[]).length.toLocaleString();
+  says(said, S.transcript ? `transcript attached, ${words(S.transcript)} words`
+           : content ? `${words(content)} words` : null);
 
   if (!S.brains.length){
     push("ai", b => { b.innerHTML = rich("Create a brain first. A source needs a scope to be filed against."); });
@@ -1663,7 +1850,7 @@ async function doDrop(text){
 
   let chk;
   const body = thinking("Checking for a repeat");
-  try { chk = await api("/api/drop/check", { link, text }); }
+  try { chk = await api("/api/drop/check", { link, text: src || content }); }
   catch(e){ fail(body, e.message); return; }
 
   /* Already held somewhere. That is worth knowing, not a reason to stop: the
@@ -1696,10 +1883,17 @@ async function doDrop(text){
     return;
   }
 
-  /* A link on its own. Octopus opens the page, so pasting is only needed when
-     the text sits somewhere a fetch cannot reach, such as a video's captions or
-     a page behind a login. The duplicate check already ran, so a repeat costs
+  /* A link and no content. The server opens the page, or fetches the transcript
+     when it is a video, so pasting is only needed when the text sits somewhere a
+     fetch cannot reach. The duplicate check already ran, so a repeat costs
      nothing here. */
+  if (!bodyTxt && !link){
+    body.innerHTML = "";
+    body.innerHTML = rich(
+      "**That source has no content.** A link gets opened for you, video or article. " +
+      "Anything else needs the text pasted, or a document dropped in.");
+    return;
+  }
   if (!bodyTxt){
     setThinking(body, "Opening the link");
     let got;
@@ -1729,7 +1923,7 @@ async function doDrop(text){
   } catch(e){ fail(body, e.message); return; }
 
   const ext = {
-    title: parts.find(p=>p.title)?.title || link || "Untitled source",
+    title: parts.find(p=>p.title)?.title || src || link || "Untitled source",
     author: parts.find(p=>p.author)?.author || "",
     date: parts.find(p=>p.date)?.date || "",
     topics: parts.flatMap(p=>p.topics||[]),
