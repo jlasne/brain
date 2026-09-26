@@ -16,7 +16,7 @@ import {
   ask, parseJson, today, slug, linkKey, sourceId, canDrop, CHUNK, MENTIONS, HOME,
 } from "./lib";
 import type { Who } from "./lib";
-import { keywords, rankConcepts, linkId, conceptSlug, findByTitle, compress, unionCap } from "./words";
+import { keywords, rankConcepts, linkId, conceptSlug, compress, unionCap } from "./words";
 export { compress } from "./words";
 
 /* ---------- the rules, named so two thinkers can share them ---------- */
@@ -98,7 +98,7 @@ const PLAN_LIST_CHARS = 60000;
 const PLAN_FULL_CHARS = 36000, PLAN_MAX = 1000;
 
 export function planContext(pool: any[], concepts: any[], sources: any[], ext: any) {
-  const line = (c: any) => `- id=${c.brain}/${c.slug} | ${c.title}: ${c.summaryLine || c.position || "no position yet"}`;
+  const line = (c: any) => `- id=${c.brain}/${c.slug} | ${c.title}: ${c.summaryLine || c.position || c.lead || "no position yet"}`;
   const bare = (c: any) => `- id=${c.brain}/${c.slug} | ${c.title}`;
   const all = concepts.filter((c: any) => pool.some((b: any) => b.slug === c.brain));
   const full = new Set<any>(all), titled = new Set<any>();
@@ -163,7 +163,7 @@ Reply with only JSON:
 /** The brains a caller may feed in their own space, and the ones the plan was
     pointed at. */
 export async function feedable(ctx: any, who: Who, brain?: string) {
-  const { brains: seen, concepts, sources } = await ctx.runQuery(internal.store.everything, { space: who.space });
+  const { brains: seen, cards: concepts, sources } = await ctx.runQuery(internal.store.cardsOf, { space: who.space });
   const brains = seen.filter((x: any) => canDrop(x, who));
   const only = brain && brain !== "all" ? String(brain) : null;
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
@@ -421,7 +421,7 @@ ${chunk}` },
 
 /** R3. Summaries only, never whole brains, so this costs the same at any size. */
 export async function dropPlan(ctx: any, who: Who, b: any, key?: string, model?: string) {
-  const { brains: seen, concepts, sources } = await ctx.runQuery(internal.store.everything, { space: who.space });
+  const { brains: seen, cards: concepts, sources } = await ctx.runQuery(internal.store.cardsOf, { space: who.space });
   /* Only brains this caller may feed. Everyone reads more than they can write. */
   const brains = seen.filter((x: any) => canDrop(x, who));
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
@@ -510,10 +510,38 @@ function fitNote(n: any) {
 
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
 export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model?: string) {
-  const { brains: seen, concepts } = await ctx.runQuery(internal.store.everything, { space: who.space });
+  const plan = b.plan ?? {}, sid = String(b.sid ?? "");
+  /* Only what this batch touches is read: the concepts its plan names, and
+     whether each new title is already a concept. */
+  const ids = new Set<string>(), titles: { brain: string; title: string }[] = [];
+  const planned = [...new Set<string>([...(plan.brains ?? []).map(String),
+    ...(plan.candidates ?? []).map((c: any) => String(c.brain ?? "")),
+    ...(plan.matched ?? []).map((m: any) => String(m.brain ?? String(m.conceptId ?? "").split("/")[0]))])].filter(Boolean);
+  for (const m of plan.matched ?? []) {
+    const id = String(m.conceptId ?? "");
+    if (id.includes("/")) ids.add(id);
+    for (const br of m.brain ? [String(m.brain)] : planned) {
+      ids.add(`${br}/${slug(id)}`); ids.add(`${br}/${conceptSlug(id)}`);
+    }
+  }
+  for (const c of plan.candidates ?? []) for (const br of [String(c.brain ?? ""), ...planned]) {
+    if (br) titles.push({ brain: br, title: String(c.title ?? "") });
+  }
+  const read = await ctx.runQuery(internal.store.settleReads, { space: who.space, ids: [...ids], titles });
+  const titleAt = (br: string, t: string) => {
+    const i = titles.findIndex(x => x.brain === br && x.title === t);
+    return i >= 0 ? read.byTitle[i] : null;
+  };
   /* Re-checked here, because this is where the writing happens. */
-  const brains = seen.filter((x: any) => canDrop(x, who));
-  const ext = cleanExt(b.ext ?? {}), plan = b.plan ?? {}, sid = String(b.sid ?? "");
+  const brains = read.brains.filter((x: any) => canDrop(x, who));
+  const ext = cleanExt(b.ext ?? {});
+  /* A later batch of a long source sends no extraction: it is read back from
+     the note the first batch wrote, rather than uploaded again each time. */
+  const uploaded = Array.isArray(b.ext?.topics);
+  if (!uploaded && sid) {
+    const note = await ctx.runQuery(internal.store.noteBySid, { sid, space: who.space });
+    if (note) Object.assign(ext, { topics: note.topics ?? [], ...(ext.kind ? {} : note.kind ? { kind: note.kind } : {}) });
+  }
   /* A long source is stored in batches: the app hands in a slice of the plan
      each time, and the whole plan beside it for the note and the receipt. The
      connector hands in one plan, which is both. */
@@ -535,12 +563,12 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
   const missed: string[] = [];
   /* Only concepts of the brains this drop may feed. A matched id is what the
      caller sent, so a concept of a brain they cannot feed is never rewritten. */
-  const ours = concepts.filter((x: any) => targets.includes(x.brain));
   for (const m of (plan.matched ?? [])) {
     const id = String(m.conceptId ?? "");
-    const bare = [slug(id), conceptSlug(id)];
-    const c = ours.find((x: any) => `${x.brain}/${x.slug}` === id)
-      ?? ours.find((x: any) => bare.includes(x.slug) && (!m.brain || x.brain === m.brain));
+    const exact = targets.includes(id.split("/")[0]) ? read.byId[id] : null;
+    const bare = exact ? null : (m.brain ? [String(m.brain)] : targets).filter(br => targets.includes(br))
+      .map(br => read.byId[`${br}/${slug(id)}`] ?? read.byId[`${br}/${conceptSlug(id)}`]).find(Boolean);
+    const c = exact ?? bare;
     if (c) touched.push({ c, adds: m.whatItAdds, isNew: false, rel: m.related });
     else if (id) missed.push(id);
   }
@@ -552,9 +580,9 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
   const promote: string[] = Array.isArray(b.promote) ? b.promote.map(String) : [];
   for (const cand of (plan.candidates ?? [])) {
     const br = targets.includes(cand.brain) ? cand.brain : targets[0];
-    const already = findByTitle(concepts, br, cand.title);
+    const already = titleAt(br, String(cand.title ?? ""));
     if (already) { touched.push({ c: already, adds: cand.why, isNew: false, rel: cand.related }); continue; }
-    const seeding = concepts.filter((x: any) => x.brain === br).length === 0;
+    const seeding = !!read.empty[br];
     const asked = promote.includes(cand.title) || promote.includes(`${br}/${conceptSlug(cand.title)}`);
     /* At a threshold of 1 there is nothing to wait for, so the candidate is
        taken here with what the source argued as its first evidence, rather than
@@ -664,7 +692,7 @@ ${excerptFor(ext.topics ?? [], touched)}`;
   /* The whole extraction is kept, so filing into another brain later reuses
      every topic. It held 40 before, and a 229 topic document lost the rest. The
      ceilings keep one note well under a database row's 1MB. */
-  await ctx.runMutation(internal.store.writeNote, { space: who.space, doc: fitNote({
+  if (uploaded) await ctx.runMutation(internal.store.writeNote, { space: who.space, doc: fitNote({
     sid, title: ext.title ?? "", author: ext.author ?? "", date: ext.date || today(),
     topics: (ext.topics ?? []).slice(0, 500), quotes: (ext.quotes ?? []).slice(0, 200),
     thin: (ext.thin ?? []).slice(0, 150),
@@ -708,12 +736,14 @@ ${excerptFor(ext.topics ?? [], touched)}`;
      linkAll: shortlisted against the whole space, then checked by the model.
      The plan's own links only reach the concepts it listed, so a concept from
      page 5 could not link to one from page 80. This one can. */
-  if (touched.length && ctx.scheduler) {
-    await ctx.scheduler.runAfter(0, internal.admin.linkConcepts,
-      { space: who.space, ids: touched.map(({ c }: any) => `${c.brain}/${c.slug}`) });
+  /* The app stores a long source in parts and asks for linking once, at the
+     end, for everything it wrote. A single store links here. */
+  const written = touched.map(({ c }: any) => `${c.brain}/${c.slug}`);
+  if (written.length && ctx.scheduler && !b.linkLater) {
+    await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: who.space, ids: written });
   }
 
-  return { sid, brains: targets, positions: touched.length, counted, missed,
+  return { sid, brains: targets, positions: touched.length, counted, missed, written,
     counts: { new: (full.new ?? []).length, echo: (full.echo ?? []).length } };
 }
 

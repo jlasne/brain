@@ -11,7 +11,7 @@
 
 import { ask, SPACE_NAME } from "./lib";
 import type { Who, Space } from "./lib";
-import { dossierFor, keywords } from "./words";
+import { planDossier, writeDossier, keywords, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
 
 /* A bullet names its concept, then says it in one or two lines. */
@@ -100,17 +100,34 @@ function bulletOf(c: any): Bullet {
 export const bulletText = (b: Bullet | string) =>
   typeof b === "string" ? b : b.k && b.say ? `${b.k}: ${b.say}` : b.k || b.say;
 
-/** The fullest first: most evidence, then most recently moved. */
+/** The fullest first: most evidence, then most recently moved. A card carries
+    the count, a whole concept the list. */
+const evOf = (c: any) => c.ev ?? (c.evidence ?? []).length;
 const rank = (a: any, b: any) =>
-  (b.evidence ?? []).length - (a.evidence ?? []).length ||
-  String(b.updated ?? "").localeCompare(String(a.updated ?? ""));
+  evOf(b) - evOf(a) || String(b.updated ?? "").localeCompare(String(a.updated ?? ""));
+
+/** Which concepts a page shows, brain by brain: the same choice everywhere. */
+function layout(brains: any[], concepts: any[]) {
+  const conceptsOf = (slug: string) => concepts.filter((c: any) => c.brain === slug).sort(rank);
+  const one = brains.length === 1;
+  /* Empty brains leave before the cut, and the fullest lead, so six sections
+     are six brains that hold something. */
+  const holding = one ? brains : brains.filter(b => conceptsOf(b.slug).length)
+    .sort((x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length);
+  return holding.slice(0, one ? 1 : MAX_BRAINS).map(b => ({
+    b, shown: conceptsOf(b.slug).slice(0, one ? ONE_BRAIN : PER_BRAIN) }));
+}
+
+/** The ids a page will show, so a caller reads just those whole. */
+export const pageIds = (brains: any[], concepts: any[]) =>
+  layout(brains, concepts).flatMap(x => x.shown.map(idOf));
 
 /**
  * A page from what is stored. No model call, so it costs nothing and never
  * invents a line the brains do not hold.
  */
 export function assemble(
-  space: Space, brains: any[], concepts: any[], sources: any[], pick: string,
+  space: Space, brains: any[], concepts: any[], sources: any[], pick: string, full?: Map<string, any>,
 ): Pager {
   const today = new Date().toISOString().slice(0, 10);
   const conceptsOf = (slug: string) => concepts.filter((c: any) => c.brain === slug).sort(rank);
@@ -123,13 +140,9 @@ export function assemble(
   const read = sourceCount(slugs);
   const ideas = brains.reduce((n, b) => n + conceptsOf(b.slug).length, 0);
 
-  /* Empty brains leave before the cut, and the fullest lead, so six sections
-     are six brains that hold something. */
-  const holding = one ? brains : brains.filter(b => conceptsOf(b.slug).length)
-    .sort((x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length);
-  const sections = holding.slice(0, one ? 1 : MAX_BRAINS).map(b => ({
+  const sections = layout(brains, concepts).map(({ b, shown }) => ({
     head: one ? "" : b.name,
-    bullets: conceptsOf(b.slug).slice(0, one ? ONE_BRAIN : PER_BRAIN).map(bulletOf),
+    bullets: shown.map((c: any) => bulletOf(full?.get(idOf(c)) ?? c)),
   })).filter(s => s.bullets.length);
 
   const title = one ? brains[0].name
@@ -175,7 +188,7 @@ WORDS
 /** A page from a question. One model call, and the bullets come back parsed. */
 export async function fromQuestion(
   space: Space, brains: any[], concepts: any[], sources: any[],
-  q: string, key?: string, model?: string,
+  q: string, key?: string, model?: string, load?: (ids: string[]) => Promise<any[]>,
 ): Promise<Pager> {
   const today = new Date().toISOString().slice(0, 10);
   const slugs = brains.map(b => b.slug);
@@ -186,7 +199,9 @@ export async function fromQuestion(
      brain reads what bears on it rather than all of it. */
   const t0 = Date.now();
   const route = await routeQuestion(brains, concepts, q, undefined, key, model);
-  const found = dossierFor(brains, concepts, q, undefined, route);
+  const plan = planDossier(brains, concepts, q, undefined, route);
+  const whole = load ? await load(plan.lead.slice(0, OPEN_READ).map(idOf)) : concepts;
+  const found = writeDossier(brains, plan, new Map(whole.map((c: any) => [idOf(c), c])));
   const held = concepts.filter((c: any) => slugs.includes(c.brain)).length;
   const { text } = await ask([
     { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You always answer in English." },

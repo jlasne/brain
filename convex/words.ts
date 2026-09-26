@@ -53,7 +53,7 @@ function bagOf(c: any) {
   const set = (t: string) => new Set(keywords(t).map(stem));
   b = {
     title: set(String(c.title ?? "")),
-    all: set([c.title, c.summaryLine, c.position, (c.data ?? []).join(" "),
+    all: set([c.title, c.summaryLine, c.position ?? c.lead, (c.data ?? []).join(" "),
       (c.evidence ?? []).map((e: any) => e?.claim ?? "").join(" ")].join(" ")),
   };
   bags.set(c, b);
@@ -109,6 +109,17 @@ export const ROW_MAX = 8000;
  */
 export function dossierFor(pool: any[], concepts: any[], q: string, history?: any,
                            opts: { picked?: string[]; terms?: string[]; routed?: boolean } = {}) {
+  return writeDossier(pool, planDossier(pool, concepts, q, history, opts),
+    new Map(concepts.map((c: any) => [idOf(c), c])));
+}
+
+/**
+ * Which concepts a question reads, in order, from cards alone: the slim copy
+ * of each concept is enough to rank them. Only the ones this puts first are
+ * then read whole, by writeDossier.
+ */
+export function planDossier(pool: any[], concepts: any[], q: string, history?: any,
+                            opts: { picked?: string[]; terms?: string[]; routed?: boolean } = {}) {
   const last = (Array.isArray(history) ? history : []).slice(-1)[0];
   const words = keywords(q);
   const echo = last ? keywords(String(last.q ?? "")).filter(w => !words.includes(w)) : [];
@@ -139,7 +150,16 @@ export function dossierFor(pool: any[], concepts: any[], q: string, history?: an
      they link to, then the rest of the matches. */
   const lead0 = [...seeds, ...linked, ...titleHits];
   const lead = [...new Set(lead0.length || judgedEmpty ? lead0 : ranked.map(r => r.c))];
+  return { lead, ranked, inPool, hits, picked, linked };
+}
 
+/* How many of the leading concepts a caller reads whole: the 30 that can
+   open, with room for long ones passed over. */
+export const OPEN_READ = 60;
+
+/** The dossier itself, from the plan and the leading concepts read whole. */
+export function writeDossier(pool: any[], plan: ReturnType<typeof planDossier>, full: Map<string, any>) {
+  const { lead, ranked, inPool, hits, picked, linked } = plan;
   const brainOf = (c: any) => pool.find((x: any) => x.slug === c.brain);
   const row = (c: any) => {
     const br = brainOf(c);
@@ -152,19 +172,22 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
 
   const opened: any[] = [];
   let used = 0;
-  for (const c of lead) {
+  for (const card of lead) {
     if (opened.length >= FULL_MAX) break;
+    const c = full.get(idOf(card));
+    if (!c) continue;
     const r = row(c);
     /* One long concept is passed over, not the end of the list: a smaller
        pick after it still opens. */
     if (used + Math.min(r.length, ROW_MAX) > FULL_CHARS && opened.length) continue;
     opened.push(c); used += Math.min(r.length, ROW_MAX);
   }
+  const openedIds = new Set(opened.map(idOf));
   const named: string[] = [];
   let usedT = 0;
   for (const { c } of ranked) {
     if (named.length >= TITLE_MAX) break;
-    if (opened.includes(c)) continue;
+    if (openedIds.has(idOf(c))) continue;
     const line = `- ${c.title} (${brainOf(c)?.name ?? c.brain}): ${c.summaryLine || "no summary"}`;
     if (usedT + line.length > TITLE_CHARS) break;
     named.push(line); usedT += line.length;
@@ -175,7 +198,7 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
     (named.length ? `\n\nALSO HELD, not opened here:\n${named.join("\n")}` +
       (left > 0 ? `\n...and ${left} more.` : "") : "");
   return { dossier, opened, named: named.length, left, matched: hits.length,
-           picked: picked.length, linked: linked.filter(c => opened.includes(c)).length };
+           picked: picked.length, linked: linked.filter((c: any) => openedIds.has(idOf(c))).length };
 }
 
 /* ---------- links between concepts ---------- */
@@ -267,12 +290,12 @@ export function indexFor(pool: any[], concepts: any[], q: string) {
  * Returns, per concept id, up to `per` candidates, best first. A model then
  * keeps the real ones.
  */
-export function linkCandidates(concepts: any[], sources: any[] = [], per = 6, floor = 0.12) {
+export function linkCandidates(concepts: any[], sources: any[] = [], per = 6, floor = 0.12, only?: Set<string>) {
   const N = concepts.length;
   const out = new Map<string, { id: string; score: number }[]>();
   if (N < 2) return out;
 
-  const terms = (c: any) => (norm([c.title, c.summaryLine, c.position, (c.data ?? []).join(" ")].join(" "))
+  const terms = (c: any) => (norm([c.title, c.summaryLine, c.position ?? c.lead, (c.data ?? []).join(" ")].join(" "))
     .match(/[a-z0-9]{4,}/g) ?? []).filter(w => !STOP.has(w));
   const docs = concepts.map(terms);
 
@@ -301,12 +324,12 @@ export function linkCandidates(concepts: any[], sources: any[] = [], per = 6, fl
 
   /* A source that produced few concepts binds them tightly. */
   const bySource = new Map<string, number[]>();
-  concepts.forEach((c, j) => { for (const s of c.sources ?? []) (bySource.get(s) ?? bySource.set(s, []).get(s)!).push(j); });
+  concepts.forEach((c, j) => { for (const s of c.sources ?? c.srcIds ?? []) (bySource.get(s) ?? bySource.set(s, []).get(s)!).push(j); });
 
   /* Titles indexed by their first word, so a concept's text is only searched
      for the titles that could possibly be in it. */
   const titles = concepts.map(c => norm(c.title));
-  const text = concepts.map(c => norm([c.summaryLine, c.position, (c.data ?? []).join(" ")].join(" ")));
+  const text = concepts.map(c => norm([c.summaryLine, c.position ?? c.lead, (c.data ?? []).join(" ")].join(" ")));
   const byFirst = new Map<string, number[]>();
   titles.forEach((t, j) => {
     /* Specific enough to mean it: two words, or one long one. */
@@ -316,6 +339,9 @@ export function linkCandidates(concepts: any[], sources: any[] = [], per = 6, fl
   });
 
   for (let i = 0; i < N; i++) {
+    /* A drop links what it wrote: the index covers every concept, the scores
+       are worked out only for the ones asked about. */
+    if (only && !only.has(idOf(concepts[i]))) continue;
     const score = new Map<number, number>();
     const add = (j: number, x: number) => { if (j !== i) score.set(j, (score.get(j) ?? 0) + x); };
     for (const [w, x] of vecs[i]) for (const j of post.get(w)!) add(j, x * vecs[j].get(w)!);
@@ -323,7 +349,7 @@ export function linkCandidates(concepts: any[], sources: any[] = [], per = 6, fl
     for (const w of new Set(text[i].split(/[^a-z0-9]+/))) {
       for (const j of byFirst.get(w) ?? []) if (text[i].includes(titles[j])) add(j, 0.5);
     }
-    for (const s of concepts[i].sources ?? []) {
+    for (const s of concepts[i].sources ?? concepts[i].srcIds ?? []) {
       const held = bySource.get(s) ?? [];
       for (const j of held) add(j, 0.2 / Math.log(2 + held.length));
     }
@@ -419,4 +445,22 @@ export function unionCap<T>(first: T[], second: T[], cap: number, key: (x: T) =>
     if (out.length >= cap) break;
   }
   return out;
+}
+
+/* ---------- the slim copy of a concept ---------- */
+
+/* The opening of a position a card keeps. */
+export const LEAD_CHARS = 300;
+
+/** What a card holds for a concept: enough to rank, list and link it. */
+export function cardOf(c: any) {
+  return {
+    brain: String(c.brain ?? ""), slug: String(c.slug ?? ""), n: Number(c.n ?? 0),
+    title: String(c.title ?? ""), summaryLine: String(c.summaryLine ?? ""),
+    lead: String(c.position ?? "").slice(0, LEAD_CHARS),
+    ev: (c.evidence ?? []).length, src: (c.sources ?? []).length,
+    srcIds: (c.sources ?? []).slice(-5).map(String),
+    related: (c.related ?? []).slice(0, 12).map(String),
+    updated: String(c.updated ?? ""),
+  };
 }

@@ -23,6 +23,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { today, sha256, randomHex, gateKey, readSpace, SPACES, ask, parseJson } from "./lib";
 import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle } from "./words";
+import { syncCard } from "./store";
 
 /** Who exists, and who owns what. Read this before and after a claim. */
 export const state = internalQuery({
@@ -161,8 +162,9 @@ export const promoteAll = internalMutation({
       if (!a.dry) {
         const count = (await ctx.db.query("concepts")
           .withIndex("by_brain", q => q.eq("brain", c.brain)).collect()).length;
-        await ctx.db.insert("concepts",
+        const id = await ctx.db.insert("concepts",
           { brain: c.brain, slug: s2, n: count + 1, title: c.title, ...doc, updated: today() });
+        await syncCard(ctx, id);
         await ctx.db.delete(c._id);
       }
       made.push({ brain: c.brain, title: c.title, sources: evidence.length });
@@ -244,16 +246,22 @@ export const moveBrain = internalMutation({
  * concepts could approach.
  */
 async function spaceOf(ctx: any, space: string) {
-  const { brains, concepts } = await ctx.runQuery(internal.store.everything, { space });
+  /* Cards, not whole concepts: about 1 KB each, so a space of 10,000 still
+     fits in one read and in the action's memory. */
+  const { brains, cards: concepts } = await ctx.runQuery(internal.store.cardsOf, { space });
   return { brains, concepts: [...concepts].sort((a: any, b: any) =>
     a.brain.localeCompare(b.brain) || (a.n ?? 0) - (b.n ?? 0)) };
 }
 
-/** The work for one space: every concept with at least one new candidate. */
-function linkWork(concepts: any[]) {
-  const cand = linkCandidates(concepts);
+/**
+ * The work for one space: every concept with at least one new candidate. With
+ * `only`, the shortlists are worked out for those concepts alone, against the
+ * whole space: a drop's linking costs what it wrote, not the size of the space.
+ */
+function linkWork(concepts: any[], only?: Set<string>) {
+  const cand = linkCandidates(concepts, [], 6, 0.12, only);
   const byId = new Map(concepts.map((c: any) => [idOf(c), c]));
-  return concepts.map((c: any) => {
+  return concepts.filter((c: any) => !only || only.has(idOf(c))).map((c: any) => {
     const have = new Set((c.related ?? []).map((r: string) => linkId(r, c.brain)));
     const fresh = (cand.get(idOf(c)) ?? []).filter(x => !have.has(x.id)).map(x => byId.get(x.id));
     return { c, cands: fresh };
@@ -289,13 +297,35 @@ export const linkStatus = internalQuery({
   args: {},
   handler: async (ctx) => {
     const brains = await ctx.db.query("brains").collect();
-    const concepts = await ctx.db.query("concepts").collect();
-    return brains.map((b: any) => {
-      const own = concepts.filter((c: any) => c.brain === b.slug);
+    return await Promise.all(brains.map(async (b: any) => {
+      const own = await ctx.db.query("cards").withIndex("by_brain", q => q.eq("brain", b.slug)).collect();
       return { brain: b.name, space: readSpace(b.space), concepts: own.length,
         linked: own.filter((c: any) => (c.related ?? []).length).length,
         links: own.reduce((n: number, c: any) => n + (c.related ?? []).length, 0) };
-    });
+    }));
+  },
+});
+
+/**
+ * Build the slim copy of every concept, 200 at a time. It starts on its own
+ * the first time the app opens after this deploy; running it by hand is safe:
+ * npx convex run admin:buildCards --prod
+ */
+export const buildCards = internalAction({
+  args: { force: v.optional(v.boolean()) },
+  handler: async (ctx, a) => {
+    if (!a.force && !(await ctx.runMutation(internal.store.claimCardBuild, {}))) return "already built, or building";
+    let cursor: string | null = null, n = 0;
+    for (;;) {
+      const r: any = await ctx.runMutation(internal.store.cardsBatch, { cursor });
+      n += r.n;
+      await ctx.runMutation(internal.store.touchCardBuild, {});
+      if (r.done) break;
+      cursor = r.cursor;
+    }
+    await ctx.runMutation(internal.store.markCardsReady, {});
+    console.log(`cards built for ${n} concepts`);
+    return `cards built for ${n} concepts`;
   },
 });
 
@@ -306,25 +336,39 @@ export const linkStatus = internalQuery({
  */
 async function linkBatch(ctx: any, space: string, after: string, only?: string[]) {
   const { brains, concepts } = await spaceOf(ctx, space);
-  const want = only ? new Set(only) : null;
+  const name = new Map(brains.map((b: any) => [b.slug, b.name]));
   /* Walked in id order from a cursor. Walking by batch number over a list
      rebuilt each step skipped concepts: one that got its links left the list,
-     and the next ones slid into places already done. */
-  const work = linkWork(concepts).filter(w => !want || want.has(idOf(w.c)))
-    .sort((x, y) => idOf(x.c).localeCompare(idOf(y.c)));
-  const name = new Map(brains.map((b: any) => [b.slug, b.name]));
-  const ahead = work.filter(w => idOf(w.c) > after);
-  const slice = ahead.slice(0, LINK_BATCH);
+     and the next ones slid into places already done. Shortlists are worked out
+     only for the concepts ahead of the cursor, a few dozen at a time, so a
+     step costs the same at the start of a space as at its end. */
+  const want = only ? new Set(only) : null;
+  const ahead = concepts.map((c: any) => idOf(c)).filter((id: string) => id > after && (!want || want.has(id))).sort();
+  const slice: any[] = [];
+  let at = 0;
+  while (slice.length < LINK_BATCH && at < ahead.length) {
+    const chunk = ahead.slice(at, at + LINK_BATCH * 2);
+    at += chunk.length;
+    for (const w of linkWork(concepts, new Set(chunk)).sort((x, y) => idOf(x.c).localeCompare(idOf(y.c)))) {
+      if (slice.length < LINK_BATCH) slice.push(w);
+    }
+  }
+  const last = slice.length ? idOf(slice[slice.length - 1].c) : null;
   return {
-    total: Math.ceil(work.length / LINK_BATCH),
-    next: ahead.length > LINK_BATCH ? idOf(slice[slice.length - 1].c) : null,
-    items: slice.map(w => ({
-      brain: w.c.brain, slug: w.c.slug, title: w.c.title, brainName: name.get(w.c.brain) ?? w.c.brain,
-      summary: w.c.summaryLine || String(w.c.position ?? "").slice(0, 200),
-      cands: w.cands.map((x: any) => ({ id: idOf(x), title: x.title, brainName: name.get(x.brain) ?? x.brain,
-        summary: x.summaryLine || String(x.position ?? "").slice(0, 140) })),
-    })),
+    total: Math.ceil(ahead.length / LINK_BATCH),
+    next: last && ahead.some((id: string) => id > last) ? last : null,
+    items: toItems(slice, name),
   };
+}
+
+/** A batch as the model reads it. */
+function toItems(slice: any[], name: Map<any, any>) {
+  return slice.map(w => ({
+    brain: w.c.brain, slug: w.c.slug, title: w.c.title, brainName: name.get(w.c.brain) ?? w.c.brain,
+    summary: w.c.summaryLine || String(w.c.position ?? w.c.lead ?? "").slice(0, 200),
+    cands: w.cands.map((x: any) => ({ id: idOf(x), title: x.title, brainName: name.get(x.brain) ?? x.brain,
+      summary: x.summaryLine || String(x.position ?? x.lead ?? "").slice(0, 140) })),
+  }));
 }
 
 const LINK_RULES = `For each concept below, keep the candidates it truly connects to.
@@ -389,8 +433,8 @@ export const linkStep = internalAction({
        again picks them up, since only unlinked candidates are sent. */
     const added = await confirmLinks(ctx, items);
     console.log(added === null
-      ? `linking ${a.space} batch ${a.batch + 1} of ${total} failed, skipped`
-      : `linking ${a.space} batch ${a.batch + 1} of ${total}: ${added} links over ${items.length} concepts`);
+      ? `linking ${a.space} batch ${a.batch + 1} failed, skipped (about ${total} left)`
+      : `linking ${a.space} batch ${a.batch + 1}: ${added} links over ${items.length} concepts (about ${total} left)`);
     await next();
   },
 });
@@ -403,12 +447,14 @@ export const linkStep = internalAction({
 export const linkConcepts = internalAction({
   args: { space: v.string(), ids: v.array(v.string()) },
   handler: async (ctx, a) => {
-    let added = 0, after = "";
-    for (let guard = 0; guard < 1000; guard++) {
-      const { items, next } = await linkBatch(ctx, a.space, after, a.ids);
-      if (items.length) added += (await confirmLinks(ctx, items)) ?? 0;
-      if (!next) break;
-      after = next;
+    /* Every concept is reached, however many. The shortlists are worked out
+       once, for what the drop wrote, and walked 30 at a time. */
+    const { brains, concepts } = await spaceOf(ctx, a.space);
+    const name = new Map(brains.map((b: any) => [b.slug, b.name]));
+    const work = linkWork(concepts, new Set(a.ids)).sort((x, y) => idOf(x.c).localeCompare(idOf(y.c)));
+    let added = 0;
+    for (let i = 0; i < work.length; i += LINK_BATCH) {
+      added += (await confirmLinks(ctx, toItems(work.slice(i, i + LINK_BATCH), name))) ?? 0;
     }
     console.log(`linked ${added} for ${a.ids.length} concepts just stored`);
   },

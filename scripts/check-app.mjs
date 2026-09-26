@@ -116,6 +116,9 @@ async function boot(path, init, arg) {
     window.fetch = async (u, opt) => {
       const s = String(u);
       if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/export")) return Response.json({ concepts: [{ brain: "content", slug: "offer", n: 1, title: "Offer first",
+        summaryLine: "Offer beats audience.", position: "An offer people buy beats a bigger audience.",
+        evidence: [{ date: "2026-01-02", author: "A", claim: "sold out twice" }], data: ["31 percent"], conflicts: [], sources: ["s-a"] }] });
       if (s.includes("/api/ask")) {
         window.__asked = JSON.parse(opt?.body || "{}");
         await new Promise(ok => setTimeout(ok, 600));
@@ -258,6 +261,13 @@ async function boot(path, init, arg) {
   await page.waitForTimeout(700);
   check("and it goes when the answer lands", await page.$(".thinking .spinner") === null);
 
+  /* ---- the export reads whole concepts only when asked ---- */
+  await page.evaluate(() => window.octopusExport());
+  await page.waitForTimeout(300);
+  const exported = await page.evaluate(() => [...document.querySelectorAll(".msg.ai .receipt")].pop()?.textContent || "");
+  check("the export reads each brain's concepts whole, on demand", /sold out twice/.test(exported) && /31 percent/.test(exported),
+    exported.slice(0, 200));
+
   /* ---- Learning: steps toward the answer, never the answer ---- */
   const levels = await page.evaluate(() => [...document.querySelectorAll("#level option")].map(o => o.value));
   check("the levels are Normal, Educational and Learning", levels.join(",") === "normal,educational,learning", levels.join(","));
@@ -314,6 +324,7 @@ for (const kind of ["study", "argument"]) {
     sessionStorage.setItem("octopus.token.v1", "test");
     const topics = Array.from({ length: 60 }, (_, i) => ({ topic: `Rule ${i + 1}`, ideas: [`Rule ${i + 1} works like this.`], data: [] }));
     window.__plans = []; window.__settles = []; window.__live = 0; window.__peak = 0; window.__failOnce = true;
+    window.__bodies = []; window.__links = [];
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}");
       if (s.includes("/api/state")) return Response.json(state);
@@ -324,7 +335,10 @@ for (const kind of ["study", "argument"]) {
         return Response.json({ plan: { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
           candidates: body.ext.topics.map(t => ({ title: t.topic, brain: "content", why: "taught" })) } });
       }
+      if (s.includes("/api/drop/link")) { window.__links.push(body.ids); return Response.json({ linking: body.ids.length }); }
       if (s.includes("/api/drop/settle")) {
+        window.__bodies.push({ topics: Array.isArray(body.ext?.topics), full: !!body.fullPlan, later: !!body.linkLater,
+          at: window.__live });
         window.__live++; window.__peak = Math.max(window.__peak, window.__live);
         await new Promise(ok => setTimeout(ok, 40));
         window.__live--;
@@ -335,6 +349,7 @@ for (const kind of ["study", "argument"]) {
         }
         window.__settles.push(body.plan.candidates.map(c => c.title));
         return Response.json({ sid: "s-long", brains: ["content"], positions: body.plan.candidates.length, counted: [],
+          written: body.plan.candidates.map(c => `content/${c.title.toLowerCase().replace(/\W+/g, "-")}`),
           counts: { new: 1, echo: 0 } });
       }
       return Response.json({});
@@ -367,6 +382,14 @@ for (const kind of ["study", "argument"]) {
   check("and repeats no batch already stored", done.unique === 60, `${done.unique} unique of ${done.total}`);
   check("the receipt counts every position", /Rewritten: 60 positions/.test(done.receipt), done.receipt.slice(0, 120));
   check("nothing threw across the batches", !bad.length, bad.join(" | "));
+  const sent = await page.evaluate(() => ({ bodies: window.__bodies, links: window.__links }));
+  const withText = sent.bodies.filter(x => x.topics);
+  check("the source's text travels with the first part only", withText.length === 1 && sent.bodies[0].topics && sent.bodies[0].full,
+    JSON.stringify(sent.bodies.map(x => +x.topics).join("")));
+  check("the first part runs alone", sent.bodies[0].at === 0 && sent.bodies[1]?.at === 0, JSON.stringify(sent.bodies.slice(0, 3)));
+  check("every part leaves linking for the end", sent.bodies.every(x => x.later));
+  check("linking is asked for once, with all 60 concepts", sent.links.length === 1 && new Set(sent.links[0]).size === 60,
+    JSON.stringify(sent.links.map(l => l.length)));
   await page.close();
 }
 

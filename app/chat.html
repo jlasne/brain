@@ -2492,38 +2492,65 @@ async function storeAll(pc, progress){
   for (let i = 0; i < units.length; i += STORE_BATCH) batches.push(units.slice(i, i + STORE_BATCH));
   if (!batches.length) batches.push([]);
   pc.stored = pc.stored || new Set();
+  pc.written = pc.written || new Set();
   const earlier = [...pc.stored];
+
+  /* The source's text travels once. The first part carries it and the whole
+     plan, and the server keeps both with the source's note; the other parts
+     send their slice and the server reads the text back from the note. */
+  const slim = { title: pc.ext.title, author: pc.ext.author, date: pc.ext.date, kind: pc.ext.kind };
+  const body = (i, whole) => {
+    const part = batches[i];
+    return {
+      sid: pc.sid, link: pc.link, key: S.key, linkLater: true,
+      ext: whole ? pc.ext : slim,
+      plan: { brains: plan.brains, conflicts: plan.conflicts, new: [], echo: [],
+              matched: part.filter(u => u.matched).map(u => u.matched),
+              candidates: part.filter(u => u.candidate).map(u => u.candidate) },
+      ...(whole ? { fullPlan: plan } : {}),
+      choices: pc.choices, promote: pc.promote,
+    };
+  };
 
   const results = [];
   let next = 0, done = pc.stored.size, failed = null;
+  const one = async (i, whole) => {
+    const r = await api("/api/drop/settle", body(i, whole));
+    results.push(r); pc.stored.add(i);
+    for (const id of r.written || []) pc.written.add(id);
+    if (whole) pc.noted = true;
+    progress(++done, batches.length);
+  };
+  /* The first part alone, so the note exists before any part reads it. */
+  if (!pc.noted){
+    const first = batches.findIndex((_, i) => !pc.stored.has(i));
+    if (first >= 0){
+      try { await one(first, true); }
+      catch (e) { failed = e; }
+    }
+  }
   const worker = async () => {
     while (next < batches.length && !failed){
       const i = next++;
       if (pc.stored.has(i)) continue;
-      const part = batches[i];
-      try {
-        const r = await api("/api/drop/settle", {
-          sid: pc.sid, link: pc.link, ext: pc.ext, key: S.key,
-          plan: { brains: plan.brains, conflicts: plan.conflicts, new: [], echo: [],
-                  matched: part.filter(u => u.matched).map(u => u.matched),
-                  candidates: part.filter(u => u.candidate).map(u => u.candidate) },
-          fullPlan: plan, choices: pc.choices, promote: pc.promote });
-        results.push(r); pc.stored.add(i);
-        progress(++done, batches.length);
-      } catch (e) { failed = failed || e; }
+      try { await one(i, !pc.noted); }
+      catch (e) { failed = failed || e; }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(STORE_PARALLEL, batches.length) }, worker));
+  if (!failed) await Promise.all(Array.from({ length: Math.min(STORE_PARALLEL, batches.length) }, worker));
   if (failed){
     const err = new Error(`${pc.stored.size} of ${batches.length} parts are stored. ${failed.message} ` +
       `Press Store it again to finish: the stored parts are not repeated.`);
     err.partial = true; throw err;
   }
+  /* Linking runs once, in the background, over everything this drop wrote. */
+  try { await api("/api/drop/link", { ids: [...pc.written] }); } catch (_) {}
   const last = results[results.length - 1] || {};
   /* What the server wrote, not what the plan hoped for. A resumed store counts
      the parts that landed earlier from the plan, since their answers are gone. */
   return {
-    sid: last.sid || pc.sid, brains: last.brains || plan.brains, counts: last.counts,
+    sid: last.sid || pc.sid, brains: last.brains || plan.brains,
+    counts: { new: (plan.new || []).length, echo: (plan.echo || []).length },
     positions: results.reduce((n, r) => n + (r.positions || 0), 0) +
       earlier.reduce((n, i) => n + (batches[i] || []).length, 0),
     counted: results.flatMap(r => r.counted || []),
@@ -2730,15 +2757,22 @@ Open conflicts: <span class="v">${esc(open.join(", ")||"none")}</span>`;
 }
 
 /* ============ export ============ */
-function exportAll(){
+async function exportAll(){
+  /* The app holds names and summary lines. The whole concepts are read here,
+     brain by brain, only when an export is asked for. */
+  const whole = {};
+  for (const b of S.brains){
+    try { whole[b.slug] = ((await api("/api/export", { brain: b.slug })).concepts || []).sort((x,y)=>(x.n||0)-(y.n||0)); }
+    catch (_) { whole[b.slug] = conceptsOf(b.slug); }
+  }
   const out = ["# MAP\n\n| Brain | Type | Concepts | Scope |\n|---|---|---|---|"];
   for (const b of S.brains) out.push(`| brain-${b.type}-${b.slug} | ${b.type} | ${conceptsOf(b.slug).length} | ${b.scope} |`);
   out.push("\n# SOURCES\n\n| Id | Date | Author | Link | Brains |\n|---|---|---|---|---|");
   for (const s of S.sources) out.push(`| ${s.sid} | ${s.date||""} | ${s.author||""} | ${s.link||""} | ${(s.brains||[]).join(", ")} |`);
   for (const b of S.brains){
     out.push(`\n# brain-${b.type}-${b.slug}/SUMMARY.md\n\n**Scope:** ${b.scope}\n`);
-    for (const c of conceptsOf(b.slug)) out.push(`- ${c.title}: ${c.summaryLine||c.position||"no position yet"}. \`${pad2(c.n||1)}-${c.slug||conceptSlug(c.title)}.md\``);
-    for (const c of conceptsOf(b.slug)){
+    for (const c of whole[b.slug]) out.push(`- ${c.title}: ${c.summaryLine||c.position||"no position yet"}. \`${pad2(c.n||1)}-${c.slug||conceptSlug(c.title)}.md\``);
+    for (const c of whole[b.slug]){
       out.push(`\n## brain-${b.type}-${b.slug}/${pad2(c.n||1)}-${c.slug||conceptSlug(c.title)}.md\n`);
       out.push(`### Position\n\n${c.position||"none yet"}\n`);
       out.push(`### Evidence\n\n${(c.evidence||[]).map(e=>`- ${e.date||"?"}, ${e.author||"?"}: ${e.claim||""}`).join("\n")||"- none"}\n`);

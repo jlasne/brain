@@ -20,7 +20,7 @@ const dir = mkdtempSync(join(tmpdir(), "octo-ask-"));
 copyFileSync(join(ROOT, "convex", "words.ts"), join(dir, "words.ts"));
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { dossierFor, indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, keywords, scoreConcept, mergeEvidence, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { dossierFor, indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, keywords, scoreConcept, mergeEvidence, cardOf, planDossier, writeDossier, idOf, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -247,6 +247,21 @@ const tokens = s => Math.round(s.length / 4);
   const ev = mergeEvidence([{ date: "2026-03-01", claim: "b", source: "s2" }, { date: "2026-01-01", claim: "a", source: "s1" }],
                            [{ date: "2026-01-01", claim: "a", source: "s1" }, { date: "2026-02-01", claim: "c", source: "s3" }]);
   check("merged evidence keeps each entry once, newest first", ev.map(e => e.claim).join("") === "bca", ev.map(e => e.claim).join(""));
+}
+
+{
+  /* The app ranks on slim copies and reads only the leaders whole. */
+  const cards = concepts.map(cardOf);
+  const plan = planDossier(brains, cards, "how does straight line depreciation work?");
+  const lead = plan.lead.slice(0, 60).map(idOf);
+  const whole = new Map(concepts.filter(c => lead.includes(idOf(c))).map(c => [idOf(c), c]));
+  const r = writeDossier(brains, plan, whole);
+  check("ranked on cards, the answer still opens first", r.opened[0]?.slug === "depreciation", r.opened[0]?.slug);
+  check("and it opens whole, with its evidence", /cost minus residual/.test(r.dossier));
+  check("only the leaders are read whole", whole.size <= 60, String(whole.size));
+  const cardBytes = JSON.stringify(cards).length / cards.length, fullBytes = JSON.stringify(concepts).length / concepts.length;
+  check("a card is a fraction of its concept", cardBytes < fullBytes / 2, `${Math.round(cardBytes)} vs ${Math.round(fullBytes)} bytes`);
+  console.log(`       a card is ${Math.round(cardBytes)} bytes, its concept ${Math.round(fullBytes)}`);
 }
 
 console.log(failures ? `\n${failures} failed` : "\nthe question finds its answer at any size");

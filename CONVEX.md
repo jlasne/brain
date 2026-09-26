@@ -43,6 +43,7 @@ fill in the rest, in the background, both spaces:
 npx convex run admin:linkPreview --prod   # what it would propose, free
 npx convex run admin:linkAll --prod       # do it: about $0.005 per 1000 concepts
 npx convex run admin:linkStatus --prod    # how many carry links so far
+npx convex run admin:buildCards --prod    # the slim copy of every concept; starts on its own when the app opens
 ```
 
 PowerShell strips the double quotes inside an argument, which leaves
@@ -126,12 +127,14 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/login` | A name and a password. Opens or finds a member account | No, it is the door |
 | `/api/guest` | A model key alone. Opens a session that asks and never feeds | No, it is the door |
 | `/api/account/key` | Remembers a member's key, sealed, or forgets it | Yes |
-| `/api/state` | Brains, concepts, sources | Yes |
+| `/api/state` | Brains, concept names and summary lines, sources | Yes |
+| `/api/export` | One brain's concepts whole, for the markdown export | Yes |
 | `/api/brain` | Creates one | Yes |
 | `/api/drop/check` | The duplicate check, an index lookup. No model call, so the test button is free | Yes |
 | `/api/drop/read` | One extraction pass over one chunk | Yes |
 | `/api/drop/plan` | Summaries in, the card out | Yes |
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
+| `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
 | `/api/ask` | The answer | Yes |
 | `/api/onepager` | A brain, a group or a question as bullets. Sends it too, when given an address | Yes |
 | `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |

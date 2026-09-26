@@ -2,7 +2,7 @@
 
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap } from "./words";
+import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap, cardOf } from "./words";
 import { sha256, randomHex, today, slug, gateKey, readSpace, HOME,
          MENTIONS, SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS } from "./lib";
 
@@ -427,6 +427,7 @@ export const renameBrain = internalMutation({
     if (to !== a.slug) {
       for (const c of await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.slug)).collect()) {
         await ctx.db.patch(c._id, { brain: to }); moved.concepts++;
+        await syncCard(ctx, c._id);
       }
       for (const s2 of await ctx.db.query("sources").collect()) {
         if (!s2.brains.includes(a.slug)) continue;
@@ -445,6 +446,7 @@ export const renameBrain = internalMutation({
         for (const c of await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", slugNow)).collect()) {
           if (!(c.related ?? []).some((r: string) => r.startsWith(a.slug + "/"))) continue;
           await ctx.db.patch(c._id, { related: c.related.map((r: string) => r.startsWith(a.slug + "/") ? to + r.slice(a.slug.length) : r) });
+          await syncCard(ctx, c._id);
         }
       }
     }
@@ -462,10 +464,14 @@ async function byTitle(ctx: any, table: "concepts" | "candidates", brain: string
   const id = conceptSlug(title), old = legacySlug(title);
   const hit = await ctx.db.query(table)
     .withIndex("by_brain_slug", (q: any) => q.eq("brain", brain).eq("slug", id)).unique();
-  if (hit || old === id) return hit;
-  const was = await ctx.db.query(table)
+  if (hit) return hit;
+  const was = old === id ? null : await ctx.db.query(table)
     .withIndex("by_brain_slug", (q: any) => q.eq("brain", brain).eq("slug", old)).unique();
-  return was && sameTitle(was.title, title) ? was : null;
+  if (was && sameTitle(was.title, title)) return was;
+  /* A concept whose id was set another way is still found by its exact title. */
+  if (table !== "concepts") return null;
+  const card = await ctx.db.query("cards").withIndex("by_brain_title", (q: any) => q.eq("brain", brain).eq("title", title)).first();
+  return card ? await ctx.db.get(card.cid) : null;
 }
 
 export const upsertConcept = internalMutation({
@@ -492,16 +498,19 @@ export const upsertConcept = internalMutation({
         ...(d.conflicts ? { conflicts: unionCap(d.conflicts, seen.conflicts ?? [], 12) } : {}),
         updated: today(),
       });
+      await syncCard(ctx, seen._id);
       return seen._id;
     }
     /* The next number follows the newest concept, one row read, where counting
        read the whole brain on every new concept. */
     const newest = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain)).order("desc").first();
-    return await ctx.db.insert("concepts", {
+    const id = await ctx.db.insert("concepts", {
       brain: a.brain, slug: s, n: (newest?.n ?? 0) + 1, title: a.title,
       position: "", summaryLine: "", evidence: [], data: [], conflicts: [], sources: [], related: [],
       ...a.doc, updated: today(),
     });
+    await syncCard(ctx, id);
+    return id;
   },
 });
 
@@ -653,7 +662,161 @@ export const addRelated = internalMutation({
     const before = [...new Set((c.related ?? []).map((r: string) => linkId(r, c.brain)))];
     const next = [...new Set([...before, ...a.ids])].filter(x => x !== self).slice(0, 12);
     const added = next.filter(x => !before.includes(x)).length;
-    if (added > 0 || before.length !== (c.related ?? []).length) await ctx.db.patch(c._id, { related: next });
+    if (added > 0 || before.length !== (c.related ?? []).length) {
+      await ctx.db.patch(c._id, { related: next });
+      await syncCard(ctx, c._id);
+    }
     return { added };
+  },
+});
+
+/* ---------------- cards: the slim copy of each concept ---------------- */
+
+/**
+ * Rewrite one concept's card from the concept as stored now. Every mutation
+ * that inserts, changes or deletes a concept calls this, so the cards never
+ * drift from what they copy.
+ */
+export async function syncCard(ctx: any, id: any) {
+  const c = await ctx.db.get(id);
+  const card = await ctx.db.query("cards").withIndex("by_cid", (q: any) => q.eq("cid", id)).unique();
+  if (!c) { if (card) await ctx.db.delete(card._id); return; }
+  const doc = cardOf(c);
+  if (card) await ctx.db.patch(card._id, doc);
+  else await ctx.db.insert("cards", { cid: id, ...doc });
+}
+
+const CARDS_READY = "cards:v1", CARDS_BUILDING = "cards:building";
+
+/**
+ * A space as the lists see it: its brains, a card per concept, its sources.
+ *
+ * Until the cards have been built once, they are made from the concepts on
+ * the fly, so nothing waits for the build and nothing reads differently.
+ */
+export const cardsOf = internalQuery({
+  args: { space: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const brains = (await ctx.db.query("brains").collect()).filter(b => readSpace(b.space) === space);
+    const mine = new Set(brains.map(b => b.slug));
+    const ready = !!(await ctx.db.query("config").withIndex("by_key", q => q.eq("key", CARDS_READY)).unique());
+    const cards = ready
+      ? (await Promise.all(brains.map(b => ctx.db.query("cards").withIndex("by_brain", q => q.eq("brain", b.slug)).collect()))).flat()
+      : (await Promise.all(brains.map(b => ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", b.slug)).collect())))
+          .flat().map(c => ({ cid: c._id, ...cardOf(c) }));
+    const sources = (await ctx.db.query("sources").collect())
+      .filter(s => (s.brains ?? []).some((x: string) => mine.has(x)));
+    return { brains, cards, sources, ready };
+  },
+});
+
+/** Concepts read whole, by brain/slug id, inside one space. At most 100. */
+export const conceptsByIds = internalQuery({
+  args: { space: v.optional(v.string()), ids: v.array(v.string()) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const ok = new Map<string, boolean>();
+    const out: any[] = [];
+    for (const id of [...new Set<string>(a.ids as string[])].slice(0, 100)) {
+      const cut = id.indexOf("/");
+      if (cut < 1) continue;
+      const brain = id.slice(0, cut), slug = id.slice(cut + 1);
+      if (!ok.has(brain)) {
+        const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", brain)).unique();
+        ok.set(brain, !!b && readSpace(b.space) === space);
+      }
+      if (!ok.get(brain)) continue;
+      const c = await ctx.db.query("concepts").withIndex("by_brain_slug", q => q.eq("brain", brain).eq("slug", slug)).unique();
+      if (c) out.push(c);
+    }
+    return out;
+  },
+});
+
+/** One brain's concepts read whole, for the export. */
+export const conceptsOfBrain = internalQuery({
+  args: { space: v.optional(v.string()), brain: v.string() },
+  handler: async (ctx, a) => {
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.brain)).unique();
+    if (!b || readSpace(b.space) !== readSpace(a.space)) return [];
+    return await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain)).collect();
+  },
+});
+
+/** One page of the card build. */
+export const cardsBatch = internalMutation({
+  args: { cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, a) => {
+    const page = await ctx.db.query("concepts").paginate({ numItems: 200, cursor: a.cursor });
+    for (const c of page.page) await syncCard(ctx, c._id);
+    return { done: page.isDone, cursor: page.continueCursor, n: page.page.length };
+  },
+});
+
+/** Whether a build should start now: not built, and nobody building it. */
+export const claimCardBuild = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    if (await ctx.db.query("config").withIndex("by_key", q => q.eq("key", CARDS_READY)).unique()) return false;
+    const mark = await ctx.db.query("config").withIndex("by_key", q => q.eq("key", CARDS_BUILDING)).unique();
+    const now = Date.now();
+    /* A build that went quiet for 15 minutes died, so another may start. */
+    if (mark && now - (mark.at ?? 0) < 15 * 60 * 1000) return false;
+    if (mark) await ctx.db.patch(mark._id, { at: now }); else await ctx.db.insert("config", { key: CARDS_BUILDING, at: now });
+    return true;
+  },
+});
+
+/** The build is done: every reader switches to the cards. */
+export const markCardsReady = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const mark = await ctx.db.query("config").withIndex("by_key", q => q.eq("key", CARDS_BUILDING)).unique();
+    if (mark) await ctx.db.delete(mark._id);
+    if (!(await ctx.db.query("config").withIndex("by_key", q => q.eq("key", CARDS_READY)).unique())) {
+      await ctx.db.insert("config", { key: CARDS_READY, setAt: today() });
+    }
+  },
+});
+
+/** Keeps a running build marked as alive. */
+export const touchCardBuild = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const mark = await ctx.db.query("config").withIndex("by_key", q => q.eq("key", CARDS_BUILDING)).unique();
+    if (mark) await ctx.db.patch(mark._id, { at: Date.now() });
+  },
+});
+
+/**
+ * What one store batch reads: the brains of the space, the concepts its plan
+ * names by id, and the concept each new title already is, if any. A batch used
+ * to read the whole space, about 4 MB at 1,000 concepts, 29 times a document.
+ */
+export const settleReads = internalQuery({
+  args: { space: v.optional(v.string()), ids: v.array(v.string()),
+          titles: v.array(v.object({ brain: v.string(), title: v.string() })) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const brains = (await ctx.db.query("brains").collect()).filter(b => readSpace(b.space) === space);
+    const mine = new Set(brains.map(b => b.slug));
+    const byId: Record<string, any> = {};
+    for (const id of [...new Set<string>(a.ids as string[])].slice(0, 400)) {
+      const cut = id.indexOf("/");
+      if (cut < 1 || !mine.has(id.slice(0, cut))) continue;
+      const c = await ctx.db.query("concepts")
+        .withIndex("by_brain_slug", q => q.eq("brain", id.slice(0, cut)).eq("slug", id.slice(cut + 1))).unique();
+      if (c) byId[id] = c;
+    }
+    const byTitleOut: any[] = [];
+    for (const t of (a.titles as any[]).slice(0, 200)) {
+      byTitleOut.push(mine.has(t.brain) ? await byTitle(ctx, "concepts", t.brain, t.title) : null);
+    }
+    const empty: Record<string, boolean> = {};
+    for (const b of brains) {
+      empty[b.slug] = !(await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", b.slug)).first());
+    }
+    return { brains, byId, byTitle: byTitleOut, empty };
   },
 });

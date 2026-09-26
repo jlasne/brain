@@ -19,7 +19,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-link-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["admin.ts", "lib.ts", "words.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["admin.ts", "lib.ts", "words.ts", "store.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/server.ts"),
   "export const internalQuery = (x: any) => x; export const internalMutation = (x: any) => x; export const internalAction = (x: any) => x;\n");
 writeFileSync(join(dir, "_generated/api.ts"),
@@ -28,6 +28,9 @@ await esbuild.build({ entryPoints: [join(dir, "admin.ts")], bundle: true, format
   outfile: join(dir, "bundle.mjs"), logLevel: "silent", nodePaths: [join(ROOT, "node_modules")] });
 process.env.OPENROUTER_API_KEY = "test";
 const admin = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm", platform: "node",
+  outfile: join(dir, "words.mjs"), logLevel: "silent" });
+const { cardOf } = await import(pathToFileURL(join(dir, "words.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -58,10 +61,11 @@ const DB = {
 };
 const ctx = {
   runQuery: async (fn, a) => {
-    if (fn === "store.everything") {
+    /* Linking reads the slim copies, made the way the store makes them. */
+    if (fn === "store.cardsOf") {
       const brains = DB.brains.filter(b => (b.space ?? "octopus") === a.space);
       const mine = new Set(brains.map(b => b.slug));
-      return { brains, concepts: DB.concepts.filter(c => mine.has(c.brain)), sources: [] };
+      return { brains, cards: DB.concepts.filter(c => mine.has(c.brain)).map(cardOf), sources: [], ready: true };
     }
     throw new Error("unexpected query " + fn);
   },
@@ -181,6 +185,27 @@ const talk = () => { console.log = quiet; };
   const big = DB.concepts.filter(c => c.brain === "big");
   const bare = big.filter(c => !c.related.length);
   check("a run over 120 concepts reaches every one", bare.length === 0, `${bare.length} never linked: ${bare.slice(0, 5).map(c => c.slug).join(",")}`);
+  DB.concepts.splice(0, DB.concepts.length, ...saved);
+  DB.brains.splice(0, DB.brains.length, ...brains);
+}
+
+/* ---- a drop's linking reaches everything it wrote, whatever the number ---- */
+{
+  const saved = DB.concepts.slice(), brains = DB.brains.slice();
+  DB.brains.push({ slug: "huge", name: "Huge", type: "subject", scope: "many", space: undefined });
+  const ids = [];
+  for (let i = 0; i < 700; i++) {
+    const w = `zz${i.toString(36)}term`;
+    DB.concepts.push(K("huge", `a${i}`, `Alpha ${w}`, `About ${w}.`, `${w} explains the alpha case in full.`, i + 1));
+    DB.concepts.push(K("huge", `b${i}`, `Beta ${w}`, `More on ${w}.`, `${w} explains the beta case in full.`, 1000 + i));
+    ids.push(`huge/a${i}`, `huge/b${i}`);
+  }
+  const t0 = performance.now();
+  hush(); await admin.linkConcepts.handler(ctx, { space: "octopus", ids }); talk();
+  const ms = performance.now() - t0;
+  const bare = DB.concepts.filter(c => c.brain === "huge" && !c.related.length);
+  check("a drop of 1,400 concepts links every one", bare.length === 0, `${bare.length} never linked`);
+  console.log(`       1,400 concepts linked in ${Math.round(ms)} ms of local work`);
   DB.concepts.splice(0, DB.concepts.length, ...saved);
   DB.brains.splice(0, DB.brains.length, ...brains);
 }

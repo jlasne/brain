@@ -31,6 +31,9 @@ const { handleRpc, MENTIONS } = await import(pathToFileURL(join(dir, "bundle.mjs
 await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle-drop.mjs"), logLevel: "silent" });
 const { dropSettle, fetchPage, planContext } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
+await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm",
+  platform: "node", outfile: join(dir, "bundle-words.mjs"), logLevel: "silent" });
+const { findByTitle, cardOf } = await import(pathToFileURL(join(dir, "bundle-words.mjs")).href);
 
 const DB = {
   brains: [
@@ -61,6 +64,27 @@ const ctx = {
     if (fn === "store.everything") {
       DB.spacesRead.push(a?.space ?? null);
       return { brains: DB.brains, concepts: DB.concepts, sources: DB.sources };
+    }
+    /* The slim copies, made from the concepts the way the store makes them. */
+    if (fn === "store.cardsOf") {
+      DB.spacesRead.push(a?.space ?? null);
+      return { brains: DB.brains, cards: DB.concepts.map(cardOf), sources: DB.sources, ready: true };
+    }
+    if (fn === "store.conceptsByIds") {
+      DB.spacesRead.push(a?.space ?? null);
+      return a.ids.map(id => DB.concepts.find(c => `${c.brain}/${c.slug}` === id)).filter(Boolean);
+    }
+    if (fn === "store.settleReads") {
+      DB.spacesRead.push(a?.space ?? null);
+      const byId = {};
+      for (const id of a.ids) { const c = DB.concepts.find(x => `${x.brain}/${x.slug}` === id); if (c) byId[id] = c; }
+      return { brains: DB.brains, byId,
+        byTitle: a.titles.map(t => findByTitle(DB.concepts, t.brain, t.title) ?? null),
+        empty: Object.fromEntries(DB.brains.map(b => [b.slug, !DB.concepts.some(c => c.brain === b.slug)])) };
+    }
+    if (fn === "store.noteBySid") {
+      const n = DB.writes.filter(w => w.kind === "note" && w.doc.sid === a.sid).at(-1);
+      return n ? { ...n.doc, kind: n.doc.findings?.kind } : null;
     }
     if (fn === "store.findSource") return null;
     if (fn === "store.getDraft") {

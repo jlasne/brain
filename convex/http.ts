@@ -16,8 +16,8 @@ import type { Who } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 import { dropCheck, dropRead, dropPlan, dropSettle, fetchPage } from "./drop";
 import { DOC_STYLE, DOC_BODY } from "./doc";
-import { assemble, fromQuestion, asText, mail, looksLikeMail } from "./onepager";
-import { dossierFor } from "./words";
+import { assemble, fromQuestion, asText, mail, looksLikeMail, pageIds } from "./onepager";
+import { planDossier, writeDossier, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
 
 const router = httpRouter();
@@ -326,7 +326,14 @@ route("/api/usage", async (ctx, _req, b) => {
 
 route("/api/state", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const s = await ctx.runQuery(internal.store.everything, { space: who.space });
+  const { brains, cards, sources, ready } = await ctx.runQuery(internal.store.cardsOf, { space: who.space });
+  /* The slim copies are built once, in the background, the first time the app
+     opens after they arrive. Until then the same lists come from the concepts. */
+  if (!ready && ctx.scheduler) await ctx.scheduler.runAfter(0, internal.admin.buildCards, {});
+  /* The app lists and counts concepts, so it gets their names and summary
+     lines. The whole concept travels only for the export. */
+  const s = { brains, sources, concepts: cards.map((c: any) => ({
+    brain: c.brain, slug: c.slug, n: c.n, title: c.title, summaryLine: c.summaryLine, updated: c.updated })) };
   /* Whether this account remembers a key, and the last 4 of it, so the app can
      say which one it would spend. The key itself stays sealed. */
   let hasKey = false, keyHint = "";
@@ -338,6 +345,12 @@ route("/api/state", async (ctx, _req, b) => {
            account: who.account, kind: who.kind, owner: who.kind === "owner",
            space: who.space, spaceName: SPACE_NAME[who.space],
            hasKey, keyHint };
+});
+
+/** One brain's concepts whole, for the markdown export. */
+route("/api/export", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return { concepts: await ctx.runQuery(internal.store.conceptsOfBrain, { space: who.space, brain: String(b.brain ?? "") }) };
 });
 
 route("/api/brain", async (ctx, _req, b) => {
@@ -424,12 +437,25 @@ route("/api/drop/settle", async (ctx, _req, b) => {
 });
 
 
+/**
+ * Link what a drop wrote, once, when its last part is stored. Linking each
+ * part as it landed compared the whole space again for every part.
+ */
+route("/api/drop/link", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  if (who.kind === "guest") return { error: "linking needs an account" };
+  const ids = [...new Set<string>((Array.isArray(b.ids) ? b.ids : []).map(String))]
+    .filter(x => /^[a-z0-9-]+\/[a-z0-9-]+$/.test(x)).slice(0, 5000);
+  if (ids.length) await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: who.space, ids });
+  return { linking: ids.length };
+});
+
 /* ---------- ask ---------- */
 
 route("/api/ask", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   /* Every brain in this space answers questions, whoever is asking. */
-  const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, { space: who.space });
+  const { brains, cards: concepts, sources } = await ctx.runQuery(internal.store.cardsOf, { space: who.space });
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
   if (!pool.length) return { answer: "No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
@@ -447,7 +473,11 @@ route("/api/ask", async (ctx, _req, b) => {
   const mKey = await modelKey(ctx, who, b), mName = modelName(who, b);
   const t0 = Date.now();
   const route = await routeQuestion(pool, concepts, String(b.q ?? ""), b.history, mKey, mName);
-  const pick = dossierFor(pool, concepts, String(b.q ?? ""), b.history, route);
+  /* Ranked on the slim copies; only the concepts that lead are read whole. */
+  const plan = planDossier(pool, concepts, String(b.q ?? ""), b.history, route);
+  const whole = await ctx.runQuery(internal.store.conceptsByIds,
+    { space: who.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
+  const pick = writeDossier(pool, plan, new Map(whole.map((c: any) => [idOf(c), c])));
   const dossier = pick.dossier;
   const reading = pool.filter((x: any) => pick.opened.some((c: any) => c.brain === x.slug));
   const isPerson = reading.length === 1 && reading[0].type === "person";
@@ -557,8 +587,9 @@ QUESTION: ${String(b.q ?? "")}` },
  */
 route("/api/onepager", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const { brains: all, concepts, sources } = await ctx.runQuery(internal.store.everything, { space: who.space });
+  const { brains: all, cards: concepts, sources } = await ctx.runQuery(internal.store.cardsOf, { space: who.space });
   if (!all.length) return { error: "no brain exists yet, so there is nothing to put on a page" };
+  const load = async (ids: string[]) => await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids });
 
   /* One of: a brain slug, "person", "subject", or "all". */
   const pick = String(b.pick ?? "all").trim();
@@ -581,8 +612,9 @@ route("/api/onepager", async (ctx, _req, b) => {
   const q = String(b.q ?? "").trim();
   const page = q
     ? await fromQuestion(who.space, brains, concepts, sources, q,
-                         await modelKey(ctx, who, b), modelName(who, b))
-    : assemble(who.space, brains, concepts, sources, pick);
+                         await modelKey(ctx, who, b), modelName(who, b), load)
+    : assemble(who.space, brains, concepts, sources, pick,
+               new Map((await load(pageIds(brains, concepts))).map((c: any) => [idOf(c), c])));
 
   if (!page.sections.some((s: any) => s.bullets.length)) {
     return { error: "those brains hold no positions yet, so the page would be empty" };
@@ -617,7 +649,7 @@ router.route({
   handler: httpAction(async (ctx, req) => {
     /* Octopus only. Squidgy sits behind its own passphrase and is published
        nowhere, so no unsigned route reads it. */
-    const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, { space: HOME });
+    const { brains, cards: concepts, sources } = await ctx.runQuery(internal.store.cardsOf, { space: HOME });
     return new Response(JSON.stringify({
       brains: brains.map((b: any) => ({
         slug: b.slug, name: b.name, type: b.type, scope: b.scope,
@@ -627,8 +659,8 @@ router.route({
       })),
       concepts: concepts.map((c: any) => ({
         brain: c.brain, slug: c.slug, n: c.n, title: c.title,
-        summaryLine: c.summaryLine, position: c.position,
-        sources: (c.sources ?? []).length, updated: c.updated,
+        summaryLine: c.summaryLine, position: c.lead,
+        sources: c.src, updated: c.updated,
       })),
     }), {
       headers: {

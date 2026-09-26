@@ -10,6 +10,8 @@ export default defineSchema({
     attempts: v.optional(v.number()),
     attemptWindow: v.optional(v.number()),
     setAt: v.optional(v.string()),
+    /* A time in milliseconds, for rows that mark work in progress. */
+    at: v.optional(v.number()),
   }).index("by_key", ["key"]),
 
   sessions: defineTable({
@@ -164,6 +166,35 @@ export default defineSchema({
     chars: v.number(),
     why: v.string(),
   }).index("by_at", ["at"]),
+
+  /**
+   * A slim copy of each concept: what searching, planning, linking and the
+   * app's lists need, without the evidence, the figures and the conflicts.
+   *
+   * A concept runs from 1.5 KB to 19 KB. Every question, plan and link job
+   * used to read all of them, which stopped at about 4,400 concepts a space
+   * and slowed a phone past 525. A card is about 1 KB, and a concept is read
+   * whole only when it is opened. Every write to a concept rewrites its card.
+   */
+  cards: defineTable({
+    cid: v.id("concepts"),
+    brain: v.string(),
+    slug: v.string(),
+    n: v.number(),
+    title: v.string(),
+    summaryLine: v.string(),
+    /* The opening of the position, for matching and short lists. */
+    lead: v.string(),
+    /* How many evidence entries and sources stand behind it. */
+    ev: v.number(),
+    src: v.number(),
+    /* The newest few source ids, which linking reads as a weak bond. */
+    srcIds: v.array(v.string()),
+    related: v.array(v.string()),
+    updated: v.string(),
+  }).index("by_cid", ["cid"])
+    .index("by_brain", ["brain"])
+    .index("by_brain_title", ["brain", "title"]),
 
   candidates: defineTable({
     brain: v.string(),

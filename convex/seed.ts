@@ -14,6 +14,7 @@
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import payload from "./seedData.json";
+import { syncCard } from "./store";
 
 type Payload = typeof payload;
 
@@ -34,7 +35,7 @@ export const load = internalMutation({
       const seen = await ctx.db.query("concepts")
         .withIndex("by_brain_slug", q => q.eq("brain", c.brain).eq("slug", c.slug)).unique();
       if (seen) { report.skipped.push(`concept ${c.brain}/${c.slug} exists`); continue; }
-      await ctx.db.insert("concepts", c as any);
+      await syncCard(ctx, await ctx.db.insert("concepts", c as any));
       report.concepts++;
     }
 
@@ -73,6 +74,7 @@ export const unload = internalMutation({
     if (b) { await ctx.db.delete(b._id); n++; }
     for (const c of await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain)).collect()) {
       await ctx.db.delete(c._id); n++;
+      await syncCard(ctx, c._id);
     }
     return { deleted: n };
   },

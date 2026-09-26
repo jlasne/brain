@@ -20,7 +20,7 @@
 
 import { internal } from "./_generated/api";
 import { randomHex, today, slug as slugOf, HOME, MENTIONS } from "./lib";
-import { norm, keywords } from "./words";
+import { norm, keywords, planDossier, scoreConcept, idOf } from "./words";
 export { MENTIONS };
 import { dropCheck, dropSettle, feedable, fetchPage, planContext, PLAN_RULES } from "./drop";
 
@@ -626,7 +626,10 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
    * space. Squidgy has its own passphrase and no connector, so this server never
    * reads it: a client pointed here sees the published brains and nothing else.
    */
-  const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, { space: HOME });
+  /* Slim copies for every list; a concept is read whole only when opened. */
+  const { brains, cards: concepts, sources } = await ctx.runQuery(internal.store.cardsOf, { space: HOME });
+  const whole = async (ids: string[]) => ids.length
+    ? await ctx.runQuery(internal.store.conceptsByIds, { space: HOME, ids }) : [];
 
   if (name === "ask") {
     const q = String(args?.question ?? "").trim();
@@ -644,45 +647,23 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
       return text(`No brain matches "${args.brain}". These exist: ` + brains.map((b: any) => b.slug).join(", "));
     }
 
-    /* Route by scope when no brain was named. A brain earns its place by its
-       scope line and by how much its concepts touch the question. */
-    let chosen: any[];
-    if (named) chosen = [named];
-    else {
-      chosen = brains.map((b: any) => {
-        const scope = norm(b.scope + " " + b.name);
-        const own = concepts.filter((c: any) => c.brain === b.slug);
-        const body = norm(own.map((c: any) => `${c.title} ${c.summaryLine} ${c.position}`).join(" "));
-        let score = 0;
-        for (const w of words) {
-          if (scope.includes(w)) score += 3;
-          if (body.includes(w)) score += 1;
-        }
-        return { b, score };
-      }).filter((x: any) => x.score > 0).sort((a: any, b: any) => b.score - a.score)
-        .slice(0, 3).map((x: any) => x.b);
-      /* Nothing matched a scope line, so say what exists rather than guess. */
-      if (!chosen.length) {
-        return text(`Nothing in these brains matches "${q}". Their scopes are:\n\n` +
-          brains.map((b: any) => `- ${b.name} (${b.slug}): ${b.scope}`).join("\n") +
-          `\n\nSay so plainly rather than answering from outside the brains.`);
-      }
+    /* Every brain is searched, the same way the app searches: whole words,
+       accents folded, a title hit counting three. Substring matching found
+       "rate" in "corporate" and "que" in "unique". */
+    const chosenPool = named ? [named] : brains;
+    const plan = planDossier(chosenPool, concepts, q);
+    if (!plan.hits.length && !named) {
+      return text(`Nothing in these brains matches "${q}". Their scopes are:\n\n` +
+        brains.map((b: any) => `- ${b.name} (${b.slug}): ${b.scope}`).join("\n") +
+        `\n\nSay so plainly rather than answering from outside the brains.`);
     }
-
-    /* Inside the chosen brains, rank concepts and open the top ones in full. */
-    const pool = concepts.filter((c: any) => chosen.some((b: any) => b.slug === c.brain));
-    const ranked = pool.map((c: any) => {
-      const title = norm(c.title), hay = norm([c.title, c.summaryLine, c.position,
-        (c.data ?? []).join(" "), (c.evidence ?? []).map((e: any) => e.claim).join(" ")].join(" "));
-      let score = 0;
-      for (const w of words) { if (title.includes(w)) score += 3; if (hay.includes(w)) score += 1; }
-      return { c, score };
-    }).sort((a: any, b: any) => b.score - a.score);
-
-    const deep = ranked.filter((x: any) => x.score > 0).slice(0, 8);
-    const rest = ranked.filter((x: any) => !deep.includes(x));
-    /* A question that hits no concept still gets the whole shape of the brain. */
-    const full = (deep.length ? deep : ranked.slice(0, 6)).map((x: any) => x.c);
+    /* The top 8 open in full; a question that hits nothing in a named brain
+       still gets that brain's 6 fullest. */
+    const leadIds = (plan.hits.length ? plan.lead.slice(0, 8) : plan.ranked.slice(0, 6).map((r: any) => r.c)).map(idOf);
+    const full = (await whole(leadIds)).sort((a: any, b: any) => leadIds.indexOf(idOf(a)) - leadIds.indexOf(idOf(b)));
+    const opened = new Set(full.map(idOf));
+    const rest = plan.ranked.filter((x: any) => !opened.has(idOf(x.c)));
+    const chosen = brains.filter((b: any) => full.some((c: any) => c.brain === b.slug));
 
     const nSources = new Set(sources
       .filter((s: any) => (s.brains ?? []).some((x: string) => chosen.some((b: any) => b.slug === x)))
@@ -701,7 +682,8 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
       ``,
       full.map((c: any) => conceptFull(c, brains.find((b: any) => b.slug === c.brain)?.name ?? c.brain)).join("\n\n---\n\n"),
       ...(rest.length ? [``, `ALSO HELD, not opened here:`,
-        rest.map((x: any) => `- ${x.c.title} (${x.c.brain}/${x.c.slug}): ${x.c.summaryLine || "no line"}`).join("\n"),
+        rest.slice(0, 120).map((x: any) => `- ${x.c.title} (${x.c.brain}/${x.c.slug}): ${x.c.summaryLine || "no line"}`).join("\n") +
+          (rest.length > 120 ? `\n...and ${rest.length - 120} more.` : ""),
         `Call read_concept on any of those if the question needs it.`] : []),
       ``,
       `===== HOW TO WRITE THE ANSWER =====`,
@@ -737,7 +719,7 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
     const cs = concepts.filter((c: any) => c.brain === b.slug).sort(byN);
     const sc = sources.filter((s: any) => (s.brains ?? []).includes(b.slug)).length;
     const lines = cs.map((c: any) =>
-      `- ${c.title} (${c.slug}): ${c.summaryLine || c.position || "no position yet"}`).join("\n");
+      `- ${c.title} (${c.slug}): ${c.summaryLine || c.lead || "no position yet"}`).join("\n");
     return text([
       `# ${b.name} [${b.type}]`,
       `scope: ${b.scope}`,
@@ -755,9 +737,10 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
     if (!b) return text(`No brain matches "${args?.brain ?? ""}". Call list_brains for the slugs.`);
     const w = norm(args?.concept);
     const cs = concepts.filter((c: any) => c.brain === b.slug);
-    const c = cs.find((x: any) => norm(x.slug) === w)
+    const card = cs.find((x: any) => norm(x.slug) === w)
       ?? cs.find((x: any) => norm(x.title) === w)
       ?? cs.find((x: any) => norm(x.title).includes(w) || norm(x.slug).includes(w));
+    const c = card ? (await whole([idOf(card)]))[0] : null;
     if (!c) {
       return text(`"${args?.concept ?? ""}" is not a concept in ${b.name}. It holds: ` +
         (cs.sort(byN).map((x: any) => x.slug).join(", ") || "nothing yet"));
@@ -772,18 +755,10 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
     const pool = only ? concepts.filter((c: any) => c.brain === only.slug) : concepts;
     const limit = Math.min(Math.max(Number(args?.limit) || 8, 1), 25);
 
-    const scored = pool.map((c: any) => {
-      const hay = norm([c.title, c.position, c.summaryLine, (c.data ?? []).join(" "),
-        (c.evidence ?? []).map((e: any) => e.claim).join(" ")].join(" "));
-      const title = norm(c.title);
-      /* A word in the title counts for more than the same word buried in evidence. */
-      let score = 0;
-      for (const w of words) {
-        if (title.includes(w)) score += 3;
-        if (hay.includes(w)) score += 1;
-      }
-      return { c, score };
-    }).filter((x: any) => x.score > 0).sort((a: any, b: any) => b.score - a.score).slice(0, limit);
+    /* A word in the title counts for more than the same word in the text. */
+    const terms = keywords(String(args?.query ?? ""));
+    const scored = pool.map((c: any) => ({ c, score: scoreConcept(c, terms.length ? terms : words) }))
+      .filter((x: any) => x.score > 0).sort((a: any, b: any) => b.score - a.score).slice(0, limit);
 
     if (!scored.length) {
       return text(`Nothing matches "${args?.query}". The brains may not cover it. ` +
@@ -793,7 +768,7 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
       scored.map(({ c }: any) => {
         const b = brains.find((x: any) => x.slug === c.brain);
         return `- ${c.title} in ${b?.name ?? c.brain} (read_concept brain="${c.brain}" concept="${c.slug}")\n` +
-               `  ${c.summaryLine || c.position || "no position yet"}`;
+               `  ${c.summaryLine || c.lead || "no position yet"}`;
       }).join("\n\n"));
   }
 

@@ -50,6 +50,11 @@ function makeDb() {
         return api._desc ? all.slice().reverse() : all;
       },
       async first() { return (await api.collect())[0] ?? null; },
+      async paginate({ numItems, cursor }) {
+        const all = await api.collect(), from = cursor ? Number(cursor) : 0;
+        const page = all.slice(from, from + numItems);
+        return { page, isDone: from + numItems >= all.length, continueCursor: String(from + numItems) };
+      },
       async unique() {
         const all = await api.collect();
         if (all.length > 1) throw new Error(`unique() found ${all.length} rows in ${t}`);
@@ -63,6 +68,7 @@ function makeDb() {
     T,
     db: {
       query,
+      async get(_id) { return find(_id) ?? null; },
       async insert(t, doc) { const r = { _id: `id${++id}`, ...doc }; rows(t).push(r); return r._id; },
       async patch(_id, doc) { Object.assign(find(_id), doc); },
       async delete(_id) { for (const t in T) T[t] = T[t].filter(r => r._id !== _id); },
@@ -179,6 +185,68 @@ function seed() {
   check("each space reads only its brains, concepts and sources",
     oc.brains.length === 1 && oc.concepts.length === 2 && oc.sources.length === 1 &&
     sq.brains.length === 1 && sq.concepts.length === 0 && sq.sources.length === 1);
+}
+
+/* ---- the slim copies follow every write ---- */
+{
+  const { T, ctx } = seed();
+  const cardFor = slug => (T.cards ?? []).find(c => c.slug === slug);
+  const before = await run(store.cardsOf, ctx, { space: "octopus" });
+  check("before the build, cards are made from the concepts", !before.ready && before.cards.length === 2 && before.cards[0].title === "Gold");
+  check("and never carry the evidence", before.cards.every(c => !("evidence" in c) && !("position" in c)));
+
+  /* The build, the way the background job runs it. */
+  check("a build is claimed once", (await run(store.claimCardBuild, ctx, {})) === true && (await run(store.claimCardBuild, ctx, {})) === false);
+  let cursor = null;
+  for (;;) { const r = await run(store.cardsBatch, ctx, { cursor }); if (r.done) break; cursor = r.cursor; }
+  await run(store.markCardsReady, ctx, {});
+  const after = await run(store.cardsOf, ctx, { space: "octopus" });
+  check("after the build, every concept has one card", after.ready && T.cards.length === 2 && after.cards.length === 2);
+  check("a finished build is never claimed again", (await run(store.claimCardBuild, ctx, {})) === false);
+
+  await run(store.upsertConcept, ctx, { brain: "wealth", title: "Gold", slug: "gold", doc: { summaryLine: "Gold holds its value.", position: "Gold held its value for 2,000 years." } });
+  check("a rewrite updates the card", cardFor("gold").summaryLine === "Gold holds its value." && /2,000 years/.test(cardFor("gold").lead));
+  await run(store.upsertConcept, ctx, { brain: "wealth", title: "Copper", doc: { position: "Copper tracks industry." } });
+  check("a new concept gets a card", cardFor(T.concepts.find(c => c.title === "Copper").slug)?.title === "Copper");
+  await run(store.addRelated, ctx, { brain: "wealth", slug: "silver", ids: ["wealth/copper"] });
+  check("a new link reaches the card", cardFor("silver").related.includes("wealth/copper"), JSON.stringify(cardFor("silver")?.related));
+  await run(store.renameBrain, ctx, { slug: "wealth", name: "Money", account: null, space: "octopus" });
+  check("a rename moves the cards and their links", T.cards.every(c => c.brain === "money") && cardFor("silver").related.includes("money/copper"),
+    JSON.stringify(T.cards.map(c => c.brain + ":" + c.related.join("|"))));
+  check("one card per concept, always", T.cards.length === T.concepts.length);
+
+  /* Whole concepts are read by id, inside the space only. */
+  const got = await run(store.conceptsByIds, ctx, { space: "octopus", ids: ["money/gold", "dogs/anything", "nope"] });
+  check("a concept is read whole by its id", got.length === 1 && got[0].evidence?.length >= 1);
+  const other = await run(store.conceptsByIds, ctx, { space: "squidgy", ids: ["money/gold"] });
+  check("never from the other space", other.length === 0);
+
+  /* A store batch reads what it names, and finds a title the brain holds. */
+  const r = await run(store.settleReads, ctx, { space: "octopus", ids: ["money/gold", "dogs/x"],
+    titles: [{ brain: "money", title: "Silver" }, { brain: "money", title: "Platinum" }, { brain: "dogs", title: "Gold" }] });
+  check("a store batch reads the concepts it names", !!r.byId["money/gold"] && !r.byId["dogs/x"]);
+  check("and finds a title the brain already holds", r.byTitle[0]?.slug === "silver" && r.byTitle[1] === null && r.byTitle[2] === null,
+    JSON.stringify(r.byTitle.map(x => x?.slug ?? null)));
+  check("and knows which brains are empty", r.empty.money === false, JSON.stringify(r.empty));
+}
+
+/* ---- no code writes a concept without its card ---- */
+{
+  const { readdirSync, readFileSync } = await import("node:fs");
+  const missing = [];
+  for (const f of readdirSync(join(ROOT, "convex")).filter(f => f.endsWith(".ts"))) {
+    const lines = readFileSync(join(ROOT, "convex", f), "latin1").split("\n");
+    lines.forEach((l, i) => {
+      /* An insert or a delete of a concept, or a patch inside a loop over
+         concepts, is followed within four lines by syncCard. */
+      const conceptLoop = lines.slice(Math.max(0, i - 3), i).some(x => /query\("concepts"\)/.test(x));
+      const write = /insert\("concepts"/.test(l) || (conceptLoop && /ctx\.db\.(patch|delete)\(c\._id/.test(l)) ||
+        /ctx\.db\.patch\(seen\._id/.test(l) && lines.slice(Math.max(0, i - 12), i).some(x => /"concepts"|byTitle\(ctx, "concepts"/.test(x)) ||
+        /await ctx\.db\.patch\(c\._id, \{ related: next \}\)/.test(l);
+      if (write && !lines.slice(i, i + 14).some(x => /syncCard\(/.test(x))) missing.push(`${f}:${i + 1}`);
+    });
+  }
+  check("every concept write updates its card", missing.length === 0, missing.join(", "));
 }
 
 rmSync(dir, { recursive: true, force: true });
