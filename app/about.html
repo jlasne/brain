@@ -1,0 +1,188 @@
+<title>How Octopus works</title>
+<meta name="description" content="An open source knowledge base. One brain per subject, each holding a position, the evidence under it and a date on every claim. MIT licensed, run it yourself.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="icon" href="/brand/logo-mark.png">
+<link rel="stylesheet" href="/octopus.css">
+
+<script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
+
+<style>
+  main > .wrap{ max-width:940px; }
+
+  .hero-wrap{
+    display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);
+    gap:clamp(26px,4.4vw,56px); align-items:center;
+  }
+  .eyebrow{
+    margin-bottom:18px; font:500 11px/1.7 var(--mono); letter-spacing:.11em;
+    text-transform:uppercase; color:var(--accent);
+  }
+  h1.hero{
+    font-size:clamp(30px,4.2vw,46px); line-height:1.05; letter-spacing:-.034em; font-weight:600;
+    max-width:17ch;
+  }
+  h1.hero em{ font-style:italic; font-weight:600; color:var(--accent); }
+  .hero-main .one{
+    margin-top:16px; max-width:40ch;
+    font-size:clamp(15px,1.8vw,17px); line-height:1.58; color:var(--ink-2);
+  }
+  .tldr{ border-left:2px solid var(--accent-line); padding-left:clamp(16px,2vw,22px); }
+  .tldr p{ margin:0; font-size:14px; line-height:1.58; color:var(--ink-3); max-width:42ch; }
+  .tldr p + p{ margin-top:11px; }
+  .tldr p b{ color:var(--ink-2); font-weight:500; }
+
+  /* A command you can copy, and nothing around it. */
+  .cmd{
+    margin-top:12px; border:1px solid var(--line); border-radius:10px;
+    background:var(--surface-2); padding:13px 15px; overflow-x:auto;
+  }
+  .cmd code{ display:block; white-space:pre; font:400 13px/1.85 var(--mono); color:var(--ink-2); }
+  .cmd code b{ color:var(--accent); font-weight:400; }
+  .cmd code i{ color:var(--ink-4); font-style:normal; }
+
+  .grid.three{ grid-template-columns:repeat(auto-fit,minmax(214px,1fr)); }
+  .card .k{
+    display:block; margin-bottom:7px;
+    font:400 10.5px/1.6 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--accent);
+  }
+  h3.sub{ margin-top:26px; }
+
+  footer.bot .wrap{ justify-content:space-between; max-width:940px; }
+  footer.bot b{ color:var(--accent); font-weight:500; }
+
+  @media (max-width:880px){
+    .hero-wrap{ grid-template-columns:1fr; gap:26px; }
+    h1.hero{ max-width:none; }
+  }
+</style>
+
+<header class="top"><div class="wrap">
+  <span class="mark"><img src="/brand/logo-mark.png" alt="Octopus" width="48" height="48"></span>
+  <a class="wordmark" href="/" style="color:var(--ink)">Octopus</a>
+  <nav class="links">
+    <a href="https://github.com/jlasne/brain">Code</a>
+    <a href="/doc">Doc</a>
+    <a href="/" class="cta">Open a brain</a>
+  </nav>
+</div></header>
+
+<main><div class="wrap">
+
+  <div class="hero-wrap">
+    <div class="hero-main">
+      <div class="eyebrow">MIT licensed &middot; Run it yourself &middot; Your key</div>
+      <h1 class="hero">Every AI knows the same things. This one knows <em>what you read</em>.</h1>
+      <p class="one">One brain per subject. Each holds a position, the evidence under it, and a date on
+        every claim.</p>
+      <div class="row">
+        <a class="btn primary" href="https://github.com/jlasne/brain">Run your own</a>
+        <a class="btn" href="/">Open a brain</a>
+      </div>
+      <p class="muted" style="margin-top:12px;font-size:13.5px">This instance holds one person's brains,
+        so the app asks for their account. Reading them needs nothing:
+        <a href="/doc">point any AI client at it</a>.</p>
+    </div>
+
+    <aside class="tldr">
+      <p>You learn from articles, videos and studies, week after week.</p>
+      <p>An octopus carries <b>500 million neurons</b>, and two thirds of them work out in its arms.</p>
+      <p>This one is built the same way: <b>one brain per subject</b>, each organised on its own.</p>
+      <p>When a source disagrees with what you hold, <b>you rule which side wins</b>, and the position
+        changes with it.</p>
+    </aside>
+  </div>
+
+  <h2>Three things you do</h2>
+  <div class="grid three">
+    <div class="card">
+      <span class="k">Drop</span>
+      <h3>Feed it a source</h3>
+      <p>Paste a link and it opens the page. One card comes back: where it lands, what is new, what
+        repeats, and every claim that contradicts what you hold. You rule each one, then it writes.</p>
+    </div>
+    <div class="card">
+      <span class="k">Ask</span>
+      <h3>Ask in plain words</h3>
+      <p>The first sentence answers. Numbers sit inside the answer, sources on one line underneath.
+        A follow-up question reads against the ones before it.</p>
+    </div>
+    <div class="card">
+      <span class="k">Connect</span>
+      <h3>Use it from your own AI</h3>
+      <p>One address makes any MCP client a reader. A second one lets it feed. Your client does the
+        thinking, so a drop through it spends nothing here. <a href="/doc">How to add it</a>.</p>
+    </div>
+  </div>
+
+  <h2>Run your own</h2>
+  <p>The whole thing is MIT licensed and public. Two ways to run it, and a brain exports to plain
+    markdown either way.</p>
+
+  <h3 class="sub">As a web app</h3>
+  <p class="muted">A Convex deployment holds the data. Any static host serves the pages.</p>
+  <div class="cmd"><code><b>git</b> clone https://github.com/jlasne/brain
+<b>cd</b> brain && <b>npm</b> install
+
+<i># a deployment of your own</i>
+<b>npx</b> convex dev
+
+<i># the key that pays for reading and rewriting</i>
+<b>npx</b> convex env set OPENROUTER_API_KEY sk-or-... --prod
+<b>npx</b> convex env set KEY_SECRET "$(openssl rand -base64 32)" --prod
+<b>npx</b> convex deploy
+
+<i># optional: one owner, no sign-ups</i>
+<b>npx</b> convex env set ONLY_ACCOUNT yourname --prod
+
+<i># optional: video links fetch their own transcript</i>
+<b>npx</b> convex env set SUPADATA_API_KEY sd_... --prod</code></div>
+  <p class="muted" style="margin-top:12px">Then serve <code>app/</code> as the site root. The repo
+    carries a <code>vercel.json</code> that already does it. Open the app, take a name and a password,
+    and create your first brain.</p>
+
+  <h3 class="sub">As files on your machine</h3>
+  <p class="muted">No server, no database. A brain is a markdown folder you can open in any editor.</p>
+  <div class="cmd"><code><b>cp</b> -r brain/skill/brain ~/.claude/skills/brain</code></div>
+  <p class="muted" style="margin-top:12px">Then ask Claude Code for your first brain. Same three
+    actions, same rules, same export format as the web app.</p>
+
+  <h2>What is in the repo</h2>
+  <div class="tbl"><table>
+    <tr><th>Path</th><th>What it holds</th></tr>
+    <tr><td><code>PROTOCOL.md</code></td><td>Every rule the brain follows, numbered: how a source is filed,
+      how evidence compresses, what the receipt has to prove.</td></tr>
+    <tr><td><code>convex/</code></td><td>The server. The routes, the four drop steps, the MCP server, the schema.</td></tr>
+    <tr><td><code>app/</code></td><td>The pages. Each one is a single HTML file with no build step.</td></tr>
+    <tr><td><code>skill/brain/</code></td><td>The Claude Code skill, for running the whole thing as files.</td></tr>
+    <tr><td><code>templates/</code></td><td>The markdown a brain exports to: the map, a concept, a note.</td></tr>
+    <tr><td><code>scripts/</code></td><td>The checks. One reads every page, one drives a whole drop with no network.</td></tr>
+  </table></div>
+
+  <div class="note">Nothing here locks you in. A brain exports to markdown, and the protocol that
+    produced it sits in the same repo, so it can be rebuilt anywhere.</div>
+
+</div></main>
+
+<footer class="bot"><div class="wrap">
+  <span style="margin:0">MIT licensed &middot; <a href="https://github.com/jlasne/brain">jlasne/brain</a></span>
+  <span id="tally">one brain per subject</span>
+</div></footer>
+
+<script>
+  /* The footer states what the brains actually hold. A failure leaves the line
+     it was born with. */
+  (async () => {
+    try {
+      const r = await fetch(window.OCTOPUS_API + "/api/public/brains");
+      if (!r.ok) return;
+      const d = await r.json();
+      const brains = d.brains || [];
+      if (!brains.length) return;
+      const sources = brains.reduce((n, b) => n + (b.sources || 0), 0);
+      document.getElementById("tally").innerHTML =
+        `<b>${brains.length}</b> brains · <b>${(d.concepts||[]).length}</b> ideas · <b>${sources}</b> sources read`;
+    } catch {}
+  })();
+</script>

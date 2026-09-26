@@ -57,6 +57,31 @@
     color-scheme:dark;
   }
 
+  /* ======================================================================
+     THE SQUIDGY TINT
+
+     One block. It redefines only the accent, so every button, rule, badge and
+     focus ring in the app follows and nothing else moves. Octopus keeps the
+     terracotta above.
+
+     PLACEHOLDER until the real colour arrives. Same indigo as the door, so the
+     two agree.
+     ====================================================================== */
+  :root[data-space="squidgy"]{
+    --accent:#4338ca; --accent-fill:#4f46e5; --accent-on:#ffffff;
+    --accent-soft:rgba(79,70,229,.10); --accent-line:rgba(79,70,229,.34);
+  }
+  @media (prefers-color-scheme:dark){
+    :root[data-space="squidgy"]:not([data-theme="light"]){
+      --accent:#8b86f0; --accent-fill:#6d66ea; --accent-on:#16161c;
+      --accent-soft:rgba(109,102,234,.15); --accent-line:rgba(109,102,234,.42);
+    }
+  }
+  :root[data-space="squidgy"][data-theme="dark"]{
+    --accent:#8b86f0; --accent-fill:#6d66ea; --accent-on:#16161c;
+    --accent-soft:rgba(109,102,234,.15); --accent-line:rgba(109,102,234,.42);
+  }
+
   html{ background:var(--bg); }
   body{
     background:var(--bg); color:var(--ink-2);
@@ -612,8 +637,8 @@
 
   <aside id="side">
     <div class="brand">
-      <span class="mark"><img src="/brand/logo-mark.png" alt="Octopus" width="48" height="48"></span>
-      <h1><a href="/" title="Octopus home">Octopus</a></h1>
+      <span class="mark"><img id="spaceMark" src="/brand/logo-mark.png" alt="" width="48" height="48"></span>
+      <h1><a href="/" id="spaceName" title="Back to the door">Octopus</a></h1>
       <button class="navtoggle" id="navToggle" aria-label="Hide the brains" title="Hide the brains">&#171;</button>
     </div>
     <div class="side-scroll">
@@ -640,7 +665,7 @@
       <button class="burger" id="burger" aria-label="Brains">
         <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
       </button>
-      <h1><a href="/" title="Octopus home">Octopus</a></h1>
+      <h1><a href="/" id="spaceNameBar" title="Back to the door">Octopus</a></h1>
     </div>
 
     <div class="thread" id="thread"></div>
@@ -704,8 +729,9 @@ const S = {
   thread: [],
   level: "normal",
   key: null, account: null, who: "", hasKey: false, keyHint: "",
-  /* A personal deployment answers to one account: no sign-up, no key-for-one-tab. */
-  personal: false,
+  /* Which space this session reads, and what it calls itself. The passphrase at
+     the door decided it, and the app only reports it. */
+  space: "octopus", spaceName: "Octopus",
 };
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
@@ -769,165 +795,17 @@ const MARK = document.querySelector(".brand .mark").innerHTML;
 
 /** A modal over the app, not a wall in front of it. It has no way out,
     because every route behind it needs the token it hands back. */
+/**
+ * Back to the door.
+ *
+ * The door is the landing page now, one panel per space, because the passphrase
+ * is what decides which brains a session reads. Nothing here can ask for it
+ * without already knowing which space to ask about, so a tab with no session
+ * goes back where the choice is made.
+ */
 function gateScreen() {
-  $("app").classList.add("locked");
-  const veil = el("div","veil");
-  document.body.append(veil);
-
-  /* Three ways in, named on the first screen so the choice is made before any
-     field appears.
-       guest   a key and nothing else, forgotten when the tab closes. Reading only.
-       member  a name and a password. The key can be remembered on the account.
-       mcp     a link out, because the connector needs no key and no account.
-     The passphrase door is gone. Its route still answers, so a deployment that
-     loses every account password has a way back in through the API. */
-  let mode = "member";
-  /* Personal deployment: one door, and it is the account's. Nothing to pick. */
-  let step = S.personal ? "in" : "pick";  // "pick", then "in", then "key" when an account has none saved
-  let acct = null;          // what /api/login handed back
-
-  const HEAD = {
-    member: S.personal
-      ? ["Sign in", "This deployment answers to one account."]
-      : ["Create or connect", "A name and a password. An unused name opens an account. Your model key pays for what you ask and drop."],
-    guest:  ["Read access", "Paste a key, ask anything. The key is forgotten when this tab closes."],
-  };
-
-  const finish = (token, who) => {
-    S.token = token; S.who = who;
-    sessionStorage.setItem(TOKEN_KEY, token);
-    sessionStorage.setItem(WHO_KEY, who);
-    if (S.key) sessionStorage.setItem(KEY_KEY, S.key); else sessionStorage.removeItem(KEY_KEY);
-    veil.remove(); $("app").classList.remove("locked");
-    open();
-  };
-
-  const paint = () => {
-    const [title, blurb] = HEAD[mode];
-
-    const form = step === "key" ? `
-        <div class="f">
-          <label for="gk">Your model key</label>
-          <input type="password" id="gk" autocomplete="off" spellcheck="false" placeholder="sk-or-..." required>
-          <div class="hint">Make a key with a spend limit rather than pasting your main one.</div>
-        </div>
-        <div class="f"><label class="check"><input type="checkbox" id="grem"> Remember it on my account</label>
-          <div class="hint">Remembered keys are encrypted with a secret held on the server. Leave it unticked and the key stays in this tab only.</div>
-        </div>`
-      : mode === "guest" ? `
-        <div class="f">
-          <label for="gk">Your model key</label>
-          <input type="password" id="gk" autocomplete="off" spellcheck="false" placeholder="sk-or-..." required>
-          <div class="hint">Nothing about you is stored. The key lives in this tab and pays for your questions.</div>
-        </div>`
-      : `
-        <div class="f">
-          <label for="gn">Name</label>
-          <input type="text" id="gn" autocomplete="username" placeholder="What to call you" required>
-        </div>
-        <div class="f">
-          <label for="gw">Password</label>
-          <input type="password" id="gw" autocomplete="current-password" placeholder="At least 8 characters" required>
-          <div class="hint">${S.personal
-            ? "The brains here belong to one account. Reading them from your own AI needs no account: see <a href=\"/doc\">the connector</a>."
-            : "A name nobody has taken opens a new account."}</div>
-        </div>`;
-
-    /* The first screen names the three ways in and asks for nothing. */
-    if (step === "pick") {
-      veil.innerHTML = `
-        <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="gh">
-          <header>
-            <div class="mk" aria-hidden="true">${MARK}</div>
-            <h3 id="gh">Three ways in</h3>
-            <p>Every brain is readable.</p>
-          </header>
-          <div class="picks">
-            <button class="pick-row" type="button" data-pick="guest">
-              <b>Read only</b>
-              <span>Drop your key. It goes when the tab closes.</span>
-            </button>
-            <button class="pick-row" type="button" data-pick="member">
-              <b>Create and ask</b>
-              <span>Make an account. Feed brains, then read them.</span>
-            </button>
-            <a class="pick-row" href="/doc">
-              <b>MCP</b>
-              <span>Read the brains from your own AI client.</span>
-            </a>
-          </div>
-          <footer><a class="home" href="/">Octopus home</a></footer>
-        </div>`;
-      veil.querySelectorAll("[data-pick]").forEach(btn => {
-        btn.onclick = () => { mode = btn.dataset.pick; step = "in"; paint(); };
-      });
-      return;
-    }
-
-    const swaps = step === "key" || S.personal ? ""
-      : `<button class="ghost" type="button" data-go="pick">Back</button>`;
-
-    veil.innerHTML = `
-      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="gh">
-        <header>
-          <div class="mk" aria-hidden="true">${MARK}</div>
-          <h3 id="gh">${step === "key" ? "One more thing" : title}</h3>
-          <p>${step === "key"
-            ? `Signed in as <b>${esc(acct.name)}</b>. This account has no model key saved, so paste one to ask and drop.`
-            : blurb}</p>
-        </header>
-        <form>
-          ${form}
-          <div class="f"><div id="gmsg" class="bad" role="alert"></div></div>
-          <footer><a class="home" href="/">Octopus home</a>${swaps}<button class="go" type="submit">Open</button></footer>
-        </form>
-      </div>`;
-
-    const msg = veil.querySelector("#gmsg");
-    veil.querySelectorAll("[data-go]").forEach(btn => {
-      btn.onclick = () => { step = btn.dataset.go; paint(); };
-    });
-    setTimeout(() => veil.querySelector("#gn, #gk")?.focus(), 60);
-
-    veil.querySelector("form").onsubmit = async e => {
-      e.preventDefault();
-      const btn = veil.querySelector(".go");
-      btn.disabled = true;
-      msg.className = "spin"; msg.textContent = "Checking";
-      try {
-        /* The account exists but has no saved key, so this step supplies one. */
-        if (step === "key") {
-          const key = veil.querySelector("#gk").value.trim();
-          S.key = key;
-          if (veil.querySelector("#grem").checked) {
-            const r = await api("/api/account/key", { key });
-            if (r.error) throw new Error(r.error);
-          }
-          finish(S.token, acct.name);
-          return;
-        }
-        if (mode === "guest") {
-          const key = veil.querySelector("#gk").value.trim();
-          const r = await api("/api/guest", { key });
-          S.key = key; S.account = null;
-          finish(r.token, "guest");
-          return;
-        }
-        const r = await api("/api/login", {
-          name: veil.querySelector("#gn").value.trim(),
-          password: veil.querySelector("#gw").value,
-        });
-        S.token = r.token; S.account = r.account; acct = r;
-        if (r.hasKey) { S.key = null; finish(r.token, r.name); return; }
-        /* Held here rather than opening, because every question needs a key. */
-        step = "key"; paint();
-      } catch (err) {
-        btn.disabled = false;
-        msg.className = "bad"; msg.textContent = String(err.message);
-      }
-    };
-  };
-  paint();
+  const here = encodeURIComponent(location.pathname + location.search);
+  location.replace("/?from=" + here);
 }
 
 /** Same modal shape when the deployment itself is unreachable. */
@@ -962,9 +840,9 @@ function deadScreen(why) {
       S.token = null; S.key = null; S.who = "";
     }
   }
-  /* The status call is only a reachability probe now, so an unreachable
-     deployment says so rather than showing a sign-in that cannot work. */
-  try { const st = await api("/api/status"); S.personal = !!st.personal; }
+  /* A reachability probe before the bounce, so an unreachable deployment says so
+     rather than sending the tab to a door that cannot answer either. */
+  try { await api("/api/status"); }
   catch (e) { deadScreen(e.message); return; }
   gateScreen();
 })();
@@ -981,6 +859,7 @@ async function refresh(){
   if (d.account !== undefined) S.account = d.account;
   if (d.kind) S.who = d.kind === "member" ? (S.who || d.account) : d.kind;
   if (d.hasKey !== undefined){ S.hasKey = d.hasKey; S.keyHint = d.keyHint || ""; }
+  if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
   $("keyBtn").hidden = S.who === "guest" || !S.account;
   $("lockBtn").textContent = S.who === "guest" ? "Leave" : "Sign out";
   render();
@@ -991,6 +870,26 @@ const conceptsOf = b => S.concepts.filter(c => c.brain === b).sort((x,y)=>(x.n||
 const sourcesOf  = b => S.sources.filter(s => (s.brains||[]).includes(b));
 
 function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); }
+
+/**
+ * Which space this is, said once and shown everywhere.
+ *
+ * The attribute on <html> carries the tint, so one line retints every button and
+ * rule in the app. The name and the mark follow it. A mark with no file yet
+ * leaves the Octopus one in place rather than a gap.
+ */
+function paintSpace(){
+  document.documentElement.dataset.space = S.space;
+  document.title = S.spaceName;
+  $("spaceName").textContent = S.spaceName;
+  $("spaceNameBar").textContent = S.spaceName;
+  const mark = $("spaceMark");
+  const want = S.space === "octopus" ? "/brand/logo-mark.png" : `/brand/${S.space}-mark.png`;
+  if (mark.getAttribute("src") === want) return;
+  const probe = new Image();
+  probe.onload = () => { mark.src = want; };
+  probe.src = want;
+}
 
 function renderSide(){
   const box = $("brains"); box.innerHTML = "";
@@ -1164,7 +1063,7 @@ function push(kind, build){
   const col = el("div","col");
   if (kind !== "me"){
     const who = el("div","who");
-    who.append(el("span",null,"Octopus"));
+    who.append(el("span",null,S.spaceName));
     const b = S.brains.find(x=>x.slug===S.scope);
     if (b) who.append(el("span","sc","· "+b.name));
     col.append(who);

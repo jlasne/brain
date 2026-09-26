@@ -1,5 +1,6 @@
-<title>Octopus</title>
-<meta name="description" content="An open source knowledge base. One brain per subject, each holding a position, the evidence under it and a date on every claim. MIT licensed, run it yourself.">
+<title>Octopus and Squidgy</title>
+<meta name="description" content="Two knowledge bases, one door each. A passphrase opens one of them.">
+<meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -9,180 +10,309 @@
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
 <style>
-  main > .wrap{ max-width:940px; }
+  /* ======================================================================
+     THE TWO COLOURS
 
-  .hero-wrap{
-    display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);
-    gap:clamp(26px,4.4vw,56px); align-items:center;
-  }
-  .eyebrow{
-    margin-bottom:18px; font:500 11px/1.7 var(--mono); letter-spacing:.11em;
-    text-transform:uppercase; color:var(--accent);
-  }
-  h1.hero{
-    font-size:clamp(30px,4.2vw,46px); line-height:1.05; letter-spacing:-.034em; font-weight:600;
-    max-width:17ch;
-  }
-  h1.hero em{ font-style:italic; font-weight:600; color:var(--accent); }
-  .hero-main .one{
-    margin-top:16px; max-width:40ch;
-    font-size:clamp(15px,1.8vw,17px); line-height:1.58; color:var(--ink-2);
-  }
-  .tldr{ border-left:2px solid var(--accent-line); padding-left:clamp(16px,2vw,22px); }
-  .tldr p{ margin:0; font-size:14px; line-height:1.58; color:var(--ink-3); max-width:42ch; }
-  .tldr p + p{ margin-top:11px; }
-  .tldr p b{ color:var(--ink-2); font-weight:500; }
+     One block, four values each. Swap them and both doors, both buttons and
+     both focus rings follow, because nothing below names a colour directly.
 
-  /* A command you can copy, and nothing around it. */
-  .cmd{
-    margin-top:12px; border:1px solid var(--line); border-radius:10px;
-    background:var(--surface-2); padding:13px 15px; overflow-x:auto;
+       --tint       the solid: the button, the mark, the rule under the name
+       --tint-deep  the same colour pressed, for hover
+       --tint-on    what sits on top of the solid, so the button reads
+       --tint-wash  the panel behind the door
+
+     Octopus runs the terracotta the app already uses. SQUIDGY IS A PLACEHOLDER
+     until the real one arrives: indigo, chosen only because it reads as a
+     different place at a glance.
+     ====================================================================== */
+  .door.octopus{
+    --tint:#d97757; --tint-deep:#bf5a3c; --tint-on:#ffffff;
+    --tint-wash:rgba(217,119,87,.07);
   }
-  .cmd code{ display:block; white-space:pre; font:400 13px/1.85 var(--mono); color:var(--ink-2); }
-  .cmd code b{ color:var(--accent); font-weight:400; }
-  .cmd code i{ color:var(--ink-4); font-style:normal; }
-
-  .grid.three{ grid-template-columns:repeat(auto-fit,minmax(214px,1fr)); }
-  .card .k{
-    display:block; margin-bottom:7px;
-    font:400 10.5px/1.6 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--accent);
+  .door.squidgy{
+    --tint:#4f46e5; --tint-deep:#4338ca; --tint-on:#ffffff;
+    --tint-wash:rgba(79,70,229,.07);
   }
-  h3.sub{ margin-top:26px; }
+  @media (prefers-color-scheme:dark){
+    .door.octopus{ --tint:#e79173; --tint-deep:#d97757; --tint-on:#1a1a18; --tint-wash:rgba(217,119,87,.10); }
+    .door.squidgy{ --tint:#8b86f0; --tint-deep:#6d66ea; --tint-on:#16161c; --tint-wash:rgba(109,102,234,.13); }
+  }
 
-  footer.bot .wrap{ justify-content:space-between; max-width:940px; }
-  footer.bot b{ color:var(--accent); font-weight:500; }
+  /* ---------------------------------------------------------------- frame */
+  main.doors{
+    flex:1; padding:0; display:grid; grid-template-columns:1fr 1fr;
+    align-items:stretch;
+  }
+  /* A deep link shows one door, so /squidgy is a door rather than a choice.
+     Centred, because a single column against a whole screen reads adrift. */
+  main.doors.one{ grid-template-columns:1fr; }
+  main.doors.one .door{ align-items:center; }
 
-  @media (max-width:880px){
-    .hero-wrap{ grid-template-columns:1fr; gap:26px; }
-    h1.hero{ max-width:none; }
+  .door{
+    background:var(--tint-wash);
+    display:flex; flex-direction:column; justify-content:center; align-items:flex-start;
+    padding:clamp(30px,5vw,68px); transition:background .2s var(--ease);
+  }
+  .door + .door{ border-left:1px solid var(--line); }
+  .door:focus-within{ background:color-mix(in srgb, var(--tint) 11%, transparent); }
+  .door > *{ width:100%; max-width:340px; }
+
+  .mk{
+    width:56px; height:56px; display:grid; place-items:center;
+    border-radius:14px; background:var(--tint); color:var(--tint-on);
+    overflow:hidden; margin-bottom:20px;
+  }
+  .mk img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .mk b{ font:600 26px/1 var(--sans); letter-spacing:-.02em; }
+
+  .door h1{
+    font-size:clamp(27px,3.3vw,36px); line-height:1.04; letter-spacing:-.032em;
+    font-weight:600; color:var(--ink);
+  }
+  .door h1::after{
+    content:""; display:block; width:34px; height:2px; background:var(--tint);
+    margin-top:14px;
+  }
+  .door .one{ margin-top:14px; font-size:15px; line-height:1.55; color:var(--ink-2); }
+  .door .tally{
+    margin-top:7px; font:400 12px/1.6 var(--mono); color:var(--ink-4); min-height:1.6em;
+  }
+
+  .door label{
+    display:block; margin:26px 0 7px;
+    font:500 12.5px/1 var(--sans); color:var(--ink-3);
+  }
+  .door input{
+    width:100%; border:1px solid var(--line-2); border-radius:10px;
+    background:var(--surface); padding:12px 14px;
+    font:400 15px/1.4 var(--sans); color:var(--ink);
+    transition:border-color .15s var(--ease);
+  }
+  .door input:focus{ border-color:var(--tint); outline:none; }
+  .door .go{
+    margin-top:12px; width:100%; border-radius:10px; padding:12px 16px;
+    background:var(--tint); color:var(--tint-on);
+    font:500 15px/1 var(--sans); text-align:center;
+    transition:background .15s var(--ease);
+  }
+  .door .go:hover{ background:var(--tint-deep); }
+  .door .go:disabled{ opacity:.55; cursor:default; }
+  .door .msg{
+    margin-top:11px; font:400 13px/1.5 var(--sans); color:var(--tint); min-height:1.5em;
+  }
+  .door .msg.set{ color:var(--ink-3); }
+
+  footer.bot .wrap{
+    max-width:none; justify-content:space-between; gap:14px; flex-wrap:wrap; font-size:12.5px;
+  }
+
+  @media (max-width:760px){
+    main.doors{ grid-template-columns:1fr; }
+    .door + .door{ border-left:none; border-top:1px solid var(--line); }
+    .door{ padding-block:44px; }
+    .door > *{ max-width:none; }
   }
 </style>
 
-<header class="top"><div class="wrap">
-  <span class="mark"><img src="/brand/logo-mark.png" alt="Octopus" width="48" height="48"></span>
-  <span class="wordmark">Octopus</span>
-  <nav class="links">
-    <a href="https://github.com/jlasne/brain">Code</a>
-    <a href="/doc">Doc</a>
-    <a href="/chat" class="cta">Open the app</a>
-  </nav>
-</div></header>
+<main class="doors" id="doors">
 
-<main><div class="wrap">
+  <form class="door octopus" id="dOctopus">
+    <span class="mk" aria-hidden="true">
+      <img id="imgOctopus" src="/brand/logo-mark.png" alt="" width="56" height="56">
+      <b id="letterOctopus" hidden>O</b>
+    </span>
+    <h1>Octopus</h1>
+    <p class="one">One brain per subject. Each holds a position, the evidence under it,
+      and a date on every claim.</p>
+    <p class="tally" id="tallyOctopus"></p>
+    <label for="passOctopus">Passphrase</label>
+    <input type="password" id="passOctopus" autocomplete="current-password" spellcheck="false">
+    <button type="submit" class="go" id="goOctopus">Enter</button>
+    <p class="msg" id="msgOctopus" role="alert"></p>
+  </form>
 
-  <div class="hero-wrap">
-    <div class="hero-main">
-      <div class="eyebrow">MIT licensed &middot; Run it yourself &middot; Your key</div>
-      <h1 class="hero">Every AI knows the same things. This one knows <em>what you read</em>.</h1>
-      <p class="one">One brain per subject. Each holds a position, the evidence under it, and a date on
-        every claim.</p>
-      <div class="row">
-        <a class="btn primary" href="https://github.com/jlasne/brain">Run your own</a>
-        <a class="btn" href="/chat">Open the app</a>
-      </div>
-      <p class="muted" style="margin-top:12px;font-size:13.5px">This instance holds one person's brains,
-        so the app asks for their account. Reading them needs nothing:
-        <a href="/doc">point any AI client at it</a>.</p>
-    </div>
+  <form class="door squidgy" id="dSquidgy">
+    <span class="mk" aria-hidden="true">
+      <!-- Drop /brand/squidgy-mark.png in and it appears here. Until then the
+           letter stands in, because a missing image leaves a gap. -->
+      <img id="imgSquidgy" src="/brand/squidgy-mark.png" alt="" width="56" height="56">
+      <b id="letterSquidgy" hidden>S</b>
+    </span>
+    <h1>Squidgy</h1>
+    <p class="one">One brain, no subjects to split. Every source lands in the same
+      place, and it gets bigger each time.</p>
+    <p class="tally" id="tallySquidgy"></p>
+    <label for="passSquidgy">Passphrase</label>
+    <input type="password" id="passSquidgy" autocomplete="current-password" spellcheck="false">
+    <button type="submit" class="go" id="goSquidgy">Enter</button>
+    <p class="msg" id="msgSquidgy" role="alert"></p>
+  </form>
 
-    <aside class="tldr">
-      <p>You learn from articles, videos and studies, week after week.</p>
-      <p>An octopus carries <b>500 million neurons</b>, and two thirds of them work out in its arms.</p>
-      <p>This one is built the same way: <b>one brain per subject</b>, each organised on its own.</p>
-      <p>When a source disagrees with what you hold, <b>you rule which side wins</b>, and the position
-        changes with it.</p>
-    </aside>
-  </div>
-
-  <h2>Three things you do</h2>
-  <div class="grid three">
-    <div class="card">
-      <span class="k">Drop</span>
-      <h3>Feed it a source</h3>
-      <p>Paste a link and it opens the page. One card comes back: where it lands, what is new, what
-        repeats, and every claim that contradicts what you hold. You rule each one, then it writes.</p>
-    </div>
-    <div class="card">
-      <span class="k">Ask</span>
-      <h3>Ask in plain words</h3>
-      <p>The first sentence answers. Numbers sit inside the answer, sources on one line underneath.
-        A follow-up question reads against the ones before it.</p>
-    </div>
-    <div class="card">
-      <span class="k">Connect</span>
-      <h3>Use it from your own AI</h3>
-      <p>One address makes any MCP client a reader. A second one lets it feed. Your client does the
-        thinking, so a drop through it spends nothing here. <a href="/doc">How to add it</a>.</p>
-    </div>
-  </div>
-
-  <h2>Run your own</h2>
-  <p>The whole thing is MIT licensed and public. Two ways to run it, and a brain exports to plain
-    markdown either way.</p>
-
-  <h3 class="sub">As a web app</h3>
-  <p class="muted">A Convex deployment holds the data. Any static host serves the pages.</p>
-  <div class="cmd"><code><b>git</b> clone https://github.com/jlasne/brain
-<b>cd</b> brain && <b>npm</b> install
-
-<i># a deployment of your own</i>
-<b>npx</b> convex dev
-
-<i># the key that pays for reading and rewriting</i>
-<b>npx</b> convex env set OPENROUTER_API_KEY sk-or-... --prod
-<b>npx</b> convex env set KEY_SECRET "$(openssl rand -base64 32)" --prod
-<b>npx</b> convex deploy
-
-<i># optional: one owner, no sign-ups</i>
-<b>npx</b> convex env set ONLY_ACCOUNT yourname --prod
-
-<i># optional: video links fetch their own transcript</i>
-<b>npx</b> convex env set SUPADATA_API_KEY sd_... --prod</code></div>
-  <p class="muted" style="margin-top:12px">Then serve <code>app/</code> as the site root. The repo
-    carries a <code>vercel.json</code> that already does it. Open the app, take a name and a password,
-    and create your first brain.</p>
-
-  <h3 class="sub">As files on your machine</h3>
-  <p class="muted">No server, no database. A brain is a markdown folder you can open in any editor.</p>
-  <div class="cmd"><code><b>cp</b> -r brain/skill/brain ~/.claude/skills/brain</code></div>
-  <p class="muted" style="margin-top:12px">Then ask Claude Code for your first brain. Same three
-    actions, same rules, same export format as the web app.</p>
-
-  <h2>What is in the repo</h2>
-  <div class="tbl"><table>
-    <tr><th>Path</th><th>What it holds</th></tr>
-    <tr><td><code>PROTOCOL.md</code></td><td>Every rule the brain follows, numbered: how a source is filed,
-      how evidence compresses, what the receipt has to prove.</td></tr>
-    <tr><td><code>convex/</code></td><td>The server. The routes, the four drop steps, the MCP server, the schema.</td></tr>
-    <tr><td><code>app/</code></td><td>The pages. Each one is a single HTML file with no build step.</td></tr>
-    <tr><td><code>skill/brain/</code></td><td>The Claude Code skill, for running the whole thing as files.</td></tr>
-    <tr><td><code>templates/</code></td><td>The markdown a brain exports to: the map, a concept, a note.</td></tr>
-    <tr><td><code>scripts/</code></td><td>The checks. One reads every page, one drives a whole drop with no network.</td></tr>
-  </table></div>
-
-  <div class="note">Nothing here locks you in. A brain exports to markdown, and the protocol that
-    produced it sits in the same repo, so it can be rebuilt anywhere.</div>
-
-</div></main>
+</main>
 
 <footer class="bot"><div class="wrap">
   <span style="margin:0">MIT licensed &middot; <a href="https://github.com/jlasne/brain">jlasne/brain</a></span>
-  <span id="tally">one brain per subject</span>
+  <span><a href="/about">How it works</a></span>
 </div></footer>
 
 <script>
-  /* The footer states what the brains actually hold. A failure leaves the line
-     it was born with. */
-  (async () => {
+  /**
+   * The door.
+   *
+   * Two spaces share one deployment and see none of each other. The passphrase
+   * decides which one the session reads, so this page is the whole sign-in: it
+   * takes a passphrase, gets a token back, and hands the app a session already
+   * pointed at one space.
+   *
+   * The token lives in sessionStorage, which is per tab, so closing the tab ends
+   * the session and a second tab starts here again.
+   */
+  const API = window.OCTOPUS_API;
+  const TOKEN_KEY = "octopus.token.v1";
+  const $ = id => document.getElementById(id);
+  const SPACES = ["octopus", "squidgy"];
+
+  /* One capitalisation, so an id in the markup and a name in a message agree. */
+  const nameOf = s => s === "squidgy" ? "Squidgy" : "Octopus";
+
+  const post = async (path, body) => {
+    let r;
     try {
-      const r = await fetch(window.OCTOPUS_API + "/api/public/brains");
+      r = await fetch(API + path, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+      });
+    } catch {
+      /* fetch throws before any status when the deployment is unreachable, and
+         its own message names the browser rather than the problem. */
+      throw new Error("the server did not answer. Check your connection.");
+    }
+    const d = await r.json().catch(() => ({ error: "the server sent something unreadable" }));
+    if (d.error) throw new Error(d.error);
+    return d;
+  };
+
+  /* A mark with no file yet falls back to its letter, so the door still reads. */
+  function markFallback(space){
+    const img = $("img" + nameOf(space)), letter = $("letter" + nameOf(space));
+    const swap = () => { img.hidden = true; letter.hidden = false; };
+    img.onerror = swap;
+    /* A cached failure fires no event, so the natural size settles it. */
+    if (img.complete && !img.naturalWidth) swap();
+  }
+
+  /**
+   * One door, wired.
+   *
+   * A space with no passphrase takes the first one offered, which is how Octopus
+   * was opened. The button says so, because setting a passphrase and entering
+   * with one are different acts.
+   */
+  function wire(space){
+    const form = $("d" + nameOf(space));
+    const field = $("pass" + nameOf(space));
+    const btn = $("go" + nameOf(space));
+    const msg = $("msg" + nameOf(space));
+
+    form.addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const pass = field.value;
+      msg.classList.remove("set");
+      if (pass.length < 8) {
+        msg.textContent = "a passphrase runs 8 characters or more";
+        field.focus();
+        return;
+      }
+      btn.disabled = true;
+      msg.textContent = "Checking";
+      try {
+        const r = await post("/api/unlock", { space, pass });
+        sessionStorage.setItem(TOKEN_KEY, r.token);
+        msg.textContent = r.created ? "Passphrase set. Opening" : "Opening";
+        location.assign("/chat");
+      } catch (e) {
+        btn.disabled = false;
+        field.value = ""; field.focus();
+        msg.textContent = e.message;
+      }
+    });
+  }
+
+  /** Which door a path asks for, or null for the choice. */
+  function asked(){
+    const p = location.pathname.replace(/\/+$/, "").split("/").pop().toLowerCase();
+    return SPACES.includes(p) ? p : null;
+  }
+
+  /* One door on a deep link, both on the landing. */
+  function focusOne(space){
+    if (!space) return;
+    $("doors").classList.add("one");
+    for (const s of SPACES) if (s !== space) $("d" + nameOf(s)).hidden = true;
+  }
+
+  /**
+   * Octopus publishes its brain list, so its line carries the real counts.
+   * Squidgy publishes nothing, so it shows nothing rather than a guess.
+   */
+  async function paintTally(){
+    try {
+      const r = await fetch(API + "/api/public/brains");
       if (!r.ok) return;
       const d = await r.json();
       const brains = d.brains || [];
       if (!brains.length) return;
       const sources = brains.reduce((n, b) => n + (b.sources || 0), 0);
-      document.getElementById("tally").innerHTML =
-        `<b>${brains.length}</b> brains · <b>${(d.concepts||[]).length}</b> ideas · <b>${sources}</b> sources read`;
+      $("tallyOctopus").textContent =
+        brains.length + " brains · " + (d.concepts || []).length + " ideas · " + sources + " sources read";
     } catch {}
+  }
+
+  /** A door with no passphrase yet says the first one typed sets it. */
+  async function paintDoors(){
+    try {
+      const st = await post("/api/status");
+      /* Only an explicit false claims a door is unset. A deployment that has not
+         picked up this code yet sends no gates at all, and a wrong "no
+         passphrase yet" would invite someone to set one that already exists. */
+      const gates = st.gates || {};
+      for (const s of SPACES) {
+        if (gates[s] !== false) continue;
+        $("msg" + nameOf(s)).classList.add("set");
+        $("msg" + nameOf(s)).textContent = "No passphrase yet. The first one typed becomes it.";
+        $("go" + nameOf(s)).textContent = "Set it and enter";
+      }
+    } catch (e) {
+      for (const s of SPACES) $("msg" + nameOf(s)).textContent = e.message;
+    }
+  }
+
+  /**
+   * Every door part exists.
+   *
+   * The ids are built by joining a prefix to a space name, so the page checker
+   * cannot see which ones are asked for. A renamed id would leave a dead button
+   * and no error. This says so instead, on the door itself.
+   */
+  function missing(){
+    const want = ["d", "img", "letter", "pass", "go", "msg"];
+    const gone = [];
+    for (const s of SPACES) for (const w of want) if (!$(w + nameOf(s))) gone.push(w + nameOf(s));
+    return gone;
+  }
+
+  (() => {
+    const gone = missing();
+    if (gone.length) {
+      document.getElementById("doors").innerHTML =
+        "<p style=\"padding:40px\">This page is missing " + gone.join(", ") + ".</p>";
+      return;
+    }
+    for (const s of SPACES) { markFallback(s); wire(s); }
+    const one = asked();
+    focusOne(one);
+    paintDoors();
+    paintTally();
+    setTimeout(() => $("pass" + nameOf(one || "octopus")).focus(), 40);
   })();
 </script>

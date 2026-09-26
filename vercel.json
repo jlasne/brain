@@ -41,6 +41,14 @@
   ],
   "rewrites": [
     {
+      "source": "/octopus",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/squidgy",
+      "destination": "/index.html"
+    },
+    {
       "source": "/mcp/v0",
       "destination": "https://uncommon-wolf-174.eu-west-1.convex.site/mcp/v0"
     },
@@ -66,7 +74,7 @@
     },
     {
       "source": "/brains",
-      "destination": "/doc",
+      "destination": "/about",
       "permanent": false
     }
   ]
