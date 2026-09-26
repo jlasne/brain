@@ -117,6 +117,7 @@ async function boot(path, init, arg) {
       const s = String(u);
       if (s.includes("/api/state")) return Response.json(state);
       if (s.includes("/api/ask")) {
+        window.__asked = JSON.parse(opt?.body || "{}");
         await new Promise(ok => setTimeout(ok, 600));
         return Response.json({ answer: "One line.", sources: 3, level: "normal" });
       }
@@ -256,6 +257,17 @@ async function boot(path, init, arg) {
   }
   await page.waitForTimeout(700);
   check("and it goes when the answer lands", await page.$(".thinking .spinner") === null);
+
+  /* ---- Learning: steps toward the answer, never the answer ---- */
+  const levels = await page.evaluate(() => [...document.querySelectorAll("#level option")].map(o => o.value));
+  check("the levels are Normal, Educational and Learning", levels.join(",") === "normal,educational,learning", levels.join(","));
+  await page.selectOption("#level", "learning");
+  const note = await page.evaluate(() => document.getElementById("footNote").textContent);
+  check("Learning says it gives steps, not the answer", /no answer given/i.test(note), note);
+  await page.fill("#input", "why does gold hold value");
+  await page.click("#send"); await page.waitForTimeout(800);
+  const askedAt = await page.evaluate(() => window.__asked?.level);
+  check("and the question goes out at that level", askedAt === "learning", String(askedAt));
   await page.close();
 }
 

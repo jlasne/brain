@@ -844,6 +844,7 @@
             <select id="level">
               <option value="normal">Normal</option>
               <option value="educational">Educational</option>
+              <option value="learning">Learning</option>
             </select>
           </div>
         </div>
@@ -905,7 +906,7 @@ const S = {
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
    falls back to normal. */
-const LEVELS = ["normal","educational"];
+const LEVELS = ["normal","educational","learning"];
 try { const v = localStorage.getItem("octopus.level"); if (LEVELS.includes(v)) S.level = v; } catch {}
 const saveLevel = () => { try { localStorage.setItem("octopus.level", S.level); } catch {} };
 
@@ -1272,6 +1273,7 @@ function renderComposer(){
   $("footNote").textContent = drop
     ? "The source gets read once, then you reply to one card."
     : S.level==="educational" ? "Educational: terms defined, mechanism built, one worked example."
+    : S.level==="learning" ? "Learning: no answer given. Steps and hints to reach it yourself."
     : "The answer carries the numbers. Sources sit on one line underneath.";
 
   const t = $("input").value.trim();

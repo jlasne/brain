@@ -452,12 +452,15 @@ route("/api/ask", async (ctx, _req, b) => {
   const isPerson = reading.length === 1 && reading[0].type === "person";
   const nSources = new Set(sources.filter((s: any) => s.brains.some((x: string) => reading.some((c: any) => c.slug === x))).map((s: any) => s.sid)).size;
 
-  /* Three levels. Each changes the shape and the depth of the answer. None of
+  /* Three levels: Normal answers, Educational teaches the answer, Learning
+     leads the reader to it without giving it. Each changes the shape and the
+     depth of the answer. None of
      them touches the evidence rules below, so a level can never buy a claim
      the brain does not hold. */
   /* Expert was removed. A browser still holding it asks at Normal. */
-  const level = ["normal", "educational"].includes(String(b.level))
+  const level = ["normal", "educational", "learning"].includes(String(b.level))
     ? String(b.level) : "normal";
+  const learning = level === "learning";
   const SHAPE: Record<string, string> = {
     normal:
 `LEVEL: NORMAL
@@ -471,6 +474,15 @@ route("/api/ask", async (ctx, _req, b) => {
 - Give ONE worked example carrying real numbers from the evidence.
 - Close with one line naming the single thing worth remembering.
 - 10 to 20 sentences, one per line. A blank line may separate two groups.`,
+    learning:
+`LEVEL: LEARNING
+- The reader wants to reach the answer themselves. NEVER state the answer, the conclusion or the final number.
+- First line: what the question really asks, in plain words, without answering it.
+- Then 3 to 6 numbered steps in order, each resting on the one before. Each step is a question to think through or a small task to do.
+- Under a step, give the inputs it needs from the stored knowledge: a definition, a figure, a rule. Never the result it leads to.
+- Name the concept that holds each step by its title, in quotes, so the reader knows where to look.
+- Last line: "Check yourself: " and one question whose answer shows they got there.
+- When the question proposes an answer, say which steps it gets right and which step to revisit. Give the answer only when the question asks for it in so many words.`,
   };
 
   /**
@@ -496,7 +508,9 @@ HOW TO WRITE THE ANSWER
 - THE QUESTION'S OWN INSTRUCTION ABOUT SHAPE WINS. Asked for a list, give a list, one item per line starting with "- ". Asked for steps, number them. Asked for a table, give a table. The rules below apply to the words inside whatever shape was asked for.
 - Otherwise: ONE SENTENCE PER LINE. End every sentence with a full stop, then a line break.
 - A full stop, never a semicolon. Two ideas are two sentences on two lines.
-- The FIRST SENTENCE answers the question. Natural prose, addressed to the person asking.
+${learning
+  ? "- The FIRST SENTENCE says what the question asks, never its answer. Natural prose, addressed to the person asking."
+  : "- The FIRST SENTENCE answers the question. Natural prose, addressed to the person asking."}
 - Numbers, dates and findings go INSIDE the answer.
 ${isPerson
   ? "- This is a PERSON brain, so name that person throughout. Their view is the subject."
@@ -520,7 +534,7 @@ The concepts that bear on this question are opened in full. Others are named und
 ${dossier}
 
 QUESTION: ${String(b.q ?? "")}` },
-  ], { maxTokens: level === "normal" ? 2000 : 3200, key: mKey, model: mName });
+  ], { maxTokens: level === "normal" ? 2000 : learning ? 2400 : 3200, key: mKey, model: mName });
 
   return { answer: text, sources: nSources, level };
 });
