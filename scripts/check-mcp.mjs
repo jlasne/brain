@@ -21,7 +21,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-mcp-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["mcp.ts", "drop.ts", "lib.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["mcp.ts", "drop.ts", "lib.ts", "words.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => " +
   "new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");

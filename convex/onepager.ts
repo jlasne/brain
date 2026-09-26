@@ -11,6 +11,7 @@
 
 import { ask, SPACE_NAME } from "./lib";
 import type { Who, Space } from "./lib";
+import { dossierFor } from "./words";
 
 export type Pager = {
   title: string;
@@ -117,17 +118,6 @@ WORDS
 - Never invent evidence. If the stored knowledge does not answer it, say so in
   one bullet and name the kind of source that would fill the gap.`;
 
-/** Everything the model may draw on, and nothing else. */
-function dossier(brains: any[], concepts: any[]): string {
-  return brains.flatMap(br =>
-    concepts.filter((c: any) => c.brain === br.slug).sort(rank).map((c: any) =>
-      `### ${c.title} in ${br.name}
-POSITION: ${c.position || "none"}
-EVIDENCE: ${(c.evidence ?? []).map((e: any) => `${e.date ?? "?"} ${e.author ?? "?"}: ${e.claim ?? ""}`).join(" | ") || "none"}
-DATA: ${(c.data ?? []).join(" | ") || "none"}`)).join("\n\n")
-    || "The chosen brains hold no positions yet.";
-}
-
 /** A page from a question. One model call, and the bullets come back parsed. */
 export async function fromQuestion(
   space: Space, brains: any[], concepts: any[], sources: any[],
@@ -138,12 +128,14 @@ export async function fromQuestion(
   const read = new Set(sources.filter((s: any) => (s.brains ?? []).some((x: string) => slugs.includes(x)))
                               .map((s: any) => s.sid)).size;
 
+  /* The same search a question in the chat runs, so a page asked of every
+     brain reads what bears on it rather than all of it. */
   const { text } = await ask([
     { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You always answer in English." },
     { role: "user", content: `${BULLET_RULES}
 
 STORED KNOWLEDGE
-${dossier(brains, concepts)}
+${dossierFor(brains, concepts, q).dossier}
 
 QUESTION: ${q}` },
   ], { maxTokens: 2000, key, model });

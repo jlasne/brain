@@ -17,6 +17,7 @@ import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 import { dropCheck, dropRead, dropPlan, dropSettle, fetchPage } from "./drop";
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromQuestion, asText, mail, looksLikeMail } from "./onepager";
+import { dossierFor } from "./words";
 
 const router = httpRouter();
 
@@ -422,20 +423,21 @@ route("/api/ask", async (ctx, _req, b) => {
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
   if (!pool.length) return { answer: "No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
 
-  const chosen = pool.slice(0, 3);
-  const isPerson = chosen.length === 1 && chosen[0].type === "person";
-  const used = new Set<string>();
-  const dossier = chosen.flatMap((br: any) =>
-    concepts.filter((c: any) => c.brain === br.slug).map((c: any) => {
-      (c.sources ?? []).forEach((s: string) => used.add(s));
-      return `### ${c.title} in ${br.name} [${br.type}]
-POSITION: ${c.position || "none"}
-EVIDENCE: ${(c.evidence ?? []).map((e: any) => `${e.date ?? "?"} ${e.author ?? "?"}: ${e.claim ?? ""}`).join(" | ") || "none"}
-DATA: ${(c.data ?? []).join(" | ") || "none"}
-OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${x.b} (${x.bDate}), because ${x.why}`).join(" | ") || "none"}`;
-    })).join("\n\n") || "The chosen brains hold no concepts yet.";
-
-  const nSources = new Set(sources.filter((s: any) => s.brains.some((x: string) => chosen.some((c: any) => c.slug === x))).map((s: any) => s.sid)).size;
+  /**
+   * What the answer reads.
+   *
+   * It read every concept of the first three brains in list order: with
+   * "All brains" and eleven brains, eight were never read, and a brain of 1000
+   * concepts sent about 524,000 tokens. Now every brain in the space is
+   * searched, the concepts that bear on the question open in full within a
+   * budget, and the next ones are named by title so the answer knows what else
+   * is held. A follow-up borrows the words of the question before it.
+   */
+  const pick = dossierFor(pool, concepts, String(b.q ?? ""), b.history);
+  const dossier = pick.dossier;
+  const reading = pool.filter((x: any) => pick.opened.some((c: any) => c.brain === x.slug));
+  const isPerson = reading.length === 1 && reading[0].type === "person";
+  const nSources = new Set(sources.filter((s: any) => s.brains.some((x: string) => reading.some((c: any) => c.slug === x))).map((s: any) => s.sid)).size;
 
   /* Three levels. Each changes the shape and the depth of the answer. None of
      them touches the evidence rules below, so a level can never buy a claim
@@ -501,6 +503,7 @@ ${earlier}
 That is context for reading the question, never a source. Every claim in your answer comes from the stored knowledge below. A claim you made earlier that the stored knowledge does not carry is dropped, not repeated.
 ` : ""}
 STORED KNOWLEDGE
+The concepts that bear on this question are opened in full. Others are named under ALSO HELD. Answer from the opened ones, and name an ALSO HELD concept when it is where the answer would continue.
 ${dossier}
 
 QUESTION: ${String(b.q ?? "")}` },

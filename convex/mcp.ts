@@ -20,6 +20,7 @@
 
 import { internal } from "./_generated/api";
 import { randomHex, today, slug as slugOf, HOME, MENTIONS } from "./lib";
+import { norm, keywords } from "./words";
 export { MENTIONS };
 import { dropCheck, dropSettle, feedable, fetchPage, planContext, PLAN_RULES } from "./drop";
 
@@ -312,24 +313,6 @@ export const WRITE_TOOLS = [
 ];
 
 /* ---------- helpers over the snapshot ---------- */
-
-const norm = (s: any) => String(s ?? "").toLowerCase().trim();
-
-/**
- * Question words carry no subject, and scope lines are written in prose, so
- * "how do I bake sourdough" matched a scope that merely opens with "how".
- * Routing reads the words that name a subject and drops the rest.
- */
-const STOP = new Set(("a about after again all also am an and any are as at be because been before being " +
-  "between both but by can cannot could did do does doing done down during each few for from further get " +
-  "give got had has have having her here hers him his how i if in into is it its just know let like made " +
-  "make many may me more most much must my need no nor not now of off on once one only or other our out " +
-  "over own per put same say said see should since so some such take than that the their them then there " +
-  "these they thing things think this those through to too two under until up us use used using very want " +
-  "was way we were what when where which while who whom why will with within would you your").split(" "));
-
-const keywords = (q: string) =>
-  norm(q).split(/[^a-z0-9]+/).filter(w => w.length > 2 && !STOP.has(w));
 
 const findBrain = (brains: any[], want: string) => {
   const w = norm(want);

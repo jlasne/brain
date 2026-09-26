@@ -2275,14 +2275,24 @@ async function doDrop(src, content, again){
 
   const CH = S.chunk, chunks = [];
   for (let i=0; i<bodyTxt.length; i+=CH) chunks.push(bodyTxt.slice(i,i+CH));
-  const parts = [];
-  try {
-    for (let i=0;i<chunks.length;i++){
-      setThinking(body, chunks.length>1 ? `Reading, pass ${i+1} of ${chunks.length}` : "Reading the source");
-      const r = await api("/api/drop/read", { chunk: chunks[i], part: i+1, total: chunks.length, key: S.key });
-      parts.push(r.part||{});
+  /* The passes are independent, so three run at once, the way storing does.
+     A 500 page document is about 67 passes: under 20 minutes this way, near an
+     hour one at a time. Each part keeps its place, so the order holds. */
+  const parts = new Array(chunks.length);
+  let nextRead = 0, readDone = 0, readErr = null;
+  setThinking(body, chunks.length>1 ? `Reading, pass 0 of ${chunks.length}` : "Reading the source");
+  const reader = async () => {
+    while (nextRead < chunks.length && !readErr){
+      const i = nextRead++;
+      try {
+        const r = await api("/api/drop/read", { chunk: chunks[i], part: i+1, total: chunks.length, key: S.key });
+        parts[i] = r.part || {};
+        if (chunks.length > 1) setThinking(body, `Reading, pass ${++readDone} of ${chunks.length}`);
+      } catch(e){ readErr = readErr || e; }
     }
-  } catch(e){ fail(body, e.message); return; }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, reader));
+  if (readErr){ fail(body, readErr.message); return; }
 
   const ext = {
     title: parts.find(p=>p.title)?.title || src || link || "Untitled source",
