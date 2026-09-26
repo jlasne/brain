@@ -7,10 +7,11 @@
 
 :root{
   /* Claude palette, light is the default */
-  --bg:#faf9f5; --surface:#ffffff; --surface-2:#f0eee6; --surface-3:#e9e6dc;
-  --ink:#141413; --ink-2:#3d3d3a; --ink-3:#6e6e68; --ink-4:#93918a;
-  --line:#e5e2d9; --line-2:#d4d0c4;
-  --accent:#bf5a3c; --accent-fill:#d97757; --accent-on:#ffffff;
+  /* Octopus beige, the same tokens the app uses. No dark variant. */
+  --bg:#F5F5DC; --surface:#ffffff; --surface-2:#EAEACB; --surface-3:#dfdfbc;
+  --ink:#141413; --ink-2:#3d3d3a; --ink-3:#5c5b52; --ink-4:#67665a;
+  --line:#e2e2c4; --line-2:#cfcfab;
+  --accent:#a54b2f; --accent-fill:#d97757; --accent-on:#ffffff;
   --accent-soft:rgba(217,119,87,.10); --accent-line:rgba(217,119,87,.34);
   --good:#3f7d5c;
   --shadow:0 1px 2px rgba(20,20,19,.05), 0 1px 8px rgba(20,20,19,.04);
@@ -21,17 +22,6 @@
   --ease:cubic-bezier(.22,.61,.36,1);
   color-scheme:light;
 
-  @media (prefers-color-scheme:dark){
-    --bg:#262624; --surface:#30302e; --surface-2:#3a3a37; --surface-3:#44443f;
-    --ink:#f5f4ef; --ink-2:#d8d6ce; --ink-3:#a8a69d; --ink-4:#8a887f;
-    --line:#45443f; --line-2:#57564f;
-    --accent:#e79173; --accent-fill:#d97757; --accent-on:#1a1a18;
-    --accent-soft:rgba(217,119,87,.13); --accent-line:rgba(217,119,87,.40);
-    --good:#6fb891;
-    --shadow:0 1px 2px rgba(0,0,0,.22), 0 1px 8px rgba(0,0,0,.18);
-    --shadow-lift:0 2px 6px rgba(0,0,0,.28), 0 12px 32px rgba(0,0,0,.34);
-    color-scheme:dark;
-  }
 }
 
 *{ margin:0; padding:0; box-sizing:border-box; }

@@ -1,12 +1,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Octopus and Squidgy</title>
+<title>Knowledge Brains</title>
 <meta name="description" content="Two knowledge bases, one door each. A passphrase opens one of them.">
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="icon" href="/brand/logo-mark.png">
+<link rel="icon" href="/brand/brain.svg" type="image/svg+xml">
+<link rel="icon" href="/brand/brain-64.png" type="image/png" sizes="64x64">
+<link rel="apple-touch-icon" href="/brand/brain-180.png">
 <link rel="stylesheet" href="/octopus.css">
 
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
@@ -23,7 +25,7 @@
                     against --tint-on
        --tint-deep  the button on hover
        --tint-on    the button label
-       --tint-wash  the panel behind the door
+       --tint-wash  the panel behind the door, the same colour as that space's chat
 
      Squidgy is brown #A8704E and pink #F5C9D1. White on the brown reads at
      4.12:1, under the 4.5:1 a 15px label needs, so its button runs 7% darker at
@@ -31,15 +33,11 @@
      ====================================================================== */
   .door.octopus{
     --tint:#d97757; --tint-btn:#d97757; --tint-deep:#bf5a3c; --tint-on:#ffffff;
-    --tint-wash:rgba(217,119,87,.07);
+    --tint-wash:#F5F5DC;
   }
   .door.squidgy{
     --tint:#A8704E; --tint-btn:#9c6849; --tint-deep:#8b5d41; --tint-on:#ffffff;
-    --tint-wash:rgba(245,201,209,.42);
-  }
-  @media (prefers-color-scheme:dark){
-    .door.octopus{ --tint:#e79173; --tint-btn:#e79173; --tint-deep:#d97757; --tint-on:#1a1a18; --tint-wash:rgba(217,119,87,.10); }
-    .door.squidgy{ --tint:#C48A66; --tint-btn:#C48A66; --tint-deep:#D09A77; --tint-on:#1a1a18; --tint-wash:rgba(245,201,209,.08); }
+    --tint-wash:#f9dfe4;
   }
 
   /* ---------------------------------------------------------------- frame */
@@ -58,7 +56,8 @@
     padding:clamp(30px,5vw,68px); transition:background .2s var(--ease);
   }
   .door + .door{ border-left:1px solid var(--line); }
-  .door:focus-within{ background:color-mix(in srgb, var(--tint) 11%, transparent); }
+  /* Focus deepens the panel's own colour a little, so it still matches its chat. */
+  .door:focus-within{ background:color-mix(in srgb, var(--tint) 6%, var(--tint-wash)); }
   .door > *{ width:100%; max-width:340px; }
 
   /* Both marks sit straight on the panel. Each file is transparent around its
@@ -256,9 +255,11 @@
     $("doors").classList.add("one");
     for (const s of SPACES) if (s !== space) $("d" + nameOf(s)).hidden = true;
     document.title = nameOf(space);
-    if (space === "squidgy") {
-      const icon = document.querySelector('link[rel="icon"]');
-      if (icon) icon.href = "/brand/squidgy-icon.png";
+    /* Both icon links move, the SVG one included, and lose the type that would
+       make a browser ignore a PNG under an SVG label. */
+    const icon = space === "squidgy" ? "/brand/squidgy-icon.png" : "/brand/logo-mark.png";
+    for (const link of document.querySelectorAll('link[rel="icon"]')) {
+      link.removeAttribute("type"); link.removeAttribute("sizes"); link.href = icon;
     }
   }
 

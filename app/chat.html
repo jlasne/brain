@@ -19,11 +19,14 @@
   :root{
     /* The mark the loader turns. */
     --mark:url("/brand/logo-mark.png");
-    /* Claude palette, light is the default */
-    --bg:#faf9f5; --surface:#ffffff; --surface-2:#f0eee6; --surface-3:#e9e6dc;
-    --ink:#141413; --ink-2:#3d3d3a; --ink-3:#6e6e68; --ink-4:#93918a;
-    --line:#e5e2d9; --line-2:#d4d0c4;
-    --accent:#bf5a3c; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#ffffff;
+    /* Octopus: the orange #d97757 on beige #F5F5DC, the sidebar a shade deeper.
+       Cards stay white. The lighter labels and the orange text run one step
+       darker than before so they hold 4.5:1 on the beige. There is no dark
+       variant: the brand colours are the look, whatever the system setting. */
+    --bg:#F5F5DC; --surface:#ffffff; --surface-2:#EAEACB; --surface-3:#dfdfbc;
+    --ink:#141413; --ink-2:#3d3d3a; --ink-3:#5c5b52; --ink-4:#67665a;
+    --line:#e2e2c4; --line-2:#cfcfab;
+    --accent:#a54b2f; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#ffffff;
     --accent-soft:rgba(217,119,87,.10); --accent-line:rgba(217,119,87,.34);
     --good:#3f7d5c;
     --shadow:0 1px 2px rgba(20,20,19,.05), 0 1px 8px rgba(20,20,19,.04);
@@ -35,31 +38,6 @@
     color-scheme:light;
   }
 
-  :root:not([data-theme="light"]){
-    @media (prefers-color-scheme:dark){
-      --bg:#262624; --surface:#30302e; --surface-2:#3a3a37; --surface-3:#44443f;
-      --ink:#f5f4ef; --ink-2:#d8d6ce; --ink-3:#a8a69d; --ink-4:#8a887f;
-      --line:#45443f; --line-2:#57564f;
-      --accent:#e79173; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#1a1a18;
-      --accent-soft:rgba(217,119,87,.13); --accent-line:rgba(217,119,87,.40);
-      --good:#6fb891;
-      --shadow:0 1px 2px rgba(0,0,0,.22), 0 1px 8px rgba(0,0,0,.18);
-      --shadow-lift:0 2px 6px rgba(0,0,0,.28), 0 12px 32px rgba(0,0,0,.34);
-      color-scheme:dark;
-    }
-  }
-
-  :root[data-theme="dark"]{
-    --bg:#262624; --surface:#30302e; --surface-2:#3a3a37; --surface-3:#44443f;
-    --ink:#f5f4ef; --ink-2:#d8d6ce; --ink-3:#a8a69d; --ink-4:#8a887f;
-    --line:#45443f; --line-2:#57564f;
-    --accent:#e79173; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#1a1a18;
-    --accent-soft:rgba(217,119,87,.13); --accent-line:rgba(217,119,87,.40);
-    --good:#6fb891;
-    --shadow:0 1px 2px rgba(0,0,0,.22), 0 1px 8px rgba(0,0,0,.18);
-    --shadow-lift:0 2px 6px rgba(0,0,0,.28), 0 12px 32px rgba(0,0,0,.34);
-    color-scheme:dark;
-  }
 
   /* ======================================================================
      THE SQUIDGY SPACE
@@ -75,7 +53,6 @@
        --accent        accent text, dark enough to hold 4.5:1 on the pink
 
      Every text colour here clears 4.5:1 on the pink, the page and white.
-     In the dark the two swap roles: brown makes the surfaces, pink the accent.
      ====================================================================== */
   :root[data-space="squidgy"]{
     --mark:url("/brand/squidgy-mark.png");
@@ -86,22 +63,6 @@
     --accent-soft:rgba(168,112,78,.12); --accent-line:rgba(168,112,78,.40);
     --shadow:0 1px 2px rgba(122,78,54,.08), 0 1px 8px rgba(122,78,54,.06);
     --shadow-lift:0 2px 6px rgba(122,78,54,.10), 0 12px 32px rgba(122,78,54,.14);
-  }
-  @media (prefers-color-scheme:dark){
-    :root[data-space="squidgy"]:not([data-theme="light"]){
-      --bg:#1d1411; --surface:#2a1c17; --surface-2:#3a2620; --surface-3:#4a3129;
-      --ink:#fbeef0; --ink-2:#eed5da; --ink-3:#cfaab2; --ink-4:#b08b93;
-      --line:#46302a; --line-2:#5a3d34;
-      --accent:#F5C9D1; --accent-fill:#e9a9b7; --accent-solid:#F5C9D1; --accent-on:#2a1810;
-      --accent-soft:rgba(245,201,209,.12); --accent-line:rgba(245,201,209,.36);
-    }
-  }
-  :root[data-space="squidgy"][data-theme="dark"]{
-    --bg:#1d1411; --surface:#2a1c17; --surface-2:#3a2620; --surface-3:#4a3129;
-    --ink:#fbeef0; --ink-2:#eed5da; --ink-3:#cfaab2; --ink-4:#b08b93;
-    --line:#46302a; --line-2:#5a3d34;
-    --accent:#F5C9D1; --accent-fill:#e9a9b7; --accent-solid:#F5C9D1; --accent-on:#2a1810;
-    --accent-soft:rgba(245,201,209,.12); --accent-line:rgba(245,201,209,.36);
   }
 
   /* What you say sits in the brand colour, so the thread reads as two voices at
