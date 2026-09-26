@@ -176,10 +176,11 @@ async function boot(path, init, arg) {
   await page.click("#pagerBtn");
   await page.waitForTimeout(120);
   const sheet = await page.evaluate(() => ({
-    picks: [...document.querySelectorAll("#pPick button")].map(b => b.dataset.p),
-    on: document.querySelector("#pPick button.on")?.dataset.p,
+    picks: [...document.querySelectorAll("#pPick option")].map(o => o.value),
+    on: document.getElementById("pPick")?.value,
   }));
-  check("the sheet offers the brains it has", sheet.picks.join(",") === "subject,all", sheet.picks.join(","));
+  check("the sheet offers everything, the group, and each brain by name",
+    sheet.picks.join(",") === "all,subject,content", sheet.picks.join(","));
   check("and starts on everything when no brain is picked", sheet.on === "all", String(sheet.on));
 
   await page.click("#pGo");

@@ -65,7 +65,7 @@
      THE SQUIDGY SPACE
 
      Brown #A8704E and pink #F5C9D1, on every surface rather than the accent
-     alone. The sidebar is the pink itself, the page a 28% wash of it, cards stay
+     alone. The sidebar is the pink itself, the page a 60% wash of it, cards stay
      white so what you read keeps its contrast, and the text runs in browns
      instead of greys.
 
@@ -79,9 +79,9 @@
      ====================================================================== */
   :root[data-space="squidgy"]{
     --mark:url("/brand/squidgy-mark.png");
-    --bg:#fcf0f2; --surface:#ffffff; --surface-2:#F5C9D1; --surface-3:#ecb6c1;
+    --bg:#f9dfe4; --surface:#ffffff; --surface-2:#F5C9D1; --surface-3:#ecb6c1;
     --ink:#2a1810; --ink-2:#4b3024; --ink-3:#6b4234; --ink-4:#7c5243;
-    --line:#f3d3d9; --line-2:#e0aeb8;
+    --line:#efc4cd; --line-2:#dca2ae;
     --accent:#7a4e36; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
     --accent-soft:rgba(168,112,78,.12); --accent-line:rgba(168,112,78,.40);
     --shadow:0 1px 2px rgba(122,78,54,.08), 0 1px 8px rgba(122,78,54,.06);
@@ -634,6 +634,10 @@
   .sheet label{
     display:block; font:500 13px/1 var(--sans); color:var(--ink);
     margin-bottom:7px;
+  }
+  .sheet select.pick{
+    width:100%; border:1px solid var(--line-2); border-radius:9px; background:var(--bg);
+    padding:10px 12px; font:400 14.5px/1.5 var(--sans); color:var(--ink);
   }
   .sheet input, .sheet textarea{
     width:100%; border:1px solid var(--line-2); border-radius:9px; background:var(--bg);
@@ -1839,6 +1843,23 @@ const lastMail = () => { try { return localStorage.getItem(MAIL_KEY) || ""; } ca
  * The brain in the sidebar when one is picked, a group, everything, or a
  * question. The first three assemble from stored positions and cost nothing.
  */
+/**
+ * Every brain the page can be built from, grouped the way the sidebar groups
+ * them, with the whole group at the head of each. A person or a subject was
+ * only reachable as the whole group, or as the brain picked in the sidebar.
+ */
+function pickOptions(){
+  const opt = (v, t) => `<option value="${esc(v)}">${esc(t)}</option>`;
+  const groups = grouped();
+  let out = opt("all", `Everything (${S.brains.length} brains)`);
+  for (const g of groups){
+    const whole = g.head === "People" ? "person" : "subject";
+    out += `<optgroup label="${esc(g.head)}">` + opt(whole, `All ${g.head.toLowerCase()} (${g.rows.length})`) +
+      g.rows.map(b => opt(b.slug, b.name)).join("") + "</optgroup>";
+  }
+  return out;
+}
+
 function openPagerSheet(){
   closeSide();
   const here = S.brains.find(b => b.slug === S.scope);
@@ -1849,11 +1870,9 @@ function openPagerSheet(){
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>One page, in bullets</h3>
       <p>A brain, a group, or a question. The first two read what is already stored, so they cost nothing and invent nothing.</p></header>
-      <div class="f"><label>Built from</label><div class="seg" id="pPick">
-        ${here ? `<button data-p="${esc(here.slug)}">${esc(here.name)}</button>` : ""}
-        ${people ? `<button data-p="person">People</button>` : ""}
-        ${subjects ? `<button data-p="subject">Subjects</button>` : ""}
-        <button data-p="all">Everything</button></div></div>
+      <div class="f"><label for="pPick">Built from</label>
+        <select id="pPick" class="pick">${pickOptions()}</select>
+        <div class="hint">One brain by name, a whole group, or everything.</div></div>
       <div class="f"><label for="pQ">Or ask a question</label>
         <textarea id="pQ" placeholder="Leave this empty to lay out the positions as they stand."></textarea>
         <div class="hint">A question costs one model call. The answer comes back as at most 9 bullets.</div></div>
@@ -1866,12 +1885,9 @@ function openPagerSheet(){
   document.body.append(veil);
 
   let pick = here ? here.slug : "all";
-  const paint = () => [...veil.querySelectorAll("#pPick button")]
-    .forEach(b => b.classList.toggle("on", b.dataset.p === pick));
-  paint();
-  veil.querySelector("#pPick").onclick = e => {
-    const b = e.target.closest("button"); if (b){ pick = b.dataset.p; paint(); }
-  };
+  const picker = veil.querySelector("#pPick");
+  picker.value = pick;
+  picker.onchange = () => { pick = picker.value; };
   const shut = () => veil.remove();
   veil.querySelector("#pCancel").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
