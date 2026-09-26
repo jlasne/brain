@@ -14,12 +14,18 @@ import type { Who, Space } from "./lib";
 import { dossierFor } from "./words";
 import { routeQuestion } from "./route";
 
+/* A bullet names its concept, then says it in one or two lines. */
+export type Bullet = { k: string; say: string };
+
 export type Pager = {
   title: string;
   line: string;
-  sections: { head: string; bullets: string[] }[];
+  sections: { head: string; bullets: Bullet[] }[];
   foot: string;
 };
+
+/* Two lines of a page, about. */
+const SAY_MAX = 180;
 
 /* One page holds about this much before it stops being one page. */
 const ONE_BRAIN = 14;
@@ -38,21 +44,27 @@ const firstLine = (s: string) => {
   return cut > 0 ? t.slice(0, cut + 1) : t;
 };
 
+/** At most two lines, cut at a word. */
+const clamp = (s: string) => {
+  const t = String(s ?? "").trim();
+  if (t.length <= SAY_MAX) return t;
+  const cut = t.slice(0, SAY_MAX).replace(/\s+\S*$/, "");
+  return cut.replace(/[,;:]$/, "") + "...";
+};
+
 /**
- * What one concept says, in one bullet.
+ * One concept, as one bullet: its name, then what it holds in a line or two.
  *
- * The summary line is written to be exactly this, so it leads. A number from
- * the evidence follows it when there is one, because a bullet carrying a figure
- * survives the page and one carrying an adjective does not.
+ * The summary line is written to be exactly this, so it leads. Sources and
+ * dates stay out of the bullet; the foot of the page counts them once.
  */
-function bulletOf(c: any): string {
-  const said = stop(c.summaryLine || firstLine(c.position) || c.title);
-  const data = (c.data ?? []).find((d: string) => /\d/.test(String(d)));
-  const dates = (c.evidence ?? []).map((e: any) => String(e?.date ?? "")).filter(Boolean).sort();
-  const last = dates.length ? dates[dates.length - 1] : String(c.updated ?? "");
-  const tail = [data ? String(data).trim() : "", last].filter(Boolean).join(" · ");
-  return tail ? `${said} (${tail})` : said;
+function bulletOf(c: any): Bullet {
+  return { k: String(c.title ?? "").trim(), say: clamp(stop(c.summaryLine || firstLine(c.position))) };
 }
+
+/** A bullet as one line of plain text. */
+export const bulletText = (b: Bullet | string) =>
+  typeof b === "string" ? b : b.k && b.say ? `${b.k}: ${b.say}` : b.k || b.say;
 
 /** The fullest first: most evidence, then most recently moved. */
 const rank = (a: any, b: any) =>
@@ -104,13 +116,14 @@ export function assemble(
 const BULLET_RULES = `Answer the question as a one page briefing, in bullets.
 
 SHAPE
-- At most 9 bullets. Each one starts with "- " on its own line.
-- One idea per bullet, under 24 words.
+- At most 9 bullets. Each one is a single line:
+  - Core concept: what it says
+- The core concept is 2 to 6 words, with no colon inside it.
+- What it says fits in one or two lines: under 30 words.
 - The FIRST bullet answers the question outright.
-- Put the numbers, the dates and the findings inside the bullets.
+- Put the numbers and the findings in what it says.
 - Order them so someone reading only the first three still has the answer.
-- After the bullets, one blank line, then one line starting "Sources: " naming
-  the authors and dates you used. Leave that line out if you used none.
+- Write only the bullets. No sources, no authors, no dates, no closing line.
 
 WORDS
 - English, always. No em-dashes. Under 30 words per sentence.
@@ -131,32 +144,46 @@ export async function fromQuestion(
 
   /* The same search a question in the chat runs, so a page asked of every
      brain reads what bears on it rather than all of it. */
+  const route = await routeQuestion(brains, concepts, q, undefined, key, model);
+  const found = dossierFor(brains, concepts, q, undefined, route);
+  const held = concepts.filter((c: any) => slugs.includes(c.brain)).length;
   const { text } = await ask([
     { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You always answer in English." },
     { role: "user", content: `${BULLET_RULES}
 
 STORED KNOWLEDGE
-${dossierFor(brains, concepts, q, undefined, await routeQuestion(brains, concepts, q, undefined, key, model)).dossier}
+${found.dossier}
 
 QUESTION: ${q}` },
   ], { maxTokens: 2000, key, model });
 
-  const lines = String(text).split("\n").map(l => l.trim()).filter(Boolean);
-  const bullets = lines.filter(l => l.startsWith("- ")).map(l => l.slice(2).trim());
-  const cited = lines.find(l => /^sources:/i.test(l)) ?? "";
+  /* A line naming sources is dropped: the foot counts them once. */
+  const lines = String(text).split("\n").map(l => l.trim()).filter(l => l && !/^(\*\*)?sources?\b/i.test(l));
+  const bullets = lines.filter(l => /^[-*•] /.test(l)).map(l => l.slice(2).trim());
 
   /* A model that ignored the shape still has an answer in it, so its prose
      becomes the bullets rather than an empty page. */
-  const body = bullets.length ? bullets
-    : lines.filter(l => !/^sources:/i.test(l)).slice(0, 9);
+  const body = (bullets.length ? bullets : lines).slice(0, 9).map(splitBullet);
 
   return {
     title: q.length > 78 ? q.slice(0, 75).trimEnd() + "..." : q,
     line: `Asked of ${brains.length === 1 ? brains[0].name : `${brains.length} brains`} in ${SPACE_NAME[space]}.`,
     sections: [{ head: "", bullets: body }],
-    foot: [cited.replace(/^sources:\s*/i, "Sources: "), `${read} source${read === 1 ? "" : "s"} read`, today]
-      .filter(Boolean).join(" · "),
+    foot: [
+      `${found.opened.length} of ${held} position${held === 1 ? "" : "s"}`,
+      `${read} source${read === 1 ? "" : "s"} read`,
+      today,
+    ].join(" · "),
   };
+}
+
+/** "Core concept: what it says", with the markdown a model adds taken off. */
+function splitBullet(line: string): Bullet {
+  const t = line.replace(/\*\*/g, "").replace(/^["']|["']$/g, "").trim();
+  const at = t.indexOf(": ");
+  /* A name is short. A colon deep in a sentence is part of what it says. */
+  if (at > 0 && at <= 60) return { k: t.slice(0, at).trim(), say: clamp(stop(t.slice(at + 2))) };
+  return { k: "", say: clamp(stop(t)) };
 }
 
 /* ---------- rendering ---------- */
@@ -164,12 +191,19 @@ QUESTION: ${q}` },
 const esc = (s: string) => String(s ?? "")
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+/* The concept in bold on its line, what it says beneath it. */
+const bulletHtml = (b: Bullet | string) => {
+  if (typeof b === "string") return esc(b);
+  const say = b.say ? esc(b.say) : "";
+  return b.k ? `<strong style="font-weight:600;color:#141413">${esc(b.k)}</strong>${say ? `<br>${say}` : ""}` : say;
+};
+
 /** The page as plain text, which is what a mail client with no HTML shows. */
 export function asText(p: Pager): string {
   const out = [p.title, p.line, ""];
   for (const s of p.sections) {
     if (s.head) out.push(s.head.toUpperCase(), "");
-    for (const b of s.bullets) out.push("- " + b);
+    for (const b of s.bullets) out.push("- " + bulletText(b));
     out.push("");
   }
   out.push(p.foot);
@@ -187,7 +221,7 @@ export function asHtml(p: Pager, from: string): string {
   const sections = p.sections.map(s => `
       ${s.head ? `<h2 style="margin:26px 0 8px;font:600 13px/1.4 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#93918a">${esc(s.head)}</h2>` : ""}
       <ul style="margin:0;padding-left:20px">
-        ${s.bullets.map(b => `<li style="margin:0 0 9px;font:400 15px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#3d3d3a">${esc(b)}</li>`).join("\n        ")}
+        ${s.bullets.map(b => `<li style="margin:0 0 11px;font:400 15px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#3d3d3a">${bulletHtml(b)}</li>`).join("\n        ")}
       </ul>`).join("\n");
 
   return `<!doctype html>

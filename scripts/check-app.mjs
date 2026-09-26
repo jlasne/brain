@@ -124,7 +124,7 @@ async function boot(path, init, arg) {
         const body = JSON.parse(opt?.body || "{}");
         window.__pager.push(body);
         const page = { title: "Octopus", line: "1 brain, 2 positions.",
-          sections: [{ head: "", bullets: ["Offer first. (2026-01-02)", "Face beats logo. (2026-02-02)"] }],
+          sections: [{ head: "", bullets: [{ k: "Offer creation", say: "Offer first." }, { k: "Personal brand", say: "Face beats logo." }] }],
           foot: "2 of 2 positions \u00b7 3 sources read \u00b7 2026-09-26" };
         if (body.mail === "refused@example.com")
           return Response.json({ page, text: "x", sent: false, to: body.mail, mailError: "domain is not verified" });
@@ -132,7 +132,7 @@ async function boot(path, init, arg) {
       }
       if (s.includes("/api/onepager")) return Response.json({
         page: { title: "Octopus", line: "1 brain, 2 positions.",
-                sections: [{ head: "", bullets: ["Offer first. (2026-01-02)", "Face beats logo. (2026-02-02)"] }],
+                sections: [{ head: "", bullets: [{ k: "Offer creation", say: "Offer first." }, { k: "Personal brand", say: "Face beats logo." }] }],
                 foot: "2 of 2 positions \u00b7 3 sources read \u00b7 2026-09-26" },
         text: "Octopus\n\n- Offer first.\n- Face beats logo.",
       });
@@ -191,6 +191,7 @@ async function boot(path, init, arg) {
     return {
       title: c.querySelector("h3")?.textContent,
       bullets: [...c.querySelectorAll("li")].map(li => li.textContent),
+      heads: [...c.querySelectorAll("li .k")].map(k => k.textContent),
       acts: [...c.querySelectorAll(".acts button")].map(b => b.textContent),
       field: !!c.querySelector(".acts input"),
       gone: !document.querySelector(".veil"),
@@ -200,6 +201,7 @@ async function boot(path, init, arg) {
   if (card) {
     check("titled by what it was built from", card.title === "Octopus", card.title);
     check("carrying its bullets", card.bullets.length === 2, card.bullets.join(" | "));
+    check("each bullet leads with its concept", card.heads.join(",") === "Offer creation,Personal brand", card.heads.join(","));
     check("with copy, print and mail", card.acts.join(",") === "Copy,Print,Mail it", card.acts.join(","));
     check("and a field for the address", card.field);
     check("and the sheet closed behind it", card.gone);

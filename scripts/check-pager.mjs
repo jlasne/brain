@@ -3,7 +3,7 @@
  *
  * Assembling a page calls no model, so the whole thing runs here: the ranking,
  * the caps that keep it to one page, the bullet a position turns into, and the
- * mail body. Only the question path needs a model, and that one is not run.
+ * mail body. The question path runs against a stand-in model.
  *
  *     node scripts/check-pager.mjs
  */
@@ -21,7 +21,7 @@ for (const f of ["onepager.ts", "lib.ts", "words.ts", "route.ts"]) copyFileSync(
 writeFileSync(join(dir, "_generated/api.ts"), "export const internal = {};\n");
 await esbuild.build({ entryPoints: [join(dir, "onepager.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { assemble, asText, asHtml, looksLikeMail } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { assemble, fromQuestion, asText, asHtml, looksLikeMail, bulletText } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -58,10 +58,14 @@ const sources = [
   check("one brain is titled by its name", p.title === "Content", p.title);
   check("and carries its scope line", p.line === "brand and content for business", p.line);
   check("one brain needs no section heading", p.sections[0].head === "", `"${p.sections[0].head}"`);
-  check("the fullest position leads", /Three sources agree/.test(p.sections[0].bullets[0]), p.sections[0].bullets[0]);
-  check("a bullet carries its number", /31 percent/.test(p.sections[0].bullets[0]), p.sections[0].bullets[0]);
-  check("and the date of its newest evidence", /2026-08-09/.test(p.sections[0].bullets[0]), p.sections[0].bullets[0]);
-  check("a bullet with no number still ends in a stop", /so\.$|so\. \(/.test(p.sections[0].bullets[1]), p.sections[0].bullets[1]);
+  const [b0, b1] = p.sections[0].bullets;
+  check("the fullest position leads", b0.k === "Fat idea" && b0.say === "Three sources agree.", JSON.stringify(b0));
+  check("a bullet names its concept, then says it", b1.k === "Thin idea" && b1.say === "One source says so.", JSON.stringify(b1));
+  check("a bullet carries no source, author or date",
+    p.sections[0].bullets.every(b => !/2026-|\(|·/.test(b.k + b.say)), JSON.stringify(p.sections[0].bullets));
+  const long = assemble("octopus", [brains[0]], [concept("content", 1, "Long", "word ".repeat(80).trim(), [], [], "2026-01-01")], [], "content");
+  const say = long.sections[0].bullets[0].say;
+  check("what it says stays within two lines", say.length <= 184 && say.endsWith("..."), `${say.length}: ${say.slice(-20)}`);
   check("the foot counts what was read", /3 sources read/.test(p.foot), p.foot);
   check("and how much of the brain is shown", /2 of 2 positions/.test(p.foot), p.foot);
 }
@@ -98,15 +102,42 @@ const sources = [
 {
   const p = assemble("octopus", [brains[0]], concepts, sources, "content");
   const text = asText(p);
-  check("the text carries every bullet", p.sections[0].bullets.every(b => text.includes(b)));
+  check("the text carries every bullet", p.sections[0].bullets.every(b => text.includes(bulletText(b))));
+  check("as the concept, then what it says", text.includes("- Fat idea: Three sources agree."), text);
   const html = asHtml(p, "Octopus");
-  check("the html carries every bullet", p.sections[0].bullets.every(b => html.includes(b.replace(/&/g, "&amp;"))));
+  check("the html carries every bullet", p.sections[0].bullets.every(b => html.includes(`${b.k}</strong><br>${b.say}`)));
   check("the html names the space", html.includes(">Octopus<"));
   const nasty = assemble("octopus",
     [{ slug: "x", name: "<script>alert(1)</script>", type: "subject", scope: "s" }],
     [concept("x", 1, "T", "A line", [ev("2026-01-01", "A", "x")], [], "2026-01-01")], [], "x");
   check("a title with markup in it is escaped",
     asHtml(nasty, "Octopus").includes("&lt;script&gt;") && !asHtml(nasty, "Octopus").includes("<script>alert"));
+}
+
+/* ---- a question ---- */
+{
+  const real = globalThis.fetch;
+  const said = [];
+  globalThis.fetch = async (_u, opt) => {
+    const body = JSON.parse(opt.body);
+    const sys = body.messages[0].content;
+    said.push(body.messages[1].content);
+    const content = /route questions/.test(sys)
+      ? JSON.stringify({ picks: [1], terms: ["retention"] })
+      : ["- **Retention lift**: Retention rose 31 percent across three sources.",
+         "- Named face: A named face compounds distribution, per Gave 2026-04-04.",
+         "",
+         "Sources: A (2026-03-01), B (2026-05-04)"].join("\n");
+    return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
+  };
+  const p = await fromQuestion("octopus", brains, concepts, sources, "What lifts retention?", "k");
+  globalThis.fetch = real;
+  const bs = p.sections[0].bullets;
+  check("a question's bullets name a concept, then say it",
+    bs[0].k === "Retention lift" && bs[0].say === "Retention rose 31 percent across three sources.", JSON.stringify(bs[0]));
+  check("the sources line stays off the page", bs.length === 2 && !asText(p).includes("Sources:"), asText(p));
+  check("the rules ask for no sources in the bullets", /No sources, no authors, no dates/.test(said.at(-1)));
+  check("its foot counts positions and sources read", /^\d+ of 3 positions · 3 sources read · \d{4}-\d\d-\d\d$/.test(p.foot), p.foot);
 }
 
 /* ---- the address ---- */

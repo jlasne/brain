@@ -476,6 +476,8 @@
   .pager ul{ margin:12px 0 0; padding-left:19px; }
   .pager li{ margin-bottom:8px; font:400 14.5px/1.55 var(--sans); color:var(--ink-2); }
   .pager li::marker{ color:var(--accent-fill); }
+  .pager li .k, .msg.ai .body .pager li .k{ display:block; font-weight:600; color:var(--ink); }
+  .pager li .say{ display:block; }
   .pager .foot{
     margin-top:18px; padding-top:13px; border-top:1px solid var(--line);
     font:400 11.5px/1.6 var(--mono); color:var(--ink-4);
@@ -1931,7 +1933,15 @@ function showPager(page, text, built, mailed){
       for (const sec of p.sections || []){
         if (sec.head) slot.append(el("h4",null,sec.head));
         const ul = el("ul");
-        for (const b of sec.bullets || []) ul.append(el("li",null,b));
+        for (const b of sec.bullets || []){
+          const li = el("li");
+          if (typeof b === "string") li.textContent = b;
+          else {
+            if (b.k) li.append(el("strong","k",b.k));
+            if (b.say) li.append(el("span","say",b.say));
+          }
+          ul.append(li);
+        }
         slot.append(ul);
       }
       if (p.foot) slot.append(el("div","foot",p.foot));
@@ -1995,7 +2005,8 @@ function printPager(page){
   if (!w){ push("ai", b => { b.innerHTML = rich("The print window was blocked. Allow pop-ups for this site, or copy the page instead."); }); return; }
   const li = (page.sections || []).map(sec =>
     (sec.head ? `<h2>${esc(sec.head)}</h2>` : "") +
-    "<ul>" + (sec.bullets || []).map(b => `<li>${esc(b)}</li>`).join("") + "</ul>").join("");
+    "<ul>" + (sec.bullets || []).map(b => typeof b === "string" ? `<li>${esc(b)}</li>`
+      : `<li>${b.k ? `<strong>${esc(b.k)}</strong>` : ""}${b.k && b.say ? "<br>" : ""}${esc(b.say || "")}</li>`).join("") + "</ul>").join("");
   w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(page.title)}</title>
 <style>
   @page{ margin:18mm; }
@@ -2004,7 +2015,8 @@ function printPager(page){
   .sub{ margin:5pt 0 0; color:#6e6e68; font-size:11pt; }
   h2{ margin:14pt 0 4pt; font-size:9.5pt; letter-spacing:.07em; text-transform:uppercase; color:#93918a; }
   ul{ margin:8pt 0 0; padding-left:14pt; }
-  li{ margin-bottom:5pt; }
+  li{ margin-bottom:7pt; }
+  li strong{ font-weight:600; }
   .foot{ margin-top:16pt; padding-top:7pt; border-top:1px solid #e5e2d9; color:#93918a; font-size:9.5pt; }
 </style>
 <h1>${esc(page.title)}</h1>${page.line ? `<p class="sub">${esc(page.line)}</p>` : ""}${li}
