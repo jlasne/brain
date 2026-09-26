@@ -484,7 +484,9 @@ export const upsertConcept = internalMutation({
       await ctx.db.patch(seen._id, {
         ...d,
         ...(d.evidence ? { evidence: mergeEvidence(d.evidence, seen.evidence ?? []) } : {}),
-        ...(d.sources ? { sources: unionCap(d.sources, seen.sources ?? [], 100000, String) } : {}),
+        /* The newest 2,000 sources, well inside a list's 8,192 limit. The
+           sources table keeps the full record. */
+        ...(d.sources ? { sources: unionCap(seen.sources ?? [], d.sources, 1e9, String).slice(-2000) } : {}),
         ...(d.related ? { related: unionCap(d.related, seen.related ?? [], 12, String) } : {}),
         ...(d.data ? { data: unionCap(d.data, seen.data ?? [], 24, String) } : {}),
         ...(d.conflicts ? { conflicts: unionCap(d.conflicts, seen.conflicts ?? [], 12) } : {}),
@@ -492,9 +494,11 @@ export const upsertConcept = internalMutation({
       });
       return seen._id;
     }
-    const count = (await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain)).collect()).length;
+    /* The next number follows the newest concept, one row read, where counting
+       read the whole brain on every new concept. */
+    const newest = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain)).order("desc").first();
     return await ctx.db.insert("concepts", {
-      brain: a.brain, slug: s, n: count + 1, title: a.title,
+      brain: a.brain, slug: s, n: (newest?.n ?? 0) + 1, title: a.title,
       position: "", summaryLine: "", evidence: [], data: [], conflicts: [], sources: [], related: [],
       ...a.doc, updated: today(),
     });

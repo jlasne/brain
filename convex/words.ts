@@ -9,6 +9,9 @@
 
 export const norm = (s: any) => String(s ?? "").toLowerCase().trim();
 
+/* Accents folded, so "linéaire" is one word and matches "lineaire". */
+const fold = (s: any) => norm(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
 /**
  * Question words carry no subject, and scope lines are written in prose, so
  * "how do I bake sourdough" matched a scope that merely opens with "how".
@@ -20,24 +23,61 @@ export const STOP = new Set(("a about after again all also am an and any are as 
   "make many may me more most much must my need no nor not now of off on once one only or other our out " +
   "over own per put same say said see should since so some such take than that the their them then there " +
   "these they thing things think this those through to too two under until up us use used using very want " +
-  "was way we were what when where which while who whom why will with within would you your").split(" "));
+  "was way we were what when where which while who whom why will with within would you your " +
+  /* French, since questions often come in French and the concepts in English. */
+  "les des une est que qui quoi dans pour par sur avec pas plus son ses leur leurs aux mais comme tout tous " +
+  "toute toutes fait faire quel quelle quels quelles comment pourquoi donc alors ont sont etre avoir cette " +
+  "ces cet elle elles nous vous ils entre sans sous chez aussi tres peu bien").split(" "));
 
 export const keywords = (q: string) =>
-  norm(q).split(/[^a-z0-9]+/).filter(w => w.length > 2 && !STOP.has(w));
+  fold(q).split(/[^a-z0-9]+/).filter(w => w.length > 2 && !STOP.has(w));
+
+/**
+ * A word's stem, near enough: "rates" and "rate" meet, "accurate" and "rate"
+ * do not. Words used to match anywhere inside another word, so "est" found
+ * "interest" and "rate" found "corporate".
+ */
+export function stem(w: string): string {
+  if (w.length < 4) return w;
+  for (const x of ["ations", "ation", "ings", "ing", "ies", "ied", "ers", "ed", "es", "er", "ly", "s", "e"]) {
+    if (w.endsWith(x) && w.length - x.length >= 3) return w.slice(0, -x.length);
+  }
+  return w;
+}
+
+/* A concept's words, read once per concept object rather than once per word. */
+const bags = new WeakMap<object, { title: Set<string>; all: Set<string> }>();
+function bagOf(c: any) {
+  let b = bags.get(c);
+  if (b) return b;
+  const set = (t: string) => new Set(keywords(t).map(stem));
+  b = {
+    title: set(String(c.title ?? "")),
+    all: set([c.title, c.summaryLine, c.position, (c.data ?? []).join(" "),
+      (c.evidence ?? []).map((e: any) => e?.claim ?? "").join(" ")].join(" ")),
+  };
+  bags.set(c, b);
+  return b;
+}
 
 
-/** How strongly one concept bears on a set of words. A title hit counts three. */
-export function scoreConcept(c: any, words: string[], brainText = ""): number {
+/**
+ * How strongly one concept bears on a set of words. A title hit counts three.
+ * A word of the brain's name or scope only breaks a tie: it used to count a
+ * full point, so one word of a scope made every concept of that brain a match.
+ * A weight below one lets a follow-up borrow the question before it without
+ * that question outweighing this one.
+ */
+export function scoreConcept(c: any, words: string[], brainText = "", weight?: (w: string) => number): number {
   if (!words.length) return 0;
-  const title = norm(c.title);
-  const hay = norm([c.title, c.summaryLine, c.position, (c.data ?? []).join(" "),
-    (c.evidence ?? []).map((e: any) => e?.claim ?? "").join(" ")].join(" "));
-  const brain = norm(brainText);
+  const bag = bagOf(c);
+  const brain = brainText ? new Set(keywords(brainText).map(stem)) : null;
   let score = 0;
-  for (const w of words) {
-    if (title.includes(w)) score += 3;
-    if (hay.includes(w)) score += 1;
-    if (brain && brain.includes(w)) score += 1;
+  for (const w of new Set(words)) {
+    const s = stem(w), k = weight ? weight(w) : 1;
+    if (bag.title.has(s)) score += 3 * k;
+    if (bag.all.has(s)) score += 1 * k;
+    if (brain && brain.has(s)) score += 0.25 * k;
   }
   return score;
 }
@@ -47,9 +87,9 @@ export function scoreConcept(c: any, words: string[], brainText = ""): number {
  * With no words at all, the fullest concepts lead, so a vague question still
  * reaches the positions with the most behind them.
  */
-export function rankConcepts(concepts: any[], words: string[], brains: any[] = []) {
+export function rankConcepts(concepts: any[], words: string[], brains: any[] = [], weight?: (w: string) => number) {
   const brainText = new Map(brains.map((b: any) => [b.slug, `${b.name} ${b.scope}`]));
-  return concepts.map((c: any) => ({ c, score: scoreConcept(c, words, brainText.get(c.brain) ?? "") }))
+  return concepts.map((c: any) => ({ c, score: scoreConcept(c, words, brainText.get(c.brain) ?? "", weight) }))
     .sort((a, b) => b.score - a.score || (b.c.evidence?.length ?? 0) - (a.c.evidence?.length ?? 0));
 }
 
@@ -57,6 +97,8 @@ export function rankConcepts(concepts: any[], words: string[], brains: any[] = [
    and up to 120 more named by title within 12,000. About 18,000 tokens at most,
    whatever the size of the brains behind it. */
 export const FULL_MAX = 30, FULL_CHARS = 60000, TITLE_MAX = 120, TITLE_CHARS = 12000;
+/* One concept opens at most this much, so no single one eats the budget. */
+export const ROW_MAX = 8000;
 
 /**
  * The stored knowledge a question reads.
@@ -66,7 +108,7 @@ export const FULL_MAX = 30, FULL_CHARS = 60000, TITLE_MAX = 120, TITLE_CHARS = 1
  * is held, and a follow-up borrows the words of the question before it.
  */
 export function dossierFor(pool: any[], concepts: any[], q: string, history?: any,
-                           opts: { picked?: string[]; terms?: string[] } = {}) {
+                           opts: { picked?: string[]; terms?: string[]; routed?: boolean } = {}) {
   const last = (Array.isArray(history) ? history : []).slice(-1)[0];
   const words = keywords(q);
   const echo = last ? keywords(String(last.q ?? "")).filter(w => !words.includes(w)) : [];
@@ -74,8 +116,11 @@ export function dossierFor(pool: any[], concepts: any[], q: string, history?: an
      still meets the words the concepts are written in. */
   const extra = keywords((opts.terms ?? []).join(" ")).filter(w => !words.includes(w) && !echo.includes(w));
   const inPool = concepts.filter((c: any) => pool.some((x: any) => x.slug === c.brain));
-  const ranked = rankConcepts(inPool, [...words, ...echo, ...extra], pool);
-  const hits = ranked.filter(r => r.score > 0).map(r => r.c);
+  /* The question before counts a third as much, so a follow-up finds its
+     subject and a new subject is not buried under the old one. */
+  const echoed = new Set(echo);
+  const ranked = rankConcepts(inPool, [...words, ...echo, ...extra], pool, w => echoed.has(w) ? 0.3 : 1);
+  const hits = ranked.filter(r => r.score >= 1).map(r => r.c);
 
   /* The order concepts open in: what the router picked, reading every title;
      then what those concepts link to, since an answer usually continues there;
@@ -83,12 +128,17 @@ export function dossierFor(pool: any[], concepts: any[], q: string, history?: an
      still reaches the fullest positions. */
   const byId = new Map(inPool.map((c: any) => [idOf(c), c]));
   const picked = (opts.picked ?? []).map(id => byId.get(id)).filter(Boolean);
-  const seeds = picked.length ? picked : hits.slice(0, 10);
+  /* A router that read every title and picked none has judged nothing held
+     bears on it. Only a concept whose title carries the question's words
+     overrules that; loose word matches would fill the answer with noise. */
+  const judgedEmpty = !!opts.routed && !picked.length;
+  const titleHits = judgedEmpty ? hits.filter((c: any) => scoreConcept(c, words) >= 3) : hits;
+  const seeds = picked.length ? picked : titleHits.slice(0, 10);
   const linked = neighbours(seeds, inPool).slice(0, 10);
   /* The seeds lead: the picks, or with none the best word matches. Then what
      they link to, then the rest of the matches. */
-  const lead0 = [...seeds, ...linked, ...hits];
-  const lead = [...new Set(lead0.length ? lead0 : ranked.map(r => r.c))];
+  const lead0 = [...seeds, ...linked, ...titleHits];
+  const lead = [...new Set(lead0.length || judgedEmpty ? lead0 : ranked.map(r => r.c))];
 
   const brainOf = (c: any) => pool.find((x: any) => x.slug === c.brain);
   const row = (c: any) => {
@@ -105,8 +155,10 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
   for (const c of lead) {
     if (opened.length >= FULL_MAX) break;
     const r = row(c);
-    if (used + r.length > FULL_CHARS && opened.length) break;
-    opened.push(c); used += r.length;
+    /* One long concept is passed over, not the end of the list: a smaller
+       pick after it still opens. */
+    if (used + Math.min(r.length, ROW_MAX) > FULL_CHARS && opened.length) continue;
+    opened.push(c); used += Math.min(r.length, ROW_MAX);
   }
   const named: string[] = [];
   let usedT = 0;
@@ -118,7 +170,8 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
     named.push(line); usedT += line.length;
   }
   const left = inPool.length - opened.length - named.length;
-  const dossier = (opened.map(row).join("\n\n") || "The chosen brains hold no concepts yet.") +
+  const empty = inPool.length ? "Nothing held bears directly on this question." : "The chosen brains hold no concepts yet.";
+  const dossier = (opened.map(c => row(c).slice(0, ROW_MAX)).join("\n\n") || empty) +
     (named.length ? `\n\nALSO HELD, not opened here:\n${named.join("\n")}` +
       (left > 0 ? `\n...and ${left} more.` : "") : "");
   return { dossier, opened, named: named.length, left, matched: hits.length,
@@ -181,8 +234,14 @@ export function indexFor(pool: any[], concepts: any[], q: string) {
   const name = new Map(pool.map((b: any) => [b.slug, b.name]));
   const lines: string[] = [], ids: string[] = [];
   let used = 0;
-  for (const { c } of rankConcepts(inPool, keywords(q), pool)) {
-    const line = `${ids.length + 1}|${c.title} [${name.get(c.brain) ?? c.brain}]`;
+  /* Past the cut, the newest concepts come first among equals, so what was
+     just dropped is never the part the router cannot see. One brain needs no
+     brain name on each line, which leaves room for a quarter more titles. */
+  const one = pool.length === 1;
+  const order = rankConcepts(inPool, keywords(q), pool)
+    .sort((a, b) => b.score - a.score || String(b.c.updated ?? "").localeCompare(String(a.c.updated ?? "")));
+  for (const { c } of order) {
+    const line = one ? `${ids.length + 1}|${c.title}` : `${ids.length + 1}|${c.title} [${name.get(c.brain) ?? c.brain}]`;
     if (used + line.length + 1 > INDEX_CHARS) break;
     lines.push(line); ids.push(idOf(c)); used += line.length + 1;
   }

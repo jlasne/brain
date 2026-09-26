@@ -123,7 +123,11 @@ export function assemble(
   const read = sourceCount(slugs);
   const ideas = brains.reduce((n, b) => n + conceptsOf(b.slug).length, 0);
 
-  const sections = brains.slice(0, one ? 1 : MAX_BRAINS).map(b => ({
+  /* Empty brains leave before the cut, and the fullest lead, so six sections
+     are six brains that hold something. */
+  const holding = one ? brains : brains.filter(b => conceptsOf(b.slug).length)
+    .sort((x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length);
+  const sections = holding.slice(0, one ? 1 : MAX_BRAINS).map(b => ({
     head: one ? "" : b.name,
     bullets: conceptsOf(b.slug).slice(0, one ? ONE_BRAIN : PER_BRAIN).map(bulletOf),
   })).filter(s => s.bullets.length);
@@ -180,6 +184,7 @@ export async function fromQuestion(
 
   /* The same search a question in the chat runs, so a page asked of every
      brain reads what bears on it rather than all of it. */
+  const t0 = Date.now();
   const route = await routeQuestion(brains, concepts, q, undefined, key, model);
   const found = dossierFor(brains, concepts, q, undefined, route);
   const held = concepts.filter((c: any) => slugs.includes(c.brain)).length;
@@ -191,7 +196,9 @@ STORED KNOWLEDGE
 ${found.dossier}
 
 QUESTION: ${q}` },
-  ], { maxTokens: 2000, key, model });
+  ], { maxTokens: 2000, key, model,
+       /* Router, answer and mail stay inside the browser's 3 minutes. */
+       timeout: Math.max(60000, 145000 - (Date.now() - t0)) });
 
   /* A line naming sources is dropped: the foot counts them once. */
   const lines = String(text).split("\n").map(l => l.trim()).filter(l => l && !/^(\*\*)?sources?\b/i.test(l));

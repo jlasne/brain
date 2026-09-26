@@ -44,7 +44,11 @@ function makeDb() {
         if (fn) fn(q);
         return api;
       },
-      async collect() { return rows(t).filter(r => conds.every(([f, v]) => r[f] === v)); },
+      order(dir) { api._desc = dir === "desc"; return api; },
+      async collect() {
+        const all = rows(t).filter(r => conds.every(([f, v]) => r[f] === v));
+        return api._desc ? all.slice().reverse() : all;
+      },
       async first() { return (await api.collect())[0] ?? null; },
       async unique() {
         const all = await api.collect();
@@ -162,6 +166,9 @@ function seed() {
   await run(store.upsertConcept, ctx, { brain: "wealth", title: "Currency hedging", slug: "fx", doc: { position: "Hedge." } });
   check("a concept with its own id is updated in place", T.concepts.filter(c => c.title === "Currency hedging").length === 1
     && T.concepts.find(c => c.slug === "fx").position === "Hedge.");
+  await run(store.upsertConcept, ctx, { brain: "wealth", title: "Platinum", doc: { position: "New." } });
+  check("a new concept takes the next number", T.concepts.find(c => c.title === "Platinum")?.n === 4,
+    String(T.concepts.find(c => c.title === "Platinum")?.n));
 }
 
 /* ---- everything reads one space ---- */

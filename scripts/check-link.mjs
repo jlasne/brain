@@ -94,7 +94,7 @@ globalThis.fetch = async (_u, opt) => {
 /* Runs the scheduled steps the way the platform would, one after another. */
 const drain = async () => {
   let guard = 0;
-  while (DB.scheduled.length && guard++ < 20) {
+  while (DB.scheduled.length && guard++ < 50) {
     const { fn, ...args } = DB.scheduled.shift();
     await admin[fn.split(".")[1]].handler(ctx, args);
   }
@@ -162,6 +162,27 @@ const talk = () => { console.log = quiet; };
   check("shortlisted against the whole space", DB.concepts.find(c => c.slug === "npv").related.length >= 2,
     DB.concepts.find(c => c.slug === "npv").related.join(","));
   check("and leaves the rest as they were", DB.concepts.filter(c => c.slug !== "npv").every(c => !c.related.length));
+}
+
+/* ---- a long run reaches every concept ---- */
+{
+  /* 120 concepts in pairs. Batches used to be walked by number over a list
+     rebuilt each step: concepts linked in batch 1 left it, the rest slid
+     forward, and half were never sent. */
+  const saved = DB.concepts.slice(), brains = DB.brains.slice();
+  DB.brains.push({ slug: "big", name: "Big", type: "subject", scope: "many", space: undefined });
+  for (let i = 0; i < 60; i++) {
+    const w = `zq${String.fromCharCode(97 + (i % 26))}${String.fromCharCode(97 + Math.floor(i / 26))}word`;
+    DB.concepts.push(K("big", `a${i}`, `Alpha ${w}`, `About ${w}.`, `${w} explains the alpha case in full.`, 100 + i));
+    DB.concepts.push(K("big", `b${i}`, `Beta ${w}`, `More on ${w}.`, `${w} explains the beta case in full.`, 200 + i));
+  }
+  await admin.linkAll.handler(ctx, {});
+  hush(); await drain(); talk();
+  const big = DB.concepts.filter(c => c.brain === "big");
+  const bare = big.filter(c => !c.related.length);
+  check("a run over 120 concepts reaches every one", bare.length === 0, `${bare.length} never linked: ${bare.slice(0, 5).map(c => c.slug).join(",")}`);
+  DB.concepts.splice(0, DB.concepts.length, ...saved);
+  DB.brains.splice(0, DB.brains.length, ...brains);
 }
 
 console.log(failures ? `\n${failures} failed` : "\nlinking holds");

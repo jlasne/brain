@@ -445,6 +445,7 @@ route("/api/ask", async (ctx, _req, b) => {
    * is held. A follow-up borrows the words of the question before it.
    */
   const mKey = await modelKey(ctx, who, b), mName = modelName(who, b);
+  const t0 = Date.now();
   const route = await routeQuestion(pool, concepts, String(b.q ?? ""), b.history, mKey, mName);
   const pick = dossierFor(pool, concepts, String(b.q ?? ""), b.history, route);
   const dossier = pick.dossier;
@@ -534,7 +535,10 @@ The concepts that bear on this question are opened in full. Others are named und
 ${dossier}
 
 QUESTION: ${String(b.q ?? "")}` },
-  ], { maxTokens: level === "normal" ? 2000 : learning ? 2400 : 3200, key: mKey, model: mName });
+  ], { maxTokens: level === "normal" ? 2000 : learning ? 2400 : 3200, key: mKey, model: mName,
+       /* The browser waits 3 minutes. The router's time comes out of the
+          answer's, so the two never add up past it. */
+       timeout: Math.max(60000, 165000 - (Date.now() - t0)) });
 
   return { answer: text, sources: nSources, level };
 });

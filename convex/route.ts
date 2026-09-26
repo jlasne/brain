@@ -12,17 +12,18 @@
  * alone, so a router problem never costs an answer.
  */
 
-import { ask } from "./lib";
+import { ask, parseJson } from "./lib";
 import { indexFor } from "./words";
 
 const ROUTE_RULES = `You choose which concepts of a knowledge base a question needs.
 
-Below is the question, the question asked just before it when there is one, and a numbered list of every concept title.
+Below is the question, the questions asked before it when there are any, and a numbered list of every concept title.
 
 - Pick the concepts whose content the answer needs, best first, at most 30.
 - Match on meaning, whatever language the question is in. The titles are in English.
 - Spell out abbreviations and jargon in your head: "P/E" is price to earnings, "amortissement" is depreciation.
 - Include a concept the answer builds on, not only the one named.
+- The earlier questions only resolve a reference like "that one" or "the second". The subject is the QUESTION's.
 - Pick nothing when no title bears on the question. An empty list is a correct answer.
 - "terms" is the question rewritten as English search words: the subject, its synonyms, and abbreviations spelled out. Up to 12.
 
@@ -33,23 +34,27 @@ export async function routeQuestion(
 ): Promise<{ picked: string[]; terms: string[]; routed: boolean }> {
   const index = indexFor(pool, concepts, q);
   if (!index.ids.length) return { picked: [], terms: [], routed: false };
-  const last = (Array.isArray(history) ? history : []).slice(-1)[0];
+  /* Three questions back, oldest first, so "compare it with the first one"
+     still finds the first one. */
+  const before = (Array.isArray(history) ? history : []).slice(-3).map((h: any) => String(h?.q ?? "").slice(0, 300)).filter(Boolean);
   try {
-    const { text } = await ask([
+    const { text, finish } = await ask([
       { role: "system", content: "You route questions to the right entries of a knowledge base. You reply with JSON only." },
       { role: "user", content: `${ROUTE_RULES}
 
 QUESTION: ${q.slice(0, 600)}
-${last?.q ? `ASKED JUST BEFORE: ${String(last.q).slice(0, 400)}\n` : ""}
+${before.length ? `ASKED BEFORE, oldest first:\n${before.map(x => `- ${x}`).join("\n")}\n` : ""}
 CONCEPTS (${index.ids.length}${index.total > index.ids.length ? ` of ${index.total}, the closest by wording` : ""})
 ${index.text}` },
     ], { json: true, maxTokens: 600, timeout: 30000, key, model });
-    const d = JSON.parse(String(text).replace(/^```(?:json)?|```$/g, "").trim());
+    const d = parseJson(String(text), finish);
     const picked = (Array.isArray(d?.picks) ? d.picks : [])
       .map((n: any) => index.ids[Number(n) - 1]).filter(Boolean).slice(0, 30);
     const terms = (Array.isArray(d?.terms) ? d.terms : []).map(String).slice(0, 12);
     return { picked: [...new Set<string>(picked)], terms, routed: true };
-  } catch {
+  } catch (e: any) {
+    /* Said in the logs, since the answer carries on by words alone. */
+    console.log(`router fell back to word matching: ${String(e?.message ?? e).slice(0, 200)}`);
     return { picked: [], terms: [], routed: false };
   }
 }

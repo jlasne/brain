@@ -21,7 +21,7 @@
 import { internalMutation, internalQuery, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { today, sha256, randomHex, gateKey, readSpace, SPACES, ask } from "./lib";
+import { today, sha256, randomHex, gateKey, readSpace, SPACES, ask, parseJson } from "./lib";
 import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle } from "./words";
 
 /** Who exists, and who owns what. Read this before and after a claim. */
@@ -304,14 +304,20 @@ export const linkStatus = internalQuery({
  * With `only`, the work is those concepts alone, still shortlisted against the
  * whole space: that is how a drop links what it just wrote.
  */
-async function linkBatch(ctx: any, space: string, batch: number, only?: string[]) {
+async function linkBatch(ctx: any, space: string, after: string, only?: string[]) {
   const { brains, concepts } = await spaceOf(ctx, space);
   const want = only ? new Set(only) : null;
-  const work = linkWork(concepts).filter(w => !want || want.has(idOf(w.c)));
+  /* Walked in id order from a cursor. Walking by batch number over a list
+     rebuilt each step skipped concepts: one that got its links left the list,
+     and the next ones slid into places already done. */
+  const work = linkWork(concepts).filter(w => !want || want.has(idOf(w.c)))
+    .sort((x, y) => idOf(x.c).localeCompare(idOf(y.c)));
   const name = new Map(brains.map((b: any) => [b.slug, b.name]));
-  const slice = work.slice(batch * LINK_BATCH, (batch + 1) * LINK_BATCH);
+  const ahead = work.filter(w => idOf(w.c) > after);
+  const slice = ahead.slice(0, LINK_BATCH);
   return {
     total: Math.ceil(work.length / LINK_BATCH),
+    next: ahead.length > LINK_BATCH ? idOf(slice[slice.length - 1].c) : null,
     items: slice.map(w => ({
       brain: w.c.brain, slug: w.c.slug, title: w.c.title, brainName: name.get(w.c.brain) ?? w.c.brain,
       summary: w.c.summaryLine || String(w.c.position ?? "").slice(0, 200),
@@ -353,7 +359,7 @@ async function confirmLinks(ctx: any, items: any[]): Promise<number | null> {
       { role: "system", content: "You connect the concepts of a knowledge base. You reply with JSON only." },
       { role: "user", content: `${LINK_RULES}\n\n${job}` },
     ], { json: true, maxTokens: 2000, timeout: 90000 });
-    links = JSON.parse(String(text).replace(/^```(?:json)?|```$/g, "").trim())?.links ?? {};
+    links = parseJson(String(text))?.links ?? {};
   } catch (e: any) {
     console.log(`linking failed: ${String(e?.message ?? e).slice(0, 200)}`);
     return null;
@@ -369,11 +375,11 @@ async function confirmLinks(ctx: any, items: any[]): Promise<number | null> {
 
 /** One batch of the whole-space run, then the next one is scheduled. */
 export const linkStep = internalAction({
-  args: { space: v.string(), batch: v.number() },
+  args: { space: v.string(), batch: v.number(), after: v.optional(v.string()) },
   handler: async (ctx, a) => {
-    const { total, items } = await linkBatch(ctx, a.space, a.batch);
+    const { total, items, next: cursor } = await linkBatch(ctx, a.space, a.after ?? "");
     const next = async () => {
-      if (a.batch + 1 < total) return ctx.scheduler.runAfter(0, internal.admin.linkStep, { space: a.space, batch: a.batch + 1 });
+      if (cursor) return ctx.scheduler.runAfter(0, internal.admin.linkStep, { space: a.space, batch: a.batch + 1, after: cursor });
       const i = SPACES.indexOf(a.space as any);
       if (i + 1 < SPACES.length) return ctx.scheduler.runAfter(0, internal.admin.linkStep, { space: SPACES[i + 1], batch: 0 });
       console.log("linking finished");
@@ -397,11 +403,12 @@ export const linkStep = internalAction({
 export const linkConcepts = internalAction({
   args: { space: v.string(), ids: v.array(v.string()) },
   handler: async (ctx, a) => {
-    const first = await linkBatch(ctx, a.space, 0, a.ids);
-    let added = 0;
-    for (let b = 0; b < first.total; b++) {
-      const { items } = b === 0 ? first : await linkBatch(ctx, a.space, b, a.ids);
+    let added = 0, after = "";
+    for (let guard = 0; guard < 1000; guard++) {
+      const { items, next } = await linkBatch(ctx, a.space, after, a.ids);
       if (items.length) added += (await confirmLinks(ctx, items)) ?? 0;
+      if (!next) break;
+      after = next;
     }
     console.log(`linked ${added} for ${a.ids.length} concepts just stored`);
   },

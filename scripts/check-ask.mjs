@@ -20,7 +20,7 @@ const dir = mkdtempSync(join(tmpdir(), "octo-ask-"));
 copyFileSync(join(ROOT, "convex", "words.ts"), join(dir, "words.ts"));
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { dossierFor, indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { dossierFor, indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, keywords, scoreConcept, mergeEvidence, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -198,6 +198,55 @@ const tokens = s => Math.round(s.length / 4);
   const client = src ? new Function(`${src[0]}; return conceptSlug;`)() : null;
   const titles = [...pairs.flat(), "Net present value", "Élan vital: a note on what the café économique argued in 1920"];
   check("the app and the server name concepts alike", !!client && titles.every(t => client(t) === conceptSlug(t)));
+}
+
+{
+  /* Audit findings on the answer path, each checked so it stays fixed. */
+  const k = (brain, slug, title, position, extra = {}) => ({ brain, slug, title, summaryLine: "", position,
+    evidence: [], data: [], conflicts: [], related: [], ...extra });
+  const pool = [{ slug: "acc", name: "Accountant", type: "subject", scope: "accounting and finance" }];
+  const acc = [
+    ...Array.from({ length: 12 }, (_, i) => k("acc", `gold${i}`, `Gold price driver ${i}`, "Gold rises when real rates fall.")),
+    ...Array.from({ length: 3 }, (_, i) => k("acc", `dep${i}`, `Depreciation method ${i}`, "Depreciation spreads cost over useful life.")),
+    k("acc", "usp", "Unique selling proposition", "A unique technique that sets the offer apart."),
+    k("acc", "corp", "Corporate structure", "A holding company above operating companies."),
+  ];
+
+  /* A new subject after a follow-up leads with the new subject. */
+  const r1 = dossierFor(pool, acc, "how does depreciation work?", [{ q: "what drives the gold price", a: "..." }]);
+  check("a new question outweighs the one before it", r1.opened.slice(0, 3).every(c => c.slug.startsWith("dep")),
+    r1.opened.slice(0, 4).map(c => c.slug).join(","));
+  const r2 = dossierFor(pool, acc, "and the second one?", [{ q: "what drives the gold price", a: "..." }]);
+  check("a bare follow-up still finds the subject before it", r2.opened[0]?.slug.startsWith("gold"), r2.opened[0]?.slug);
+
+  /* Words match whole words, near enough, not pieces of other words. */
+  check("'rate' does not match 'corporate'", scoreConcept(acc.at(-1), ["rate"]) === 0);
+  check("'rates' matches 'rate'", scoreConcept(k("x", "r", "Interest rate", "The rate."), ["rates"]) >= 3);
+  check("French folds its accents and drops its small words",
+    keywords("Quelle est la méthode linéaire?").join(",") === "methode,lineaire", keywords("Quelle est la méthode linéaire?").join(","));
+  check("a French question no longer reaches 'unique' through 'que'",
+    scoreConcept(acc.find(c => c.slug === "usp"), keywords("qu'est-ce que c'est?")) === 0);
+
+  /* The router read every title and picked none: nothing loose is opened. */
+  const none = dossierFor(pool, acc, "how do I bake sourdough", undefined, { picked: [], terms: ["bread"], routed: true });
+  check("a router's empty pick opens nothing unrelated", none.opened.length === 0 && /Nothing held bears/.test(none.dossier),
+    none.opened.map(c => c.slug).join(","));
+  const titled = dossierFor(pool, acc, "depreciation method", undefined, { picked: [], terms: [], routed: true });
+  check("but a title that carries the question's words still opens", titled.opened.some(c => c.slug.startsWith("dep")));
+
+  /* One huge concept is passed over, not the end of the list. */
+  const huge = k("acc", "huge", "Depreciation giant", "x".repeat(59000));
+  const small = k("acc", "small", "Depreciation note", "Short.");
+  const r3 = dossierFor(pool, [k("acc", "first", "Depreciation first", "y".repeat(2000)), huge, small], "depreciation",
+    undefined, { picked: ["acc/first", "acc/huge", "acc/small"], routed: true });
+  check("a long concept does not stop later picks from opening", r3.opened.some(c => c.slug === "small"),
+    r3.opened.map(c => c.slug).join(","));
+  check("and no single concept sends more than 8,000 characters", r3.dossier.length < 3 * 8000 + 500, String(r3.dossier.length));
+
+  /* Two evidence lists meet without a doubled entry, newest first. */
+  const ev = mergeEvidence([{ date: "2026-03-01", claim: "b", source: "s2" }, { date: "2026-01-01", claim: "a", source: "s1" }],
+                           [{ date: "2026-01-01", claim: "a", source: "s1" }, { date: "2026-02-01", claim: "c", source: "s3" }]);
+  check("merged evidence keeps each entry once, newest first", ev.map(e => e.claim).join("") === "bca", ev.map(e => e.claim).join(""));
 }
 
 console.log(failures ? `\n${failures} failed` : "\nthe question finds its answer at any size");

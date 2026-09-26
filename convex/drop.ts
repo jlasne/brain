@@ -147,8 +147,8 @@ RULES
 - Never delete a view.
 - English, always. No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording.
 - summaryLine is ONE line, under 18 words.
-- data is the concept's full list of figures: STORED DATA kept, new figures added.
-- conflicts lists every clash still open: OPEN CONFLICTS kept, new ones added.
+- data lists only NEW figures from this source. STORED DATA is kept for you, so never repeat it.
+- conflicts lists only NEW clashes. OPEN CONFLICTS are kept for you, so never repeat them.
 
 Reply with only JSON:
 {"rewrites":[{"conceptId":"","position":"","summaryLine":"","data":[""],"conflicts":[{"a":"","aDate":"","b":"","bDate":"","why":""}]}]}`;
