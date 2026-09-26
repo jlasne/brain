@@ -257,42 +257,45 @@ async function boot(path, init, arg) {
   await page.close();
 }
 
-/* ---- a plan that files less than the source holds ---- */
+/* ---- every topic is accounted for ---- */
 {
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test");
-    window.__plans = [];
-    const topics = ["Accruals", "Depreciation", "Deferred revenue", "Matching", "Reconciliation"]
+    const topics = ["Accruals", "Depreciation", "Deferred revenue", "Matching", "Reconciliation", "Goodwill"]
       .map(t => ({ topic: t, ideas: [t + " works like this."], data: [] }));
+    state.concepts = [{ brain: "content", slug: "matching", n: 1, title: "Matching", position: "p", summaryLine: "s",
+      evidence: [], data: [], conflicts: [], sources: [], related: [] }];
+    window.__plans = [];
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}");
       if (s.includes("/api/state")) return Response.json(state);
       if (s.includes("/api/drop/check")) return Response.json({ duplicate: false, sid: "s-acc" });
-      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Accounting basics", author: "A", date: "2026-09-01", topics } });
+      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Accounting basics", topics } });
       if (s.includes("/api/drop/plan")) {
         window.__plans.push(body);
-        const n = body.thorough ? 5 : 1;
+        /* A lazy plan: one concept filed, fates for three, two topics ignored. */
         return Response.json({ plan: { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
-          candidates: topics.slice(0, n).map(t => ({ title: t.topic, brain: "content", why: "taught here" })) } });
+          candidates: [{ title: "Accruals", brain: "content", why: "taught" }],
+          topics: [{ t: "T1", as: "candidate", ref: "Accruals" }, { t: "T2", as: "echo" },
+                   { t: "T3", as: "thin" }, { t: "T5", as: "candidate", ref: "Bank reconciliation" }] } });
       }
       return Response.json({});
     };
   }, STATE);
   await page.click('#mode button[data-m="drop"]');
   await page.fill("#srcInput", "Accounting basics.pdf");
-  await page.fill("#input", "Accruals, depreciation, deferred revenue, matching and reconciliation, each explained.");
+  await page.fill("#input", "Six topics, each explained.");
   await page.click("#send"); await page.waitForTimeout(500);
-  const note = await page.evaluate(() => document.querySelector(".coverage")?.textContent || "");
-  check("a plan filing 1 of 5 topics says so", /Filed 1 of 5 topics/.test(note), note);
-  check("and offers to file every topic", /File every topic/.test(note), note);
-  await page.click(".coverage button"); await page.waitForTimeout(400);
-  const after = await page.evaluate(() => ({
+  const r = await page.evaluate(() => ({
     note: document.querySelector(".coverage")?.textContent || "",
-    last: window.__plans[window.__plans.length - 1] }));
-  check("the second plan asks for the thorough pass", after.last?.thorough === true, JSON.stringify(after.last?.thorough));
-  check("and reuses the same reading", after.last?.ext?.topics?.length === 5);
-  check("a plan filing every topic shows no warning", after.note === "", after.note);
-  check("nothing threw on the way", !bad.length, bad.join(" | "));
+    concepts: [...document.querySelectorAll(".msg.ai")].pop()?.textContent || "" }));
+  check("the card accounts for every topic", /6 topics:/.test(r.note), r.note);
+  check("a repeat and a thin claim stay out, as the plan said", /1 repeat/.test(r.note) && /1 thin/.test(r.note), r.note);
+  check("a topic matching an existing concept's name is added to it", /1 added to existing/.test(r.note), r.note);
+  check("what the plan skipped is filed anyway, and said so", /the plan skipped are filed anyway/.test(r.note), r.note);
+  check("a fate naming a concept the plan never wrote is filed under that name", /Bank reconciliation/.test(r.concepts), r.concepts.slice(0, 200));
+  check("a skipped topic becomes a concept", /Goodwill/.test(r.concepts), r.concepts.slice(0, 200));
+  check("nothing threw accounting for topics", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -338,7 +341,7 @@ async function boot(path, init, arg) {
     note: document.querySelector(".coverage")?.textContent || "" }));
   check("60 topics are planned in 3 batches", planned.n === 3 && planned.sizes.join(",") === "25,25,10", planned.sizes.join(","));
   check("each batch sees the titles proposed before it", planned.proposed.join(",") === "0,25,50", planned.proposed.join(","));
-  check("and every topic is filed", planned.note === "", planned.note);
+  check("and every topic is filed, none caught by the safety net", /^60 topics: 60 new concepts\.$/.test(planned.note), planned.note);
 
   await page.click(".card-foot .go"); await page.waitForTimeout(900);
   const first = await page.evaluate(() => ({ stored: window.__settles.flat().length, peak: window.__peak,

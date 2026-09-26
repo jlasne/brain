@@ -62,7 +62,14 @@ RULES
 - In a PERSON brain, a claim contradicting that same person's earlier view is drift, not conflict. Mark it kind "drift".
 - Thin means an opinion or prediction asserted with nothing behind it. Only those stay out of concepts. A definition, rule, method, procedure, formula, framework or worked example is knowledge and gets filed, number or not.
 - ONE CONCEPT PER DISTINCT IDEA a reader could look up on its own. Never fold several into one umbrella concept named after the document or its subject. A source that teaches twelve distinct things files twelve concepts. When unsure, file narrower concepts, more of them.
-- Before replying, walk every "###" topic under THE NEW SOURCE. Each one ends up under "matched" or "candidates", unless it falls outside every brain's scope or is thin.
+- EVERY TOPIC IS ACCOUNTED FOR. The topics under THE NEW SOURCE are numbered T1, T2 and so on. "topics" gives each number exactly one fate:
+  "candidate" when it becomes a new concept, with ref = the candidate's exact title;
+  "matched" when it adds to a listed concept, with ref = that concept's id;
+  "echo" when it only repeats what a listed concept already holds;
+  "thin" when it is an opinion with nothing behind it;
+  "outside" when it fits no brain's scope.
+  A topic holding several distinct ideas may give its first idea a fate and file the others as further candidates.
+- Nothing new is dropped. A topic that is not echo, thin or outside is filed, under "matched" or "candidates".
 - "matched" = an EXISTING concept this source adds to. Copy its id exactly as listed below, in the form brain/slug. One entry per concept touched. "whatItAdds" says what this source contributes to it.
 - "candidates" = a NEW concept this source argues for, one no listed concept covers. Give a short title, the brain slug it belongs in, and why.
 - EVERY item in "new" MUST also be filed: under "matched" when a listed concept covers it, under "candidates" when none does. An idea belonging to no concept and needing no new one is thin, not new.
@@ -75,6 +82,7 @@ Reply with only JSON:
  "candidates":[{"title":"","brain":"","why":"","related":["brain/slug"]}],
  "new":[""],
  "echo":[{"claim":"","repeatsSource":""}],
+ "topics":[{"t":"T1","as":"candidate|matched|echo|thin|outside","ref":""}],
  "conflicts":[{"concept":"","conceptId":"","brain":"","kind":"flip|caveat|drift","says":"","saysDate":"","stored":"","storedDate":"","why":""}]}`;
 
 export const REWRITE_SYSTEM =
@@ -122,7 +130,7 @@ THE NEW SOURCE
 title: ${ext?.title ?? ""}
 author: ${ext?.author ?? ""}
 date: ${ext?.date ?? ""}
-${(ext?.topics ?? []).map((t: any) => `### ${t.topic}\n${(t.ideas ?? []).join("\n")}\n${(t.data ?? []).join("\n")}`).join("\n\n").slice(0, 30000)}`;
+${(ext?.topics ?? []).map((t: any, i: number) => `### T${i + 1} | ${t.topic}\n${(t.ideas ?? []).join("\n")}\n${(t.data ?? []).join("\n")}`).join("\n\n").slice(0, 30000)}`;
 }
 
 export const REWRITE_RULES =
@@ -400,10 +408,13 @@ export async function dropPlan(ctx: any, who: Who, b: any, key?: string, model?:
 
   /* Asked for from the card when a plan filed fewer ideas than the source
      holds. It re-plans the same extraction, so nothing is read twice. */
-  const THOROUGH = b.thorough ? `
-THOROUGH PASS
-The owner asked for every topic to be filed. Give each "###" topic below its own entry: "matched" when a listed concept covers it, a "candidates" entry of its own when none does. Split a topic that holds several distinct ideas. Leave out only what fits no brain's scope.
-` : "";
+  /* Every topic gets its own entry, always. The owner wants everything new
+     stored, and a plan left to itself folded 64 topics into 13. */
+  const THOROUGH = `
+EVERY TOPIC, EVERY TIME
+Give each "###" topic below its own entry: "matched" when a listed concept covers it, a "candidates" entry of its own when none does. Split a topic that holds several distinct ideas.
+${only ? `The owner picked the brain "${only}". File every topic into it, whatever its scope line says, unless the topic is thin or a pure echo. Never mark a topic "outside" here.` : "Leave out only what fits no brain's scope."}
+`;
 
   /* A long source is planned in batches of topics, one request each. A batch
      sees the titles the earlier ones proposed, so an idea spread across the

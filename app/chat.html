@@ -2388,8 +2388,54 @@ async function planAll(ext, held, thorough, progress){
     merged.new.push(...(p.new || []));
     merged.echo.push(...(p.echo || []));
     merged.conflicts.push(...(p.conflicts || []));
+    secure(batches[i], p, merged, seenM, seenC);
   }
   return merged;
+}
+
+/**
+ * Nothing new is dropped, whatever the plan did.
+ *
+ * The plan is asked to give every topic a fate. A model still folds and skips:
+ * one document of 64 topics came back with 13 filed. So each topic is checked
+ * here. A repeat, a thin claim or one outside every brain stays out, as the plan
+ * said. Any other topic that no entry carries is filed: into the concept of the
+ * same name when the brain has one, as a new concept otherwise.
+ */
+function secure(topics, p, merged, seenM, seenC){
+  const tally = merged.tally || (merged.tally = { concepts: 0, added: 0, echo: 0, thin: 0, outside: 0, caught: 0, topics: 0 });
+  const fate = new Map((p.topics || []).map(x => [String(x.t || "").toUpperCase(), x]));
+  const target = S.scope !== "all" ? S.scope : ((p.brains || [])[0] || merged.brains[0] || (S.brains[0] || {}).slug);
+  const held = c => S.concepts.find(x => x.brain === target && x.slug === slug(c));
+  topics.forEach((t, i) => {
+    tally.topics++;
+    const f = fate.get(`T${i + 1}`) || {};
+    const as = String(f.as || "");
+    if (as === "echo" || as === "thin") { tally[as]++; return; }
+    if (as === "outside" && S.scope === "all") { tally.outside++; return; }
+    /* Filed where the plan said, if that entry really exists. */
+    const ref = String(f.ref || "");
+    if (as === "matched" && seenM.has(ref)) { tally.added++; return; }
+    if (as === "candidate" && ref && merged.candidates.some(c => slug(c.title) === slug(ref))) { tally.concepts++; return; }
+    /* Filed under its own name without the plan saying so is still filed. */
+    if (merged.candidates.some(c => slug(c.title) === slug(t.topic || ""))) { tally.concepts++; return; }
+    if (!target) return;
+    /* The plan filed it nowhere: file it here. */
+    const title = String(as === "candidate" && ref ? ref : t.topic || "").trim();
+    if (!title) return;
+    const why = [...(t.ideas || []), ...(t.data || [])].join(" ").slice(0, 400) || title;
+    const same = held(title);
+    if (same){
+      const id = `${same.brain}/${same.slug}`;
+      if (!seenM.has(id)){ seenM.add(id); merged.matched.push({ conceptId: id, brain: same.brain, whatItAdds: why }); }
+      tally.added++; tally.caught++;
+      return;
+    }
+    const k = unitKey(target, title);
+    if (!seenC.has(k)){ seenC.add(k); merged.candidates.push({ title, brain: target, why }); }
+    if (!merged.brains.includes(target)) merged.brains.push(target);
+    tally.concepts++; tally.caught++;
+  });
 }
 
 /**
@@ -2479,20 +2525,20 @@ async function planAndCard(body, sid, link, ext, len, held, thorough){
   body.innerHTML = "";
   body.append(buildCard(pc, decide));
 
-  /* How much of the source the plan filed, against how many topics the read
-     found. A plan can fold a whole document into one concept, and the count is
-     what shows it. A second plan costs one model call and reads nothing again. */
-  const topics = (ext.topics||[]).length;
-  const filed = (plan.matched||[]).length + (plan.candidates||[]).length;
-  if (topics >= 3 && filed < topics){
+  /* Where every topic went. Each one is accounted for, so the numbers add up
+     to the topics the read found. */
+  const t = plan.tally;
+  if (t && t.topics >= 3){
+    const parts = [
+      t.concepts ? `${t.concepts} new concept${t.concepts === 1 ? "" : "s"}` : "",
+      t.added ? `${t.added} added to existing` : "",
+      t.echo ? `${t.echo} repeat${t.echo === 1 ? "" : "s"}` : "",
+      t.thin ? `${t.thin} thin` : "",
+      t.outside ? `${t.outside} outside every brain` : "",
+    ].filter(Boolean);
     const note = el("div","coverage");
-    note.append(el("span",null,`Filed ${filed} of ${topics} topics the read found.`));
-    if (!thorough){
-      const again = el("button","fresh","File every topic");
-      again.title = "Plans the same reading again, one concept per topic. One model call, nothing is read twice.";
-      again.onclick = () => planAndCard(body, sid, link, ext, len, held, true);
-      note.append(again);
-    }
+    note.append(el("span",null,`${t.topics} topics: ${parts.join(", ")}.` +
+      (t.caught ? ` ${t.caught} the plan skipped are filed anyway.` : "")));
     body.append(note);
   }
   bottom();
