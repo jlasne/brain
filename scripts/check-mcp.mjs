@@ -28,6 +28,9 @@ writeFileSync(join(dir, "_generated/api.ts"),
 await esbuild.build({ entryPoints: [join(dir, "mcp.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
 const { handleRpc, MENTIONS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm",
+  platform: "node", outfile: join(dir, "bundle-drop.mjs"), logLevel: "silent" });
+const { dropSettle, fetchPage } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
 
 const DB = {
   brains: [
@@ -244,10 +247,12 @@ let job = "";
   check("the candidate is reported the right way",
     MENTIONS <= 1 ? !r.includes("COUNTED") : r.includes(`counted at 1 of ${MENTIONS}`), r.slice(0,300));
   const kinds = DB.writes.slice(before).map(w => w.kind);
-  const want = MENTIONS <= 1 ? "concept,concept,source,note" : "concept,source,note";
+  /* The source and note go first, so a refused source costs no concept. */
+  const want = MENTIONS <= 1 ? "source,note,concept,concept" : "source,note,concept";
   check("the concepts, the source and the note were written", kinds.join(",") === want, kinds.join(","));
   const c = DB.writes.slice(before).find(w => w.kind === "concept");
   check("the rewrite landed on the position", c.doc.position.startsWith("Hooks decide the watch"), c.doc.position);
+  check("a rewrite keeps the figures it did not repeat", c.doc.data.includes("retention 42% at 3s"), JSON.stringify(c.doc.data));
   const link = DB.scheduled.find(x => x.fn === "admin.linkConcepts");
   check("the store schedules linking for exactly what it wrote",
     link && link.space === "octopus" && link.ids.includes("content/personal-brand") &&
@@ -292,6 +297,84 @@ let job = "";
     JSON.stringify(link?.ids));
   check("a stored long title is fed, not doubled", link.ids.filter(x => x.startsWith("content/forward-contract")).length === 2);
   DB.concepts.pop();
+}
+
+/* ---- a drop feeds only the brains it may, once per concept, and keeps what was stored ---- */
+{
+  DB.brains.push({ slug:"vault", name:"Vault", type:"subject", scope:"the owner's closed brain", owner:"someoneelse", visibility:"closed" });
+  DB.concepts.push({ brain:"vault", slug:"secret-thesis", n:1, title:"Secret thesis", position:"Kept.", summaryLine:"",
+    evidence:[], data:[], conflicts:[], sources:["s-v"], updated:"2026-01-01" });
+  const offer = DB.concepts.find(c => c.slug === "offer-creation");
+  const had = offer.data;
+  offer.data = ["stored 9% conversion"];
+
+  /* Through the connector, the plan is refused before anything is written. */
+  const t = await call("drop_source", { extraction: EXT, link:"https://example.com/vault", brain:"content" }, ME);
+  const d = (t.match(/DRAFT (\w+)/) ?? [])[1] ?? "";
+  const refused = await call("drop_plan", { draft:d, plan:{ brains:["content"], matched:[{ conceptId:"vault/secret-thesis", whatItAdds:"x" }] } }, ME);
+  check("the connector refuses a concept of a brain the caller cannot feed", /do not exist in the brains you may feed/.test(refused), refused.slice(0, 120));
+
+  /* Straight to the store, the way the app calls it. */
+  const WHO = { account:"octopus", kind:"member", space:"octopus" };
+  const settle = async (plan, rewrites, ext = EXT) => {
+    const before = DB.writes.length;
+    const r = await dropSettle(ctx, WHO, { sid:`s-${Math.random()}`, ext, plan, fullPlan: plan, rewrites });
+    return { r, w: DB.writes.slice(before) };
+  };
+  const a = await settle({ brains:["content"], new:["x"], echo:[], conflicts:[], candidates:[],
+      matched:[{ conceptId:"vault/secret-thesis", whatItAdds:"overwrite it" },
+               { conceptId:"secret-thesis", whatItAdds:"by bare id" },
+               { conceptId:"content/offer-creation", whatItAdds:"offers still win" }] },
+    [{ conceptId:"vault/secret-thesis", position:"HIJACKED", summaryLine:"", data:[], conflicts:[] },
+     { conceptId:"content/offer-creation", position:["Offers win.", "Twice."], summaryLine:"", conflicts:[] }],
+    { ...EXT, author:["A. Author", "B. Author"], date: 2026 });
+  const wrote = a.w.filter(w => w.kind === "concept");
+  check("the store never rewrites a concept of a brain the caller cannot feed",
+    wrote.every(w => w.brain !== "vault") && !JSON.stringify(a.w).includes("HIJACKED"), JSON.stringify(wrote.map(w => w.brain + "/" + w.title)));
+  check("and names the ids it could not file", (a.r.missed ?? []).length === 2, JSON.stringify(a.r.missed));
+  const oc = wrote.find(w => w.title === "Offer creation as a key skill");
+  check("a rewrite that omits the figures keeps the stored ones", oc?.doc?.data?.includes("stored 9% conversion"), JSON.stringify(oc?.doc?.data));
+  check("a position sent as a list is stored as text", oc?.doc?.position === "Offers win., Twice." || typeof oc?.doc?.position === "string", JSON.stringify(oc?.doc?.position));
+  const src = a.w.find(w => w.kind === "source");
+  check("an author list and a numeric year are stored as text",
+    src?.doc?.author === "A. Author, B. Author" && src?.doc?.date === "2026", JSON.stringify(src?.doc));
+  check("the source is written for this space", src?.space === "octopus", String(src?.space));
+
+  const b = await settle({ brains:["Content"], new:["x"], echo:[], conflicts:[],
+      matched:[{ conceptId:"content/personal-brand", brain:"content", whatItAdds:"first claim" }],
+      candidates:[{ title:"Personal brand as growth strategy", brain:"content", why:"second claim" }] },
+    [{ conceptId:"content/personal-brand", position:"Merged.", summaryLine:"", data:[], conflicts:[] }]);
+  const pb = b.w.filter(w => w.kind === "concept" && w.title === "Personal brand as growth strategy");
+  check("a plan naming its brain by name still files", !b.r.error && pb.length >= 1, JSON.stringify(b.r).slice(0, 160));
+  check("one concept reached twice is written once", pb.length === 1, String(pb.length));
+  check("with both claims in its evidence", /first claim/.test(pb[0]?.doc?.evidence?.[0]?.claim ?? "") && /second claim/.test(pb[0]?.doc?.evidence?.[0]?.claim ?? ""),
+    JSON.stringify(pb[0]?.doc?.evidence?.[0]));
+
+  const empty = await settle({ brains:["content"], new:["a finding"], echo:[], conflicts:[], matched:[], candidates:[] }, []);
+  check("a plan that files nothing is refused, not stored", !!empty.r.error && !empty.w.length, JSON.stringify(empty.r).slice(0, 120));
+
+  offer.data = had;
+  DB.brains.pop(); DB.concepts.pop();
+}
+
+/* ---- a fetched page cannot bounce the reader inward ---- */
+{
+  const real = globalThis.fetch;
+  const asked = [];
+  globalThis.fetch = async (u) => {
+    asked.push(String(u));
+    if (String(u).includes("public.example")) return new Response("", { status: 302, headers: { location: "https://169.254.169.254/latest/meta-data" } });
+    return new Response("<p>" + "secret ".repeat(100) + "</p>", { status: 200, headers: { "content-type": "text/html" } });
+  };
+  const r = await fetchPage(ctx, "https://public.example/page");
+  check("a redirect to a private address is refused", /not a public https address/.test(r.error ?? ""), JSON.stringify(r).slice(0, 120));
+  check("and never fetched", !asked.some(u => u.includes("169.254")), asked.join(" "));
+  globalThis.fetch = async (u) => String(u).includes("a.example")
+    ? new Response("", { status: 301, headers: { location: "https://b.example/final" } })
+    : new Response("<p>" + "word ".repeat(100) + "</p>", { status: 200, headers: { "content-type": "text/html" } });
+  const ok = await fetchPage(ctx, "https://a.example/start");
+  check("a redirect to a public page is followed", ok.chars > 200 && !ok.error, JSON.stringify(ok).slice(0, 120));
+  globalThis.fetch = real;
 }
 
 rmSync(dir, { recursive: true, force: true });

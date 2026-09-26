@@ -10,7 +10,7 @@ import { internal } from "./_generated/api";
 import {
   ask, json, cors, sha256, slug, randomHex, isOpen, sealKey, openKey, onlyAccount,
   readSpace, SPACE_NAME, HOME,
-  MODEL, MAX_ATTEMPTS, CHUNK, MENTIONS,
+  MODEL, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, CHUNK, MENTIONS,
 } from "./lib";
 import type { Who } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
@@ -104,13 +104,17 @@ route("/api/unlock", async (ctx, _req, b) => {
 
   const g = await ctx.runQuery(internal.store.gateState, { space });
 
+  /* A door with no passphrase stays shut. Setting one over the web let the
+     first visitor to arrive choose it, so only the terminal sets it now. */
   if (!g?.set) {
-    const salt = [...crypto.getRandomValues(new Uint8Array(16))].map(x => x.toString(16).padStart(2, "0")).join("");
-    await ctx.runMutation(internal.store.setGate, { salt, hash: await sha256(salt, pass), space });
-    return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space }), space, created: true };
+    return { error: `this door has no passphrase yet. Its owner sets one with: npx convex run admin:setPass "{space:'${space}',pass:'...'}" --prod` };
   }
 
-  if ((g.attempts ?? 0) >= MAX_ATTEMPTS) return { error: "too many attempts, wait an hour" };
+  /* The count only holds inside its window. Checked alone, eight wrong
+     guesses shut the door for good. */
+  if ((g.attempts ?? 0) >= MAX_ATTEMPTS && Date.now() - (g.attemptWindow ?? 0) < ATTEMPT_WINDOW_MS) {
+    return { error: "too many attempts, wait an hour" };
+  }
 
   const good = await sha256(g.salt!, pass) === g.hash;
   await ctx.runMutation(internal.store.noteAttempt, { ok: good, space });
@@ -142,6 +146,10 @@ route("/api/login", async (ctx, _req, b) => {
      means a wrong name learns nothing about which accounts exist. */
   const only = onlyAccount();
   if (only && s !== only) return { error: "this deployment belongs to one account." };
+
+  /* Ten tries an hour per name, so a password cannot be guessed online. */
+  const tries = await ctx.runMutation(internal.store.mcpRate, { who: "login:" + s, max: 10, windowMs: 60 * 60 * 1000 });
+  if (!tries.allowed) return { error: `too many tries for that name. Wait ${Math.ceil(tries.retryAfter / 60)} minutes.` };
 
   const acc = await ctx.runQuery(internal.store.findAccount, { slug: s });
   if (!acc) {
@@ -350,14 +358,16 @@ route("/api/brain/rename", async (ctx, _req, b) => {
   if (who.kind === "guest") return { error: "renaming a brain needs an account" };
   return await ctx.runMutation(internal.store.renameBrain, {
     slug: String(b.slug ?? ""), name: String(b.name ?? ""),
-    scope: String(b.scope ?? ""), account: who.account ?? null });
+    scope: String(b.scope ?? ""), account: who.account ?? null, space: who.space });
 });
 
 /* Hide a brain from the public endpoints, or show it again. */
 route("/api/brain/visibility", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
+  if (who.kind === "guest") return { error: "changing a brain needs an account" };
   return await ctx.runMutation(internal.store.setVisibility,
-    { slug: String(b.slug ?? ""), visibility: String(b.visibility ?? "ask"), account: who.account });
+    { slug: String(b.slug ?? ""), visibility: String(b.visibility ?? "ask"), account: who.account ?? null,
+      kind: who.kind, space: who.space });
 });
 
 /* ---------- drop ---------- */
@@ -375,8 +385,8 @@ route("/api/fetch", async (ctx, _req, b) => {
 
 /** R1.2 runs before anything expensive, so a repeat costs zero pasting. */
 route("/api/drop/check", async (ctx, _req, b) => {
-  await gate(ctx, b);
-  return await dropCheck(ctx, b);
+  const who = await gate(ctx, b);
+  return await dropCheck(ctx, b, who.space);
 });
 
 /**
@@ -387,8 +397,8 @@ route("/api/drop/check", async (ctx, _req, b) => {
  * model call instead of three.
  */
 route("/api/drop/again", async (ctx, _req, b) => {
-  await gate(ctx, b);
-  const ext = await ctx.runQuery(internal.store.noteBySid, { sid: String(b.sid ?? "") });
+  const who = await gate(ctx, b);
+  const ext = await ctx.runQuery(internal.store.noteBySid, { sid: String(b.sid ?? ""), space: who.space });
   if (!ext) {
     return { error: "no note was kept for that source, so it has to be read again. Paste it once more." };
   }
@@ -548,6 +558,7 @@ route("/api/onepager", async (ctx, _req, b) => {
      least of all a model call on a question. */
   const to = String(b.mail ?? "").trim();
   if (to && !looksLikeMail(to)) return { error: `"${to.slice(0, 60)}" is not an address` };
+  if (to && who.kind === "guest") return { error: "mailing a page needs an account" };
 
   const q = String(b.q ?? "").trim();
   const page = q
@@ -562,6 +573,13 @@ route("/api/onepager", async (ctx, _req, b) => {
   if (!to) return { page, text: asText(page) };
   /* A page that built and failed to send is still a page. It comes back with the
      reason, so a question already paid for is not thrown away with the mail. */
+  /* Thirty mails a day per space, so this address cannot be used to spam. */
+  const quota = await ctx.runMutation(internal.store.mcpRate,
+    { who: "mail:" + who.space, max: 30, windowMs: 24 * 60 * 60 * 1000 });
+  if (!quota.allowed) {
+    return { page, text: asText(page), sent: false, to,
+             mailError: `30 pages were mailed today. Mail opens again in ${Math.ceil(quota.retryAfter / 3600)} hours.` };
+  }
   try {
     const sent = await mail(to, page, who.space);
     return { page, text: asText(page), sent: true, to, id: sent.id };
@@ -671,6 +689,18 @@ const mcpPost = httpAction(async (ctx, req) => {
     /* A batch is a list. Notifications drop out, so an all-notification batch
        gets 202 with no body, exactly as a lone notification does. */
     if (Array.isArray(msg)) {
+      /* Each call in a batch counts, and a batch holds ten at most. */
+      if (msg.length > 10) {
+        return mcpJson({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "A batch holds 10 calls at most." } }, 400);
+      }
+      for (let i = 1; i < msg.length; i++) {
+        const more = await ctx.runMutation(internal.store.mcpRate, { who, max: RATE_MAX, windowMs: RATE_WINDOW_MS });
+        if (!more.allowed) {
+          return mcpJson({ jsonrpc: "2.0", id: null,
+            error: { code: -32000, message: `Rate limit reached. ${RATE_MAX} calls per 10 minutes. Try again in ${more.retryAfter} seconds.` } },
+            429, { "Retry-After": String(more.retryAfter) });
+        }
+      }
       const out = (await Promise.all(msg.map((m: any) => handleRpc(ctx, m, caller)))).filter(Boolean);
       return out.length ? mcpJson(out) : mcpJson(null, 202);
     }

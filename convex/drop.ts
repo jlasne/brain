@@ -13,10 +13,11 @@
 
 import { internal } from "./_generated/api";
 import {
-  ask, parseJson, today, slug, linkKey, sourceId, canDrop, CHUNK, MENTIONS,
+  ask, parseJson, today, slug, linkKey, sourceId, canDrop, CHUNK, MENTIONS, HOME,
 } from "./lib";
 import type { Who } from "./lib";
-import { keywords, rankConcepts, linkId, conceptSlug, findByTitle } from "./words";
+import { keywords, rankConcepts, linkId, conceptSlug, findByTitle, compress, unionCap } from "./words";
+export { compress } from "./words";
 
 /* ---------- the rules, named so two thinkers can share them ---------- */
 
@@ -146,6 +147,8 @@ RULES
 - Never delete a view.
 - English, always. No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording.
 - summaryLine is ONE line, under 18 words.
+- data is the concept's full list of figures: STORED DATA kept, new figures added.
+- conflicts lists every clash still open: OPEN CONFLICTS kept, new ones added.
 
 Reply with only JSON:
 {"rewrites":[{"conceptId":"","position":"","summaryLine":"","data":[""],"conflicts":[{"a":"","aDate":"","b":"","bDate":"","why":""}]}]}`;
@@ -173,6 +176,14 @@ export async function feedable(ctx: any, who: Who, brain?: string) {
  */
 const PRIVATE_HOST =
   /^(localhost|127\.|0\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[|::1$)/i;
+
+/** A host a fetch may reach: named, public, never this network's own. */
+function publicHost(host: string): boolean {
+  if (PRIVATE_HOST.test(host) || host.endsWith(".internal") || host.endsWith(".local") || !host.includes(".")) return false;
+  /* The shared address range carriers use inside their own networks. */
+  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host)) return false;
+  return true;
+}
 
 const VIDEO_HOST = /(^|\.)(youtube\.com|youtu\.be|vimeo\.com|tiktok\.com|dailymotion\.com)$/i;
 
@@ -282,9 +293,7 @@ export async function fetchPage(ctx: any, raw: string): Promise<any> {
   catch { return { error: `"${want.slice(0, 60)}" is not a full address. Include https://` }; }
   if (u.protocol !== "https:") return { error: "Only https addresses are fetched." };
   const host = u.hostname.toLowerCase();
-  if (PRIVATE_HOST.test(host) || host.endsWith(".internal") || host.endsWith(".local") || !host.includes(".")) {
-    return { error: `${host} is not a public address.` };
-  }
+  if (!publicHost(host)) return { error: `${host} is not a public address.` };
   if (VIDEO_HOST.test(host)) {
     const t = await videoTranscript(ctx, u.toString(), host);
     if (t) return t;
@@ -306,15 +315,28 @@ export async function fetchPage(ctx: any, raw: string): Promise<any> {
 
   let r: Response;
   try {
-    r = await fetch(u.toString(), {
-      redirect: "follow",
-      signal: AbortSignal.timeout(25000),
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; OctopusBrains/1.0; +https://brain.jeremylasne.com/doc)",
-        "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9",
-        "Accept-Language": "en,*;q=0.5",
-      },
-    });
+    /* Redirects are followed by hand, so every hop passes the same check as
+       the first address: a public page cannot bounce the fetch inward. */
+    const deadline = AbortSignal.timeout(25000);
+    let at = u;
+    for (let hop = 0; ; hop++) {
+      r = await fetch(at.toString(), {
+        redirect: "manual",
+        signal: deadline,
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; OctopusBrains/1.0; +https://brain.jeremylasne.com/doc)",
+          "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9",
+          "Accept-Language": "en,*;q=0.5",
+        },
+      });
+      const next = r.status >= 300 && r.status < 400 ? r.headers.get("location") : null;
+      if (!next) break;
+      if (hop >= 5) return { error: `${host} redirected more than 5 times. Paste the text instead.` };
+      at = new URL(next, at);
+      if (at.protocol !== "https:" || !publicHost(at.hostname.toLowerCase())) {
+        return { error: `${host} redirected to ${at.hostname}, which is not a public https address.` };
+      }
+    }
   } catch (e: any) {
     const why = e?.name === "TimeoutError" || e?.name === "AbortError"
       ? "it did not answer within 25 seconds"
@@ -353,10 +375,13 @@ export async function fetchPage(ctx: any, raw: string): Promise<any> {
 
 
 /** R1.2 runs before anything expensive, so a repeat costs zero pasting. */
-export async function dropCheck(ctx: any, b: any) {
+export async function dropCheck(ctx: any, b: any, space: string = HOME) {
   const link = String(b.link ?? "");
-  const sid = sourceId(link, String(b.text ?? ""));
-  const found = await ctx.runQuery(internal.store.findSource, { linkKey: linkKey(link), sid });
+  /* A space other than home prefixes its ids, so the same link dropped in both
+     spaces makes two sources, each with its own note. */
+  const base = sourceId(link, String(b.text ?? ""));
+  const sid = space === HOME ? base : `${space}-${base}`;
+  const found = await ctx.runQuery(internal.store.findSource, { linkKey: linkKey(link), sid, space });
   return found
     ? { duplicate: true, sid: found.sid, date: found.date, brains: found.brains,
         title: found.title, author: found.author, link: found.link }
@@ -454,24 +479,63 @@ export function excerptFor(topics: any[], touched: any[], limit = 20000): string
   return picked.sort((a, b) => a.i - b.i).map(r => r.text).join("\n");
 }
 
+/** Text, whatever the model sent: a list of authors, a year as a number. */
+export const str = (x: any): string =>
+  typeof x === "string" ? x : Array.isArray(x) ? x.map(str).filter(Boolean).join(", ")
+  : x == null ? "" : typeof x === "object" ? String(x.text ?? x.name ?? x.value ?? JSON.stringify(x)) : String(x);
+
+/** The extraction with its text fields as text, so a typed column never throws. */
+function cleanExt(e: any) {
+  const list = (x: any) => Array.isArray(x) ? x : x == null ? [] : [x];
+  return { ...e, title: str(e.title), author: str(e.author), date: str(e.date),
+           topics: list(e.topics), quotes: list(e.quotes), thin: list(e.thin).map(str).filter(Boolean) };
+}
+
+/* A database row holds 1 MiB. A note stays well under it. */
+const NOTE_BYTES = 800_000;
+function fitNote(n: any) {
+  const size = () => JSON.stringify(n).length;
+  while (size() > NOTE_BYTES && n.quotes.length > 20) n.quotes = n.quotes.slice(0, Math.floor(n.quotes.length * 0.7));
+  while (size() > NOTE_BYTES && n.topics.length > 20) n.topics = n.topics.slice(0, Math.floor(n.topics.length * 0.8));
+  while (size() > NOTE_BYTES && n.connections.length > 20) n.connections = n.connections.slice(0, Math.floor(n.connections.length * 0.7));
+  return n;
+}
+
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
 export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model?: string) {
   const { brains: seen, concepts } = await ctx.runQuery(internal.store.everything, { space: who.space });
   /* Re-checked here, because this is where the writing happens. */
   const brains = seen.filter((x: any) => canDrop(x, who));
-  const ext = b.ext ?? {}, plan = b.plan ?? {}, sid = String(b.sid ?? "");
+  const ext = cleanExt(b.ext ?? {}), plan = b.plan ?? {}, sid = String(b.sid ?? "");
   /* A long source is stored in batches: the app hands in a slice of the plan
      each time, and the whole plan beside it for the note and the receipt. The
      connector hands in one plan, which is both. */
   const full = b.fullPlan ?? plan;
   const choices: Record<string, string> = b.choices ?? {};
-  const targets: string[] = (plan.brains ?? []).filter((x: string) => brains.some((y: any) => y.slug === x));
+  const may = (x: string) => brains.some((y: any) => y.slug === x);
+  let targets: string[] = (plan.brains ?? []).map(String).filter(may);
+  /* A plan that named its brains by name rather than id still says where each
+     concept goes, through the ids it matched and the brains its candidates name. */
+  if (!targets.length) {
+    targets = [...new Set<string>([
+      ...(plan.matched ?? []).map((m: any) => String(m.brain ?? String(m.conceptId ?? "").split("/")[0])),
+      ...(plan.candidates ?? []).map((c: any) => String(c.brain ?? "")),
+    ])].filter(may);
+  }
   if (!targets.length) return { error: "no brain matched" };
 
   const touched: any[] = [];
+  const missed: string[] = [];
+  /* Only concepts of the brains this drop may feed. A matched id is what the
+     caller sent, so a concept of a brain they cannot feed is never rewritten. */
+  const ours = concepts.filter((x: any) => targets.includes(x.brain));
   for (const m of (plan.matched ?? [])) {
-    const c = concepts.find((x: any) => `${x.brain}/${x.slug}` === m.conceptId || [slug(m.conceptId ?? ""), conceptSlug(m.conceptId ?? "")].includes(x.slug));
+    const id = String(m.conceptId ?? "");
+    const bare = [slug(id), conceptSlug(id)];
+    const c = ours.find((x: any) => `${x.brain}/${x.slug}` === id)
+      ?? ours.find((x: any) => bare.includes(x.slug) && (!m.brain || x.brain === m.brain));
     if (c) touched.push({ c, adds: m.whatItAdds, isNew: false, rel: m.related });
+    else if (id) missed.push(id);
   }
   /* R5.5. A candidate is an idea the brain does not hold yet. MENTIONS separate
      sources make it a position, so an early mention is counted and kept, never
@@ -497,11 +561,26 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
     }
   }
 
+  /* One concept, one entry. The same concept reached twice, as a match and as
+     a candidate folded into it, used to be written twice from one old copy,
+     and the second write erased the first one's evidence. */
+  const byId = new Map<string, any>();
+  for (const t of touched) {
+    const id = `${t.c.brain}/${t.c.slug}`;
+    const had = byId.get(id);
+    if (!had) { byId.set(id, t); continue; }
+    had.adds = [had.adds, t.adds].filter(Boolean).join(" ").slice(0, 600);
+    had.rel = [...(Array.isArray(had.rel) ? had.rel : []), ...(Array.isArray(t.rel) ? t.rel : [])];
+    had.isNew = had.isNew && t.isNew;
+  }
+  touched.splice(0, touched.length, ...byId.values());
+
   /* A plan with findings that lands nowhere would write a source row and rewrite
      no position: the knowledge would vanish, and the receipt would read fine.
      Refuse and say so. A counted candidate is not that case. It landed in the
      candidate list, and it says so on the receipt. */
-  if (!touched.length && !counted.length && (plan.new ?? []).length > 0 && !b.fullPlan) {
+  const filedAny = (full.matched ?? []).length + (full.candidates ?? []).length > 0;
+  if (!touched.length && !counted.length && (full.new ?? []).length > 0 && (!b.fullPlan || !filedAny)) {
     return { error:
       `the plan found ${(plan.new ?? []).length} new items and filed none of them into a concept, ` +
       `so nothing would be rewritten. Drop the source again.` };
@@ -529,6 +608,8 @@ concept: ${c.title}
 CURRENT POSITION: ${c.position || "none yet"}
 FULL EVIDENCE LIST (newest first):
 ${(c.evidence ?? []).map((e: any) => `- ${e.date ?? "?"} ${e.author ?? "?"}: ${e.claim ?? ""}`).join("\n") || "- none"}
+STORED DATA: ${(c.data ?? []).length ? (c.data ?? []).join(" | ") : "none"}
+OPEN CONFLICTS: ${(c.conflicts ?? []).length ? (c.conflicts ?? []).map((x: any) => `${x.a ?? ""} (${x.aDate ?? "?"}) vs ${x.b ?? ""} (${x.bDate ?? "?"})`).join(" | ") : "none"}
 THIS SOURCE ADDS: ${adds ?? ""}
 MY DECISION: ${decisions.length ? decisions.join("\n") : "no contradiction here"}`;
     }).join("\n\n");
@@ -565,6 +646,26 @@ ${excerptFor(ext.topics ?? [], touched)}`;
     return { job: "", counted, positions: 0, concepts: [] };
   }
 
+  /* The source and its note go first. A source of another space is refused
+     here, before any concept is written, and a failure costs no concept. */
+  await ctx.runMutation(internal.store.writeSource, { doc: {
+    sid, link: String(b.link ?? ""), linkKey: linkKey(String(b.link ?? "")),
+    title: ext.title ?? "", author: ext.author ?? "", date: ext.date || today(),
+    location: String(b.location ?? "pasted, not kept"), brains: targets,
+    ...(who.account ? { by: who.account } : {}),
+  }, space: who.space });
+  /* The whole extraction is kept, so filing into another brain later reuses
+     every topic. It held 40 before, and a 229 topic document lost the rest. The
+     ceilings keep one note well under a database row's 1MB. */
+  await ctx.runMutation(internal.store.writeNote, { space: who.space, doc: fitNote({
+    sid, title: ext.title ?? "", author: ext.author ?? "", date: ext.date || today(),
+    topics: (ext.topics ?? []).slice(0, 500), quotes: (ext.quotes ?? []).slice(0, 200),
+    thin: (ext.thin ?? []).slice(0, 150),
+    connections: [...(full.matched ?? []), ...(full.candidates ?? [])],
+    findings: { new: full.new ?? [], echo: full.echo ?? [], conflicts: full.conflicts ?? [], choices,
+                ...(ext.kind ? { kind: ext.kind } : {}) },
+  }) });
+
   for (const { c, adds, rel } of touched) {
     const id = `${c.brain}/${c.slug}`;
     /* Links from this drop join the ones the concept had, as brain/slug ids,
@@ -572,6 +673,7 @@ ${excerptFor(ext.topics ?? [], touched)}`;
     const links = Array.from(new Set([...(c.related ?? []), ...(Array.isArray(rel) ? rel : [])]
       .map((r: any) => linkId(String(r), c.brain)).filter((r: string) => r !== id))).slice(0, 12);
     const rw = rewrites.find((r: any) => r.conceptId === id || r.conceptId === c.slug) ?? {};
+    const newData = Array.isArray(rw.data) ? rw.data.map(str).filter(Boolean) : [];
     /* A concept already carrying this source keeps its evidence as it is. That
        makes a resumed store, and a source read again, add nothing twice. */
     const fresh = !(c.sources ?? []).includes(sid);
@@ -579,25 +681,22 @@ ${excerptFor(ext.topics ?? [], touched)}`;
       ? [{ date: ext.date || today(), author: ext.author || "unknown", claim: String(adds ?? "").slice(0, 240), source: sid }, ...(c.evidence ?? [])]
       : (c.evidence ?? []);
     await ctx.runMutation(internal.store.upsertConcept, {
-      brain: c.brain, title: c.title,
+      brain: c.brain, title: c.title, slug: c.slug,
       doc: {
-        position: rw.position ?? c.position ?? "",
-        summaryLine: rw.summaryLine ?? c.summaryLine ?? "",
+        position: str(rw.position) || c.position || "",
+        summaryLine: str(rw.summaryLine) || c.summaryLine || "",
         evidence: compress(ev),
-        data: Array.isArray(rw.data) && rw.data.length ? rw.data.slice(0, 24) : (c.data ?? []),
-        conflicts: Array.isArray(rw.conflicts) ? rw.conflicts.slice(0, 12) : (c.conflicts ?? []),
+        /* The model's figures lead and the stored ones follow, so a rewrite
+           that forgot them loses none. Conflicts the same way. */
+        data: unionCap(newData, (c.data ?? []).map(str), 24, String),
+        conflicts: unionCap(Array.isArray(rw.conflicts) ? rw.conflicts.filter((x: any) => x && typeof x === "object") : [],
+                            c.conflicts ?? [], 12),
         sources: Array.from(new Set([...(c.sources ?? []), sid])),
         related: links,
       },
     });
   }
 
-  await ctx.runMutation(internal.store.writeSource, { doc: {
-    sid, link: String(b.link ?? ""), linkKey: linkKey(String(b.link ?? "")),
-    title: ext.title ?? "", author: ext.author ?? "", date: ext.date || today(),
-    location: String(b.location ?? "pasted, not kept"), brains: targets,
-    ...(who.account ? { by: who.account } : {}),
-  }});
   /* The concepts just written are linked in the background, the same way as
      linkAll: shortlisted against the whole space, then checked by the model.
      The plan's own links only reach the concepts it listed, so a concept from
@@ -607,30 +706,7 @@ ${excerptFor(ext.topics ?? [], touched)}`;
       { space: who.space, ids: touched.map(({ c }: any) => `${c.brain}/${c.slug}`) });
   }
 
-  /* The whole extraction is kept, so filing into another brain later reuses
-     every topic. It held 40 before, and a 229 topic document lost the rest. The
-     ceilings keep one note well under a database row's 1MB. */
-  await ctx.runMutation(internal.store.writeNote, { doc: {
-    sid, title: ext.title ?? "", author: ext.author ?? "", date: ext.date || today(),
-    topics: (ext.topics ?? []).slice(0, 500), quotes: (ext.quotes ?? []).slice(0, 200),
-    thin: (ext.thin ?? []).slice(0, 150),
-    connections: [...(full.matched ?? []), ...(full.candidates ?? [])],
-    findings: { new: full.new ?? [], echo: full.echo ?? [], conflicts: full.conflicts ?? [], choices,
-                ...(ext.kind ? { kind: ext.kind } : {}) },
-  }});
-
-  return { sid, brains: targets, positions: touched.length, counted,
+  return { sid, brains: targets, positions: touched.length, counted, missed,
     counts: { new: (full.new ?? []).length, echo: (full.echo ?? []).length } };
 }
 
-/** R5.9. Keep 12, fold older agreeing entries into one dated line. */
-export function compress(ev: any[]) {
-  const real = ev.filter(e => !e.rollup), roll = ev.find(e => e.rollup);
-  if (real.length <= 12) return roll ? [...real, roll] : real;
-  const keep = real.slice(0, 12), fold = real.slice(12);
-  const years = fold.map(e => String(e.date ?? "").slice(0, 4)).filter(Boolean).sort();
-  const n = fold.length + (roll?.count ?? 0);
-  const from = roll?.from || years[0] || "", to = years[years.length - 1] || roll?.to || "";
-  return [...keep, { rollup: true, count: n, from, to,
-    claim: `${n} earlier source${n === 1 ? "" : "s"} agreed${from ? `, ${from} to ${to}` : ""}` }];
-}

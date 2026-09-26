@@ -122,7 +122,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | Route | Does | Gated |
 |---|---|---|
 | `/api/status` | Says which spaces have a passphrase | No, it leaks nothing |
-| `/api/unlock` | One door per space. The first call at a door sets its passphrase, later calls check it | Rate limited, 8 tries an hour per door |
+| `/api/unlock` | One door per space. It checks the passphrase; only `admin:setPass` sets one | Rate limited, 8 tries an hour per door |
 | `/api/login` | A name and a password. Opens or finds a member account | No, it is the door |
 | `/api/guest` | A model key alone. Opens a session that asks and never feeds | No, it is the door |
 | `/api/account/key` | Remembers a member's key, sealed, or forgets it | Yes |

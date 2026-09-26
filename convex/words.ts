@@ -307,5 +307,57 @@ export const sameTitle = (a: string, b: string) => norm(a).replace(/\s+/g, " ") 
 export function findByTitle(concepts: any[], brain: string, title: string): any {
   const id = conceptSlug(title), old = legacySlug(title);
   return concepts.find((x: any) => x.brain === brain && x.slug === id)
-    ?? (old !== id ? concepts.find((x: any) => x.brain === brain && x.slug === old && sameTitle(x.title, title)) : undefined);
+    ?? (old !== id ? concepts.find((x: any) => x.brain === brain && x.slug === old && sameTitle(x.title, title)) : undefined)
+    /* A concept whose id was set another way, by a seed or a rename, is still
+       the same concept when its title is. */
+    ?? concepts.find((x: any) => x.brain === brain && sameTitle(x.title, title));
+}
+
+/** R5.9. Keep 12, fold older agreeing entries into one dated line. */
+export function compress(ev: any[]) {
+  const real = ev.filter(e => !e.rollup), roll = ev.find(e => e.rollup);
+  if (real.length <= 12) return roll ? [...real, roll] : real;
+  const keep = real.slice(0, 12), fold = real.slice(12);
+  const years = fold.map(e => String(e.date ?? "").slice(0, 4)).filter(Boolean).sort();
+  const n = fold.length + (roll?.count ?? 0);
+  const from = roll?.from || years[0] || "", to = years[years.length - 1] || roll?.to || "";
+  return [...keep, { rollup: true, count: n, from, to,
+    claim: `${n} earlier source${n === 1 ? "" : "s"} agreed${from ? `, ${from} to ${to}` : ""}` }];
+}
+
+/* ---------- writing a concept without losing what landed meanwhile ---------- */
+
+/**
+ * Two evidence lists as one, newest first.
+ *
+ * A drop reads a concept, spends a minute on the model, then writes. Anything
+ * written in between, by a parallel batch or a second drop, used to be lost to
+ * the older copy. The write now unions with the stored row: an entry is the
+ * same entry when its source and claim match.
+ */
+export function mergeEvidence(mine: any[], stored: any[]): any[] {
+  const seen = new Set<string>();
+  const real: any[] = [];
+  let roll: any = null;
+  for (const e of [...(mine ?? []), ...(stored ?? [])]) {
+    if (!e) continue;
+    if (e.rollup) { if (!roll || (e.count ?? 0) > (roll.count ?? 0)) roll = e; continue; }
+    const k = `${e.source ?? ""}|${String(e.claim ?? "").trim().toLowerCase()}`;
+    if (seen.has(k)) continue;
+    seen.add(k); real.push(e);
+  }
+  real.sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? "")));
+  return compress(roll ? [...real, roll] : real);
+}
+
+/** A union, first list first, duplicates out, capped. */
+export function unionCap<T>(first: T[], second: T[], cap: number, key: (x: T) => string = x => JSON.stringify(x)): T[] {
+  const seen = new Set<string>(), out: T[] = [];
+  for (const x of [...(first ?? []), ...(second ?? [])]) {
+    const k = key(x);
+    if (x == null || seen.has(k)) continue;
+    seen.add(k); out.push(x);
+    if (out.length >= cap) break;
+  }
+  return out;
 }

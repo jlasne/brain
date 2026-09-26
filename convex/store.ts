@@ -2,7 +2,7 @@
 
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { linkId, conceptSlug, legacySlug, sameTitle } from "./words";
+import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap } from "./words";
 import { sha256, randomHex, today, slug, gateKey, readSpace, HOME,
          MENTIONS, SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS } from "./lib";
 
@@ -12,6 +12,21 @@ import { sha256, randomHex, today, slug, gateKey, readSpace, HOME,
 const gateRow = async (ctx: any, space?: string) =>
   await ctx.db.query("config")
     .withIndex("by_key", (q: any) => q.eq("key", gateKey(readSpace(space)))).unique();
+
+/**
+ * Whether a source row belongs to a space: one of the brains it was filed
+ * into lives there. A source carries no space of its own, its brains do.
+ */
+async function sourceIn(ctx: any, row: any, space: string): Promise<boolean> {
+  for (const b of row?.brains ?? []) {
+    const brain = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", b)).unique();
+    if (brain && readSpace(brain.space) === space) return true;
+  }
+  return false;
+}
+
+/** A link a page may show: http or https, nothing else. */
+const safeLink = (s: any) => /^https?:\/\//i.test(String(s ?? "").trim()) ? String(s).trim() : "";
 
 export const gateState = internalQuery({
   args: { space: v.optional(v.string()) },
@@ -191,7 +206,10 @@ export const everything = internalQuery({
     const all = await ctx.db.query("brains").collect();
     const brains = all.filter(b => readSpace(b.space) === space);
     const mine = new Set(brains.map(b => b.slug));
-    const concepts = (await ctx.db.query("concepts").collect()).filter(c => mine.has(c.brain));
+    /* Read brain by brain through the index, so the other space's concepts
+       are never read and never count toward this call's read limit. */
+    const concepts = (await Promise.all(brains.map(b =>
+      ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", b.slug)).collect()))).flat();
     const sources = (await ctx.db.query("sources").collect())
       .filter(s => (s.brains ?? []).some((x: string) => mine.has(x)));
     return { brains, concepts, sources };
@@ -200,13 +218,20 @@ export const everything = internalQuery({
 
 /** The duplicate check. An index lookup, so it stays flat at any size. */
 export const findSource = internalQuery({
-  args: { linkKey: v.string(), sid: v.string() },
+  args: { linkKey: v.string(), sid: v.string(), space: v.optional(v.string()) },
   handler: async (ctx, a) => {
+    /* Only a row of this space counts: a source the other space holds is
+       neither shown nor reused here. */
+    const space = readSpace(a.space);
     if (a.linkKey) {
-      const byLink = await ctx.db.query("sources").withIndex("by_linkKey", q => q.eq("linkKey", a.linkKey)).first();
-      if (byLink) return byLink;
+      for (const row of await ctx.db.query("sources").withIndex("by_linkKey", q => q.eq("linkKey", a.linkKey)).collect()) {
+        if (await sourceIn(ctx, row, space)) return row;
+      }
     }
-    return await ctx.db.query("sources").withIndex("by_sid", q => q.eq("sid", a.sid)).first();
+    for (const row of await ctx.db.query("sources").withIndex("by_sid", q => q.eq("sid", a.sid)).collect()) {
+      if (await sourceIn(ctx, row, space)) return row;
+    }
+    return null;
   },
 });
 
@@ -239,10 +264,13 @@ export const createBrain = internalMutation({
 /** Flip one brain between hidden and readable. */
 /** Open a brain to everyone's sources, or close it to its creator's. */
 export const setVisibility = internalMutation({
-  args: { slug: v.string(), visibility: v.string(), account: v.union(v.string(), v.null()) },
+  args: { slug: v.string(), visibility: v.string(), account: v.union(v.string(), v.null()),
+          kind: v.optional(v.string()), space: v.optional(v.string()) },
   handler: async (ctx, a) => {
+    if (a.kind === "guest") throw new Error("changing a brain needs an account");
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
-    if (!b) throw new Error("no such brain");
+    /* A brain of the other space reads as absent, the same as everywhere else. */
+    if (!b || readSpace(b.space) !== readSpace(a.space)) throw new Error("no such brain");
     /* The owner may change any brain. A member may change only their own. */
     if (a.account !== null && (b.owner ?? null) !== a.account) {
       throw new Error("that brain belongs to someone else");
@@ -377,10 +405,10 @@ export const killDraft = internalMutation({
 
 export const renameBrain = internalMutation({
   args: { slug: v.string(), name: v.string(), scope: v.optional(v.string()),
-          account: v.union(v.string(), v.null()) },
+          account: v.union(v.string(), v.null()), space: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
-    if (!b) throw new Error("no such brain");
+    if (!b || readSpace(b.space) !== readSpace(a.space)) throw new Error("no such brain");
     if (a.account !== null && (b.owner ?? null) !== a.account) {
       throw new Error("that brain belongs to someone else");
     }
@@ -408,6 +436,17 @@ export const renameBrain = internalMutation({
         if (c.brain !== a.slug) continue;
         await ctx.db.patch(c._id, { brain: to }); moved.candidates++;
       }
+      /* Links name a concept as brain/slug, so every link into this brain
+         follows it too, or it would point at nothing and hold a slot. */
+      const space = readSpace(b.space);
+      const pool = (await ctx.db.query("brains").collect()).filter(x => readSpace(x.space) === space);
+      for (const br of pool) {
+        const slugNow = br.slug === a.slug ? to : br.slug;
+        for (const c of await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", slugNow)).collect()) {
+          if (!(c.related ?? []).some((r: string) => r.startsWith(a.slug + "/"))) continue;
+          await ctx.db.patch(c._id, { related: c.related.map((r: string) => r.startsWith(a.slug + "/") ? to + r.slice(a.slug.length) : r) });
+        }
+      }
     }
     return { from: a.slug, slug: to, name, scope: a.scope?.trim() || b.scope, moved };
   },
@@ -430,11 +469,29 @@ async function byTitle(ctx: any, table: "concepts" | "candidates", brain: string
 }
 
 export const upsertConcept = internalMutation({
-  args: { brain: v.string(), title: v.string(), doc: v.any() },
+  args: { brain: v.string(), title: v.string(), doc: v.any(), slug: v.optional(v.string()) },
   handler: async (ctx, a) => {
-    const s = conceptSlug(a.title);
-    const seen = await byTitle(ctx, "concepts", a.brain, a.title);
-    if (seen) { await ctx.db.patch(seen._id, { ...a.doc, updated: today() }); return seen._id; }
+    const s = a.slug || conceptSlug(a.title);
+    /* The id the caller read wins: a stored concept keeps its row whatever its
+       title would give today. */
+    const known = a.slug ? await ctx.db.query("concepts")
+      .withIndex("by_brain_slug", q => q.eq("brain", a.brain).eq("slug", a.slug!)).unique() : null;
+    const seen = known ?? await byTitle(ctx, "concepts", a.brain, a.title);
+    if (seen) {
+      /* Lists are joined with the row as it is now, not as the caller read it
+         a minute ago, so a parallel write keeps what it added. */
+      const d = a.doc ?? {};
+      await ctx.db.patch(seen._id, {
+        ...d,
+        ...(d.evidence ? { evidence: mergeEvidence(d.evidence, seen.evidence ?? []) } : {}),
+        ...(d.sources ? { sources: unionCap(d.sources, seen.sources ?? [], 100000, String) } : {}),
+        ...(d.related ? { related: unionCap(d.related, seen.related ?? [], 12, String) } : {}),
+        ...(d.data ? { data: unionCap(d.data, seen.data ?? [], 24, String) } : {}),
+        ...(d.conflicts ? { conflicts: unionCap(d.conflicts, seen.conflicts ?? [], 12) } : {}),
+        updated: today(),
+      });
+      return seen._id;
+    }
     const count = (await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain)).collect()).length;
     return await ctx.db.insert("concepts", {
       brain: a.brain, slug: s, n: count + 1, title: a.title,
@@ -452,13 +509,17 @@ export const upsertConcept = internalMutation({
  * carrying one sid, and the duplicate check reads whichever came first.
  */
 export const writeSource = internalMutation({
-  args: { doc: v.any() },
+  args: { doc: v.any(), space: v.optional(v.string()) },
   handler: async (ctx, a) => {
+    const doc = { ...a.doc, link: safeLink(a.doc.link) };
     const seen = await ctx.db.query("sources")
       .withIndex("by_sid", q => q.eq("sid", a.doc.sid)).first();
-    if (!seen) { await ctx.db.insert("sources", { ...a.doc, stored: today() }); return; }
+    if (!seen) { await ctx.db.insert("sources", { ...doc, stored: today() }); return; }
+    /* A source id is handed in by the caller, so a row of the other space is
+       never rewritten from here. */
+    if (!(await sourceIn(ctx, seen, readSpace(a.space)))) throw new Error("that source belongs to another space");
     await ctx.db.patch(seen._id, {
-      ...a.doc,
+      ...doc,
       brains: Array.from(new Set([...(seen.brains ?? []), ...(a.doc.brains ?? [])])),
       stored: seen.stored,
     });
@@ -467,10 +528,12 @@ export const writeSource = internalMutation({
 
 /** One note per source too, replaced rather than stacked. */
 export const writeNote = internalMutation({
-  args: { doc: v.any() },
+  args: { doc: v.any(), space: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const seen = await ctx.db.query("notes")
       .withIndex("by_sid", q => q.eq("sid", a.doc.sid)).first();
+    const src = await ctx.db.query("sources").withIndex("by_sid", q => q.eq("sid", a.doc.sid)).first();
+    if (seen && src && !(await sourceIn(ctx, src, readSpace(a.space)))) throw new Error("that source belongs to another space");
     if (seen) await ctx.db.patch(seen._id, { ...a.doc, written: seen.written });
     else await ctx.db.insert("notes", { ...a.doc, written: today() });
   },
@@ -483,12 +546,16 @@ export const writeNote = internalMutation({
  * life however many brains end up holding it.
  */
 export const noteBySid = internalQuery({
-  args: { sid: v.string() },
+  args: { sid: v.string(), space: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const n = await ctx.db.query("notes").withIndex("by_sid", q => q.eq("sid", a.sid)).first();
     if (!n) return null;
+    const src = await ctx.db.query("sources").withIndex("by_sid", q => q.eq("sid", a.sid)).first();
+    if (!src || !(await sourceIn(ctx, src, readSpace(a.space)))) return null;
+    /* The kind comes back too, so filing it again keeps the grain it was read at. */
     return { title: n.title, author: n.author, date: n.date,
-             topics: n.topics ?? [], quotes: n.quotes ?? [], thin: n.thin ?? [] };
+             topics: n.topics ?? [], quotes: n.quotes ?? [], thin: n.thin ?? [],
+             ...(n.findings?.kind ? { kind: n.findings.kind } : {}) };
   },
 });
 

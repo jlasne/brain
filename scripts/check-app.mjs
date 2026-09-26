@@ -421,6 +421,54 @@ for (const kind of ["study", "argument"]) {
   await page.close();
 }
 
+/* ---- a drop survives a busy model, knows its own source, and files each concept once ---- */
+{
+  const held = { ...STATE, concepts: [{ brain: "content", slug: "offer-creation", n: 1, title: "Offer creation", position: "p",
+    summaryLine: "", evidence: [], data: [], conflicts: [], sources: [], related: [] }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__checks = []; window.__reads = 0; window.__settles = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/drop/check")) { window.__checks.push(body); return Response.json({ duplicate: false, sid: "s-doc" }); }
+      if (s.includes("/api/drop/read")) {
+        /* The first read meets a busy model. */
+        if (window.__reads++ === 0) return Response.json({ error: "the model answered 429: rate limit" });
+        return Response.json({ part: { title: "Guide", kind: "study", topics: [{ topic: "Offers", ideas: ["x"], data: [] }] } });
+      }
+      if (s.includes("/api/drop/plan")) return Response.json({ plan: { brains: ["content"], new: ["x"], echo: [], conflicts: [],
+        matched: [{ conceptId: "content/offer-creation", brain: "content", whatItAdds: "from the match" }],
+        candidates: [{ title: "Offer creation", brain: "content", why: "from the candidate" }] } });
+      if (s.includes("/api/drop/settle")) {
+        window.__settles.push(body.plan);
+        return Response.json({ sid: "s-doc", brains: ["content"], positions: 1, counted: [], missed: [], counts: { new: 1, echo: 0 } });
+      }
+      return Response.json({});
+    };
+  }, held);
+  await page.click('#mode button[data-m="drop"]');
+  await page.fill("#srcInput", "Guide.pdf");
+  await page.fill("#input", "Chapter one. The licence is at https://creativecommons.org/licenses/by/4.0/ and applies.");
+  await page.click("#send"); await page.waitForTimeout(6000);
+  const got = await page.evaluate(() => ({ checks: window.__checks, reads: window.__reads,
+    card: !!document.querySelector(".card-foot .go") }));
+  check("a link deep inside a document is not its identity", got.checks[0]?.link === "", JSON.stringify(got.checks[0]));
+  check("the document is fingerprinted by its text", /^Guide\.pdf #\w+$/.test(got.checks[0]?.text || ""), got.checks[0]?.text);
+  check("a busy model is tried again, not fatal", got.reads === 2 && got.card, `${got.reads} reads, card ${got.card}`);
+  await page.click(".card-foot .go"); await page.waitForTimeout(600);
+  const stored = await page.evaluate(() => ({ plans: window.__settles,
+    msg: [...document.querySelectorAll(".msg.ai")].pop()?.textContent || "" }));
+  const units = stored.plans.flatMap(p => [...p.matched, ...p.candidates]);
+  check("a candidate the brain already holds is filed as that concept, once", units.length === 1 && stored.plans[0].matched.length === 1,
+    JSON.stringify(stored.plans));
+  check("carrying both claims", /from the match/.test(units[0]?.whatItAdds) && /from the candidate/.test(units[0]?.whatItAdds), JSON.stringify(units[0]));
+  check("the receipt counts what the server wrote", /Rewritten: 1 position\b/.test(stored.msg), stored.msg.slice(0, 160));
+  check("and claims nothing it did not check", !/Coherent|summar/.test(stored.msg), stored.msg.slice(0, 200));
+  check("nothing threw", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- on a phone ---- */
 {
   /* isMobile makes the browser honour the viewport tag the way a phone does,
@@ -499,7 +547,7 @@ for (const kind of ["study", "argument"]) {
     set: document.getElementById("msgOctopus").textContent,
   }));
   check("both doors show on the landing", doors.both);
-  check("a door with no passphrase says the first one sets it", /first one typed/.test(doors.unset), doors.unset);
+  check("a door with no passphrase says it is shut", /Shut until its owner/.test(doors.unset), doors.unset);
   check("a door with one says nothing", doors.set === "", `"${doors.set}"`);
   await page.close();
 }

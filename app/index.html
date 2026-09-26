@@ -280,7 +280,7 @@
     } catch {}
   }
 
-  /** A door with no passphrase yet says the first one typed sets it. */
+  /** A door with no passphrase yet says it is shut until its owner sets one. */
   async function paintDoors(){
     try {
       const st = await post("/api/status");
@@ -291,8 +291,7 @@
       for (const s of SPACES) {
         if (gates[s] !== false) continue;
         $("msg" + nameOf(s)).classList.add("set");
-        $("msg" + nameOf(s)).textContent = "No passphrase yet. The first one typed becomes it.";
-        $("go" + nameOf(s)).textContent = "Set it and enter";
+        $("msg" + nameOf(s)).textContent = "Shut until its owner sets a passphrase.";
       }
     } catch (e) {
       for (const s of SPACES) $("msg" + nameOf(s)).textContent = e.message;

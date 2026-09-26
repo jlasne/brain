@@ -928,6 +928,12 @@ const $ = id => document.getElementById(id);
 const el = (t,c,txt) => { const n=document.createElement(t); if(c)n.className=c; if(txt!=null)n.textContent=txt; return n; };
 const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
 const slug = s => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,48)||"item";
+/** A short fingerprint of a text. */
+const fnv = t => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < t.length; i++){ h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(36);
+};
 /* A concept's id. A long title keeps its first 41 characters and a short
    hash of the rest, so two ideas that open the same way stay two concepts.
    Same rule as the server's conceptSlug. */
@@ -967,6 +973,24 @@ async function api(path, body = {}) {
   const d = await r.json().catch(() => ({ error: "the server sent something unreadable" }));
   if (d.error) throw new Error(d.error);
   return d;
+}
+
+/**
+ * A call that writes nothing, tried up to three times.
+ *
+ * Reading and planning a long document is about 40 calls. One busy model or
+ * one dropped connection among them used to throw the whole reading away.
+ */
+async function apiRetry(path, body = {}){
+  for (let n = 1; ; n++){
+    try { return await api(path, body); }
+    catch (e) {
+      const passing = /did not answer|ran past|timed out|still\s(thinking|writing)|429|rate limit|overloaded|busy|50[0-9]|temporar|unreadable|cut off/i
+        .test(e.message);
+      if (!passing || n >= 3 || e.message === "locked") throw e;
+      await new Promise(ok => setTimeout(ok, n * 2500));
+    }
+  }
 }
 
 /* ============ the gate ============ */
@@ -2206,9 +2230,10 @@ function splitAnswer(t){
 /* ---------- drop ---------- */
 async function doDrop(src, content, again){
   /* The link decides whether the source can be opened, and it is what catches a
-     repeat later. It is read from the source line, and from the content as a
-     fallback, because a pasted transcript often starts with its own URL. */
-  const link = (src.match(/https?:\/\/\S+/)||[])[0] || (content.match(/https?:\/\/\S+/)||[])[0] || "";
+     repeat later. It is read from the source line, or from the content when the
+     content opens with it, the way a pasted transcript does. A link deeper in a
+     document, a licence or a footnote, is not the document. */
+  const link = (src.match(/https?:\/\/\S+/)||[])[0] || (content.match(/^\s*(https?:\/\/\S+)/)||[])[1] || "";
   let bodyTxt = S.transcript || content || null;
   const said = src || link || content.slice(0, 120);
   const words = t => (t.match(/\S+/g)||[]).length.toLocaleString();
@@ -2222,7 +2247,10 @@ async function doDrop(src, content, again){
 
   let chk;
   const body = thinking("Checking for a repeat");
-  try { chk = await api("/api/drop/check", { link, text: src || content }); }
+  /* With no link, the source is its name and a fingerprint of its text: the
+     same document dropped twice is caught, two documents named alike are not. */
+  const fp = bodyTxt ? "#" + fnv(bodyTxt) : "";
+  try { chk = await api("/api/drop/check", { link, text: [src, fp].filter(Boolean).join(" ") || content }); }
   catch(e){ fail(body, e.message); return; }
 
   /* Already held somewhere. That is worth knowing, not a reason to stop: the
@@ -2307,7 +2335,7 @@ async function doDrop(src, content, again){
     while (nextRead < chunks.length && !readErr){
       const i = nextRead++;
       try {
-        const r = await api("/api/drop/read", { chunk: chunks[i], part: i+1, total: chunks.length, key: S.key });
+        const r = await apiRetry("/api/drop/read", { chunk: chunks[i], part: i+1, total: chunks.length, key: S.key });
         parts[i] = r.part || {};
         if (chunks.length > 1) setThinking(body, `Reading, pass ${++readDone} of ${chunks.length}`);
       } catch(e){ readErr = readErr || e; }
@@ -2391,32 +2419,56 @@ async function planAll(ext, held, progress){
   if (!ext.kind && ext.findings && ext.findings.kind) ext = { ...ext, kind: ext.findings.kind };
   const batches = topicBatches(ext.topics || []);
   const merged = { brains: [], matched: [], candidates: [], new: [], echo: [], conflicts: [] };
-  const seenM = new Set(), seenC = new Set();
+  const seenM = new Set(), seenC = new Set(), seenX = new Set();
+  const addMatched = m => {
+    const had = merged.matched.find(x => x.conceptId === m.conceptId);
+    if (!had){ seenM.add(m.conceptId); merged.matched.push({ ...m }); return; }
+    if (m.whatItAdds) had.whatItAdds = `${had.whatItAdds || ""} ${m.whatItAdds}`.trim().slice(0, 600);
+    if (m.related) had.related = [...new Set([...(had.related || []), ...m.related])];
+  };
+  const heldConcept = (brain, title) => {
+    const id = conceptSlug(title), t = String(title || "").trim().toLowerCase();
+    return S.concepts.find(x => x.brain === brain && (x.slug === id || String(x.title || "").trim().toLowerCase() === t));
+  };
   for (let i = 0; i < batches.length; i++){
     if (batches.length > 1) progress(i + 1, batches.length);
-    const p = (await api("/api/drop/plan", {
+    const p = (await apiRetry("/api/drop/plan", {
       ext: { ...ext, topics: batches[i] }, brain: S.scope, key: S.key,
       ...(held && held.length ? { exclude: held } : {}),
       ...(merged.candidates.length ? { proposed: merged.candidates.map(c => `${c.brain} | ${c.title}`) } : {}),
     })).plan || {};
     for (const b of p.brains || []) if (!merged.brains.includes(b)) merged.brains.push(b);
-    for (const m of p.matched || []){
-      if (seenM.has(m.conceptId)){
-        const had = merged.matched.find(x => x.conceptId === m.conceptId);
-        if (had && m.whatItAdds) had.whatItAdds = `${had.whatItAdds || ""} ${m.whatItAdds}`.trim().slice(0, 600);
-        if (had && m.related) had.related = [...new Set([...(had.related || []), ...m.related])];
+    for (const m of p.matched || []) addMatched(m);
+    for (const c of p.candidates || []){
+      /* A "new" idea the brain already holds under that title is a match: filed
+         as a candidate, it reached the same concept twice and one write lost
+         the other's evidence. */
+      const known = heldConcept(c.brain, c.title);
+      if (known){ addMatched({ conceptId: `${known.brain}/${known.slug}`, brain: known.brain, whatItAdds: c.why, related: c.related }); continue; }
+      const k = unitKey(c.brain, c.title);
+      if (seenM.has(k)){ addMatched({ conceptId: k, whatItAdds: c.why, related: c.related }); continue; }
+      if (seenC.has(k)){
+        /* Proposed again by a later batch: what that batch saw joins it. */
+        const had = merged.candidates.find(x => unitKey(x.brain, x.title) === k);
+        if (had && c.why) had.why = `${had.why || ""} ${c.why}`.trim().slice(0, 600);
+        if (had && c.related) had.related = [...new Set([...(had.related || []), ...c.related])];
         continue;
       }
-      seenM.add(m.conceptId); merged.matched.push(m);
-    }
-    for (const c of p.candidates || []){
-      const k = unitKey(c.brain, c.title);
-      if (seenC.has(k) || seenM.has(k)) continue;
-      seenC.add(k); merged.candidates.push(c);
+      seenC.add(k); merged.candidates.push({ ...c });
     }
     merged.new.push(...(p.new || []));
     merged.echo.push(...(p.echo || []));
-    merged.conflicts.push(...(p.conflicts || []));
+    for (const x of p.conflicts || []){
+      const k = `${x.conceptId || `${x.brain}/${x.concept}`}|${x.says || ""}`;
+      if (seenX.has(k)) continue;
+      seenX.add(k); merged.conflicts.push(x);
+    }
+  }
+  /* A ruling only lands on a concept this drop rewrites, so every concept a
+     conflict names is rewritten. */
+  for (const x of merged.conflicts){
+    const c = x.conceptId && S.concepts.find(y => `${y.brain}/${y.slug}` === x.conceptId);
+    if (c && !seenM.has(x.conceptId)) addMatched({ conceptId: x.conceptId, brain: c.brain, whatItAdds: x.says || "" });
   }
   return merged;
 }
@@ -2438,6 +2490,7 @@ async function storeAll(pc, progress){
   for (let i = 0; i < units.length; i += STORE_BATCH) batches.push(units.slice(i, i + STORE_BATCH));
   if (!batches.length) batches.push([]);
   pc.stored = pc.stored || new Set();
+  const earlier = [...pc.stored];
 
   const results = [];
   let next = 0, done = pc.stored.size, failed = null;
@@ -2465,10 +2518,14 @@ async function storeAll(pc, progress){
     err.partial = true; throw err;
   }
   const last = results[results.length - 1] || {};
+  /* What the server wrote, not what the plan hoped for. A resumed store counts
+     the parts that landed earlier from the plan, since their answers are gone. */
   return {
-    sid: last.sid || pc.sid, brains: plan.brains, counts: last.counts,
-    positions: (plan.matched || []).length + (plan.candidates || []).length,
+    sid: last.sid || pc.sid, brains: last.brains || plan.brains, counts: last.counts,
+    positions: results.reduce((n, r) => n + (r.positions || 0), 0) +
+      earlier.reduce((n, i) => n + (batches[i] || []).length, 0),
     counted: results.flatMap(r => r.counted || []),
+    missed: results.flatMap(r => r.missed || []),
   };
 }
 
@@ -2654,9 +2711,13 @@ function receipt(r, pc){
   const d = el("div","receipt");
   d.innerHTML =
 `Stored <span class="v">${esc(r.sid)}</span>. Brains <span class="v">${esc(names)}</span>.
-Rewritten: <span class="v">${r.positions}</span> position${r.positions===1?"":"s"} · <span class="v">${(r.brains||[]).length}</span> summar${(r.brains||[]).length===1?"y":"ies"}
+Rewritten: <span class="v">${r.positions}</span> position${r.positions===1?"":"s"}
 <span class="v">${r.counts?.new ?? 0}</span> new · <span class="v">${r.counts?.echo ?? 0}</span> echoes · <span class="v">${flipped}</span> flipped · <span class="v">${both}</span> kept both
-<span class="ok">Coherent.</span> Open conflicts: <span class="v">${esc(open.join(", ")||"none")}</span>`;
+Open conflicts: <span class="v">${esc(open.join(", ")||"none")}</span>`;
+  /* A match the server could not find is said, never dropped quietly. */
+  if ((r.missed||[]).length){
+    d.innerHTML += `\nNot filed: <span class="v">${esc(r.missed.join(", "))}</span>. Those concepts no longer exist under that id.`;
+  }
   /* A counted candidate is stored, just not as a position yet. Saying so keeps
      the receipt honest about where the idea went. */
   for (const c of (r.counted||[])){

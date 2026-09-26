@@ -524,11 +524,13 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     }
     /* A concept id the brains do not carry would file the source nowhere, so it
        is caught here rather than after a rewrite that goes nowhere. */
+    /* Only concepts of the brains this plan may feed count: an id from a
+       brain the caller cannot feed would rewrite someone else's position. */
     const bad = (plan.matched ?? [])
       .map((m: any) => String(m.conceptId ?? ""))
-      .filter((id: string) => !concepts.some((c: any) => `${c.brain}/${c.slug}` === id));
+      .filter((id: string) => !concepts.some((c: any) => targets.includes(c.brain) && `${c.brain}/${c.slug}` === id));
     if (bad.length) {
-      return text(`These concept ids do not exist: ${bad.join(", ")}.\n` +
+      return text(`These concept ids do not exist in the brains you may feed: ${bad.join(", ")}.\n` +
         `Use the ids listed under BRAINS AND THEIR CONCEPTS, exactly, in the form brain/slug. ` +
         `An idea no listed concept covers belongs under "candidates", not "matched".`);
     }
