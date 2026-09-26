@@ -45,11 +45,17 @@ const DB = {
   ],
   sources: [{ sid:"s-a", brains:["content"], author:"A", title:"first", date:"2026-01-02" }],
   drafts: new Map(), candidates: new Map(), writes: [],
+  /* Which space each read asked for. The MCP server serves Octopus only, so a
+     read that forgets to name one would quietly expose the other space. */
+  spacesRead: [],
 };
 
 const ctx = {
   runQuery: async (fn, a) => {
-    if (fn === "store.everything") return { brains: DB.brains, concepts: DB.concepts, sources: DB.sources };
+    if (fn === "store.everything") {
+      DB.spacesRead.push(a?.space ?? null);
+      return { brains: DB.brains, concepts: DB.concepts, sources: DB.sources };
+    }
     if (fn === "store.findSource") return null;
     if (fn === "store.getDraft") {
       const d = DB.drafts.get(a.token);
@@ -105,6 +111,16 @@ const ME = { account:"octopus", name:"Octopus" };
   const an = anon.result.tools.map(t => t.name), sn = signed.result.tools.map(t => t.name);
   check("anonymous sees 6 read tools", an.length === 6 && !an.includes("drop_store"), an.join(","));
   check("signed sees 12 tools", sn.length === 12 && sn.includes("drop_store"), sn.join(","));
+}
+
+/* ---- the space a read asks for ---- */
+{
+  DB.spacesRead.length = 0;
+  await call("ask", { question: "what beats a bigger audience" }, ME);
+  await call("list_brains", {}, null);
+  check("every read names the octopus space",
+    DB.spacesRead.length >= 2 && DB.spacesRead.every(x => x === "octopus"),
+    DB.spacesRead.join(","));
 }
 
 /* ---- the fetcher refuses what it should, before any network ---- */

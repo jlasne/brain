@@ -2,32 +2,49 @@
 
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { sha256, randomHex, today, slug, MENTIONS, SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS } from "./lib";
+import { sha256, randomHex, today, slug, gateKey, readSpace, HOME,
+         MENTIONS, SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS } from "./lib";
 
 /* ---------------- the gate ---------------- */
 
+/** The row holding one space's passphrase. Octopus keeps the original key. */
+const gateRow = async (ctx: any, space?: string) =>
+  await ctx.db.query("config")
+    .withIndex("by_key", (q: any) => q.eq("key", gateKey(readSpace(space)))).unique();
+
 export const gateState = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    const row = await ctx.db.query("config").withIndex("by_key", q => q.eq("key", "gate")).unique();
+  args: { space: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const row = await gateRow(ctx, a.space);
     return row ? { set: !!row.hash, salt: row.salt, hash: row.hash, attempts: row.attempts ?? 0, attemptWindow: row.attemptWindow ?? 0 } : null;
   },
 });
 
+/** Which spaces have a passphrase. The landing asks this before drawing a door. */
+export const gatesSet = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("config").collect();
+    const has = (k: string) => rows.some(r => r.key === k && !!r.hash);
+    return { octopus: has(gateKey("octopus")), squidgy: has(gateKey("squidgy")) };
+  },
+});
+
 export const setGate = internalMutation({
-  args: { salt: v.string(), hash: v.string() },
+  args: { salt: v.string(), hash: v.string(), space: v.optional(v.string()), replace: v.optional(v.boolean()) },
   handler: async (ctx, a) => {
-    const row = await ctx.db.query("config").withIndex("by_key", q => q.eq("key", "gate")).unique();
-    if (row?.hash) throw new Error("a passphrase is already set");
-    const doc = { key: "gate", salt: a.salt, hash: a.hash, attempts: 0, attemptWindow: Date.now(), setAt: today() };
+    const space = readSpace(a.space);
+    const row = await gateRow(ctx, space);
+    if (row?.hash && !a.replace) throw new Error("a passphrase is already set");
+    const doc = { key: gateKey(space), salt: a.salt, hash: a.hash, attempts: 0, attemptWindow: Date.now(), setAt: today() };
     if (row) await ctx.db.patch(row._id, doc); else await ctx.db.insert("config", doc);
   },
 });
 
 export const noteAttempt = internalMutation({
-  args: { ok: v.boolean() },
+  args: { ok: v.boolean(), space: v.optional(v.string()) },
   handler: async (ctx, a) => {
-    const row = await ctx.db.query("config").withIndex("by_key", q => q.eq("key", "gate")).unique();
+    const row = await gateRow(ctx, a.space);
     if (!row) return;
     const now = Date.now();
     const fresh = now - (row.attemptWindow ?? 0) > ATTEMPT_WINDOW_MS;
@@ -39,11 +56,11 @@ export const noteAttempt = internalMutation({
 });
 
 export const newSession = internalMutation({
-  args: { account: v.optional(v.string()), kind: v.string() },
+  args: { account: v.optional(v.string()), kind: v.string(), space: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const token = randomHex(24);
     await ctx.db.insert("sessions", {
-      token, expires: Date.now() + SESSION_MS, kind: a.kind,
+      token, expires: Date.now() + SESSION_MS, kind: a.kind, space: readSpace(a.space),
       ...(a.account ? { account: a.account } : {}),
     });
     return token;
@@ -60,7 +77,7 @@ export const checkSession = internalQuery({
     const s = await ctx.db.query("sessions").withIndex("by_token", q => q.eq("token", a.token)).unique();
     if (!s || s.expires <= Date.now()) return null;
     const kind = s.kind === "member" || s.kind === "guest" ? s.kind : "owner";
-    return { kind, account: s.account ?? null };
+    return { kind, account: s.account ?? null, space: readSpace(s.space) };
   },
 });
 
@@ -142,13 +159,26 @@ export const dropSession = internalMutation({
 
 /* ---------------- reading the brains ---------------- */
 
+/**
+ * Everything one space holds.
+ *
+ * The brains of that space, then only the concepts and sources that name one of
+ * them. A concept carries its brain's slug and a source carries a list of them,
+ * so the brains decide the rest. Slugs are unique across both spaces, which is
+ * what lets this filter be a name match.
+ */
 export const everything = internalQuery({
-  args: {},
-  handler: async (ctx) => ({
-    brains: await ctx.db.query("brains").collect(),
-    concepts: await ctx.db.query("concepts").collect(),
-    sources: await ctx.db.query("sources").collect(),
-  }),
+  args: { space: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const all = await ctx.db.query("brains").collect();
+    const brains = all.filter(b => readSpace(b.space) === space);
+    const mine = new Set(brains.map(b => b.slug));
+    const concepts = (await ctx.db.query("concepts").collect()).filter(c => mine.has(c.brain));
+    const sources = (await ctx.db.query("sources").collect())
+      .filter(s => (s.brains ?? []).some((x: string) => mine.has(x)));
+    return { brains, concepts, sources };
+  },
 });
 
 /** The duplicate check. An index lookup, so it stays flat at any size. */
@@ -173,7 +203,8 @@ export const conceptsOf = internalQuery({
 
 export const createBrain = internalMutation({
   args: { name: v.string(), type: v.string(), scope: v.string(),
-          visibility: v.optional(v.string()), owner: v.optional(v.string()) },
+          visibility: v.optional(v.string()), owner: v.optional(v.string()),
+          space: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const s = slug(a.name);
     const seen = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", s)).unique();
@@ -181,6 +212,7 @@ export const createBrain = internalMutation({
     await ctx.db.insert("brains", {
       slug: s, name: a.name, type: a.type, scope: a.scope, created: today(),
       visibility: a.visibility === "private" ? "private" : a.visibility === "drop" ? "drop" : "ask",
+      space: readSpace(a.space),
       ...(a.owner ? { owner: a.owner } : {}),
     });
     return s;

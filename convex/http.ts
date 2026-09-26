@@ -9,6 +9,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
   ask, json, cors, sha256, slug, randomHex, isOpen, sealKey, openKey, onlyAccount,
+  readSpace, SPACE_NAME, HOME,
   MODEL, MAX_ATTEMPTS, CHUNK, MENTIONS,
 } from "./lib";
 import type { Who } from "./lib";
@@ -86,25 +87,32 @@ const route = (path: string, fn: (ctx: any, req: Request, body: any) => Promise<
   });
 };
 
-/** First call ever sets the passphrase. Every call after checks it. */
+/**
+ * One door per space. The passphrase decides which brains the session sees.
+ *
+ * The first call at a door with no passphrase sets it, which is how Octopus was
+ * opened and how Squidgy opens. Run `npx convex run admin:setPass --prod` to
+ * set one from a terminal instead, and the door is closed before it is public.
+ */
 route("/api/unlock", async (ctx, _req, b) => {
+  const space = readSpace(b.space);
   const pass = String(b.pass ?? "");
   if (pass.length < 8) return { error: "use at least 8 characters" };
 
-  const g = await ctx.runQuery(internal.store.gateState, {});
+  const g = await ctx.runQuery(internal.store.gateState, { space });
 
   if (!g?.set) {
     const salt = [...crypto.getRandomValues(new Uint8Array(16))].map(x => x.toString(16).padStart(2, "0")).join("");
-    await ctx.runMutation(internal.store.setGate, { salt, hash: await sha256(salt, pass) });
-    return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner" }), created: true };
+    await ctx.runMutation(internal.store.setGate, { salt, hash: await sha256(salt, pass), space });
+    return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space }), space, created: true };
   }
 
   if ((g.attempts ?? 0) >= MAX_ATTEMPTS) return { error: "too many attempts, wait an hour" };
 
   const good = await sha256(g.salt!, pass) === g.hash;
-  await ctx.runMutation(internal.store.noteAttempt, { ok: good });
+  await ctx.runMutation(internal.store.noteAttempt, { ok: good, space });
   if (!good) return { error: "that is not it" };
-  return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner" }) };
+  return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space }), space };
 });
 
 /** Leaks nothing: says only whether a passphrase has ever been set. */
@@ -197,10 +205,11 @@ route("/api/account/key", async (ctx, _req, b) => {
 });
 
 route("/api/status", async (ctx) => {
-  /* Whether this deployment is personal. It names no account, so a visitor
-     learns only that there is nothing here to sign up for. */
-  const g = await ctx.runQuery(internal.store.gateState, {});
-  return { gateSet: !!g?.set, personal: !!onlyAccount() };
+  /* Which doors have a passphrase, and whether this deployment is personal. It
+     names no account and no brain, so a visitor learns only what the landing
+     needs to draw two doors. */
+  const gates = await ctx.runQuery(internal.store.gatesSet, {});
+  return { gates, gateSet: !!gates.octopus, personal: !!onlyAccount() };
 });
 
 route("/api/lock", async (ctx, _req, b) => {
@@ -282,7 +291,7 @@ route("/api/usage", async (ctx, _req, b) => {
 
 route("/api/state", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const s = await ctx.runQuery(internal.store.everything, {});
+  const s = await ctx.runQuery(internal.store.everything, { space: who.space });
   /* Whether this account remembers a key, and the last 4 of it, so the app can
      say which one it would spend. The key itself stays sealed. */
   let hasKey = false, keyHint = "";
@@ -292,6 +301,7 @@ route("/api/state", async (ctx, _req, b) => {
   }
   return { ...s, model: MODEL, chunk: CHUNK, mentions: MENTIONS,
            account: who.account, kind: who.kind, owner: who.kind === "owner",
+           space: who.space, spaceName: SPACE_NAME[who.space],
            hasKey, keyHint };
 });
 
@@ -303,7 +313,8 @@ route("/api/brain", async (ctx, _req, b) => {
   if (who.kind === "guest") return { error: "creating a brain needs an account" };
   const visibility = String(b.visibility ?? "closed");
   return { slug: await ctx.runMutation(internal.store.createBrain,
-    { name, type, scope, visibility, ...(who.account ? { owner: who.account } : {}) }) };
+    { name, type, scope, visibility, space: who.space,
+      ...(who.account ? { owner: who.account } : {}) }) };
 });
 
 /** Rename a brain, and move its concepts, sources and candidates with it. */
@@ -380,8 +391,8 @@ route("/api/drop/settle", async (ctx, _req, b) => {
 
 route("/api/ask", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  /* Every brain answers questions, whoever is asking. */
-  const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
+  /* Every brain in this space answers questions, whoever is asking. */
+  const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, { space: who.space });
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
   if (!pool.length) return { answer: "No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
@@ -490,7 +501,9 @@ QUESTION: ${String(b.q ?? "")}` },
 router.route({
   path: "/api/public/brains", method: "GET",
   handler: httpAction(async (ctx, req) => {
-    const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
+    /* Octopus only. Squidgy sits behind its own passphrase and is published
+       nowhere, so no unsigned route reads it. */
+    const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, { space: HOME });
     return new Response(JSON.stringify({
       brains: brains.map((b: any) => ({
         slug: b.slug, name: b.name, type: b.type, scope: b.scope,

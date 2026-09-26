@@ -2,7 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  // one row, holds the passphrase hash and the unlock attempt counter
+  // one row per space, holding its passphrase hash and its unlock attempt counter
   config: defineTable({
     key: v.string(),
     salt: v.optional(v.string()),
@@ -20,6 +20,9 @@ export default defineSchema({
     /* "owner", "member" or "guest". Absent reads as "owner", which is what the
        sessions written before guests existed were. */
     kind: v.optional(v.string()),
+    /* Which space this session sees. Absent reads as "octopus", which is where
+       every session written before the split belonged. */
+    space: v.optional(v.string()),
   }).index("by_token", ["token"]),
 
   /**
@@ -65,6 +68,11 @@ export default defineSchema({
     /* The account slug that owns it. Absent means the owner's own brain, from
        before accounts existed. */
     owner: v.optional(v.string()),
+    /* Which space holds it. Absent reads as "octopus", so every brain that
+       existed before the split stays where it was. Slugs stay unique across
+       both spaces, so a source, a concept or a candidate needs no space of its
+       own: the brain it names carries one. */
+    space: v.optional(v.string()),
   }).index("by_slug", ["slug"]),
 
   concepts: defineTable({

@@ -114,9 +114,10 @@ RULES
 Reply with only JSON:
 {"rewrites":[{"conceptId":"","position":"","summaryLine":"","data":[""],"conflicts":[{"a":"","aDate":"","b":"","bDate":"","why":""}]}]}`;
 
-/** The brains a caller may feed, and the ones the plan was pointed at. */
+/** The brains a caller may feed in their own space, and the ones the plan was
+    pointed at. */
 export async function feedable(ctx: any, who: Who, brain?: string) {
-  const { brains: seen, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
+  const { brains: seen, concepts, sources } = await ctx.runQuery(internal.store.everything, { space: who.space });
   const brains = seen.filter((x: any) => canDrop(x, who));
   const only = brain && brain !== "all" ? String(brain) : null;
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
@@ -352,7 +353,7 @@ ${chunk}` },
 
 /** R3. Summaries only, never whole brains, so this costs the same at any size. */
 export async function dropPlan(ctx: any, who: Who, b: any, key?: string, model?: string) {
-  const { brains: seen, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
+  const { brains: seen, concepts, sources } = await ctx.runQuery(internal.store.everything, { space: who.space });
   /* Only brains this caller may feed. Everyone reads more than they can write. */
   const brains = seen.filter((x: any) => canDrop(x, who));
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
@@ -382,7 +383,7 @@ ${planContext(pool, concepts, sources, ext)}` },
 
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
 export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model?: string) {
-  const { brains: seen, concepts } = await ctx.runQuery(internal.store.everything, {});
+  const { brains: seen, concepts } = await ctx.runQuery(internal.store.everything, { space: who.space });
   /* Re-checked here, because this is where the writing happens. */
   const brains = seen.filter((x: any) => canDrop(x, who));
   const ext = b.ext ?? {}, plan = b.plan ?? {}, sid = String(b.sid ?? "");

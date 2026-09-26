@@ -19,7 +19,7 @@
  */
 
 import { internal } from "./_generated/api";
-import { randomHex, today, slug as slugOf, MENTIONS } from "./lib";
+import { randomHex, today, slug as slugOf, HOME, MENTIONS } from "./lib";
 export { MENTIONS };
 import { dropCheck, dropSettle, feedable, fetchPage, planContext, PLAN_RULES } from "./drop";
 
@@ -442,7 +442,7 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
   }
   /* A member, so the same permission rules apply here as in the app: a brain is
      feedable by the account that owns it, or by anyone when it is open. */
-  const who = { kind: "member" as const, account: caller.account };
+  const who = { kind: "member" as const, account: caller.account, space: HOME };
   const draftOf = async (token: string) =>
     await ctx.runQuery(internal.store.getDraft, { token, account: caller.account });
 
@@ -474,6 +474,7 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
         type: args?.type === "person" ? "person" : "subject",
         visibility: args?.open === true ? "open" : "closed",
         owner: caller.account,
+        space: HOME,
       });
       return text([
         `Made ${bname} (${made}), a ${args?.type === "person" ? "person" : "subject"} brain.`,
@@ -633,9 +634,14 @@ function rulings(args: any) {
 export async function runTool(ctx: any, name: string, args: any, caller: Caller = null) {
   if (WRITE_TOOLS.some(t => t.name === name)) return await runWriteTool(ctx, caller, name, args);
 
-  /* Every brain is published, so there is nothing to filter here. Feeding is
-     the guarded act, and no tool on this server writes. */
-  const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, {});
+  /**
+   * Octopus only.
+   *
+   * Every Octopus brain is published, so there is nothing to filter beyond the
+   * space. Squidgy has its own passphrase and no connector, so this server never
+   * reads it: a client pointed here sees the published brains and nothing else.
+   */
+  const { brains, concepts, sources } = await ctx.runQuery(internal.store.everything, { space: HOME });
 
   if (name === "ask") {
     const q = String(args?.question ?? "").trim();

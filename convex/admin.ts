@@ -10,11 +10,16 @@
  * accounts exist:
  *
  *     npx convex run admin:claim '{\"account\":\"octopus\"}' --prod
+ *
+ * setPass sets or replaces a space's passphrase from a terminal, so a door is
+ * closed before anyone can reach it:
+ *
+ *     npx convex run admin:setPass '{\"space\":\"squidgy\",\"pass\":\"...\"}' --prod
  */
 
 import { internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
-import { slug, today } from "./lib";
+import { slug, today, sha256, randomHex, gateKey, readSpace, SPACES } from "./lib";
 
 /** Who exists, and who owns what. Read this before and after a claim. */
 export const state = internalQuery({
@@ -160,5 +165,54 @@ export const promoteAll = internalMutation({
     }
 
     return { dry: !!a.dry, waiting: rows.length, promoted: made.length, made, skipped };
+  },
+});
+
+/**
+ * Set or replace a space's passphrase.
+ *
+ * The first visit to a door with no passphrase sets it, which leaves a window
+ * where whoever arrives first chooses. Running this closes the door before it is
+ * public. It also resets the attempt counter, so a locked-out door reopens.
+ *
+ *     npx convex run admin:setPass '{"space":"squidgy","pass":"at least 8"}' --prod
+ */
+export const setPass = internalMutation({
+  args: { space: v.string(), pass: v.string() },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    if (String(a.space).trim().toLowerCase() !== space) {
+      throw new Error(`space reads one of: ${SPACES.join(", ")}`);
+    }
+    if (a.pass.length < 8) throw new Error("use at least 8 characters");
+    const key = gateKey(space);
+    const salt = randomHex(16);
+    const doc = { key, salt, hash: await sha256(salt, a.pass), attempts: 0, attemptWindow: Date.now(), setAt: today() };
+    const row = await ctx.db.query("config").withIndex("by_key", q => q.eq("key", key)).unique();
+    if (row) { await ctx.db.patch(row._id, doc); return { space, replaced: true }; }
+    await ctx.db.insert("config", doc);
+    return { space, replaced: false };
+  },
+});
+
+/**
+ * Move a brain between the two spaces, with everything under it.
+ *
+ * A concept, a source and a candidate name their brain by slug and carry no
+ * space of their own, so moving the brain moves them. Slugs stay unique across
+ * both spaces, which is what makes that safe.
+ *
+ *     npx convex run admin:moveBrain '{"slug":"content","space":"squidgy"}' --prod
+ */
+export const moveBrain = internalMutation({
+  args: { slug: v.string(), space: v.string(), dry: v.optional(v.boolean()) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    if (!b) throw new Error(`no brain called "${a.slug}"`);
+    const from = readSpace(b.space);
+    if (from === space) return { slug: a.slug, from, to: space, moved: false, why: "already there" };
+    if (!a.dry) await ctx.db.patch(b._id, { space });
+    return { slug: a.slug, name: b.name, from, to: space, moved: !a.dry };
   },
 });
