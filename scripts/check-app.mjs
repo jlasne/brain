@@ -112,7 +112,17 @@ async function boot(path, init, arg) {
 {
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test");
-    window.fetch = async u => Response.json(String(u).includes("/api/state") ? state : { gates: {} });
+    window.fetch = async u => {
+      const s = String(u);
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/onepager")) return Response.json({
+        page: { title: "Octopus", line: "1 brain, 2 positions.",
+                sections: [{ head: "", bullets: ["Offer first. (2026-01-02)", "Face beats logo. (2026-02-02)"] }],
+                foot: "2 of 2 positions \u00b7 3 sources read \u00b7 2026-09-26" },
+        text: "Octopus\n\n- Offer first.\n- Face beats logo.",
+      });
+      return Response.json({ gates: {} });
+    };
   }, STATE);
   check("the app boots with nothing thrown", !bad.length, bad.join("\n       "));
 
@@ -146,6 +156,38 @@ async function boot(path, init, arg) {
     file: document.getElementById("fileBtn").hidden,
   }));
   check("asking hides the source line and the document button", asking.src && asking.file);
+
+  /* ---- the one-pager ---- */
+  await page.click("#pagerBtn");
+  await page.waitForTimeout(120);
+  const sheet = await page.evaluate(() => ({
+    picks: [...document.querySelectorAll("#pPick button")].map(b => b.dataset.p),
+    on: document.querySelector("#pPick button.on")?.dataset.p,
+  }));
+  check("the sheet offers the brains it has", sheet.picks.join(",") === "subject,all", sheet.picks.join(","));
+  check("and starts on everything when no brain is picked", sheet.on === "all", String(sheet.on));
+
+  await page.click("#pGo");
+  await page.waitForTimeout(250);
+  const card = await page.evaluate(() => {
+    const c = document.querySelector(".pager");
+    if (!c) return null;
+    return {
+      title: c.querySelector("h3")?.textContent,
+      bullets: [...c.querySelectorAll("li")].map(li => li.textContent),
+      acts: [...c.querySelectorAll(".acts button")].map(b => b.textContent),
+      field: !!c.querySelector(".acts input"),
+      gone: !document.querySelector(".veil"),
+    };
+  });
+  check("a page lands in the thread", !!card, "no card");
+  if (card) {
+    check("titled by what it was built from", card.title === "Octopus", card.title);
+    check("carrying its bullets", card.bullets.length === 2, card.bullets.join(" | "));
+    check("with copy, print and mail", card.acts.join(",") === "Copy,Print,Mail it", card.acts.join(","));
+    check("and a field for the address", card.field);
+    check("and the sheet closed behind it", card.gone);
+  }
   await page.close();
 }
 

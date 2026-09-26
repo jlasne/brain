@@ -461,6 +461,33 @@
   .receipt .v{ color:var(--accent); }
   .receipt .ok{ color:var(--good); }
 
+  /* ============ one page ============ */
+  .pager{
+    border:1px solid var(--line-2); border-radius:14px; background:var(--surface);
+    padding:22px 24px; box-shadow:var(--shadow);
+  }
+  .pager h3{ font:600 20px/1.25 var(--sans); letter-spacing:-.02em; color:var(--ink); }
+  .pager .sub{ margin-top:6px; font:400 14px/1.5 var(--sans); color:var(--ink-3); }
+  .pager h4{
+    margin:18px 0 7px; font:500 10.5px/1.6 var(--mono);
+    letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4);
+  }
+  .pager ul{ margin:12px 0 0; padding-left:19px; }
+  .pager li{ margin-bottom:8px; font:400 14.5px/1.55 var(--sans); color:var(--ink-2); }
+  .pager li::marker{ color:var(--accent); }
+  .pager .foot{
+    margin-top:18px; padding-top:13px; border-top:1px solid var(--line);
+    font:400 11.5px/1.6 var(--mono); color:var(--ink-4);
+  }
+  .pager .acts{ display:flex; align-items:center; gap:8px; margin-top:15px; flex-wrap:wrap; }
+  .pager .acts input{
+    flex:1; min-width:170px; border:1px solid var(--line-2); border-radius:9px;
+    background:var(--surface-2); padding:8px 11px;
+    font:400 13.5px/1.4 var(--sans); color:var(--ink);
+  }
+  .pager .acts input:focus{ border-color:var(--accent-fill); outline:none; }
+  .pager .said{ font:400 12.5px/1.6 var(--sans); color:var(--accent); }
+
   /* ============ empty state ============ */
   .zero{ max-width:640px; margin:0 auto; padding:28px 28px 0; }
   .zero h2{ font:600 30px/1.2 var(--sans); letter-spacing:-.02em; color:var(--ink); text-wrap:balance; }
@@ -713,6 +740,7 @@
             <select id="scope"></select>
           </div>
           <button class="fresh" id="freshBtn" hidden title="Forget the questions so far and clear the screen">New thread</button>
+          <button class="fresh" id="pagerBtn" title="A brain, a group, or a question, as bullets on one page">One-pager</button>
           <div class="scope" id="levelWrap">
             <label>Level</label>
             <select id="level">
@@ -1219,6 +1247,7 @@ $("freshBtn").onclick = () => {
   $("input").focus();
 };
 $("keyBtn").onclick = openSetupSheet;
+$("pagerBtn").onclick = openPagerSheet;
 $("testBtn").onclick = testSource;
 $("navToggle").onclick = () => { navOpen = false; paintNav(); };
 $("navOpen").onclick  = () => { navOpen = true;  paintNav(); };
@@ -1654,6 +1683,172 @@ function nearest(scope){
 }
 
 /* ============ transcript ============ */
+/* ============ one page ============ */
+
+/* The last address a page was sent to. A convenience, per browser, so a blocked
+   store just means typing it again. */
+const MAIL_KEY = "octopus.mailto";
+const lastMail = () => { try { return localStorage.getItem(MAIL_KEY) || ""; } catch { return ""; } };
+
+/**
+ * What the page is built from.
+ *
+ * The brain in the sidebar when one is picked, a group, everything, or a
+ * question. The first three assemble from stored positions and cost nothing.
+ */
+function openPagerSheet(){
+  closeSide();
+  const here = S.brains.find(b => b.slug === S.scope);
+  const people = S.brains.some(b => b.type === "person");
+  const subjects = S.brains.some(b => b.type !== "person");
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <header><h3>One page, in bullets</h3>
+      <p>A brain, a group, or a question. The first two read what is already stored, so they cost nothing and invent nothing.</p></header>
+      <div class="f"><label>Built from</label><div class="seg" id="pPick">
+        ${here ? `<button data-p="${esc(here.slug)}">${esc(here.name)}</button>` : ""}
+        ${people ? `<button data-p="person">People</button>` : ""}
+        ${subjects ? `<button data-p="subject">Subjects</button>` : ""}
+        <button data-p="all">Everything</button></div></div>
+      <div class="f"><label for="pQ">Or ask a question</label>
+        <textarea id="pQ" placeholder="Leave this empty to lay out the positions as they stand."></textarea>
+        <div class="hint">A question costs one model call. The answer comes back as at most 9 bullets.</div></div>
+      <div id="pSlot"></div>
+      <footer><button class="ghost" id="pCancel">Cancel</button><button class="go" id="pGo">Build it</button></footer>
+    </div>`;
+  document.body.append(veil);
+
+  let pick = here ? here.slug : "all";
+  const paint = () => [...veil.querySelectorAll("#pPick button")]
+    .forEach(b => b.classList.toggle("on", b.dataset.p === pick));
+  paint();
+  veil.querySelector("#pPick").onclick = e => {
+    const b = e.target.closest("button"); if (b){ pick = b.dataset.p; paint(); }
+  };
+  const shut = () => veil.remove();
+  veil.querySelector("#pCancel").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  setTimeout(() => veil.querySelector("#pQ").focus(), 30);
+
+  veil.querySelector("#pGo").onclick = async () => {
+    const q = veil.querySelector("#pQ").value.trim();
+    const btn = veil.querySelector("#pGo");
+    btn.disabled = true; btn.textContent = q ? "Asking" : "Building";
+    try {
+      const r = await api("/api/onepager", { pick, q, key: S.key });
+      shut();
+      showPager(r.page, r.text, { pick, q });
+    } catch (e) {
+      btn.disabled = false; btn.textContent = "Build it";
+      const slot = veil.querySelector("#pSlot"); slot.innerHTML = "";
+      const c = el("div","closest");
+      c.append(el("b",null,"That did not work"), el("div",null,String(e.message)));
+      slot.append(c);
+    }
+  };
+}
+
+/**
+ * The page, on screen, with the three things you do with it.
+ *
+ * Mailing rebuilds the page on the server rather than sending a body from here,
+ * so a signed-in session cannot post arbitrary mail from this address. The
+ * reply carries the page that went out and the card repaints to it, so what is
+ * on screen is always what was sent. A page built from a question is asked
+ * again to do that, and the button says so.
+ */
+function showPager(page, text, built){
+  push("ai", body => {
+    const card = el("div","pager");
+    const slot = el("div");
+    const acts = el("div","acts");
+    const said = el("span","said");
+    card.append(slot, acts, said);
+    body.append(card);
+
+    let now = { page, text };
+    const paint = () => {
+      slot.innerHTML = "";
+      const p = now.page;
+      slot.append(el("h3",null,p.title));
+      if (p.line) slot.append(el("div","sub",p.line));
+      for (const sec of p.sections || []){
+        if (sec.head) slot.append(el("h4",null,sec.head));
+        const ul = el("ul");
+        for (const b of sec.bullets || []) ul.append(el("li",null,b));
+        slot.append(ul);
+      }
+      if (p.foot) slot.append(el("div","foot",p.foot));
+    };
+    paint();
+
+    const copy = el("button","fresh","Copy");
+    copy.onclick = async () => {
+      try { await navigator.clipboard.writeText(now.text); copy.textContent = "Copied"; }
+      catch { copy.textContent = "Blocked"; }
+      setTimeout(() => { copy.textContent = "Copy"; }, 1600);
+    };
+
+    const print = el("button","fresh","Print");
+    print.onclick = () => printPager(now.page);
+
+    const to = el("input");
+    to.type = "email"; to.placeholder = "Send it to"; to.value = lastMail();
+    const send = el("button","fresh","Mail it");
+    send.title = built.q
+      ? "The question gets asked again so the page that is sent is the page you see. One model call."
+      : "Built again from the stored positions, which gives the same page.";
+
+    const post = async () => {
+      const addr = to.value.trim();
+      if (!addr){ to.focus(); return; }
+      send.disabled = true; send.textContent = "Sending"; said.textContent = "";
+      try {
+        const r = await api("/api/onepager", { ...built, mail: addr, key: S.key });
+        now = { page: r.page, text: r.text };
+        paint(); bottom();
+        try { localStorage.setItem(MAIL_KEY, addr); } catch {}
+        said.textContent = `Sent to ${addr}.`;
+        send.textContent = "Sent";
+      } catch (e) {
+        send.disabled = false; send.textContent = "Mail it";
+        said.textContent = e.message;
+      }
+    };
+    send.onclick = post;
+    to.onkeydown = e => { if (e.key === "Enter") post(); };
+
+    acts.append(copy, print, to, send);
+  });
+  bottom();
+}
+
+/** The page on its own, in a window that prints it and nothing else. */
+function printPager(page){
+  const w = window.open("", "_blank", "width=820,height=980");
+  if (!w){ push("ai", b => { b.innerHTML = rich("The print window was blocked. Allow pop-ups for this site, or copy the page instead."); }); return; }
+  const li = (page.sections || []).map(sec =>
+    (sec.head ? `<h2>${esc(sec.head)}</h2>` : "") +
+    "<ul>" + (sec.bullets || []).map(b => `<li>${esc(b)}</li>`).join("") + "</ul>").join("");
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(page.title)}</title>
+<style>
+  @page{ margin:18mm; }
+  body{ font:400 12pt/1.5 -apple-system,Segoe UI,Helvetica,Arial,sans-serif; color:#141413; max-width:170mm; margin:0 auto; padding:14mm 10mm; }
+  h1{ font-size:21pt; line-height:1.15; margin:0; letter-spacing:-.01em; }
+  .sub{ margin:5pt 0 0; color:#6e6e68; font-size:11pt; }
+  h2{ margin:14pt 0 4pt; font-size:9.5pt; letter-spacing:.07em; text-transform:uppercase; color:#93918a; }
+  ul{ margin:8pt 0 0; padding-left:14pt; }
+  li{ margin-bottom:5pt; }
+  .foot{ margin-top:16pt; padding-top:7pt; border-top:1px solid #e5e2d9; color:#93918a; font-size:9.5pt; }
+</style>
+<h1>${esc(page.title)}</h1>${page.line ? `<p class="sub">${esc(page.line)}</p>` : ""}${li}
+<p class="foot">${esc(page.foot || "")}</p>`);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 300);
+}
+
 /* ============ a document ============ */
 
 /**

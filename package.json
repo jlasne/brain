@@ -6,7 +6,8 @@
   "license": "MIT",
   "scripts": {
     "dev": "convex dev",
-    "deploy": "convex deploy"
+    "deploy": "convex deploy",
+    "check": "node scripts/check-pages.mjs && node scripts/check-mcp.mjs && node scripts/check-pager.mjs && node scripts/check-app.mjs"
   },
   "devDependencies": {
     "convex": "^1.17.0",

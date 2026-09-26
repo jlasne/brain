@@ -16,6 +16,7 @@ import type { Who } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 import { dropCheck, dropRead, dropPlan, dropSettle, fetchPage } from "./drop";
 import { DOC_STYLE, DOC_BODY } from "./doc";
+import { assemble, fromQuestion, asText, mail, looksLikeMail } from "./onepager";
 
 const router = httpRouter();
 
@@ -490,6 +491,52 @@ QUESTION: ${String(b.q ?? "")}` },
   ], { maxTokens: level === "normal" ? 2000 : 3200, key: await modelKey(ctx, who, b), model: modelName(who, b) });
 
   return { answer: text, sources: nSources, level };
+});
+
+/* ---------- one page ---------- */
+
+/**
+ * A brain, a group, or a question, as bullets on one page.
+ *
+ * A brain and a group assemble from stored positions and call no model, so they
+ * are instant and free. A question costs one call.
+ *
+ * `mail` sends the page as well as returning it. What gets sent is always what
+ * this route just built, never a body handed in, so a signed-in session cannot
+ * post arbitrary mail from this address.
+ */
+route("/api/onepager", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const { brains: all, concepts, sources } = await ctx.runQuery(internal.store.everything, { space: who.space });
+  if (!all.length) return { error: "no brain exists yet, so there is nothing to put on a page" };
+
+  /* One of: a brain slug, "person", "subject", or "all". */
+  const pick = String(b.pick ?? "all").trim();
+  const brains =
+    pick === "person" || pick === "subject" ? all.filter((x: any) => (x.type === "person" ? "person" : "subject") === pick)
+    : pick && pick !== "all" ? all.filter((x: any) => x.slug === pick)
+    : all;
+  if (!brains.length) {
+    return { error: pick === "person" || pick === "subject"
+      ? `no ${pick} brain exists yet`
+      : `no brain called "${pick.slice(0, 40)}"` };
+  }
+
+  const q = String(b.q ?? "").trim();
+  const page = q
+    ? await fromQuestion(who.space, brains, concepts, sources, q,
+                         await modelKey(ctx, who, b), modelName(who, b))
+    : assemble(who.space, brains, concepts, sources, pick);
+
+  if (!page.sections.some((s: any) => s.bullets.length)) {
+    return { error: "those brains hold no positions yet, so the page would be empty" };
+  }
+
+  const to = String(b.mail ?? "").trim();
+  if (!to) return { page, text: asText(page) };
+  if (!looksLikeMail(to)) return { error: `"${to.slice(0, 60)}" is not an address` };
+  const sent = await mail(to, page, who.space);
+  return { page, text: asText(page), sent: true, to, id: sent.id };
 });
 
 /* ---------- the public read the /brains page uses ---------- */
