@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Octopus</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -587,7 +588,10 @@
   .box textarea:focus-visible, .dropsrc input:focus-visible{ outline:none; }
   .box .tbar{ display:flex; align-items:center; gap:9px; padding:6px 12px 11px 18px; }
   .box .tbar .t{ flex:1; font:400 11.5px/1.5 var(--mono); color:var(--ink-3); }
+  .tools{ display:flex; align-items:center; gap:9px; flex-shrink:0; }
+  .tools:empty, .tools:not(:has(.paste:not([hidden]))){ display:none; }
   .paste{
+    white-space:nowrap;
     font:400 11.5px/1 var(--mono); padding:6px 10px; border-radius:5px;
     border:1px solid var(--line); color:var(--ink-3);
     transition:all .15s var(--ease);
@@ -709,6 +713,91 @@
   }
   @media (min-width:861px){ .topbar{ display:none; } }
   .topbar h1{ font:600 16px/1 var(--sans); color:var(--ink); }
+  .barmark{ width:24px; height:24px; object-fit:contain; margin-right:-3px; }
+  .scrim{ display:none; }
+
+  /* ============ phone ============
+     Measured at 390 by 844. A thumb needs 44 pixels, so every control reaches
+     it. A field under 16 pixels makes iPhone zoom the page on every tap, so
+     every field is 16. Nothing here reaches past 860 pixels, so the desktop
+     layout does not move. */
+  @media (max-width:860px){
+    /* The drawer gets a dimmed backdrop, and a tap on it closes the drawer. */
+    .scrim{
+      display:block; position:fixed; inset:0; z-index:39;
+      background:rgba(20,20,19,.38); opacity:0; pointer-events:none;
+      transition:opacity .22s var(--ease);
+    }
+    aside.open ~ .scrim{ opacity:1; pointer-events:auto; }
+    .burger{ width:44px; height:44px; margin-left:-8px; border:none; }
+    .topbar{ padding:0 16px; gap:9px; position:relative; z-index:2; }
+    /* The name goes back to the door, so it is a target too. */
+    .topbar h1 a, .brand h1 a{ display:inline-block; padding:12px 4px; margin:0 -4px; }
+
+    /* The composer's controls stay on one row that scrolls sideways, instead
+       of wrapping into three rows that took a third of the screen. */
+    .ctrls{
+      flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;
+      margin:0 -16px 9px; padding:0 16px; -webkit-overflow-scrolling:touch;
+    }
+    .ctrls::-webkit-scrollbar{ display:none; }
+    /* A soft edge says the row goes on. */
+    .ctrls, .tools{
+      -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 28px), transparent);
+              mask-image:linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    }
+    .ctrls > *{ flex-shrink:0; }
+    .seg button{ min-height:42px; padding:0 17px; font-size:14px; }
+    .scope{ min-height:44px; }
+    .scope label{ font-size:14px; }
+    .scope select{ font-size:16px; min-height:42px; }
+    .fresh{ height:44px; font-size:14px; padding:0 15px; }
+
+    /* Drop: the hint gets its own line, and the three tools share one row
+       that scrolls, so the send button stays on screen. */
+    .box .tbar{ flex-wrap:wrap; row-gap:8px; padding:4px 10px 10px 14px; }
+    .box .tbar .t{ flex:1 0 100%; order:-1; font-size:12px; }
+    .box .tbar .t:empty{ display:none; }
+    .tools{ flex:1 1 0; min-width:0; overflow-x:auto; scrollbar-width:none; }
+    .tools::-webkit-scrollbar{ display:none; }
+    .paste{ min-height:40px; padding:0 13px; font-size:12px; flex-shrink:0; }
+    .send{ width:44px; height:44px; margin-left:auto; }
+    .box textarea{ font-size:16px; }
+    .dropsrc{ padding:4px 14px; }
+    .dropsrc input{ font-size:16px; min-height:40px; }
+    .dropsrc label{ font-size:12px; }
+    .foot-note{ display:none; }
+    .composer-wrap{ padding-bottom:12px; }
+
+    /* The sidebar, with 44 pixel rows. */
+    .brain-row{ min-height:44px; align-items:center; }
+    .brain-row .ct, .brain-row .ed{ font-size:12px; }
+    .brain-row .ed{ padding:8px 9px; }
+    .new-brain, .foot-btn{ min-height:44px; }
+    .side-h, .group-h, .foot-btn .lbl{ font-size:12px; }
+    .foot-btn .val{ font-size:12.5px; }
+
+    /* In the thread. */
+    .smallbrain{ font-size:12px; }
+    .pager{ padding:18px 16px; }
+    .pager .acts{ gap:8px; }
+    .pager .acts input{ flex:1 0 100%; order:-1; font-size:16px; min-height:44px; }
+    .pager .acts .fresh{ flex:1; }
+    .pager .foot, .pager h4{ font-size:12px; }
+
+    /* Dialogs rise from the bottom, where the thumb is, and scroll inside
+       themselves, so a tall one with the keyboard open is never cut off. */
+    .veil{ place-items:end center; padding:0; }
+    .sheet{
+      max-width:none; max-height:92dvh; overflow-y:auto;
+      border-radius:18px 18px 0 0; border-bottom:none;
+      animation:up .26s var(--ease) both;
+    }
+    .sheet input, .sheet textarea, .sheet select{ font-size:16px; }
+    .sheet footer button, .sheet .go, .sheet .ghost{ min-height:44px; }
+    .sheet .seg button{ min-height:42px; }
+  }
+  @keyframes up{ from{ transform:translateY(24px); opacity:0; } }
 
   @media (max-width:520px){
     .col, .composer, .foot-note{ padding-left:16px; padding-right:16px; }
@@ -747,6 +836,8 @@
       </div>
     </div>
   </aside>
+  <!-- Behind the drawer on a phone. A tap on it closes the drawer. -->
+  <div class="scrim" id="scrim"></div>
 
   <main>
     <button class="navopen" id="navOpen" aria-label="Show the brains">
@@ -756,6 +847,7 @@
       <button class="burger" id="burger" aria-label="Brains">
         <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
       </button>
+      <img id="spaceMarkBar" class="barmark" src="/brand/logo-mark.png" alt="" width="24" height="24">
       <h1><a href="/" id="spaceNameBar" title="Back to the door">Octopus</a></h1>
     </div>
 
@@ -797,9 +889,11 @@
                  accept=".pdf,.txt,.md,.markdown,.text,.docx,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
           <div class="tbar">
             <span class="t" id="tHint"></span>
-            <button class="paste" id="fileBtn" hidden title="Read a PDF, a Word file or a text file into the content">+ document</button>
-            <button class="paste" id="testBtn" hidden title="Check for a repeat without reading the source">already stored?</button>
-            <button class="paste" id="pasteBtn" hidden>+ transcript</button>
+            <div class="tools">
+              <button class="paste" id="fileBtn" hidden title="Read a PDF, a Word file or a text file into the content">+ document</button>
+              <button class="paste" id="testBtn" hidden title="Check for a repeat without reading the source">already stored?</button>
+              <button class="paste" id="pasteBtn" hidden>+ transcript</button>
+            </div>
             <button class="send" id="send" disabled aria-label="Send">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M8 3L4 7M8 3l4 4"/></svg>
             </button>
@@ -994,6 +1088,7 @@ function paintSpace(){
   const probe = new Image();
   probe.onload = () => {
     mark.src = want;
+    $("spaceMarkBar").src = want;
     const tab = document.querySelector('link[rel="icon"]');
     if (tab) tab.href = want;
   };
@@ -1025,7 +1120,8 @@ function brainRow(b){
   const ideas = conceptsOf(b.slug).length, read = sourcesOf(b.slug).length;
   row.append(el("span","nm",b.name), el("span","ct",`${ideas}·${read}`));
   row.title = `${b.scope || "no scope line"}\n${ideas} concepts, ${read} sources`;
-  row.onclick = () => { S.scope = on ? "all" : b.slug; render(); };
+  /* On a phone the drawer covers the thread, so a pick closes it. */
+  row.onclick = () => { S.scope = on ? "all" : b.slug; closeSide(); render(); };
   /* Only the owner may change a brain, which is what the server enforces, so
      the control appears on their own rows alone. */
   if (S.who === "owner" || (!!b.owner && b.owner === S.account)){
@@ -1283,6 +1379,7 @@ $("mode").onclick = e => {
 $("scope").onchange = e => { S.scope = e.target.value; render(); };
 $("level").onchange = e => { S.level = e.target.value; saveLevel(); renderComposer(); };
 $("burger").onclick = () => $("side").classList.toggle("open");
+$("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
 $("stat").onclick = openModelSheet;

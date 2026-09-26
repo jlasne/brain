@@ -31,6 +31,13 @@ for (const page of pages) {
   const code = scripts.join("\n");
   let ok = true;
 
+  /* 0. It declares a viewport. Without one a phone lays the page out at 980
+        pixels and shrinks it to fit, every phone rule is skipped, and every
+        page shipped that way for weeks while looking right on a desktop. */
+  if (!/<meta\s+name="viewport"\s+content="width=device-width/.test(src)) {
+    ok = false; fail(page, "has no viewport meta, so a phone shows it zoomed out");
+  }
+
   /* 1. It parses. */
   const tmp = join(tmpdir(), `octo-check-${page}.mjs`);
   try {

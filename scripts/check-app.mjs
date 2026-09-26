@@ -256,6 +256,48 @@ async function boot(path, init, arg) {
   await page.close();
 }
 
+/* ---- on a phone ---- */
+{
+  /* isMobile makes the browser honour the viewport tag the way a phone does,
+     which is what a desktop-sized check never exercises. */
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const page = await ctx.newPage();
+  await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+  const bad = []; page.on("pageerror", e => bad.push(e.message));
+  await page.addInitScript(state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.fetch = async u => Response.json(String(u).includes("/api/state") ? state : {});
+  }, STATE);
+  await page.goto(ORIGIN + "/chat.html", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(500);
+  await page.click('#mode button[data-m="drop"]');
+  const r = await page.evaluate(() => {
+    const W = document.documentElement.clientWidth;
+    const shown = e => e.offsetParent !== null;
+    return {
+      W, side: document.documentElement.scrollWidth - W,
+      small: [...document.querySelectorAll("input:not([type=file]), textarea, select")].filter(shown)
+        .filter(e => parseFloat(getComputedStyle(e).fontSize) < 16).map(e => e.id || e.tagName),
+      short: [...document.querySelectorAll(".composer button, .topbar button, #send")].filter(shown)
+        .filter(e => e.getBoundingClientRect().height < 40).map(e => e.id || e.textContent.trim()),
+      sendIn: document.getElementById("send").getBoundingClientRect().right <= W,
+    };
+  });
+  check("a phone lays the app out at its own width", r.W === 390, String(r.W));
+  check("nothing scrolls the page sideways", r.side === 0, `${r.side}px`);
+  check("no field under 16px, which makes iPhone zoom", !r.small.length, r.small.join(","));
+  check("every composer button reaches 40px", !r.short.length, r.short.join(","));
+  check("the send button stays on screen in Drop", r.sendIn);
+
+  await page.click("#burger"); await page.waitForTimeout(300);
+  const open = await page.evaluate(() => document.getElementById("side").classList.contains("open"));
+  await page.mouse.click(370, 400); await page.waitForTimeout(300);
+  const closed = await page.evaluate(() => !document.getElementById("side").classList.contains("open"));
+  check("the drawer opens, and a tap beside it closes it", open && closed);
+  check("and nothing threw on a phone", !bad.length, bad.join(" | "));
+  await ctx.close();
+}
+
 /* ---- the app with no session goes back to the door ---- */
 {
   const page = await hermetic();
