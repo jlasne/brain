@@ -93,29 +93,35 @@ export const REWRITE_SYSTEM =
 /* The concept list the plan matches against stays under this, so a batch costs
    the same at 50 concepts and at 5000. Below it, every concept is listed. */
 const PLAN_LIST_CHARS = 60000;
+/* Past that: the closest concepts with their summary, the rest by title. */
+const PLAN_FULL_CHARS = 36000, PLAN_TITLE_CHARS = 44000;
 
 export function planContext(pool: any[], concepts: any[], sources: any[], ext: any) {
   const line = (c: any) => `- id=${c.brain}/${c.slug} | ${c.title}: ${c.summaryLine || c.position || "no position yet"}`;
+  const bare = (c: any) => `- id=${c.brain}/${c.slug} | ${c.title}`;
   const all = concepts.filter((c: any) => pool.some((b: any) => b.slug === c.brain));
-  let listed = new Set(all);
+  const full = new Set<any>(all), titled = new Set<any>();
   if (all.reduce((n: number, c: any) => n + line(c).length + 1, 0) > PLAN_LIST_CHARS) {
-    /* Too many to list: the ones sharing words with this batch of the source
-       first, so the concepts it could add to are the ones it sees. */
+    /* Too many to list whole. The ones sharing words with this batch of the
+       source come with their summary line; the rest still come by title, so
+       an idea the brain holds is matched rather than filed a second time.
+       Summaries alone stopped fitting at about 280 concepts; titles carry
+       the list to about 700. */
     const words = keywords((ext?.topics ?? []).map((t: any) => `${t.topic} ${(t.ideas ?? []).join(" ")}`).join(" "));
-    listed = new Set();
-    let used = 0;
+    full.clear();
+    let used = 0, usedT = 0;
     for (const { c } of rankConcepts(all, words, pool)) {
-      const n = line(c).length + 1;
-      if (used + n > PLAN_LIST_CHARS) continue;
-      listed.add(c); used += n;
+      const n = line(c).length + 1, t = bare(c).length + 1;
+      if (used + n <= PLAN_FULL_CHARS) { full.add(c); used += n; continue; }
+      if (usedT + t <= PLAN_TITLE_CHARS) { titled.add(c); usedT += t; }
     }
   }
   const summaries = pool.map((br: any) => {
     const own = concepts.filter((c: any) => c.brain === br.slug);
-    const cs = own.filter((c: any) => listed.has(c)).sort((x: any, y: any) => x.n - y.n);
+    const cs = own.filter((c: any) => full.has(c) || titled.has(c)).sort((x: any, y: any) => x.n - y.n);
     const hidden = own.length - cs.length;
     return `## ${br.name} [${br.type}] id=${br.slug}\nscope: ${br.scope}\n` +
-      (cs.length ? cs.map(line).join("\n") : own.length ? "" : "- no concepts yet") +
+      (cs.length ? cs.map((c: any) => full.has(c) ? line(c) : bare(c)).join("\n") : own.length ? "" : "- no concepts yet") +
       (hidden ? `\n- ${hidden} more concepts, not listed because they share no words with this part of the source` : "");
   }).join("\n\n");
   const recent = sources.slice(-40).map((s: any) => `${s.sid} | ${s.author || "?"} | ${s.title || ""}`).join("\n") || "none";

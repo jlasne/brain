@@ -30,7 +30,7 @@ await esbuild.build({ entryPoints: [join(dir, "mcp.ts")], bundle: true, format: 
 const { handleRpc, MENTIONS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle-drop.mjs"), logLevel: "silent" });
-const { dropSettle, fetchPage } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
+const { dropSettle, fetchPage, planContext } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
 
 const DB = {
   brains: [
@@ -375,6 +375,19 @@ let job = "";
   const ok = await fetchPage(ctx, "https://a.example/start");
   check("a redirect to a public page is followed", ok.chars > 200 && !ok.error, JSON.stringify(ok).slice(0, 120));
   globalThis.fetch = real;
+}
+
+/* ---- the planner sees every title of a big brain ---- */
+{
+  const pool = [{ slug: "acc", name: "Accountant", type: "subject", scope: "accounting" }];
+  const many = Array.from({ length: 600 }, (_, i) => ({ brain: "acc", slug: `c${i}`, n: i + 1, title: `Rule ${i} of costing`,
+    summaryLine: `Rule ${i} spreads a cost over the periods that use it, measured in units of output. `.repeat(2) }));
+  many.push({ brain: "acc", slug: "hedge", n: 601, title: "Forward contract hedge", summaryLine: "Locks the rate for a future receivable." });
+  const txt = planContext(pool, many, [], { kind: "study", topics: [{ topic: "Forward contract hedge", ideas: ["lock the rate"] }] });
+  const ids = (txt.match(/id=acc\/\w+/g) ?? []).length;
+  check("a 601 concept brain is listed whole to the planner", ids === 601, `${ids} listed`);
+  check("the concept this part is about comes with its summary", /Forward contract hedge: Locks the rate/.test(txt));
+  check("and the list stays near 20,000 tokens", txt.length < 90000, `${txt.length} chars`);
 }
 
 rmSync(dir, { recursive: true, force: true });
