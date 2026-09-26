@@ -16,6 +16,8 @@
   *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
   :root{
+    /* The mark the loader turns. */
+    --mark:url("/brand/logo-mark.png");
     /* Claude palette, light is the default */
     --bg:#faf9f5; --surface:#ffffff; --surface-2:#f0eee6; --surface-3:#e9e6dc;
     --ink:#141413; --ink-2:#3d3d3a; --ink-3:#6e6e68; --ink-4:#93918a;
@@ -75,6 +77,7 @@
      In the dark the two swap roles: brown makes the surfaces, pink the accent.
      ====================================================================== */
   :root[data-space="squidgy"]{
+    --mark:url("/brand/squidgy-mark.png");
     --bg:#fcf0f2; --surface:#ffffff; --surface-2:#F5C9D1; --surface-3:#ecb6c1;
     --ink:#2a1810; --ink-2:#4b3024; --ink-3:#6b4234; --ink-4:#7c5243;
     --line:#f3d3d9; --line-2:#e0aeb8;
@@ -389,11 +392,16 @@
   }
 
   .thinking{ display:flex; align-items:center; gap:9px; color:var(--ink-3); font:400 15px/1 var(--sans); }
-  .dots{ display:inline-flex; gap:3px; }
-  .dots i{ width:5px; height:5px; border-radius:50%; background:var(--accent-fill); animation:pulse 1.3s infinite var(--ease); }
-  .dots i:nth-child(2){ animation-delay:.18s; }
-  .dots i:nth-child(3){ animation-delay:.36s; }
-  @keyframes pulse{ 0%,60%,100%{ opacity:.25; transform:translateY(0); } 30%{ opacity:1; transform:translateY(-3px); } }
+  /* Working, shown as the space's own mark turning. The image comes from a
+     variable, so it follows the space with no script: the octopus in Octopus,
+     the dog in Squidgy. With reduced motion asked for, it holds still and the
+     label beside it still says what is happening. */
+  .spinner{
+    width:30px; height:30px; flex-shrink:0;
+    background:var(--mark) center/contain no-repeat;
+    animation:turn 1.3s linear infinite;
+  }
+  @keyframes turn{ to{ transform:rotate(360deg); } }
 
   .err{
     border:1px solid var(--accent-line); background:var(--accent-soft);
@@ -1237,9 +1245,10 @@ function says(text, attach){
 }
 function thinking(label){
   return push("ai", b => {
-    const t = el("div","thinking"), d = el("span","dots");
-    d.append(el("i"),el("i"),el("i"));
-    t.append(d, el("span",null,label||"Thinking"));
+    const t = el("div","thinking"), mark = el("span","spinner");
+    mark.setAttribute("aria-hidden", "true");
+    t.setAttribute("role", "status");
+    t.append(mark, el("span",null,label||"Thinking"));
     b.append(t);
   });
 }
@@ -1751,6 +1760,9 @@ function openPagerSheet(){
       <div class="f"><label for="pQ">Or ask a question</label>
         <textarea id="pQ" placeholder="Leave this empty to lay out the positions as they stand."></textarea>
         <div class="hint">A question costs one model call. The answer comes back as at most 9 bullets.</div></div>
+      <div class="f"><label for="pTo">Send it to</label>
+        <input id="pTo" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com">
+        <div class="hint">It lands in the thread as well. Leave this empty to read it there first.</div></div>
       <div id="pSlot"></div>
       <footer><button class="ghost" id="pCancel">Cancel</button><button class="go" id="pGo">Build it</button></footer>
     </div>`;
@@ -1768,21 +1780,39 @@ function openPagerSheet(){
   veil.onclick = e => { if (e.target === veil) shut(); };
   setTimeout(() => veil.querySelector("#pQ").focus(), 30);
 
-  veil.querySelector("#pGo").onclick = async () => {
+  /* The button says what it will do: build, or build and send. */
+  const toI = veil.querySelector("#pTo"), goB = veil.querySelector("#pGo");
+  toI.value = lastMail();
+  const label = () => { goB.textContent = toI.value.trim() ? "Build and send" : "Build it"; };
+  label(); toI.oninput = label;
+
+  const warn = msg => {
+    const slot = veil.querySelector("#pSlot"); slot.innerHTML = "";
+    const c = el("div","closest");
+    c.append(el("b",null,"Check this first"), el("div",null,msg));
+    slot.append(c);
+  };
+
+  goB.onclick = async () => {
     const q = veil.querySelector("#pQ").value.trim();
-    const btn = veil.querySelector("#pGo");
-    btn.disabled = true; btn.textContent = q ? "Asking" : "Building";
-    try {
-      const r = await api("/api/onepager", { pick, q, key: S.key });
-      shut();
-      showPager(r.page, r.text, { pick, q });
-    } catch (e) {
-      btn.disabled = false; btn.textContent = "Build it";
-      const slot = veil.querySelector("#pSlot"); slot.innerHTML = "";
-      const c = el("div","closest");
-      c.append(el("b",null,"That did not work"), el("div",null,String(e.message)));
-      slot.append(c);
+    const to = toI.value.trim();
+    /* A typo stays in the dialog, where it can be fixed, rather than failing
+       after the page is built. */
+    if (to && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to)){ warn(`"${to}" is not an address.`); toI.focus(); return; }
+    shut();
+
+    const body = thinking(to ? `${q ? "Asking" : "Building the page"}, then sending it to ${to}`
+                             : q ? "Asking" : "Building the page");
+    let r;
+    try { r = await api("/api/onepager", { pick, q, key: S.key, ...(to ? { mail: to } : {}) }); }
+    catch (e) {
+      body.innerHTML = rich("**The page did not build.** " + esc(e.message));
+      bottom(); return;
     }
+    body.closest(".msg").remove();
+    if (r.sent) { try { localStorage.setItem(MAIL_KEY, to); } catch {} }
+    showPager(r.page, r.text, { pick, q },
+      r.sent ? { to, ok: true } : to ? { to, ok: false, why: r.mailError || "the mail service refused it" } : null);
   };
 }
 
@@ -1795,7 +1825,7 @@ function openPagerSheet(){
  * on screen is always what was sent. A page built from a question is asked
  * again to do that, and the button says so.
  */
-function showPager(page, text, built){
+function showPager(page, text, built, mailed){
   push("ai", body => {
     const card = el("div","pager");
     const slot = el("div");
@@ -1845,16 +1875,26 @@ function showPager(page, text, built){
         const r = await api("/api/onepager", { ...built, mail: addr, key: S.key });
         now = { page: r.page, text: r.text };
         paint(); bottom();
+        if (r.sent === false) throw new Error(r.mailError || "the mail service refused it");
         try { localStorage.setItem(MAIL_KEY, addr); } catch {}
         said.textContent = `Sent to ${addr}.`;
         send.textContent = "Sent";
       } catch (e) {
         send.disabled = false; send.textContent = "Mail it";
-        said.textContent = e.message;
+        said.textContent = "Not sent: " + e.message;
       }
     };
     send.onclick = post;
     to.onkeydown = e => { if (e.key === "Enter") post(); };
+    /* A new address means a new send. */
+    to.oninput = () => { send.disabled = false; send.textContent = "Mail it"; said.textContent = ""; };
+
+    /* Sent from the dialog already: the card says so rather than asking again. */
+    if (mailed){
+      to.value = mailed.to;
+      if (mailed.ok){ send.disabled = true; send.textContent = "Sent"; said.textContent = `Sent to ${mailed.to}.`; }
+      else said.textContent = `Not sent: ${mailed.why}`;
+    }
 
     acts.append(copy, print, to, send);
   });

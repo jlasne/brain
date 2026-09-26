@@ -112,9 +112,24 @@ async function boot(path, init, arg) {
 {
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test");
-    window.fetch = async u => {
+    window.__pager = [];
+    window.fetch = async (u, opt) => {
       const s = String(u);
       if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/ask")) {
+        await new Promise(ok => setTimeout(ok, 600));
+        return Response.json({ answer: "One line.", sources: 3, level: "normal" });
+      }
+      if (s.includes("/api/onepager")) {
+        const body = JSON.parse(opt?.body || "{}");
+        window.__pager.push(body);
+        const page = { title: "Octopus", line: "1 brain, 2 positions.",
+          sections: [{ head: "", bullets: ["Offer first. (2026-01-02)", "Face beats logo. (2026-02-02)"] }],
+          foot: "2 of 2 positions \u00b7 3 sources read \u00b7 2026-09-26" };
+        if (body.mail === "refused@example.com")
+          return Response.json({ page, text: "x", sent: false, to: body.mail, mailError: "domain is not verified" });
+        if (body.mail) return Response.json({ page, text: "x", sent: true, to: body.mail, id: "e1" });
+      }
       if (s.includes("/api/onepager")) return Response.json({
         page: { title: "Octopus", line: "1 brain, 2 positions.",
                 sections: [{ head: "", bullets: ["Offer first. (2026-01-02)", "Face beats logo. (2026-02-02)"] }],
@@ -188,6 +203,56 @@ async function boot(path, init, arg) {
     check("and a field for the address", card.field);
     check("and the sheet closed behind it", card.gone);
   }
+
+  /* ---- the dialog asks where to send it ---- */
+  const lastCard = () => page.evaluate(() => {
+    const cards = document.querySelectorAll(".pager");
+    const c = cards[cards.length - 1];
+    return c ? { said: c.querySelector(".said")?.textContent || "", btn: [...c.querySelectorAll(".acts button")].pop()?.textContent,
+                 to: c.querySelector(".acts input")?.value } : null;
+  });
+
+  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  check("the dialog has an address field", await page.$("#pTo") !== null);
+  await page.fill("#pTo", "not an address");
+  check("typing an address turns the button into build and send",
+    (await page.textContent("#pGo")) === "Build and send", await page.textContent("#pGo"));
+  await page.click("#pGo"); await page.waitForTimeout(100);
+  check("a bad address keeps the dialog open", await page.$(".veil") !== null);
+  check("and says why", /is not an address/.test(await page.textContent("#pSlot")), await page.textContent("#pSlot"));
+
+  await page.fill("#pTo", "me@example.com");
+  await page.click("#pGo"); await page.waitForTimeout(300);
+  const sent = await lastCard();
+  const asked = await page.evaluate(() => window.__pager[window.__pager.length - 1]);
+  check("the build carries the address", asked.mail === "me@example.com", JSON.stringify(asked));
+  check("the card says it was sent", sent && sent.said === "Sent to me@example.com.", sent && sent.said);
+  check("and does not offer to send it again", sent && sent.btn === "Sent", sent && sent.btn);
+
+  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  check("the next dialog remembers the address", (await page.inputValue("#pTo")) === "me@example.com",
+    await page.inputValue("#pTo"));
+  await page.fill("#pTo", "refused@example.com");
+  await page.click("#pGo"); await page.waitForTimeout(300);
+  const refused = await lastCard();
+  check("a refused send still shows the page, with the reason",
+    refused && /Not sent: domain is not verified/.test(refused.said), refused && refused.said);
+  check("and leaves the button to try again", refused && refused.btn === "Mail it", refused && refused.btn);
+
+  /* ---- the loader is the space's own mark ---- */
+  await page.fill("#input", "anything");
+  await page.click("#send"); await page.waitForTimeout(150);
+  const loader = await page.evaluate(() => {
+    const m = document.querySelector(".thinking .spinner");
+    return m ? { bg: getComputedStyle(m).backgroundImage, anim: getComputedStyle(m).animationName } : null;
+  });
+  check("a question shows the turning mark while it waits", !!loader, "no .spinner");
+  if (loader) {
+    check("and it is this space's mark", /logo-mark\.png/.test(loader.bg), loader.bg);
+    check("turning", loader.anim === "turn", loader.anim);
+  }
+  await page.waitForTimeout(700);
+  check("and it goes when the answer lands", await page.$(".thinking .spinner") === null);
   await page.close();
 }
 

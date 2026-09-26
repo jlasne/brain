@@ -546,6 +546,11 @@ route("/api/onepager", async (ctx, _req, b) => {
       : `no brain called "${pick.slice(0, 40)}"` };
   }
 
+  /* The address is checked before anything is built, so a typo costs nothing,
+     least of all a model call on a question. */
+  const to = String(b.mail ?? "").trim();
+  if (to && !looksLikeMail(to)) return { error: `"${to.slice(0, 60)}" is not an address` };
+
   const q = String(b.q ?? "").trim();
   const page = q
     ? await fromQuestion(who.space, brains, concepts, sources, q,
@@ -556,11 +561,15 @@ route("/api/onepager", async (ctx, _req, b) => {
     return { error: "those brains hold no positions yet, so the page would be empty" };
   }
 
-  const to = String(b.mail ?? "").trim();
   if (!to) return { page, text: asText(page) };
-  if (!looksLikeMail(to)) return { error: `"${to.slice(0, 60)}" is not an address` };
-  const sent = await mail(to, page, who.space);
-  return { page, text: asText(page), sent: true, to, id: sent.id };
+  /* A page that built and failed to send is still a page. It comes back with the
+     reason, so a question already paid for is not thrown away with the mail. */
+  try {
+    const sent = await mail(to, page, who.space);
+    return { page, text: asText(page), sent: true, to, id: sent.id };
+  } catch (e: any) {
+    return { page, text: asText(page), sent: false, to, mailError: String(e?.message ?? e).slice(0, 300) };
+  }
 });
 
 /* ---------- the public read the /brains page uses ---------- */
