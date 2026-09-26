@@ -274,7 +274,7 @@ export async function fetchPage(ctx: any, raw: string): Promise<any> {
       redirect: "follow",
       signal: AbortSignal.timeout(25000),
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; OctopusBrains/1.0; +https://octopus.jeremylasne.com/doc)",
+        "User-Agent": "Mozilla/5.0 (compatible; OctopusBrains/1.0; +https://brain.jeremylasne.com/doc)",
         "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9",
         "Accept-Language": "en,*;q=0.5",
       },

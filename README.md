@@ -10,10 +10,27 @@ Plain markdown at its core, with a chat on top. Brains stay portable whichever w
 
 | | Chat | Claude Code |
 |---|---|---|
-| Where | `octopus.jeremylasne.com`, four pages under `app/` | The `brain` skill, in your terminal |
+| Where | `brain.jeremylasne.com`, five pages under `app/` | The `brain` skill, in your terminal |
 | Model | OpenRouter, your key, server side | Whatever your session runs |
 | Brains | Convex tables, exportable to markdown | Markdown files under `brains/` |
-| Gate | A name and a password. `ONLY_ACCOUNT` narrows it to one | Your own machine |
+| Gate | A passphrase, one per space | Your own machine |
+
+### Two spaces
+
+One deployment holds two spaces that see none of each other: **Octopus**, which
+holds one brain per subject, and **Squidgy**, which holds one brain that
+everything lands in. Each has its own passphrase, its own colour and its own
+door on the landing page, at `/octopus` and `/squidgy`.
+
+A space owns its brains, and every read filters by it. Rows written before the
+split carry no space and read as Octopus, so nothing had to move. The MCP server
+and the public brain list serve Octopus only.
+
+Set a passphrase from a terminal, which closes a door before it is public:
+
+```bash
+npx convex run admin:setPass '{"space":"squidgy","pass":"at least 8 characters"}' --prod
+```
 
 Same protocol, same three actions, same export format.
 
@@ -34,9 +51,11 @@ One source often lands in both. An interview about sleep feeds the sleep brain a
 
 ## What you do
 
-**Drop.** Paste a link, a transcript, or a batch. Reply to one card. That card shows where the source goes, what is new, what it repeats, and every conflict it raises, numbered. One line settles all of it, and silence keeps both views.
+**Drop.** A drop is two things: the source, and what it says. A link on the source line is enough, because the page gets opened and a video's transcript gets fetched. Anything else takes the content: pasted text, or a PDF, Word or text file dropped in, read in the browser and never uploaded. Reply to one card. That card shows where the source goes, what is new, what it repeats, and every conflict it raises, numbered. One line settles all of it, and silence keeps both views.
 
 **Ask.** Ask the way you would ask a person. The first sentence answers. Numbers sit inside the answer, sources on one line underneath.
+
+**One-pager.** A brain, a group of brains, or a question, as bullets on one page. A brain and a group read what is stored, so they cost nothing. Copy it, print it, or mail it.
 
 **Create a brain.** Rare. A name, a one-line scope, subject or person.
 
@@ -87,7 +106,16 @@ npx convex env set SUPADATA_API_KEY sd_... --prod
 
 It asks for captions that already exist, at one credit each, and says to paste when a video has none. `SUPADATA_MODE=auto` generates them from the audio instead, at 2 credits per minute, so one hour costs 120 credits rather than 1. Unset, a video link asks you to paste, which is what it did before.
 
-Then serve `app/` as the site root. `vercel.json` already does it. First open asks for a name and a password, which opens your account. Then create a brain and drop a source.
+A one-pager can be mailed. Set a [Resend](https://resend.com) key, and verify the sending domain there.
+
+```
+npx convex env set RESEND_API_KEY re_... --prod
+npx convex env set MAIL_FROM hey@yourdomain.com --prod
+```
+
+`MAIL_FROM` defaults to `hey@jeremylasne.com`, so set it to your own. The space names itself as the sender. Unset `RESEND_API_KEY` and the page still builds, copies and prints.
+
+Then serve `app/` as the site root. `vercel.json` already does it. The landing page is two doors, one per space, and the first passphrase typed at a door becomes that door's passphrase. Set them from a terminal first if the site is public. Then create a brain and drop a source.
 
 **Claude Code.** Copy `skill/brain/` into your skills folder: `~/.claude/skills/brain/` for personal, `.claude/skills/brain/` for one project. On Claude.ai, upload `skill/brain/SKILL.md` as a skill. Then ask for your first brain.
 
@@ -95,7 +123,7 @@ Runs on Claude Opus 5 or better. A drop reads a full transcript once and ranks w
 
 ## The passphrase gate
 
-Nothing reads a brain and nothing reaches the model until the passphrase is entered. Only a salted SHA-256 hash gets stored.
+Nothing reads a brain and nothing reaches the model until the passphrase is entered. Only a salted SHA-256 hash gets stored, one per space, each with its own attempt counter, so eight wrong guesses at one door leave the other open.
 
 In the artifact build this is a lock on the door: model calls spend each viewer's own Claude usage, so your balance is never at risk. In the Convex build it becomes a real gate, because your OpenRouter key sits on the server and every call spends your money. `CONVEX.md` covers that split.
 
@@ -105,7 +133,11 @@ In the artifact build this is a lock on the door: model calls spend each viewer'
 README.md              this file
 PROTOCOL.md            the 41 rules, addressable by number
 CONVEX.md              the server build, and why the key belongs there
-app/index.html         the chat, one file
+app/index.html         the two doors, one file
+app/chat.html          the app, one file
+app/about.html         how it works
+app/doc.html           the connector, served rather than published
+scripts/               the checks: npm run check
 skill/brain/SKILL.md   the behaviour, for Claude Code
 templates/             the shape of every file a brain writes
 brains/                your brains, as markdown

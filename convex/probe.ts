@@ -54,7 +54,7 @@ async function call(opts: {
       headers: {
         Authorization: "Bearer " + key,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://octopus.jeremylasne.com",
+        "HTTP-Referer": "https://brain.jeremylasne.com",
         "X-Title": "Octopus probe",
       },
       body: JSON.stringify(body),

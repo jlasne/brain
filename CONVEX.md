@@ -7,9 +7,34 @@ Built. The deployment is `uncommon-wolf-174`, Europe (Ireland), and the model is
 | API the app calls | `https://uncommon-wolf-174.eu-west-1.convex.site` |
 | Model | `deepseek/deepseek-v4-flash-0731` |
 | Key | `OPENROUTER_API_KEY`, a Convex environment variable |
-| Site | `octopus.jeremylasne.com`, its own Vercel project on this repo |
+| Site | `brain.jeremylasne.com`, its own Vercel project on this repo |
+| Spaces | `octopus` and `squidgy`, one passphrase each, seeing none of each other |
 
 Change the model on one line, `MODEL` in `convex/lib.ts`.
+
+## The two spaces
+
+A space owns its brains. A session belongs to exactly one, and every brain read
+filters by it, so a passphrase shows one space and never the other.
+
+| | Reads |
+|---|---|
+| A session | the space its passphrase opened |
+| `/api/public/brains` | Octopus |
+| The MCP server | Octopus |
+
+A brain row with no `space` reads as Octopus, and Octopus keeps the config key
+`gate` that its passphrase was set under, so nothing written before the split
+had to move. Slugs stay unique across both spaces, which is what lets a concept,
+a source and a candidate name their brain and carry no space of their own.
+
+```bash
+# close a door before it is public
+npx convex run admin:setPass '{"space":"squidgy","pass":"at least 8 characters"}' --prod
+
+# move a brain, with its concepts, sources and candidates
+npx convex run admin:moveBrain '{"slug":"content","space":"squidgy","dry":true}' --prod
+```
 
 ## Setup, in order
 
@@ -78,8 +103,8 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 
 | Route | Does | Gated |
 |---|---|---|
-| `/api/status` | Says whether a passphrase exists | No, it leaks nothing |
-| `/api/unlock` | First call sets the passphrase, later calls check it | Rate limited, 8 tries an hour |
+| `/api/status` | Says which spaces have a passphrase | No, it leaks nothing |
+| `/api/unlock` | One door per space. The first call at a door sets its passphrase, later calls check it | Rate limited, 8 tries an hour per door |
 | `/api/login` | A name and a password. Opens or finds a member account | No, it is the door |
 | `/api/guest` | A model key alone. Opens a session that asks and never feeds | No, it is the door |
 | `/api/account/key` | Remembers a member's key, sealed, or forgets it | Yes |
@@ -90,6 +115,10 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/plan` | Summaries in, the card out | Yes |
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
 | `/api/ask` | The answer | Yes |
+| `/api/onepager` | A brain, a group or a question as bullets. Sends it too, when given an address | Yes |
+| `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |
+| `/api/usage` | What transcripts have cost, from both sides | Yes |
+| `/api/doc` | The connector page's words, served rather than published | Yes |
 | `/api/lock` | Drops the session | Yes |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
 | `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
@@ -122,14 +151,17 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 
 | Table | Holds | Indexed by |
 |---|---|---|
-| `brains` | name, type, scope, created, visibility, owner | slug |
+| `brains` | name, type, scope, created, visibility, owner, space | slug |
 | `concepts` | brain, title, position, summaryLine, evidence, data, conflicts, sources | brain, then slug |
 | `sources` | id, link, date, author, location, brains | link, and the normalised link |
 | `notes` | the six note sections | source id |
 | `candidates` | brain, title, mentions, count | brain and slug |
-| `config` | the gate salt and hash | one row |
+| `config` | one space's gate salt, hash and attempt counter | key, one row per space |
 | `mcpHits` | the public endpoint's per address counter | address |
 | `accounts` | a member's name, a salted password hash, and optionally their sealed key | name slug |
+| `sessions` | the token, when it expires, its kind and its space | token |
+| `drafts` | a connector drop in progress | token |
+| `fetches` | one row per transcript fetch, so the pace is visible | time |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.
 
