@@ -59,33 +59,54 @@
   }
 
   /* ======================================================================
-     THE SQUIDGY TINT
+     THE SQUIDGY SPACE
 
-     Brown #A8704E and pink #F5C9D1. It redefines the accent and nothing else,
-     so every button, rule, badge and focus ring follows and the layout stays.
+     Brown #A8704E and pink #F5C9D1, on every surface rather than the accent
+     alone. The sidebar is the pink itself, the page a 28% wash of it, cards stay
+     white so what you read keeps its contrast, and the text runs in browns
+     instead of greys.
 
        --accent-fill   the brand brown: borders, focus rings, dots, bars
-       --accent-solid  a fill that carries a label. White on the brand brown
-                       reads at 4.12:1, under 4.5, so this runs 7% darker
-       --accent        accent text, which needs 4.5:1 on the page
-       --accent-soft   the pink: a selected option, a text selection
+       --accent-solid  a fill that carries a label, 7% darker than the brand
+                       brown because white on #A8704E reads at 4.12:1
+       --accent        accent text, dark enough to hold 4.5:1 on the pink
 
-     Octopus sets --accent-solid to its own fill, so it does not move.
+     Every text colour here clears 4.5:1 on the pink, the page and white.
+     In the dark the two swap roles: brown makes the surfaces, pink the accent.
      ====================================================================== */
   :root[data-space="squidgy"]{
-    --accent:#8b5d41; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
-    --accent-soft:rgba(245,201,209,.55); --accent-line:rgba(168,112,78,.36);
+    --bg:#fcf0f2; --surface:#ffffff; --surface-2:#F5C9D1; --surface-3:#ecb6c1;
+    --ink:#2a1810; --ink-2:#4b3024; --ink-3:#6b4234; --ink-4:#7c5243;
+    --line:#f3d3d9; --line-2:#e0aeb8;
+    --accent:#7a4e36; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
+    --accent-soft:rgba(168,112,78,.12); --accent-line:rgba(168,112,78,.40);
+    --shadow:0 1px 2px rgba(122,78,54,.08), 0 1px 8px rgba(122,78,54,.06);
+    --shadow-lift:0 2px 6px rgba(122,78,54,.10), 0 12px 32px rgba(122,78,54,.14);
   }
   @media (prefers-color-scheme:dark){
     :root[data-space="squidgy"]:not([data-theme="light"]){
-      --accent:#D09A77; --accent-fill:#C48A66; --accent-solid:#C48A66; --accent-on:#1a1a18;
-      --accent-soft:rgba(245,201,209,.12); --accent-line:rgba(196,138,102,.42);
+      --bg:#1d1411; --surface:#2a1c17; --surface-2:#3a2620; --surface-3:#4a3129;
+      --ink:#fbeef0; --ink-2:#eed5da; --ink-3:#cfaab2; --ink-4:#b08b93;
+      --line:#46302a; --line-2:#5a3d34;
+      --accent:#F5C9D1; --accent-fill:#e9a9b7; --accent-solid:#F5C9D1; --accent-on:#2a1810;
+      --accent-soft:rgba(245,201,209,.12); --accent-line:rgba(245,201,209,.36);
     }
   }
   :root[data-space="squidgy"][data-theme="dark"]{
-    --accent:#D09A77; --accent-fill:#C48A66; --accent-solid:#C48A66; --accent-on:#1a1a18;
-    --accent-soft:rgba(245,201,209,.12); --accent-line:rgba(196,138,102,.42);
+    --bg:#1d1411; --surface:#2a1c17; --surface-2:#3a2620; --surface-3:#4a3129;
+    --ink:#fbeef0; --ink-2:#eed5da; --ink-3:#cfaab2; --ink-4:#b08b93;
+    --line:#46302a; --line-2:#5a3d34;
+    --accent:#F5C9D1; --accent-fill:#e9a9b7; --accent-solid:#F5C9D1; --accent-on:#2a1810;
+    --accent-soft:rgba(245,201,209,.12); --accent-line:rgba(245,201,209,.36);
   }
+
+  /* What you say sits in the brand colour, so the thread reads as two voices at
+     a glance: yours in brown, the brain's on the page. */
+  :root[data-space="squidgy"] .msg.me .body{ background:var(--accent-solid); color:var(--accent-on); border-color:transparent; }
+  :root[data-space="squidgy"] .msg.me .body .attach{ color:var(--accent-on); opacity:.8; }
+
+  /* The dog greets an empty thread. */
+  .zero-mark{ display:block; height:92px; width:auto; margin-bottom:22px; }
 
   html{ background:var(--bg); }
   body{
@@ -1177,9 +1198,15 @@ function dropHint(src, content){
 
 function renderZero(){
   const th = $("thread");
+  /* The shell paints before the state call says which space this is, so an
+     empty state drawn for the wrong space is replaced rather than kept. */
+  const old = th.querySelector(".zero");
+  if (old && old.dataset.space !== S.space) old.remove();
   if (th.children.length) return;
   const z = el("div","zero");
+  z.dataset.space = S.space;
   z.innerHTML = `
+    ${S.space === "squidgy" ? `<img class="zero-mark" src="/brand/squidgy-mark.png" alt="">` : ""}
     <h2>A folder that gets smarter every time you feed it.</h2>
     <p class="lede">Feed it any source and it reads the whole thing, files each idea under the right subject, flags every claim that clashes with what you already hold, then answers from dated evidence.</p>`;
   th.append(z);
