@@ -596,6 +596,15 @@ ${excerptFor(ext.topics ?? [], touched)}`;
     location: String(b.location ?? "pasted, not kept"), brains: targets,
     ...(who.account ? { by: who.account } : {}),
   }});
+  /* The concepts just written are linked in the background, the same way as
+     linkAll: shortlisted against the whole space, then checked by the model.
+     The plan's own links only reach the concepts it listed, so a concept from
+     page 5 could not link to one from page 80. This one can. */
+  if (touched.length && ctx.scheduler) {
+    await ctx.scheduler.runAfter(0, internal.admin.linkConcepts,
+      { space: who.space, ids: touched.map(({ c }: any) => `${c.brain}/${c.slug}`) });
+  }
+
   /* The whole extraction is kept, so filing into another brain later reuses
      every topic. It held 40 before, and a 229 topic document lost the rest. The
      ceilings keep one note well under a database row's 1MB. */

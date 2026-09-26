@@ -298,10 +298,15 @@ export const linkStatus = internalQuery({
   },
 });
 
-/** The batch a step works on, read fresh each time so a drop in between is fine. */
-async function linkBatch(ctx: any, space: string, batch: number) {
+/**
+ * The batch a step works on, read fresh each time so a drop in between is fine.
+ * With `only`, the work is those concepts alone, still shortlisted against the
+ * whole space: that is how a drop links what it just wrote.
+ */
+async function linkBatch(ctx: any, space: string, batch: number, only?: string[]) {
   const { brains, concepts } = await spaceOf(ctx, space);
-  const work = linkWork(concepts);
+  const want = only ? new Set(only) : null;
+  const work = linkWork(concepts).filter(w => !want || want.has(idOf(w.c)));
   const name = new Map(brains.map((b: any) => [b.slug, b.name]));
   const slice = work.slice(batch * LINK_BATCH, (batch + 1) * LINK_BATCH);
   return {
@@ -333,7 +338,35 @@ export const linkAll = internalAction({
   },
 });
 
-/** One batch: the model keeps the real links, they are written, the next batch is scheduled. */
+/**
+ * The model reads each concept with its shortlist and keeps the real links,
+ * which are written. Returns how many were added, or null when the call failed.
+ */
+async function confirmLinks(ctx: any, items: any[]): Promise<number | null> {
+  const job = items.map((it: any, n: number) =>
+    `### ${n + 1} | ${it.title} [${it.brainName}]\n${it.summary}\ncandidates:\n` +
+    it.cands.map((c: any, k: number) => `  ${k + 1}) ${c.title} [${c.brainName}]: ${c.summary}`).join("\n")).join("\n\n");
+  let links: Record<string, number[]> = {};
+  try {
+    const { text } = await ask([
+      { role: "system", content: "You connect the concepts of a knowledge base. You reply with JSON only." },
+      { role: "user", content: `${LINK_RULES}\n\n${job}` },
+    ], { json: true, maxTokens: 2000, timeout: 90000 });
+    links = JSON.parse(String(text).replace(/^```(?:json)?|```$/g, "").trim())?.links ?? {};
+  } catch (e: any) {
+    console.log(`linking failed: ${String(e?.message ?? e).slice(0, 200)}`);
+    return null;
+  }
+  let added = 0;
+  for (const [n, it] of items.entries()) {
+    const keep = (links[String(n + 1)] ?? []).map((k: any) => it.cands[Number(k) - 1]?.id).filter(Boolean).slice(0, 4);
+    if (!keep.length) continue;
+    added += (await ctx.runMutation(internal.store.addRelated, { brain: it.brain, slug: it.slug, ids: keep })).added;
+  }
+  return added;
+}
+
+/** One batch of the whole-space run, then the next one is scheduled. */
 export const linkStep = internalAction({
   args: { space: v.string(), batch: v.number() },
   handler: async (ctx, a) => {
@@ -345,32 +378,30 @@ export const linkStep = internalAction({
       console.log("linking finished");
     };
     if (!items.length) return await next();
-
-    const job = items.map((it: any, n: number) =>
-      `### ${n + 1} | ${it.title} [${it.brainName}]\n${it.summary}\ncandidates:\n` +
-      it.cands.map((c: any, k: number) => `  ${k + 1}) ${c.title} [${c.brainName}]: ${c.summary}`).join("\n")).join("\n\n");
-
-    let links: Record<string, number[]> = {};
-    try {
-      const { text } = await ask([
-        { role: "system", content: "You connect the concepts of a knowledge base. You reply with JSON only." },
-        { role: "user", content: `${LINK_RULES}\n\n${job}` },
-      ], { json: true, maxTokens: 2000, timeout: 90000 });
-      links = JSON.parse(String(text).replace(/^```(?:json)?|```$/g, "").trim())?.links ?? {};
-    } catch (e: any) {
-      /* One failed batch skips its concepts and the run goes on. Running
-         linkAll again picks them up, since only unlinked candidates are sent. */
-      console.log(`linking ${a.space} batch ${a.batch + 1} of ${total} failed: ${String(e?.message ?? e).slice(0, 200)}`);
-      return await next();
-    }
-
-    let added = 0;
-    for (const [n, it] of items.entries()) {
-      const keep = (links[String(n + 1)] ?? []).map((k: any) => it.cands[Number(k) - 1]?.id).filter(Boolean).slice(0, 4);
-      if (!keep.length) continue;
-      added += (await ctx.runMutation(internal.store.addRelated, { brain: it.brain, slug: it.slug, ids: keep })).added;
-    }
-    console.log(`linking ${a.space} batch ${a.batch + 1} of ${total}: ${added} links over ${items.length} concepts`);
+    /* A failed batch skips its concepts and the run goes on. Running linkAll
+       again picks them up, since only unlinked candidates are sent. */
+    const added = await confirmLinks(ctx, items);
+    console.log(added === null
+      ? `linking ${a.space} batch ${a.batch + 1} of ${total} failed, skipped`
+      : `linking ${a.space} batch ${a.batch + 1} of ${total}: ${added} links over ${items.length} concepts`);
     await next();
+  },
+});
+
+/**
+ * The concepts one drop just wrote, linked the same way as the whole-space
+ * run: shortlisted against every concept in the space, checked by the model.
+ * Scheduled by each store batch, so it never slows the drop down.
+ */
+export const linkConcepts = internalAction({
+  args: { space: v.string(), ids: v.array(v.string()) },
+  handler: async (ctx, a) => {
+    const first = await linkBatch(ctx, a.space, 0, a.ids);
+    let added = 0;
+    for (let b = 0; b < first.total; b++) {
+      const { items } = b === 0 ? first : await linkBatch(ctx, a.space, b, a.ids);
+      if (items.length) added += (await confirmLinks(ctx, items)) ?? 0;
+    }
+    console.log(`linked ${added} for ${a.ids.length} concepts just stored`);
   },
 });

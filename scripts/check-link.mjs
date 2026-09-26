@@ -152,5 +152,17 @@ const talk = () => { console.log = quiet; };
   })());
 }
 
+/* ---- a drop links only what it wrote, against the whole space ---- */
+{
+  for (const c of DB.concepts) c.related = [];
+  const writes = DB.writes.length;
+  hush(); await admin.linkConcepts.handler(ctx, { space: "squidgy", ids: ["acc/npv"] }); talk();
+  const touched = new Set(DB.writes.slice(writes).map(w => `${w.brain}/${w.slug}`));
+  check("a drop's linking writes only the concepts it was given", [...touched].join(",") === "acc/npv", [...touched].join(","));
+  check("shortlisted against the whole space", DB.concepts.find(c => c.slug === "npv").related.length >= 2,
+    DB.concepts.find(c => c.slug === "npv").related.join(","));
+  check("and leaves the rest as they were", DB.concepts.filter(c => c.slug !== "npv").every(c => !c.related.length));
+}
+
 console.log(failures ? `\n${failures} failed` : "\nlinking holds");
 process.exit(failures ? 1 : 0);

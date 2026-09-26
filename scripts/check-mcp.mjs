@@ -48,9 +48,12 @@ const DB = {
   /* Which space each read asked for. The MCP server serves Octopus only, so a
      read that forgets to name one would quietly expose the other space. */
   spacesRead: [],
+  scheduled: [],
 };
 
 const ctx = {
+  /* A store schedules linking for what it wrote. Recorded, never run here. */
+  scheduler: { runAfter: async (_ms, fn, a) => { DB.scheduled.push({ fn, ...a }); } },
   runQuery: async (fn, a) => {
     if (fn === "store.everything") {
       DB.spacesRead.push(a?.space ?? null);
@@ -245,6 +248,10 @@ let job = "";
   check("the concepts, the source and the note were written", kinds.join(",") === want, kinds.join(","));
   const c = DB.writes.slice(before).find(w => w.kind === "concept");
   check("the rewrite landed on the position", c.doc.position.startsWith("Hooks decide the watch"), c.doc.position);
+  const link = DB.scheduled.find(x => x.fn === "admin.linkConcepts");
+  check("the store schedules linking for exactly what it wrote",
+    link && link.space === "octopus" && link.ids.includes("content/personal-brand") &&
+    link.ids.length === (MENTIONS <= 1 ? 2 : 1), JSON.stringify(link));
   if (MENTIONS <= 1) {
     const hook = DB.writes.slice(before).find(w => w.kind === "concept" && w.title === "Hook writing for short video");
     check("a new concept keeps the links the plan gave it", hook?.doc?.related?.join(",") === "content/personal-brand",
