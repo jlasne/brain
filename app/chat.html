@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Octopus</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -152,6 +153,15 @@
     color:var(--ink-4);
   }
   .side-h b{ color:var(--accent); font-weight:500; margin-left:auto; }
+
+  /* People, then Subjects. Quieter than the panel header above it, because it
+     divides a list rather than naming the panel. */
+  .group-h{
+    margin:11px 0 5px; padding:0 3px;
+    font:500 10px/1.6 var(--mono); letter-spacing:.09em; text-transform:uppercase;
+    color:var(--ink-4);
+  }
+  .group-h:first-child{ margin-top:0; }
 
   /* One line per brain: the name, and what it holds. The scope line and the
      controls live above the composer, next to the choice they belong to, so a
@@ -891,31 +901,55 @@ function paintSpace(){
   probe.src = want;
 }
 
+/**
+ * The brains, grouped and ranked.
+ *
+ * A person and a subject are different questions, so they sit apart. Inside a
+ * group the fullest brain leads, counted by positions first and sources second,
+ * because that is the one worth opening. Creation order said nothing about
+ * which brain you want.
+ */
+function grouped(){
+  const weight = b => conceptsOf(b.slug).length * 1000 + sourcesOf(b.slug).length;
+  const of = t => S.brains
+    .filter(b => (b.type === "person" ? "person" : "subject") === t)
+    .sort((x, y) => weight(y) - weight(x) || x.name.localeCompare(y.name));
+  return [{ head: "People", rows: of("person") }, { head: "Subjects", rows: of("subject") }]
+    .filter(g => g.rows.length);
+}
+
+/* Clicking a row picks that brain to ask or to feed. A second click goes back
+   to every brain. Edit is the one control a row carries. */
+function brainRow(b){
+  const on = S.scope === b.slug;
+  const row = el("button","brain-row" + (on ? " on" : ""));
+  const ideas = conceptsOf(b.slug).length, read = sourcesOf(b.slug).length;
+  row.append(el("span","nm",b.name), el("span","ct",`${ideas}·${read}`));
+  row.title = `${b.scope || "no scope line"}\n${ideas} concepts, ${read} sources`;
+  row.onclick = () => { S.scope = on ? "all" : b.slug; render(); };
+  /* Only the owner may change a brain, which is what the server enforces, so
+     the control appears on their own rows alone. */
+  if (S.who === "owner" || (!!b.owner && b.owner === S.account)){
+    const ed = el("span","ed","edit");
+    ed.title = "Name, scope, and who may feed it";
+    ed.onclick = e => { e.stopPropagation(); openBrainSheet(b); };
+    row.append(ed);
+  }
+  return row;
+}
+
 function renderSide(){
   const box = $("brains"); box.innerHTML = "";
   $("bcount").textContent = S.brains.length || "";
   if (!S.brains.length){
     box.append(el("div","empty-side","None yet. A brain is a subject or a person, with a one line scope."));
   } else {
-    /* Clicking a row picks that brain to ask or to feed. Its scope, its counts
-       and its controls appear above the composer, which is where the same
-       choice is made. A second click goes back to every brain. */
-    for (const b of S.brains){
-      const on = S.scope === b.slug;
-      const row = el("button","brain-row" + (on ? " on" : ""));
-      row.append(el("span","nm",b.name),
-                 el("span","ct",`${conceptsOf(b.slug).length}·${sourcesOf(b.slug).length}`));
-      row.title = `${b.scope || "no scope line"}\n${conceptsOf(b.slug).length} concepts, ${sourcesOf(b.slug).length} sources`;
-      row.onclick = () => { S.scope = on ? "all" : b.slug; render(); };
-      /* Only the owner may change a brain, which is what the server enforces,
-         so the control appears on their own rows alone. */
-      if (S.who === "owner" || (!!b.owner && b.owner === S.account)){
-        const ed = el("span","ed","edit");
-        ed.title = "Name, scope, and who may feed it";
-        ed.onclick = e => { e.stopPropagation(); openBrainSheet(b); };
-        row.append(ed);
-      }
-      box.append(row);
+    /* A group header only when there are two, because one header over one list
+       says what the list already says. */
+    const groups = grouped();
+    for (const g of groups){
+      if (groups.length > 1) box.append(el("div","group-h",g.head));
+      for (const b of g.rows) box.append(brainRow(b));
     }
   }
 
