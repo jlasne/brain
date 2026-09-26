@@ -184,3 +184,88 @@ export function indexFor(pool: any[], concepts: any[], q: string) {
   }
   return { text: lines.join("\n"), ids, total: inPool.length };
 }
+
+/* ---------- finding links without a model ---------- */
+
+/**
+ * Likely links between concepts, from what they already hold. No model call.
+ *
+ * Three signals, strongest first:
+ *   - one concept's text names another's title
+ *   - they share rare words, weighed so a word every concept uses counts for
+ *     nothing and a word two concepts share counts for a lot
+ *   - they came from the same source, weighed by how small the source was: two
+ *     ideas from one short article are close, two of 229 from one manual are not
+ *
+ * The rare words are matched through an index of which concepts hold each word,
+ * so only pairs sharing a word are ever compared. At 4000 concepts that is well
+ * under a second, instead of eight million comparisons.
+ *
+ * Returns, per concept id, up to `per` candidates, best first. A model then
+ * keeps the real ones.
+ */
+export function linkCandidates(concepts: any[], sources: any[] = [], per = 6, floor = 0.12) {
+  const N = concepts.length;
+  const out = new Map<string, { id: string; score: number }[]>();
+  if (N < 2) return out;
+
+  const terms = (c: any) => (norm([c.title, c.summaryLine, c.position, (c.data ?? []).join(" ")].join(" "))
+    .match(/[a-z0-9]{4,}/g) ?? []).filter(w => !STOP.has(w));
+  const docs = concepts.map(terms);
+
+  /* Rare words weigh most. A word held by over a fifth of the concepts, when
+     there are enough of them for that to mean something, says nothing. */
+  const df = new Map<string, number>();
+  for (const d of docs) for (const w of new Set(d)) df.set(w, (df.get(w) ?? 0) + 1);
+  const common = N >= 25 ? N * 0.2 : N;
+  const vecs = docs.map(d => {
+    const tf = new Map<string, number>();
+    for (const w of d) tf.set(w, (tf.get(w) ?? 0) + 1);
+    const v = new Map<string, number>();
+    let len = 0;
+    for (const [w, n] of tf) {
+      const f = df.get(w)!;
+      if (f < 2 || f > common) continue;
+      const x = (1 + Math.log(n)) * Math.log(N / f);
+      v.set(w, x); len += x * x;
+    }
+    len = Math.sqrt(len) || 1;
+    for (const [w, x] of v) v.set(w, x / len);
+    return v;
+  });
+  const post = new Map<string, number[]>();
+  vecs.forEach((v, i) => { for (const w of v.keys()) (post.get(w) ?? post.set(w, []).get(w)!).push(i); });
+
+  /* A source that produced few concepts binds them tightly. */
+  const bySource = new Map<string, number[]>();
+  concepts.forEach((c, j) => { for (const s of c.sources ?? []) (bySource.get(s) ?? bySource.set(s, []).get(s)!).push(j); });
+
+  /* Titles indexed by their first word, so a concept's text is only searched
+     for the titles that could possibly be in it. */
+  const titles = concepts.map(c => norm(c.title));
+  const text = concepts.map(c => norm([c.summaryLine, c.position, (c.data ?? []).join(" ")].join(" ")));
+  const byFirst = new Map<string, number[]>();
+  titles.forEach((t, j) => {
+    /* Specific enough to mean it: two words, or one long one. */
+    if (!(t.includes(" ") || t.length >= 8)) return;
+    const f = t.split(/[^a-z0-9]+/).find(Boolean) ?? "";
+    if (f) (byFirst.get(f) ?? byFirst.set(f, []).get(f)!).push(j);
+  });
+
+  for (let i = 0; i < N; i++) {
+    const score = new Map<number, number>();
+    const add = (j: number, x: number) => { if (j !== i) score.set(j, (score.get(j) ?? 0) + x); };
+    for (const [w, x] of vecs[i]) for (const j of post.get(w)!) add(j, x * vecs[j].get(w)!);
+    /* Naming another's title is the strongest sign. */
+    for (const w of new Set(text[i].split(/[^a-z0-9]+/))) {
+      for (const j of byFirst.get(w) ?? []) if (text[i].includes(titles[j])) add(j, 0.5);
+    }
+    for (const s of concepts[i].sources ?? []) {
+      const held = bySource.get(s) ?? [];
+      for (const j of held) add(j, 0.2 / Math.log(2 + held.length));
+    }
+    const best = [...score.entries()].filter(([, s]) => s >= floor).sort((a, b) => b[1] - a[1]).slice(0, per);
+    out.set(idOf(concepts[i]), best.map(([j, s]) => ({ id: idOf(concepts[j]), score: Math.round(s * 100) / 100 })));
+  }
+  return out;
+}

@@ -36,6 +36,15 @@ npx convex run admin:setPass '{"space":"squidgy","pass":"at least 8 characters"}
 npx convex run admin:moveBrain '{"slug":"content","space":"squidgy","dry":true}' --prod
 ```
 
+Link what is already stored. A drop links the concepts it writes, and these
+fill in the rest, in the background, both spaces:
+
+```bash
+npx convex run admin:linkPreview --prod   # what it would propose, free
+npx convex run admin:linkAll --prod       # do it: about $0.005 per 1000 concepts
+npx convex run admin:linkStatus --prod    # how many carry links so far
+```
+
 PowerShell strips the double quotes inside an argument, which leaves
 `{space:squidgy,...}` and a JSON5 error at 1:8. The CLI parses JSON5, so single
 quoted values survive:

@@ -18,9 +18,11 @@
  *     npx convex run admin:setPass "{space:'squidgy',pass:'...'}" --prod
  */
 
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalMutation, internalQuery, internalAction } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { slug, today, sha256, randomHex, gateKey, readSpace, SPACES } from "./lib";
+import { slug, today, sha256, randomHex, gateKey, readSpace, SPACES, ask } from "./lib";
+import { linkCandidates, linkId, idOf } from "./words";
 
 /** Who exists, and who owns what. Read this before and after a claim. */
 export const state = internalQuery({
@@ -215,5 +217,160 @@ export const moveBrain = internalMutation({
     if (from === space) return { slug: a.slug, from, to: space, moved: false, why: "already there" };
     if (!a.dry) await ctx.db.patch(b._id, { space });
     return { slug: a.slug, name: b.name, from, to: space, moved: !a.dry };
+  },
+});
+
+/* ======================================================================
+   LINKING WHAT IS ALREADY STORED
+
+   A drop links the concepts it writes. Everything stored before that has no
+   links, so these fill them in, brain by brain, in the background.
+
+     npx convex run admin:linkPreview --prod    what it would propose, free
+     npx convex run admin:linkAll --prod        do it, in the background
+     npx convex run admin:linkStatus --prod     how many are linked so far
+
+   Two steps. The free one reads what each concept holds and shortlists up to
+   six likely links: a title named in another's text, rare words shared, a
+   small source in common. A model then reads each concept with its shortlist
+   and keeps the real links, four at most. It never reads the whole brain at
+   once, which is why it stays cheap: about $0.005 for 1000 concepts.
+   ====================================================================== */
+
+/**
+ * One space's concepts, fetched by an action. The comparison runs in the action
+ * because an action has minutes and a query has about a second, which 4000
+ * concepts could approach.
+ */
+async function spaceOf(ctx: any, space: string) {
+  const { brains, concepts } = await ctx.runQuery(internal.store.everything, { space });
+  return { brains, concepts: [...concepts].sort((a: any, b: any) =>
+    a.brain.localeCompare(b.brain) || (a.n ?? 0) - (b.n ?? 0)) };
+}
+
+/** The work for one space: every concept with at least one new candidate. */
+function linkWork(concepts: any[]) {
+  const cand = linkCandidates(concepts);
+  const byId = new Map(concepts.map((c: any) => [idOf(c), c]));
+  return concepts.map((c: any) => {
+    const have = new Set((c.related ?? []).map((r: string) => linkId(r, c.brain)));
+    const fresh = (cand.get(idOf(c)) ?? []).filter(x => !have.has(x.id)).map(x => byId.get(x.id));
+    return { c, cands: fresh };
+  }).filter(w => w.cands.length);
+}
+
+const LINK_BATCH = 30;
+
+/** What linking would propose, with no model call and nothing written. */
+export const linkPreview = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const out: any[] = [];
+    for (const space of SPACES) {
+      const { brains, concepts } = await spaceOf(ctx, space);
+      const work = linkWork(concepts);
+      const name = new Map(brains.map((b: any) => [b.slug, b.name]));
+      out.push({
+        space, concepts: concepts.length,
+        alreadyLinked: concepts.filter((c: any) => (c.related ?? []).length).length,
+        toCheck: work.length,
+        modelCalls: Math.ceil(work.length / LINK_BATCH),
+        sample: work.slice(0, 8).map(w => `${w.c.title} [${name.get(w.c.brain)}] -> ` +
+          w.cands.slice(0, 3).map((x: any) => x.title).join(" | ")),
+      });
+    }
+    return out;
+  },
+});
+
+/** How many concepts carry links, brain by brain. */
+export const linkStatus = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const brains = await ctx.db.query("brains").collect();
+    const concepts = await ctx.db.query("concepts").collect();
+    return brains.map((b: any) => {
+      const own = concepts.filter((c: any) => c.brain === b.slug);
+      return { brain: b.name, space: readSpace(b.space), concepts: own.length,
+        linked: own.filter((c: any) => (c.related ?? []).length).length,
+        links: own.reduce((n: number, c: any) => n + (c.related ?? []).length, 0) };
+    });
+  },
+});
+
+/** The batch a step works on, read fresh each time so a drop in between is fine. */
+async function linkBatch(ctx: any, space: string, batch: number) {
+  const { brains, concepts } = await spaceOf(ctx, space);
+  const work = linkWork(concepts);
+  const name = new Map(brains.map((b: any) => [b.slug, b.name]));
+  const slice = work.slice(batch * LINK_BATCH, (batch + 1) * LINK_BATCH);
+  return {
+    total: Math.ceil(work.length / LINK_BATCH),
+    items: slice.map(w => ({
+      brain: w.c.brain, slug: w.c.slug, title: w.c.title, brainName: name.get(w.c.brain) ?? w.c.brain,
+      summary: w.c.summaryLine || String(w.c.position ?? "").slice(0, 200),
+      cands: w.cands.map((x: any) => ({ id: idOf(x), title: x.title, brainName: name.get(x.brain) ?? x.brain,
+        summary: x.summaryLine || String(x.position ?? "").slice(0, 140) })),
+    })),
+  };
+}
+
+const LINK_RULES = `For each concept below, keep the candidates it truly connects to.
+
+- Keep a candidate when this concept builds on it, explains it, is used together with it, is a case of it, or is weighed against it.
+- Drop a candidate that only shares words.
+- At most 4 per concept. None is a correct answer.
+
+Reply with only JSON, concept numbers to candidate numbers: {"links":{"1":[2,3],"2":[]}}`;
+
+/** Start linking, in the background. */
+export const linkAll = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    await ctx.scheduler.runAfter(0, internal.admin.linkStep, { space: SPACES[0], batch: 0 });
+    return "Linking started in the background. Follow it with: npx convex logs --prod, " +
+      "or count it with: npx convex run admin:linkStatus --prod";
+  },
+});
+
+/** One batch: the model keeps the real links, they are written, the next batch is scheduled. */
+export const linkStep = internalAction({
+  args: { space: v.string(), batch: v.number() },
+  handler: async (ctx, a) => {
+    const { total, items } = await linkBatch(ctx, a.space, a.batch);
+    const next = async () => {
+      if (a.batch + 1 < total) return ctx.scheduler.runAfter(0, internal.admin.linkStep, { space: a.space, batch: a.batch + 1 });
+      const i = SPACES.indexOf(a.space as any);
+      if (i + 1 < SPACES.length) return ctx.scheduler.runAfter(0, internal.admin.linkStep, { space: SPACES[i + 1], batch: 0 });
+      console.log("linking finished");
+    };
+    if (!items.length) return await next();
+
+    const job = items.map((it: any, n: number) =>
+      `### ${n + 1} | ${it.title} [${it.brainName}]\n${it.summary}\ncandidates:\n` +
+      it.cands.map((c: any, k: number) => `  ${k + 1}) ${c.title} [${c.brainName}]: ${c.summary}`).join("\n")).join("\n\n");
+
+    let links: Record<string, number[]> = {};
+    try {
+      const { text } = await ask([
+        { role: "system", content: "You connect the concepts of a knowledge base. You reply with JSON only." },
+        { role: "user", content: `${LINK_RULES}\n\n${job}` },
+      ], { json: true, maxTokens: 2000, timeout: 90000 });
+      links = JSON.parse(String(text).replace(/^```(?:json)?|```$/g, "").trim())?.links ?? {};
+    } catch (e: any) {
+      /* One failed batch skips its concepts and the run goes on. Running
+         linkAll again picks them up, since only unlinked candidates are sent. */
+      console.log(`linking ${a.space} batch ${a.batch + 1} of ${total} failed: ${String(e?.message ?? e).slice(0, 200)}`);
+      return await next();
+    }
+
+    let added = 0;
+    for (const [n, it] of items.entries()) {
+      const keep = (links[String(n + 1)] ?? []).map((k: any) => it.cands[Number(k) - 1]?.id).filter(Boolean).slice(0, 4);
+      if (!keep.length) continue;
+      added += (await ctx.runMutation(internal.store.addRelated, { brain: it.brain, slug: it.slug, ids: keep })).added;
+    }
+    console.log(`linking ${a.space} batch ${a.batch + 1} of ${total}: ${added} links over ${items.length} concepts`);
+    await next();
   },
 });

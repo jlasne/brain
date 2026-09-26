@@ -2,6 +2,7 @@
 
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+import { linkId } from "./words";
 import { sha256, randomHex, today, slug, gateKey, readSpace, HOME,
          MENTIONS, SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS } from "./lib";
 
@@ -550,5 +551,24 @@ export const mcpRate = internalMutation({
     }
     await ctx.db.patch(row._id, { count: row.count + 1 });
     return { allowed: true, remaining: a.max - row.count - 1, retryAfter: 0 };
+  },
+});
+
+/**
+ * Links added to one concept, joined to the ones it had, twelve at most, never
+ * to itself. Starter links written as prose are rewritten as ids on the way.
+ */
+export const addRelated = internalMutation({
+  args: { brain: v.string(), slug: v.string(), ids: v.array(v.string()) },
+  handler: async (ctx, a) => {
+    const c = await ctx.db.query("concepts")
+      .withIndex("by_brain_slug", q => q.eq("brain", a.brain).eq("slug", a.slug)).unique();
+    if (!c) return { added: 0 };
+    const self = `${a.brain}/${a.slug}`;
+    const before = [...new Set((c.related ?? []).map((r: string) => linkId(r, c.brain)))];
+    const next = [...new Set([...before, ...a.ids])].filter(x => x !== self).slice(0, 12);
+    const added = next.filter(x => !before.includes(x)).length;
+    if (added > 0 || before.length !== (c.related ?? []).length) await ctx.db.patch(c._id, { related: next });
+    return { added };
   },
 });

@@ -1,0 +1,156 @@
+/**
+ * The background linking job, run end to end against a stand-in database and a
+ * stand-in model.
+ *
+ *     node scripts/check-link.mjs
+ *
+ * It runs once, unwatched, over everything stored, so a mistake would do
+ * nothing silently. This walks it: the free shortlist, the model's choices, the
+ * links written, the next batch scheduled, the second space, a failed batch
+ * skipped, and a second run adding nothing twice.
+ */
+
+import { mkdtempSync, writeFileSync, copyFileSync, mkdirSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { tmpdir } from "node:os";
+import * as esbuild from "esbuild";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const dir = mkdtempSync(join(tmpdir(), "octo-link-"));
+mkdirSync(join(dir, "_generated"));
+for (const f of ["admin.ts", "lib.ts", "words.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+writeFileSync(join(dir, "_generated/server.ts"),
+  "export const internalQuery = (x: any) => x; export const internalMutation = (x: any) => x; export const internalAction = (x: any) => x;\n");
+writeFileSync(join(dir, "_generated/api.ts"),
+  "export const internal = new Proxy({}, { get: (_t, m) => new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
+await esbuild.build({ entryPoints: [join(dir, "admin.ts")], bundle: true, format: "esm", platform: "node",
+  outfile: join(dir, "bundle.mjs"), logLevel: "silent", nodePaths: [join(ROOT, "node_modules")] });
+process.env.OPENROUTER_API_KEY = "test";
+const admin = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+
+let failures = 0;
+const check = (what, ok, saw) => {
+  if (ok) { console.log(`  ok   ${what}`); return; }
+  failures++; console.log(`  FAIL ${what}${saw ? "\n       " + saw : ""}`);
+};
+
+/* ---- the stand-in store ---- */
+const K = (brain, slug, title, summaryLine, position, n) =>
+  ({ brain, slug, n, title, summaryLine, position, data: [], evidence: [], sources: [], related: [] });
+const DB = {
+  brains: [{ slug: "acc", name: "Accountant", type: "subject", scope: "accounting", space: "squidgy" },
+           { slug: "wealth", name: "Wealth", type: "subject", scope: "wealth", space: undefined }],
+  concepts: [
+    K("acc", "npv", "Net present value", "Discounted cash flows minus the investment.",
+      "Net present value discounts each future cash flow at the discount rate and subtracts the initial investment.", 1),
+    K("acc", "irr", "Internal rate of return", "The discount rate at which NPV is zero.",
+      "The internal rate of return is the discount rate that sets net present value to zero.", 2),
+    K("acc", "discount-rate", "Discount rate", "The rate that turns future cash flows into present value.",
+      "The discount rate reflects the time value of money and project risk.", 3),
+    K("acc", "gold", "Gold coins", "Coins held as a store of value.", "Gold coins keep purchasing power.", 4),
+    K("wealth", "prudence", "Prudence", "Avoiding the loss that cannot be recovered.",
+      "Prudence means avoiding ruin before seeking return. Risk and danger differ.", 1),
+    K("wealth", "risk-and-danger", "Risk and danger", "Risk is volatility, danger is ruin.",
+      "Risk and danger differ: prudence guards against danger, the unrecoverable loss.", 2),
+  ],
+  writes: [], scheduled: [],
+};
+const ctx = {
+  runQuery: async (fn, a) => {
+    if (fn === "store.everything") {
+      const brains = DB.brains.filter(b => (b.space ?? "octopus") === a.space);
+      const mine = new Set(brains.map(b => b.slug));
+      return { brains, concepts: DB.concepts.filter(c => mine.has(c.brain)), sources: [] };
+    }
+    throw new Error("unexpected query " + fn);
+  },
+  runMutation: async (fn, a) => {
+    if (fn !== "store.addRelated") throw new Error("unexpected mutation " + fn);
+    DB.writes.push(a);
+    const c = DB.concepts.find(x => x.brain === a.brain && x.slug === a.slug);
+    const before = new Set(c.related);
+    c.related = [...new Set([...c.related, ...a.ids])].slice(0, 12);
+    return { added: c.related.filter(x => !before.has(x)).length };
+  },
+  scheduler: { runAfter: async (_ms, fn, a) => { DB.scheduled.push({ fn, ...a }); } },
+};
+
+/* ---- the stand-in model: keeps every candidate whose title shares a word
+   with the concept's own, except for gold, and fails once when told to ---- */
+let failNext = false;
+globalThis.fetch = async (_u, opt) => {
+  if (failNext) { failNext = false; return new Response("upstream down", { status: 503 }); }
+  const job = JSON.parse(opt.body).messages[1].content;
+  const links = {};
+  for (const block of job.split(/\n(?=### )/).filter(b => b.startsWith("### "))) {
+    const n = block.match(/^### (\d+)/)[1];
+    const cands = [...block.matchAll(/^\s+(\d+)\) ([^[]+)\[/gm)].map(m => ({ k: Number(m[1]), title: m[2].trim() }));
+    links[n] = /Gold/.test(block.split("\n")[0]) ? [] : cands.filter(c => !/Gold/.test(c.title)).map(c => c.k);
+  }
+  return Response.json({ choices: [{ message: { content: JSON.stringify({ links }) }, finish_reason: "stop" }] });
+};
+
+/* Runs the scheduled steps the way the platform would, one after another. */
+const drain = async () => {
+  let guard = 0;
+  while (DB.scheduled.length && guard++ < 20) {
+    const { fn, ...args } = DB.scheduled.shift();
+    await admin[fn.split(".")[1]].handler(ctx, args);
+  }
+};
+const quiet = console.log; const logs = [];
+const hush = () => { console.log = (...a) => logs.push(a.join(" ")); };
+const talk = () => { console.log = quiet; };
+
+/* ---- preview ---- */
+{
+  const p = await admin.linkPreview.handler(ctx, {});
+  const sq = p.find(x => x.space === "squidgy"), oc = p.find(x => x.space === "octopus");
+  check("the preview counts what it would check, per space", sq.concepts === 4 && sq.toCheck >= 2 && oc.concepts === 2,
+    JSON.stringify(p.map(x => [x.space, x.concepts, x.toCheck])));
+  check("the preview writes nothing", DB.writes.length === 0);
+}
+
+/* ---- a full run ---- */
+{
+  const r = await admin.linkAll.handler(ctx, {});
+  check("linkAll starts in the background and says how to follow it", /background/.test(r) && DB.scheduled.length === 1, r);
+  hush(); await drain(); talk();
+  const npv = DB.concepts.find(c => c.slug === "npv"), gold = DB.concepts.find(c => c.slug === "gold");
+  const prudence = DB.concepts.find(c => c.slug === "prudence");
+  check("NPV is linked to IRR and the discount rate", ["acc/irr", "acc/discount-rate"].every(x => npv.related.includes(x)), npv.related.join(","));
+  check("gold stays unlinked", gold.related.length === 0, gold.related.join(","));
+  check("the second space is linked too", prudence.related.includes("wealth/risk-and-danger"), prudence.related.join(","));
+  check("the run says when it is finished", logs.some(l => /linking finished/.test(l)), logs.join(" | "));
+}
+
+/* ---- a second run adds nothing twice ---- */
+{
+  const before = DB.writes.length;
+  await admin.linkAll.handler(ctx, {});
+  hush(); await drain(); talk();
+  check("a second run sends only concepts with new candidates, and adds nothing twice",
+    DB.writes.length === before, `${DB.writes.length - before} new writes`);
+}
+
+/* ---- a failed batch is skipped, the run goes on ---- */
+{
+  DB.concepts.find(c => c.slug === "prudence").related = [];
+  DB.concepts.find(c => c.slug === "risk-and-danger").related = [];
+  DB.concepts.find(c => c.slug === "npv").related = [];
+  failNext = true; logs.length = 0;
+  await admin.linkAll.handler(ctx, {});
+  hush(); await drain(); talk();
+  check("a failed batch is logged", logs.some(l => /failed/.test(l)), logs.join(" | "));
+  /* Octopus runs first, so the failure lands on its batch and Squidgy follows. */
+  check("the failed batch is skipped", DB.concepts.find(c => c.slug === "prudence").related.length === 0);
+  check("and the next space still runs", DB.concepts.find(c => c.slug === "npv").related.length > 0);
+  check("running again picks up what the failure skipped", await (async () => {
+    await admin.linkAll.handler(ctx, {}); hush(); await drain(); talk();
+    return DB.concepts.find(c => c.slug === "prudence").related.length > 0;
+  })());
+}
+
+console.log(failures ? `\n${failures} failed` : "\nlinking holds");
+process.exit(failures ? 1 : 0);

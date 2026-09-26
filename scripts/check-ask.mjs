@@ -20,7 +20,7 @@ const dir = mkdtempSync(join(tmpdir(), "octo-ask-"));
 copyFileSync(join(ROOT, "convex", "words.ts"), join(dir, "words.ts"));
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { dossierFor, indexFor, linkId, neighbours, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { dossierFor, indexFor, linkId, neighbours, linkCandidates, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -124,6 +124,41 @@ const tokens = s => Math.round(s.length / 4);
   const order = r.opened.map(x => x.slug);
   check("an answer opens what its concept links to, next", order[0] === "npv" && order.slice(1, 3).sort().join(",") === "discount-rate,irr", order.join(","));
   check("and leaves out what it does not link to", !order.includes("gold") || order.indexOf("gold") > 2, order.join(","));
+}
+
+/* ---- links found with no model ---- */
+{
+  const k = (slug, title, summaryLine, position, sources = ["manual"]) =>
+    ({ brain: "acc", slug, title, summaryLine, position, data: [], evidence: [], sources, related: [] });
+  const acc = [
+    k("npv", "Net present value", "Discounted cash flows minus the investment.",
+      "Net present value discounts each future cash flow at the discount rate and subtracts the initial investment. A positive NPV adds shareholder wealth."),
+    k("irr", "Internal rate of return", "The discount rate at which NPV is zero.",
+      "The internal rate of return is the discount rate that sets net present value to zero. Accept a project when IRR beats the cost of capital."),
+    k("discount-rate", "Discount rate", "The rate that turns future cash flows into present value.",
+      "The discount rate reflects the time value of money and project risk, usually the weighted average cost of capital."),
+    k("wacc", "Weighted average cost of capital", "The blended cost of equity and debt.",
+      "WACC weighs the cost of equity and the after-tax cost of debt by their market values. It is the default discount rate for projects of average risk."),
+    k("depreciation", "Straight line depreciation", "Cost spread evenly over useful life.",
+      "Straight line depreciation spreads an asset's cost minus residual value evenly over its useful life."),
+    k("residual", "Residual value", "What an asset is worth at the end of its useful life.",
+      "Residual value is deducted from cost before depreciation is spread over the useful life."),
+    k("gold", "Gold as a hedge", "Gold holds purchasing power across decades.", "Gold has kept its purchasing power over centuries of currency debasement.",
+      ["gold-letter"]),
+  ];
+  const cand = linkCandidates(acc, []);
+  const ids = id => (cand.get("acc/" + id) ?? []).map(x => x.id.split("/")[1]);
+  check("NPV finds IRR, the discount rate and WACC", ["irr", "discount-rate"].every(x => ids("npv").includes(x)), ids("npv").join(","));
+  check("depreciation finds residual value", ids("depreciation")[0] === "residual", ids("depreciation").join(","));
+  check("a concept naming another's title links to it", ids("wacc").includes("discount-rate"), ids("wacc").join(","));
+  check("gold, on its own subject, links to nothing", ids("gold").length === 0, ids("gold").join(","));
+  check("no concept links to itself", [...cand.entries()].every(([id, l]) => !l.some(x => x.id === id)));
+
+  const t0 = performance.now();
+  const big = linkCandidates(concepts.slice(0, 1001), []);
+  const ms = performance.now() - t0;
+  check("1001 concepts are compared in under 3 seconds", ms < 3000, `${Math.round(ms)} ms`);
+  console.log(`       ${Math.round(ms)} ms for 1001 concepts, ${[...big.values()].reduce((n, l) => n + l.length, 0)} candidate links`);
 }
 
 console.log(failures ? `\n${failures} failed` : "\nthe question finds its answer at any size");
