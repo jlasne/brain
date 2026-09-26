@@ -2317,15 +2317,129 @@ async function doDrop(src, content, again){
  * it proposes somewhere new rather than rewriting positions with a source they
  * already hold.
  */
+/* ============ long sources, in batches ============ */
+
+/* One model call per request, and each call has to finish inside the server's
+   150 second deadline. A 229 topic document planned in one call was cut to its
+   first 30,000 characters, and 36 positions rewritten in one call ran out of
+   time. Both now go in batches, sized from what was measured. */
+const PLAN_TOPICS = 25, PLAN_CHARS = 20000;
+const STORE_BATCH = 8, STORE_PARALLEL = 3;
+
+const topicText = t => `### ${t.topic}\n${(t.ideas||[]).join("\n")}\n${(t.data||[]).join("\n")}`;
+
+/** The topics, cut into batches the plan reads whole. */
+function topicBatches(topics){
+  const out = []; let cur = [], size = 0;
+  for (const t of topics){
+    const n = topicText(t).length;
+    if (cur.length && (cur.length >= PLAN_TOPICS || size + n > PLAN_CHARS)){ out.push(cur); cur = []; size = 0; }
+    cur.push(t); size += n;
+  }
+  if (cur.length) out.push(cur);
+  return out.length ? out : [[]];
+}
+
+const unitKey = (brain, title) => `${brain}/${slug(title)}`;
+
+/**
+ * The whole source planned, a batch at a time, merged into one plan.
+ *
+ * Batches run in order, and each sees the titles proposed before it, so an
+ * idea that recurs through the document is filed under one name.
+ */
+async function planAll(ext, held, thorough, progress){
+  const batches = topicBatches(ext.topics || []);
+  const merged = { brains: [], matched: [], candidates: [], new: [], echo: [], conflicts: [] };
+  const seenM = new Set(), seenC = new Set();
+  for (let i = 0; i < batches.length; i++){
+    if (batches.length > 1) progress(i + 1, batches.length);
+    const p = (await api("/api/drop/plan", {
+      ext: { ...ext, topics: batches[i] }, brain: S.scope, key: S.key,
+      ...(held && held.length ? { exclude: held } : {}),
+      ...(thorough ? { thorough: true } : {}),
+      ...(merged.candidates.length ? { proposed: merged.candidates.map(c => `${c.brain} | ${c.title}`) } : {}),
+    })).plan || {};
+    for (const b of p.brains || []) if (!merged.brains.includes(b)) merged.brains.push(b);
+    for (const m of p.matched || []){
+      if (seenM.has(m.conceptId)){
+        const had = merged.matched.find(x => x.conceptId === m.conceptId);
+        if (had && m.whatItAdds) had.whatItAdds = `${had.whatItAdds || ""} ${m.whatItAdds}`.trim().slice(0, 600);
+        continue;
+      }
+      seenM.add(m.conceptId); merged.matched.push(m);
+    }
+    for (const c of p.candidates || []){
+      const k = unitKey(c.brain, c.title);
+      if (seenC.has(k) || seenM.has(k)) continue;
+      seenC.add(k); merged.candidates.push(c);
+    }
+    merged.new.push(...(p.new || []));
+    merged.echo.push(...(p.echo || []));
+    merged.conflicts.push(...(p.conflicts || []));
+  }
+  return merged;
+}
+
+/**
+ * The plan stored a batch of concepts at a time, three batches at once.
+ *
+ * Each batch writes different concepts, and the server leaves a concept that
+ * already carries this source as it is, so a batch that failed can simply run
+ * again. pc.stored remembers which batches landed, and Store it resumes there.
+ */
+async function storeAll(pc, progress){
+  const plan = pc.plan;
+  const units = [
+    ...(plan.matched || []).map(m => ({ matched: m })),
+    ...(plan.candidates || []).map(c => ({ candidate: c })),
+  ];
+  const batches = [];
+  for (let i = 0; i < units.length; i += STORE_BATCH) batches.push(units.slice(i, i + STORE_BATCH));
+  if (!batches.length) batches.push([]);
+  pc.stored = pc.stored || new Set();
+
+  const results = [];
+  let next = 0, done = pc.stored.size, failed = null;
+  const worker = async () => {
+    while (next < batches.length && !failed){
+      const i = next++;
+      if (pc.stored.has(i)) continue;
+      const part = batches[i];
+      try {
+        const r = await api("/api/drop/settle", {
+          sid: pc.sid, link: pc.link, ext: pc.ext, key: S.key,
+          plan: { brains: plan.brains, conflicts: plan.conflicts, new: [], echo: [],
+                  matched: part.filter(u => u.matched).map(u => u.matched),
+                  candidates: part.filter(u => u.candidate).map(u => u.candidate) },
+          fullPlan: plan, choices: pc.choices, promote: pc.promote });
+        results.push(r); pc.stored.add(i);
+        progress(++done, batches.length);
+      } catch (e) { failed = failed || e; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(STORE_PARALLEL, batches.length) }, worker));
+  if (failed){
+    const err = new Error(`${pc.stored.size} of ${batches.length} parts are stored. ${failed.message} ` +
+      `Press Store it again to finish: the stored parts are not repeated.`);
+    err.partial = true; throw err;
+  }
+  const last = results[results.length - 1] || {};
+  return {
+    sid: last.sid || pc.sid, brains: plan.brains, counts: last.counts,
+    positions: (plan.matched || []).length + (plan.candidates || []).length,
+    counted: results.flatMap(r => r.counted || []),
+  };
+}
+
 async function planAndCard(body, sid, link, ext, len, held, thorough){
   if (thorough){ body.innerHTML = ""; const t = el("div","thinking"), m = el("span","spinner");
     t.append(m, el("span",null,"Filing every topic")); body.append(t); }
   else setThinking(body, "Comparing against what you hold");
   let plan;
   try {
-    plan = (await api("/api/drop/plan", { ext, brain: S.scope, key: S.key,
-      ...(held && held.length ? { exclude: held } : {}),
-      ...(thorough ? { thorough: true } : {}) })).plan;
+    plan = await planAll(ext, held, thorough, (i, n) => setThinking(body,
+      `Comparing against what you hold, part ${i} of ${n}`));
   } catch(e){ fail(body, e.message); return; }
 
   /* A plan that files nothing anywhere is a failed read, not an empty source.
@@ -2478,15 +2592,19 @@ function buildCard(pc, decide){
     }
     const b2 = thinking("Rewriting the positions it touched");
     try {
-      const r = await api("/api/drop/settle", {
-        sid: pc.sid, link: pc.link, ext: pc.ext, plan: pc.plan,
-        choices: pc.choices, promote: pc.promote, key: S.key });
+      const r = await storeAll(pc, (i, n) => { if (n > 1) setThinking(b2, `Rewriting the positions it touched, part ${i} of ${n}`); });
       card.remove(); await refresh();
       b2.innerHTML = "";
       b2.append(receipt(r, pc));
       bottom();
-    } catch(e){ ok.disabled = skip.disabled = false; ok.textContent = "Store it"; fail(b2, e.message); }
-    S.pendingCard = null;
+      S.pendingCard = null;
+    } catch(e){
+      ok.disabled = skip.disabled = false; ok.textContent = "Store it";
+      /* Part of a long source may already be in: the card stays, and pressing
+         Store it again finishes the rest. */
+      if (e.partial){ b2.innerHTML = rich("**Part of it is stored.** " + esc(e.message)); await refresh(); }
+      else fail(b2, e.message);
+    }
   };
   foot.append(skip, ok); card.append(foot);
   return card;

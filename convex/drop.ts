@@ -382,14 +382,51 @@ THOROUGH PASS
 The owner asked for every topic to be filed. Give each "###" topic below its own entry: "matched" when a listed concept covers it, a "candidates" entry of its own when none does. Split a topic that holds several distinct ideas. Leave out only what fits no brain's scope.
 ` : "";
 
+  /* A long source is planned in batches of topics, one request each. A batch
+     sees the titles the earlier ones proposed, so an idea spread across the
+     document lands under one name instead of three near-duplicates. */
+  const proposed: string[] = Array.isArray(b.proposed) ? b.proposed.map(String).slice(0, 400) : [];
+  const SO_FAR = proposed.length ? `
+ALREADY PROPOSED FROM THIS SOURCE, in earlier batches
+${proposed.join("\n")}
+When an idea below belongs under one of these, propose it as a candidate with that exact title and brain, rather than a new name.
+` : "";
+
   const { text, finish } = await ask([
     { role: "system", content: PLAN_SYSTEM },
     { role: "user", content:
 `${PLAN_RULES}
-${THOROUGH}${planContext(pool, concepts, sources, ext)}` },
+${THOROUGH}${SO_FAR}${planContext(pool, concepts, sources, ext)}` },
   ], { json: true, maxTokens: 16000, key, model });
 
   return { plan: parseJson(text, finish) };
+}
+
+/**
+ * The part of the source a batch of concepts needs, within 20,000 characters.
+ *
+ * The rewrite used the first 20,000 characters of the extraction, so concepts
+ * from late in a long document were rewritten without their own numbers. The
+ * topics sharing the most words with this batch's titles and additions go in
+ * first, then the rest in order while room remains. Kept in document order.
+ */
+export function excerptFor(topics: any[], touched: any[], limit = 20000): string {
+  const words = (s: string) => new Set(String(s).toLowerCase().match(/[a-z0-9]{4,}/g) ?? []);
+  const want = new Set<string>();
+  for (const { c, adds } of touched) for (const w of words(`${c.title} ${adds ?? ""}`)) want.add(w);
+  const rows = topics.map((t: any, i: number) => {
+    const text = `${t.topic}: ${(t.ideas ?? []).join("; ")} ${(t.data ?? []).join("; ")}`;
+    let hit = 0;
+    for (const w of words(text)) if (want.has(w)) hit++;
+    return { text, hit, i };
+  });
+  const picked: typeof rows = [];
+  let used = 0;
+  for (const r of [...rows].sort((a, b) => b.hit - a.hit || a.i - b.i)) {
+    if (used + r.text.length + 1 > limit) continue;
+    picked.push(r); used += r.text.length + 1;
+  }
+  return picked.sort((a, b) => a.i - b.i).map(r => r.text).join("\n");
 }
 
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
@@ -398,6 +435,10 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
   /* Re-checked here, because this is where the writing happens. */
   const brains = seen.filter((x: any) => canDrop(x, who));
   const ext = b.ext ?? {}, plan = b.plan ?? {}, sid = String(b.sid ?? "");
+  /* A long source is stored in batches: the app hands in a slice of the plan
+     each time, and the whole plan beside it for the note and the receipt. The
+     connector hands in one plan, which is both. */
+  const full = b.fullPlan ?? plan;
   const choices: Record<string, string> = b.choices ?? {};
   const targets: string[] = (plan.brains ?? []).filter((x: string) => brains.some((y: any) => y.slug === x));
   if (!targets.length) return { error: "no brain matched" };
@@ -435,7 +476,7 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
      no position: the knowledge would vanish, and the receipt would read fine.
      Refuse and say so. A counted candidate is not that case. It landed in the
      candidate list, and it says so on the receipt. */
-  if (!touched.length && !counted.length && (plan.new ?? []).length > 0) {
+  if (!touched.length && !counted.length && (plan.new ?? []).length > 0 && !b.fullPlan) {
     return { error:
       `the plan found ${(plan.new ?? []).length} new items and filed none of them into a concept, ` +
       `so nothing would be rewritten. Drop the source again.` };
@@ -474,7 +515,7 @@ ${packet}
 
 NEW SOURCE
 author: ${ext.author || "unknown"} | date: ${ext.date || today()}
-${(ext.topics ?? []).map((t: any) => `${t.topic}: ${(t.ideas ?? []).join("; ")} ${(t.data ?? []).join("; ")}`).join("\n").slice(0, 20000)}`;
+${excerptFor(ext.topics ?? [], touched)}`;
 
     /* Three ways to get the rewrites.
        - handed in: the caller's own model already did this work, so no model
@@ -502,7 +543,12 @@ ${(ext.topics ?? []).map((t: any) => `${t.topic}: ${(t.ideas ?? []).join("; ")} 
   for (const { c, adds } of touched) {
     const id = `${c.brain}/${c.slug}`;
     const rw = rewrites.find((r: any) => r.conceptId === id || r.conceptId === c.slug) ?? {};
-    const ev = [{ date: ext.date || today(), author: ext.author || "unknown", claim: String(adds ?? "").slice(0, 240), source: sid }, ...(c.evidence ?? [])];
+    /* A concept already carrying this source keeps its evidence as it is. That
+       makes a resumed store, and a source read again, add nothing twice. */
+    const fresh = !(c.sources ?? []).includes(sid);
+    const ev = fresh
+      ? [{ date: ext.date || today(), author: ext.author || "unknown", claim: String(adds ?? "").slice(0, 240), source: sid }, ...(c.evidence ?? [])]
+      : (c.evidence ?? []);
     await ctx.runMutation(internal.store.upsertConcept, {
       brain: c.brain, title: c.title,
       doc: {
@@ -522,16 +568,19 @@ ${(ext.topics ?? []).map((t: any) => `${t.topic}: ${(t.ideas ?? []).join("; ")} 
     location: String(b.location ?? "pasted, not kept"), brains: targets,
     ...(who.account ? { by: who.account } : {}),
   }});
+  /* The whole extraction is kept, so filing into another brain later reuses
+     every topic. It held 40 before, and a 229 topic document lost the rest. The
+     ceilings keep one note well under a database row's 1MB. */
   await ctx.runMutation(internal.store.writeNote, { doc: {
     sid, title: ext.title ?? "", author: ext.author ?? "", date: ext.date || today(),
-    topics: (ext.topics ?? []).slice(0, 40), quotes: (ext.quotes ?? []).slice(0, 40),
-    thin: (ext.thin ?? []).slice(0, 30),
-    connections: [...(plan.matched ?? []), ...(plan.candidates ?? [])],
-    findings: { new: plan.new ?? [], echo: plan.echo ?? [], conflicts: plan.conflicts ?? [], choices },
+    topics: (ext.topics ?? []).slice(0, 500), quotes: (ext.quotes ?? []).slice(0, 200),
+    thin: (ext.thin ?? []).slice(0, 150),
+    connections: [...(full.matched ?? []), ...(full.candidates ?? [])],
+    findings: { new: full.new ?? [], echo: full.echo ?? [], conflicts: full.conflicts ?? [], choices },
   }});
 
   return { sid, brains: targets, positions: touched.length, counted,
-    counts: { new: (plan.new ?? []).length, echo: (plan.echo ?? []).length } };
+    counts: { new: (full.new ?? []).length, echo: (full.echo ?? []).length } };
 }
 
 /** R5.9. Keep 12, fold older agreeing entries into one dated line. */

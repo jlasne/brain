@@ -296,6 +296,68 @@ async function boot(path, init, arg) {
   await page.close();
 }
 
+/* ---- a long source, planned and stored in batches ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    const topics = Array.from({ length: 60 }, (_, i) => ({ topic: `Rule ${i + 1}`, ideas: [`Rule ${i + 1} works like this.`], data: [] }));
+    window.__plans = []; window.__settles = []; window.__live = 0; window.__peak = 0; window.__failOnce = true;
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/drop/check")) return Response.json({ duplicate: false, sid: "s-long" });
+      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Long manual", topics } });
+      if (s.includes("/api/drop/plan")) {
+        window.__plans.push(body);
+        return Response.json({ plan: { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
+          candidates: body.ext.topics.map(t => ({ title: t.topic, brain: "content", why: "taught" })) } });
+      }
+      if (s.includes("/api/drop/settle")) {
+        window.__live++; window.__peak = Math.max(window.__peak, window.__live);
+        await new Promise(ok => setTimeout(ok, 40));
+        window.__live--;
+        /* The fourth batch fails once, the way a timeout would. */
+        if (window.__failOnce && body.plan.candidates[0]?.title === "Rule 25") {
+          window.__failOnce = false;
+          return Response.json({ error: "was still writing after 150 seconds" });
+        }
+        window.__settles.push(body.plan.candidates.map(c => c.title));
+        return Response.json({ sid: "s-long", brains: ["content"], positions: body.plan.candidates.length, counted: [],
+          counts: { new: 1, echo: 0 } });
+      }
+      return Response.json({});
+    };
+  }, STATE);
+  await page.click('#mode button[data-m="drop"]');
+  await page.fill("#srcInput", "Long manual.pdf");
+  await page.fill("#input", "Sixty rules, each explained.");
+  await page.click("#send"); await page.waitForTimeout(700);
+  const planned = await page.evaluate(() => ({
+    n: window.__plans.length, sizes: window.__plans.map(p => p.ext.topics.length),
+    proposed: window.__plans.map(p => (p.proposed || []).length),
+    note: document.querySelector(".coverage")?.textContent || "" }));
+  check("60 topics are planned in 3 batches", planned.n === 3 && planned.sizes.join(",") === "25,25,10", planned.sizes.join(","));
+  check("each batch sees the titles proposed before it", planned.proposed.join(",") === "0,25,50", planned.proposed.join(","));
+  check("and every topic is filed", planned.note === "", planned.note);
+
+  await page.click(".card-foot .go"); await page.waitForTimeout(900);
+  const first = await page.evaluate(() => ({ stored: window.__settles.flat().length, peak: window.__peak,
+    msg: [...document.querySelectorAll(".msg.ai")].pop()?.textContent || "" }));
+  check("a failed batch says how much is already stored", /Part of it is stored/.test(first.msg) && /of 8 parts are stored/.test(first.msg), first.msg.slice(0, 120));
+  check("never more than 3 calls at once", first.peak <= 3 && first.peak >= 2, String(first.peak));
+
+  await page.click(".card-foot .go"); await page.waitForTimeout(900);
+  const done = await page.evaluate(() => {
+    const all = window.__settles.flat();
+    return { total: all.length, unique: new Set(all).size, receipt: document.querySelector(".receipt")?.textContent || "" };
+  });
+  check("Store it again finishes the rest", done.total === 60, String(done.total));
+  check("and repeats no batch already stored", done.unique === 60, `${done.unique} unique of ${done.total}`);
+  check("the receipt counts every position", /Rewritten: 60 positions/.test(done.receipt), done.receipt.slice(0, 120));
+  check("nothing threw across the batches", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- a stored source read again into the same brain ---- */
 {
   const { page, bad } = await boot("/chat.html", state => {
