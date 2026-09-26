@@ -20,7 +20,7 @@
     --bg:#faf9f5; --surface:#ffffff; --surface-2:#f0eee6; --surface-3:#e9e6dc;
     --ink:#141413; --ink-2:#3d3d3a; --ink-3:#6e6e68; --ink-4:#93918a;
     --line:#e5e2d9; --line-2:#d4d0c4;
-    --accent:#bf5a3c; --accent-fill:#d97757; --accent-on:#ffffff;
+    --accent:#bf5a3c; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#ffffff;
     --accent-soft:rgba(217,119,87,.10); --accent-line:rgba(217,119,87,.34);
     --good:#3f7d5c;
     --shadow:0 1px 2px rgba(20,20,19,.05), 0 1px 8px rgba(20,20,19,.04);
@@ -37,7 +37,7 @@
       --bg:#262624; --surface:#30302e; --surface-2:#3a3a37; --surface-3:#44443f;
       --ink:#f5f4ef; --ink-2:#d8d6ce; --ink-3:#a8a69d; --ink-4:#8a887f;
       --line:#45443f; --line-2:#57564f;
-      --accent:#e79173; --accent-fill:#d97757; --accent-on:#1a1a18;
+      --accent:#e79173; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#1a1a18;
       --accent-soft:rgba(217,119,87,.13); --accent-line:rgba(217,119,87,.40);
       --good:#6fb891;
       --shadow:0 1px 2px rgba(0,0,0,.22), 0 1px 8px rgba(0,0,0,.18);
@@ -50,7 +50,7 @@
     --bg:#262624; --surface:#30302e; --surface-2:#3a3a37; --surface-3:#44443f;
     --ink:#f5f4ef; --ink-2:#d8d6ce; --ink-3:#a8a69d; --ink-4:#8a887f;
     --line:#45443f; --line-2:#57564f;
-    --accent:#e79173; --accent-fill:#d97757; --accent-on:#1a1a18;
+    --accent:#e79173; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#1a1a18;
     --accent-soft:rgba(217,119,87,.13); --accent-line:rgba(217,119,87,.40);
     --good:#6fb891;
     --shadow:0 1px 2px rgba(0,0,0,.22), 0 1px 8px rgba(0,0,0,.18);
@@ -61,26 +61,30 @@
   /* ======================================================================
      THE SQUIDGY TINT
 
-     One block. It redefines only the accent, so every button, rule, badge and
-     focus ring in the app follows and nothing else moves. Octopus keeps the
-     terracotta above.
+     Brown #A8704E and pink #F5C9D1. It redefines the accent and nothing else,
+     so every button, rule, badge and focus ring follows and the layout stays.
 
-     PLACEHOLDER until the real colour arrives. Same indigo as the door, so the
-     two agree.
+       --accent-fill   the brand brown: borders, focus rings, dots, bars
+       --accent-solid  a fill that carries a label. White on the brand brown
+                       reads at 4.12:1, under 4.5, so this runs 7% darker
+       --accent        accent text, which needs 4.5:1 on the page
+       --accent-soft   the pink: a selected option, a text selection
+
+     Octopus sets --accent-solid to its own fill, so it does not move.
      ====================================================================== */
   :root[data-space="squidgy"]{
-    --accent:#4338ca; --accent-fill:#4f46e5; --accent-on:#ffffff;
-    --accent-soft:rgba(79,70,229,.10); --accent-line:rgba(79,70,229,.34);
+    --accent:#8b5d41; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
+    --accent-soft:rgba(245,201,209,.55); --accent-line:rgba(168,112,78,.36);
   }
   @media (prefers-color-scheme:dark){
     :root[data-space="squidgy"]:not([data-theme="light"]){
-      --accent:#8b86f0; --accent-fill:#6d66ea; --accent-on:#16161c;
-      --accent-soft:rgba(109,102,234,.15); --accent-line:rgba(109,102,234,.42);
+      --accent:#D09A77; --accent-fill:#C48A66; --accent-solid:#C48A66; --accent-on:#1a1a18;
+      --accent-soft:rgba(245,201,209,.12); --accent-line:rgba(196,138,102,.42);
     }
   }
   :root[data-space="squidgy"][data-theme="dark"]{
-    --accent:#8b86f0; --accent-fill:#6d66ea; --accent-on:#16161c;
-    --accent-soft:rgba(109,102,234,.15); --accent-line:rgba(109,102,234,.42);
+    --accent:#D09A77; --accent-fill:#C48A66; --accent-solid:#C48A66; --accent-on:#1a1a18;
+    --accent-soft:rgba(245,201,209,.12); --accent-line:rgba(196,138,102,.42);
   }
 
   html{ background:var(--bg); }
@@ -163,22 +167,22 @@
   }
   .group-h:first-child{ margin-top:0; }
 
-  /* The source line. It shares the composer box with the content, divided by one
+  /* The drop's source line. It shares the composer box with the content, divided by one
      rule, so the two read as halves of one drop rather than two forms. */
-  .srcline{
+  .dropsrc{
     display:flex; align-items:center; gap:10px;
     padding:9px 14px 9px 15px; border-bottom:1px solid var(--line);
   }
-  .srcline label{
+  .dropsrc label{
     font:500 11px/1 var(--mono); letter-spacing:.07em; text-transform:uppercase;
     color:var(--ink-4); flex-shrink:0;
   }
-  .srcline input{
+  .dropsrc input{
     flex:1; min-width:0; border:none; background:none; padding:0;
     font:400 14px/1.5 var(--sans); color:var(--ink);
   }
-  .srcline input:focus{ outline:none; }
-  .srcline input::placeholder{ color:var(--ink-4); }
+  .dropsrc input:focus{ outline:none; }
+  .dropsrc input::placeholder{ color:var(--ink-4); }
 
   /* One line per brain: the name, and what it holds. The scope line and the
      controls live above the composer, next to the choice they belong to, so a
@@ -409,7 +413,7 @@
   .chip.cand{ color:var(--accent); border-color:var(--accent-line); cursor:pointer;
     transition:background .15s var(--ease), border-color .15s var(--ease); }
   .chip.cand:hover{ background:var(--accent-soft); }
-  .chip.cand.on{ background:var(--accent-fill); border-color:var(--accent-fill); color:var(--accent-on); }
+  .chip.cand.on{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
   .chip-note{ font:400 12.5px/1.6 var(--sans); color:var(--ink-3); margin-top:7px; }
 
   .conflicts{ border-top:1px solid var(--line); }
@@ -440,7 +444,7 @@
   .card-foot .hint{ font:400 13px/1.5 var(--sans); color:var(--ink-3); flex:1; min-width:170px; }
   .go{
     font:500 14px/1 var(--sans); padding:10px 19px; border-radius:9px;
-    background:var(--accent-fill); color:var(--accent-on);
+    background:var(--accent-solid); color:var(--accent-on);
     box-shadow:var(--shadow);
     transition:filter .15s var(--ease);
   }
@@ -474,7 +478,7 @@
   }
   .pager ul{ margin:12px 0 0; padding-left:19px; }
   .pager li{ margin-bottom:8px; font:400 14.5px/1.55 var(--sans); color:var(--ink-2); }
-  .pager li::marker{ color:var(--accent); }
+  .pager li::marker{ color:var(--accent-fill); }
   .pager .foot{
     margin-top:18px; padding-top:13px; border-top:1px solid var(--line);
     font:400 11.5px/1.6 var(--mono); color:var(--ink-4);
@@ -511,7 +515,7 @@
     transition:all .15s var(--ease);
   }
   .seg button:hover{ color:var(--ink); }
-  .seg button.on{ background:var(--accent-fill); color:var(--accent-on); }
+  .seg button.on{ background:var(--accent-solid); color:var(--accent-on); }
 
   [hidden]{ display:none !important; }
 
@@ -551,7 +555,7 @@
   /* The box shows the focus for both fields. Without this the global focus ring
      draws a second rounded rectangle inside the first, cutting the source line
      off from the content it belongs to. */
-  .box textarea:focus-visible, .srcline input:focus-visible{ outline:none; }
+  .box textarea:focus-visible, .dropsrc input:focus-visible{ outline:none; }
   .box .tbar{ display:flex; align-items:center; gap:9px; padding:6px 12px 11px 18px; }
   .box .tbar .t{ flex:1; font:400 11.5px/1.5 var(--mono); color:var(--ink-3); }
   .paste{
@@ -563,7 +567,7 @@
   .paste.has{ border-color:var(--good); color:var(--good); }
   .send{
     width:34px; height:34px; border-radius:50%; flex-shrink:0;
-    background:var(--accent-fill); color:var(--accent-on);
+    background:var(--accent-solid); color:var(--accent-on);
     display:grid; place-items:center; box-shadow:var(--shadow);
     transition:filter .15s var(--ease), opacity .15s var(--ease);
   }
@@ -754,7 +758,7 @@
           <!-- A drop is two things: where it comes from, and what it says. They
                were one box, and a link pasted alone read as a source with no
                content. Named separately, each one says what it wants. -->
-          <div class="srcline" id="srcLine" hidden>
+          <div class="dropsrc" id="srcLine" hidden>
             <label for="srcInput">Source</label>
             <input id="srcInput" type="text" autocomplete="off" spellcheck="false"
                    placeholder="The link, or where it comes from">
@@ -953,11 +957,17 @@ function paintSpace(){
   document.title = S.spaceName;
   $("spaceName").textContent = S.spaceName;
   $("spaceNameBar").textContent = S.spaceName;
+  /* The header box is square, and a whole dachshund at 24 pixels is a smudge,
+     so a space other than Octopus shows its head icon there and in the tab. */
   const mark = $("spaceMark");
-  const want = S.space === "octopus" ? "/brand/logo-mark.png" : `/brand/${S.space}-mark.png`;
+  const want = S.space === "octopus" ? "/brand/logo-mark.png" : `/brand/${S.space}-icon.png`;
   if (mark.getAttribute("src") === want) return;
   const probe = new Image();
-  probe.onload = () => { mark.src = want; };
+  probe.onload = () => {
+    mark.src = want;
+    const tab = document.querySelector('link[rel="icon"]');
+    if (tab) tab.href = want;
+  };
   probe.src = want;
 }
 

@@ -36,6 +36,15 @@ npx convex run admin:setPass '{"space":"squidgy","pass":"at least 8 characters"}
 npx convex run admin:moveBrain '{"slug":"content","space":"squidgy","dry":true}' --prod
 ```
 
+PowerShell strips the double quotes inside an argument, which leaves
+`{space:squidgy,...}` and a JSON5 error at 1:8. The CLI parses JSON5, so single
+quoted values survive:
+
+```powershell
+npx convex run admin:setPass "{space:'squidgy',pass:'at least 8 characters'}" --prod
+npx convex run admin:moveBrain "{slug:'content',space:'squidgy',dry:true}" --prod
+```
+
 ## Setup, in order
 
 ```

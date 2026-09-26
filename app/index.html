@@ -14,29 +14,31 @@
   /* ======================================================================
      THE TWO COLOURS
 
-     One block, four values each. Swap them and both doors, both buttons and
-     both focus rings follow, because nothing below names a colour directly.
+     One block, five values per door. Swap them and both doors, both buttons
+     and both focus rings follow, because nothing below names a colour directly.
 
-       --tint       the solid: the button, the mark, the rule under the name
-       --tint-deep  the same colour pressed, for hover
-       --tint-on    what sits on top of the solid, so the button reads
+       --tint       the brand colour: the rule under the name, the focus ring
+       --tint-btn   the button, which carries a label, so it has to reach 4.5:1
+                    against --tint-on
+       --tint-deep  the button on hover
+       --tint-on    the button label
        --tint-wash  the panel behind the door
 
-     Octopus runs the terracotta the app already uses. SQUIDGY IS A PLACEHOLDER
-     until the real one arrives: indigo, chosen only because it reads as a
-     different place at a glance.
+     Squidgy is brown #A8704E and pink #F5C9D1. White on the brown reads at
+     4.12:1, under the 4.5:1 a 15px label needs, so its button runs 7% darker at
+     #9c6849 (4.68:1) and the brand brown carries everything that holds no text.
      ====================================================================== */
   .door.octopus{
-    --tint:#d97757; --tint-deep:#bf5a3c; --tint-on:#ffffff;
+    --tint:#d97757; --tint-btn:#d97757; --tint-deep:#bf5a3c; --tint-on:#ffffff;
     --tint-wash:rgba(217,119,87,.07);
   }
   .door.squidgy{
-    --tint:#4f46e5; --tint-deep:#4338ca; --tint-on:#ffffff;
-    --tint-wash:rgba(79,70,229,.07);
+    --tint:#A8704E; --tint-btn:#9c6849; --tint-deep:#8b5d41; --tint-on:#ffffff;
+    --tint-wash:rgba(245,201,209,.42);
   }
   @media (prefers-color-scheme:dark){
-    .door.octopus{ --tint:#e79173; --tint-deep:#d97757; --tint-on:#1a1a18; --tint-wash:rgba(217,119,87,.10); }
-    .door.squidgy{ --tint:#8b86f0; --tint-deep:#6d66ea; --tint-on:#16161c; --tint-wash:rgba(109,102,234,.13); }
+    .door.octopus{ --tint:#e79173; --tint-btn:#e79173; --tint-deep:#d97757; --tint-on:#1a1a18; --tint-wash:rgba(217,119,87,.10); }
+    .door.squidgy{ --tint:#C48A66; --tint-btn:#C48A66; --tint-deep:#D09A77; --tint-on:#1a1a18; --tint-wash:rgba(245,201,209,.08); }
   }
 
   /* ---------------------------------------------------------------- frame */
@@ -65,6 +67,13 @@
   }
   .mk img{ width:100%; height:100%; object-fit:cover; display:block; }
   .mk b{ font:600 26px/1 var(--sans); letter-spacing:-.02em; }
+  /* The Squidgy mark has no background of its own, and a dachshund is long, so a
+     square tile would shrink it to a third of the door. It sits on the panel at
+     its own length instead, at the Octopus tile's height so the doors line up. */
+  .door.squidgy .mk{ display:block; background:none; width:auto; height:auto; border-radius:0; }
+  /* A fixed height, because a percentage inside the tile never resolves and the
+     image falls back to its own 180 pixels, over the name below it. */
+  .door.squidgy .mk img{ width:auto; height:56px; object-fit:contain; }
 
   .door h1{
     font-size:clamp(27px,3.3vw,36px); line-height:1.04; letter-spacing:-.032em;
@@ -92,7 +101,7 @@
   .door input:focus{ border-color:var(--tint); outline:none; }
   .door .go{
     margin-top:12px; width:100%; border-radius:10px; padding:12px 16px;
-    background:var(--tint); color:var(--tint-on);
+    background:var(--tint-btn); color:var(--tint-on);
     font:500 15px/1 var(--sans); text-align:center;
     transition:background .15s var(--ease);
   }
@@ -134,9 +143,9 @@
 
   <form class="door squidgy" id="dSquidgy">
     <span class="mk" aria-hidden="true">
-      <!-- Drop /brand/squidgy-mark.png in and it appears here. Until then the
-           letter stands in, because a missing image leaves a gap. -->
-      <img id="imgSquidgy" src="/brand/squidgy-mark.png" alt="" width="56" height="56">
+      <!-- The whole dog, cut from brand/squidgy-logo.png. The letter below
+           only shows if the file fails to load. -->
+      <img id="imgSquidgy" src="/brand/squidgy-mark.png" alt="" width="89" height="56">
       <b id="letterSquidgy" hidden>S</b>
     </span>
     <h1>Squidgy</h1>
@@ -245,11 +254,17 @@
     return SPACES.includes(p) ? p : null;
   }
 
-  /* One door on a deep link, both on the landing. */
+  /* One door on a deep link, both on the landing. The tab takes that door's
+     name and icon, so /squidgy reads as Squidgy from the tab bar too. */
   function focusOne(space){
     if (!space) return;
     $("doors").classList.add("one");
     for (const s of SPACES) if (s !== space) $("d" + nameOf(s)).hidden = true;
+    document.title = nameOf(space);
+    if (space === "squidgy") {
+      const icon = document.querySelector('link[rel="icon"]');
+      if (icon) icon.href = "/brand/squidgy-icon.png";
+    }
   }
 
   /**

@@ -12,9 +12,10 @@
  *     npx convex run admin:claim '{\"account\":\"octopus\"}' --prod
  *
  * setPass sets or replaces a space's passphrase from a terminal, so a door is
- * closed before anyone can reach it:
+ * closed before anyone can reach it. The CLI parses JSON5, so in PowerShell the
+ * values go in single quotes and nothing needs escaping:
  *
- *     npx convex run admin:setPass '{\"space\":\"squidgy\",\"pass\":\"...\"}' --prod
+ *     npx convex run admin:setPass "{space:'squidgy',pass:'...'}" --prod
  */
 
 import { internalMutation, internalQuery } from "./_generated/server";
@@ -175,7 +176,7 @@ export const promoteAll = internalMutation({
  * where whoever arrives first chooses. Running this closes the door before it is
  * public. It also resets the attempt counter, so a locked-out door reopens.
  *
- *     npx convex run admin:setPass '{"space":"squidgy","pass":"at least 8"}' --prod
+ *     npx convex run admin:setPass "{space:'squidgy',pass:'at least 8'}" --prod
  */
 export const setPass = internalMutation({
   args: { space: v.string(), pass: v.string() },
@@ -202,7 +203,7 @@ export const setPass = internalMutation({
  * space of their own, so moving the brain moves them. Slugs stay unique across
  * both spaces, which is what makes that safe.
  *
- *     npx convex run admin:moveBrain '{"slug":"content","space":"squidgy"}' --prod
+ *     npx convex run admin:moveBrain "{slug:'content',space:'squidgy'}" --prod
  */
 export const moveBrain = internalMutation({
   args: { slug: v.string(), space: v.string(), dry: v.optional(v.boolean()) },

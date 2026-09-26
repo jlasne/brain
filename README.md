@@ -29,8 +29,18 @@ and the public brain list serve Octopus only.
 Set a passphrase from a terminal, which closes a door before it is public:
 
 ```bash
+# macOS, Linux
 npx convex run admin:setPass '{"space":"squidgy","pass":"at least 8 characters"}' --prod
 ```
+
+```powershell
+# Windows PowerShell strips the double quotes inside an argument, so the values
+# go in single quotes, which the CLI's JSON5 parser accepts
+npx convex run admin:setPass "{space:'squidgy',pass:'at least 8 characters'}" --prod
+```
+
+In PowerShell, keep `$` and `'` out of the passphrase, or the shell rewrites it
+before the CLI sees it.
 
 Same protocol, same three actions, same export format.
 
