@@ -43,7 +43,7 @@
      THE SQUIDGY SPACE
 
      Brown #A8704E and pink #F5C9D1, on every surface rather than the accent
-     alone. The sidebar is the pink itself, the page a 60% wash of it, cards stay
+     alone. The sidebar is an 80% wash of the pink, the page a 40% one, cards stay
      white so what you read keeps its contrast, and the text runs in browns
      instead of greys.
 
@@ -56,9 +56,9 @@
      ====================================================================== */
   :root[data-space="squidgy"]{
     --mark:url("/brand/squidgy-mark.png");
-    --bg:#f9dfe4; --surface:#ffffff; --surface-2:#F5C9D1; --surface-3:#ecb6c1;
+    --bg:#fbe9ed; --surface:#ffffff; --surface-2:#f7d4da; --surface-3:#efc0c9;
     --ink:#2a1810; --ink-2:#4b3024; --ink-3:#6b4234; --ink-4:#7c5243;
-    --line:#efc4cd; --line-2:#dca2ae;
+    --line:#f1cfd6; --line-2:#dfa9b4;
     --accent:#7a4e36; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
     --accent-soft:rgba(168,112,78,.12); --accent-line:rgba(168,112,78,.40);
     --shadow:0 1px 2px rgba(122,78,54,.08), 0 1px 8px rgba(122,78,54,.06);
@@ -1218,7 +1218,7 @@ function renderComposer(){
   const drop = S.mode==="drop";
   $("srcLine").hidden = !drop;
   $("input").placeholder = drop
-    ? "What it says. A link on its own is read for you."
+    ? "Paste the text here, or add a document. Leave it empty when the source is a link."
     : S.scope==="all" ? "Ask anything your brains have read."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this brain") + ".";
   $("levelWrap").hidden = drop;
