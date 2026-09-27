@@ -21,7 +21,7 @@ for (const f of ["onepager.ts", "lib.ts", "words.ts", "route.ts"]) copyFileSync(
 writeFileSync(join(dir, "_generated/api.ts"), "export const internal = {};\n");
 await esbuild.build({ entryPoints: [join(dir, "onepager.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { assemble, fromQuestion, asText, asHtml, looksLikeMail, bulletText, addedLine } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { assemble, fromQuestion, fromModel, asText, asHtml, looksLikeMail, bulletText, addedLine } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -157,6 +157,40 @@ const sources = [
   check("the sources line stays off the page", bs.length === 2 && !asText(p).includes("Sources:"), asText(p));
   check("the rules ask for no sources in the bullets", /No sources, no authors, no dates/.test(said.at(-1)));
   check("its foot counts positions and sources read", /^\d+ of 3 positions · 3 sources read · \d{4}-\d\d-\d\d$/.test(p.foot), p.foot);
+}
+
+/* ---- a quiz, and a page written to an instruction ---- */
+{
+  const real = globalThis.fetch;
+  let prompt = "";
+  const reply = content => async (_u, opt) => {
+    prompt = JSON.parse(opt.body).messages[1].content;
+    return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
+  };
+  globalThis.fetch = reply([
+    "- Retention lift: Why did retention rise 31 percent when three sources agreed?",
+    "- Named face: What does a named face add that a logo cannot?",
+    "",
+    "ANSWERS",
+    "- Retention lift: Three sources point to the first two seconds deciding the watch.",
+    "- Named face: Distribution that compounds with every post.",
+  ].join("\n"));
+  const quiz = await fromModel("octopus", [brains[0]], concepts, sources, { kind: "quiz", pick: "content" }, "k");
+  check("a quiz asks for reasoning, answers apart", /Ask for reasoning, not recall/.test(prompt) && /ANSWERS/.test(prompt));
+  check("with no question it reads the fullest positions", /Three sources agree/.test(prompt));
+  check("its questions come first, one concept each", quiz.sections[0].bullets.length === 2 && quiz.sections[0].bullets[0].k === "Retention lift"
+    && /31 percent.*\?$/.test(quiz.sections[0].bullets[0].say), JSON.stringify(quiz.sections[0].bullets[0]));
+  check("the answers follow under their own heading", quiz.sections[1]?.head === "Answers" && quiz.sections[1].bullets.length === 2,
+    JSON.stringify(quiz.sections[1]));
+  check("the quiz is titled as one", quiz.title === "Quiz: Content" && /2 questions/.test(quiz.line), `${quiz.title} | ${quiz.line}`);
+
+  globalThis.fetch = reply("- Client risk: Name the 3 risks a client asks about first.\n- Next step: Book the review within 30 days.");
+  const custom = await fromModel("octopus", brains, concepts, sources,
+    { kind: "custom", note: "A checklist for a client meeting", pick: "all" }, "k");
+  check("the owner's instruction reaches the model", /OWNER'S INSTRUCTION\nA checklist for a client meeting/.test(prompt));
+  check("and heads the page", custom.line === "Written to: A checklist for a client meeting" && custom.title === "Octopus", `${custom.title} | ${custom.line}`);
+  check("its bullets keep the page's shape", custom.sections[0].bullets[1].k === "Next step");
+  globalThis.fetch = real;
 }
 
 /* ---- the address ---- */

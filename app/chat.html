@@ -541,6 +541,13 @@
   .pager li::marker{ color:var(--accent-fill); }
   .pager li .k, .msg.ai .body .pager li .k{ display:block; font-weight:600; color:var(--ink); }
   .pager li .say{ display:block; }
+  .pager details.answers{ margin-top:14px; border-top:1px dashed var(--line-2); padding-top:10px; }
+  .pager details.answers summary{
+    cursor:pointer; list-style:none; font:500 12.5px/1.4 var(--sans); color:var(--accent); width:max-content;
+  }
+  .pager details.answers summary::-webkit-details-marker{ display:none; }
+  .pager details.answers summary::before{ content:"+ "; }
+  .pager details.answers[open] summary::before{ content:"\2212  "; }
   .pager .foot{
     margin-top:18px; padding-top:13px; border-top:1px solid var(--line);
     font:400 11.5px/1.6 var(--mono); color:var(--ink-4);
@@ -2047,7 +2054,7 @@ const lastMail = () => { try { return localStorage.getItem(MAIL_KEY) || ""; } ca
 function pickOptions(){
   const opt = (v, t) => `<option value="${esc(v)}">${esc(t)}</option>`;
   const groups = grouped();
-  let out = opt("all", `Everything (${S.brains.length} brains)`);
+  let out = opt("all", `Everything (${S.brains.length} brain${S.brains.length === 1 ? "" : "s"})`);
   for (const g of groups){
     const whole = g.head === "People" ? "person" : "subject";
     out += `<optgroup label="${esc(g.head)}">` + opt(whole, `All ${g.head.toLowerCase()} (${g.rows.length})`) +
@@ -2065,13 +2072,18 @@ function openPagerSheet(){
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>One page, in bullets</h3>
-      <p>A brain, a group, or a question. The first two read what is already stored, so they cost nothing and invent nothing.</p></header>
+      <p>A summary, a quiz to test yourself, or a page written to your own instructions.</p></header>
       <div class="f"><label for="pPick">Built from</label>
         <select id="pPick" class="pick">${pickOptions()}</select>
         <div class="hint">One brain by name, a whole group, or everything.</div></div>
-      <div class="f"><label for="pQ">Or ask a question</label>
-        <textarea id="pQ" placeholder="Leave this empty to lay out the positions as they stand."></textarea>
-        <div class="hint">A question costs one model call. The answer comes back as at most 9 bullets.</div></div>
+      <div class="f"><label>Kind</label><div class="seg" id="pKind">
+        <button data-k="summary">Summary</button><button data-k="quiz">Quiz</button><button data-k="custom">Custom</button></div>
+        <div class="hint" id="pKindHint"></div></div>
+      <div class="f" id="pNoteF" hidden><label for="pNote">Special instructions</label>
+        <textarea id="pNote" placeholder="A checklist for a client meeting. Explained to a 12 year old. Only the risks."></textarea></div>
+      <div class="f"><label for="pQ">Focus on a question</label>
+        <textarea id="pQ"></textarea>
+        <div class="hint" id="pQHint"></div></div>
       <div class="f"><label for="pTo">Send it to</label>
         <input id="pTo" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com">
         <div class="hint">It lands in the thread as well. Leave this empty to read it there first.</div></div>
@@ -2081,6 +2093,29 @@ function openPagerSheet(){
   document.body.append(veil);
 
   let pick = here ? here.slug : "all";
+  /* Summary lays out the positions, free, or answers the question in 9
+     bullets. A quiz and a custom page take one model call each. */
+  let kind = "summary";
+  const KIND = {
+    summary: ["Lays out the positions as they stand, free. With a question, 9 bullets that answer it, one model call.",
+              "Leave it empty to lay out the positions as they stand."],
+    quiz:    ["8 questions that make you think, the answers folded at the end. One model call.",
+              "Optional: keeps the quiz to one subject."],
+    custom:  ["Your instruction decides the angle, the tone and the audience. One model call.",
+              "Optional: keeps the page to one subject."],
+  };
+  const paintKind = () => {
+    for (const x of veil.querySelector("#pKind").children) x.classList.toggle("on", x.dataset.k === kind);
+    veil.querySelector("#pKindHint").textContent = KIND[kind][0];
+    veil.querySelector("#pQHint").textContent = KIND[kind][1];
+    veil.querySelector("#pNoteF").hidden = kind !== "custom";
+  };
+  paintKind();
+  veil.querySelector("#pKind").onclick = e => {
+    const x = e.target.closest("button[data-k]"); if (!x) return;
+    kind = x.dataset.k; paintKind();
+    if (kind === "custom") veil.querySelector("#pNote").focus();
+  };
   const picker = veil.querySelector("#pPick");
   picker.value = pick;
   picker.onchange = () => { pick = picker.value; };
@@ -2104,24 +2139,27 @@ function openPagerSheet(){
 
   goB.onclick = async () => {
     const q = veil.querySelector("#pQ").value.trim();
+    const note = kind === "custom" ? veil.querySelector("#pNote").value.trim() : "";
     const to = toI.value.trim();
+    if (kind === "custom" && !note){ warn("Write the instruction the page should follow."); veil.querySelector("#pNote").focus(); return; }
     /* A typo stays in the dialog, where it can be fixed, rather than failing
        after the page is built. */
     if (to && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to)){ warn(`"${to}" is not an address.`); toI.focus(); return; }
     shut();
 
-    /* A question waits on the model, so the mascot keeps it company. */
-    const body = thinking(to ? `${q ? "Asking" : "Building the page"}, then sending it to ${to}`
-                             : q ? undefined : "Building the page");
+    /* A page the model writes waits on it, so the mascot keeps it company. */
+    const viaModel = !!q || kind !== "summary";
+    const body = thinking(to ? `${viaModel ? "Writing" : "Building"} the page, then sending it to ${to}`
+                             : viaModel ? undefined : "Building the page");
     let r;
-    try { r = await api("/api/onepager", { pick, q, key: S.key, ...(to ? { mail: to } : {}) }); }
+    try { r = await api("/api/onepager", { pick, q, kind, ...(note ? { note } : {}), key: S.key, ...(to ? { mail: to } : {}) }); }
     catch (e) {
       body.innerHTML = rich("**The page did not build.** " + esc(e.message));
       bottom(); return;
     }
     body.closest(".msg").remove();
     if (r.sent) { try { localStorage.setItem(MAIL_KEY, to); } catch {} }
-    showPager(r.page, r.text, { pick, q },
+    showPager(r.page, r.text, { pick, q, kind, ...(note ? { note } : {}) },
       r.sent ? { to, ok: true } : to ? { to, ok: false, why: r.mailError || "the mail service refused it" } : null);
   };
 }
@@ -2151,7 +2189,6 @@ function showPager(page, text, built, mailed){
       slot.append(el("h3",null,p.title));
       if (p.line) slot.append(el("div","sub",p.line));
       for (const sec of p.sections || []){
-        if (sec.head) slot.append(el("h4",null,sec.head));
         const ul = el("ul");
         for (const b of sec.bullets || []){
           const li = el("li");
@@ -2162,6 +2199,15 @@ function showPager(page, text, built, mailed){
           }
           ul.append(li);
         }
+        /* A quiz keeps its answers folded, so the questions are worked
+           through first. Copy, print and mail carry them in full. */
+        if (sec.head === "Answers"){
+          const d = el("details","answers");
+          d.append(el("summary",null,"Show the answers"), ul);
+          slot.append(d);
+          continue;
+        }
+        if (sec.head) slot.append(el("h4",null,sec.head));
         slot.append(ul);
       }
       if (p.foot) slot.append(el("div","foot",p.foot));
@@ -2181,8 +2227,8 @@ function showPager(page, text, built, mailed){
     const to = el("input");
     to.type = "email"; to.placeholder = "Send it to"; to.value = lastMail();
     const send = el("button","fresh","Mail it");
-    send.title = built.q
-      ? "The question gets asked again so the page that is sent is the page you see. One model call."
+    send.title = built.q || (built.kind && built.kind !== "summary")
+      ? "The page is written again so the page that is sent is the page you see. One model call."
       : "Built again from the stored positions, which gives the same page.";
 
     const post = async () => {

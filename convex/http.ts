@@ -17,7 +17,7 @@ import type { Who } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from "./drop";
 import { DOC_STYLE, DOC_BODY } from "./doc";
-import { assemble, fromQuestion, asText, mail, looksLikeMail, pageIds } from "./onepager";
+import { assemble, fromModel, asText, mail, looksLikeMail, pageIds } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace } from "./space";
@@ -627,9 +627,14 @@ route("/api/onepager", async (ctx, _req, b) => {
   if (to && who.kind === "guest") return { error: "mailing a page needs an account" };
 
   const q = String(b.q ?? "").trim();
-  const page = q
-    ? await fromQuestion(who.space, brains, concepts, sources, q,
-                         await modelKey(ctx, who, b), modelName(who, b), load)
+  /* Summary lays out the positions, free, or answers a question. A quiz and
+     a page written to the owner's own instruction take one model call. */
+  const kind = b.kind === "quiz" || b.kind === "custom" ? b.kind : "summary";
+  const note = String(b.note ?? "").trim().slice(0, 600);
+  if (kind === "custom" && !note) return { error: "write the instruction the page should follow" };
+  const page = q || kind !== "summary"
+    ? await fromModel(who.space, brains, concepts, sources, { q, kind, note, pick },
+                      await modelKey(ctx, who, b), modelName(who, b), load)
     : assemble(who.space, brains, concepts, sources, pick,
                new Map((await load(pageIds(brains, concepts))).map((c: any) => [idOf(c), c])));
 

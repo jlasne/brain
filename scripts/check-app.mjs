@@ -130,6 +130,10 @@ async function boot(path, init, arg) {
         const page = { title: "Octopus", line: "1 brain, 2 positions.",
           sections: [{ head: "", bullets: [{ k: "Offer creation", say: "Offer first." }, { k: "Personal brand", say: "Face beats logo." }] }],
           foot: "2 of 2 positions \u00b7 3 sources read \u00b7 2026-09-26" };
+        if (body.kind === "quiz") return Response.json({ text: "x", page: { title: "Quiz: Content", line: "2 questions on Content. The answers follow.",
+          sections: [{ head: "", bullets: [{ k: "Offer creation", say: "Why does an offer beat a bigger audience?" }] },
+                     { head: "Answers", bullets: [{ k: "Offer creation", say: "Buyers pay for the offer, not the reach." }] }],
+          foot: "1 of 2 positions \u00b7 3 sources read \u00b7 2026-09-27" } });
         if (body.mail === "refused@example.com")
           return Response.json({ page, text: "x", sent: false, to: body.mail, mailError: "domain is not verified" });
         if (body.mail) return Response.json({ page, text: "x", sent: true, to: body.mail, id: "e1" });
@@ -271,6 +275,34 @@ async function boot(path, init, arg) {
   check("a refused send still shows the page, with the reason",
     refused && /Not sent: domain is not verified/.test(refused.said), refused && refused.said);
   check("and leaves the button to try again", refused && refused.btn === "Mail it", refused && refused.btn);
+
+  /* ---- a quiz, and a page written to an instruction ---- */
+  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await page.fill("#pTo", "");
+  const kinds = await page.evaluate(() => [...document.querySelectorAll("#pKind button")].map(b => b.dataset.k + (b.classList.contains("on") ? "*" : "")));
+  check("the page offers summary, quiz and custom, summary first", kinds.join(",") === "summary*,quiz,custom", kinds.join(","));
+  await page.click('#pKind button[data-k="custom"]');
+  check("custom opens a box for the instructions", await page.isVisible("#pNote"));
+  await page.click("#pGo"); await page.waitForTimeout(80);
+  check("a custom page with no instruction asks for one", /instruction/.test(await page.textContent("#pSlot")));
+  await page.fill("#pNote", "A checklist for a client meeting");
+  await page.click("#pGo"); await page.waitForTimeout(300);
+  const customBody = await page.evaluate(() => window.__pager[window.__pager.length - 1]);
+  check("the instruction travels with the page", customBody.kind === "custom" && customBody.note === "A checklist for a client meeting",
+    JSON.stringify(customBody));
+
+  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await page.fill("#pTo", "");
+  await page.click('#pKind button[data-k="quiz"]');
+  check("the quiz says what it gives", /8 questions/.test(await page.textContent("#pKindHint")));
+  await page.click("#pGo"); await page.waitForTimeout(300);
+  const quiz = await page.evaluate(() => {
+    const c = [...document.querySelectorAll(".pager")].pop();
+    const d = c?.querySelector("details.answers");
+    return { title: c?.querySelector("h3")?.textContent, folded: !!d && !d.open, q: c?.querySelector("li .say")?.textContent };
+  });
+  check("a quiz lands with its questions and its answers folded", quiz.title === "Quiz: Content" && quiz.folded && /\?$/.test(quiz.q),
+    JSON.stringify(quiz));
 
   /* ---- the loader is the space's own mark ---- */
   await page.fill("#input", "anything");

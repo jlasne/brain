@@ -185,50 +185,132 @@ WORDS
 - Never invent evidence. If the stored knowledge does not answer it, say so in
   one bullet and name the kind of source that would fill the gap.`;
 
+const WORDS = `WORDS
+- English, always. No em-dashes. Under 30 words per sentence.
+- Replace adjectives with data. No weasel words. Simple wording.
+- Say what holds rather than what does not.
+- Use only the stored knowledge below. Never invent a fact or a figure.`;
+
+/* A quiz: questions that make the reader think, then the answers apart, so
+   the page can be worked through before it is checked. */
+const QUIZ_RULES = `Write a one page quiz that tests how well someone understands the stored knowledge below.
+
+SHAPE
+- 8 questions. Each one is a single line:
+  - Core concept: the question?
+- The core concept is 2 to 6 words, with no colon inside it.
+- Ask for reasoning, not recall: why, how, what happens if, which one and why.
+- Put inside the question the figures the reader needs to work it out.
+- Order them from the basics to the hardest.
+- Then one line reading exactly: ANSWERS
+- Then one line per question, in the same order:
+  - Core concept: the answer, in one or two lines, with the number or the reason.
+- Write nothing else. No sources, no dates, no closing line.
+
+${WORDS}`;
+
+/* The owner's own instruction decides what the page is for. */
+const CUSTOM_RULES = (note: string) => `Write a one page briefing from the stored knowledge below, following the owner's instruction.
+
+OWNER'S INSTRUCTION
+${note}
+
+SHAPE
+- The instruction decides the content, the angle, the tone and the audience.
+- The page stays a list: at most 12 bullets, each a single line:
+  - Core concept: what it says
+- The core concept is 2 to 6 words, with no colon inside it.
+- What it says fits in one or two lines, under 30 words, and adds a number, a cause, a consequence or an example.
+- Write only the bullets. No sources, no authors, no dates, no closing line.
+- If the stored knowledge falls short of the instruction, say so in one bullet.
+
+${WORDS}`;
+
+export type PageKind = "summary" | "quiz" | "custom";
+
 /** A page from a question. One model call, and the bullets come back parsed. */
 export async function fromQuestion(
   space: Space, brains: any[], concepts: any[], sources: any[],
   q: string, key?: string, model?: string, load?: (ids: string[]) => Promise<any[]>,
 ): Promise<Pager> {
+  return fromModel(space, brains, concepts, sources, { q, kind: "summary" }, key, model, load);
+}
+
+/**
+ * A page the model writes: a summary of a question, a quiz, or a page shaped
+ * by the owner's own instruction. With a question, it reads what bears on the
+ * question; without one, the fullest positions of the brains picked.
+ */
+export async function fromModel(
+  space: Space, brains: any[], concepts: any[], sources: any[],
+  opts: { q?: string; kind: PageKind; note?: string; pick?: string },
+  key?: string, model?: string, load?: (ids: string[]) => Promise<any[]>,
+): Promise<Pager> {
   const today = new Date().toISOString().slice(0, 10);
+  const q = String(opts.q ?? "").trim(), kind = opts.kind, note = String(opts.note ?? "").trim();
   const slugs = brains.map(b => b.slug);
   const read = new Set(sources.filter((s: any) => (s.brains ?? []).some((x: string) => slugs.includes(x)))
                               .map((s: any) => s.sid)).size;
+  const inPool = concepts.filter((c: any) => slugs.includes(c.brain));
 
   /* The same search a question in the chat runs, so a page asked of every
-     brain reads what bears on it rather than all of it. */
+     brain reads what bears on it rather than all of it. With no question, the
+     fullest positions lead, the way a summary page ranks them. */
   const t0 = Date.now();
-  const route = await routeQuestion(brains, concepts, q, undefined, key, model);
-  const plan = planDossier(brains, concepts, q, undefined, route);
+  let plan: any;
+  if (q) {
+    const route = await routeQuestion(brains, concepts, q, undefined, key, model);
+    plan = planDossier(brains, concepts, q, undefined, route);
+  } else {
+    const ranked = [...inPool].sort(rank);
+    plan = { lead: ranked.slice(0, 30), ranked: ranked.map(c => ({ c, score: 0 })), inPool, hits: [], picked: [], linked: [] };
+  }
   const whole = load ? await load(plan.lead.slice(0, OPEN_READ).map(idOf)) : concepts;
   const found = writeDossier(brains, plan, new Map(whole.map((c: any) => [idOf(c), c])));
-  const held = concepts.filter((c: any) => slugs.includes(c.brain)).length;
+
+  const rules = kind === "quiz" ? QUIZ_RULES : kind === "custom" ? CUSTOM_RULES(note) : BULLET_RULES;
   const { text } = await ask([
     { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You always answer in English." },
-    { role: "user", content: `${BULLET_RULES}
+    { role: "user", content: `${rules}
 
 STORED KNOWLEDGE
 ${found.dossier}
-
-QUESTION: ${q}` },
-  ], { maxTokens: 2000, key, model,
+${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
+  ], { maxTokens: kind === "quiz" ? 2600 : 2000, key, model,
        /* Router, answer and mail stay inside the browser's 3 minutes. */
        timeout: Math.max(60000, 145000 - (Date.now() - t0)) });
 
   /* A line naming sources is dropped: the foot counts them once. */
   const lines = String(text).split("\n").map(l => l.trim()).filter(l => l && !/^(\*\*)?sources?\b/i.test(l));
-  const bullets = lines.filter(l => /^[-*•] /.test(l)).map(l => l.slice(2).trim());
+  const bulletsOf = (ls: string[], max: number) => {
+    const b = ls.filter(l => /^([-*•]|\d+[.)]) /.test(l)).map(l => l.replace(/^([-*•]|\d+[.)]) /, "").trim());
+    /* A model that ignored the shape still has an answer in it, so its prose
+       becomes the bullets rather than an empty page. */
+    return (b.length ? b : ls).slice(0, max).map(splitBullet);
+  };
 
-  /* A model that ignored the shape still has an answer in it, so its prose
-     becomes the bullets rather than an empty page. */
-  const body = (bullets.length ? bullets : lines).slice(0, 9).map(splitBullet);
+  let sections: Pager["sections"];
+  if (kind === "quiz") {
+    const cut = lines.findIndex(l => /^(\*\*|#+ )?answers?(\*\*)?:?$/i.test(l));
+    const qs = cut >= 0 ? lines.slice(0, cut) : lines, as = cut >= 0 ? lines.slice(cut + 1) : [];
+    sections = [{ head: "", bullets: bulletsOf(qs, 10) }, ...(as.length ? [{ head: "Answers", bullets: bulletsOf(as, 10) }] : [])];
+  } else {
+    sections = [{ head: "", bullets: bulletsOf(lines, kind === "custom" ? 12 : 9) }];
+  }
+
+  const one = brains.length === 1;
+  const scope = one ? brains[0].name
+    : opts.pick === "person" ? "People" : opts.pick === "subject" ? "Subjects" : SPACE_NAME[space];
+  const cap = (t: string) => t.length > 78 ? t.slice(0, 75).trimEnd() + "..." : t;
+  const title = kind === "quiz" ? `Quiz: ${cap(q || scope)}` : cap(q || scope);
+  const line = kind === "custom" ? `Written to: ${note.length > 110 ? note.slice(0, 107).trimEnd() + "..." : note}`
+    : kind === "quiz" ? `${sections[0].bullets.length} questions on ${one ? brains[0].name : `${brains.length} brains`}. The answers follow.`
+    : `Asked of ${one ? brains[0].name : `${brains.length} brains`} in ${SPACE_NAME[space]}.`;
 
   return {
-    title: q.length > 78 ? q.slice(0, 75).trimEnd() + "..." : q,
-    line: `Asked of ${brains.length === 1 ? brains[0].name : `${brains.length} brains`} in ${SPACE_NAME[space]}.`,
-    sections: [{ head: "", bullets: body }],
+    title, line, sections,
     foot: [
-      `${found.opened.length} of ${held} position${held === 1 ? "" : "s"}`,
+      `${found.opened.length} of ${inPool.length} position${inPool.length === 1 ? "" : "s"}`,
       `${read} source${read === 1 ? "" : "s"} read`,
       today,
     ].join(" · "),
