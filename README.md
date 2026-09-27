@@ -65,7 +65,7 @@ One source often lands in both. An interview about sleep feeds the sleep brain a
 
 **Ask.** Ask the way you would ask a person. The first sentence answers. Numbers sit inside the answer, sources on one line underneath.
 
-**One-pager.** A brain, a group of brains, or a question, as bullets on one page. A brain and a group read what is stored, so they cost nothing. Copy it, print it, or mail it.
+**One-pager.** A summary in bullets of a brain, a group of brains, or a question. A brain and a group read what is stored, so they cost nothing. Or a document of the type you pick: a quiz, a deep dive, use cases, or one you describe, written in sections and paragraphs. Copy it, print it, or mail it.
 
 **Create a brain.** Rare. A name, a one-line scope, subject or person.
 

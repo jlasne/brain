@@ -142,9 +142,13 @@ async function boot(path, init, arg) {
         const page = { title: "Octopus", line: "1 brain, 2 positions.",
           sections: [{ head: "", bullets: [{ k: "Offer creation", say: "Offer first." }, { k: "Personal brand", say: "Face beats logo." }] }],
           foot: "2 of 2 positions \u00b7 3 sources read \u00b7 2026-09-26" };
-        if (body.kind === "quiz") return Response.json({ text: "x", page: { title: "Quiz: Content", line: "2 questions on Content. The answers follow.",
-          sections: [{ head: "", bullets: [{ k: "Offer creation", say: "Why does an offer beat a bigger audience?" }] },
-                     { head: "Answers", bullets: [{ k: "Offer creation", say: "Buyers pay for the offer, not the reach." }] }],
+        if (body.kind === "custom" && body.doc === "quiz") return Response.json({ text: "x", page: { title: "Quiz: Content", line: "2 questions on Content. The answers follow.",
+          sections: [{ head: "Questions", bullets: [], blocks: [{ ol: ["Why does an offer beat a bigger audience?", "What does a **named face** add?"] }] },
+                     { head: "Answers", bullets: [], blocks: [{ ol: ["Buyers pay for the offer, not the reach.", "Trust that compounds."] }] }],
+          foot: "1 of 2 positions \u00b7 3 sources read \u00b7 2026-09-27" } });
+        if (body.kind === "custom" && body.doc === "deepdive") return Response.json({ text: "x", page: { title: "Deep dive: Content", line: "From Content.",
+          sections: [{ head: "The short answer", bullets: [], blocks: [{ p: "An offer people buy beats reach. **2 launches** sold out." }] },
+                     { head: "The evidence", bullets: [], blocks: [{ ul: ["2026-01-02: sold out twice", "31 percent came from email"] }] }],
           foot: "1 of 2 positions \u00b7 3 sources read \u00b7 2026-09-27" } });
         if (body.mail === "refused@example.com")
           return Response.json({ page, text: "x", sent: false, to: body.mail, mailError: "domain is not verified" });
@@ -298,33 +302,56 @@ async function boot(path, init, arg) {
     refused && /Not sent: domain is not verified/.test(refused.said), refused && refused.said);
   check("and leaves the button to try again", refused && refused.btn === "Mail it", refused && refused.btn);
 
-  /* ---- a quiz, and a page written to an instruction ---- */
+  /* ---- a summary in bullets, or a document of the type picked ---- */
   await page.click("#pagerBtn"); await page.waitForTimeout(100);
   await page.fill("#pTo", "");
   const kinds = await page.evaluate(() => [...document.querySelectorAll("#pKind button")].map(b => b.dataset.k + (b.classList.contains("on") ? "*" : "")));
-  check("the page offers summary, quiz and custom, summary first", kinds.join(",") === "summary*,quiz,custom", kinds.join(","));
+  check("the page offers summary and custom, summary first", kinds.join(",") === "summary*,custom", kinds.join(","));
+  check("a summary shows no document types", !(await page.isVisible("#pDoc")) && !(await page.isVisible("#pNote")));
   await page.click('#pKind button[data-k="custom"]');
-  check("custom opens a box for the instructions", await page.isVisible("#pNote"));
+  const docs = await page.evaluate(() => [...document.querySelectorAll("#pDoc button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")));
+  check("custom offers quiz, deep dive, use case and other, quiz first", docs.join(",") === "Quiz*,Deep dive,Use case,Other", docs.join(","));
+  check("with room for special instructions", await page.isVisible("#pNote"));
+  check("the quiz says what it gives", /8 questions/.test(await page.textContent("#pDocHint")));
+  await page.click('#pDoc button[data-d="other"]');
+  check("other asks to describe the document", /Describe the document/.test(await page.textContent("#pNoteL")));
   await page.click("#pGo"); await page.waitForTimeout(80);
-  check("a custom page with no instruction asks for one", /instruction/.test(await page.textContent("#pSlot")));
+  check("other with no description asks for one", /Describe the document/.test(await page.textContent("#pSlot")));
   await page.fill("#pNote", "A checklist for a client meeting");
   await page.click("#pGo"); await page.waitForTimeout(300);
   const customBody = await page.evaluate(() => window.__pager[window.__pager.length - 1]);
-  check("the instruction travels with the page", customBody.kind === "custom" && customBody.note === "A checklist for a client meeting",
-    JSON.stringify(customBody));
+  check("the description travels with its type", customBody.kind === "custom" && customBody.doc === "other"
+    && customBody.note === "A checklist for a client meeting", JSON.stringify(customBody));
 
   await page.click("#pagerBtn"); await page.waitForTimeout(100);
   await page.fill("#pTo", "");
-  await page.click('#pKind button[data-k="quiz"]');
-  check("the quiz says what it gives", /8 questions/.test(await page.textContent("#pKindHint")));
+  await page.click('#pKind button[data-k="custom"]');
   await page.click("#pGo"); await page.waitForTimeout(300);
   const quiz = await page.evaluate(() => {
     const c = [...document.querySelectorAll(".pager")].pop();
     const d = c?.querySelector("details.answers");
-    return { title: c?.querySelector("h3")?.textContent, folded: !!d && !d.open, q: c?.querySelector("li .say")?.textContent };
+    return { title: c?.querySelector("h3")?.textContent, folded: !!d && !d.open, bullets: c?.querySelectorAll("li .k").length,
+      q: c?.querySelector(".doc ol li")?.textContent, bold: c?.querySelector(".doc ol li strong")?.textContent };
   });
-  check("a quiz lands with its questions and its answers folded", quiz.title === "Quiz: Content" && quiz.folded && /\?$/.test(quiz.q),
+  check("a quiz needs no instruction, and lands as numbered questions", quiz.title === "Quiz: Content" && /\?$/.test(quiz.q) && quiz.bullets === 0,
     JSON.stringify(quiz));
+  check("with its answers folded", quiz.folded, JSON.stringify(quiz));
+  check("and bold kept as bold", quiz.bold === "named face", JSON.stringify(quiz));
+
+  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await page.fill("#pTo", "");
+  await page.click('#pKind button[data-k="custom"]');
+  await page.click('#pDoc button[data-d="deepdive"]');
+  await page.fill("#pNote", "For a new client");
+  await page.click("#pGo"); await page.waitForTimeout(300);
+  const deep = await page.evaluate(() => {
+    const c = [...document.querySelectorAll(".pager")].pop();
+    return { heads: [...c.querySelectorAll("h4")].map(h => h.textContent), p: c.querySelector(".doc p")?.textContent,
+      list: c.querySelectorAll(".doc ul li").length, asked: window.__pager.at(-1) };
+  });
+  check("a deep dive lands as sections of paragraphs and lists", deep.heads.join("|") === "The short answer|The evidence"
+    && /beats reach/.test(deep.p) && deep.list === 2, JSON.stringify(deep));
+  check("its special instructions travel with it", deep.asked.doc === "deepdive" && deep.asked.note === "For a new client", JSON.stringify(deep.asked));
 
   /* ---- the loader is the space's own mark ---- */
   await page.fill("#input", "anything");
@@ -416,7 +443,7 @@ async function boot(path, init, arg) {
   /* ---- Learning: steps toward the answer, never the answer ---- */
   const levels = await page.evaluate(() => [...document.querySelectorAll("#level button")].map(b => ({
     v: b.dataset.v, icon: !!b.querySelector("svg path"), name: b.getAttribute("aria-label"), on: b.classList.contains("on") })));
-  check("the levels are Normal, Educational, Learning and Quiz", levels.map(l => l.v).join(",") === "normal,educational,learning,quiz",
+  check("the levels are Normal, Educational and Learning", levels.map(l => l.v).join(",") === "normal,educational,learning",
     levels.map(l => l.v).join(","));
   check("each level carries an icon and a name", levels.every(l => l.icon && l.name));
   check("the level in use is lit", levels.filter(l => l.on).length === 1 && levels.find(l => l.on).v === "normal");
@@ -429,76 +456,6 @@ async function boot(path, init, arg) {
   await page.click("#send"); await page.waitForTimeout(800);
   const askedAt = await page.evaluate(() => window.__asked?.level);
   check("and the question goes out at that level", askedAt === "learning", String(askedAt));
-  await page.close();
-}
-
-/* ---- Quiz: 5 questions, one at a time, graded as they go ---- */
-{
-  const { page, bad } = await boot("/chat.html", state => {
-    sessionStorage.setItem("octopus.token.v1", "test");
-    /* A tab that left the level on Quiz boots straight into it. */
-    localStorage.setItem("octopus.level", "quiz");
-    window.__quiz = [];
-    const ask = n => ({ question: `Question text ${n}?`, answer: `Answer ${n}.`, hint: `Hint ${n}.`, concept: `Concept ${n}` });
-    window.fetch = async (u, opt) => {
-      const s = String(u);
-      if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/quiz")) {
-        const b = JSON.parse(opt?.body || "{}"); window.__quiz.push(b);
-        await new Promise(ok => setTimeout(ok, 150));
-        if (!b.turn) return Response.json({ next: ask(1) });
-        const verdict = b.turn.reply === "right" ? "right" : b.turn.reply === "half" ? "partly" : "wrong";
-        return Response.json(b.number > 5 ? { verdict, feedback: "Graded." } : { verdict, feedback: "Graded.", next: ask(b.number) });
-      }
-      return Response.json({});
-    };
-  }, STATE);
-  const note = () => page.evaluate(() => document.getElementById("footNote").textContent);
-  const send = async t => { await page.fill("#input", t); await page.click("#send"); await page.waitForTimeout(400); };
-  check("Quiz boots lit, with nothing thrown", await page.evaluate(() => document.querySelector("#level button.on")?.dataset.v) === "quiz"
-    && !bad.length, bad.join(" | "));
-  check("its note says 5 questions, graded as you go", /5 questions, one at a time/.test(await note()), await note());
-  check("and the box asks for a topic", /topic/i.test(await page.getAttribute("#input", "placeholder")));
-
-  await send("gold");
-  const q1 = await page.evaluate(() => ({ num: document.querySelector(".qz:last-of-type .qz-num")?.textContent,
-    q: [...document.querySelectorAll(".qz-q")].at(-1)?.textContent }));
-  check("the topic starts a round at question 1", q1.num === "Question 1 of 5" && q1.q === "Question text 1?", JSON.stringify(q1));
-  check("the expected answer stays off the screen", !(await page.evaluate(() => document.getElementById("thread").textContent)).includes("Answer 1."));
-  check("the box now asks for an answer", /Your answer/.test(await page.getAttribute("#input", "placeholder")));
-
-  const calls = await page.evaluate(() => window.__quiz.length);
-  await send("hint");
-  check("hint shows the clue and calls nothing", await page.evaluate(() => [...document.querySelectorAll(".qz-hint")].at(-1)?.textContent) === "Hint: Hint 1."
-    && await page.evaluate(() => window.__quiz.length) === calls);
-
-  await send("right");
-  const sent = await page.evaluate(() => window.__quiz.at(-1));
-  check("a reply goes out with its question and expected answer", sent.turn?.question === "Question text 1?" && sent.turn?.answer === "Answer 1."
-    && sent.turn?.reply === "right" && sent.number === 2 && sent.topic === "gold", JSON.stringify(sent));
-  check("and the questions asked so far", sent.asked?.length === 1 && sent.asked[0].concept === "Concept 1", JSON.stringify(sent.asked));
-  check("the grade shows, then question 2", await page.evaluate(() => [...document.querySelectorAll(".qz-verdict")].at(-1)?.textContent) === "Right"
-    && await page.evaluate(() => [...document.querySelectorAll(".qz-num")].at(-1)?.textContent) === "Question 2 of 5");
-  check("the note keeps the score", /Question 2 of 5 \u00b7 1 right so far/.test(await note()), await note());
-  await page.click(".qz:last-of-type .qz-hbtn").catch(() => {});
-  await page.evaluate(() => [...document.querySelectorAll(".qz-hbtn")].at(-1)?.click());
-  check("the Hint button opens the clue in place", await page.evaluate(() => [...document.querySelectorAll(".qz-hint")].at(-1)?.textContent) === "Hint: Hint 2.");
-
-  await send("half"); await send("nope"); await send("right"); await send("right");
-  const end = await page.evaluate(() => ({ score: [...document.querySelectorAll(".qz-score")].at(-1)?.textContent,
-    text: document.getElementById("thread").textContent, n: window.__quiz.length }));
-  check("after question 5 the round ends with its score", end.score === "Score: 3 of 5 right, 1 partly", end.score);
-  check("and names the concepts worth a second look", /Worth a second look: Concept 2, Concept 3\./.test(end.text), end.text.slice(-200));
-  check("a round costs one call per question", end.n === 6, String(end.n));
-  check("the box asks for a new topic", /topic/i.test(await page.getAttribute("#input", "placeholder")));
-
-  await send("rates");
-  await send("stop");
-  const stopped = await page.evaluate(() => [...document.querySelectorAll(".qz-score, .ln")].at(-1)?.textContent);
-  check("stop ends a round at once, with nothing called", /Name a topic/.test(stopped) && await page.evaluate(() => window.__quiz.length) === 7, stopped);
-  await page.click('#level button[data-v="normal"]');
-  check("another level leaves the quiz", /Normal/.test(await note()));
-  check("nothing threw in the quiz", !bad.length, bad.join(" | "));
   await page.close();
 }
 

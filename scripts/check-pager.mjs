@@ -21,7 +21,7 @@ for (const f of ["onepager.ts", "lib.ts", "words.ts", "route.ts"]) copyFileSync(
 writeFileSync(join(dir, "_generated/api.ts"), "export const internal = {};\n");
 await esbuild.build({ entryPoints: [join(dir, "onepager.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { assemble, fromQuestion, fromModel, asText, asHtml, looksLikeMail, bulletText, addedLine } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { assemble, fromQuestion, fromModel, asText, asHtml, looksLikeMail, bulletText, addedLine, parseDoc } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -159,7 +159,7 @@ const sources = [
   check("its foot counts positions and sources read", /^\d+ of 3 positions · 3 sources read · \d{4}-\d\d-\d\d$/.test(p.foot), p.foot);
 }
 
-/* ---- a quiz, and a page written to an instruction ---- */
+/* ---- documents: a quiz, a deep dive, use cases, or a type described ---- */
 {
   const real = globalThis.fetch;
   let prompt = "";
@@ -168,28 +168,67 @@ const sources = [
     return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
   };
   globalThis.fetch = reply([
-    "- Retention lift: Why did retention rise 31 percent when three sources agreed?",
-    "- Named face: What does a named face add that a logo cannot?",
+    "## Questions",
+    "1. Why did retention rise 31 percent when three sources agreed?",
+    "2. What does a **named face** add that a logo cannot?",
     "",
-    "ANSWERS",
-    "- Retention lift: Three sources point to the first two seconds deciding the watch.",
-    "- Named face: Distribution that compounds with every post.",
+    "## Answers",
+    "1. The first two seconds decide the watch.",
+    "2. Distribution that compounds with every post.",
   ].join("\n"));
-  const quiz = await fromModel("octopus", [brains[0]], concepts, sources, { kind: "quiz", pick: "content" }, "k");
-  check("a quiz asks for reasoning, answers apart", /Ask for reasoning, not recall/.test(prompt) && /ANSWERS/.test(prompt));
+  const quiz = await fromModel("octopus", [brains[0]], concepts, sources, { kind: "custom", doc: "quiz", pick: "content" }, "k");
+  check("a quiz asks for reasoning, answers apart", /Ask for reasoning, not recall/.test(prompt) && /"## Answers"/.test(prompt));
+  check("in a document's format, never the summary's bullets", /No "Core concept: what it says" bullets/.test(prompt) && !/Core concept: the question/.test(prompt));
   check("with no question it reads the fullest positions", /Three sources agree/.test(prompt));
-  check("its questions come first, one concept each", quiz.sections[0].bullets.length === 2 && quiz.sections[0].bullets[0].k === "Retention lift"
-    && /31 percent.*\?$/.test(quiz.sections[0].bullets[0].say), JSON.stringify(quiz.sections[0].bullets[0]));
-  check("the answers follow under their own heading", quiz.sections[1]?.head === "Answers" && quiz.sections[1].bullets.length === 2,
+  check("its questions come back numbered, with no bullets", quiz.sections[0].head === "Questions" && quiz.sections[0].bullets.length === 0
+    && quiz.sections[0].blocks[0].ol.length === 2 && /31 percent.*\?$/.test(quiz.sections[0].blocks[0].ol[0]), JSON.stringify(quiz.sections[0]));
+  check("the answers follow under their own heading", quiz.sections[1]?.head === "Answers" && quiz.sections[1].blocks[0].ol.length === 2,
     JSON.stringify(quiz.sections[1]));
-  check("the quiz is titled as one", quiz.title === "Quiz: Content" && /2 questions/.test(quiz.line), `${quiz.title} | ${quiz.line}`);
+  check("the quiz is titled as one", quiz.title === "Quiz: Content" && /^2 questions on Content/.test(quiz.line), `${quiz.title} | ${quiz.line}`);
+  const qText = asText(quiz), qHtml = asHtml(quiz, "Octopus");
+  check("as text it numbers the questions and drops the bold marks", /QUESTIONS\n\n1\. Why did/.test(qText) && /2\. What does a named face add/.test(qText), qText);
+  check("as mail it keeps them numbered and the bold as bold", /<ol[^>]*><li[^>]*>Why did/.test(qHtml) && /<strong[^>]*>named face<\/strong>/.test(qHtml));
 
-  globalThis.fetch = reply("- Client risk: Name the 3 risks a client asks about first.\n- Next step: Book the review within 30 days.");
+  globalThis.fetch = reply([
+    "## The short answer",
+    "Retention rose 31 percent. The first two seconds decide it \u2014 three sources agree.",
+    "",
+    "## How it works",
+    "A viewer decides in two seconds.",
+    "The hook carries that decision.",
+    "",
+    "## The evidence",
+    "- 2026-03-01: retention up 31 percent",
+    "- 2026-04-02: three sources agree",
+  ].join("\n"));
+  const deep = await fromModel("octopus", [brains[0]], concepts, sources,
+    { kind: "custom", doc: "deepdive", note: "For a new client", pick: "content" }, "k");
+  check("a deep dive asks for the whole mechanism, in sections", /"## How it works"/.test(prompt) && /500 to 800 words/.test(prompt));
+  check("with the owner's instruction on top of its shape", /OWNER'S INSTRUCTION\nFor a new client\nIt sets the angle/.test(prompt));
+  check("it comes back as sections of paragraphs and lists", deep.sections.map(x => x.head).join("|") === "The short answer|How it works|The evidence"
+    && deep.sections[1].blocks.length === 1 && /two seconds\. The hook/.test(deep.sections[1].blocks[0].p) && deep.sections[2].blocks[0].ul.length === 2,
+    JSON.stringify(deep.sections));
+  check("an em-dash never reaches the page", !/\u2014/.test(JSON.stringify(deep.sections)));
+  check("and it is titled and headed by its type", deep.title === "Deep dive: Content" && deep.line === "From Content. Written to: For a new client",
+    `${deep.title} | ${deep.line}`);
+
+  globalThis.fetch = reply("## Launch week\nA creator with 4,000 followers.\n\n**What to do**\n1. Build the offer first.\n2. Launch to email.\n\n**Expected result:** sold out twice.");
+  const uses = await fromModel("octopus", [brains[0]], concepts, sources, { kind: "custom", doc: "usecase", pick: "content" }, "k");
+  check("use cases ask for situations, steps and results", /3 to 5 cases/.test(prompt) && /\*\*Expected result:\*\*/.test(prompt));
+  check("each case is a section with its steps numbered", uses.sections[0].head === "Launch week" && uses.sections[0].blocks[2].ol.length === 2
+    && uses.title === "Use cases: Content" && /^1 case from Content\./.test(uses.line), JSON.stringify(uses));
+
+  globalThis.fetch = reply("## Before the meeting\n- Name the 3 risks a client asks about first.\n- Book the review within 30 days.");
   const custom = await fromModel("octopus", brains, concepts, sources,
-    { kind: "custom", note: "A checklist for a client meeting", pick: "all" }, "k");
-  check("the owner's instruction reaches the model", /OWNER'S INSTRUCTION\nA checklist for a client meeting/.test(prompt));
+    { kind: "custom", doc: "other", note: "A checklist for a client meeting", pick: "all" }, "k");
+  check("another type is written to the owner's description", /OWNER'S DESCRIPTION\nA checklist for a client meeting/.test(prompt));
   check("and heads the page", custom.line === "Written to: A checklist for a client meeting" && custom.title === "Octopus", `${custom.title} | ${custom.line}`);
-  check("its bullets keep the page's shape", custom.sections[0].bullets[1].k === "Next step");
+  check("in the form it asked for", custom.sections[0].blocks[0].ul[1] === "Book the review within 30 days.", JSON.stringify(custom.sections));
+
+  globalThis.fetch = reply("- Retention: rose 31 percent.\n- Hook: two seconds decide.");
+  const summary = await fromModel("octopus", [brains[0]], concepts, sources, { q: "why did retention rise", kind: "summary", pick: "content" }, "k");
+  check("a summary keeps its bullets, and only a summary", summary.sections[0].bullets[0].k === "Retention" && !summary.sections[0].blocks
+    && /Core concept: what it says/.test(prompt), JSON.stringify(summary.sections));
   globalThis.fetch = real;
 }
 

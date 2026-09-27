@@ -1,9 +1,13 @@
 /**
- * One page, in bullets.
+ * One page: a summary in bullets, or a document of a chosen type.
  *
- * Three ways to build one: a brain, a group of brains, or a question. The first
- * two assemble from what is already stored and call no model, because a
- * position is the compressed form already. Only a question needs one call.
+ * A summary of a brain or a group assembles from what is already stored and
+ * calls no model, because a position is the compressed form already. A
+ * summary of a question, and every document, take one call.
+ *
+ * A document is a quiz, a deep dive, use cases, or a type the owner describes.
+ * It is written as sections of paragraphs and lists, never as bullets: the
+ * bullet shape belongs to the summary alone.
  *
  * The result is one shape, so the screen, the clipboard and the mail all render
  * the same page.
@@ -17,12 +21,26 @@ import { routeQuestion } from "./route";
 /* A bullet names its concept, then says it in one or two lines. */
 export type Bullet = { k: string; say: string };
 
+/* A document's body: a paragraph, a list, or a numbered list. **bold** may
+   mark a label or a figure inside the text. */
+export type Block = { p: string } | { ul: string[] } | { ol: string[] };
+
+/* A summary section holds bullets; a document section holds blocks. */
+export type Section = { head: string; bullets: Bullet[]; blocks?: Block[] };
+
 export type Pager = {
   title: string;
   line: string;
-  sections: { head: string; bullets: Bullet[] }[];
+  sections: Section[];
   foot: string;
 };
+
+export const DOC_TYPES = ["quiz", "deepdive", "usecase", "other"] as const;
+export type DocType = (typeof DOC_TYPES)[number];
+const DOC_TITLE: Record<DocType, string> = { quiz: "Quiz", deepdive: "Deep dive", usecase: "Use cases", other: "" };
+
+/** Whether a page holds anything to read. */
+export const hasBody = (p: Pager) => p.sections.some(s => s.bullets.length || (s.blocks ?? []).length);
 
 /* Two lines of a page, about. */
 const SAY_MAX = 180;
@@ -191,42 +209,103 @@ const WORDS = `WORDS
 - Say what holds rather than what does not.
 - Use only the stored knowledge below. Never invent a fact or a figure.`;
 
-/* A quiz: questions that make the reader think, then the answers apart, so
-   the page can be worked through before it is checked. */
-const QUIZ_RULES = `Write a one page quiz that tests how well someone understands the stored knowledge below.
+/* How every document is written down, whatever its type. */
+const DOC_FORMAT = `FORMAT
+- Plain text with light markup and nothing else.
+- "## " starts a section heading of 2 to 6 words.
+- A paragraph is 2 to 4 sentences, with a blank line after it.
+- "- " starts a list item and "1. " a numbered one, one line each.
+- **bold** marks a label or a key figure, at most once per paragraph.
+- No tables. No "Core concept: what it says" bullets. No sources, no authors, no closing line.`;
+
+const DOC_RULES: Record<Exclude<DocType, "other">, string> = {
+  quiz: `Write a quiz that tests how well someone understands the stored knowledge below.
 
 SHAPE
-- 8 questions. Each one is a single line:
-  - Core concept: the question?
-- The core concept is 2 to 6 words, with no colon inside it.
+- "## Questions", then 8 numbered questions, from the basics to the hardest.
 - Ask for reasoning, not recall: why, how, what happens if, which one and why.
-- Put inside the question the figures the reader needs to work it out.
-- Order them from the basics to the hardest.
-- Then one line reading exactly: ANSWERS
-- Then one line per question, in the same order:
-  - Core concept: the answer, in one or two lines, with the number or the reason.
-- Write nothing else. No sources, no dates, no closing line.
+- Put inside each question the figures the reader needs to work it out.
+- Then "## Answers", then 8 numbered answers in the same order: 1 or 2 sentences each, with the number or the reason.`,
 
-${WORDS}`;
+  deepdive: `Write a deep dive on the subject from the stored knowledge below: the whole mechanism, told in order.
 
-/* The owner's own instruction decides what the page is for. */
-const CUSTOM_RULES = (note: string) => `Write a one page briefing from the stored knowledge below, following the owner's instruction.
+SHAPE, 500 to 800 words
+- "## The short answer": 2 or 3 sentences that answer outright.
+- "## How it works": the mechanism in order, each paragraph resting on the one before.
+- "## The evidence": the figures and findings, each with its date. A list fits here.
+- "## Where sources disagree": only when the knowledge holds an open conflict. Both sides, with their dates.
+- "## What it means": what to do or to watch, in 2 to 4 sentences.`,
 
-OWNER'S INSTRUCTION
+  usecase: `Write the use cases of the stored knowledge below: concrete situations where it applies.
+
+SHAPE, 3 to 5 cases
+- Each case opens with "## " and names the situation in 3 to 8 words.
+- Then one paragraph: who faces it and what is at stake, with a number.
+- Then "**What to do**" on its own line, then 2 to 5 numbered steps.
+- Then one paragraph opening with "**Expected result:**" and the figures the evidence gives.
+- Then one paragraph opening with "**Watch out:**" and the limit or the risk, in one sentence.`,
+};
+
+/** The rules for one document: its type's shape, or the owner's description. */
+function docRules(doc: DocType, note: string): string {
+  const own = doc === "other"
+    ? `Write the document the owner describes, from the stored knowledge below.
+
+OWNER'S DESCRIPTION
 ${note}
 
 SHAPE
-- The instruction decides the content, the angle, the tone and the audience.
-- The page stays a list: at most 12 bullets, each a single line:
-  - Core concept: what it says
-- The core concept is 2 to 6 words, with no colon inside it.
-- What it says fits in one or two lines, under 30 words, and adds a number, a cause, a consequence or an example.
-- Write only the bullets. No sources, no authors, no dates, no closing line.
-- If the stored knowledge falls short of the instruction, say so in one bullet.
+- The description decides the kind of document, its sections, its length, its tone and its audience.
+- Pick the form that fits it: sections, paragraphs, numbered steps, lists.
+- If the stored knowledge falls short of the description, say so in one paragraph.`
+    : DOC_RULES[doc] + (note ? `
+
+OWNER'S INSTRUCTION
+${note}
+It sets the angle, the audience or the tone. The shape above stays.` : "");
+  return `${own}
+
+${DOC_FORMAT}
 
 ${WORDS}`;
+}
 
-export type PageKind = "summary" | "quiz" | "custom";
+/** A document's text, read into sections of paragraphs and lists. */
+export function parseDoc(text: string): Section[] {
+  const tidy = (t: string) => t.replace(/\s*[\u2014\u2013]\s*/g, ", ").replace(/\s+/g, " ").trim();
+  const sections: Section[] = [];
+  let cur: Section | null = null;
+  const here = () => cur ?? (cur = { head: "", bullets: [], blocks: [] }, sections.push(cur), cur);
+  let para: string[] = [];
+  const flush = () => { if (para.length) { here().blocks!.push({ p: tidy(para.join(" ")) }); para = []; } };
+  for (const raw of String(text).split("\n")) {
+    const l = raw.trim();
+    if (!l || /^```/.test(l)) { flush(); continue; }
+    if (/^(\*\*)?sources?\b/i.test(l)) continue;
+    const h = l.match(/^#{1,4}\s+(.+)$/);
+    if (h) {
+      flush();
+      cur = { head: tidy(h[1].replace(/\*\*/g, "")), bullets: [], blocks: [] };
+      sections.push(cur);
+      continue;
+    }
+    const item = l.match(/^(?:([-*\u2022])|\d+[.)])\s+(.+)$/);
+    if (item) {
+      flush();
+      const kind = item[1] ? "ul" : "ol";
+      const blocks = here().blocks!;
+      const last: any = blocks[blocks.length - 1];
+      if (last && last[kind]) last[kind].push(tidy(item[2]));
+      else blocks.push(kind === "ul" ? { ul: [tidy(item[2])] } : { ol: [tidy(item[2])] });
+      continue;
+    }
+    para.push(l);
+  }
+  flush();
+  return sections.filter(x => (x.blocks ?? []).length);
+}
+
+export type PageKind = "summary" | "custom";
 
 /** A page from a question. One model call, and the bullets come back parsed. */
 export async function fromQuestion(
@@ -237,17 +316,18 @@ export async function fromQuestion(
 }
 
 /**
- * A page the model writes: a summary of a question, a quiz, or a page shaped
- * by the owner's own instruction. With a question, it reads what bears on the
- * question; without one, the fullest positions of the brains picked.
+ * A page the model writes: a summary of a question in bullets, or a document
+ * of the type picked. With a question, it reads what bears on the question;
+ * without one, the fullest positions of the brains picked.
  */
 export async function fromModel(
   space: Space, brains: any[], concepts: any[], sources: any[],
-  opts: { q?: string; kind: PageKind; note?: string; pick?: string },
+  opts: { q?: string; kind: PageKind; doc?: DocType; note?: string; pick?: string },
   key?: string, model?: string, load?: (ids: string[]) => Promise<any[]>,
 ): Promise<Pager> {
   const today = new Date().toISOString().slice(0, 10);
   const q = String(opts.q ?? "").trim(), kind = opts.kind, note = String(opts.note ?? "").trim();
+  const doc: DocType = DOC_TYPES.includes(opts.doc as DocType) ? opts.doc as DocType : "other";
   const slugs = brains.map(b => b.slug);
   const read = new Set(sources.filter((s: any) => (s.brains ?? []).some((x: string) => slugs.includes(x)))
                               .map((s: any) => s.sid)).size;
@@ -268,7 +348,7 @@ export async function fromModel(
   const whole = load ? await load(plan.lead.slice(0, OPEN_READ).map(idOf)) : concepts;
   const found = writeDossier(brains, plan, new Map(whole.map((c: any) => [idOf(c), c])));
 
-  const rules = kind === "quiz" ? QUIZ_RULES : kind === "custom" ? CUSTOM_RULES(note) : BULLET_RULES;
+  const rules = kind === "custom" ? docRules(doc, note) : BULLET_RULES;
   const { text } = await ask([
     { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You always answer in English." },
     { role: "user", content: `${rules}
@@ -276,36 +356,37 @@ export async function fromModel(
 STORED KNOWLEDGE
 ${found.dossier}
 ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
-  ], { maxTokens: kind === "quiz" ? 2600 : 2000, key, model,
+  ], { maxTokens: kind === "summary" ? 2000 : doc === "quiz" ? 2600 : 3200, key, model,
        /* Router, answer and mail stay inside the browser's 3 minutes. */
        timeout: Math.max(60000, 145000 - (Date.now() - t0)) });
 
-  /* A line naming sources is dropped: the foot counts them once. */
-  const lines = String(text).split("\n").map(l => l.trim()).filter(l => l && !/^(\*\*)?sources?\b/i.test(l));
-  const bulletsOf = (ls: string[], max: number) => {
-    const b = ls.filter(l => /^([-*•]|\d+[.)]) /.test(l)).map(l => l.replace(/^([-*•]|\d+[.)]) /, "").trim());
+  let sections: Pager["sections"];
+  if (kind === "custom") {
+    sections = parseDoc(text);
+  } else {
+    /* A line naming sources is dropped: the foot counts them once. */
+    const lines = String(text).split("\n").map(l => l.trim()).filter(l => l && !/^(\*\*)?sources?\b/i.test(l));
+    const b = lines.filter(l => /^([-*•]|\d+[.)]) /.test(l)).map(l => l.replace(/^([-*•]|\d+[.)]) /, "").trim());
     /* A model that ignored the shape still has an answer in it, so its prose
        becomes the bullets rather than an empty page. */
-    return (b.length ? b : ls).slice(0, max).map(splitBullet);
-  };
-
-  let sections: Pager["sections"];
-  if (kind === "quiz") {
-    const cut = lines.findIndex(l => /^(\*\*|#+ )?answers?(\*\*)?:?$/i.test(l));
-    const qs = cut >= 0 ? lines.slice(0, cut) : lines, as = cut >= 0 ? lines.slice(cut + 1) : [];
-    sections = [{ head: "", bullets: bulletsOf(qs, 10) }, ...(as.length ? [{ head: "Answers", bullets: bulletsOf(as, 10) }] : [])];
-  } else {
-    sections = [{ head: "", bullets: bulletsOf(lines, kind === "custom" ? 12 : 9) }];
+    sections = [{ head: "", bullets: (b.length ? b : lines).slice(0, 9).map(splitBullet) }];
   }
 
   const one = brains.length === 1;
   const scope = one ? brains[0].name
     : opts.pick === "person" ? "People" : opts.pick === "subject" ? "Subjects" : SPACE_NAME[space];
+  const where = one ? brains[0].name : `${brains.length} brains`;
   const cap = (t: string) => t.length > 78 ? t.slice(0, 75).trimEnd() + "..." : t;
-  const title = kind === "quiz" ? `Quiz: ${cap(q || scope)}` : cap(q || scope);
-  const line = kind === "custom" ? `Written to: ${note.length > 110 ? note.slice(0, 107).trimEnd() + "..." : note}`
-    : kind === "quiz" ? `${sections[0].bullets.length} questions on ${one ? brains[0].name : `${brains.length} brains`}. The answers follow.`
-    : `Asked of ${one ? brains[0].name : `${brains.length} brains`} in ${SPACE_NAME[space]}.`;
+  const subject = cap(q || scope);
+  const title = kind === "custom" && DOC_TITLE[doc] ? `${DOC_TITLE[doc]}: ${subject}` : subject;
+  const count = (head: RegExp) => (sections.find(x => head.test(x.head))?.blocks ?? [])
+    .reduce((n, x: any) => n + (x.ol?.length ?? x.ul?.length ?? 0), 0);
+  const written = note ? ` Written to: ${note.length > 110 ? note.slice(0, 107).trimEnd() + "..." : note}` : "";
+  const line = kind === "summary" ? `Asked of ${where} in ${SPACE_NAME[space]}.`
+    : doc === "quiz" ? `${count(/question/i)} questions on ${where}. The answers follow.${written}`
+    : doc === "deepdive" ? `From ${where}.${written}`
+    : doc === "usecase" ? `${sections.length} case${sections.length === 1 ? "" : "s"} from ${where}.${written}`
+    : `Written to: ${note.length > 110 ? note.slice(0, 107).trimEnd() + "..." : note}`;
 
   return {
     title, line, sections,
@@ -338,13 +419,22 @@ const bulletHtml = (b: Bullet | string) => {
   return b.k ? `<strong style="font-weight:600;color:#141413">${esc(b.k)}</strong>${say ? `<br>${say}` : ""}` : say;
 };
 
+/* **bold** inside a document's text: kept as bold in HTML, dropped in plain text. */
+const boldHtml = (t: string) => esc(t).replace(/\*\*([^*]+)\*\*/g, '<strong style="font-weight:600;color:#141413">$1</strong>');
+const plain = (t: string) => String(t ?? "").replace(/\*\*([^*]+)\*\*/g, "$1");
+
 /** The page as plain text, which is what a mail client with no HTML shows. */
 export function asText(p: Pager): string {
   const out = [p.title, p.line, ""];
   for (const s of p.sections) {
     if (s.head) out.push(s.head.toUpperCase(), "");
     for (const b of s.bullets) out.push("- " + bulletText(b));
-    out.push("");
+    for (const x of s.blocks ?? []) {
+      if ("p" in x) out.push(plain(x.p), "");
+      else if ("ul" in x) { for (const i of x.ul) out.push("- " + plain(i)); out.push(""); }
+      else { x.ol.forEach((i, n) => out.push(`${n + 1}. ${plain(i)}`)); out.push(""); }
+    }
+    if (!(s.blocks ?? []).length) out.push("");
   }
   out.push(p.foot);
   return out.join("\n");
@@ -358,11 +448,17 @@ export function asText(p: Pager): string {
  * where even that is stripped.
  */
 export function asHtml(p: Pager, from: string): string {
+  const font = "-apple-system,Segoe UI,Helvetica,Arial,sans-serif";
+  const li = (t: string) => `<li style="margin:0 0 8px;font:400 15px/1.55 ${font};color:#3d3d3a">${boldHtml(t)}</li>`;
+  const blocks = (bs: Block[]) => bs.map(x =>
+    "p" in x ? `<p style="margin:0 0 12px;font:400 15px/1.6 ${font};color:#3d3d3a">${boldHtml(x.p)}</p>`
+    : "ul" in x ? `<ul style="margin:0 0 12px;padding-left:20px">${x.ul.map(li).join("")}</ul>`
+    : `<ol style="margin:0 0 12px;padding-left:22px">${x.ol.map(li).join("")}</ol>`).join("\n      ");
   const sections = p.sections.map(s => `
-      ${s.head ? `<h2 style="margin:26px 0 8px;font:600 13px/1.4 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#93918a">${esc(s.head)}</h2>` : ""}
-      <ul style="margin:0;padding-left:20px">
-        ${s.bullets.map(b => `<li style="margin:0 0 11px;font:400 15px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#3d3d3a">${bulletHtml(b)}</li>`).join("\n        ")}
-      </ul>`).join("\n");
+      ${s.head ? `<h2 style="margin:26px 0 8px;font:600 13px/1.4 ${font};letter-spacing:.06em;text-transform:uppercase;color:#93918a">${esc(s.head)}</h2>` : ""}
+      ${(s.blocks ?? []).length ? blocks(s.blocks!) : `<ul style="margin:0;padding-left:20px">
+        ${s.bullets.map(b => `<li style="margin:0 0 11px;font:400 15px/1.55 ${font};color:#3d3d3a">${bulletHtml(b)}</li>`).join("\n        ")}
+      </ul>`}`).join("\n");
 
   return `<!doctype html>
 <html><body style="margin:0;padding:28px 18px;background:#faf9f5">

@@ -447,20 +447,6 @@
     margin-top:14px; padding-top:11px; border-top:1px solid var(--line);
     font:400 12px/1.6 var(--mono); color:var(--ink-3);
   }
-  /* The quiz: a verdict, the feedback, then the next question in its own box. */
-  .qz-verdict{ display:inline-block; margin-bottom:8px; padding:3px 9px; border-radius:4px;
-    font:600 11px/1.5 var(--mono); letter-spacing:.04em; text-transform:uppercase; border:1px solid; }
-  .qz-right{ color:var(--good); border-color:var(--good); }
-  .qz-partly{ color:#8a6a12; border-color:#c9a64a; }
-  .qz-wrong{ color:var(--accent); border-color:var(--accent-line); }
-  .qz{ margin-top:14px; padding:14px 16px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface); }
-  .qz-num{ font:400 11px/1.5 var(--mono); color:var(--ink-3); text-transform:uppercase; letter-spacing:.06em; }
-  .qz-q{ margin:6px 0 10px; font-weight:600; color:var(--ink); }
-  .qz-hbtn{ min-height:32px; padding:4px 12px; border:1px solid var(--line-2); border-radius:6px; background:var(--surface-2);
-    color:var(--ink-2); font:inherit; font-size:13px; cursor:pointer; }
-  .qz-hbtn:hover{ border-color:var(--accent-line); color:var(--accent); }
-  .qz-hint{ color:var(--ink-2); font-style:italic; }
-  .qz-score{ font-weight:700; margin:12px 0 6px; }
   .smallbrain{
     display:inline-block; margin-bottom:10px;
     font:400 11px/1.5 var(--mono); color:var(--accent);
@@ -591,6 +577,12 @@
   .pager ul{ margin:12px 0 0; padding-left:19px; }
   .pager li{ margin-bottom:8px; font:400 14.5px/1.55 var(--sans); color:var(--ink-2); }
   .pager li::marker{ color:var(--accent-fill); }
+  /* A document: paragraphs and lists under its section headings. */
+  .pager .doc{ margin-top:10px; }
+  .pager .doc p{ margin:0 0 10px; font:400 14.5px/1.6 var(--sans); color:var(--ink-2); }
+  .pager .doc ul, .pager .doc ol{ margin:0 0 10px; padding-left:21px; }
+  .pager .doc li{ margin-bottom:6px; }
+  .pager .doc strong{ font-weight:600; color:var(--ink); }
   .pager li .k, .msg.ai .body .pager li .k{ display:block; font-weight:600; color:var(--ink); }
   .pager li .say{ display:block; }
   .pager details.answers{ margin-top:14px; border-top:1px dashed var(--line-2); padding-top:10px; }
@@ -985,8 +977,6 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5C5.5 4 8.5 4 12 6c3.5-2 6.5-2 9-.5V19c-2.5-1.5-5.5-1.5-9 .5-3.5-2-6.5-2-9-.5z"/><path d="M12 6v13.5"/></svg><span>Educational</span></button>
               <button data-v="learning" role="radio" title="Learning: no answer given, steps and hints to reach it yourself" aria-label="Learning">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z"/></svg><span>Learning</span></button>
-              <button data-v="quiz" role="radio" title="Quiz: 5 questions on a topic, one at a time, graded as you go" aria-label="Quiz">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .8-1 1.5v.5"/><path d="M12 16.9v.2"/></svg><span>Quiz</span></button>
             </div>
           </div>
           <button class="fresh" id="freshBtn" hidden title="Forget the questions so far and clear the screen">New thread</button>
@@ -1036,9 +1026,6 @@ const S = {
      ends it. */
   thread: [],
   level: "normal",
-  /* The quiz under way: its topic, the question on screen with its expected
-     answer and hint, and the score. It lives in this tab only. */
-  quiz: null,
   /* Which space this session reads, and what it calls itself. The passphrase at
      the door decided it, and the app only reports it. */
   space: "octopus", spaceName: "Octopus",
@@ -1046,11 +1033,7 @@ const S = {
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
    falls back to normal. */
-const LEVELS = ["normal","educational","learning","quiz"];
-/* A quiz round, and what each grade reads as. Up here because the composer
-   names the round at boot. */
-const QUIZ_ROUND = 5;
-const QUIZ_WORD = { right: "Right", partly: "Partly", wrong: "Not yet" };
+const LEVELS = ["normal","educational","learning"];
 try { const v = localStorage.getItem("octopus.level"); if (LEVELS.includes(v)) S.level = v; } catch {}
 const saveLevel = () => { try { localStorage.setItem("octopus.level", S.level); } catch {} };
 
@@ -1442,14 +1425,11 @@ function closePick(){
 function renderComposer(){
   [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m === S.mode));
   /* It appears once there is something to forget. */
-  $("freshBtn").hidden = S.mode !== "ask" || (!S.thread.length && !S.quiz);
+  $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length;
   const drop = S.mode==="drop";
   $("srcLine").hidden = !drop;
   $("input").placeholder = drop
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
-    : S.level==="quiz" ? (S.quiz ? "Your answer. Or type hint, or stop."
-                      : S.scope==="all" ? "Name a topic to be quizzed on."
-                      : "Name a topic in " + (S.brains.find(b=>b.slug===S.scope)?.name || "this brain") + " to be quizzed on.")
     : S.scope==="all" ? "Ask anything your brains have read."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this brain") + ".";
   $("levelWrap").hidden = drop;
@@ -1462,9 +1442,6 @@ function renderComposer(){
     ? "The source gets read once, then you reply to one card."
     : S.level==="educational" ? "Educational: terms defined, mechanism built, one worked example."
     : S.level==="learning" ? "Learning: no answer given. Steps and hints to reach it yourself."
-    : S.level==="quiz" ? (S.quiz
-        ? `Question ${S.quiz.number} of ${QUIZ_ROUND} \u00b7 ${S.quiz.right} right so far. Type hint for a clue, or stop to end.`
-        : `Quiz: name a topic. ${QUIZ_ROUND} questions, one at a time, graded as you go.`)
     : "Normal: the answer carries the numbers. Sources sit on one line underneath.";
 
   const t = $("input").value.trim();
@@ -1631,9 +1608,7 @@ window.addEventListener("resize", () => { if (pickMenu) placePick(); });
 $("level").onclick = e => {
   const b = e.target.closest("button[data-v]");
   if (!b) return;
-  S.level = b.dataset.v; saveLevel();
-  if (S.level !== "quiz") S.quiz = null;
-  renderComposer();
+  S.level = b.dataset.v; saveLevel(); renderComposer();
 };
 $("burger").onclick = () => $("side").classList.toggle("open");
 $("scrim").onclick = () => closeSide();
@@ -1641,7 +1616,7 @@ const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
 $("stat").onclick = openModelSheet;
 $("freshBtn").onclick = () => {
-  S.thread = []; S.quiz = null;
+  S.thread = [];
   $("thread").innerHTML = "";
   render();
   $("input").focus();
@@ -2153,16 +2128,19 @@ function openPagerSheet(){
   const veil = el("div","veil");
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
-      <header><h3>One page, in bullets</h3>
-      <p>A summary, a quiz to test yourself, or a page written to your own instructions.</p></header>
+      <header><h3>One-pager</h3>
+      <p>A summary in bullets, or a document of the type you pick.</p></header>
       <div class="f"><label for="pPick">Built from</label>
         <select id="pPick" class="pick">${pickOptions()}</select>
         <div class="hint">One brain by name, a whole group, or everything.</div></div>
       <div class="f"><label>Kind</label><div class="seg" id="pKind">
-        <button data-k="summary">Summary</button><button data-k="quiz">Quiz</button><button data-k="custom">Custom</button></div>
+        <button data-k="summary">Summary</button><button data-k="custom">Custom</button></div>
         <div class="hint" id="pKindHint"></div></div>
-      <div class="f" id="pNoteF" hidden><label for="pNote">Special instructions</label>
-        <textarea id="pNote" placeholder="A checklist for a client meeting. Explained to a 12 year old. Only the risks."></textarea></div>
+      <div class="f" id="pDocF" hidden><label>Type of document</label><div class="seg" id="pDoc">
+        <button data-d="quiz">Quiz</button><button data-d="deepdive">Deep dive</button><button data-d="usecase">Use case</button><button data-d="other">Other</button></div>
+        <div class="hint" id="pDocHint"></div></div>
+      <div class="f" id="pNoteF" hidden><label for="pNote" id="pNoteL">Special instructions</label>
+        <textarea id="pNote"></textarea></div>
       <div class="f"><label for="pQ">Focus on a question</label>
         <textarea id="pQ"></textarea>
         <div class="hint" id="pQHint"></div></div>
@@ -2175,28 +2153,47 @@ function openPagerSheet(){
   document.body.append(veil);
 
   let pick = here ? here.slug : "all";
-  /* Summary lays out the positions, free, or answers the question in 9
-     bullets. A quiz and a custom page take one model call each. */
-  let kind = "summary";
+  /* Summary lays out the positions in bullets, free, or answers the question
+     in 9 bullets. Custom writes a document of the type picked, in its own
+     format, with one model call. */
+  let kind = "summary", doc = "quiz";
   const KIND = {
-    summary: ["Lays out the positions as they stand, free. With a question, 9 bullets that answer it, one model call.",
-              "Leave it empty to lay out the positions as they stand."],
-    quiz:    ["8 questions that make you think, the answers folded at the end. One model call.",
-              "Optional: keeps the quiz to one subject."],
-    custom:  ["Your instruction decides the angle, the tone and the audience. One model call.",
-              "Optional: keeps the page to one subject."],
+    summary: "Bullets: each concept, then what it adds. Free from the stored positions. With a question, one model call.",
+    custom:  "A document in its own format: sections, paragraphs and lists. One model call.",
+  };
+  const DOC = {
+    quiz:     ["8 questions from the basics to the hardest. The answers stay folded until you open them.",
+               "Special instructions", "Optional: the angle, the audience or the tone. Only the risks. For a new client."],
+    deepdive: ["500 to 800 words: the short answer, how it works, the evidence, where sources disagree, what it means.",
+               "Special instructions", "Optional: the angle, the audience or the tone. Only the risks. For a new client."],
+    usecase:  ["3 to 5 real situations: what to do step by step, the expected result, the risk.",
+               "Special instructions", "Optional: the angle, the audience or the tone. Only the risks. For a new client."],
+    other:    ["Your description sets the type, the format, the length and the tone.",
+               "Describe the document", "A checklist for a client meeting. A 5 step action plan. A glossary of the terms."],
   };
   const paintKind = () => {
     for (const x of veil.querySelector("#pKind").children) x.classList.toggle("on", x.dataset.k === kind);
-    veil.querySelector("#pKindHint").textContent = KIND[kind][0];
-    veil.querySelector("#pQHint").textContent = KIND[kind][1];
-    veil.querySelector("#pNoteF").hidden = kind !== "custom";
+    for (const x of veil.querySelector("#pDoc").children) x.classList.toggle("on", x.dataset.d === doc);
+    const custom = kind === "custom";
+    veil.querySelector("#pKindHint").textContent = KIND[kind];
+    veil.querySelector("#pDocF").hidden = !custom;
+    veil.querySelector("#pNoteF").hidden = !custom;
+    veil.querySelector("#pDocHint").textContent = DOC[doc][0];
+    veil.querySelector("#pNoteL").textContent = DOC[doc][1];
+    veil.querySelector("#pNote").placeholder = DOC[doc][2];
+    veil.querySelector("#pQHint").textContent = custom
+      ? "Optional: keeps the document to one subject."
+      : "Leave it empty to lay out the positions as they stand.";
   };
   paintKind();
   veil.querySelector("#pKind").onclick = e => {
     const x = e.target.closest("button[data-k]"); if (!x) return;
     kind = x.dataset.k; paintKind();
-    if (kind === "custom") veil.querySelector("#pNote").focus();
+  };
+  veil.querySelector("#pDoc").onclick = e => {
+    const x = e.target.closest("button[data-d]"); if (!x) return;
+    doc = x.dataset.d; paintKind();
+    if (doc === "other") veil.querySelector("#pNote").focus();
   };
   const picker = veil.querySelector("#pPick");
   picker.value = pick;
@@ -2223,7 +2220,7 @@ function openPagerSheet(){
     const q = veil.querySelector("#pQ").value.trim();
     const note = kind === "custom" ? veil.querySelector("#pNote").value.trim() : "";
     const to = toI.value.trim();
-    if (kind === "custom" && !note){ warn("Write the instruction the page should follow."); veil.querySelector("#pNote").focus(); return; }
+    if (kind === "custom" && doc === "other" && !note){ warn("Describe the document you want."); veil.querySelector("#pNote").focus(); return; }
     /* A typo stays in the dialog, where it can be fixed, rather than failing
        after the page is built. */
     if (to && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to)){ warn(`"${to}" is not an address.`); toI.focus(); return; }
@@ -2234,14 +2231,15 @@ function openPagerSheet(){
     const body = thinking(to ? `${viaModel ? "Writing" : "Building"} the page, then sending it to ${to}`
                              : viaModel ? undefined : "Building the page");
     let r;
-    try { r = await api("/api/onepager", { pick, q, kind, ...(note ? { note } : {}), ...(to ? { mail: to } : {}) }); }
+    const ask = { pick, q, kind, ...(kind === "custom" ? { doc } : {}), ...(note ? { note } : {}) };
+    try { r = await api("/api/onepager", { ...ask, ...(to ? { mail: to } : {}) }); }
     catch (e) {
       body.innerHTML = rich("**The page did not build.** " + esc(e.message));
       bottom(); return;
     }
     body.closest(".msg").remove();
     if (r.sent) { try { localStorage.setItem(MAIL_KEY, to); } catch {} }
-    showPager(r.page, r.text, { pick, q, kind, ...(note ? { note } : {}) },
+    showPager(r.page, r.text, ask,
       r.sent ? { to, ok: true } : to ? { to, ok: false, why: r.mailError || "the mail service refused it" } : null);
   };
 }
@@ -2271,8 +2269,9 @@ function showPager(page, text, built, mailed){
       slot.append(el("h3",null,p.title));
       if (p.line) slot.append(el("div","sub",p.line));
       for (const sec of p.sections || []){
-        const ul = el("ul");
-        for (const b of sec.bullets || []){
+        /* A summary's bullets, or a document's paragraphs and lists. */
+        const ul = (sec.blocks || []).length ? docBody(sec.blocks) : el("ul");
+        for (const b of (sec.blocks || []).length ? [] : sec.bullets || []){
           const li = el("li");
           if (typeof b === "string") li.textContent = b;
           else {
@@ -2283,7 +2282,7 @@ function showPager(page, text, built, mailed){
         }
         /* A quiz keeps its answers folded, so the questions are worked
            through first. Copy, print and mail carry them in full. */
-        if (sec.head === "Answers"){
+        if (/^answers?$/i.test(sec.head || "")){
           const d = el("details","answers");
           d.append(el("summary",null,"Show the answers"), ul);
           slot.append(d);
@@ -2347,14 +2346,31 @@ function showPager(page, text, built, mailed){
   bottom();
 }
 
+/** **bold** in a document's text, with everything else escaped. */
+const boldText = t => esc(t).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+/** A document section's paragraphs and lists, as one element. */
+function docBody(blocks){
+  const box = el("div","doc");
+  for (const x of blocks){
+    if (x.p != null){ const p = el("p"); p.innerHTML = boldText(x.p); box.append(p); continue; }
+    const list = el(x.ol ? "ol" : "ul");
+    for (const t of x.ol || x.ul || []){ const li = el("li"); li.innerHTML = boldText(t); list.append(li); }
+    box.append(list);
+  }
+  return box;
+}
+const docHtml = blocks => blocks.map(x => x.p != null ? `<p>${boldText(x.p)}</p>`
+  : `<${x.ol ? "ol" : "ul"}>${(x.ol || x.ul || []).map(t => `<li>${boldText(t)}</li>`).join("")}</${x.ol ? "ol" : "ul"}>`).join("");
+
 /** The page on its own, in a window that prints it and nothing else. */
 function printPager(page){
   const w = window.open("", "_blank", "width=820,height=980");
   if (!w){ push("ai", b => { b.innerHTML = rich("The print window was blocked. Allow pop-ups for this site, or copy the page instead."); }); return; }
   const li = (page.sections || []).map(sec =>
     (sec.head ? `<h2>${esc(sec.head)}</h2>` : "") +
+    ((sec.blocks || []).length ? docHtml(sec.blocks) :
     "<ul>" + (sec.bullets || []).map(b => typeof b === "string" ? `<li>${esc(b)}</li>`
-      : `<li>${b.k ? `<strong>${esc(b.k)}</strong>` : ""}${b.k && b.say ? "<br>" : ""}${esc(b.say || "")}</li>`).join("") + "</ul>").join("");
+      : `<li>${b.k ? `<strong>${esc(b.k)}</strong>` : ""}${b.k && b.say ? "<br>" : ""}${esc(b.say || "")}</li>`).join("") + "</ul>")).join("");
   w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(page.title)}</title>
 <style>
   @page{ margin:18mm; }
@@ -2362,7 +2378,8 @@ function printPager(page){
   h1{ font-size:21pt; line-height:1.15; margin:0; letter-spacing:-.01em; }
   .sub{ margin:5pt 0 0; color:#6e6e68; font-size:11pt; }
   h2{ margin:14pt 0 4pt; font-size:9.5pt; letter-spacing:.07em; text-transform:uppercase; color:#93918a; }
-  ul{ margin:8pt 0 0; padding-left:14pt; }
+  ul, ol{ margin:8pt 0 0; padding-left:14pt; }
+  p{ margin:0 0 8pt; }
   li{ margin-bottom:7pt; }
   li strong{ font-weight:600; }
   .foot{ margin-top:16pt; padding-top:7pt; border-top:1px solid #e5e2d9; color:#93918a; font-size:9.5pt; }
@@ -2482,7 +2499,7 @@ async function go(){
   $("input").value = ""; sizeBox();
   if (S.mode === "drop") $("srcInput").value = "";
   S.busy = true; renderComposer();
-  try { S.mode==="drop" ? await doDrop(src, text) : S.level==="quiz" ? await doQuiz(text) : await doAsk(text); }
+  try { S.mode==="drop" ? await doDrop(src, text) : await doAsk(text); }
   finally { S.busy = false; renderComposer(); }
 }
 
@@ -2525,86 +2542,6 @@ function splitAnswer(t){
       .map(l => `<p class="ln">${esc(l).replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>")}</p>`)
       .join("") + `</div>`).filter(x => x !== `<div class="para"></div>`).join("");
   return html + (m ? `<div class="srcline">${esc(m[1])}</div>` : "");
-}
-
-/* ---------- quiz ---------- */
-
-/**
- * A round of 5 questions on a topic. Each reply goes back with the question
- * and its expected answer: the server grades it and asks the next one in the
- * same call. "hint" and "stop" are read here and cost nothing.
- */
-async function doQuiz(text){
-  says(text);
-  if (!S.brains.length){
-    push("ai", b => { b.innerHTML = rich("No brains exist yet, so there is nothing to quiz on. Create one and drop a few sources first."); });
-    return;
-  }
-  const Q = S.quiz;
-  const word = text.toLowerCase().replace(/[.!?\s]+$/, "").trim();
-  if (Q && /^(hint|clue|indice)$/.test(word)){
-    push("ai", b => { b.append(el("div","qz-hint", "Hint: " + Q.now.hint)); });
-    return;
-  }
-  if (Q && /^(stop|end|quit|done|fin)$/.test(word)){
-    S.quiz = null;
-    push("ai", b => quizEnd(b, Q, true));
-    renderComposer();
-    return;
-  }
-  const fresh = !Q;
-  const q = Q || { topic: text, brain: S.scope, number: 1, right: 0, partly: 0, asked: [], missed: [], now: null };
-  const body = thinking();
-  try {
-    const r = await api("/api/quiz", { topic: q.topic, brain: q.brain, asked: q.asked,
-      number: fresh ? 1 : q.number + 1,
-      turn: fresh ? undefined : { question: q.now.question, answer: q.now.answer, concept: q.now.concept, reply: text } });
-    body.innerHTML = "";
-    if (!fresh){
-      if (r.verdict === "right") q.right++;
-      else { if (r.verdict === "partly") q.partly++; if (q.now.concept) q.missed.push(q.now.concept); }
-      body.append(el("div", "qz-verdict qz-" + (QUIZ_WORD[r.verdict] ? r.verdict : "wrong"), QUIZ_WORD[r.verdict] || "Not yet"));
-      const fb = el("div"); fb.innerHTML = splitAnswer(r.feedback || ""); body.append(fb);
-    }
-    if (r.next && (fresh || q.number < QUIZ_ROUND)){
-      if (!fresh) q.number++;
-      q.now = r.next;
-      q.asked.push({ question: r.next.question, concept: r.next.concept });
-      S.quiz = q;
-      quizAsk(body, q);
-    } else if (fresh){
-      S.quiz = null;
-      body.append(el("p","ln", r.empty
-        ? "Nothing held bears on that topic yet. Name another one, or drop a source on it first."
-        : "No question came back. Send the topic again."));
-    } else {
-      S.quiz = null;
-      quizEnd(body, q, false);
-    }
-    renderComposer();
-    bottom();
-  } catch(e){
-    /* A failed turn keeps the question on screen, so the reply can be sent again. */
-    if (fresh) S.quiz = null;
-    fail(body, e.message);
-  }
-}
-function quizAsk(body, q){
-  const box = el("div","qz");
-  box.append(el("div","qz-num", `Question ${q.number} of ${QUIZ_ROUND}`), el("p","qz-q", q.now.question));
-  const hb = el("button","qz-hbtn","Hint");
-  hb.onclick = () => hb.replaceWith(el("div","qz-hint", "Hint: " + q.now.hint));
-  box.append(hb);
-  body.append(box);
-}
-function quizEnd(body, q, stopped){
-  const answered = stopped ? q.number - 1 : q.number;
-  if (!answered){ body.append(el("p","ln","Quiz stopped before the first answer. Name a topic to start a round.")); return; }
-  body.append(el("div","qz-score",
-    `Score: ${q.right} of ${answered} right` + (q.partly ? `, ${q.partly} partly` : "")));
-  const miss = [...new Set(q.missed)];
-  if (miss.length) body.append(el("p","ln", `Worth a second look: ${miss.join(", ")}.`));
-  body.append(el("p","ln","Name a topic to start another round."));
 }
 
 /* ---------- drop ---------- */

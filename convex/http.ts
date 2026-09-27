@@ -17,10 +17,10 @@ import type { Who } from "./lib";
 import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from "./drop";
 import { DOC_STYLE, DOC_BODY } from "./doc";
-import { assemble, fromModel, asText, mail, looksLikeMail, pageIds } from "./onepager";
+import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, DOC_TYPES } from "./onepager";
+import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
-import { quizTurn } from "./quiz";
 import { loadSpace } from "./space";
 
 const router = httpRouter();
@@ -454,23 +454,6 @@ QUESTION: ${String(b.q ?? "")}` },
   return { answer: text, sources: nSources, level };
 });
 
-/* ---------- quiz ---------- */
-
-/** One turn of a quiz: grade the reply when there is one, then ask the next. */
-route("/api/quiz", async (ctx, _req, b) => {
-  const who = await gate(ctx, b);
-  const { brains, cards } = await loadSpace(ctx, who.space);
-  const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
-  const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
-  if (!pool.length) return { empty: true };
-  const turn = b.turn && typeof b.turn === "object" ? b.turn : undefined;
-  return await quizTurn(pool, cards, {
-    topic: String(b.topic ?? ""), asked: Array.isArray(b.asked) ? b.asked.slice(-10) : [],
-    turn, number: Number(b.number) || 1,
-  }, undefined, modelName(b),
-  ids => ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids }));
-});
-
 /* ---------- one page ---------- */
 
 /**
@@ -507,18 +490,21 @@ route("/api/onepager", async (ctx, _req, b) => {
   if (to && !looksLikeMail(to)) return { error: `"${to.slice(0, 60)}" is not an address` };
 
   const q = String(b.q ?? "").trim();
-  /* Summary lays out the positions, free, or answers a question. A quiz and
-     a page written to the owner's own instruction take one model call. */
-  const kind = b.kind === "quiz" || b.kind === "custom" ? b.kind : "summary";
+  /* Summary lays out the positions in bullets, free, or answers a question.
+     Custom writes a document of the type picked, in one model call. A quiz
+     asked the old way, as its own kind, is a custom quiz. */
+  const oldQuiz = b.kind === "quiz";
+  const kind = b.kind === "custom" || oldQuiz ? "custom" : "summary";
+  const doc: DocType = oldQuiz ? "quiz" : DOC_TYPES.includes(b.doc) ? b.doc : "other";
   const note = String(b.note ?? "").trim().slice(0, 600);
-  if (kind === "custom" && !note) return { error: "write the instruction the page should follow" };
+  if (kind === "custom" && doc === "other" && !note) return { error: "describe the document you want" };
   const page = q || kind !== "summary"
-    ? await fromModel(who.space, brains, concepts, sources, { q, kind, note, pick },
+    ? await fromModel(who.space, brains, concepts, sources, { q, kind, doc, note, pick },
                       undefined, modelName(b), load)
     : assemble(who.space, brains, concepts, sources, pick,
                new Map((await load(pageIds(brains, concepts))).map((c: any) => [idOf(c), c])));
 
-  if (!page.sections.some((s: any) => s.bullets.length)) {
+  if (!hasBody(page)) {
     return { error: "those brains hold no positions yet, so the page would be empty" };
   }
 

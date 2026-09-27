@@ -135,8 +135,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
 | `/api/drop/merge` | Groups titles that name one idea twice after parts were planned in parallel | Yes |
 | `/api/ask` | The answer | Yes |
-| `/api/quiz` | One quiz turn: grades the reply, then asks the next question. 5 a round | Yes |
-| `/api/onepager` | A brain, a group or a question as bullets: a summary, a quiz, or a page to your own instructions. Sends it too, when given an address | Yes |
+| `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Sends it too, when given an address | Yes |
 | `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |
 | `/api/usage` | What transcripts have cost, from both sides | Yes |
 | `/api/doc` | The connector page's words, served rather than published | Yes |
