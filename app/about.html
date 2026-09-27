@@ -1,7 +1,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How Octopus works</title>
-<meta name="description" content="An open source knowledge base. One brain per subject, each holding a position, the evidence under it and a date on every claim. MIT licensed, run it yourself.">
+<meta name="description" content="How Octopus works: six steps from a link to knowledge, and seven rules every brain follows. MIT licensed, run it yourself.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -13,29 +13,68 @@
 <style>
   main > .wrap{ max-width:940px; }
 
-  .hero-wrap{
-    display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);
-    gap:clamp(26px,4.4vw,56px); align-items:center;
-  }
   .eyebrow{
     margin-bottom:18px; font:500 11px/1.7 var(--mono); letter-spacing:.11em;
     text-transform:uppercase; color:var(--accent);
   }
   h1.hero{
-    font-size:clamp(30px,4.2vw,46px); line-height:1.05; letter-spacing:-.034em; font-weight:600;
-    max-width:17ch;
+    font-size:clamp(32px,4.6vw,52px); line-height:1.04; letter-spacing:-.036em; font-weight:600;
+    max-width:18ch;
   }
   h1.hero em{ font-style:italic; font-weight:600; color:var(--accent); }
-  .hero-main .one{
-    margin-top:16px; max-width:40ch;
-    font-size:clamp(15px,1.8vw,17px); line-height:1.58; color:var(--ink-2);
+  .lead{
+    margin-top:18px; max-width:52ch;
+    font-size:clamp(16px,1.9vw,18.5px); line-height:1.6; color:var(--ink-2);
   }
-  .tldr{ border-left:2px solid var(--accent-line); padding-left:clamp(16px,2vw,22px); }
-  .tldr p{ margin:0; font-size:14px; line-height:1.58; color:var(--ink-3); max-width:42ch; }
-  .tldr p + p{ margin-top:11px; }
-  .tldr p b{ color:var(--ink-2); font-weight:500; }
 
-  /* A command you can copy, and nothing around it. */
+  /* Section heads: a small numbered kicker over a large title. */
+  .kick{
+    margin-top:clamp(56px,8vw,88px); font:500 11px/1.7 var(--mono); letter-spacing:.11em;
+    text-transform:uppercase; color:var(--accent);
+  }
+  h2.big{ margin-top:6px; font-size:clamp(24px,3vw,32px); line-height:1.12; letter-spacing:-.025em; }
+  h2.big + p{ margin-top:12px; }
+
+  /* The life of a source: six steps on one rail. */
+  ol.flow{
+    list-style:none; margin:26px 0 0; padding:0; counter-reset:f;
+    display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0;
+    border-top:1px solid var(--line-2);
+  }
+  ol.flow li{ counter-increment:f; position:relative; padding:22px 14px 0 0; }
+  ol.flow li::before{
+    content:""; position:absolute; top:-5px; left:0; width:9px; height:9px; border-radius:50%;
+    background:var(--accent-fill); box-shadow:0 0 0 4px var(--bg);
+  }
+  ol.flow li b{ display:block; font:600 15.5px/1.3 var(--sans); color:var(--ink); }
+  ol.flow li b::before{ content:"0" counter(f) "  "; font:500 11px/1 var(--mono); color:var(--accent); letter-spacing:.06em; }
+  ol.flow li span{ display:block; margin-top:7px; font-size:13.5px; line-height:1.55; color:var(--ink-3); }
+
+  /* The principles: a number and a title on the left, the reason on the right. */
+  .laws{ margin-top:26px; border-top:1px solid var(--line-2); }
+  .law{
+    display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.4fr); gap:clamp(18px,4vw,48px);
+    padding:26px 0; border-bottom:1px solid var(--line);
+  }
+  .law .n{ font:500 12px/1 var(--mono); color:var(--accent); letter-spacing:.06em; }
+  .law h3{ margin-top:10px; font:600 clamp(18px,2.1vw,21px)/1.25 var(--sans); letter-spacing:-.015em; }
+  .law p{ font-size:15.5px; line-height:1.65; color:var(--ink-2); max-width:none; }
+  .law p + p{ margin-top:10px; }
+  .law .fig{ color:var(--ink); font-weight:600; }
+
+  .stats{ margin-top:22px; }
+  .stat b{ font-size:clamp(22px,2.6vw,28px); }
+
+  /* The setup, folded away for whoever wants it. */
+  details.run{ margin-top:18px; border:1px solid var(--line-2); border-radius:12px; background:var(--surface); }
+  details.run summary{
+    cursor:pointer; list-style:none; padding:16px 18px; font:600 15px/1.3 var(--sans); color:var(--ink);
+    display:flex; align-items:center; gap:10px;
+  }
+  details.run summary::-webkit-details-marker{ display:none; }
+  details.run summary::after{ content:"+"; margin-left:auto; font:400 20px/1 var(--mono); color:var(--accent); }
+  details.run[open] summary::after{ content:"\2212"; }
+  details.run .in{ padding:0 18px 18px; }
   .cmd{
     margin-top:12px; border:1px solid var(--line); border-radius:10px;
     background:var(--surface-2); padding:13px 15px; overflow-x:auto;
@@ -43,20 +82,15 @@
   .cmd code{ display:block; white-space:pre; font:400 13px/1.85 var(--mono); color:var(--ink-2); }
   .cmd code b{ color:var(--accent); font-weight:400; }
   .cmd code i{ color:var(--ink-4); font-style:normal; }
-
-  .grid.three{ grid-template-columns:repeat(auto-fit,minmax(214px,1fr)); }
-  .card .k{
-    display:block; margin-bottom:7px;
-    font:400 10.5px/1.6 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--accent);
-  }
-  h3.sub{ margin-top:26px; }
+  h3.sub{ margin-top:22px; }
 
   footer.bot .wrap{ justify-content:space-between; max-width:940px; }
   footer.bot b{ color:var(--accent); font-weight:500; }
 
   @media (max-width:880px){
-    .hero-wrap{ grid-template-columns:1fr; gap:26px; }
-    h1.hero{ max-width:none; }
+    ol.flow{ grid-template-columns:repeat(2,minmax(0,1fr)); border-top:0; row-gap:8px; }
+    ol.flow li{ border-top:1px solid var(--line-2); padding-top:20px; }
+    .law{ grid-template-columns:1fr; gap:10px; }
   }
 </style>
 
@@ -72,59 +106,89 @@
 
 <main><div class="wrap">
 
-  <div class="hero-wrap">
-    <div class="hero-main">
-      <div class="eyebrow">MIT licensed &middot; Run it yourself &middot; Your key</div>
-      <h1 class="hero">Every AI knows the same things. This one knows <em>what you read</em>.</h1>
-      <p class="one">One brain per subject. Each holds a position, the evidence under it, and a date on
-        every claim.</p>
-      <div class="row">
-        <a class="btn primary" href="https://github.com/jlasne/brain">Run your own</a>
-        <a class="btn" href="/">Open a brain</a>
-      </div>
-      <p class="muted" style="margin-top:12px;font-size:13.5px">This instance holds one person's brains,
-        so the app asks for their account. Reading them needs nothing:
-        <a href="/doc">point any AI client at it</a>.</p>
-    </div>
-
-    <aside class="tldr">
-      <p>You learn from articles, videos and studies, week after week.</p>
-      <p>An octopus carries <b>500 million neurons</b>, and two thirds of them work out in its arms.</p>
-      <p>This one is built the same way: <b>one brain per subject</b>, each organised on its own.</p>
-      <p>When a source disagrees with what you hold, <b>you rule which side wins</b>, and the position
-        changes with it.</p>
-    </aside>
+  <div class="eyebrow">How it works</div>
+  <h1 class="hero">Every AI knows the same things. This one knows <em>what you read</em>.</h1>
+  <p class="lead">Feed it articles, videos and documents. It keeps one position on each idea, with the
+    evidence, the figures and the date behind it. Ask, and it answers from that.</p>
+  <div class="row">
+    <a class="btn primary" href="/">Open a brain</a>
+    <a class="btn" href="https://github.com/jlasne/brain">Run your own</a>
   </div>
 
-  <h2>Three things you do</h2>
-  <div class="grid three">
-    <div class="card">
-      <span class="k">Drop</span>
-      <h3>Feed it a source</h3>
-      <p>Paste a link and it opens the page. One card comes back: where it lands, what is new, what
-        repeats, and every claim that contradicts what you hold. You rule each one, then it writes.</p>
+  <div class="kick">01 &middot; The life of a source</div>
+  <h2 class="big">From a link to knowledge, in six steps.</h2>
+  <ol class="flow">
+    <li><b>Drop</b><span>A link, a pasted text, or a document of any length.</span></li>
+    <li><b>Read</b><span>Read whole, in parts of 18,000 characters, three at a time.</span></li>
+    <li><b>File</b><span>Each idea joins the concept it belongs to, or opens a new one.</span></li>
+    <li><b>Rule</b><span>Every claim that clashes with what you hold comes to you.</span></li>
+    <li><b>Rewrite</b><span>Each position is worked out again from all its evidence.</span></li>
+    <li><b>Link</b><span>New concepts connect to the ones they build on.</span></li>
+  </ol>
+
+  <div class="kick">02 &middot; The principles</div>
+  <h2 class="big">Seven rules every brain follows.</h2>
+  <div class="laws">
+    <div class="law">
+      <div><span class="n">01</span><h3>One brain per subject</h3></div>
+      <div><p>An octopus carries <span class="fig">500 million neurons</span>, and two thirds of them sit in
+        its arms. Octopus works the same way: one brain per subject or per person, each organised on its own.</p>
+        <p>A question reads the brains that bear on it.</p></div>
     </div>
-    <div class="card">
-      <span class="k">Ask</span>
-      <h3>Ask in plain words</h3>
-      <p>The first sentence answers. Numbers sit inside the answer, sources on one line underneath.
-        A follow-up question reads against the ones before it.</p>
+    <div class="law">
+      <div><span class="n">02</span><h3>A position, with its proof</h3></div>
+      <div><p>Each concept states what holds today. Under it sit the evidence, who said it and when, the
+        figures, and any open conflict.</p>
+        <p>A new source re-derives the position from the whole list, so it reads as one view.</p></div>
     </div>
-    <div class="card">
-      <span class="k">Connect</span>
-      <h3>Use it from your own AI</h3>
-      <p>One address makes any MCP client a reader. A second one lets it feed. Your client does the
-        thinking, so a drop through it spends nothing here. <a href="/doc">How to add it</a>.</p>
+    <div class="law">
+      <div><span class="n">03</span><h3>Every page is read</h3></div>
+      <div><p>A <span class="fig">207 page</span> document is read in parts, and every part is filed.</p>
+        <p>The AI sets the grain from the source itself: study material gets one concept per rule, an
+        argument gets one concept per idea.</p></div>
+    </div>
+    <div class="law">
+      <div><span class="n">04</span><h3>You rule the contradictions</h3></div>
+      <div><p>When a source clashes with what a brain holds, you see both claims with their dates. You
+        pick: keep both, the new one wins, or yours wins.</p>
+        <p>The position moves with your ruling, and the older view stays in the evidence, dated.</p></div>
+    </div>
+    <div class="law">
+      <div><span class="n">05</span><h3>Ideas link to each other</h3></div>
+      <div><p>Each concept links to up to <span class="fig">12</span> others it builds on, explains or is
+        weighed against.</p>
+        <p>An answer follows those links, so it reaches the idea one step further.</p></div>
+    </div>
+    <div class="law">
+      <div><span class="n">06</span><h3>Answers come from what you fed it</h3></div>
+      <div><p>A question first reads every concept title, then opens the <span class="fig">30</span> that
+        bear on it. The first sentence answers. Numbers sit inside, sources on one line underneath.</p>
+        <p>Pick the level: Normal, Educational, or Learning, which gives you the steps and leaves the
+        answer to you.</p></div>
+    </div>
+    <div class="law">
+      <div><span class="n">07</span><h3>Yours to keep</h3></div>
+      <div><p>Every brain exports to plain markdown. The code is MIT licensed and runs on your own model key.</p>
+        <p>Any AI client can read the brains through one address: <a href="/doc">how to connect</a>.</p></div>
     </div>
   </div>
 
-  <h2>Run your own</h2>
-  <p>The whole thing is MIT licensed and public. Two ways to run it, and a brain exports to plain
-    markdown either way.</p>
+  <div class="kick">03 &middot; In numbers</div>
+  <h2 class="big">What it costs, on 1,000 concepts.</h2>
+  <div class="stats">
+    <div class="stat"><b>$0.001</b><span>per question</span></div>
+    <div class="stat"><b>9 s</b><span>per answer</span></div>
+    <div class="stat"><b>$0.07</b><span>per 207 page drop</span></div>
+    <div class="stat"><b>$0</b><span>per one-pager of a brain</span></div>
+  </div>
 
-  <h3 class="sub">As a web app</h3>
-  <p class="muted">A Convex deployment holds the data. Any static host serves the pages.</p>
-  <div class="cmd"><code><b>git</b> clone https://github.com/jlasne/brain
+  <div class="kick">04 &middot; Run your own</div>
+  <h2 class="big">Open code, your key, your data.</h2>
+  <details class="run">
+    <summary>As a web app</summary>
+    <div class="in">
+      <p class="muted">A Convex deployment holds the data. Any static host serves the pages.</p>
+      <div class="cmd"><code><b>git</b> clone https://github.com/jlasne/brain
 <b>cd</b> brain && <b>npm</b> install
 
 <i># a deployment of your own</i>
@@ -135,35 +199,35 @@
 <b>npx</b> convex env set KEY_SECRET "$(openssl rand -base64 32)" --prod
 <b>npx</b> convex deploy
 
-<i># optional: one owner, no sign-ups</i>
-<b>npx</b> convex env set ONLY_ACCOUNT yourname --prod
+<i># the passphrase of each door</i>
+<b>npx</b> convex run admin:setPass "{space:'octopus',pass:'...'}" --prod
 
 <i># optional: video links fetch their own transcript</i>
 <b>npx</b> convex env set SUPADATA_API_KEY sd_... --prod</code></div>
-  <p class="muted" style="margin-top:12px">Then serve <code>app/</code> as the site root. The repo
-    carries a <code>vercel.json</code> that already does it. Open the app, take a name and a password,
-    and create your first brain.</p>
-
-  <h3 class="sub">As files on your machine</h3>
-  <p class="muted">No server, no database. A brain is a markdown folder you can open in any editor.</p>
-  <div class="cmd"><code><b>cp</b> -r brain/skill/brain ~/.claude/skills/brain</code></div>
-  <p class="muted" style="margin-top:12px">Then ask Claude Code for your first brain. Same three
-    actions, same rules, same export format as the web app.</p>
-
-  <h2>What is in the repo</h2>
-  <div class="tbl"><table>
-    <tr><th>Path</th><th>What it holds</th></tr>
-    <tr><td><code>PROTOCOL.md</code></td><td>Every rule the brain follows, numbered: how a source is filed,
-      how evidence compresses, what the receipt has to prove.</td></tr>
-    <tr><td><code>convex/</code></td><td>The server. The routes, the four drop steps, the MCP server, the schema.</td></tr>
-    <tr><td><code>app/</code></td><td>The pages. Each one is a single HTML file with no build step.</td></tr>
-    <tr><td><code>skill/brain/</code></td><td>The Claude Code skill, for running the whole thing as files.</td></tr>
-    <tr><td><code>templates/</code></td><td>The markdown a brain exports to: the map, a concept, a note.</td></tr>
-    <tr><td><code>scripts/</code></td><td>The checks. One reads every page, one drives a whole drop with no network.</td></tr>
-  </table></div>
-
-  <div class="note">Nothing here locks you in. A brain exports to markdown, and the protocol that
-    produced it sits in the same repo, so it can be rebuilt anywhere.</div>
+      <p class="muted" style="margin-top:12px">Then serve <code>app/</code> as the site root. The repo
+        carries a <code>vercel.json</code> that does it.</p>
+    </div>
+  </details>
+  <details class="run">
+    <summary>As files on your machine</summary>
+    <div class="in">
+      <p class="muted">A brain is a markdown folder you open in any editor.</p>
+      <div class="cmd"><code><b>cp</b> -r brain/skill/brain ~/.claude/skills/brain</code></div>
+      <p class="muted" style="margin-top:12px">Then ask Claude Code for your first brain. Same rules, same
+        export format as the web app.</p>
+    </div>
+  </details>
+  <details class="run">
+    <summary>What is in the repo</summary>
+    <div class="in"><div class="tbl"><table>
+      <tr><th>Path</th><th>What it holds</th></tr>
+      <tr><td><code>PROTOCOL.md</code></td><td>Every rule the brain follows, numbered.</td></tr>
+      <tr><td><code>convex/</code></td><td>The server: routes, the drop steps, the MCP server, the schema.</td></tr>
+      <tr><td><code>app/</code></td><td>The pages, each one HTML file with no build step.</td></tr>
+      <tr><td><code>skill/brain/</code></td><td>The Claude Code skill, to run it all as files.</td></tr>
+      <tr><td><code>scripts/</code></td><td>The checks, run before every change.</td></tr>
+    </table></div></div>
+  </details>
 
 </div></main>
 

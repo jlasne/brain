@@ -176,6 +176,26 @@ async function boot(path, init, arg) {
   }));
   check("asking hides the source line and the document button", asking.src && asking.file);
 
+  /* ---- the brain picker ---- */
+  const face = await page.evaluate(() => document.getElementById("scopeBtn").textContent.replace(/\s+/g, " ").trim());
+  check("the picker says where a question goes", /Across All brains/.test(face), face);
+  await page.click("#scopeBtn");
+  const menu = await page.evaluate(() => ({
+    rows: [...document.querySelectorAll(".pick-menu .pk-row .pk-nm")].map(x => x.firstChild.textContent),
+    heads: [...document.querySelectorAll(".pick-menu .pk-h")].map(x => x.textContent),
+  }));
+  check("its menu offers every brain, grouped", menu.rows.join(",") === "All brains,Content" && menu.heads.join(",") === "Subjects",
+    JSON.stringify(menu));
+  await page.click(".pick-menu .pk-row >> nth=1");
+  const picked = await page.evaluate(() => ({ val: document.getElementById("scopeVal").textContent, open: !!document.querySelector(".pick-menu") }));
+  check("picking a brain names it and closes the menu", picked.val === "Content" && !picked.open, JSON.stringify(picked));
+  await page.click("#scopeBtn"); await page.keyboard.press("Escape");
+  check("Escape closes the menu", !(await page.$(".pick-menu")));
+  await page.click("#scopeBtn"); await page.click(".pick-menu .pk-row >> nth=0");
+  check("the one-pager sits in the side panel, above Create a brain",
+    await page.evaluate(() => { const p = document.getElementById("pagerBtn");
+      return !!p.closest("aside") && p.nextElementSibling === document.getElementById("newBrain"); }));
+
   /* ---- the one-pager ---- */
   await page.click("#pagerBtn");
   await page.waitForTimeout(120);
@@ -251,9 +271,11 @@ async function boot(path, init, arg) {
   await page.click("#send"); await page.waitForTimeout(150);
   const loader = await page.evaluate(() => {
     const m = document.querySelector(".thinking .spinner");
-    return m ? { bg: getComputedStyle(m).backgroundImage, anim: getComputedStyle(m).animationName } : null;
+    return m ? { bg: getComputedStyle(m).backgroundImage, anim: getComputedStyle(m).animationName,
+                 line: document.querySelector(".thinking span:last-child")?.textContent } : null;
   });
   check("a question shows the turning mark while it waits", !!loader, "no .spinner");
+  check("with one of Octopus's waiting lines", /^(Octopus|Eight arms)/.test(loader?.line || ""), loader?.line);
   if (loader) {
     check("and it is this space's mark", /logo-mark\.png/.test(loader.bg), loader.bg);
     check("turning", loader.anim === "turn", loader.anim);

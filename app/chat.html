@@ -197,6 +197,52 @@
   .brain-row.on .nm, .brain-row.on .ct{ color:var(--accent); }
   .empty-side{ padding:6px 3px; font:400 12.5px/1.55 var(--sans); color:var(--ink-4); }
 
+  .side-act{
+    display:flex; align-items:center; gap:8px; margin:0 0 8px; padding:10px 11px; width:100%; text-align:left;
+    border:1px solid var(--line-2); border-radius:9px; background:var(--surface);
+    font:500 13px/1 var(--sans); color:var(--ink-2);
+    transition:border-color .15s var(--ease), color .15s var(--ease);
+  }
+  .side-act:hover{ border-color:var(--accent-fill); color:var(--accent); }
+  .side-act svg{ width:15px; height:15px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* The brain picker: the space's mark, where the question goes, and a menu
+     that opens upward from the box. */
+  .pick-btn{
+    display:inline-flex; align-items:center; gap:7px; height:36px; padding:0 11px 0 8px;
+    border:1px solid var(--line-2); border-radius:9px; background:var(--surface);
+    font:500 13px/1 var(--sans); color:var(--ink); max-width:250px;
+    transition:border-color .15s var(--ease), box-shadow .15s var(--ease);
+  }
+  .pick-btn:hover, .pick-btn[aria-expanded="true"]{ border-color:var(--accent-fill); }
+  .pick-btn[aria-expanded="true"]{ box-shadow:0 0 0 3px var(--accent-soft); }
+  .pick-btn .pk-mark{ width:18px; height:18px; border-radius:5px; object-fit:contain; flex:none; }
+  .pick-btn .pk-lbl{ color:var(--ink-3); font-weight:400; }
+  .pick-btn .pk-val{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .pick-btn .pk-chev{ width:11px; height:11px; flex:none; fill:none; stroke:var(--ink-3); stroke-width:1.6;
+                      stroke-linecap:round; stroke-linejoin:round; transition:transform .15s var(--ease); }
+  .pick-btn[aria-expanded="false"] .pk-chev{ transform:rotate(180deg); }
+  .pick-menu{
+    position:fixed; z-index:60; width:280px; max-height:min(56vh, 420px); overflow:auto;
+    background:var(--surface); border:1px solid var(--line-2); border-radius:13px;
+    box-shadow:0 14px 40px rgba(20,20,19,.16), 0 2px 6px rgba(20,20,19,.06); padding:6px;
+    animation:pickin .14s var(--ease);
+  }
+  @keyframes pickin{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+  .pick-menu .pk-h{ padding:10px 10px 5px; font:500 10.5px/1.4 var(--mono); letter-spacing:.08em;
+                    text-transform:uppercase; color:var(--ink-4); }
+  .pick-menu .pk-row{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:9px 10px;
+    border-radius:9px; color:var(--ink); font:400 13.5px/1.25 var(--sans);
+  }
+  .pick-menu .pk-row:hover, .pick-menu .pk-row:focus-visible{ background:var(--surface-2); outline:none; }
+  .pick-menu .pk-row.on{ background:var(--accent-soft); color:var(--accent); font-weight:500; }
+  .pick-menu .pk-dot{ width:8px; height:8px; border-radius:50%; flex:none; background:var(--line-2); }
+  .pick-menu .pk-row.on .pk-dot{ background:var(--accent-fill); }
+  .pick-menu .pk-nm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pick-menu .pk-sub{ display:block; margin-top:3px; font-size:11.5px; font-weight:400; color:var(--ink-3); }
+  .pick-menu .pk-ct{ flex:none; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
+
   .new-brain{
     margin:0 0 12px; padding:10px 11px; width:100%; text-align:left;
     border:1px dashed var(--line-2); border-radius:9px;
@@ -515,8 +561,9 @@
   }
   .seg button:hover{ color:var(--ink); }
   .seg button.on{ background:var(--accent-solid); color:var(--accent-on); }
-  /* The answer levels: an icon beside each name. */
-  .seg.lv button{ display:inline-flex; align-items:center; gap:6px; }
+  /* The answer levels: an icon each, and the name of the one in use. */
+  .seg.lv button{ display:inline-flex; align-items:center; gap:6px; padding:8px 11px; }
+  .seg.lv button:not(.on) span{ display:none; }
   .seg.lv svg{ width:15px; height:15px; flex:none; fill:none; stroke:currentColor; stroke-width:1.8;
                stroke-linecap:round; stroke-linejoin:round; }
 
@@ -728,6 +775,9 @@
     .scope{ min-height:44px; }
     .scope label{ font-size:14px; }
     .scope select{ font-size:16px; min-height:42px; }
+    .pick-btn{ height:44px; font-size:14px; max-width:210px; }
+    .pick-menu{ width:min(320px, calc(100vw - 24px)); }
+    .pick-menu .pk-row{ padding:12px 10px; font-size:15px; }
     .fresh{ height:44px; font-size:14px; padding:0 15px; }
 
     /* Drop: the hint gets its own line, and the three tools share one row
@@ -803,6 +853,8 @@
       <button class="navtoggle" id="navToggle" aria-label="Hide the brains" title="Hide the brains">&#171;</button>
     </div>
     <div class="side-scroll">
+      <button class="side-act" id="pagerBtn" title="A brain, a group, or a question, as bullets on one page">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>One-pager</button>
       <button class="new-brain" id="newBrain">+ Create a brain</button>
       <div class="side-h">Brains <b id="bcount"></b></div>
       <div id="brains"></div>
@@ -841,12 +893,12 @@
             <button data-m="ask" class="on">Ask</button>
             <button data-m="drop">Drop</button>
           </div>
-          <div class="scope">
-            <label id="scopeLabel">Across</label>
-            <select id="scope"></select>
-          </div>
-          <button class="fresh" id="freshBtn" hidden title="Forget the questions so far and clear the screen">New thread</button>
-          <button class="fresh" id="pagerBtn" title="A brain, a group, or a question, as bullets on one page">One-pager</button>
+          <button class="pick-btn" id="scopeBtn" aria-haspopup="listbox" aria-expanded="false" title="Which brains to ask, or to feed">
+            <img class="pk-mark" id="scopeMark" src="/brand/logo-mark.png" alt="" width="18" height="18">
+            <span class="pk-lbl" id="scopeLabel">Across</span>
+            <span class="pk-val" id="scopeVal">All brains</span>
+            <svg class="pk-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 7.5 6 4.5l3 3"/></svg>
+          </button>
           <div id="levelWrap">
             <div class="seg lv" id="level" role="radiogroup" aria-label="Level of the answer">
               <button data-v="normal" role="radio" title="Normal: the answer, with its numbers" aria-label="Normal">
@@ -857,6 +909,7 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z"/></svg><span>Learning</span></button>
             </div>
           </div>
+          <button class="fresh" id="freshBtn" hidden title="Forget the questions so far and clear the screen">New thread</button>
         </div>
         <div class="box">
           <!-- A drop is two things: where it comes from, and what it says. They
@@ -1106,6 +1159,7 @@ function paintSpace(){
   probe.onload = () => {
     mark.src = want;
     $("spaceMarkBar").src = want;
+    $("scopeMark").src = want;
     const tab = document.querySelector('link[rel="icon"]');
     if (tab) tab.href = want;
   };
@@ -1245,15 +1299,61 @@ function openBrainSheet(b){
   };
 }
 
+/** The picker's face: the space's mark, where it goes, and to which brain. */
 function renderScope(){
-  const sel = $("scope");
-  sel.innerHTML = "";
-  const all = el("option", null, S.mode==="drop" ? "Suggest for me" : "All brains");
-  all.value = "all"; sel.append(all);
-  for (const b of S.brains){ const o = el("option", null, b.name); o.value = b.slug; sel.append(o); }
   if (!S.brains.some(b => b.slug === S.scope)) S.scope = "all";
-  sel.value = S.scope;
-  $("scopeLabel").textContent = S.mode==="drop" ? "Into" : "Across";
+  const drop = S.mode === "drop";
+  $("scopeLabel").textContent = drop ? "Into" : "Across";
+  $("scopeVal").textContent = S.scope === "all" ? (drop ? "Suggest for me" : "All brains")
+    : (S.brains.find(b => b.slug === S.scope)?.name || "All brains");
+  const mark = $("spaceMark")?.getAttribute("src");
+  if (mark && $("scopeMark").getAttribute("src") !== mark) $("scopeMark").src = mark;
+  if (pickMenu) fillPick();
+}
+
+/* The picker's menu, drawn on the page itself so the scrolling bar of a phone
+   never clips it, and placed above the button, since the box sits low. */
+var pickMenu = null;   // var, not let: render() runs before this line is reached
+function fillPick(){
+  const m = pickMenu, drop = S.mode === "drop";
+  m.innerHTML = "";
+  const row = (slug, name, sub, count) => {
+    const r = el("button","pk-row" + (S.scope === slug ? " on" : ""));
+    r.setAttribute("role","option"); r.setAttribute("aria-selected", S.scope === slug ? "true" : "false");
+    const nm = el("span","pk-nm", name);
+    if (sub) nm.append(el("span","pk-sub", sub));
+    r.append(el("span","pk-dot"), nm);
+    if (count != null) r.append(el("span","pk-ct", count));
+    r.onclick = () => { S.scope = slug; closePick(); render(); $("input").focus(); };
+    return r;
+  };
+  const ideas = S.concepts.length;
+  m.append(row("all", drop ? "Suggest for me" : "All brains",
+    drop ? "The AI picks the brain the source belongs in" : `${S.brains.length} brain${S.brains.length===1?"":"s"}, ${ideas} concept${ideas===1?"":"s"}`));
+  for (const g of grouped()){
+    m.append(el("div","pk-h", g.head));
+    for (const b of g.rows) m.append(row(b.slug, b.name, "", String(conceptsOf(b.slug).length)));
+  }
+}
+function placePick(){
+  const r = $("scopeBtn").getBoundingClientRect(), w = pickMenu.offsetWidth;
+  pickMenu.style.left = Math.max(12, Math.min(r.left, innerWidth - w - 12)) + "px";
+  pickMenu.style.bottom = (innerHeight - r.top + 8) + "px";
+}
+function openPick(){
+  if (pickMenu) return closePick();
+  pickMenu = el("div","pick-menu");
+  pickMenu.setAttribute("role","listbox");
+  fillPick();
+  document.body.append(pickMenu);
+  placePick();
+  $("scopeBtn").setAttribute("aria-expanded","true");
+  (pickMenu.querySelector(".pk-row.on") || pickMenu.querySelector(".pk-row"))?.focus();
+}
+function closePick(){
+  if (!pickMenu) return;
+  pickMenu.remove(); pickMenu = null;
+  $("scopeBtn").setAttribute("aria-expanded","false");
 }
 
 function renderComposer(){
@@ -1359,17 +1459,55 @@ function push(kind, build){
 function says(text, attach){
   push("me", b => { b.textContent = text; if (attach) b.append(el("span","attach",attach)); });
 }
+/* What the space's mascot is up to while an answer is on its way. One line
+   every 2.4 seconds, starting anywhere, so a wait never reads the same. */
+const WAITING = {
+  octopus: [
+    "Octopus is reaching into every brain...",
+    "Eight arms, sorting the notes...",
+    "Octopus is feeling for the right concepts...",
+    "Octopus is untangling the answer...",
+    "Octopus is inking the key points...",
+  ],
+  squidgy: [
+    "Squidgy is sniffing around...",
+    "Squidgy picked up a scent...",
+    "Squidgy is digging through the notes...",
+    "Squidgy is fetching the best bits...",
+    "Squidgy is wagging, almost there...",
+  ],
+};
+
+/**
+ * The turning mark and a line. Without a label, the line is the mascot's,
+ * and it changes while the wait lasts. A drop's steps pass their own label,
+ * because "part 3 of 8" says more than a joke.
+ */
 function thinking(label){
   return push("ai", b => {
     const t = el("div","thinking"), mark = el("span","spinner");
     mark.setAttribute("aria-hidden", "true");
     t.setAttribute("role", "status");
-    t.append(mark, el("span",null,label||"Thinking"));
+    const line = el("span",null,label||"Thinking");
+    t.append(mark, line);
     b.append(t);
+    const lines = !label && (WAITING[S.space] || WAITING.octopus);
+    if (lines){
+      let i = Math.floor(Math.random() * lines.length);
+      line.textContent = lines[i];
+      const timer = setInterval(() => {
+        /* The wait ended when the line left the page. */
+        if (!line.isConnected || t.dataset.fixed){ clearInterval(timer); return; }
+        i = (i + 1) % lines.length;
+        line.textContent = lines[i];
+      }, 2400);
+    }
   });
 }
 function setThinking(body, label){
+  const t = body.querySelector(".thinking");
   const s = body.querySelector(".thinking span:last-child");
+  if (t) t.dataset.fixed = "1";
   if (s) s.textContent = label;
 }
 function fail(body, msg){
@@ -1396,7 +1534,18 @@ $("mode").onclick = e => {
   [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m===S.mode));
   renderScope(); renderComposer(); $("input").focus();
 };
-$("scope").onchange = e => { S.scope = e.target.value; render(); };
+$("scopeBtn").onclick = e => { e.stopPropagation(); openPick(); };
+document.addEventListener("click", e => { if (pickMenu && !pickMenu.contains(e.target)) closePick(); });
+document.addEventListener("keydown", e => {
+  if (!pickMenu) return;
+  if (e.key === "Escape"){ closePick(); $("scopeBtn").focus(); }
+  if (e.key === "ArrowDown" || e.key === "ArrowUp"){
+    const rows = [...pickMenu.querySelectorAll(".pk-row")], at = rows.indexOf(document.activeElement);
+    rows[(at + (e.key === "ArrowDown" ? 1 : rows.length - 1)) % rows.length]?.focus();
+    e.preventDefault();
+  }
+});
+window.addEventListener("resize", () => { if (pickMenu) placePick(); });
 $("level").onclick = e => {
   const b = e.target.closest("button[data-v]");
   if (!b) return;
@@ -1414,7 +1563,7 @@ $("freshBtn").onclick = () => {
   $("input").focus();
 };
 $("keyBtn").onclick = openSetupSheet;
-$("pagerBtn").onclick = openPagerSheet;
+$("pagerBtn").onclick = () => { closeSide(); openPagerSheet(); };
 $("testBtn").onclick = testSource;
 $("navToggle").onclick = () => { navOpen = false; paintNav(); };
 $("navOpen").onclick  = () => { navOpen = true;  paintNav(); };
@@ -1934,8 +2083,9 @@ function openPagerSheet(){
     if (to && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to)){ warn(`"${to}" is not an address.`); toI.focus(); return; }
     shut();
 
+    /* A question waits on the model, so the mascot keeps it company. */
     const body = thinking(to ? `${q ? "Asking" : "Building the page"}, then sending it to ${to}`
-                             : q ? "Asking" : "Building the page");
+                             : q ? undefined : "Building the page");
     let r;
     try { r = await api("/api/onepager", { pick, q, key: S.key, ...(to ? { mail: to } : {}) }); }
     catch (e) {
@@ -2212,7 +2362,7 @@ async function doAsk(q){
     push("ai", b => { b.innerHTML = rich("No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again."); });
     return;
   }
-  const body = thinking("Reading your brains");
+  const body = thinking();
   try {
     const r = await api("/api/ask",
       { q, brain: S.scope, level: S.level, history: S.thread.slice(-4), key: S.key });
