@@ -425,8 +425,10 @@ export async function dropPlan(ctx: any, who: Who, b: any, key?: string, model?:
   const { brains: seen, cards: concepts, sources } = await loadSpace(ctx, who.space);
   /* Only brains this caller may feed. Everyone reads more than they can write. */
   const brains = seen.filter((x: any) => canDrop(x, who));
-  const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
-  let pool = only ? brains.filter((x: any) => x.slug === only) : brains;
+  /* One brain, several the owner ticked, or all of them for the plan to pick. */
+  const chosen: string[] = Array.isArray(b.brains) && b.brains.length ? b.brains.map(String)
+    : b.brain && b.brain !== "all" ? [String(b.brain)] : [];
+  let pool = chosen.length ? brains.filter((x: any) => chosen.includes(x.slug)) : brains;
   /* Filing a stored source into a second brain. The brains already holding it
      drop out, so the plan proposes somewhere new rather than rewriting the same
      positions with a source they already carry. */
@@ -450,11 +452,18 @@ ${proposed.join("\n")}
 When an idea below belongs under one of these, propose it as a candidate with that exact title and brain, rather than a new name.
 ` : "";
 
+  /* Ticked on purpose, so each of these brains is fed: an idea that fits two
+     of them is filed in both, each from its own angle. */
+  const PICKED = chosen.length > 1 && pool.length > 1 ? `
+THE OWNER CHOSE THESE BRAINS FOR THIS SOURCE: ${pool.map((x: any) => `${x.name} (id=${x.slug})`).join(", ")}
+Feed each of them. File every idea into EACH chosen brain whose scope it fits: the same idea may appear once per brain, as a match or a candidate in that brain. List every chosen brain the source feeds under "brains".
+` : "";
+
   const { text, finish } = await ask([
     { role: "system", content: PLAN_SYSTEM },
     { role: "user", content:
 `${PLAN_RULES}
-${SO_FAR}${planContext(pool, concepts, sources, ext)}` },
+${PICKED}${SO_FAR}${planContext(pool, concepts, sources, ext)}` },
   ], { json: true, maxTokens: 16000, key, model });
 
   return { plan: parseJson(text, finish) };
@@ -606,15 +615,15 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
   const full = b.fullPlan ?? plan;
   const choices: Record<string, string> = b.choices ?? {};
   const may = (x: string) => brains.some((y: any) => y.slug === x);
-  let targets: string[] = (plan.brains ?? []).map(String).filter(may);
-  /* A plan that named its brains by name rather than id still says where each
-     concept goes, through the ids it matched and the brains its candidates name. */
-  if (!targets.length) {
-    targets = [...new Set<string>([
-      ...(plan.matched ?? []).map((m: any) => String(m.brain ?? String(m.conceptId ?? "").split("/")[0])),
-      ...(plan.candidates ?? []).map((c: any) => String(c.brain ?? "")),
-    ])].filter(may);
-  }
+  /* The brains the plan names, and every brain a concept of it lands in: a
+     plan feeding several brains can leave one off its list, and the ideas
+     filed there would otherwise fall to the first brain. A plan that named
+     its brains by name rather than id is caught the same way. */
+  const targets: string[] = [...new Set<string>([
+    ...(plan.brains ?? []).map(String),
+    ...(plan.matched ?? []).map((m: any) => String(m.brain ?? String(m.conceptId ?? "").split("/")[0])),
+    ...(plan.candidates ?? []).map((c: any) => String(c.brain ?? "")),
+  ])].filter(may);
   if (!targets.length) return { error: "no brain matched" };
 
   const touched: any[] = [];

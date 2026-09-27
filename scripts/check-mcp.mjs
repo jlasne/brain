@@ -30,7 +30,7 @@ await esbuild.build({ entryPoints: [join(dir, "mcp.ts")], bundle: true, format: 
 const { handleRpc, MENTIONS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle-drop.mjs"), logLevel: "silent" });
-const { dropSettle, fetchPage, planContext, dropMerge } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
+const { dropSettle, fetchPage, planContext, dropMerge, dropPlan } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle-words.mjs"), logLevel: "silent" });
 const { findByTitle, cardOf } = await import(pathToFileURL(join(dir, "bundle-words.mjs")).href);
@@ -464,6 +464,33 @@ let job = "";
   const r2 = await dropSettle(ctx, WHO, { sid:"s-huge", ext: huge, plan: plan2, fullPlan: plan2,
     rewrites:[{ conceptId:"content/personal-brand", position:"P.", summaryLine:"", conflicts:[] }], linkLater: true });
   check("a note too big for a row says how many passages it kept", r2.noteTopics > 0 && r2.noteTopics < 300, String(r2.noteTopics));
+}
+
+/* ---- a source can feed several brains the owner ticks ---- */
+{
+  const WHO = { account:"octopus", kind:"owner", space:"octopus" };
+  const real = globalThis.fetch;
+  let prompt = "";
+  globalThis.fetch = async (_u, opt) => {
+    prompt = JSON.parse(opt.body).messages[1].content;
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ brains:["content","health"], matched:[], candidates:[], new:[], echo:[], conflicts:[] }) }, finish_reason:"stop" }] }), { status: 200 });
+  };
+  await dropPlan(ctx, WHO, { ext: EXT, brains: ["content", "health"], key: "k" });
+  check("the planner is told to feed each ticked brain", /THE OWNER CHOSE THESE BRAINS FOR THIS SOURCE: Content \(id=content\), Health \(id=health\)/.test(prompt));
+  check("and sees only those brains", /id=content/.test(prompt) && /id=health/.test(prompt) && !/id=other/.test(prompt));
+  await dropPlan(ctx, WHO, { ext: EXT, brain: "content", key: "k" });
+  check("one brain gets no such line", !/THE OWNER CHOSE/.test(prompt) && !/## Health/.test(prompt));
+  globalThis.fetch = real;
+
+  /* A plan that lists one brain but files an idea in another still files it there. */
+  const plan = { brains:["content"], matched:[], new:["x"], echo:[], conflicts:[],
+    candidates:[{ title:"Sleep debt", brain:"health", why:"hours lost add up" }, { title:"Hook rate", brain:"content", why:"x" }] };
+  const before = DB.writes.length;
+  const r = await dropSettle(ctx, WHO, { sid:"s-two", ext: EXT, plan, fullPlan: plan, rewrites: [] });
+  const wrote = DB.writes.slice(before).filter(w => w.kind === "concept").map(w => `${w.brain}/${w.title}`);
+  check("an idea filed in a second brain lands there, not in the first", wrote.includes("health/Sleep debt") && wrote.includes("content/Hook rate"),
+    wrote.join(", "));
+  check("and the source counts both brains", JSON.stringify(r.brains) === JSON.stringify(["content","health"]), JSON.stringify(r.brains));
 }
 
 rmSync(dir, { recursive: true, force: true });

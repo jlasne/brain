@@ -598,6 +598,52 @@ for (const kind of ["study", "argument"]) {
   await page.close();
 }
 
+/* ---- a drop can feed several brains at once ---- */
+{
+  const three = { ...STATE, brains: [
+    { slug: "content", name: "Content", type: "subject", scope: "brand" },
+    { slug: "wealth", name: "Wealth", type: "subject", scope: "money" },
+    { slug: "gave", name: "Charles Gave", type: "person", scope: "Gave" }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__plan = null;
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/drop/check")) return Response.json({ duplicate: false, sid: "s-multi" });
+      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Gold note", topics: [{ topic: "Gold", ideas: ["x"], data: [] }] } });
+      if (s.includes("/api/drop/plan")) { window.__plan = body; return Response.json({ plan: { brains: ["wealth", "gave"], matched: [], new: ["x"], echo: [], conflicts: [],
+        candidates: [{ title: "Gold", brain: "wealth", why: "x" }, { title: "Gold", brain: "gave", why: "y" }] } }); }
+      return Response.json({});
+    };
+  }, three);
+  await page.click('#mode button[data-m="drop"]');
+  await page.click("#scopeBtn");
+  const first = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-box")].length);
+  check("dropping, each brain can be ticked", first === 3, String(first));
+  await page.click('.pick-menu .pk-row:has-text("Wealth")');
+  await page.click('.pick-menu .pk-row:has-text("Charles Gave")');
+  const face = await page.evaluate(() => ({ val: document.getElementById("scopeVal").textContent,
+    open: !!document.querySelector(".pick-menu"), done: document.querySelector(".pick-menu .pk-done")?.textContent }));
+  check("two ticked brains show on the picker, and the menu stays open", /^(Wealth|Charles Gave) \+1$/.test(face.val) && face.open, JSON.stringify(face));
+  check("its button says how many will be fed", face.done === "Feed 2 brains", face.done);
+  await page.click(".pick-menu .pk-done");
+  check("Done closes the menu", !(await page.$(".pick-menu")));
+  await page.fill("#srcInput", "Gold note");
+  await page.fill("#input", "Gold keeps its value.");
+  await page.click("#send"); await page.waitForTimeout(700);
+  const sent = await page.evaluate(() => window.__plan);
+  check("the plan is asked to feed both brains", JSON.stringify((sent?.brains || []).slice().sort()) === JSON.stringify(["gave", "wealth"]),
+    JSON.stringify(sent && { brains: sent.brains, brain: sent.brain }));
+  const note = await page.evaluate(() => [...document.querySelectorAll(".msg.ai")].pop()?.textContent || "");
+  check("one idea filed in two brains is two concepts", !/filed into 1 concept\b/.test(note));
+  await page.click('#mode button[data-m="ask"]');
+  const askFace = await page.evaluate(() => document.getElementById("scopeVal").textContent);
+  check("asking reads one brain or all of them", askFace === "All brains", askFace);
+  check("nothing threw ticking brains", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- on a phone ---- */
 {
   /* isMobile makes the browser honour the viewport tag the way a phone does,

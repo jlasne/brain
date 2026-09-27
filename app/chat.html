@@ -239,8 +239,24 @@
   .pick-menu .pk-row.on{ background:var(--accent-soft); color:var(--accent); font-weight:500; }
   .pick-menu .pk-dot{ width:8px; height:8px; border-radius:50%; flex:none; background:var(--line-2); }
   .pick-menu .pk-row.on .pk-dot{ background:var(--accent-fill); }
+  .pick-menu .pk-box{
+    width:16px; height:16px; border-radius:5px; flex:none; display:grid; place-items:center;
+    border:1.5px solid var(--line-2); background:var(--surface);
+  }
+  .pick-menu .pk-box svg{ width:11px; height:11px; fill:none; stroke:var(--accent-on); stroke-width:1.9;
+                          stroke-linecap:round; stroke-linejoin:round; opacity:0; }
+  .pick-menu .pk-row.on .pk-box{ background:var(--accent-solid); border-color:var(--accent-solid); }
+  .pick-menu .pk-row.on .pk-box svg{ opacity:1; }
+  .pick-menu.multi .pk-row.on{ background:transparent; color:var(--ink); font-weight:500; }
+  .pick-menu.multi .pk-row.on:first-child{ background:var(--accent-soft); color:var(--accent); }
+  .pick-menu .pk-done{
+    position:sticky; bottom:-6px; display:block; width:calc(100% + 12px); margin:6px -6px -6px; padding:12px;
+    background:var(--surface); border-top:1px solid var(--line); border-radius:0 0 12px 12px;
+    font:600 13.5px/1 var(--sans); color:var(--accent);
+  }
+  .pick-menu .pk-done:hover{ background:var(--surface-2); }
   .pick-menu .pk-nm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pick-menu .pk-sub{ display:block; margin-top:3px; font-size:11.5px; font-weight:400; color:var(--ink-3); }
+  .pick-menu .pk-sub{ display:block; margin-top:3px; font-size:11.5px; font-weight:400; color:var(--ink-3); white-space:normal; }
   .pick-menu .pk-ct{ flex:none; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
 
   .new-brain{
@@ -955,7 +971,7 @@ const WHO_KEY = "octopus.who.v1";
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
-  mode: "ask", scope: "all", transcript: null, busy: false, pendingCard: null, chunk: 18000,
+  mode: "ask", scope: "all", into: [], transcript: null, busy: false, pendingCard: null, chunk: 18000,
   mentions: 1,
   /* The last few turns of the current thread. It travels with each question so
      a follow-up means something, and it is never written down: closing the tab
@@ -1193,7 +1209,7 @@ function brainRow(b){
   row.append(el("span","nm",b.name), el("span","ct",`${ideas}·${read}`));
   row.title = `${b.scope || "no scope line"}\n${ideas} concepts, ${read} sources`;
   /* On a phone the drawer covers the thread, so a pick closes it. */
-  row.onclick = () => { S.scope = on ? "all" : b.slug; closeSide(); render(); };
+  row.onclick = () => { S.scope = on ? "all" : b.slug; S.into = on ? [] : [b.slug]; closeSide(); render(); };
   /* Only the owner may change a brain, which is what the server enforces, so
      the control appears on their own rows alone. */
   if (S.who === "owner" || (!!b.owner && b.owner === S.account)){
@@ -1267,6 +1283,7 @@ function openBrainSheet(b){
       if (r.error) throw new Error(r.error);
       shut(); await refresh();
       if (S.scope === b.slug) S.scope = r.slug;
+      S.into = S.into.map(x => x === b.slug ? r.slug : x);
       render();
       const m = r.moved || {};
       push("ai", x => { x.innerHTML = rich(
@@ -1284,10 +1301,14 @@ function openBrainSheet(b){
 /** The picker's face: the space's mark, where it goes, and to which brain. */
 function renderScope(){
   if (!S.brains.some(b => b.slug === S.scope)) S.scope = "all";
+  S.into = S.into.filter(x => S.brains.some(b => b.slug === x));
   const drop = S.mode === "drop";
+  const nameOf = x => S.brains.find(b => b.slug === x)?.name || x;
   $("scopeLabel").textContent = drop ? "Into" : "Across";
-  $("scopeVal").textContent = S.scope === "all" ? (drop ? "Suggest for me" : "All brains")
-    : (S.brains.find(b => b.slug === S.scope)?.name || "All brains");
+  /* A drop can feed several brains: the first by name, then how many more. */
+  $("scopeVal").textContent = drop
+    ? (!S.into.length ? "Suggest for me" : S.into.length === 1 ? nameOf(S.into[0]) : `${nameOf(S.into[0])} +${S.into.length - 1}`)
+    : S.scope === "all" ? "All brains" : nameOf(S.scope);
   const mark = $("spaceMark")?.getAttribute("src");
   if (mark && $("scopeMark").getAttribute("src") !== mark) $("scopeMark").src = mark;
   if (pickMenu) fillPick();
@@ -1298,24 +1319,47 @@ function renderScope(){
 var pickMenu = null;   // var, not let: render() runs before this line is reached
 function fillPick(){
   const m = pickMenu, drop = S.mode === "drop";
+  const scroll = m.scrollTop;
   m.innerHTML = "";
+  m.classList.toggle("multi", drop);
+  m.setAttribute("aria-multiselectable", drop ? "true" : "false");
+  /* Asking reads one brain or all of them. Dropping ticks as many as the
+     source belongs in, and the menu stays open while they are ticked. */
+  const isOn = slug => drop ? (slug === "all" ? !S.into.length : S.into.includes(slug)) : S.scope === slug;
   const row = (slug, name, sub, count) => {
-    const r = el("button","pk-row" + (S.scope === slug ? " on" : ""));
-    r.setAttribute("role","option"); r.setAttribute("aria-selected", S.scope === slug ? "true" : "false");
+    const on = isOn(slug);
+    const r = el("button","pk-row" + (on ? " on" : ""));
+    r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
     const nm = el("span","pk-nm", name);
     if (sub) nm.append(el("span","pk-sub", sub));
-    r.append(el("span","pk-dot"), nm);
+    const mark = el("span", drop && slug !== "all" ? "pk-box" : "pk-dot");
+    if (drop && slug !== "all") mark.innerHTML = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.6l4.5-5"/></svg>`;
+    r.append(mark, nm);
     if (count != null) r.append(el("span","pk-ct", count));
-    r.onclick = () => { S.scope = slug; closePick(); render(); $("input").focus(); };
+    r.onclick = e => {
+      e.stopPropagation();
+      if (!drop){ S.scope = slug; S.into = slug === "all" ? [] : [slug]; closePick(); render(); $("input").focus(); return; }
+      if (slug === "all") S.into = [];
+      else S.into = S.into.includes(slug) ? S.into.filter(x => x !== slug) : [...S.into, slug];
+      S.scope = S.into.length === 1 ? S.into[0] : "all";
+      render();
+    };
     return r;
   };
   const ideas = S.concepts.length;
   m.append(row("all", drop ? "Suggest for me" : "All brains",
-    drop ? "The AI picks the brain the source belongs in" : `${S.brains.length} brain${S.brains.length===1?"":"s"}, ${ideas} concept${ideas===1?"":"s"}`));
+    drop ? "The AI picks where it belongs" : `${S.brains.length} brain${S.brains.length===1?"":"s"}, ${ideas} concept${ideas===1?"":"s"}`));
+  if (drop) m.append(el("div","pk-h","Or tick the brains to feed"));
   for (const g of grouped()){
     m.append(el("div","pk-h", g.head));
     for (const b of g.rows) m.append(row(b.slug, b.name, "", String(conceptsOf(b.slug).length)));
   }
+  if (drop){
+    const done = el("button","pk-done", S.into.length > 1 ? `Feed ${S.into.length} brains` : "Done");
+    done.onclick = e => { e.stopPropagation(); closePick(); $("input").focus(); };
+    m.append(done);
+  }
+  m.scrollTop = scroll;
 }
 function placePick(){
   const r = $("scopeBtn").getBoundingClientRect(), w = pickMenu.offsetWidth;
@@ -1954,7 +1998,7 @@ function openSheet(name, scope, type){
     try {
       const r = await api("/api/brain", { name:nm, scope:sc, type:kind });
       shut(); await refresh();
-      S.scope = r.slug; S.mode = "drop";
+      S.scope = r.slug; S.into = [r.slug]; S.mode = "drop";
       [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="drop"));
       render();
       push("ai", b => { b.innerHTML = rich(`**${esc(nm)}** is ready, scoped to "${esc(sc)}". Drop a source to feed it.`); });
@@ -2585,7 +2629,9 @@ async function planAll(ext, held, progress){
     return S.concepts.find(x => x.brain === brain && (x.slug === id || String(x.title || "").trim().toLowerCase() === t));
   };
   const planOne = i => apiRetry("/api/drop/plan", {
-      ext: { ...ext, topics: batches[i] }, brain: S.scope, key: S.key,
+      ext: { ...ext, topics: batches[i] }, key: S.key,
+      /* Several brains ticked: the plan feeds each one. None: it picks. */
+      ...(S.into.length > 1 ? { brains: S.into } : { brain: S.into[0] || "all" }),
       ...(held && held.length ? { exclude: held } : {}),
       ...(merged.candidates.length ? { proposed: merged.candidates.map(c => `${c.brain} | ${c.title}`) } : {}),
     }).then(r => r.plan || {});
