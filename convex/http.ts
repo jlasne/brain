@@ -20,6 +20,7 @@ import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromModel, asText, mail, looksLikeMail, pageIds } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
+import { quizTurn } from "./quiz";
 import { loadSpace } from "./space";
 
 const router = httpRouter();
@@ -451,6 +452,23 @@ QUESTION: ${String(b.q ?? "")}` },
        timeout: Math.max(60000, 165000 - (Date.now() - t0)) });
 
   return { answer: text, sources: nSources, level };
+});
+
+/* ---------- quiz ---------- */
+
+/** One turn of a quiz: grade the reply when there is one, then ask the next. */
+route("/api/quiz", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const { brains, cards } = await loadSpace(ctx, who.space);
+  const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
+  const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
+  if (!pool.length) return { empty: true };
+  const turn = b.turn && typeof b.turn === "object" ? b.turn : undefined;
+  return await quizTurn(pool, cards, {
+    topic: String(b.topic ?? ""), asked: Array.isArray(b.asked) ? b.asked.slice(-10) : [],
+    turn, number: Number(b.number) || 1,
+  }, undefined, modelName(b),
+  ids => ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids }));
 });
 
 /* ---------- one page ---------- */

@@ -447,6 +447,20 @@
     margin-top:14px; padding-top:11px; border-top:1px solid var(--line);
     font:400 12px/1.6 var(--mono); color:var(--ink-3);
   }
+  /* The quiz: a verdict, the feedback, then the next question in its own box. */
+  .qz-verdict{ display:inline-block; margin-bottom:8px; padding:3px 9px; border-radius:4px;
+    font:600 11px/1.5 var(--mono); letter-spacing:.04em; text-transform:uppercase; border:1px solid; }
+  .qz-right{ color:var(--good); border-color:var(--good); }
+  .qz-partly{ color:#8a6a12; border-color:#c9a64a; }
+  .qz-wrong{ color:var(--accent); border-color:var(--accent-line); }
+  .qz{ margin-top:14px; padding:14px 16px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface); }
+  .qz-num{ font:400 11px/1.5 var(--mono); color:var(--ink-3); text-transform:uppercase; letter-spacing:.06em; }
+  .qz-q{ margin:6px 0 10px; font-weight:600; color:var(--ink); }
+  .qz-hbtn{ min-height:32px; padding:4px 12px; border:1px solid var(--line-2); border-radius:6px; background:var(--surface-2);
+    color:var(--ink-2); font:inherit; font-size:13px; cursor:pointer; }
+  .qz-hbtn:hover{ border-color:var(--accent-line); color:var(--accent); }
+  .qz-hint{ color:var(--ink-2); font-style:italic; }
+  .qz-score{ font-weight:700; margin:12px 0 6px; }
   .smallbrain{
     display:inline-block; margin-bottom:10px;
     font:400 11px/1.5 var(--mono); color:var(--accent);
@@ -971,6 +985,8 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5C5.5 4 8.5 4 12 6c3.5-2 6.5-2 9-.5V19c-2.5-1.5-5.5-1.5-9 .5-3.5-2-6.5-2-9-.5z"/><path d="M12 6v13.5"/></svg><span>Educational</span></button>
               <button data-v="learning" role="radio" title="Learning: no answer given, steps and hints to reach it yourself" aria-label="Learning">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z"/></svg><span>Learning</span></button>
+              <button data-v="quiz" role="radio" title="Quiz: 5 questions on a topic, one at a time, graded as you go" aria-label="Quiz">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.4c-.6.3-1 .8-1 1.5v.5"/><path d="M12 16.9v.2"/></svg><span>Quiz</span></button>
             </div>
           </div>
           <button class="fresh" id="freshBtn" hidden title="Forget the questions so far and clear the screen">New thread</button>
@@ -1020,6 +1036,9 @@ const S = {
      ends it. */
   thread: [],
   level: "normal",
+  /* The quiz under way: its topic, the question on screen with its expected
+     answer and hint, and the score. It lives in this tab only. */
+  quiz: null,
   /* Which space this session reads, and what it calls itself. The passphrase at
      the door decided it, and the app only reports it. */
   space: "octopus", spaceName: "Octopus",
@@ -1027,7 +1046,11 @@ const S = {
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
    falls back to normal. */
-const LEVELS = ["normal","educational","learning"];
+const LEVELS = ["normal","educational","learning","quiz"];
+/* A quiz round, and what each grade reads as. Up here because the composer
+   names the round at boot. */
+const QUIZ_ROUND = 5;
+const QUIZ_WORD = { right: "Right", partly: "Partly", wrong: "Not yet" };
 try { const v = localStorage.getItem("octopus.level"); if (LEVELS.includes(v)) S.level = v; } catch {}
 const saveLevel = () => { try { localStorage.setItem("octopus.level", S.level); } catch {} };
 
@@ -1419,11 +1442,14 @@ function closePick(){
 function renderComposer(){
   [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m === S.mode));
   /* It appears once there is something to forget. */
-  $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length;
+  $("freshBtn").hidden = S.mode !== "ask" || (!S.thread.length && !S.quiz);
   const drop = S.mode==="drop";
   $("srcLine").hidden = !drop;
   $("input").placeholder = drop
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
+    : S.level==="quiz" ? (S.quiz ? "Your answer. Or type hint, or stop."
+                      : S.scope==="all" ? "Name a topic to be quizzed on."
+                      : "Name a topic in " + (S.brains.find(b=>b.slug===S.scope)?.name || "this brain") + " to be quizzed on.")
     : S.scope==="all" ? "Ask anything your brains have read."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this brain") + ".";
   $("levelWrap").hidden = drop;
@@ -1436,6 +1462,9 @@ function renderComposer(){
     ? "The source gets read once, then you reply to one card."
     : S.level==="educational" ? "Educational: terms defined, mechanism built, one worked example."
     : S.level==="learning" ? "Learning: no answer given. Steps and hints to reach it yourself."
+    : S.level==="quiz" ? (S.quiz
+        ? `Question ${S.quiz.number} of ${QUIZ_ROUND} \u00b7 ${S.quiz.right} right so far. Type hint for a clue, or stop to end.`
+        : `Quiz: name a topic. ${QUIZ_ROUND} questions, one at a time, graded as you go.`)
     : "Normal: the answer carries the numbers. Sources sit on one line underneath.";
 
   const t = $("input").value.trim();
@@ -1602,7 +1631,9 @@ window.addEventListener("resize", () => { if (pickMenu) placePick(); });
 $("level").onclick = e => {
   const b = e.target.closest("button[data-v]");
   if (!b) return;
-  S.level = b.dataset.v; saveLevel(); renderComposer();
+  S.level = b.dataset.v; saveLevel();
+  if (S.level !== "quiz") S.quiz = null;
+  renderComposer();
 };
 $("burger").onclick = () => $("side").classList.toggle("open");
 $("scrim").onclick = () => closeSide();
@@ -1610,7 +1641,7 @@ const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
 $("stat").onclick = openModelSheet;
 $("freshBtn").onclick = () => {
-  S.thread = [];
+  S.thread = []; S.quiz = null;
   $("thread").innerHTML = "";
   render();
   $("input").focus();
@@ -2451,7 +2482,7 @@ async function go(){
   $("input").value = ""; sizeBox();
   if (S.mode === "drop") $("srcInput").value = "";
   S.busy = true; renderComposer();
-  try { S.mode==="drop" ? await doDrop(src, text) : await doAsk(text); }
+  try { S.mode==="drop" ? await doDrop(src, text) : S.level==="quiz" ? await doQuiz(text) : await doAsk(text); }
   finally { S.busy = false; renderComposer(); }
 }
 
@@ -2494,6 +2525,86 @@ function splitAnswer(t){
       .map(l => `<p class="ln">${esc(l).replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>")}</p>`)
       .join("") + `</div>`).filter(x => x !== `<div class="para"></div>`).join("");
   return html + (m ? `<div class="srcline">${esc(m[1])}</div>` : "");
+}
+
+/* ---------- quiz ---------- */
+
+/**
+ * A round of 5 questions on a topic. Each reply goes back with the question
+ * and its expected answer: the server grades it and asks the next one in the
+ * same call. "hint" and "stop" are read here and cost nothing.
+ */
+async function doQuiz(text){
+  says(text);
+  if (!S.brains.length){
+    push("ai", b => { b.innerHTML = rich("No brains exist yet, so there is nothing to quiz on. Create one and drop a few sources first."); });
+    return;
+  }
+  const Q = S.quiz;
+  const word = text.toLowerCase().replace(/[.!?\s]+$/, "").trim();
+  if (Q && /^(hint|clue|indice)$/.test(word)){
+    push("ai", b => { b.append(el("div","qz-hint", "Hint: " + Q.now.hint)); });
+    return;
+  }
+  if (Q && /^(stop|end|quit|done|fin)$/.test(word)){
+    S.quiz = null;
+    push("ai", b => quizEnd(b, Q, true));
+    renderComposer();
+    return;
+  }
+  const fresh = !Q;
+  const q = Q || { topic: text, brain: S.scope, number: 1, right: 0, partly: 0, asked: [], missed: [], now: null };
+  const body = thinking();
+  try {
+    const r = await api("/api/quiz", { topic: q.topic, brain: q.brain, asked: q.asked,
+      number: fresh ? 1 : q.number + 1,
+      turn: fresh ? undefined : { question: q.now.question, answer: q.now.answer, concept: q.now.concept, reply: text } });
+    body.innerHTML = "";
+    if (!fresh){
+      if (r.verdict === "right") q.right++;
+      else { if (r.verdict === "partly") q.partly++; if (q.now.concept) q.missed.push(q.now.concept); }
+      body.append(el("div", "qz-verdict qz-" + (QUIZ_WORD[r.verdict] ? r.verdict : "wrong"), QUIZ_WORD[r.verdict] || "Not yet"));
+      const fb = el("div"); fb.innerHTML = splitAnswer(r.feedback || ""); body.append(fb);
+    }
+    if (r.next && (fresh || q.number < QUIZ_ROUND)){
+      if (!fresh) q.number++;
+      q.now = r.next;
+      q.asked.push({ question: r.next.question, concept: r.next.concept });
+      S.quiz = q;
+      quizAsk(body, q);
+    } else if (fresh){
+      S.quiz = null;
+      body.append(el("p","ln", r.empty
+        ? "Nothing held bears on that topic yet. Name another one, or drop a source on it first."
+        : "No question came back. Send the topic again."));
+    } else {
+      S.quiz = null;
+      quizEnd(body, q, false);
+    }
+    renderComposer();
+    bottom();
+  } catch(e){
+    /* A failed turn keeps the question on screen, so the reply can be sent again. */
+    if (fresh) S.quiz = null;
+    fail(body, e.message);
+  }
+}
+function quizAsk(body, q){
+  const box = el("div","qz");
+  box.append(el("div","qz-num", `Question ${q.number} of ${QUIZ_ROUND}`), el("p","qz-q", q.now.question));
+  const hb = el("button","qz-hbtn","Hint");
+  hb.onclick = () => hb.replaceWith(el("div","qz-hint", "Hint: " + q.now.hint));
+  box.append(hb);
+  body.append(box);
+}
+function quizEnd(body, q, stopped){
+  const answered = stopped ? q.number - 1 : q.number;
+  if (!answered){ body.append(el("p","ln","Quiz stopped before the first answer. Name a topic to start a round.")); return; }
+  body.append(el("div","qz-score",
+    `Score: ${q.right} of ${answered} right` + (q.partly ? `, ${q.partly} partly` : "")));
+  const miss = [...new Set(q.missed)];
+  if (miss.length) body.append(el("p","ln", `Worth a second look: ${miss.join(", ")}.`));
+  body.append(el("p","ln","Name a topic to start another round."));
 }
 
 /* ---------- drop ---------- */
