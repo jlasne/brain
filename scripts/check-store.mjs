@@ -134,15 +134,11 @@ function seed() {
   check("a link that is not http or https is stored empty", T.sources.at(-1).link === "", T.sources.at(-1).link);
 }
 
-/* ---- brains change only in their own space, and never by a guest ---- */
+/* ---- brains change only in their own space ---- */
 {
   const { T, ctx } = seed();
-  const g = await throws(run(store.setVisibility, ctx, { slug: "wealth", visibility: "open", account: null, kind: "guest", space: "octopus" }));
-  check("a guest cannot open a brain", /needs an account/.test(g), g);
-  const x = await throws(run(store.setVisibility, ctx, { slug: "wealth", visibility: "open", account: null, kind: "owner", space: "squidgy" }));
-  check("Squidgy cannot change an Octopus brain", /no such brain/.test(x) && T.brains[0].visibility === undefined, x);
   const r = await throws(run(store.renameBrain, ctx, { slug: "wealth", name: "Stolen", account: null, space: "squidgy" }));
-  check("nor rename one", /no such brain/.test(r) && T.brains[0].name === "Wealth", r);
+  check("Squidgy cannot rename an Octopus brain", /no such brain/.test(r) && T.brains[0].name === "Wealth", r);
 
   await run(store.renameBrain, ctx, { slug: "wealth", name: "Money", account: null, space: "octopus" });
   check("a rename carries the concepts", T.concepts.every(c => c.brain === "money"));

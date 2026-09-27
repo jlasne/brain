@@ -641,7 +641,6 @@
     transition:all .15s var(--ease);
   }
   .paste:hover{ border-color:var(--accent); color:var(--ink); }
-  .paste.has{ border-color:var(--good); color:var(--good); }
   .send{
     width:34px; height:34px; border-radius:50%; flex-shrink:0;
     background:var(--accent-solid); color:var(--accent-on);
@@ -888,7 +887,7 @@
         <span class="lbl">Model</span><span class="val"></span>
       </button>
       <div class="foot-row">
-        <button class="foot-btn" id="keyBtn" title="Your model key, and your address for other AI clients">Setup</button>
+        <button class="foot-btn" id="keyBtn" title="Your address for other AI clients, and the transcript service">Setup</button>
         <button class="foot-btn" id="lockBtn" title="Sign out and forget your key">Sign out</button>
       </div>
     </div>
@@ -951,8 +950,6 @@
             <span class="t" id="tHint"></span>
             <div class="tools">
               <button class="paste" id="fileBtn" hidden title="Read a PDF, a Word file or a text file into the content">+ document</button>
-              <button class="paste" id="testBtn" hidden title="Check for a repeat without reading the source">already stored?</button>
-              <button class="paste" id="pasteBtn" hidden>+ transcript</button>
             </div>
             <button class="send" id="send" disabled aria-label="Send">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M8 3L4 7M8 3l4 4"/></svg>
@@ -973,19 +970,15 @@ const TOKEN_KEY = "octopus.token.v1";
 /* A member's own model key. It lives in this tab and travels with the requests
    that spend a model call. The server hashes it once to know who you are and
    stores nothing else. */
-const KEY_KEY = "octopus.key.v1";
-const WHO_KEY = "octopus.who.v1";
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
-  mode: "ask", scope: "all", into: [], transcript: null, busy: false, pendingCard: null, chunk: 18000,
-  mentions: 1,
+  mode: "ask", scope: "all", into: [], busy: false, pendingCard: null, chunk: 18000,
   /* The last few turns of the current thread. It travels with each question so
      a follow-up means something, and it is never written down: closing the tab
      ends it. */
   thread: [],
   level: "normal",
-  key: null, account: null, who: "", hasKey: false, keyHint: "",
   /* Which space this session reads, and what it calls itself. The passphrase at
      the door decided it, and the app only reports it. */
   space: "octopus", spaceName: "Octopus",
@@ -1055,7 +1048,7 @@ async function api(path, body = {}) {
       : "The server did not answer. Check your connection.");
   } finally { clearTimeout(cap); }
   if (r.status === 401) {
-    [TOKEN_KEY, KEY_KEY, WHO_KEY].forEach(k => sessionStorage.removeItem(k));
+    sessionStorage.removeItem(TOKEN_KEY);
     location.reload(); throw new Error("locked");
   }
   const d = await r.json().catch(() => ({ error: "the server sent something unreadable" }));
@@ -1123,12 +1116,10 @@ function deadScreen(why) {
   const saved = sessionStorage.getItem(TOKEN_KEY);
   if (saved) {
     S.token = saved;
-    S.key = sessionStorage.getItem(KEY_KEY) || null;
-    S.who = sessionStorage.getItem(WHO_KEY) || "";
     try { await open(); return; }
     catch (_) {
-      [TOKEN_KEY, KEY_KEY, WHO_KEY].forEach(k => sessionStorage.removeItem(k));
-      S.token = null; S.key = null; S.who = "";
+      sessionStorage.removeItem(TOKEN_KEY);
+      S.token = null;
     }
   }
   /* A reachability probe before the bounce, so an unreachable deployment says so
@@ -1144,15 +1135,7 @@ async function refresh(){
   const d = await api("/api/state");
   S.brains = d.brains || []; S.concepts = d.concepts || []; S.sources = d.sources || [];
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
-  /* The deployment decides how many sources an idea needs, so the card and the
-     receipt say the number the rule actually runs on. */
-  S.mentions = Number(d.mentions) || 1;
-  if (d.account !== undefined) S.account = d.account;
-  if (d.kind) S.who = d.kind === "member" ? (S.who || d.account) : d.kind;
-  if (d.hasKey !== undefined){ S.hasKey = d.hasKey; S.keyHint = d.keyHint || ""; }
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
-  $("keyBtn").hidden = S.who === "guest" || !S.account;
-  $("lockBtn").textContent = S.who === "guest" ? "Leave" : "Sign out";
   render();
 }
 
@@ -1213,13 +1196,12 @@ function brainRow(b){
   const on = S.scope === b.slug;
   const row = el("button","brain-row" + (on ? " on" : ""));
   const ideas = conceptsOf(b.slug).length, read = sourcesOf(b.slug).length;
-  row.append(el("span","nm",b.name), el("span","ct",`${ideas}·${read}`));
+  /* The concept count on the row; the sources behind it on hover. */
+  row.append(el("span","nm",b.name), el("span","ct",String(ideas)));
   row.title = `${b.scope || "no scope line"}\n${ideas} concepts, ${read} sources`;
   /* On a phone the drawer covers the thread, so a pick closes it. */
   row.onclick = () => { S.scope = on ? "all" : b.slug; S.into = on ? [] : [b.slug]; closeSide(); render(); };
-  /* Only the owner may change a brain, which is what the server enforces, so
-     the control appears on their own rows alone. */
-  if (S.who === "owner" || (!!b.owner && b.owner === S.account)){
+  {
     const ed = el("span","ed","edit");
     ed.title = "Name and scope";
     ed.onclick = e => { e.stopPropagation(); openBrainSheet(b); };
@@ -1297,7 +1279,7 @@ function openBrainSheet(b){
         (r.name !== b.name
           ? `**${esc(b.name)}** is now **${esc(r.name)}**, at \`${esc(r.slug)}\`.` +
             (r.slug !== b.slug
-              ? ` Moved with it: ${m.concepts||0} concepts, ${m.sources||0} sources, ${m.candidates||0} counted candidates.`
+              ? ` Moved with it: ${m.concepts||0} concepts and ${m.sources||0} sources.`
               : "")
           : `**${esc(r.name)}** saved.`) +
         `\n\nScope: ${esc(r.scope || sc)}`); });
@@ -1390,20 +1372,13 @@ function closePick(){
 }
 
 function renderComposer(){
-  /* A guest feeds nothing, so Drop is not offered and Ask is the only mode. */
-  const guest = S.who === "guest";
-  if (guest && S.mode === "drop") S.mode = "ask";
-  [...$("mode").children].forEach(x => {
-    if (x.dataset.m === "drop") x.hidden = guest;
-    x.classList.toggle("on", x.dataset.m === S.mode);
-  });
-  $("newBrain").hidden = guest;
+  [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m === S.mode));
   /* It appears once there is something to forget. */
   $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length;
   const drop = S.mode==="drop";
   $("srcLine").hidden = !drop;
   $("input").placeholder = drop
-    ? "Paste the text here, or add a document. Leave it empty when the source is a link."
+    ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
     : S.scope==="all" ? "Ask anything your brains have read."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this brain") + ".";
   $("levelWrap").hidden = drop;
@@ -1411,11 +1386,7 @@ function renderComposer(){
     const on = x.dataset.v === S.level;
     x.classList.toggle("on", on); x.setAttribute("aria-checked", on ? "true" : "false");
   }
-  $("testBtn").hidden = !drop;
   $("fileBtn").hidden = !drop;
-  $("pasteBtn").hidden = !drop;
-  $("pasteBtn").textContent = S.transcript ? `transcript ${Math.round(S.transcript.length/1000)}k ✓` : "+ transcript";
-  $("pasteBtn").classList.toggle("has", !!S.transcript);
   $("footNote").textContent = drop
     ? "The source gets read once, then you reply to one card."
     : S.level==="educational" ? "Educational: terms defined, mechanism built, one worked example."
@@ -1424,7 +1395,7 @@ function renderComposer(){
 
   const t = $("input").value.trim();
   const src = drop ? $("srcInput").value.trim() : "";
-  /* A drop needs something to read: content, an attached transcript, or a link
+  /* A drop needs something to read: content, a pasted transcript, or a link
      the server can open. A source named with neither is a title and nothing
      else, so the button stays off and the hint says what is missing. */
   const ready = hasContent(src, t);
@@ -1436,7 +1407,7 @@ function renderComposer(){
    reached, when the shell paints ahead of the first state call. */
 function linkIn(s){ return /https?:\/\/\S+/i.test(s || ""); }
 function hasContent(src, content){
-  return !!(content || S.transcript || linkIn(src) || linkIn(content));
+  return !!(content || linkIn(src) || linkIn(content));
 }
 
 /**
@@ -1446,9 +1417,9 @@ function hasContent(src, content){
  * the moment a field is empty.
  */
 function dropHint(src, content){
-  if (!src && !content && !S.transcript) return "";
-  if (!src && (content || S.transcript)) return "name the source, so a repeat is caught later";
-  if (hasContent(src, content)) return linkIn(src) && !content && !S.transcript
+  if (!src && !content) return "";
+  if (!src && content) return "name the source, so a repeat is caught later";
+  if (hasContent(src, content)) return linkIn(src) && !content
     ? "the link gets opened, video or article" : "";
   return "paste what it says, drop a document, or give a link";
 }
@@ -1594,18 +1565,16 @@ const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
 $("stat").onclick = openModelSheet;
 $("freshBtn").onclick = () => {
-  S.thread = []; S.transcript = null;
+  S.thread = [];
   $("thread").innerHTML = "";
   render();
   $("input").focus();
 };
 $("keyBtn").onclick = openSetupSheet;
 $("pagerBtn").onclick = () => { closeSide(); openPagerSheet(); };
-$("testBtn").onclick = testSource;
 $("navToggle").onclick = () => { navOpen = false; paintNav(); };
 $("navOpen").onclick  = () => { navOpen = true;  paintNav(); };
 paintNav();
-$("pasteBtn").onclick = openTranscript;
 $("fileBtn").onclick = () => $("fileIn").click();
 $("fileIn").onchange = e => {
   const f = e.target.files && e.target.files[0];
@@ -1627,90 +1596,26 @@ $("input").addEventListener("drop", e => {
 window.octopusExport = exportAll;
 $("lockBtn").onclick = async () => {
   try { await api("/api/lock"); } catch(_){}
-  [TOKEN_KEY, KEY_KEY, WHO_KEY].forEach(k => sessionStorage.removeItem(k));
+  sessionStorage.removeItem(TOKEN_KEY);
   location.reload();
 };
 
 /* ============ create a brain ============ */
-/**
- * Has this source landed already, and where. The route behind this reads one
- * indexed row and calls no model, so testing is free however often you do it.
- */
-async function testSource(){
-  const btn = $("testBtn");
-  const raw = ($("srcInput").value + " " + $("input").value).trim();
-  const link = (raw.match(/https?:\/\/\S+/)||[])[0] || "";
-
-  if (!link){
-    push("ai", b => { b.innerHTML = rich(raw
-      ? "The repeat check reads the link. Put the URL on the source line and test again, because text alone carries no stable id."
-      : "Put a link on the source line first, then test."); });
-    bottom(); return;
-  }
-
-  btn.disabled = true; btn.textContent = "checking";
-  try {
-    const r = await api("/api/drop/check", { link, text: "" });
-    push("ai", b => {
-      const d = el("div","receipt");
-      if (r.duplicate){
-        const where = (r.brains||[]).map(x => S.brains.find(y=>y.slug===x)?.name || x).join(", ") || "no brain";
-        d.innerHTML =
-`Already stored as <span class="v">${esc(r.sid)}</span>.
-Dropped <span class="v">${esc(r.date||"undated")}</span>${r.author?` by <span class="v">${esc(r.author)}</span>`:""}
-Lives in <span class="v">${esc(where)}</span>
-Dropping it again reaches the same card, so no position moves.`;
-      } else {
-        d.innerHTML =
-`<span class="ok">Not stored.</span> It would land as <span class="v">${esc(r.sid)}</span>.
-Drop it to see which brain takes it and what it adds.`;
-      }
-      b.append(d);
-    });
-    bottom();
-  } catch(e){
-    push("ai", b => { b.innerHTML = rich("The check failed: " + (e.message || "no answer")); });
-    bottom();
-  } finally {
-    btn.disabled = false; btn.textContent = "already stored?";
-  }
-}
 
 /**
- * One panel for everything an account holds: the key that pays for its calls,
- * and the address that lets another AI client reach its brains.
- *
- * They were two rows in the sidebar and two sheets behind them, which read as
- * two unrelated settings. They are the same thing from two sides: what Octopus
- * spends, and who may reach it.
+ * Setup: the address that lets another AI client read and feed these brains,
+ * and what the transcript service has cost. The deployment's key pays for
+ * every model call, so there is no key to set here.
  */
 async function openSetupSheet(){
   closeSide();
   const veil = el("div","veil");
-  const saved = !!S.hasKey;
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Setup</h3>
-      <p>Your key pays for what you ask and drop here. Your address lets another AI client read and feed
-        the same brains.</p></header>
+      <p>Your address lets another AI client, like Claude or ChatGPT, read and feed the same brains.</p></header>
 
       <div class="f">
-        <label for="kNew">Your model key</label>
-        <input type="password" id="kNew" autocomplete="off" spellcheck="false" placeholder="sk-or-..." >
-        <div class="hint">${saved
-          ? `This account remembers a key ending <b>${esc(S.keyHint || "????")}</b>. A new one replaces it.`
-          : "No key is saved, so the one in this tab is used until you close it."}
-          Make a key with a spend limit rather than pasting your main one.</div>
-      </div>
-      <div class="f"><label class="check"><input type="checkbox" id="kRem" ${saved?"checked":""}> Remember it on my account</label>
-        <div class="hint">Remembered keys are encrypted with a secret held on the server.</div>
-      </div>
-      <div class="f" style="padding-top:10px">
-        ${saved ? `<button class="ghost" id="kForget">Forget the saved key</button>` : ""}
-        <button class="go" id="kSave" style="margin-left:${saved?"8px":"0"}">Save the key</button>
-      </div>
-
-      <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
         <label>Other AI clients</label>
         <div id="feedSlot"></div>
       </div>
@@ -1724,48 +1629,10 @@ async function openSetupSheet(){
       <footer><a class="ghost" href="/doc" style="text-decoration:none">MCP setup</a><button class="go" id="kDone">Done</button></footer>
     </div>`;
   document.body.append(veil);
-  const inp = veil.querySelector("#kNew"), msg = veil.querySelector("#kMsg"),
-        slot = veil.querySelector("#feedSlot");
+  const msg = veil.querySelector("#kMsg"), slot = veil.querySelector("#feedSlot");
   const shut = () => veil.remove();
   veil.querySelector("#kDone").onclick = shut;
   veil.onclick = e => { if(e.target===veil) shut(); };
-  setTimeout(()=>inp.focus(),40);
-
-  /* ---- the key ---- */
-  const forget = veil.querySelector("#kForget");
-  if (forget) forget.onclick = async () => {
-    forget.disabled = true; msg.className="spin"; msg.textContent = "Forgetting";
-    try {
-      await api("/api/account/key", { forget: true });
-      S.hasKey = false; S.keyHint = "";
-      shut();
-      push("ai", b => { b.innerHTML = rich("The saved key is gone. Paste one when you next ask or drop."); });
-    } catch(e){ forget.disabled=false; msg.className="bad"; msg.textContent = e.message; }
-  };
-
-  veil.querySelector("#kSave").onclick = async () => {
-    const key = inp.value.trim();
-    if (key.length < 16){ msg.className="bad"; msg.textContent="that does not look like an API key"; inp.focus(); return; }
-    const btn = veil.querySelector("#kSave");
-    btn.disabled = true; msg.className="spin"; msg.textContent = "Saving";
-    try {
-      if (veil.querySelector("#kRem").checked){
-        const r = await api("/api/account/key", { key });
-        if (r.error) throw new Error(r.error);
-        S.hasKey = true; S.keyHint = r.keyHint || key.slice(-4);
-      } else {
-        /* Not remembered, so the old saved one would still be used. Drop it. */
-        if (saved) await api("/api/account/key", { forget: true });
-        S.hasKey = false; S.keyHint = "";
-      }
-      S.key = key;
-      try { sessionStorage.setItem(KEY_KEY, key); } catch {}
-      shut();
-      push("ai", b => { b.innerHTML = rich(
-        `Key set, ending **${esc(key.slice(-4))}**. ` +
-        (S.hasKey ? "This account will remember it." : "It lives in this tab only.")); });
-    } catch(e){ btn.disabled=false; msg.className="bad"; msg.textContent = e.message; }
-  };
 
   /* ---- the address ---- */
   const paint = (st) => {
@@ -1891,7 +1758,7 @@ function openModelSheet(){
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Model</h3>
-      <p>Your key pays for every call, so the model is your choice. Prices are per million tokens, read from OpenRouter.</p></header>
+      <p>The model that reads, plans and answers. This deployment's key pays for every call. Prices are per million tokens, read from OpenRouter.</p></header>
       <div class="f"><label for="mQ">Search</label><input id="mQ" autocomplete="off" spellcheck="false" placeholder="claude, gemini, free, ...">
         <div class="mlist" id="mList"><div class="mnone">Loading the list</div></div>
       </div>
@@ -1948,8 +1815,7 @@ function openModelSheet(){
     savePick(); shut(); render();
     push("ai", b => { b.innerHTML = rich(
       `Now asking **${esc(chosen)}**.` +
-      (m ? ` ${money(m.inp)} in, ${money(m.out)} out per million tokens, ${ctxOf(m.ctx)} of context.` : "") +
-      " Your key pays for it."); });
+      (m ? ` ${money(m.inp)} in, ${money(m.out)} out per million tokens, ${ctxOf(m.ctx)} of context.` : "")); });
   };
 }
 
@@ -2032,7 +1898,17 @@ function nearest(scope){
   return bestN>=2 ? best : null;
 }
 
-/* ============ transcript ============ */
+/* The source line keeps its link, and the box below takes the pasted text or
+   transcript: one box for everything a source says. */
+function pasteHere(){
+  if (S.mode !== "drop"){
+    S.mode = "drop";
+    [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m === "drop"));
+    render();
+  }
+  $("input").focus();
+}
+
 /* ============ one page ============ */
 
 /* The last address a page was sent to. A convenience, per browser, so a blocked
@@ -2152,7 +2028,7 @@ function openPagerSheet(){
     const body = thinking(to ? `${viaModel ? "Writing" : "Building"} the page, then sending it to ${to}`
                              : viaModel ? undefined : "Building the page");
     let r;
-    try { r = await api("/api/onepager", { pick, q, kind, ...(note ? { note } : {}), key: S.key, ...(to ? { mail: to } : {}) }); }
+    try { r = await api("/api/onepager", { pick, q, kind, ...(note ? { note } : {}), ...(to ? { mail: to } : {}) }); }
     catch (e) {
       body.innerHTML = rich("**The page did not build.** " + esc(e.message));
       bottom(); return;
@@ -2236,7 +2112,7 @@ function showPager(page, text, built, mailed){
       if (!addr){ to.focus(); return; }
       send.disabled = true; send.textContent = "Sending"; said.textContent = "";
       try {
-        const r = await api("/api/onepager", { ...built, mail: addr, key: S.key });
+        const r = await api("/api/onepager", { ...built, mail: addr });
         now = { page: r.page, text: r.text };
         paint(); bottom();
         if (r.sent === false) throw new Error(r.mailError || "the mail service refused it");
@@ -2390,30 +2266,6 @@ async function takeDocument(file){
   bottom();
 }
 
-function openTranscript(){
-  const veil = el("div","veil");
-  veil.innerHTML = `
-    <div class="sheet" role="dialog" aria-modal="true">
-      <header><h3>Paste the transcript</h3>
-      <p>It gets read once and thrown away. Only the link and where your copy sits get kept, so the extraction has to be complete the first time.</p></header>
-      <div class="f"><label for="tx">Transcript</label>
-        <textarea id="tx" style="min-height:190px"></textarea>
-        <div class="hint" id="txHint">0 words</div></div>
-      <footer><button class="ghost" id="txCancel">Cancel</button><button class="go" id="txOk">Attach</button></footer>
-    </div>`;
-  document.body.append(veil);
-  const ta = veil.querySelector("#tx");
-  ta.value = S.transcript || "";
-  const count = () => veil.querySelector("#txHint").textContent =
-    `${(ta.value.trim().match(/\S+/g)||[]).length.toLocaleString()} words` +
-    (ta.value.length > S.chunk ? ` · read in ${Math.ceil(ta.value.length/S.chunk)} passes` : "");
-  count(); ta.oninput = count;
-  const shut = () => veil.remove();
-  veil.querySelector("#txCancel").onclick = shut;
-  veil.onclick = e => { if(e.target===veil) shut(); };
-  setTimeout(()=>ta.focus(),30);
-  veil.querySelector("#txOk").onclick = () => { S.transcript = ta.value.trim()||null; shut(); renderComposer(); };
-}
 
 /* ============ go ============ */
 async function go(){
@@ -2438,7 +2290,7 @@ async function doAsk(q){
   const body = thinking();
   try {
     const r = await api("/api/ask",
-      { q, brain: S.scope, level: S.level, history: S.thread.slice(-4), key: S.key });
+      { q, brain: S.scope, level: S.level, history: S.thread.slice(-4) });
     body.innerHTML = "";
     if (r.sources > 0 && r.sources < 10)
       body.append(el("div","smallbrain",`Small brain: ${r.sources} source${r.sources===1?"":"s"} behind this`));
@@ -2476,11 +2328,10 @@ async function doDrop(src, content, again){
      content opens with it, the way a pasted transcript does. A link deeper in a
      document, a licence or a footnote, is not the document. */
   const link = (src.match(/https?:\/\/\S+/)||[])[0] || (content.match(/^\s*(https?:\/\/\S+)/)||[])[1] || "";
-  let bodyTxt = S.transcript || content || null;
+  let bodyTxt = content || null;
   const said = src || link || content.slice(0, 120);
   const words = t => (t.match(/\S+/g)||[]).length.toLocaleString();
-  if (!again) says(said, S.transcript ? `transcript attached, ${words(S.transcript)} words`
-                      : content ? `${words(content)} words` : null);
+  if (!again) says(said, content ? `${words(content)} words` : null);
 
   if (!S.brains.length){
     push("ai", b => { b.innerHTML = rich("Create a brain first. A source needs a scope to be filed against."); });
@@ -2560,7 +2411,7 @@ async function doDrop(src, content, again){
       body.innerHTML = "";
       body.innerHTML = rich(`**That page needs pasting.** ${esc((got && got.error) || "It gave nothing back.")}`);
       const go = el("button","go","Paste the text");
-      go.style.marginTop = "12px"; go.onclick = openTranscript; body.append(go);
+      go.style.marginTop = "12px"; go.onclick = pasteHere; body.append(go);
       return;
     }
   }
@@ -2577,7 +2428,7 @@ async function doDrop(src, content, again){
     while (nextRead < chunks.length && !readErr){
       const i = nextRead++;
       try {
-        const r = await apiRetry("/api/drop/read", { chunk: chunks[i], part: i+1, total: chunks.length, key: S.key });
+        const r = await apiRetry("/api/drop/read", { chunk: chunks[i], part: i+1, total: chunks.length });
         parts[i] = r.part || {};
         if (chunks.length > 1) setThinking(body, `Reading, pass ${++readDone} of ${chunks.length}`);
       } catch(e){ readErr = readErr || e; }
@@ -2610,7 +2461,7 @@ async function doDrop(src, content, again){
       `**The read came back empty.** ${Math.round(bodyTxt.length/1000)}k characters went in and no topic came out.\n\n` +
       `Auto-captions with no punctuation are the usual cause. Paste the transcript from the video's own panel, which carries line breaks.`);
     const go = el("button","go","Paste the text");
-    go.style.marginTop = "12px"; go.onclick = openTranscript; body.append(go);
+    go.style.marginTop = "12px"; go.onclick = pasteHere; body.append(go);
     return;
   }
 
@@ -2675,7 +2526,7 @@ async function planAll(ext, held, progress){
     return S.concepts.find(x => x.brain === brain && (x.slug === id || String(x.title || "").trim().toLowerCase() === t));
   };
   const planOne = i => apiRetry("/api/drop/plan", {
-      ext: { ...ext, topics: batches[i] }, key: S.key,
+      ext: { ...ext, topics: batches[i] },
       /* Several brains ticked: the plan feeds each one. None: it picks. */
       ...(S.into.length > 1 ? { brains: S.into } : { brain: S.into[0] || "all" }),
       ...(held && held.length ? { exclude: held } : {}),
@@ -2726,7 +2577,7 @@ async function planAll(ext, held, progress){
      concept is kept as it is. */
   if (batches.length > 2 && merged.candidates.length > 1){
     try {
-      const { same } = await api("/api/drop/merge", { key: S.key,
+      const { same } = await api("/api/drop/merge", {
         candidates: merged.candidates.map(c => ({ brain: c.brain, title: c.title })) });
       const gone = new Set();
       for (const g of same || []){
@@ -2800,13 +2651,13 @@ async function storeAll(pc, progress){
     whole = whole || every || pc.sendAll;
     const part = batches[i];
     return {
-      sid: pc.sid, link: pc.link, key: S.key, linkLater: true,
+      sid: pc.sid, link: pc.link, linkLater: true,
       ext: whole ? pc.ext : slim,
       plan: { brains: plan.brains, conflicts: plan.conflicts, new: [], echo: [],
               matched: part.filter(u => u.matched).map(u => u.matched),
               candidates: part.filter(u => u.candidate).map(u => u.candidate) },
       ...(whole ? { fullPlan: plan } : {}),
-      choices: pc.choices, promote: pc.promote,
+      choices: pc.choices,
     };
   };
 
@@ -2854,7 +2705,6 @@ async function storeAll(pc, progress){
     counts: { new: (plan.new || []).length, echo: (plan.echo || []).length },
     positions: results.reduce((n, r) => n + (r.positions || 0), 0) +
       earlier.reduce((n, i) => n + (batches[i] || []).length, 0),
-    counted: results.flatMap(r => r.counted || []),
     missed: results.flatMap(r => r.missed || []),
   };
 }
@@ -2878,7 +2728,7 @@ async function planAndCard(body, sid, link, ext, len, held){
       `and no concept, candidate or new claim came back.\n\n` +
       `An auto-caption with no punctuation is the usual cause. Paste the transcript from the video's own panel, which carries sentences.`);
     const go = el("button","go","Paste the text");
-    go.style.marginTop = "12px"; go.onclick = openTranscript; body.append(go);
+    go.style.marginTop = "12px"; go.onclick = pasteHere; body.append(go);
     S.pendingCard = null; renderComposer();
     return;
   }
@@ -2887,8 +2737,8 @@ async function planAndCard(body, sid, link, ext, len, held){
      you are the one who holds these positions. */
   const decide = [...(plan.conflicts||[]).filter(c=>c.kind==="flip"),
                   ...(plan.conflicts||[]).filter(c=>c.kind!=="flip")];
-  const pc = { sid, link, ext, plan, choices:{}, byKey:{}, promote:[], len };
-  S.pendingCard = pc; S.transcript = null; renderComposer();
+  const pc = { sid, link, ext, plan, choices:{}, byKey:{}, len };
+  S.pendingCard = pc; renderComposer();
 
   body.innerHTML = "";
   body.append(buildCard(pc, decide));
@@ -2933,26 +2783,14 @@ function buildCard(pc, decide){
     const c = S.concepts.find(x => `${x.brain}/${x.slug}` === m.conceptId);
     cc.append(el("span","chip", c?c.title:String(m.conceptId||"").split("/").pop()));
   });
-  /* A candidate waits for a third source before it becomes a position. Clicking
-     it takes it now, because you are the one who decides what this brain holds. */
-  (plan.candidates||[]).forEach(m => {
-    if (S.mentions <= 1){ cc.append(el("span","chip cand","+ "+m.title)); return; }
-    const ch = el("button","chip cand","+ "+m.title);
-    ch.onclick = () => {
-      const i = pc.promote.indexOf(m.title);
-      if (i < 0) { pc.promote.push(m.title); ch.classList.add("on"); }
-      else { pc.promote.splice(i,1); ch.classList.remove("on"); }
-    };
-    cc.append(ch);
-  });
+  /* A candidate is a concept the brain does not hold yet. It becomes one when
+     the drop is stored. */
+  (plan.candidates||[]).forEach(m => cc.append(el("span","chip cand","+ "+m.title)));
   if (!cc.children.length) cc.append(el("span","chip none","none"));
   const cbox = el("div");
   cbox.append(cc);
   if ((plan.candidates||[]).length)
-    cbox.append(el("div","chip-note",
-      S.mentions <= 1
-        ? "Orange ones are new here. Each becomes a position when you store it."
-        : `Orange ones are new here. They need ${S.mentions} sources to become a position. Click one to take it now.`));
+    cbox.append(el("div","chip-note", "Orange ones are new here. Each becomes a position when you store it."));
   row("Concepts", cbox);
 
   const nu = el("ul");
@@ -3048,12 +2886,7 @@ Open conflicts: <span class="v">${esc(open.join(", ")||"none")}</span>`;
   if ((r.missed||[]).length){
     d.innerHTML += `\nNot filed: <span class="v">${esc(r.missed.join(", "))}</span>. Those concepts no longer exist under that id.`;
   }
-  /* A counted candidate is stored, just not as a position yet. Saying so keeps
-     the receipt honest about where the idea went. */
-  for (const c of (r.counted||[])){
-    d.innerHTML += `\nCounted <span class="v">${esc(c.title)}</span> at <span class="v">${c.have}</span> of ${S.mentions}. ` +
-      `<span class="v">${c.need}</span> more source${c.need===1?"":"s"} makes it a position.`;
-  }
+
   return d;
 }
 

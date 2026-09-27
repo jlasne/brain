@@ -8,9 +8,9 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
-  ask, json, cors, sha256, slug, randomHex, isOpen, sealKey, openKey, onlyAccount,
+  ask, json, cors, sha256, slug, randomHex, isOpen,
   readSpace, SPACE_NAME, HOME,
-  MODEL, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, CHUNK, MENTIONS,
+  MODEL, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, CHUNK,
   canDrop,
 } from "./lib";
 import type { Who } from "./lib";
@@ -31,42 +31,18 @@ async function gate(ctx: any, body: any): Promise<Who> {
   const who = body?.token
     ? await ctx.runQuery(internal.store.checkSession, { token: body.token })
     : null;
-  if (!who) throw new Response("locked", { status: 401 });
-  return who;
+  /* Only a passphrase session opens the app. A session left from the member
+     accounts and guest keys that were removed reads as locked. */
+  if (!who || (who.kind ?? "owner") !== "owner") throw new Response("locked", { status: 401 });
+  return { ...who, kind: "owner" };
 }
 
 /**
- * Whose credit pays for a model call.
- *
- * The owner spends this deployment's key. Everyone else spends their own: the
- * one their browser just sent, or the one their account remembers.
- *
- * A plaintext key is read here and handed straight to ask(). It must never
- * reach runQuery, runMutation, or any table, because Convex records the
- * arguments of those calls. Only sealed ciphertext crosses that line.
+ * Which model answers. The deployment's key pays for every call, and the owner
+ * may pick another model in the app; the default is the one this deployment
+ * runs.
  */
-async function modelKey(ctx: any, who: Who, body: any): Promise<string | undefined> {
-  if (who.kind === "owner") return undefined;
-
-  const sent = String(body?.key ?? "").trim();
-  if (sent) return sent;
-
-  if (who.kind === "member" && who.account) {
-    const sealed = await ctx.runQuery(internal.store.accountKey, { slug: who.account });
-    if (sealed) return await openKey(sealed.cipher, sealed.iv);
-  }
-  throw new Error("this needs a model key. Paste yours, or save one on your account.");
-}
-
-/**
- * Which model answers.
- *
- * The default is the one this deployment runs. A caller spending their own key
- * names another, because the bill is theirs. An owner session spends this
- * deployment's key, so it stays on the default.
- */
-function modelName(who: Who, body: any): string | undefined {
-  if (who.kind === "owner") return undefined;
+function modelName(body: any): string | undefined {
   const m = String(body?.model ?? "").trim();
   if (!m || m === MODEL) return undefined;
   if (m.length > 80 || !/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i.test(m)) {
@@ -124,105 +100,12 @@ route("/api/unlock", async (ctx, _req, b) => {
   return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space }), space };
 });
 
-/** Leaks nothing: says only whether a passphrase has ever been set. */
-/**
- * A name and a model key. The key is hashed to find or open the account, and
- * only that hash is kept. The key itself stays in the browser and pays for that
- * person's own calls.
- */
-/**
- * A name and a password. An unused name opens an account, a taken one has to
- * match. Only a salted hash of the password is stored.
- *
- * The reply says whether this account already remembers a model key, so the
- * app knows whether to ask for one.
- */
-route("/api/login", async (ctx, _req, b) => {
-  const name = String(b.name ?? "").trim();
-  const pass = String(b.password ?? "");
-  if (name.length < 2) return { error: "give a name of at least 2 characters" };
-  if (pass.length < 8) return { error: "use a password of at least 8 characters" };
-  const s = slug(name);
-
-  /* A personal deployment answers to one account. Refusing before the lookup
-     means a wrong name learns nothing about which accounts exist. */
-  const only = onlyAccount();
-  if (only && s !== only) return { error: "this deployment belongs to one account." };
-
-  /* Ten tries an hour per name, so a password cannot be guessed online. */
-  const tries = await ctx.runMutation(internal.store.mcpRate, { who: "login:" + s, max: 10, windowMs: 60 * 60 * 1000 });
-  if (!tries.allowed) return { error: `too many tries for that name. Wait ${Math.ceil(tries.retryAfter / 60)} minutes.` };
-
-  const acc = await ctx.runQuery(internal.store.findAccount, { slug: s });
-  if (!acc) {
-    if (only) return { error: "this deployment belongs to one account." };
-    const salt = randomHex(16);
-    await ctx.runMutation(internal.store.createAccount,
-      { name, slug: s, salt, passHash: await sha256(salt, pass) });
-    return {
-      token: await ctx.runMutation(internal.store.newSession, { account: s, kind: "member" }),
-      name, account: s, created: true, hasKey: false, keyHint: "",
-    };
-  }
-  /* An account from the earlier scheme has no password yet, so it cannot be
-     opened this way. Saying so beats a wrong "that is not it". */
-  if (!acc.passHash) {
-    return { error: `"${acc.name}" was made before passwords. Pick another name.` };
-  }
-  if (await sha256(acc.salt, pass) !== acc.passHash) {
-    return { error: "that name and password do not match" };
-  }
-  await ctx.runMutation(internal.store.touchAccount, { slug: s });
-  return {
-    token: await ctx.runMutation(internal.store.newSession, { account: s, kind: "member" }),
-    name: acc.name, account: s,
-    hasKey: !!acc.keyCipher, keyHint: acc.keyHint ?? "",
-  };
-});
-
-/**
- * No account. A key, used for this tab and remembered nowhere. A guest asks
- * questions and feeds nothing, so there is no brain to own and nothing to
- * protect with a password.
- */
-route("/api/guest", async (ctx, _req, b) => {
-  /* Closed on a personal deployment, where reading belongs to the owner. */
-  if (onlyAccount()) return { error: "this deployment belongs to one account." };
-  const key = String(b.key ?? "").trim();
-  if (key.length < 16) return { error: "that does not look like an API key" };
-  return {
-    token: await ctx.runMutation(internal.store.newSession, { kind: "guest" }),
-    guest: true,
-  };
-});
-
-/**
- * Remember a member's key, or forget it. The key is sealed here, so only
- * ciphertext reaches the database.
- */
-route("/api/account/key", async (ctx, _req, b) => {
-  const who = await gate(ctx, b);
-  if (who.kind !== "member" || !who.account) {
-    return { error: "only a signed-in account can remember a key" };
-  }
-  if (b.forget) {
-    await ctx.runMutation(internal.store.setAccountKey, { slug: who.account });
-    return { saved: false };
-  }
-  const key = String(b.key ?? "").trim();
-  if (key.length < 16) return { error: "that does not look like an API key" };
-  const sealed = await sealKey(key);
-  await ctx.runMutation(internal.store.setAccountKey,
-    { slug: who.account, cipher: sealed.cipher, iv: sealed.iv, hint: sealed.hint });
-  return { saved: true, keyHint: sealed.hint };
-});
-
 route("/api/status", async (ctx) => {
   /* Which doors have a passphrase, and whether this deployment is personal. It
      names no account and no brain, so a visitor learns only what the landing
      needs to draw two doors. */
   const gates = await ctx.runQuery(internal.store.gatesSet, {});
-  return { gates, gateSet: !!gates.octopus, personal: !!onlyAccount() };
+  return { gates, gateSet: !!gates.octopus };
 });
 
 route("/api/lock", async (ctx, _req, b) => {
@@ -231,21 +114,16 @@ route("/api/lock", async (ctx, _req, b) => {
 });
 
 /**
- * Which account a caller acts as.
- *
- * A member is their own account. A passphrase session carries none, and the
- * connector address belongs to one, so it resolves to the account this
- * deployment names, or to the single account that exists. With several and no
- * ONLY_ACCOUNT there is nothing to guess, and it says so.
+ * The account that holds the connector address. The owner has one, made the
+ * first time an address is asked for; it has no password, so nothing signs in
+ * with it.
  */
-async function actingAccount(ctx: any, who: Who): Promise<string | null> {
-  if (who.account) return who.account;
-  if (who.kind !== "owner") return null;
-  const named = onlyAccount();
-  /* Named but never opened is a fresh deployment, where the single account that
-     does exist is the better answer than a slug nothing is stored under. */
-  if (named && await ctx.runQuery(internal.store.findAccount, { slug: named })) return named;
-  return await ctx.runQuery(internal.store.soleAccount, {});
+async function connectorHolder(ctx: any): Promise<string> {
+  const sole = await ctx.runQuery(internal.store.soleAccount, {});
+  if (sole) return sole;
+  await ctx.runMutation(internal.store.createAccount,
+    { name: "Owner", slug: "owner", salt: randomHex(16) });
+  return "owner";
 }
 
 /**
@@ -262,10 +140,7 @@ route("/api/account/mcp", async (ctx, _req, b) => {
   if (who.space !== HOME) {
     return { error: `the connector serves ${SPACE_NAME[HOME]}. Open that door to set one up.` };
   }
-  const account = await actingAccount(ctx, who);
-  if (!account) {
-    return { error: "a connector address belongs to an account, and this deployment names none. Set ONLY_ACCOUNT, or sign in." };
-  }
+  const account = await connectorHolder(ctx);
   if (b.forget) {
     await ctx.runMutation(internal.store.setMcpToken, { slug: account, token: null });
     return { has: false, token: "" };
@@ -339,17 +214,8 @@ route("/api/state", async (ctx, _req, b) => {
      lines. The whole concept travels only for the export. */
   const s = { brains, sources, concepts: cards.map((c: any) => ({
     brain: c.brain, slug: c.slug, n: c.n, title: c.title, summaryLine: c.summaryLine, updated: c.updated })) };
-  /* Whether this account remembers a key, and the last 4 of it, so the app can
-     say which one it would spend. The key itself stays sealed. */
-  let hasKey = false, keyHint = "";
-  if (who.kind === "member" && who.account) {
-    const sealed = await ctx.runQuery(internal.store.accountKey, { slug: who.account });
-    if (sealed) { hasKey = true; keyHint = sealed.hint; }
-  }
-  return { ...s, model: MODEL, chunk: CHUNK, mentions: MENTIONS,
-           account: who.account, kind: who.kind, owner: who.kind === "owner",
-           space: who.space, spaceName: SPACE_NAME[who.space],
-           hasKey, keyHint };
+  return { ...s, model: MODEL, chunk: CHUNK,
+           space: who.space, spaceName: SPACE_NAME[who.space] };
 });
 
 /** One brain's concepts whole, for the markdown export. */
@@ -363,29 +229,17 @@ route("/api/brain", async (ctx, _req, b) => {
   const name = String(b.name ?? "").trim(), scope = String(b.scope ?? "").trim();
   if (!name || !scope) return { error: "a name and a scope line are both required" };
   const type = b.type === "person" ? "person" : "subject";
-  if (who.kind === "guest") return { error: "creating a brain needs an account" };
   const visibility = String(b.visibility ?? "closed");
   return { slug: await ctx.runMutation(internal.store.createBrain,
-    { name, type, scope, visibility, space: who.space,
-      ...(who.account ? { owner: who.account } : {}) }) };
+    { name, type, scope, visibility, space: who.space }) };
 });
 
 /** Rename a brain, and move its concepts, sources and candidates with it. */
 route("/api/brain/rename", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  if (who.kind === "guest") return { error: "renaming a brain needs an account" };
   return await ctx.runMutation(internal.store.renameBrain, {
     slug: String(b.slug ?? ""), name: String(b.name ?? ""),
-    scope: String(b.scope ?? ""), account: who.account ?? null, space: who.space });
-});
-
-/* Hide a brain from the public endpoints, or show it again. */
-route("/api/brain/visibility", async (ctx, _req, b) => {
-  const who = await gate(ctx, b);
-  if (who.kind === "guest") return { error: "changing a brain needs an account" };
-  return await ctx.runMutation(internal.store.setVisibility,
-    { slug: String(b.slug ?? ""), visibility: String(b.visibility ?? "ask"), account: who.account ?? null,
-      kind: who.kind, space: who.space });
+    scope: String(b.scope ?? ""), account: null, space: who.space });
 });
 
 /* ---------- drop ---------- */
@@ -426,25 +280,25 @@ route("/api/drop/again", async (ctx, _req, b) => {
 /** R2. One pass over one chunk. The caller loops, the transcript is never stored. */
 route("/api/drop/read", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return await dropRead(ctx, who, b, await modelKey(ctx, who, b), modelName(who, b));
+  return await dropRead(ctx, who, b, undefined, modelName(b));
 });
 
 /** R3. Summaries only, never whole brains, so this costs the same at any size. */
 route("/api/drop/plan", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return await dropPlan(ctx, who, b, await modelKey(ctx, who, b), modelName(who, b));
+  return await dropPlan(ctx, who, b, undefined, modelName(b));
 });
 
 /** Parts planned in parallel can name one idea twice. This groups them. */
 route("/api/drop/merge", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return await dropMerge(ctx, who, b, await modelKey(ctx, who, b), modelName(who, b));
+  return await dropMerge(ctx, who, b, undefined, modelName(b));
 });
 
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
 route("/api/drop/settle", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return await dropSettle(ctx, who, b, await modelKey(ctx, who, b), modelName(who, b));
+  return await dropSettle(ctx, who, b, undefined, modelName(b));
 });
 
 
@@ -454,7 +308,6 @@ route("/api/drop/settle", async (ctx, _req, b) => {
  */
 route("/api/drop/link", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  if (who.kind === "guest") return { error: "linking needs an account" };
   const sid = String(b.sid ?? "");
   if (!sid) return { error: "linking needs the source it follows" };
   /* Only brains this caller may feed, and only concepts that source fed: the
@@ -487,7 +340,7 @@ route("/api/ask", async (ctx, _req, b) => {
    * budget, and the next ones are named by title so the answer knows what else
    * is held. A follow-up borrows the words of the question before it.
    */
-  const mKey = await modelKey(ctx, who, b), mName = modelName(who, b);
+  const mKey = undefined, mName = modelName(b);
   const t0 = Date.now();
   const route = await routeQuestion(pool, concepts, String(b.q ?? ""), b.history, mKey, mName);
   /* Ranked on the slim copies; only the concepts that lead are read whole. */
@@ -624,7 +477,6 @@ route("/api/onepager", async (ctx, _req, b) => {
      least of all a model call on a question. */
   const to = String(b.mail ?? "").trim();
   if (to && !looksLikeMail(to)) return { error: `"${to.slice(0, 60)}" is not an address` };
-  if (to && who.kind === "guest") return { error: "mailing a page needs an account" };
 
   const q = String(b.q ?? "").trim();
   /* Summary lays out the positions, free, or answers a question. A quiz and
@@ -634,7 +486,7 @@ route("/api/onepager", async (ctx, _req, b) => {
   if (kind === "custom" && !note) return { error: "write the instruction the page should follow" };
   const page = q || kind !== "summary"
     ? await fromModel(who.space, brains, concepts, sources, { q, kind, note, pick },
-                      await modelKey(ctx, who, b), modelName(who, b), load)
+                      undefined, modelName(b), load)
     : assemble(who.space, brains, concepts, sources, pick,
                new Map((await load(pageIds(brains, concepts))).map((c: any) => [idOf(c), c])));
 

@@ -19,9 +19,8 @@
  */
 
 import { internal } from "./_generated/api";
-import { randomHex, today, slug as slugOf, HOME, MENTIONS } from "./lib";
+import { randomHex, today, slug as slugOf, HOME } from "./lib";
 import { norm, keywords, planDossier, scoreConcept, idOf } from "./words";
-export { MENTIONS };
 import { dropCheck, dropSettle, feedable, fetchPage, planContext, PLAN_RULES } from "./drop";
 import { loadSpace } from "./space";
 
@@ -152,7 +151,7 @@ export const WRITE_TOOLS = [
       'belongs inside, so make it specific: "health" is a folder, "sleep, recovery and training load for ' +
       'my own routine" is a brain. Call list_brains first. A source that fits a scope line already there ' +
       "belongs in that brain, and a second brain covering the same ground splits the evidence in two. " +
-      "The person who owns this address owns the brain. Writes.",
+      "Writes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -160,7 +159,6 @@ export const WRITE_TOOLS = [
         scope: { type: "string", description: "One line naming exactly what belongs inside." },
         type: { type: "string", enum: ["subject", "person"],
           description: "subject holds your own position, person holds one person's view. Default subject." },
-        open: { type: "boolean", description: "true lets any signed-in person feed it. Default false." },
       },
       required: ["name", "scope"],
       additionalProperties: false,
@@ -265,10 +263,6 @@ export const WRITE_TOOLS = [
           type: "object",
           description: 'Concept id to "new", "old" or "both". Ids come from the card.',
           additionalProperties: { type: "string", enum: ["new", "old", "both"] },
-        },
-        take: {
-          type: "array", items: { type: "string" },
-          description: "Candidate concept titles to create in this drop rather than count toward the threshold.",
         },
       },
       required: ["draft"],
@@ -399,9 +393,7 @@ function cardText(plan: any, brains: any[], concepts: any[], draft: string) {
     ``,
     `NEW CONCEPTS PROPOSED (${cands.length})`,
     cands.join("\n") || "- none",
-    ...(cands.length ? [MENTIONS <= 1
-      ? `Each becomes a position when the drop is stored.`
-      : `A new concept needs ${MENTIONS} separate sources. Name one in "take" to create it now.`] : []),
+    ...(cands.length ? [`Each becomes a position when the drop is stored.`] : []),
     ``,
     `NEW CLAIMS (${(plan.new ?? []).length})`,
     (plan.new ?? []).map((x: string) => `- ${x}`).join("\n") || "- none",
@@ -422,11 +414,10 @@ function cardText(plan: any, brains: any[], concepts: any[], draft: string) {
 
 async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
   if (!caller) {
-    return text("This address reads only. Feeding needs the personal connector address from your Octopus account.");
+    return text("This address reads only. Feeding needs the private address from Setup, inside Octopus.");
   }
-  /* A member, so the same permission rules apply here as in the app: a brain is
-     feedable by the account that owns it, or by anyone when it is open. */
-  const who = { kind: "member" as const, account: caller.account, space: HOME };
+  /* The address is the owner's, so it feeds every Octopus brain. */
+  const who = { kind: "owner" as const, account: caller.account, space: HOME };
   const draftOf = async (token: string) =>
     await ctx.runQuery(internal.store.getDraft, { token, account: caller.account });
 
@@ -456,14 +447,11 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
       const made = await ctx.runMutation(internal.store.createBrain, {
         name: bname, scope,
         type: args?.type === "person" ? "person" : "subject",
-        visibility: args?.open === true ? "open" : "closed",
-        owner: caller.account,
         space: HOME,
       });
       return text([
         `Made ${bname} (${made}), a ${args?.type === "person" ? "person" : "subject"} brain.`,
         `scope: ${scope}`,
-        `feeding: ${args?.open === true ? "anyone signed in" : `${caller.name} only`}`,
         ``,
         `It holds nothing yet. The first source seeds it, so every concept in that first drop becomes a`,
         `position straight away. Call drop_source when you have one.`,
@@ -546,18 +534,16 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     if (!d) return text(`Draft ${token} is gone. Start again with drop_source.`);
     if (!d.plan) return text(`Draft ${token} has no plan yet. Call drop_plan first.`);
 
-    const { choices, promote } = rulings(args);
+    const choices = rulings(args);
     await ctx.runMutation(internal.store.saveDraft,
-      { token, account: caller.account, plan: { ...d.plan, choices, promote } });
+      { token, account: caller.account, plan: { ...d.plan, choices } });
 
     const r = await dropSettle(ctx, who, {
-      ext: d.ext, plan: d.plan, sid: d.sid, link: d.link, choices, promote, packetOnly: true });
+      ext: d.ext, plan: d.plan, sid: d.sid, link: d.link, choices, packetOnly: true });
     if (r.error) return text(String(r.error));
     if (!r.job) {
       return text([
         `Nothing to rewrite in draft ${token}.`,
-        ...(r.counted ?? []).map((c: any) =>
-          `- ${c.title}: counted at ${c.have} of ${MENTIONS}, ${c.need} more source${c.need === 1 ? "" : "s"} makes it a position`),
         ``,
         `Call drop_store with an empty rewrites list to file the source anyway.`,
       ].join("\n"));
@@ -581,22 +567,18 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     /* The rulings were fixed at drop_prepare, so they cannot change under the
        rewrites they produced. */
     const choices = d.plan.choices ?? {};
-    const promote = d.plan.promote ?? [];
 
     const r = await dropSettle(ctx, who, {
       ext: d.ext, plan: d.plan, sid: d.sid, link: d.link,
-      location: "sent through a connector", choices, promote, rewrites: rw });
+      location: "sent through a connector", choices, rewrites: rw });
     if (r.error) return text(String(r.error));
 
     await ctx.runMutation(internal.store.killDraft, { token, account: caller.account });
-    const counted = (r.counted ?? []).map((c: any) =>
-      `- ${c.title}: counted at ${c.have} of ${MENTIONS}, ${c.need} more source${c.need === 1 ? "" : "s"} makes it a position`);
     return text([
       `STORED ${r.sid} on ${today()}, by ${caller.name}.`,
       `Brains: ${(r.brains ?? []).join(", ")}`,
       `Positions rewritten: ${r.positions}`,
       `New claims: ${r.counts?.new ?? 0} | echoes: ${r.counts?.echo ?? 0}`,
-      ...(counted.length ? [``, `COUNTED, NOT YET A POSITION`, ...counted] : []),
       ``,
       `Tell the person what moved, in one or two lines.`,
     ].join("\n"));
@@ -605,14 +587,14 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
   return null;
 }
 
-/** The person's ruling on each contradiction, and any candidate they take now. */
-function rulings(args: any) {
+/** The person's ruling on each contradiction. */
+function rulings(args: any): Record<string, string> {
   const raw = args?.rulings && typeof args.rulings === "object" ? args.rulings : {};
   const choices: Record<string, string> = {};
   for (const [k, v] of Object.entries(raw)) {
     if (v === "new" || v === "old" || v === "both") choices[k] = v;
   }
-  return { choices, promote: Array.isArray(args?.take) ? args.take.map(String) : [] };
+  return choices;
 }
 
 /* ---------- dispatch ---------- */

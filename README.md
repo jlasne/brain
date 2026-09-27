@@ -98,15 +98,11 @@ git clone https://github.com/jlasne/brain
 cd brain && npm install
 npx convex dev
 npx convex env set OPENROUTER_API_KEY sk-or-... --prod
-npx convex env set KEY_SECRET "$(openssl rand -base64 32)" --prod
 npx convex deploy
+npx convex run admin:setPass "{space:'octopus',pass:'...'}" --prod
 ```
 
-One more command makes the deployment personal. With `ONLY_ACCOUNT` set, that account is the only one that signs in, no new account is made, and the key-for-one-tab door closes. Reading the brains through the connector still needs nothing.
-
-```
-npx convex env set ONLY_ACCOUNT yourname --prod
-```
+One passphrase per door opens the app. The deployment's key pays for every model call.
 
 A video link carries no transcript on its own: YouTube hands captions to a signed-in browser and to nothing else, which a deployment is not. Set a [Supadata](https://supadata.ai) key and a video link becomes enough.
 

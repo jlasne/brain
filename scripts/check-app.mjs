@@ -149,7 +149,17 @@ async function boot(path, init, arg) {
   }, STATE);
   check("the app boots with nothing thrown", !bad.length, bad.join("\n       "));
 
+  /* ---- simpler: one tool for the drop, one box for the text, no key to set ---- */
+  const simple = await page.evaluate(() => ({
+    gone: !document.getElementById("testBtn") && !document.getElementById("pasteBtn"),
+    count: document.querySelector(".brain-row .ct")?.textContent,
+  }));
+  check("the drop keeps one tool: + document", simple.gone);
+  check("a brain row shows its concept count alone", /^\d+$/.test(simple.count || ""), simple.count);
+
   await page.click('#mode button[data-m="drop"]');
+  const ph = await page.getAttribute("#input", "placeholder");
+  check("the content box says a transcript is pasted there", /transcript/.test(ph || ""), ph);
   const read = async (src, content) => {
     await page.fill("#srcInput", src);
     await page.fill("#input", content);

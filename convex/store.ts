@@ -4,7 +4,7 @@ import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap, cardOf } from "./words";
 import { sha256, randomHex, today, slug, gateKey, readSpace, HOME,
-         MENTIONS, SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS } from "./lib";
+         SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS } from "./lib";
 
 /* ---------------- the gate ---------------- */
 
@@ -122,64 +122,17 @@ export const soleAccount = internalQuery({
 });
 
 export const createAccount = internalMutation({
-  args: { name: v.string(), slug: v.string(), salt: v.string(), passHash: v.string() },
+  args: { name: v.string(), slug: v.string(), salt: v.string(), passHash: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const seen = await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
     if (seen) throw new Error("that name is taken");
     await ctx.db.insert("accounts", {
-      name: a.name, slug: a.slug, salt: a.salt, passHash: a.passHash,
+      name: a.name, slug: a.slug, salt: a.salt, ...(a.passHash ? { passHash: a.passHash } : {}),
       created: today(), lastSeen: today(),
     });
     return a.slug;
   },
 });
-
-/**
- * Remember a member's model key, or forget it. Only ciphertext reaches this
- * mutation: the plaintext key is sealed in the HTTP action and never becomes a
- * function argument, because Convex records those.
- */
-export const setAccountKey = internalMutation({
-  args: {
-    slug: v.string(),
-    cipher: v.optional(v.string()),
-    iv: v.optional(v.string()),
-    hint: v.optional(v.string()),
-  },
-  handler: async (ctx, a) => {
-    const acc = await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
-    if (!acc) throw new Error("no such account");
-    if (!a.cipher) {
-      await ctx.db.patch(acc._id, {
-        keyCipher: undefined, keyIv: undefined, keyHint: undefined, keySavedAt: undefined,
-      });
-      return { saved: false };
-    }
-    await ctx.db.patch(acc._id, {
-      keyCipher: a.cipher, keyIv: a.iv, keyHint: a.hint, keySavedAt: today(),
-    });
-    return { saved: true, hint: a.hint };
-  },
-});
-
-/** The sealed key for one account, for the HTTP action to open. */
-export const accountKey = internalQuery({
-  args: { slug: v.string() },
-  handler: async (ctx, a) => {
-    const acc = await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
-    if (!acc?.keyCipher || !acc.keyIv) return null;
-    return { cipher: acc.keyCipher, iv: acc.keyIv, hint: acc.keyHint ?? "" };
-  },
-});
-
-export const touchAccount = internalMutation({
-  args: { slug: v.string() },
-  handler: async (ctx, a) => {
-    const acc = await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
-    if (acc) await ctx.db.patch(acc._id, { lastSeen: today() });
-  },
-});
-
 
 export const dropSession = internalMutation({
   args: { token: v.string() },
@@ -262,24 +215,6 @@ export const createBrain = internalMutation({
 });
 
 /** Flip one brain between hidden and readable. */
-/** Open a brain to everyone's sources, or close it to its creator's. */
-export const setVisibility = internalMutation({
-  args: { slug: v.string(), visibility: v.string(), account: v.union(v.string(), v.null()),
-          kind: v.optional(v.string()), space: v.optional(v.string()) },
-  handler: async (ctx, a) => {
-    if (a.kind === "guest") throw new Error("changing a brain needs an account");
-    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
-    /* A brain of the other space reads as absent, the same as everywhere else. */
-    if (!b || readSpace(b.space) !== readSpace(a.space)) throw new Error("no such brain");
-    /* The owner may change any brain. A member may change only their own. */
-    if (a.account !== null && (b.owner ?? null) !== a.account) {
-      throw new Error("that brain belongs to someone else");
-    }
-    const v2 = a.visibility === "open" || a.visibility === "drop" ? "open" : "closed";
-    await ctx.db.patch(b._id, { visibility: v2 });
-    return { slug: a.slug, visibility: v2 };
-  },
-});
 
 
 /**
@@ -601,23 +536,6 @@ export const fetchCount = internalQuery({
       byDay[d] = (byDay[d] ?? 0) + 1;
     }
     return { days: a.days, got: ok.length, failed: rows.length - ok.length, byDay };
-  },
-});
-
-/** R5.5 seeding and the mention threshold both live here. */
-export const bumpCandidate = internalMutation({
-  args: { brain: v.string(), title: v.string(), sid: v.string() },
-  handler: async (ctx, a) => {
-    const s = conceptSlug(a.title);
-    const row = await byTitle(ctx, "candidates", a.brain, a.title);
-    const notes = Array.from(new Set([...(row?.notes ?? []), a.sid]));
-    if (notes.length >= MENTIONS) {
-      if (row) await ctx.db.delete(row._id);
-      return { promoted: true, notes };
-    }
-    if (row) await ctx.db.patch(row._id, { notes, count: notes.length, updated: today() });
-    else await ctx.db.insert("candidates", { brain: a.brain, slug: s, title: a.title, notes, count: notes.length, updated: today() });
-    return { promoted: false, notes };
   },
 });
 

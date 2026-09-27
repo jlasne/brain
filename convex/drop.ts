@@ -13,7 +13,7 @@
 
 import { internal } from "./_generated/api";
 import {
-  ask, parseJson, today, slug, linkKey, sourceId, canDrop, CHUNK, MENTIONS, HOME,
+  ask, parseJson, today, slug, linkKey, sourceId, canDrop, CHUNK, HOME,
 } from "./lib";
 import type { Who } from "./lib";
 import { keywords, rankConcepts, linkId, conceptSlug, compress, unionCap } from "./words";
@@ -639,28 +639,13 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
     if (c) touched.push({ c, adds: m.whatItAdds, isNew: false, rel: m.related });
     else if (id) missed.push(id);
   }
-  /* R5.5. A candidate is an idea the brain does not hold yet. MENTIONS separate
-     sources make it a position, so an early mention is counted and kept, never
-     thrown away. Two brains skip the wait: one that is still empty, and one
-     where the owner picked the candidate on the card. */
-  const counted: any[] = [];
-  const promote: string[] = Array.isArray(b.promote) ? b.promote.map(String) : [];
+  /* R5.5. A candidate is an idea the brain does not hold yet. It becomes a
+     concept on this drop, with what the source argued as its first evidence. */
   for (const cand of (plan.candidates ?? [])) {
     const br = targets.includes(cand.brain) ? cand.brain : targets[0];
     const already = titleAt(br, String(cand.title ?? ""));
     if (already) { touched.push({ c: already, adds: cand.why, isNew: false, rel: cand.related }); continue; }
-    const seeding = !!read.empty[br];
-    const asked = promote.includes(cand.title) || promote.includes(`${br}/${conceptSlug(cand.title)}`);
-    /* At a threshold of 1 there is nothing to wait for, so the candidate is
-       taken here with what the source argued as its first evidence, rather than
-       through a counter that would promote it on the same call anyway. */
-    if (seeding || asked || MENTIONS <= 1) {
-      touched.push({ c: { brain: br, slug: conceptSlug(cand.title), title: cand.title, position: "", evidence: [], data: [], conflicts: [], sources: [] }, adds: cand.why, isNew: true, rel: cand.related });
-    } else {
-      const r = await ctx.runMutation(internal.store.bumpCandidate, { brain: br, title: cand.title, sid });
-      if (r.promoted) touched.push({ c: { brain: br, slug: conceptSlug(cand.title), title: cand.title, position: "", evidence: [], data: [], conflicts: [], sources: r.notes }, adds: `promoted after ${MENTIONS} mentions`, isNew: true });
-      else counted.push({ brain: br, title: cand.title, have: r.notes.length, need: MENTIONS - r.notes.length });
-    }
+    touched.push({ c: { brain: br, slug: conceptSlug(cand.title), title: cand.title, position: "", evidence: [], data: [], conflicts: [], sources: [] }, adds: cand.why, isNew: true, rel: cand.related });
   }
 
   /* One concept, one entry. The same concept reached twice, as a match and as
@@ -679,10 +664,9 @@ export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model
 
   /* A plan with findings that lands nowhere would write a source row and rewrite
      no position: the knowledge would vanish, and the receipt would read fine.
-     Refuse and say so. A counted candidate is not that case. It landed in the
-     candidate list, and it says so on the receipt. */
+     Refuse and say so. */
   const filedAny = (full.matched ?? []).length + (full.candidates ?? []).length > 0;
-  if (!touched.length && !counted.length && (full.new ?? []).length > 0 && (!b.fullPlan || !filedAny)) {
+  if (!touched.length && (full.new ?? []).length > 0 && (!b.fullPlan || !filedAny)) {
     return { error:
       `the plan found ${(plan.new ?? []).length} new items and filed none of them into a concept, ` +
       `so nothing would be rewritten. Drop the source again.` };
@@ -734,7 +718,7 @@ ${excerptFor(ext.topics ?? [], touched)}`;
     if (Array.isArray(b.rewrites)) {
       rewrites = b.rewrites;
     } else if (b.packetOnly) {
-      return { job, counted, positions: touched.length,
+      return { job, positions: touched.length,
                concepts: touched.map(({ c }: any) => `${c.brain}/${c.slug}`) };
     } else {
       const { text, finish } = await ask([
@@ -745,7 +729,7 @@ ${excerptFor(ext.topics ?? [], touched)}`;
     }
   } else if (b.packetOnly) {
     /* Nothing to rewrite, so there is no job. Storing it is one more call. */
-    return { job: "", counted, positions: 0, concepts: [] };
+    return { job: "", positions: 0, concepts: [] };
   }
 
   /* The source and its note go first. A source of another space is refused
@@ -813,7 +797,7 @@ ${excerptFor(ext.topics ?? [], touched)}`;
 
   /* How many passages the note kept, so the app knows whether later parts
      can read the text back from it or must send it again. */
-  return { sid, brains: targets, positions: touched.length, counted, missed, written, noteTopics,
+  return { sid, brains: targets, positions: touched.length, missed, written, noteTopics,
     counts: { new: (full.new ?? []).length, echo: (full.echo ?? []).length } };
 }
 

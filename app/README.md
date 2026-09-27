@@ -39,7 +39,7 @@ reaches a browser.
 |---|---|---|
 | `/` | `/api/status` for which doors exist, `/api/unlock` to open one, `/api/public/brains` for the counts | No, it is the door |
 | `/about` | `/api/public/brains`, for the live counts | No |
-| `/doc` | `/api/login`, then `/api/doc` for its own words | Yes |
+| `/doc` | `/api/unlock` with the Octopus passphrase, then `/api/doc` for its own words | Yes |
 | `/chat` | Every `/api/*` route | Yes, a passphrase |
 
 `/api/public/brains` reads Octopus, because every Octopus brain is published. It

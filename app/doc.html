@@ -91,31 +91,30 @@
     };
   }
 
+  /* The connector setup sits behind the Octopus door, the same passphrase as
+     the app. */
   function paintDoor(note){
     shell.innerHTML = `
-      <div class="eyebrow">One account</div>
-      <h1 class="hero">Sign in to read this.</h1>
-      <p class="lede">The connector setup hands out an address tied to an account, so it sits behind the
-        same door as the app.</p>
+      <div class="eyebrow">Octopus</div>
+      <h1 class="hero">Enter to read this.</h1>
+      <p class="lede">The connector setup hands out an address that can feed the brains, so it sits behind
+        the same door as the app.</p>
       <div class="door">
-        <label for="dn">Name</label>
-        <input type="text" id="dn" autocomplete="username">
-        <label for="dw">Password</label>
+        <label for="dw">Passphrase</label>
         <input type="password" id="dw" autocomplete="current-password">
         <div class="msg" id="dmsg" role="alert">${esc(note || "")}</div>
         <div class="row"><button class="btn primary" id="dgo">Open</button></div>
       </div>
-      <div class="note">Reading the brains needs no account. Point any MCP client at
+      <div class="note">Reading the brains needs no passphrase. Point any MCP client at
         <code>${esc(location.origin)}/mcp/v0</code> and every brain answers.</div>`;
 
     const go = document.getElementById("dgo"), msg = document.getElementById("dmsg");
     const submit = async () => {
-      const name = document.getElementById("dn").value.trim();
-      const password = document.getElementById("dw").value;
-      if (!name || !password) return;
+      const pass = document.getElementById("dw").value;
+      if (!pass) return;
       go.disabled = true; msg.textContent = "Checking";
       try {
-        const r = await post("/api/login", { name, password });
+        const r = await post("/api/unlock", { space: "octopus", pass });
         sessionStorage.setItem(TOKEN_KEY, r.token);
         paintDoc(await post("/api/doc", { token: r.token }));
       } catch (e) {
@@ -125,7 +124,7 @@
     };
     go.onclick = submit;
     document.getElementById("dw").onkeydown = e => { if (e.key === "Enter") submit(); };
-    setTimeout(() => document.getElementById("dn").focus(), 40);
+    setTimeout(() => document.getElementById("dw").focus(), 40);
   }
 
   (async () => {

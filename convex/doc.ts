@@ -42,8 +42,8 @@ export const DOC_BODY = `
 
   <div class="eyebrow">Connect it</div>
   <h2 style="margin-top:6px">Use your brains from any AI client.</h2>
-  <p class="lede">One address turns any MCP client into a reader of every brain. A second address, tied
-    to your account, lets it drop sources and make brains too.</p>
+  <p class="lede">One address turns any MCP client into a reader of every brain. A second, private
+    address lets it drop sources and make brains too.</p>
 
   <nav class="toc">
     <a href="#addresses">The two addresses</a>
@@ -63,15 +63,15 @@ export const DOC_BODY = `
     <input id="docUrl" readonly spellcheck="false" value="loading">
     <button id="docCopy">Copy</button>
   </div>
-  <p class="muted" style="margin-top:8px">No key, no account, nothing spent. Anyone can use this one.</p>
+  <p class="muted" style="margin-top:8px">No key, no passphrase, nothing spent. Anyone can use this one.</p>
 
   <h3 style="margin-top:22px">Read and feed</h3>
-  <p class="muted" style="margin-top:8px">Sign in to Octopus, click <b>Octopus MCP</b> in the sidebar,
-    then <b>Make my address</b>. It carries your account, so a client holding it can feed the brains you
-    own, plus any brain its owner marked open. Keep it private.</p>
+  <p class="muted" style="margin-top:8px">Enter Octopus with its passphrase, click <b>Setup</b> in the
+    sidebar, then <b>Make my address</b>. A client holding it can feed every Octopus brain, so keep it
+    private.</p>
 
   <div class="note">Feeding spends nothing here. Your client reads the source, files it and writes the
-    new position. Your model key stays for the web app.</div>
+    new position.</div>
 
   <h2 id="add">How to add it</h2>
 

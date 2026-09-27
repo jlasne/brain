@@ -124,9 +124,6 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 |---|---|---|
 | `/api/status` | Says which spaces have a passphrase | No, it leaks nothing |
 | `/api/unlock` | One door per space. It checks the passphrase; only `admin:setPass` sets one | Rate limited, 8 tries an hour per door |
-| `/api/login` | A name and a password. Opens or finds a member account | No, it is the door |
-| `/api/guest` | A model key alone. Opens a session that asks and never feeds | No, it is the door |
-| `/api/account/key` | Remembers a member's key, sealed, or forgets it | Yes |
 | `/api/state` | Brains, concept names and summary lines, sources | Yes |
 | `/api/export` | One brain's concepts whole, for the markdown export | Yes |
 | `/api/brain` | Creates one | Yes |
@@ -220,55 +217,11 @@ overage beyond it runs $0.22 per extra gigabyte moved.
 | Guest | A model key, nothing else | Their own key, held in their tab only |
 | Owner | The passphrase, no longer offered on screen | `OPENROUTER_API_KEY` on this deployment |
 
-The passphrase door was removed from the app once accounts existed. Its route
-still answers, so a deployment that loses every account password has a way back
-in through the API. Nothing new obtains an owner session through the UI.
-
-Brains made before accounts carry no `owner`, which left them feedable by the
-passphrase alone. Closing that door means they need a real owner, so
-`admin:claim` hands them to an account:
-
-```
-npx convex run admin:state --prod
-npx convex run admin:claim --prod
-```
-
-`claim` takes no argument while one account exists. PowerShell strips the inner
-quotes out of a JSON argument, so the common case avoids passing any. With
-several accounts, name one, escaping the quotes on Windows:
-
-```
-npx convex run admin:claim '{\"account\":\"octopus\"}' --prod
-```
-
-A guest asks questions and feeds nothing, so there is no brain to own and no
-password to keep. A member owns the brains they create.
-
-Sessions carry a `kind`. Sessions written before guests existed carry none, and
-`checkSession` reads those as the owner, which is what they were.
-
-### Remembering a key
-
-A member may tick "remember it on my account". The key is then sealed with
-AES-GCM under `KEY_SECRET`, a value that lives only in this deployment's
-environment, and the database holds ciphertext, a nonce, and the last 4
-characters so the screen can say which key is saved.
-
-```
-npx convex env set KEY_SECRET "$(openssl rand -base64 32)" --prod
-```
-
-Without that variable, saving is **refused** rather than done weakly, and
-pasting a key each session still works.
-
-The limit is worth stating plainly: anyone who can read both the database and
-`KEY_SECRET` can decrypt these keys. Storing them makes this deployment the
-custodian of other people's paid credentials. That is the tradeoff the feature
-buys, and the reason the tick is opt-in.
-
-Sealing and opening happen in the HTTP action. A plaintext key never reaches
-`runQuery`, `runMutation`, or a table, because Convex records the arguments of
-those calls. Only ciphertext crosses that line.
+One kind of session opens the app: a passphrase, one per door. The owner feeds
+every brain of that door's space, and this deployment's key pays for every
+model call. Member accounts, guest keys and saved personal keys were removed.
+A single account record remains, without a password, only to hold the
+connector address; it is made the first time Setup asks for one.
 
 
 ### Who may do what

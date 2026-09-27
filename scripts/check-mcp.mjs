@@ -27,7 +27,9 @@ writeFileSync(join(dir, "_generated/api.ts"),
   "new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 await esbuild.build({ entryPoints: [join(dir, "mcp.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { handleRpc, MENTIONS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { handleRpc } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+/* Every candidate becomes a concept on the drop that argues for it. */
+const MENTIONS = 1;
 await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle-drop.mjs"), logLevel: "silent" });
 const { dropSettle, fetchPage, planContext, dropMerge, dropPlan } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
@@ -39,7 +41,7 @@ const DB = {
   brains: [
     { slug:"content", name:"Content", type:"subject", scope:"How a brand publishes content and turns attention into buyers", owner:"octopus" },
     { slug:"health",  name:"Health",  type:"subject", scope:"sleep, recovery and training load", owner:"octopus" },
-    { slug:"other",   name:"Other",   type:"subject", scope:"someone else's brain", owner:"someoneelse" },
+    { slug:"other",   name:"Other",   type:"subject", scope:"a brain of the other space", space:"squidgy" },
   ],
   concepts: [
     { brain:"content", slug:"offer-creation", n:1, title:"Offer creation as a key skill",
@@ -68,7 +70,7 @@ const ctx = {
     /* The slim copies, made from the concepts the way the store makes them. */
     if (fn === "store.spaceHead") {
       DB.spacesRead.push(a?.space ?? null);
-      return { brains: DB.brains, sources: DB.sources, ready: true };
+      return { brains: DB.brains.filter(b => (b.space ?? "octopus") === a.space), sources: DB.sources, ready: true };
     }
     /* Pages of 3, so every reader is checked to walk all of them. */
     if (fn === "store.cardsPage") {
@@ -84,7 +86,9 @@ const ctx = {
       /* The real query's caps, so a caller that sends too much is caught. */
       const byId = {};
       for (const id of [...new Set(a.ids)].slice(0, 400)) { const c = DB.concepts.find(x => `${x.brain}/${x.slug}` === id); if (c) byId[id] = c; }
-      return { brains: DB.brains, byId,
+      const mine = DB.brains.filter(b => (b.space ?? "octopus") === a.space), ok = new Set(mine.map(b => b.slug));
+      for (const k of Object.keys(byId)) if (!ok.has(k.split("/")[0])) delete byId[k];
+      return { brains: mine, byId,
         byTitle: a.titles.slice(0, 200).map(t => findByTitle(DB.concepts, t.brain, t.title) ?? null),
         empty: Object.fromEntries(DB.brains.map(b => [b.slug, !DB.concepts.some(c => c.brain === b.slug)])) };
     }
@@ -108,18 +112,10 @@ const ctx = {
       return { ok:true };
     }
     if (fn === "store.killDraft") { DB.drafts.delete(a.token); return { ok:true }; }
-    if (fn === "store.bumpCandidate") {
-      const k = a.brain + "/" + a.title;
-      const notes = Array.from(new Set([...(DB.candidates.get(k) ?? []), a.sid]));
-      DB.candidates.set(k, notes);
-      /* The real threshold, so the harness cannot drift from the rule. */
-      return notes.length >= MENTIONS ? { promoted:true, notes } : { promoted:false, notes };
-    }
     if (fn === "store.createBrain") {
       const sl = a.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
       if (DB.brains.some(b => b.slug === sl)) throw new Error("a brain with that name exists");
-      DB.brains.push({ slug: sl, name: a.name, type: a.type, scope: a.scope, owner: a.owner,
-                       visibility: a.visibility });
+      DB.brains.push({ slug: sl, name: a.name, type: a.type, scope: a.scope, space: a.space });
       return sl;
     }
     if (fn === "store.upsertConcept") { DB.writes.push({ kind:"concept", ...a }); return {}; }
@@ -200,8 +196,7 @@ const ME = { account:"octopus", name:"Octopus" };
   const made = await call("create_brain",
     { name:"Negotiation", scope:"how a deal is framed, anchored and closed", type:"person" }, ME);
   check("a brain is made", made.startsWith("Made Negotiation (negotiation)"), made.slice(0,90));
-  check("the new brain belongs to the caller", DB.brains.at(-1).owner === "octopus");
-  check("the new brain is closed by default", DB.brains.at(-1).visibility === "closed");
+  check("the new brain is made in Octopus", DB.brains.at(-1).space === "octopus", JSON.stringify(DB.brains.at(-1)));
   const anon = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"tools/call",
     params:{ name:"create_brain", arguments:{ name:"X", scope:"a line long enough to pass" } } }, null);
   check("an anonymous caller cannot make one", /no tool named|reads only/i.test(JSON.stringify(anon)));
@@ -223,7 +218,7 @@ let draft = "";
   draft = (t.match(/DRAFT (\w+)/) ?? [])[1] ?? "";
   check("drop_source returns a draft", !!draft, t.slice(0,120));
   check("drop_source hands over the filing rules", t.includes("Reply with only JSON") && t.includes("BRAINS AND THEIR CONCEPTS"));
-  check("drop_source lists only feedable brains", t.includes("id=content") && !t.includes("id=other"));
+  check("drop_source lists only the brains of its space", t.includes("id=content") && !t.includes("id=other"));
 }
 
 /* ---- step 2, with a bad concept id first ---- */
@@ -331,7 +326,7 @@ let job = "";
 
 /* ---- a drop feeds only the brains it may, once per concept, and keeps what was stored ---- */
 {
-  DB.brains.push({ slug:"vault", name:"Vault", type:"subject", scope:"the owner's closed brain", owner:"someoneelse", visibility:"closed" });
+  DB.brains.push({ slug:"vault", name:"Vault", type:"subject", scope:"a brain of the other space", space:"squidgy" });
   DB.concepts.push({ brain:"vault", slug:"secret-thesis", n:1, title:"Secret thesis", position:"Kept.", summaryLine:"",
     evidence:[], data:[], conflicts:[], sources:["s-v"], updated:"2026-01-01" });
   const offer = DB.concepts.find(c => c.slug === "offer-creation");
@@ -342,10 +337,10 @@ let job = "";
   const t = await call("drop_source", { extraction: EXT, link:"https://example.com/vault", brain:"content" }, ME);
   const d = (t.match(/DRAFT (\w+)/) ?? [])[1] ?? "";
   const refused = await call("drop_plan", { draft:d, plan:{ brains:["content"], matched:[{ conceptId:"vault/secret-thesis", whatItAdds:"x" }] } }, ME);
-  check("the connector refuses a concept of a brain the caller cannot feed", /do not exist in the brains you may feed/.test(refused), refused.slice(0, 120));
+  check("the connector refuses a concept of the other space", /do not exist in the brains you may feed/.test(refused), refused.slice(0, 120));
 
   /* Straight to the store, the way the app calls it. */
-  const WHO = { account:"octopus", kind:"member", space:"octopus" };
+  const WHO = { account:"octopus", kind:"owner", space:"octopus" };
   const settle = async (plan, rewrites, ext = EXT) => {
     const before = DB.writes.length;
     const r = await dropSettle(ctx, WHO, { sid:`s-${Math.random()}`, ext, plan, fullPlan: plan, rewrites });
@@ -359,7 +354,7 @@ let job = "";
      { conceptId:"content/offer-creation", position:["Offers win.", "Twice."], summaryLine:"", conflicts:[] }],
     { ...EXT, author:["A. Author", "B. Author"], date: 2026 });
   const wrote = a.w.filter(w => w.kind === "concept");
-  check("the store never rewrites a concept of a brain the caller cannot feed",
+  check("the store never rewrites a concept of the other space",
     wrote.every(w => w.brain !== "vault") && !JSON.stringify(a.w).includes("HIJACKED"), JSON.stringify(wrote.map(w => w.brain + "/" + w.title)));
   check("and names the ids it could not file", (a.r.missed ?? []).length === 2, JSON.stringify(a.r.missed));
   const oc = wrote.find(w => w.title === "Offer creation as a key skill");
@@ -449,7 +444,7 @@ let job = "";
 
 /* ---- a store of any size looks up every title, and says what its note kept ---- */
 {
-  const WHO = { account:"octopus", kind:"member", space:"octopus" };
+  const WHO = { account:"octopus", kind:"owner", space:"octopus" };
   DB.concepts.push({ brain:"content", slug:"late-idea", n:9, title:"Late idea", position:"STORED SYNTHESIS", summaryLine:"",
     evidence:[], data:[], conflicts:[], sources:[], related:[], updated:"2026-01-01" });
   const candidates = Array.from({ length: 250 }, (_, i) => ({ title: i === 240 ? "Late idea" : `Fresh idea ${i}`, brain:"content", why:"x" }));
