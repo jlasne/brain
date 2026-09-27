@@ -116,9 +116,21 @@ async function boot(path, init, arg) {
     window.fetch = async (u, opt) => {
       const s = String(u);
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/export")) return Response.json({ concepts: [{ brain: "content", slug: "offer", n: 1, title: "Offer first",
+      if (s.includes("/api/concept")) return Response.json({ concept: { brain: "content", slug: "offer", n: 1, title: "Offer first",
         summaryLine: "Offer beats audience.", position: "An offer people buy beats a bigger audience.",
-        evidence: [{ date: "2026-01-02", author: "A", claim: "sold out twice" }], data: ["31 percent"], conflicts: [], sources: ["s-a"] }] });
+        evidence: [{ date: "2026-01-02", author: "A", claim: "sold out twice", source: "s-a" }], data: ["31 percent"], conflicts: [],
+        sources: ["s-a"], related: ["content/offer"], updated: "2026-09-27" } });
+      if (s.includes("/api/export")) {
+        /* Two pages, so the export has to follow `next`. */
+        const second = JSON.parse(opt?.body || "{}").cursor === "p2";
+        return Response.json(second
+          ? { concepts: [{ brain: "content", slug: "hooks", n: 2, title: "Hooks", summaryLine: "Three seconds decide.",
+              position: "The first 3 seconds decide 70% of watch time.", evidence: [], data: [], conflicts: [], sources: [] }], next: null }
+          : { concepts: [{ brain: "content", slug: "offer", n: 1, title: "Offer first",
+              summaryLine: "Offer beats audience.", position: "An offer people buy beats a bigger audience.",
+              evidence: [{ date: "2026-01-02", author: "A", claim: "sold out twice" }], data: ["31 percent"], conflicts: [], sources: ["s-a"] }],
+              next: "p2" });
+      }
       if (s.includes("/api/ask")) {
         window.__asked = JSON.parse(opt?.body || "{}");
         await new Promise(ok => setTimeout(ok, 600));
@@ -333,11 +345,73 @@ async function boot(path, init, arg) {
   check("and it goes when the answer lands", await page.$(".thinking .spinner") === null);
 
   /* ---- the export reads whole concepts only when asked ---- */
-  await page.evaluate(() => window.octopusExport());
-  await page.waitForTimeout(300);
-  const exported = await page.evaluate(() => [...document.querySelectorAll(".msg.ai .receipt")].pop()?.textContent || "");
-  check("the export reads each brain's concepts whole, on demand", /sold out twice/.test(exported) && /31 percent/.test(exported),
+  const above = await page.evaluate(() => document.getElementById("exportBtn")?.nextElementSibling?.id);
+  check("Export sits just above the model", above === "stat", String(above));
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#exportBtn")]);
+  const { readFileSync } = await import("node:fs");
+  const exported = readFileSync(await dl.path(), "utf8");
+  check("Export downloads one markdown file", /\.md$/.test(dl.suggestedFilename()), dl.suggestedFilename());
+  check("with each brain's concepts whole, read on demand", /sold out twice/.test(exported) && /31 percent/.test(exported),
     exported.slice(0, 200));
+  check("page after page, until the brain is read to its end", /70% of watch time/.test(exported), exported.slice(-300));
+
+  /* ---- inside a brain ---- */
+  await page.click(".brain-row .ed >> text=open");
+  await page.waitForTimeout(120);
+  const vw = await page.evaluate(() => ({ title: document.querySelector(".viewer h3")?.textContent,
+    rows: document.querySelectorAll(".viewer .vw-row").length, count: document.querySelector(".viewer .vw-count")?.textContent }));
+  check("open shows the brain with its concepts listed", vw.title === "Content" && /concept/.test(vw.count || ""), JSON.stringify(vw));
+  await page.close();
+}
+
+/* ---- a concept opens whole, with its evidence and its links ---- */
+{
+  const withOne = { ...STATE, concepts: [{ brain: "content", slug: "offer", n: 1, title: "Offer first", summaryLine: "Offer beats audience.", ev: 1, src: 1 }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.fetch = async (u, opt) => {
+      const s = String(u);
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/concept")) return Response.json({ concept: { brain: "content", slug: "offer", n: 1, title: "Offer first",
+        summaryLine: "Offer beats audience.", position: "An offer people buy beats a bigger audience.",
+        evidence: [{ date: "2026-01-02", author: "A", claim: "sold out twice", source: "s-a" }], data: ["31 percent"], conflicts: [],
+        sources: [], related: ["content/offer"], updated: "2026-09-27" } });
+      return Response.json({});
+    };
+  }, withOne);
+  await page.click(".brain-row .ed >> text=open");
+  await page.waitForTimeout(100);
+  const list = await page.evaluate(() => [...document.querySelectorAll(".viewer .vw-row b")].map(b => b.textContent));
+  check("the viewer lists each concept by name", list.join(",") === "Offer first", list.join(","));
+  await page.fill(".viewer .vw-filter", "zzz");
+  check("its filter narrows the list", (await page.$$(".viewer .vw-row")).length === 0);
+  await page.fill(".viewer .vw-filter", "");
+  await page.click(".viewer .vw-row");
+  await page.waitForTimeout(150);
+  const one = await page.evaluate(() => ({ title: document.querySelector(".viewer h3")?.textContent,
+    text: document.querySelector(".viewer .vw-body")?.textContent || "", links: document.querySelectorAll(".viewer .vw-link").length }));
+  check("a concept opens with its position, evidence and figures",
+    one.title === "Offer first" && /bigger audience/.test(one.text) && /sold out twice/.test(one.text) && /31 percent/.test(one.text), one.text.slice(0, 160));
+  check("and its links, each one clickable", one.links === 1);
+  await page.click(".viewer .vw-back");
+  check("back returns to the list", !!(await page.$(".viewer .vw-row")));
+  await page.keyboard.press("Escape");
+  check("Escape closes the viewer", !(await page.$(".viewer")));
+  check("nothing threw in the viewer", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+{
+  const { page } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.fetch = async (u, opt) => {
+      const s = String(u);
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/ask")) { window.__asked = JSON.parse(opt?.body || "{}"); await new Promise(ok => setTimeout(ok, 400));
+        return Response.json({ answer: "One line.", sources: 3, level: "normal" }); }
+      return Response.json({});
+    };
+  }, STATE);
 
   /* ---- Learning: steps toward the answer, never the answer ---- */
   const levels = await page.evaluate(() => [...document.querySelectorAll("#level button")].map(b => ({

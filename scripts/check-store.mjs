@@ -281,6 +281,21 @@ function seed() {
   check("and what it opened and what it fed", r.filed.opened === 1 && r.filed.fed === 1 && r.filed.concepts === 2, JSON.stringify(r.filed));
 }
 
+/* ---- the export reads a brain of any size, a page at a time ---- */
+{
+  const { T, ctx } = seed();
+  for (let i = 0; i < 230; i++) T.concepts.push({ _id: `x${i}`, brain: "wealth", slug: `c-${i}`, n: i + 3, title: `C ${i}`,
+    position: "", summaryLine: "", evidence: [], data: [], conflicts: [], sources: [], related: [], updated: "x" });
+  const got = []; let cursor = null, pages = 0;
+  do {
+    const r = await run(store.conceptsOfBrain, ctx, { space: "octopus", brain: "wealth", cursor });
+    got.push(...r.concepts); cursor = r.next; pages++;
+  } while (cursor && pages < 10);
+  check("the export pages through every concept of a brain", got.length === 232 && pages === 3, `${got.length} in ${pages}`);
+  const other = await run(store.conceptsOfBrain, ctx, { space: "octopus", brain: "dogs" });
+  check("and reads nothing of the other space", other.concepts.length === 0 && other.next === null, JSON.stringify(other));
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe store holds");
 process.exit(failures ? 1 : 0);

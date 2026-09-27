@@ -666,12 +666,16 @@ export const conceptsByIds = internalQuery({
 });
 
 /** One brain's concepts read whole, for the export. */
+/** One page of a brain's concepts whole. A page of 100 keeps a brain of any
+    size under the read limit. */
 export const conceptsOfBrain = internalQuery({
-  args: { space: v.optional(v.string()), brain: v.string() },
+  args: { space: v.optional(v.string()), brain: v.string(), cursor: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, a) => {
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.brain)).unique();
-    if (!b || readSpace(b.space) !== readSpace(a.space)) return [];
-    return await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain)).collect();
+    if (!b || readSpace(b.space) !== readSpace(a.space)) return { concepts: [], next: null };
+    const page = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain))
+      .paginate({ numItems: 100, cursor: a.cursor ?? null });
+    return { concepts: page.page, next: page.isDone ? null : page.continueCursor };
   },
 });
 

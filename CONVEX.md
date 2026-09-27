@@ -125,7 +125,8 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/status` | Says which spaces have a passphrase | No, it leaks nothing |
 | `/api/unlock` | One door per space. It checks the passphrase; only `admin:setPass` sets one | Rate limited, 8 tries an hour per door |
 | `/api/state` | Brains, concept names and summary lines, sources | Yes |
-| `/api/export` | One brain's concepts whole, for the markdown export | Yes |
+| `/api/export` | One brain's concepts whole, 100 a page, for the markdown export | Yes |
+| `/api/concept` | One concept whole, for the brain viewer | Yes |
 | `/api/brain` | Creates one | Yes |
 | `/api/drop/check` | The duplicate check, an index lookup. No model call, so the test button is free | Yes |
 | `/api/drop/read` | One extraction pass over one chunk | Yes |

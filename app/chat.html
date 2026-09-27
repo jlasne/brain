@@ -190,12 +190,50 @@
     opacity:0; transition:opacity .12s var(--ease), color .12s var(--ease), background .12s var(--ease);
   }
   .brain-row:hover .ed, .brain-row.on .ed{ opacity:1; }
+  /* A touch screen has no hover, so its row shows the controls. */
+  @media (hover:none){ .brain-row .ed{ opacity:1; } }
   .brain-row .ed:hover{ color:var(--accent); background:var(--accent-soft); }
   .brain-row:hover{ background:var(--surface); }
   .brain-row:hover .nm{ color:var(--ink); }
   .brain-row.on{ background:var(--surface); border-color:var(--accent-line); }
   .brain-row.on .nm, .brain-row.on .ct{ color:var(--accent); }
   .empty-side{ padding:6px 3px; font:400 12.5px/1.55 var(--sans); color:var(--ink-4); }
+
+  /* The brain viewer: a wide sheet, a list, then one concept. */
+  .sheet.viewer{ max-width:760px; max-height:88vh; display:flex; flex-direction:column; }
+  .viewer .vw-h{ position:relative; padding:18px 52px 14px 20px; border-bottom:1px solid var(--line); }
+  .viewer .vw-h p{ margin-top:6px; font-size:13.5px; line-height:1.5; color:var(--ink-3); }
+  .viewer .vw-x{ position:absolute; top:12px; right:12px; width:34px; height:34px; border-radius:9px;
+                 font:400 22px/1 var(--sans); color:var(--ink-3); }
+  .viewer .vw-x:hover{ background:var(--surface-2); color:var(--ink); }
+  .viewer .vw-back{ display:block; margin-bottom:8px; font:500 12.5px/1 var(--sans); color:var(--accent); }
+  .viewer .vw-bar{ display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--line); }
+  .viewer .vw-count{ font:400 12px/1 var(--mono); color:var(--ink-3); white-space:nowrap; }
+  .viewer .vw-filter{ margin-left:auto; width:min(260px, 50%); padding:8px 11px; border:1px solid var(--line-2);
+                      border-radius:9px; background:var(--surface); font:400 13.5px/1.2 var(--sans); color:var(--ink); }
+  .viewer .vw-list{ overflow-y:auto; padding:6px 10px 12px; }
+  .viewer .vw-row{ display:flex; align-items:flex-start; gap:14px; width:100%; text-align:left; padding:11px 10px;
+                   border-radius:10px; }
+  .viewer .vw-row:hover{ background:var(--surface-2); }
+  .viewer .vw-main{ flex:1; min-width:0; }
+  .viewer .vw-main b{ display:block; font:600 14px/1.35 var(--sans); color:var(--ink); }
+  .viewer .vw-sum{ display:block; margin-top:3px; font-size:13px; line-height:1.45; color:var(--ink-3); }
+  .viewer .vw-meta{ flex:none; margin-top:2px; font:400 11px/1.3 var(--mono); color:var(--ink-4); white-space:nowrap; }
+  .viewer .vw-none{ padding:22px 20px; color:var(--ink-3); font-size:14px; }
+  .viewer .vw-body{ overflow-y:auto; padding:6px 20px 18px; }
+  .viewer .vw-sec{ padding:14px 0 4px; border-bottom:1px solid var(--line); }
+  .viewer .vw-sec:last-of-type{ border-bottom:0; }
+  .viewer .vw-sec h4{ margin-bottom:8px; font:500 10.5px/1.5 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); }
+  .viewer .vw-sec p{ font-size:14.5px; line-height:1.6; color:var(--ink); }
+  .viewer .vw-ev, .viewer .vw-data{ margin:0; padding:0; list-style:none; }
+  .viewer .vw-ev li, .viewer .vw-data li{ padding:6px 0; font-size:13.5px; line-height:1.5; color:var(--ink-2); display:flex; gap:10px; }
+  .viewer .vw-date{ flex:none; width:84px; font:400 11.5px/1.7 var(--mono); color:var(--ink-4); }
+  .viewer .vw-links{ display:flex; flex-wrap:wrap; gap:6px; padding-bottom:8px; }
+  .viewer .vw-link{ padding:6px 10px; border:1px solid var(--line-2); border-radius:999px; background:var(--surface);
+                    font:500 12.5px/1.2 var(--sans); color:var(--accent); }
+  .viewer .vw-link:hover{ border-color:var(--accent-fill); }
+  .viewer .vw-acts{ display:flex; align-items:center; gap:12px; padding-top:14px; }
+  .viewer .vw-upd{ margin-left:auto; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
 
   .side-act{
     display:flex; align-items:center; gap:8px; margin:0 0 8px; padding:10px 11px; width:100%; text-align:left;
@@ -883,6 +921,9 @@
       <div id="brains"></div>
     </div>
     <div class="side-foot">
+      <button class="foot-btn" id="exportBtn" title="Every brain of this space, as one markdown file">
+        <span class="lbl">Export</span><span class="val">markdown</span>
+      </button>
       <button class="foot-btn" id="stat" title="The model that answers, and what it costs">
         <span class="lbl">Model</span><span class="val"></span>
       </button>
@@ -1202,6 +1243,10 @@ function brainRow(b){
   /* On a phone the drawer covers the thread, so a pick closes it. */
   row.onclick = () => { S.scope = on ? "all" : b.slug; S.into = on ? [] : [b.slug]; closeSide(); render(); };
   {
+    const op = el("span","ed","open");
+    op.title = "See what this brain holds";
+    op.onclick = e => { e.stopPropagation(); openBrainView(b); };
+    row.append(op);
     const ed = el("span","ed","edit");
     ed.title = "Name and scope";
     ed.onclick = e => { e.stopPropagation(); openBrainSheet(b); };
@@ -1591,9 +1636,9 @@ $("input").addEventListener("drop", e => {
   if (S.mode !== "drop"){ S.mode = "drop"; [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="drop")); renderScope(); }
   takeDocument(f);
 });
-/* No button any more. The markdown export stays reachable from the console as
-   window.octopusExport(), because it is the portable form of the brains. */
+/* The portable form of the brains: one markdown file, downloaded. */
 window.octopusExport = exportAll;
+$("exportBtn").onclick = () => { closeSide(); exportAll(); };
 $("lockBtn").onclick = async () => {
   try { await api("/api/lock"); } catch(_){}
   sessionStorage.removeItem(TOKEN_KEY);
@@ -1896,6 +1941,136 @@ function nearest(scope){
     if (n>bestN){ bestN=n; best=b; }
   }
   return bestN>=2 ? best : null;
+}
+
+/* ============ inside a brain ============ */
+
+/**
+ * What a brain holds: its concepts, each with the evidence under it.
+ *
+ * The list comes from what the app already has, names and summary lines. A
+ * concept is read whole only when it is opened. Its links open the concept
+ * they point at, in this brain or another one.
+ */
+function openBrainView(b, openId){
+  closeSide();
+  const veil = el("div","veil");
+  const sheet = el("div","sheet viewer");
+  sheet.setAttribute("role","dialog"); sheet.setAttribute("aria-modal","true");
+  veil.append(sheet); document.body.append(veil);
+  /* Escape is heard on the page: each view repaints the sheet, which can drop
+     focus out of it. */
+  const onKey = e => { if (e.key === "Escape" && !pickMenu) shut(); };
+  const shut = () => { document.removeEventListener("keydown", onKey); veil.remove(); };
+  document.addEventListener("keydown", onKey);
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  veil.tabIndex = -1;
+  let brain = b, filter = "";
+
+  const nameOf = slug => S.brains.find(x => x.slug === slug)?.name || slug;
+  const head = (title, sub, back) => {
+    const h = el("header","vw-h");
+    if (back){ const bk = el("button","vw-back","\u2190 " + nameOf(brain.slug)); bk.onclick = back; h.append(bk); }
+    h.append(el("h3",null,title));
+    if (sub) h.append(el("p",null,sub));
+    const x = el("button","vw-x","\u00d7"); x.setAttribute("aria-label","Close"); x.onclick = shut;
+    h.append(x);
+    return h;
+  };
+
+  const list = () => {
+    sheet.innerHTML = "";
+    const cs = conceptsOf(brain.slug);
+    const reads = sourcesOf(brain.slug).length;
+    sheet.append(head(brain.name, `${brain.scope || ""}`));
+    const bar = el("div","vw-bar");
+    bar.append(el("span","vw-count",`${cs.length} concept${cs.length===1?"":"s"} \u00b7 ${reads} source${reads===1?"":"s"}`));
+    const f = el("input","vw-filter"); f.placeholder = "Filter concepts"; f.value = filter;
+    bar.append(f);
+    sheet.append(bar);
+    const box = el("div","vw-list");
+    const paint = () => {
+      box.innerHTML = "";
+      const t = filter.trim().toLowerCase();
+      const shown = t ? cs.filter(c => (c.title + " " + (c.summaryLine||"")).toLowerCase().includes(t)) : cs;
+      if (!shown.length){ box.append(el("div","vw-none", cs.length ? "No concept matches that." : "Nothing yet. Drop a source to feed it.")); return; }
+      for (const c of shown){
+        const r = el("button","vw-row");
+        const main = el("span","vw-main");
+        main.append(el("b",null,c.title));
+        if (c.summaryLine) main.append(el("span","vw-sum",c.summaryLine));
+        r.append(main, el("span","vw-meta",`${c.ev||0} ev \u00b7 ${c.src||0} src`));
+        r.onclick = () => detail(`${c.brain}/${c.slug}`);
+        box.append(r);
+      }
+    };
+    f.oninput = () => { filter = f.value; paint(); };
+    paint();
+    sheet.append(box);
+    setTimeout(() => f.focus(), 30);
+  };
+
+  const detail = async id => {
+    const slug = id.split("/")[0];
+    brain = S.brains.find(x => x.slug === slug) || brain;
+    sheet.innerHTML = "";
+    sheet.append(head("Opening", "", list));
+    let c;
+    try { c = (await api("/api/concept", { id })).concept; }
+    catch (e) { sheet.append(el("div","vw-none", e.message)); return; }
+    sheet.innerHTML = "";
+    sheet.append(head(c.title, c.summaryLine || "", list));
+    const body = el("div","vw-body");
+    const sec = (label, node) => { const d = el("section","vw-sec"); d.append(el("h4",null,label), node); body.append(d); };
+    sec("Position", el("p",null, c.position || "No position yet."));
+    const ev = el("ul","vw-ev");
+    for (const e of c.evidence || []){
+      const li = el("li");
+      li.append(el("span","vw-date", e.rollup ? `${e.from || ""}${e.to && e.to !== e.from ? " to " + e.to : ""}` : (e.date || "")));
+      li.append(el("span",null, e.rollup ? e.claim : `${e.author ? e.author + ": " : ""}${e.claim || ""}`));
+      ev.append(li);
+    }
+    if (!ev.children.length) ev.append(el("li",null,"None yet."));
+    sec(`Evidence (${(c.evidence || []).length})`, ev);
+    if ((c.data || []).length){
+      const d = el("ul","vw-data"); for (const x of c.data) d.append(el("li",null,x));
+      sec("Figures", d);
+    }
+    if ((c.conflicts || []).length){
+      const d = el("ul","vw-ev");
+      for (const x of c.conflicts) d.append(el("li",null,`${x.a || ""} (${x.aDate || "?"}) against ${x.b || ""} (${x.bDate || "?"})${x.why ? ". " + x.why : ""}`));
+      sec("Open conflicts", d);
+    }
+    if ((c.related || []).length){
+      const d = el("div","vw-links");
+      for (const r of c.related){
+        const [rb, rs] = [r.split("/")[0], r.split("/").slice(1).join("/")];
+        const card = S.concepts.find(x => x.brain === rb && x.slug === rs);
+        const chip = el("button","vw-link", (card ? card.title : rs) + (rb !== c.brain ? ` \u00b7 ${nameOf(rb)}` : ""));
+        chip.onclick = () => detail(r);
+        d.append(chip);
+      }
+      sec("Linked to", d);
+    }
+    const srcs = (c.sources || []).map(sid => S.sources.find(x => x.sid === sid)).filter(Boolean);
+    if (srcs.length){
+      const d = el("ul","vw-ev");
+      for (const x of srcs.slice(-12).reverse()) d.append(el("li",null,`${x.date || ""} \u00b7 ${x.title || x.sid}${x.author ? " \u00b7 " + x.author : ""}`));
+      sec(`Sources (${(c.sources || []).length})`, d);
+    }
+    const acts = el("div","vw-acts");
+    const askIt = el("button","fresh","Ask about it");
+    askIt.onclick = () => {
+      shut(); S.mode = "ask"; S.scope = c.brain; S.into = [c.brain]; render();
+      $("input").value = `What does ${c.title} say, and why?`; $("input").focus(); renderComposer();
+    };
+    acts.append(askIt, el("span","vw-upd", `Updated ${c.updated || ""}`));
+    body.append(acts);
+    sheet.append(body);
+  };
+
+  if (openId) detail(openId); else list();
+  veil.focus();
 }
 
 /* The source line keeps its link, and the box below takes the pasted text or
@@ -2896,7 +3071,14 @@ async function exportAll(){
      brain by brain, only when an export is asked for. */
   const whole = {};
   for (const b of S.brains){
-    try { whole[b.slug] = ((await api("/api/export", { brain: b.slug })).concepts || []).sort((x,y)=>(x.n||0)-(y.n||0)); }
+    try {
+      const all = []; let cursor = null;
+      do {
+        const r = await api("/api/export", { brain: b.slug, cursor });
+        all.push(...(r.concepts || [])); cursor = r.next || null;
+      } while (cursor);
+      whole[b.slug] = all.sort((x,y)=>(x.n||0)-(y.n||0));
+    }
     catch (_) { whole[b.slug] = conceptsOf(b.slug); }
   }
   const out = ["# MAP\n\n| Brain | Type | Concepts | Scope |\n|---|---|---|---|"];
@@ -2917,20 +3099,16 @@ async function exportAll(){
     }
   }
   const md = out.join("\n");
-  push("ai", b => {
-    b.innerHTML = rich(`**Export ready.** ${S.brains.length} brain${S.brains.length===1?"":"s"}, ${S.concepts.length} concept${S.concepts.length===1?"":"s"}, ${S.sources.length} source${S.sources.length===1?"":"s"}, as the markdown the repo expects.`);
-    const pre = el("div","receipt");
-    pre.style.cssText = "margin-top:12px;max-height:280px;overflow:auto";
-    pre.textContent = md.slice(0,4000) + (md.length>4000 ? `\n\n... ${md.length-4000} more characters` : "");
-    b.append(pre);
-    const cp = el("button","go","Copy all");
-    cp.style.marginTop = "12px";
-    cp.onclick = async () => {
-      try { await navigator.clipboard.writeText(md); cp.textContent = "Copied"; }
-      catch(_){ cp.textContent = "Select it above"; }
-    };
-    b.append(cp);
-  });
+  const name = `${(S.spaceName || "brains").toLowerCase()}-brains-${new Date().toISOString().slice(0,10)}.md`;
+  const url = URL.createObjectURL(new Blob([md], { type: "text/markdown" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  push("ai", b => { b.innerHTML = rich(
+    `**Exported** \`${esc(name)}\`: ${S.brains.length} brain${S.brains.length===1?"":"s"}, ` +
+    `${S.concepts.length} concept${S.concepts.length===1?"":"s"}, ${S.sources.length} source${S.sources.length===1?"":"s"}, ` +
+    `${Math.round(md.length/1000)}k characters of markdown.`); });
+  bottom();
 }
 
 })();

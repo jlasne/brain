@@ -213,15 +213,25 @@ route("/api/state", async (ctx, _req, b) => {
   /* The app lists and counts concepts, so it gets their names and summary
      lines. The whole concept travels only for the export. */
   const s = { brains, sources, concepts: cards.map((c: any) => ({
-    brain: c.brain, slug: c.slug, n: c.n, title: c.title, summaryLine: c.summaryLine, updated: c.updated })) };
+    brain: c.brain, slug: c.slug, n: c.n, title: c.title, summaryLine: c.summaryLine, updated: c.updated,
+    ev: c.ev ?? 0, src: c.src ?? 0, links: (c.related ?? []).length })) };
   return { ...s, model: MODEL, chunk: CHUNK,
            space: who.space, spaceName: SPACE_NAME[who.space] };
 });
 
-/** One brain's concepts whole, for the markdown export. */
+/** One concept whole, by its brain/slug id, for the brain viewer. */
+route("/api/concept", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const [c] = await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids: [String(b.id ?? "")] });
+  return c ? { concept: c } : { error: "that concept is not in this space" };
+});
+
+/** One page of a brain's concepts whole, for the markdown export. The app
+    asks again with `next` until it comes back empty. */
 route("/api/export", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return { concepts: await ctx.runQuery(internal.store.conceptsOfBrain, { space: who.space, brain: String(b.brain ?? "") }) };
+  return await ctx.runQuery(internal.store.conceptsOfBrain,
+    { space: who.space, brain: String(b.brain ?? ""), cursor: typeof b.cursor === "string" ? b.cursor : null });
 });
 
 route("/api/brain", async (ctx, _req, b) => {
