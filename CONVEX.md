@@ -193,6 +193,7 @@ The duplicate check reads `sources` by normalised link, so it stays an index loo
 | The passphrase check | A browser check can be edited out |
 | Every model call | The key would be readable |
 | The settle write | Positions must be rewritten in one pass, atomically |
+| The weekly digest | It runs on a schedule, with no browser open. `crons.ts` calls `digest:send` every Monday at 06:00 UTC and mails `DIGEST_TO` |
 
 Reading brains and rendering the card can stay client side, because that data is already yours.
 

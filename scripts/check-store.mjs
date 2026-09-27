@@ -17,7 +17,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-store-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 /* A query or mutation is its definition, so a test can call its handler. */
@@ -29,6 +29,9 @@ const store = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "admin.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "admin.mjs"), logLevel: "silent" });
 const admin = await import(pathToFileURL(join(dir, "admin.mjs")).href);
+await esbuild.build({ entryPoints: [join(dir, "digest.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
+  platform: "node", outfile: join(dir, "digest.mjs"), logLevel: "silent" });
+const digest = await import(pathToFileURL(join(dir, "digest.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -294,6 +297,54 @@ function seed() {
   check("the export pages through every concept of a brain", got.length === 232 && pages === 3, `${got.length} in ${pages}`);
   const other = await run(store.conceptsOfBrain, ctx, { space: "octopus", brain: "dogs" });
   check("and reads nothing of the other space", other.concepts.length === 0 && other.next === null, JSON.stringify(other));
+}
+
+/* ---- the weekly digest: every space, what changed, no model ---- */
+{
+  const { T, ctx } = seed();
+  const day = 86400000, now = Date.now(), iso = ms => new Date(ms).toISOString().slice(0, 10);
+  const today = iso(now), old = iso(now - 30 * day);
+  /* Gold is old and was fed this week by one source; Silver was left alone;
+     Hedging is new; a Squidgy concept is new too, with a conflict. */
+  T.sources.push({ _id: "s7", sid: "wk-1", link: "", linkKey: "", title: "Rates report", author: "C", date: today,
+    location: "", brains: ["wealth"], stored: today });
+  Object.assign(T.concepts[0], { _creationTime: now - 40 * day, updated: today,
+    evidence: [...T.concepts[0].evidence, { date: today, claim: "held again", source: "wk-1" }, { date: today, claim: "and again", source: "wk-1" }] });
+  Object.assign(T.concepts[1], { _creationTime: now - 40 * day, updated: old });
+  T.concepts.push({ _id: "c8", _creationTime: now - day, brain: "wealth", slug: "hedging", n: 3, title: "Hedging", position: "Hedge the tail.",
+    summaryLine: "A hedge caps a 20 percent loss.", evidence: [], data: [], conflicts: [], sources: ["wk-1"], related: [], updated: today });
+  T.concepts.push({ _id: "c9", _creationTime: now - day, brain: "dogs", slug: "walks", n: 1, title: "Walks", position: "",
+    summaryLine: "Two walks a day.", evidence: [], data: [], conflicts: [{ a: "one walk", aDate: "2026-01-01", b: "two walks", bDate: "2026-09-01", why: "age" }],
+    sources: [], related: [], updated: today });
+  const actx = { runQuery: (ref, args) => run(store[String(ref).split(".")[1]], ctx, args) };
+
+  const dry = await run(digest.send, actx, { dry: true });
+  if (process.env.SHOW_DIGEST) console.log(dry.text);
+  check("the digest reads every space", /OCTOPUS: 1 NEW CONCEPT/.test(dry.text) && /SQUIDGY: 1 NEW CONCEPT/.test(dry.text), dry.text);
+  check("a concept fed again says how much evidence the week added", /Gold \(Wealth\)[\s\S]*\+2 pieces of evidence/.test(dry.text), dry.text);
+  check("a concept left alone stays out", !/Silver/.test(dry.text));
+  check("the week's sources and open conflicts are listed", /Rates report/.test(dry.text) && /one walk \(2026-01-01\) against two walks/.test(dry.text));
+  check("the title counts the week", /^Your week: 2 new concepts, 1 fed again/.test(dry.text), dry.text.split("\n")[0]);
+
+  const real = globalThis.fetch;
+  let mailed = null;
+  globalThis.fetch = async (u, opt) => { mailed = { u: String(u), body: JSON.parse(opt.body) }; return Response.json({ id: "m1" }); };
+  process.env.RESEND_API_KEY = "re_test";
+  delete process.env.DIGEST_TO;
+  const noTo = await run(digest.send, actx, {});
+  check("with no DIGEST_TO it says how to set it, and sends nothing", !noTo.sent && /DIGEST_TO/.test(noTo.why) && !mailed, JSON.stringify(noTo));
+  process.env.DIGEST_TO = "owner@example.com";
+  const sent = await run(digest.send, actx, {});
+  check("with DIGEST_TO the digest is mailed there", sent.sent && mailed?.body.to[0] === "owner@example.com" && /Your week/.test(mailed.body.subject),
+    JSON.stringify(sent));
+
+  for (const c of T.concepts) c.updated = old;
+  T.sources = T.sources.filter(s => s.sid !== "wk-1");
+  mailed = null;
+  const quiet = await run(digest.send, actx, {});
+  check("a week with nothing new sends nothing", !quiet.sent && /nothing new/.test(quiet.why) && !mailed, JSON.stringify(quiet));
+  globalThis.fetch = real;
+  delete process.env.DIGEST_TO; delete process.env.RESEND_API_KEY;
 }
 
 rmSync(dir, { recursive: true, force: true });

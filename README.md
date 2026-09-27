@@ -121,6 +121,15 @@ npx convex env set MAIL_FROM hey@yourdomain.com --prod
 
 `MAIL_FROM` defaults to `hello@kaught.app`, so set it to your own. The space names itself as the sender. Unset `RESEND_API_KEY` and the page still builds, copies and prints.
 
+Every Monday at 06:00 UTC, one mail sums up the week across both spaces: sources read, new concepts, concepts fed again with the evidence added, and open conflicts. It calls no model. A week with nothing new sends nothing. Set the address it goes to:
+
+```
+npx convex env set DIGEST_TO you@yourdomain.com --prod
+npx convex run digest:send '{"dry":true}' --prod
+```
+
+The second line shows this week's digest without sending it. Drop `'{"dry":true}'` to send it now.
+
 Then serve `app/` as the site root. `vercel.json` already does it. The landing page is two doors, one per space. A door stays shut until its passphrase is set from a terminal with `npx convex run admin:setPass`. Then create a brain and drop a source.
 
 **Claude Code.** Copy `skill/brain/` into your skills folder: `~/.claude/skills/brain/` for personal, `.claude/skills/brain/` for one project. On Claude.ai, upload `skill/brain/SKILL.md` as a skill. Then ask for your first brain.

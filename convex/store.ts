@@ -665,7 +665,6 @@ export const conceptsByIds = internalQuery({
   },
 });
 
-/** One brain's concepts read whole, for the export. */
 /** One page of a brain's concepts whole. A page of 100 keeps a brain of any
     size under the read limit. */
 export const conceptsOfBrain = internalQuery({
