@@ -400,6 +400,7 @@
   }
 
   .thinking{ display:flex; align-items:center; gap:9px; color:var(--ink-3); font:400 15px/1 var(--sans); }
+  .thinking .act{ margin-left:2px; font:400 12px/1 var(--mono); letter-spacing:.03em; color:var(--ink-4); }
   /* Working, shown as the space's own mark turning. The image comes from a
      variable, so it follows the space with no script: the octopus in Octopus,
      the dog in Squidgy. With reduced motion asked for, it holds still and the
@@ -1197,7 +1198,7 @@ function brainRow(b){
      the control appears on their own rows alone. */
   if (S.who === "owner" || (!!b.owner && b.owner === S.account)){
     const ed = el("span","ed","edit");
-    ed.title = "Name, scope, and who may feed it";
+    ed.title = "Name and scope";
     ed.onclick = e => { e.stopPropagation(); openBrainSheet(b); };
     row.append(ed);
   }
@@ -1228,8 +1229,8 @@ function renderSide(){
 }
 
 /**
- * Everything about one brain, in one place: what it is called, the line that
- * decides what belongs inside, and who may feed it.
+ * Everything about one brain, in one place: what it is called, and the line
+ * that decides what belongs inside.
  *
  * A new name moves the slug, and the slug is how concepts, source rows and
  * counted candidates find their brain. The server moves all three in one write
@@ -1238,7 +1239,6 @@ function renderSide(){
 function openBrainSheet(b){
   closeSide();
   const veil = el("div","veil");
-  const was = String(b.visibility ?? "") === "open" || String(b.visibility ?? "") === "drop";
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>${esc(b.name)}</h3>
@@ -1246,10 +1246,6 @@ function openBrainSheet(b){
         against the new line.</p></header>
       <div class="f"><label for="rName">Name</label><input id="rName" autocomplete="off"></div>
       <div class="f"><label for="rScope">Scope, in one line</label><textarea id="rScope"></textarea></div>
-      <div class="f"><label>Who can feed it</label><div class="seg" id="rVis">
-        <button data-v="closed">Only me</button><button data-v="open">Anyone</button></div>
-        <div class="hint">Every brain is readable by anyone. This decides who may drop sources into it,
-          because a source rewrites the positions inside.</div></div>
       <div class="f"><div id="rMsg" class="bad" role="alert"></div></div>
       <footer><button class="ghost" id="rCancel">Cancel</button><button class="go" id="rSave">Save</button></footer>
     </div>`;
@@ -1257,13 +1253,6 @@ function openBrainSheet(b){
   const nameI = veil.querySelector("#rName"), scopeI = veil.querySelector("#rScope"),
         msg = veil.querySelector("#rMsg"), save = veil.querySelector("#rSave");
   nameI.value = b.name || ""; scopeI.value = b.scope || "";
-  let vis = was ? "open" : "closed";
-  const paint = () => [...veil.querySelectorAll("#rVis button")]
-    .forEach(x => x.classList.toggle("on", x.dataset.v === vis));
-  paint();
-  veil.querySelector("#rVis").onclick = e => {
-    const x = e.target.closest("button"); if (x){ vis = x.dataset.v; paint(); }
-  };
   const shut = () => veil.remove();
   veil.querySelector("#rCancel").onclick = shut;
   veil.onclick = e => { if(e.target===veil) shut(); };
@@ -1274,12 +1263,6 @@ function openBrainSheet(b){
     if (nm.length < 2){ msg.className="bad"; msg.textContent="give a name of at least 2 characters"; nameI.focus(); return; }
     save.disabled = true; msg.className="spin"; msg.textContent = "Saving";
     try {
-      /* Feeding goes first, because it is keyed by the old slug and a rename
-         would move that slug out from under it. */
-      if ((vis === "open") !== was){
-        const v = await api("/api/brain/visibility", { slug: b.slug, visibility: vis });
-        if (v.error) throw new Error(v.error);
-      }
       const r = await api("/api/brain/rename", { slug: b.slug, name: nm, scope: sc });
       if (r.error) throw new Error(r.error);
       shut(); await refresh();
@@ -1293,8 +1276,7 @@ function openBrainSheet(b){
               ? ` Moved with it: ${m.concepts||0} concepts, ${m.sources||0} sources, ${m.candidates||0} counted candidates.`
               : "")
           : `**${esc(r.name)}** saved.`) +
-        `\n\nScope: ${esc(r.scope || sc)}` +
-        `\nFeeding: ${vis === "open" ? "anyone signed in" : "you alone"}`); });
+        `\n\nScope: ${esc(r.scope || sc)}`); });
     } catch(e){ save.disabled=false; msg.className="bad"; msg.textContent = e.message; }
   };
 }
@@ -1459,22 +1441,25 @@ function push(kind, build){
 function says(text, attach){
   push("me", b => { b.textContent = text; if (attach) b.append(el("span","attach",attach)); });
 }
-/* What the space's mascot is up to while an answer is on its way. One line
-   every 2.4 seconds, starting anywhere, so a wait never reads the same. */
+/* What the space's mascot is up to while an answer is on its way, with the
+   step it stands for in brackets. The lines follow an answer's order, one
+   every 2.4 seconds: the titles are searched, matched, the concepts read,
+   the evidence weighed, the answer written. A long wait alternates the last
+   two, which is where a long answer spends its time. */
 const WAITING = {
   octopus: [
-    "Octopus is reaching into every brain...",
-    "Eight arms, sorting the notes...",
-    "Octopus is feeling for the right concepts...",
-    "Octopus is untangling the answer...",
-    "Octopus is inking the key points...",
+    ["Octopus is reaching into every brain...", "searching"],
+    ["Octopus is feeling for the right concepts...", "matching"],
+    ["Eight arms, sorting the notes...", "reading"],
+    ["Octopus is untangling the answer...", "weighing"],
+    ["Octopus is inking the key points...", "writing"],
   ],
   squidgy: [
-    "Squidgy is sniffing around...",
-    "Squidgy picked up a scent...",
-    "Squidgy is digging through the notes...",
-    "Squidgy is fetching the best bits...",
-    "Squidgy is wagging, almost there...",
+    ["Squidgy is sniffing around...", "searching"],
+    ["Squidgy picked up a scent...", "matching"],
+    ["Squidgy is digging through the notes...", "reading"],
+    ["Squidgy is fetching the best bits...", "weighing"],
+    ["Squidgy is wagging, almost there...", "writing"],
   ],
 };
 
@@ -1488,25 +1473,26 @@ function thinking(label){
     const t = el("div","thinking"), mark = el("span","spinner");
     mark.setAttribute("aria-hidden", "true");
     t.setAttribute("role", "status");
-    const line = el("span",null,label||"Thinking");
+    const line = el("span","tl",label||"Thinking");
     t.append(mark, line);
     b.append(t);
     const lines = !label && (WAITING[S.space] || WAITING.octopus);
     if (lines){
-      let i = Math.floor(Math.random() * lines.length);
-      line.textContent = lines[i];
+      const show = i => { line.textContent = lines[i][0] + " "; line.append(el("span","act",`(${lines[i][1]})`)); };
+      let i = 0;
+      show(i);
       const timer = setInterval(() => {
         /* The wait ended when the line left the page. */
         if (!line.isConnected || t.dataset.fixed){ clearInterval(timer); return; }
-        i = (i + 1) % lines.length;
-        line.textContent = lines[i];
+        i = i < lines.length - 1 ? i + 1 : lines.length - 2;
+        show(i);
       }, 2400);
     }
   });
 }
 function setThinking(body, label){
   const t = body.querySelector(".thinking");
-  const s = body.querySelector(".thinking span:last-child");
+  const s = body.querySelector(".thinking .tl");
   if (t) t.dataset.fixed = "1";
   if (s) s.textContent = label;
 }
@@ -1928,23 +1914,20 @@ function openSheet(name, scope, type){
         <div class="hint">"health" is a folder. "sleep, recovery and training load for my own routine" is a brain.</div></div>
       <div class="f"><label>Kind</label><div class="seg" id="bType">
         <button data-t="subject">Subject</button><button data-t="person">Person</button></div></div>
-      <div class="f"><label>Who can feed it</label><div class="seg" id="bVis">
-        <button data-v="closed">Only me</button><button data-v="open">Anyone</button></div>
-        <div class="hint">Every brain is readable by anyone. This decides who may drop sources into it, because a source rewrites the positions inside.</div></div>
       <div id="closestSlot"></div>
       <footer><button class="ghost" id="bCancel">Cancel</button><button class="go" id="bMake">Check and create</button></footer>
     </div>`;
   document.body.append(veil);
   const nameI = veil.querySelector("#bName"), scopeI = veil.querySelector("#bScope");
   nameI.value = name||""; scopeI.value = scope||"";
-  let kind = type||"subject", vis = "closed";
+  /* Who may feed a brain is not asked: the passphrase feeds every brain, and
+     a brain is made closed to other accounts, which is the server's default. */
+  let kind = type||"subject";
   const paint = () => {
     [...veil.querySelectorAll("#bType button")].forEach(b => b.classList.toggle("on", b.dataset.t===kind));
-    [...veil.querySelectorAll("#bVis button")].forEach(b => b.classList.toggle("on", b.dataset.v===vis));
   };
   paint();
   veil.querySelector("#bType").onclick = e => { const b=e.target.closest("button"); if(b){ kind=b.dataset.t; paint(); } };
-  veil.querySelector("#bVis").onclick  = e => { const b=e.target.closest("button"); if(b){ vis=b.dataset.v;  paint(); } };
   const shut = () => veil.remove();
   veil.querySelector("#bCancel").onclick = shut;
   veil.onclick = e => { if(e.target===veil) shut(); };
@@ -1969,7 +1952,7 @@ function openSheet(name, scope, type){
     }
     const btn = veil.querySelector("#bMake"); btn.disabled = true; btn.textContent = "Creating";
     try {
-      const r = await api("/api/brain", { name:nm, scope:sc, type:kind, visibility:vis });
+      const r = await api("/api/brain", { name:nm, scope:sc, type:kind });
       shut(); await refresh();
       S.scope = r.slug; S.mode = "drop";
       [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="drop"));

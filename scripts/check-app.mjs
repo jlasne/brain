@@ -196,6 +196,12 @@ async function boot(path, init, arg) {
     await page.evaluate(() => { const p = document.getElementById("pagerBtn");
       return !!p.closest("aside") && p.nextElementSibling === document.getElementById("newBrain"); }));
 
+  /* ---- a new brain asks for a name, a scope and a kind, nothing more ---- */
+  await page.click("#newBrain"); await page.waitForTimeout(80);
+  const sheetText = await page.evaluate(() => document.querySelector(".sheet")?.textContent || "");
+  check("creating a brain no longer asks who can feed it", /Scope/.test(sheetText) && !/Who can feed/.test(sheetText), sheetText.slice(0, 120));
+  await page.click("#bCancel");
+
   /* ---- the one-pager ---- */
   await page.click("#pagerBtn");
   await page.waitForTimeout(120);
@@ -275,7 +281,8 @@ async function boot(path, init, arg) {
                  line: document.querySelector(".thinking span:last-child")?.textContent } : null;
   });
   check("a question shows the turning mark while it waits", !!loader, "no .spinner");
-  check("with one of Octopus's waiting lines", /^(Octopus|Eight arms)/.test(loader?.line || ""), loader?.line);
+  check("with Octopus's first waiting line and the step it stands for",
+    loader?.line === "Octopus is reaching into every brain... (searching)", loader?.line);
   if (loader) {
     check("and it is this space's mark", /logo-mark\.png/.test(loader.bg), loader.bg);
     check("turning", loader.anim === "turn", loader.anim);

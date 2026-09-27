@@ -17,13 +17,18 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-store-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["store.ts", "lib.ts", "words.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+writeFileSync(join(dir, "_generated/api.ts"),
+  "export const internal = new Proxy({}, { get: (_t, m) => new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 /* A query or mutation is its definition, so a test can call its handler. */
 writeFileSync(join(dir, "_generated/server.ts"),
-  "export const internalQuery = (d: any) => d;\nexport const internalMutation = (d: any) => d;\n");
+  "export const internalQuery = (d: any) => d;\nexport const internalMutation = (d: any) => d;\nexport const internalAction = (d: any) => d;\n");
 await esbuild.build({ entryPoints: [join(dir, "store.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
 const store = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+await esbuild.build({ entryPoints: [join(dir, "admin.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
+  platform: "node", outfile: join(dir, "admin.mjs"), logLevel: "silent" });
+const admin = await import(pathToFileURL(join(dir, "admin.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -50,6 +55,7 @@ function makeDb() {
         return api._desc ? all.slice().reverse() : all;
       },
       async first() { return (await api.collect())[0] ?? null; },
+      async take(n) { return (await api.collect()).slice(0, n); },
       async paginate({ numItems, cursor }) {
         const all = await api.collect(), from = cursor ? Number(cursor) : 0;
         const page = all.slice(from, from + numItems);
@@ -259,6 +265,24 @@ function seed() {
     });
   }
   check("every concept write updates its card", missing.length === 0, missing.join(", "));
+}
+
+/* ---- a drop's report says what it opened and what it fed ---- */
+{
+  const { T, ctx } = seed();
+  T.sources.push({ _id: "s9", sid: "doc-x", link: "", linkKey: "", title: "Accounting manual", author: "", date: "2026-09-26",
+    location: "", brains: ["wealth"], stored: "2026-09-26" });
+  T.notes.push({ _id: "n9", sid: "doc-x", title: "Accounting manual", author: "", date: "", topics: Array.from({ length: 228 }, () => ({})),
+    quotes: [], thin: [], connections: [], findings: { kind: "study", new: [1, 2, 3], echo: [1], conflicts: [] }, written: "x" });
+  /* Gold existed before and was fed; Hedging was opened by this document. */
+  T.concepts[0].sources.push("doc-x");
+  T.concepts[0].evidence.unshift({ date: "2026-09-26", claim: "fed", source: "doc-x" });
+  T.concepts.push({ _id: "c7", brain: "wealth", slug: "hedging", n: 3, title: "Hedging", position: "", summaryLine: "",
+    evidence: [{ date: "2026-09-26", claim: "opened", source: "doc-x" }], data: [], conflicts: [], sources: ["doc-x"], related: [], updated: "x" });
+  const r = await run(admin.dropReport, ctx, { title: "accounting" });
+  check("the report finds the drop by title", r.source?.sid === "doc-x", JSON.stringify(r).slice(0, 120));
+  check("and says how it was read", r.read.kind === "study" && r.read.passages === 228, JSON.stringify(r.read));
+  check("and what it opened and what it fed", r.filed.opened === 1 && r.filed.fed === 1 && r.filed.concepts === 2, JSON.stringify(r.filed));
 }
 
 rmSync(dir, { recursive: true, force: true });

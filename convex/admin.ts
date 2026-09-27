@@ -469,3 +469,45 @@ export const linkConcepts = internalAction({
     console.log(`linked ${added} for ${Math.min(work.length, RUN)} concepts just stored${rest.length ? `, ${rest.length} handed on` : ""}`);
   },
 });
+
+/**
+ * What one drop did, from what it left behind: how the source was read, how
+ * many concepts it opened and how many it fed. With no argument it reports
+ * the newest source and lists the others to pick from.
+ *
+ * npx convex run admin:dropReport --prod
+ * npx convex run admin:dropReport "{title:'accounting'}" --prod
+ */
+export const dropReport = internalQuery({
+  args: { title: v.optional(v.string()), sid: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const recent = await ctx.db.query("sources").order("desc").take(12);
+    const want = (a.title ?? "").toLowerCase();
+    const src = a.sid ? await ctx.db.query("sources").withIndex("by_sid", q => q.eq("sid", a.sid!)).first()
+      : want ? (await ctx.db.query("sources").collect()).reverse().find(s => String(s.title ?? "").toLowerCase().includes(want))
+      : recent[0];
+    if (!src) return { error: "no source matches", recent: recent.map(s => `${s.sid} | ${s.title}`) };
+
+    const note = await ctx.db.query("notes").withIndex("by_sid", q => q.eq("sid", src.sid)).first();
+    const f: any = note?.findings ?? {};
+    let fed = 0, opened = 0;
+    const perBrain: Record<string, { concepts: number; fed: number; opened: number }> = {};
+    for (const br of src.brains ?? []) {
+      const all = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", br)).collect();
+      const mine = all.filter(c => (c.sources ?? []).includes(src.sid));
+      /* A concept this source opened has it as its oldest evidence. */
+      const first = (c: any) => [...(c.evidence ?? [])].filter((e: any) => !e?.rollup).pop()?.source;
+      const made = mine.filter(c => first(c) === src.sid).length;
+      perBrain[br] = { concepts: all.length, fed: mine.length - made, opened: made };
+      fed += mine.length - made; opened += made;
+    }
+    return {
+      source: { sid: src.sid, title: src.title, author: src.author, date: src.date, brains: src.brains },
+      read: { kind: f.kind ?? "unknown", passages: (note?.topics ?? []).length,
+              newFindings: (f.new ?? []).length, echoes: (f.echo ?? []).length, conflicts: (f.conflicts ?? []).length },
+      filed: { concepts: fed + opened, opened, fed },
+      perBrain,
+      recent: recent.map(s => `${s.sid} | ${s.title}`),
+    };
+  },
+});
