@@ -1664,10 +1664,11 @@ async function openSetupSheet(){
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Setup</h3>
-      <p>Your address lets another AI client, like Claude or ChatGPT, read and feed the same brains.</p></header>
+      <p>Each project has its own MCP address. This one lets Claude, ChatGPT or any MCP client read and
+        feed the ${esc(S.spaceName)} brains, and no others.</p></header>
 
       <div class="f">
-        <label>Other AI clients</label>
+        <label>${esc(S.spaceName)} MCP address</label>
         <div id="feedSlot"></div>
       </div>
 
@@ -1690,16 +1691,17 @@ async function openSetupSheet(){
     slot.innerHTML = st.has ? `
       <div class="urlbox"><input id="mcpFeed" readonly spellcheck="false" value="${esc(location.origin + "/mcp/v0?k=" + st.token)}"><button id="mcpFeedCopy">Copy</button></div>
       <div class="hint">Made ${esc(st.made || "earlier")}. Paste it into Claude, ChatGPT or any MCP client.
-        Keep it private: whoever holds it can feed the brains you may feed. The thinking runs on that
-        client's own model, so nothing is spent here.</div>
+        Keep it private: whoever holds it can read and feed every ${esc(S.spaceName)} brain. The thinking
+        runs on that client's own model, so nothing is spent here.</div>
       <div style="margin-top:10px;display:flex;gap:8px">
         <button class="ghost" id="mcpNew">Replace it</button>
         <button class="ghost" id="mcpOff">Turn it off</button>
       </div>`
     : `
-      <div class="hint">No address yet. Make one and your own Claude or ChatGPT can read these brains and
-        drop sources into them. Every step runs on that client's model, so it spends nothing here.</div>
-      <div style="margin-top:10px"><button class="ghost" id="mcpMake">Make my address</button></div>`;
+      <div class="hint">No address yet. Make one and your own Claude or ChatGPT can read the
+        ${esc(S.spaceName)} brains and drop sources into them. Every step runs on that client's model, so
+        it spends nothing here.</div>
+      <div style="margin-top:10px"><button class="ghost" id="mcpMake">Make the ${esc(S.spaceName)} address</button></div>`;
 
     const copy = veil.querySelector("#mcpFeedCopy");
     if (copy) copyTo(copy, veil.querySelector("#mcpFeed"));
@@ -1714,7 +1716,7 @@ async function openSetupSheet(){
     const mk = veil.querySelector("#mcpMake") || veil.querySelector("#mcpNew");
     if (mk) mk.onclick = () => act({ make: true }, "Address ready. Paste it into your client.");
     const off = veil.querySelector("#mcpOff");
-    if (off) off.onclick = () => act({ forget: true }, "Turned off. Any client holding it now reads only.");
+    if (off) off.onclick = () => act({ forget: true }, "Turned off. A client holding it can no longer feed.");
   };
 
   slot.innerHTML = `<div class="hint">Checking</div>`;

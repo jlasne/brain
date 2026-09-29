@@ -42,8 +42,8 @@ export const DOC_BODY = `
 
   <div class="eyebrow">Connect it</div>
   <h2 style="margin-top:6px">Use your brains from any AI client.</h2>
-  <p class="lede">One address turns any MCP client into a reader of every brain. A second, private
-    address lets it drop sources and make brains too.</p>
+  <p class="lede">Each project, Octopus and Squidgy, has its own private address: it reads that
+    project's brains, drops sources into them and makes new ones. A public address reads Octopus.</p>
 
   <nav class="toc">
     <a href="#addresses">The two addresses</a>
@@ -58,17 +58,19 @@ export const DOC_BODY = `
     <b>Connect</b> or <b>Sign in</b> button can be skipped, because Octopus has no login for that
     handshake to answer.</p>
 
-  <h3 style="margin-top:22px">Read every brain</h3>
+  <h3 style="margin-top:22px">Read the Octopus brains</h3>
   <div class="urlbox" style="margin-top:8px">
     <input id="docUrl" readonly spellcheck="false" value="loading">
     <button id="docCopy">Copy</button>
   </div>
-  <p class="muted" style="margin-top:8px">No key, no passphrase, nothing spent. Anyone can use this one.</p>
+  <p class="muted" style="margin-top:8px">No key, no passphrase, nothing spent. Anyone can use this one.
+    It reads Octopus only.</p>
 
-  <h3 style="margin-top:22px">Read and feed</h3>
-  <p class="muted" style="margin-top:8px">Enter Octopus with its passphrase, click <b>Setup</b> in the
-    sidebar, then <b>Make my address</b>. A client holding it can feed every Octopus brain, so keep it
-    private.</p>
+  <h3 style="margin-top:22px">Read and feed one project</h3>
+  <p class="muted" style="margin-top:8px">Enter the project with its passphrase, click <b>Setup</b> in the
+    sidebar, then <b>Make the address</b>. The address made in Octopus serves Octopus; the one made in
+    Squidgy serves Squidgy. Add both to your client to reach both. A client holding one can feed every
+    brain of that project, so keep it private.</p>
 
   <div class="note">Feeding spends nothing here. Your client reads the source, files it and writes the
     new position.</div>

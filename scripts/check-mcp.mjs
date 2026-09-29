@@ -155,6 +155,26 @@ const ME = { account:"octopus", name:"Octopus" };
     DB.spacesRead.join(","));
 }
 
+/* ---- one address per project ---- */
+{
+  const SQ = { account:"owner-squidgy", name:"Owner", space:"squidgy" };
+  DB.spacesRead.length = 0;
+  const listed = await call("list_brains", {}, SQ);
+  check("a Squidgy address lists the Squidgy brains", /Other/.test(listed) && !/Content|Health/.test(listed), listed.slice(0, 200));
+  await call("ask", { question: "what beats a bigger audience" }, SQ);
+  check("and every read it makes names Squidgy", DB.spacesRead.length >= 2 && DB.spacesRead.every(x => x === "squidgy"),
+    DB.spacesRead.join(","));
+  const init = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"initialize", params:{ protocolVersion:"2025-06-18" } }, SQ);
+  check("it introduces itself as Squidgy", init.result.serverInfo.title === "Squidgy Brains"
+    && /^These are Squidgy brains/.test(init.result.instructions), JSON.stringify(init.result.serverInfo));
+  const made = await call("create_brain", { name:"Recall", scope:"how a dog learns to come back when called" }, SQ);
+  check("a brain it makes lands in Squidgy", made.startsWith("Made Recall") && DB.brains.at(-1).space === "squidgy",
+    JSON.stringify(DB.brains.at(-1)));
+  DB.brains.pop();
+  const anon = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"initialize", params:{} }, null);
+  check("an address with no key still reads Octopus", anon.result.serverInfo.title === "Octopus Brains");
+}
+
 /* ---- the fetcher refuses what it should, before any network ---- */
 {
   const no = async (url) => await call("fetch_link", { url }, ME);

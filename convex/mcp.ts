@@ -1,8 +1,11 @@
 /**
- * An MCP server over the brains: public for reading, signed for feeding.
+ * An MCP server over the brains: one private address per project, and a
+ * public reader for Octopus.
  *
- * Anyone can add this as a custom connector in their own Claude and read what
- * the brains hold. Three properties make that safe to leave open:
+ * Each project, Octopus and Squidgy, hands out its own address from Setup. It
+ * carries a token, and it reads and feeds that project and no other. An
+ * address with no token reads the Octopus brains, which are published.
+ * Three properties make that safe to leave open:
  *
  *   1. No model call happens here, so no OpenRouter credit is ever spent. The
  *      reader's own Claude subscription does the thinking.
@@ -19,7 +22,7 @@
  */
 
 import { internal } from "./_generated/api";
-import { randomHex, today, slug as slugOf, HOME } from "./lib";
+import { randomHex, today, slug as slugOf, HOME, SPACE_NAME, readSpace } from "./lib";
 import { norm, keywords, planDossier, scoreConcept, idOf } from "./words";
 import { dropCheck, dropSettle, feedable, fetchPage, planContext, PLAN_RULES } from "./drop";
 import { loadSpace } from "./space";
@@ -31,7 +34,9 @@ export const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 export const RATE_MAX = 120;
 export const RATE_WINDOW_MS = 1000 * 60 * 10;
 
-const SERVER = { name: "octopus-brains", title: "Octopus Brains", version: "1.0.0" };
+/* Named for the project the address serves. */
+const serverOf = (space: string) =>
+  ({ name: `${space}-brains`, title: `${SPACE_NAME[readSpace(space)]} Brains`, version: "1.0.0" });
 
 /* ---------- shapes ---------- */
 
@@ -351,8 +356,11 @@ function conceptFull(c: any, brainName: string) {
 
 /* ---------- feeding ---------- */
 
-/** Who a personal address resolves to. Null is an anonymous reader. */
-export type Caller = { account: string; name: string } | null;
+/** Who a project's address resolves to. Null is an anonymous reader of Octopus. */
+export type Caller = { account: string; name: string; space?: string } | null;
+
+/** The project an address serves: its own, or Octopus for an anonymous reader. */
+const spaceOf = (caller: Caller) => readSpace(caller?.space ?? HOME);
 
 /** Parts arrive one call at a time and read as one source. */
 const mergeExt = (a: any, b: any) => ({
@@ -414,10 +422,11 @@ function cardText(plan: any, brains: any[], concepts: any[], draft: string) {
 
 async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
   if (!caller) {
-    return text("This address reads only. Feeding needs the private address from Setup, inside Octopus.");
+    return text("This address reads only. Feeding needs the private address from Setup, inside the project.");
   }
-  /* The address is the owner's, so it feeds every Octopus brain. */
-  const who = { kind: "owner" as const, account: caller.account, space: HOME };
+  /* The address is the owner's, so it feeds every brain of its own project. */
+  const space = spaceOf(caller);
+  const who = { kind: "owner" as const, account: caller.account, space };
   const draftOf = async (token: string) =>
     await ctx.runQuery(internal.store.getDraft, { token, account: caller.account });
 
@@ -447,7 +456,7 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
       const made = await ctx.runMutation(internal.store.createBrain, {
         name: bname, scope,
         type: args?.type === "person" ? "person" : "subject",
-        space: HOME,
+        space,
       });
       return text([
         `Made ${bname} (${made}), a ${args?.type === "person" ? "person" : "subject"} brain.`,
@@ -469,7 +478,7 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     const link = String(args?.link ?? "").trim();
     const brain = String(args?.brain ?? "").trim();
 
-    const chk = await dropCheck(ctx, { link, text: JSON.stringify(part).slice(0, 400) });
+    const chk = await dropCheck(ctx, { link, text: JSON.stringify(part).slice(0, 400) }, space);
     if (chk.duplicate) {
       return text(`Already stored as ${chk.sid}, filed ${chk.date || "earlier"} into ` +
         `${(chk.brains ?? []).join(", ") || "no brain"}. Nothing to do.`);
@@ -484,7 +493,7 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     if (!pool.length) {
       return text(brain
         ? `You cannot feed "${brain}". Either it does not exist, or its owner keeps it closed.`
-        : "There is no brain you may feed. Create one in Octopus, or ask an owner to open theirs.");
+        : `There is no brain to feed yet. Create one in ${SPACE_NAME[space]} first.`);
     }
 
     return text([
@@ -603,16 +612,17 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
   if (WRITE_TOOLS.some(t => t.name === name)) return await runWriteTool(ctx, caller, name, args);
 
   /**
-   * Octopus only.
+   * The address's own project, and nothing beyond it.
    *
-   * Every Octopus brain is published, so there is nothing to filter beyond the
-   * space. Squidgy has its own passphrase and no connector, so this server never
-   * reads it: a client pointed here sees the published brains and nothing else.
+   * A project's address reads that project. An address with no token reads
+   * Octopus, whose brains are published. Squidgy is read only through its own
+   * address, so a client pointed anywhere else never sees it.
    */
+  const space = spaceOf(caller);
   /* Slim copies for every list; a concept is read whole only when opened. */
-  const { brains, cards: concepts, sources } = await loadSpace(ctx, HOME);
+  const { brains, cards: concepts, sources } = await loadSpace(ctx, space);
   const whole = async (ids: string[]) => ids.length
-    ? await ctx.runQuery(internal.store.conceptsByIds, { space: HOME, ids }) : [];
+    ? await ctx.runQuery(internal.store.conceptsByIds, { space, ids }) : [];
 
   if (name === "ask") {
     const q = String(args?.question ?? "").trim();
@@ -779,9 +789,9 @@ export async function handleRpc(ctx: any, msg: any, caller: Caller = null): Prom
     return ok(id, {
       protocolVersion: PROTOCOLS.includes(want) ? want : PROTOCOLS[0],
       capabilities: { tools: { listChanged: false } },
-      serverInfo: SERVER,
+      serverInfo: serverOf(spaceOf(caller)),
       instructions:
-        "These are Octopus brains: a knowledge base split by subject, each brain holding positions derived " +
+        `These are ${SPACE_NAME[spaceOf(caller)]} brains: a knowledge base split by subject, each brain holding positions derived ` +
         "from the sources it has read. For a question, call ask with the question text, and a brain name " +
         "only if the user named one. It returns the relevant positions, their dated evidence, any open " +
         "conflict, and the rules for writing the answer. The other tools are for browsing: list_brains, " +

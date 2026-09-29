@@ -53,6 +53,9 @@ export default defineSchema({
        call can carry. Absent means the account has no connector yet. */
     mcpToken: v.optional(v.string()),
     mcpMade: v.optional(v.string()),
+    /* The project whose connector address this account holds. Absent reads
+       as "octopus", where the only address lived before each project had one. */
+    space: v.optional(v.string()),
   }).index("by_slug", ["slug"])
     .index("by_mcpToken", ["mcpToken"]),
 

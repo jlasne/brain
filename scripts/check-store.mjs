@@ -299,6 +299,37 @@ function seed() {
   check("and reads nothing of the other space", other.concepts.length === 0 && other.next === null, JSON.stringify(other));
 }
 
+/* ---- one connector address per project ---- */
+{
+  const { T, ctx } = seed();
+  T.accounts = [];
+  const octo = await run(store.connectorHolder, ctx, { space: "octopus", salt: "s" });
+  const sq = await run(store.connectorHolder, ctx, { space: "squidgy", salt: "s" });
+  check("each project gets its own holder", octo === "owner" && sq === "owner-squidgy" && T.accounts.length === 2,
+    `${octo} ${sq} ${T.accounts.length}`);
+  check("asking again makes no second one", await run(store.connectorHolder, ctx, { space: "squidgy", salt: "s" }) === "owner-squidgy"
+    && T.accounts.length === 2);
+  T.accounts[0].mcpToken = "o".repeat(48); T.accounts[1].mcpToken = "q".repeat(48);
+  const a = await run(store.accountByMcpToken, ctx, { token: "o".repeat(48) });
+  const b = await run(store.accountByMcpToken, ctx, { token: "q".repeat(48) });
+  check("an address resolves to its holder, in the shape the MCP server reads",
+    a?.account === "owner" && a.space === "octopus" && b?.account === "owner-squidgy" && b.space === "squidgy",
+    JSON.stringify([a, b]));
+  T.accounts.push({ _id: "m1", slug: "maya", name: "Maya", salt: "s", mcpToken: "m".repeat(48) });
+  check("a member's address from before owner only opens nothing",
+    (await run(store.accountByMcpToken, ctx, { token: "m".repeat(48) })) === null);
+
+  /* A deployment whose Octopus address sat on its only account keeps it. */
+  const old = seed();
+  old.T.accounts = [{ _id: "j1", slug: "jeremy", name: "Jeremy", salt: "s", mcpToken: "j".repeat(48) }];
+  check("the Octopus address made before stays on its account",
+    await run(store.connectorHolder, old.ctx, { space: "octopus", salt: "s" }) === "jeremy"
+    && (await run(store.accountByMcpToken, old.ctx, { token: "j".repeat(48) }))?.account === "jeremy");
+  await run(store.connectorHolder, old.ctx, { space: "squidgy", salt: "s" });
+  check("and keeps working once Squidgy has one too",
+    (await run(store.accountByMcpToken, old.ctx, { token: "j".repeat(48) }))?.space === "octopus");
+}
+
 /* ---- the weekly digest: every space, what changed, no model ---- */
 {
   const { T, ctx } = seed();

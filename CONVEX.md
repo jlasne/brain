@@ -21,7 +21,8 @@ filters by it, so a passphrase shows one space and never the other.
 |---|---|
 | A session | the space its passphrase opened |
 | `/api/public/brains` | Octopus |
-| The MCP server | Octopus |
+| The MCP server, with a project's key | that project |
+| The MCP server, with no key | Octopus, read only |
 
 A brain row with no `space` reads as Octopus, and Octopus keeps the config key
 `gate` that its passphrase was set under, so nothing written before the split
@@ -196,10 +197,17 @@ The duplicate check reads `sources` by normalised link, so it stays an index loo
 
 Reading brains and rendering the card can stay client side, because that data is already yours.
 
-## The public MCP server
+## The MCP server
 
-`/mcp` lets anyone read the brains from their own Claude, as a custom connector.
-It carries no passphrase. Three properties make that safe:
+Each project has its own address, made in Setup inside that project. It
+carries a key, `?k=...`, and reads and feeds that project and no other: the
+Octopus address never sees Squidgy, and the reverse. Add both to a client to
+reach both. The key belongs to the project's holder account, `owner` for
+Octopus and `owner-squidgy` for Squidgy, and any other account's key opens
+nothing.
+
+With no key, `/mcp` reads the Octopus brains, as a custom connector anyone can
+add. It carries no passphrase. Three properties make that safe:
 
 | Property | Why it holds |
 |---|---|
@@ -222,8 +230,8 @@ overage beyond it runs $0.22 per extra gigabyte moved.
 One kind of session opens the app: a passphrase, one per door. The owner feeds
 every brain of that door's space, and this deployment's key pays for every
 model call. Member accounts, guest keys and saved personal keys were removed.
-A single account record remains, without a password, only to hold the
-connector address; it is made the first time Setup asks for one.
+One account record per project remains, without a password, only to hold that
+project's connector address; it is made the first time Setup asks for one.
 
 
 ### Who may do what

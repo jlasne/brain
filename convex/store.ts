@@ -106,31 +106,30 @@ export const findAccount = internalQuery({
 });
 
 /**
- * The one account, when there is exactly one.
- *
- * A passphrase session carries no account, and the connector address belongs to
- * one. On a personal deployment there is a single account to resolve to, and
- * with several there is no way to guess, so this says nothing rather than
- * picking.
+ * Each project has one connector address, held by one account of its own:
+ * "owner" for Octopus, "owner-squidgy" for Squidgy. Before each project had
+ * one, the Octopus address sat on the deployment's only account, whatever
+ * its name, so that account still holds it.
  */
-export const soleAccount = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    const rows = await ctx.db.query("accounts").take(2);
-    return rows.length === 1 ? rows[0].slug : null;
-  },
-});
+const holderSlug = (space: string) => space === HOME ? "owner" : `owner-${space}`;
+async function holderIn(ctx: any, space: string): Promise<string | null> {
+  const named = await ctx.db.query("accounts").withIndex("by_slug", (q: any) => q.eq("slug", holderSlug(space))).unique();
+  if (named) return named.slug;
+  if (space !== HOME) return null;
+  const home = (await ctx.db.query("accounts").take(20)).filter((r: any) => readSpace(r.space) === HOME);
+  return home.length === 1 ? home[0].slug : null;
+}
 
-export const createAccount = internalMutation({
-  args: { name: v.string(), slug: v.string(), salt: v.string(), passHash: v.optional(v.string()) },
+/** The account holding a project's connector address, made the first time it is asked for. */
+export const connectorHolder = internalMutation({
+  args: { space: v.string(), salt: v.string() },
   handler: async (ctx, a) => {
-    const seen = await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
-    if (seen) throw new Error("that name is taken");
-    await ctx.db.insert("accounts", {
-      name: a.name, slug: a.slug, salt: a.salt, ...(a.passHash ? { passHash: a.passHash } : {}),
-      created: today(), lastSeen: today(),
-    });
-    return a.slug;
+    const space = readSpace(a.space);
+    const held = await holderIn(ctx, space);
+    if (held) return held;
+    const slug = holderSlug(space);
+    await ctx.db.insert("accounts", { name: "Owner", slug, salt: a.salt, space, created: today(), lastSeen: today() });
+    return slug;
   },
 });
 
@@ -242,7 +241,14 @@ export const accountByMcpToken = internalQuery({
     if (a.token.length < 24) return null;
     const acc = await ctx.db.query("accounts")
       .withIndex("by_mcpToken", q => q.eq("mcpToken", a.token)).unique();
-    return acc ? { slug: acc.slug, name: acc.name } : null;
+    if (!acc) return null;
+    /* Only the address of a project's holder opens it. A member's address
+       from before the app was owner only opens nothing. */
+    const space = readSpace(acc.space);
+    if ((await holderIn(ctx, space)) !== acc.slug) return null;
+    /* The shape the MCP server reads as its caller: `account` names the
+       holder, and every draft is keyed to it. */
+    return { account: acc.slug, name: acc.name, space };
   },
 });
 

@@ -115,33 +115,16 @@ route("/api/lock", async (ctx, _req, b) => {
 });
 
 /**
- * The account that holds the connector address. The owner has one, made the
- * first time an address is asked for; it has no password, so nothing signs in
- * with it.
- */
-async function connectorHolder(ctx: any): Promise<string> {
-  const sole = await ctx.runQuery(internal.store.soleAccount, {});
-  if (sole) return sole;
-  await ctx.runMutation(internal.store.createAccount,
-    { name: "Owner", slug: "owner", salt: randomHex(16) });
-  return "owner";
-}
-
-/**
- * The personal connector address.
+ * The project's connector address.
  *
- * The token is shown once per call and never leaves this route, so a browser
- * that asks for it is the only place it appears. Rotating replaces it, which
- * kills whatever was pointed at the old one.
+ * One per project: the address made inside Octopus reads and feeds Octopus,
+ * the one made inside Squidgy reads and feeds Squidgy. Its holder account has
+ * no password, so nothing signs in with it. Rotating replaces the token,
+ * which kills whatever was pointed at the old one.
  */
 route("/api/account/mcp", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  /* The connector reads Octopus, so an address handed out inside another space
-     would point somewhere its holder did not come from. */
-  if (who.space !== HOME) {
-    return { error: `the connector serves ${SPACE_NAME[HOME]}. Open that door to set one up.` };
-  }
-  const account = await connectorHolder(ctx);
+  const account = await ctx.runMutation(internal.store.connectorHolder, { space: who.space, salt: randomHex(16) });
   if (b.forget) {
     await ctx.runMutation(internal.store.setMcpToken, { slug: account, token: null });
     return { has: false, token: "" };
