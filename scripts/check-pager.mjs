@@ -259,12 +259,42 @@ const sources = [
   const b0 = whole.sections[0].bullets[0];
   check("a summary laid out for free is translated whole, bullet by bullet", /^FR:/.test(whole.title) && /^FR:/.test(b0.k) && /^FR:/.test(b0.say)
     && whole.sections[0].bullets.length === page.sections[0].bullets.length, JSON.stringify(b0));
+  const odd = await translatePage(page, "French", "chrome", "k", undefined, 42500.5);
+  check("a time limit with a fraction still makes the call", /^FR:/.test(odd.title) && !odd.untranslated, odd.title);
   const n = prompts.length;
   const en = await translatePage(page, "English", undefined, "k");
   check("English calls no model", en === page && prompts.length === n);
   check("a language not offered reads as English", langOf("Klingon") === "English" && langOf("French") === "French");
-  globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"t":["one"]}' } }] }), { status: 200 });
-  check("a translation that does not match leaves the page in English, whole", (await translatePage(page, "French", undefined, "k")) === page);
+
+  /* A long page goes in slices of 20, side by side, and comes back in order. */
+  const long = { title: "T", line: "L", foot: "F",
+    sections: [{ head: "H", bullets: Array.from({ length: 45 }, (_, i) => ({ k: "k" + i, say: "s" + i })) }] };
+  const m = prompts.length;
+  const lt = await translatePage(long, "French", undefined, "k");
+  const sliced = prompts.slice(m).map(x => JSON.parse(x.p.slice(x.p.lastIndexOf("\n\n") + 2)).length);
+  check("a long page goes in slices of 20 and keeps its order", sliced.length === 5 && Math.max(...sliced) === 20
+    && lt.sections[0].bullets[44].say === "FR:s44" && lt.sections[0].bullets[0].k === "FR:k0" && lt.foot === "FR:F" && !lt.untranslated,
+    JSON.stringify(sliced));
+
+  /* A slice that fails once is asked again. */
+  let calls = 0;
+  globalThis.fetch = async (_u, opt) => {
+    calls++;
+    const p = JSON.parse(opt.body).messages[1].content;
+    const content = calls === 1 ? "not json"
+      : JSON.stringify({ t: JSON.parse(p.slice(p.lastIndexOf("\n\n") + 2)).map(x => "FR:" + x) });
+    return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
+  };
+  const again = await translatePage(page, "French", undefined, "k");
+  check("a slice that fails once is asked a second time", calls === 2 && /^FR:/.test(again.title) && !again.untranslated, `${calls} calls`);
+
+  /* One that fails twice leaves the whole page in English, and says so. */
+  calls = 0;
+  globalThis.fetch = async () => { calls++; return new Response(JSON.stringify({ choices: [{ message: { content: '{"t":["one"]}' } }] }), { status: 200 }); };
+  const bad = await translatePage(page, "French", undefined, "k");
+  check("a translation that does not match leaves the page in English, whole, marked", bad.untranslated === true && calls === 2
+    && bad.title === page.title && JSON.stringify(bad.sections) === JSON.stringify(page.sections), `${calls} calls`);
+  check("an English page carries no mark", !("untranslated" in page) && !("untranslated" in whole));
   globalThis.fetch = real;
 }
 

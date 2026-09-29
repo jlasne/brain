@@ -37,10 +37,12 @@ export const langOf = (x: any) => LANGS.includes(String(x)) ? String(x) : "Engli
 /**
  * A page in another language.
  *
- * Every piece of text travels in one list and comes back in the same order,
- * so the page keeps its shape: its sections, bullets, lists and folds. A reply
- * that does not match the list leaves the page in English rather than half
- * translated.
+ * Every piece of text travels in a list and comes back in the same order, so
+ * the page keeps its shape: its sections, bullets, lists and folds. The list
+ * goes in slices of 20, side by side, each with 75 seconds and one more
+ * try: a whole page in one call ran past a 60 second limit on a slow model and
+ * came back in English with nothing said. A slice that still fails leaves the
+ * whole page in English, marked untranslated, so the reader is told.
  */
 export async function translatePage(p: Pager, lang: string, only?: "chrome",
   key?: string, model?: string, timeout?: number): Promise<Pager> {
@@ -56,21 +58,30 @@ export async function translatePage(p: Pager, lang: string, only?: "chrome",
     })),
   };
   if (!strings.length) return p;
-  let t: any;
-  try {
-    const { text } = await ask([
-      { role: "system", content: "You translate. You reply with JSON only." },
-      { role: "user", content: `Translate each string of the list into ${lang}.
+  const slice = async (list: string[]): Promise<string[] | null> => {
+    for (let tries = 0; tries < 2; tries++) {
+      try {
+        const { text } = await ask([
+          { role: "system", content: "You translate. You reply with JSON only." },
+          { role: "user", content: `Translate each string of the list into ${lang}.
 - Keep numbers, dates, names of people and places, and **bold** marks exactly as they are.
 - A name of a brain or a person stays as it is.
 - No em-dashes.
-Reply with only JSON: {"t":["..."]}, exactly ${strings.length} strings, in the same order.
+Reply with only JSON: {"t":["..."]}, exactly ${list.length} strings, in the same order.
 
-${JSON.stringify(strings)}` },
-    ], { json: true, maxTokens: Math.min(16000, 400 + strings.join(" ").length), key, model, timeout: timeout ?? 60000 });
-    t = parseJson(text)?.t;
-  } catch { return p; }
-  if (!Array.isArray(t) || t.length !== strings.length) return p;
+${JSON.stringify(list)}` },
+        ], { json: true, maxTokens: Math.min(8000, 600 + list.join(" ").length), key, model, timeout: timeout ?? 75000 });
+        const got = parseJson(text)?.t;
+        if (Array.isArray(got) && got.length === list.length) return got.map(String);
+      } catch { /* one more try */ }
+    }
+    return null;
+  };
+  const parts: string[][] = [];
+  for (let i = 0; i < strings.length; i += 20) parts.push(strings.slice(i, i + 20));
+  const done = await Promise.all(parts.map(slice));
+  if (done.some(x => !x)) return { ...p, untranslated: true };
+  const t = done.flat() as string[];
   const get = (i: number, was: any) => i < 0 ? String(was ?? "") : String(t[i] ?? strings[i]);
   return {
     title: get(map.title, p.title), line: get(map.line, p.line), foot: get(map.foot, p.foot),
@@ -94,6 +105,8 @@ export type Pager = {
   line: string;
   sections: Section[];
   foot: string;
+  /* Set when another language was asked for and the page stayed in English. */
+  untranslated?: boolean;
 };
 
 export const DOC_TYPES = ["quiz", "deepdive", "usecase", "other"] as const;
@@ -468,9 +481,10 @@ ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
     ].join(" · "),
   };
   /* The body came back in the language picked; the title, the line under it
-     and the foot are made here in English, so they follow in one small call. */
+     and the foot are made here in English, so they follow in one small call.
+     It gets half the time left, so its second try still ends inside the wait. */
   return lang === "English" ? page
-    : await translatePage(page, lang, "chrome", key, model, Math.max(30000, 170000 - (Date.now() - t0)));
+    : await translatePage(page, lang, "chrome", key, model, Math.max(20000, Math.round((170000 - (Date.now() - t0)) / 2)));
 }
 
 /** "Core concept: what it says", with the markdown a model adds taken off. */

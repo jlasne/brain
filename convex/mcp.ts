@@ -24,7 +24,7 @@
 import { internal } from "./_generated/api";
 import { randomHex, today, slug as slugOf, HOME, SPACE_NAME, readSpace } from "./lib";
 import { norm, keywords, planDossier, writeDossier, scoreConcept, idOf, OPEN_READ } from "./words";
-import { assemble, pageIds, asText, fullestPlan, docRules, BULLET_RULES, DOC_TITLE } from "./onepager";
+import { assemble, pageIds, asText, fullestPlan, docRules, BULLET_RULES, DOC_TITLE, LANGS, langOf } from "./onepager";
 import type { DocType } from "./onepager";
 import { dropCheck, dropSettle, feedable, fetchPage, planContext, knownAuthor, str, PLAN_RULES } from "./drop";
 import { loadSpace } from "./space";
@@ -117,6 +117,7 @@ export const TOOLS = [
         terms: TERMS,
         brain: { type: "string", description: "Optional brain slug or name. Omit it to read every brain." },
         instructions: { type: "string", description: "Optional special instructions: the angle, the audience or the tone." },
+        language: { type: "string", enum: [...LANGS], description: "The language the page is written in. English when omitted. Pass it whenever the person asks for a page in another language." },
       },
       required: ["kind"],
       additionalProperties: false,
@@ -809,11 +810,19 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
     const q = String(args?.subject ?? "").trim().slice(0, 300);
     const terms = termsOf(args?.terms);
     const note = String(args?.instructions ?? "").trim().slice(0, 600);
+    /* The page is written in the language asked for. The client writes it, so
+       the rules say so, the title and foot included, and a ready summary is
+       translated by the client rather than shown in English. */
+    const lang = langOf(args?.language);
+    const other = lang !== "English";
 
     if (kind === "summary" && !q) {
       const page = assemble(space, pool, concepts, sources, named ? named.slug : "all",
         new Map((await whole(pageIds(pool, concepts))).map((c: any) => [idOf(c), c])));
-      return text(`===== THE PAGE, READY =====\nShow it as it is, under a first line reading "${SPACE_NAME[space].toUpperCase()} BRAIN": ` +
+      return text(`===== THE PAGE, READY =====\n` + (other
+        ? `Translate it into ${lang}, every line, the headings, the line under the title and the foot included. ` +
+          `Numbers, dates and names of people and brains stay as they are. Then show it under a first line reading "${SPACE_NAME[space].toUpperCase()} BRAIN": `
+        : `Show it as it is, under a first line reading "${SPACE_NAME[space].toUpperCase()} BRAIN": `) +
         `the title, the line under it, the bullets, then the foot.\n\n${asText(page)}`);
     }
 
@@ -823,10 +832,12 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
       new Map((await whole(plan.lead.slice(0, OPEN_READ).map(idOf))).map((c: any) => [idOf(c), c])));
     const doc = kind === "summary" ? null : kind as DocType;
     const subject = (t => t.length > 78 ? t.slice(0, 75).trimEnd() + "..." : t)(q || (named ? named.name : SPACE_NAME[space]));
-    const rules = doc ? docRules(doc, note)
-      : BULLET_RULES + (note ? `\n\nOWNER'S INSTRUCTION\n${note}\nIt sets the angle, the audience or the tone. The shape above stays.` : "");
+    const rules = (doc ? docRules(doc, note)
+      : BULLET_RULES + (note ? `\n\nOWNER'S INSTRUCTION\n${note}\nIt sets the angle, the audience or the tone. The shape above stays.` : ""))
+      .replace(/English, always\./g, `Write in ${lang}, always.`) +
+      (other ? `\n- Write every word in ${lang}: the headings named above, the TITLE and the FOOT are translated too. Quotes, names and figures stay as they are.` : "");
     return text([
-      `ONE-PAGER: ${doc ? DOC_TITLE[doc] : "Summary"}`,
+      `ONE-PAGER: ${doc ? DOC_TITLE[doc] : "Summary"}${other ? `, in ${lang}` : ""}`,
       `TITLE: ${doc ? `${DOC_TITLE[doc]}: ${subject}` : subject}`,
       `FOOT: ${found.opened.length} of ${inPool.length} positions · ${read} source${read === 1 ? "" : "s"} read · ${today()}`,
       ``,

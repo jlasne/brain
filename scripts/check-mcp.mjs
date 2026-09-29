@@ -202,6 +202,12 @@ const ME = { account:"octopus", name:"Octopus" };
   check("use cases return their own shape", /ONE-PAGER: Use cases/.test(uses) && /3 to 5 cases/.test(uses) && /### Personal brand/.test(uses));
   const sum = await call("one_pager", { kind: "summary", subject: "why does a named face help", terms: ["personal brand"] }, ME);
   check("a summary of a question keeps the bullet rules", /ONE-PAGER: Summary/.test(sum) && /Core concept: what it says/.test(sum) && /QUESTION: why/.test(sum));
+  const frQuiz = await call("one_pager", { kind: "quiz", brain: "content", language: "French" }, ME);
+  check("a page asked in French is written in French, its title and foot too", /ONE-PAGER: Quiz, in French/.test(frQuiz)
+    && /Write in French, always\./.test(frQuiz) && !/English, always/.test(frQuiz) && /TITLE and the FOOT are translated too/.test(frQuiz), frQuiz.slice(-600));
+  const frReady = await call("one_pager", { kind: "summary", brain: "content", language: "French" }, null);
+  check("a ready summary asked in French is handed over to translate", /Translate it into French, every line/.test(frReady) && /^Content$/m.test(frReady));
+  check("English stays the default", !/Translate it into/.test(ready) && /English, always/.test(deep) && !/, in English/.test(deep));
   DB.spacesRead.length = 0;
   await call("one_pager", { kind: "quiz" }, { account:"owner-squidgy", name:"Owner", space:"squidgy" });
   check("a Squidgy address builds from Squidgy only", DB.spacesRead.length >= 1 && DB.spacesRead.every(x => x === "squidgy"), DB.spacesRead.join(","));

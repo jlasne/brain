@@ -507,21 +507,25 @@ route("/api/onepager", async (ctx, _req, b) => {
     return { error: "those brains hold no positions yet, so the page would be empty" };
   }
 
-  if (!to) return { page, text: asText(page) };
+  /* The language the page came back in, and why it is English when another
+     one was asked for, so the app never shows the wrong one without saying so. */
+  const said = { lang: page.untranslated ? "English" : lang,
+    ...(page.untranslated ? { warning: `The ${lang} translation did not come back after two tries, so this page is in English. Build it again to retry.` } : {}) };
+  if (!to) return { page, text: asText(page), ...said };
   /* A page that built and failed to send is still a page. It comes back with the
      reason, so a question already paid for is not thrown away with the mail. */
   /* Thirty mails a day per space, so this address cannot be used to spam. */
   const quota = await ctx.runMutation(internal.store.mcpRate,
     { who: "mail:" + who.space, max: 30, windowMs: 24 * 60 * 60 * 1000 });
   if (!quota.allowed) {
-    return { page, text: asText(page), sent: false, to,
+    return { page, text: asText(page), sent: false, to, ...said,
              mailError: `30 pages were mailed today. Mail opens again in ${Math.ceil(quota.retryAfter / 3600)} hours.` };
   }
   try {
     const sent = await mail(to, page, who.space);
-    return { page, text: asText(page), sent: true, to, id: sent.id };
+    return { page, text: asText(page), sent: true, to, id: sent.id, ...said };
   } catch (e: any) {
-    return { page, text: asText(page), sent: false, to, mailError: String(e?.message ?? e).slice(0, 300) };
+    return { page, text: asText(page), sent: false, to, ...said, mailError: String(e?.message ?? e).slice(0, 300) };
   }
 });
 

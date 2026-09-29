@@ -146,7 +146,11 @@ async function boot(path, init, arg) {
           sections: [{ head: "Questions", bullets: [], blocks: [{ ol: ["Why does an offer beat a bigger audience?", "What does a **named face** add?"] }] },
                      { head: "Answers", bullets: [], blocks: [{ ol: ["Buyers pay for the offer, not the reach.", "Trust that compounds."] }] }],
           foot: "1 of 2 positions \u00b7 3 sources read \u00b7 2026-09-27" } });
-        if (body.kind === "custom" && body.doc === "deepdive") return Response.json({ text: "x", page: { title: "Deep dive: Content", line: "From Content.",
+        /* A deep dive says the language it came back in; "slow" is a translation that failed twice. */
+        if (body.kind === "custom" && body.doc === "deepdive") return Response.json({ text: "x",
+          ...(body.note === "slow" ? { lang: "English", warning: `The ${body.lang} translation did not come back after two tries, so this page is in English. Build it again to retry.` }
+                                   : { lang: body.lang || "English" }),
+          page: { title: "Deep dive: Content", line: "From Content.",
           sections: [{ head: "The short answer", bullets: [], blocks: [{ p: "An offer people buy beats reach. **2 launches** sold out." }] },
                      { head: "The evidence", bullets: [], blocks: [{ ul: ["2026-01-02: sold out twice", "31 percent came from email"] }] }],
           foot: "1 of 2 positions \u00b7 3 sources read \u00b7 2026-09-27" } });
@@ -273,7 +277,8 @@ async function boot(path, init, arg) {
   const lastCard = () => page.evaluate(() => {
     const cards = document.querySelectorAll(".pager");
     const c = cards[cards.length - 1];
-    return c ? { said: c.querySelector(".said")?.textContent || "", btn: [...c.querySelectorAll(".acts button")].pop()?.textContent,
+    const said = c?.querySelector(".said");
+    return c ? { said: said?.textContent || "", err: !!said?.classList.contains("err"), btn: [...c.querySelectorAll(".acts button")].pop()?.textContent,
                  to: c.querySelector(".acts input")?.value } : null;
   });
 
@@ -291,7 +296,7 @@ async function boot(path, init, arg) {
   const sent = await lastCard();
   const asked = await page.evaluate(() => window.__pager[window.__pager.length - 1]);
   check("the build carries the address", asked.mail === "me@example.com", JSON.stringify(asked));
-  check("the card says it was sent", sent && sent.said === "Sent to me@example.com.", sent && sent.said);
+  check("the card says it was sent, and where to look if it is not there", sent && /^Sent to me@example\.com\. .*spam/.test(sent.said) && !sent.err, sent && sent.said);
   check("and does not offer to send it again", sent && sent.btn === "Sent", sent && sent.btn);
 
   await page.click("#pagerBtn"); await page.waitForTimeout(100);
@@ -300,8 +305,8 @@ async function boot(path, init, arg) {
   await page.fill("#pTo", "refused@example.com");
   await page.click("#pGo"); await page.waitForTimeout(300);
   const refused = await lastCard();
-  check("a refused send still shows the page, with the reason",
-    refused && /Not sent: domain is not verified/.test(refused.said), refused && refused.said);
+  check("a refused send still shows the page, with the reason, as an error",
+    refused && /^Not sent.*domain is not verified/.test(refused.said) && refused.err, refused && JSON.stringify(refused));
   check("and leaves the button to try again", refused && refused.btn === "Mail it", refused && refused.btn);
 
   /* ---- a summary in bullets, or a document of the type picked ---- */
@@ -357,10 +362,31 @@ async function boot(path, init, arg) {
     && /beats reach/.test(deep.p) && deep.list === 2, JSON.stringify(deep));
   check("its special instructions travel with it", deep.asked.doc === "deepdive" && deep.asked.note === "For a new client", JSON.stringify(deep.asked));
   check("and so does the language picked", deep.asked.lang === "French", JSON.stringify(deep.asked));
+  const langFlag = () => page.evaluate(() => {
+    const f = [...document.querySelectorAll(".pager")].pop()?.querySelector(".err:not(.said)");
+    return f && !f.hidden ? f.textContent : "";
+  });
+  check("a page that came back in the language asked shows no warning", await langFlag() === "", await langFlag());
+
+  /* A translation that failed twice, and a server that knows no language menu, both say so. */
   await page.click("#pagerBtn"); await page.waitForTimeout(100);
   check("the next page opens on the language last picked", await page.inputValue("#pLang") === "French");
+  await page.fill("#pTo", "");
+  await page.click('#pKind button[data-k="custom"]');
+  await page.click('#pDoc button[data-d="deepdive"]');
+  await page.fill("#pNote", "slow");
+  await page.click("#pGo"); await page.waitForTimeout(300);
+  check("a translation that failed says the page is in English, above the page", /^Not in French.*did not come back after two tries/.test(await langFlag()), await langFlag());
+  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await page.fill("#pTo", "");
+  await page.click('#pKind button[data-k="summary"]');
+  await page.click("#pGo"); await page.waitForTimeout(300);
+  check("a server that answers in English with no word is caught too", /^Not in French.*npx convex deploy/.test(await langFlag()), await langFlag());
+  await page.click("#pagerBtn"); await page.waitForTimeout(100);
   await page.selectOption("#pLang", "English");
-  await page.click("#pCancel");
+  await page.fill("#pTo", "");
+  await page.click("#pGo"); await page.waitForTimeout(300);
+  check("an English page shows no warning", await langFlag() === "", await langFlag());
 
   /* ---- the loader is the space's own mark ---- */
   await page.fill("#input", "anything");

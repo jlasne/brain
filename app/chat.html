@@ -648,6 +648,9 @@
   }
   .pager .acts input:focus{ border-color:var(--accent-fill); outline:none; }
   .pager .said{ font:400 12.5px/1.6 var(--sans); color:var(--accent); }
+  /* A page in the wrong language, or a mail that did not go: said in full. */
+  .pager .err{ margin:14px 0 0; font:400 14px/1.55 var(--sans); color:var(--ink-2); }
+  .pager > .err:first-child{ margin:0 0 14px; }
 
   /* ============ empty state ============ */
   .zero{ max-width:640px; margin:0 auto; padding:28px 28px 0; }
@@ -2433,8 +2436,21 @@ function openPagerSheet(pre = {}){
     body.closest(".msg").remove();
     if (r.sent) { try { localStorage.setItem(MAIL_KEY, to); } catch {} }
     showPager(r.page, r.text, ask,
-      r.sent ? { to, ok: true } : to ? { to, ok: false, why: r.mailError || "the mail service refused it" } : null);
+      r.sent ? { to, ok: true } : to ? { to, ok: false, why: r.mailError || "the mail service refused it" } : null, r);
   };
+}
+
+/**
+ * Why a page is not in the language asked for, or "".
+ *
+ * The server says so itself when a translation failed. A server that does not
+ * know the language menu yet says nothing and answers in English, so the page
+ * is checked against the ask as well.
+ */
+function langNote(r, lang){
+  if (r.warning) return r.warning;
+  if (!lang || lang === "English" || r.lang === lang) return "";
+  return `This page is in English, not ${lang}: the server does not know the language menu yet. Run npx convex deploy, then build it again.`;
 }
 
 /**
@@ -2446,14 +2462,30 @@ function openPagerSheet(pre = {}){
  * on screen is always what was sent. A page built from a question is asked
  * again to do that, and the button says so.
  */
-function showPager(page, text, built, mailed){
+function showPager(page, text, built, mailed, r){
   push("ai", body => {
     const card = el("div","pager");
     const slot = el("div");
     const acts = el("div","acts");
-    const said = el("span","said");
-    card.append(slot, acts, said);
+    const said = el("div","said");
+    const lang = el("div","err");
+    card.append(lang, slot, acts, said);
     body.append(card);
+
+    /* The language, above the page: read before the page is. */
+    const flagLang = x => {
+      const why = x ? langNote(x, built.lang) : "";
+      lang.hidden = !why; lang.innerHTML = "";
+      if (why) lang.append(el("b",null,"Not in " + built.lang), el("span",null,why));
+    };
+    flagLang(r);
+    /* A mail that went, in a line. One that did not, in full, with the reason. */
+    const tell = (ok, msg) => {
+      said.innerHTML = "";
+      said.className = ok || !msg ? "said" : "said err";
+      if (ok) said.textContent = msg;
+      else if (msg) said.append(el("b",null,"Not sent"), el("span",null,msg));
+    };
 
     let now = { page, text };
     const paint = () => {
@@ -2508,30 +2540,30 @@ function showPager(page, text, built, mailed){
     const post = async () => {
       const addr = to.value.trim();
       if (!addr){ to.focus(); return; }
-      send.disabled = true; send.textContent = "Sending"; said.textContent = "";
+      send.disabled = true; send.textContent = "Sending"; tell(true, "");
       try {
         const r = await api("/api/onepager", { ...built, mail: addr });
         now = { page: r.page, text: r.text };
-        paint(); bottom();
+        paint(); flagLang(r); bottom();
         if (r.sent === false) throw new Error(r.mailError || "the mail service refused it");
         try { localStorage.setItem(MAIL_KEY, addr); } catch {}
-        said.textContent = `Sent to ${addr}.`;
+        tell(true, `Sent to ${addr}. Not in the inbox within 5 minutes? Look in spam.`);
         send.textContent = "Sent";
       } catch (e) {
         send.disabled = false; send.textContent = "Mail it";
-        said.textContent = "Not sent: " + e.message;
+        tell(false, e.message);
       }
     };
     send.onclick = post;
     to.onkeydown = e => { if (e.key === "Enter") post(); };
     /* A new address means a new send. */
-    to.oninput = () => { send.disabled = false; send.textContent = "Mail it"; said.textContent = ""; };
+    to.oninput = () => { send.disabled = false; send.textContent = "Mail it"; tell(true, ""); };
 
     /* Sent from the dialog already: the card says so rather than asking again. */
     if (mailed){
       to.value = mailed.to;
-      if (mailed.ok){ send.disabled = true; send.textContent = "Sent"; said.textContent = `Sent to ${mailed.to}.`; }
-      else said.textContent = `Not sent: ${mailed.why}`;
+      if (mailed.ok){ send.disabled = true; send.textContent = "Sent"; tell(true, `Sent to ${mailed.to}. Not in the inbox within 5 minutes? Look in spam.`); }
+      else tell(false, mailed.why);
     }
 
     acts.append(copy, print, to, send);
