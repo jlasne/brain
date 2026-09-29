@@ -37,7 +37,7 @@ export type Pager = {
 
 export const DOC_TYPES = ["quiz", "deepdive", "usecase", "other"] as const;
 export type DocType = (typeof DOC_TYPES)[number];
-const DOC_TITLE: Record<DocType, string> = { quiz: "Quiz", deepdive: "Deep dive", usecase: "Use cases", other: "" };
+export const DOC_TITLE: Record<DocType, string> = { quiz: "Quiz", deepdive: "Deep dive", usecase: "Use cases", other: "" };
 
 /** Whether a page holds anything to read. */
 export const hasBody = (p: Pager) => p.sections.some(s => s.bullets.length || (s.blocks ?? []).length);
@@ -124,6 +124,12 @@ const evOf = (c: any) => c.ev ?? (c.evidence ?? []).length;
 const rank = (a: any, b: any) =>
   evOf(b) - evOf(a) || String(b.updated ?? "").localeCompare(String(a.updated ?? ""));
 
+/** With no question, the fullest positions lead a page, the way a summary ranks them. */
+export function fullestPlan(inPool: any[]) {
+  const ranked = [...inPool].sort(rank);
+  return { lead: ranked.slice(0, 30), ranked: ranked.map(c => ({ c, score: 0 })), inPool, hits: [] as any[], picked: [] as any[], linked: [] as any[] };
+}
+
 /** Which concepts a page shows, brain by brain: the same choice everywhere. */
 function layout(brains: any[], concepts: any[]) {
   const conceptsOf = (slug: string) => concepts.filter((c: any) => c.brain === slug).sort(rank);
@@ -182,7 +188,7 @@ export function assemble(
 
 /* ---------- a question ---------- */
 
-const BULLET_RULES = `Answer the question as a one page briefing, in bullets.
+export const BULLET_RULES = `Answer the question as a one page briefing, in bullets.
 
 SHAPE
 - At most 9 bullets. Each one is a single line:
@@ -247,7 +253,7 @@ SHAPE, 3 to 5 cases
 };
 
 /** The rules for one document: its type's shape, or the owner's description. */
-function docRules(doc: DocType, note: string): string {
+export function docRules(doc: DocType, note: string): string {
   const own = doc === "other"
     ? `Write the document the owner describes, from the stored knowledge below.
 
@@ -342,8 +348,7 @@ export async function fromModel(
     const route = await routeQuestion(brains, concepts, q, undefined, key, model);
     plan = planDossier(brains, concepts, q, undefined, route);
   } else {
-    const ranked = [...inPool].sort(rank);
-    plan = { lead: ranked.slice(0, 30), ranked: ranked.map(c => ({ c, score: 0 })), inPool, hits: [], picked: [], linked: [] };
+    plan = fullestPlan(inPool);
   }
   const whole = load ? await load(plan.lead.slice(0, OPEN_READ).map(idOf)) : concepts;
   const found = writeDossier(brains, plan, new Map(whole.map((c: any) => [idOf(c), c])));

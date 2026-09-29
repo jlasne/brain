@@ -145,11 +145,15 @@ export const DOC_BODY = `
   </div>
 
   <h2 id="tools">The tools it exposes</h2>
-  <p class="muted">Six on the read address.</p>
+  <p class="muted">Seven on every address.</p>
   <div class="tbl"><table>
     <tr><th>Tool</th><th>What it returns</th></tr>
-    <tr><td><code>ask</code></td><td>Start here. A question, optionally a brain. Returns the positions that
-      bear on it, their dated evidence, the data, any open conflict, and how to write the answer.</td></tr>
+    <tr><td><code>ask</code></td><td>Start here. A question, its English search words, optionally a brain.
+      Returns the positions that bear on it, their dated evidence, the data, any open conflict, and how to
+      write the answer. The search words let a question in any language find its concepts.</td></tr>
+    <tr><td><code>one_pager</code></td><td>A summary, a quiz, a deep dive or use cases, from the same reading
+      and the same rules as the app. Your client writes the page. A summary with no subject comes back
+      written.</td></tr>
     <tr><td><code>list_brains</code></td><td>Every readable brain with its scope line and its counts.</td></tr>
     <tr><td><code>read_brain</code></td><td>One brain's scope plus one line per concept.</td></tr>
     <tr><td><code>read_concept</code></td><td>A position, its evidence with authors and dates, its data, its open conflicts.</td></tr>
@@ -157,7 +161,7 @@ export const DOC_BODY = `
     <tr><td><code>list_sources</code></td><td>What a brain has read, newest first, with links.</td></tr>
   </table></div>
 
-  <p class="muted" style="margin-top:20px">Six more on your own address. The drop steps run in order, and
+  <p class="muted" style="margin-top:20px">Six more on a project's own address. The drop steps run in order, and
     nothing is written until the last one.</p>
   <div class="tbl"><table>
     <tr><th>Tool</th><th>Your client does</th><th>Octopus does</th></tr>

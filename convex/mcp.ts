@@ -23,7 +23,9 @@
 
 import { internal } from "./_generated/api";
 import { randomHex, today, slug as slugOf, HOME, SPACE_NAME, readSpace } from "./lib";
-import { norm, keywords, planDossier, scoreConcept, idOf } from "./words";
+import { norm, keywords, planDossier, writeDossier, scoreConcept, idOf, OPEN_READ } from "./words";
+import { assemble, pageIds, asText, fullestPlan, docRules, BULLET_RULES, DOC_TITLE } from "./onepager";
+import type { DocType } from "./onepager";
 import { dropCheck, dropSettle, feedable, fetchPage, planContext, PLAN_RULES } from "./drop";
 import { loadSpace } from "./space";
 
@@ -60,6 +62,22 @@ const text = (s: string) => ({ content: [{ type: "text", text: s }] });
 
 /* ---------- the tools ---------- */
 
+/* The brains are written in English. The client's own model turns a question
+   in any language, or in jargon, into the words they are written in: the job
+   the app's router does with a model call, done here by the client for free. */
+const TERMS = {
+  type: "array", items: { type: "string" }, maxItems: 12,
+  description: "The question as English search words: its subject, synonyms, and any abbreviation or jargon " +
+    "spelled out, up to 12. The brains are written in English, so send these every time, above all when the " +
+    "question is in another language. Example for \"l'or est-il dangereux ?\": [\"gold\", \"risk\", \"danger\", \"volatility\"].",
+};
+
+/** The terms a client sent, cleaned: 12 at most, 60 characters each. */
+const termsOf = (t: any): string[] =>
+  (Array.isArray(t) ? t : []).map((x: any) => String(x ?? "").trim().slice(0, 60)).filter(Boolean).slice(0, 12);
+
+const PAGE_KINDS = ["summary", "quiz", "deepdive", "usecase"] as const;
+
 export const TOOLS = [
   {
     name: "ask",
@@ -67,15 +85,39 @@ export const TOOLS = [
     description:
       "Ask a question and get back everything the brains hold on it: the positions, the evidence behind " +
       "them with authors and dates, the data points, and any open conflict. Name a brain to read only that " +
-      "one, or leave it out and the question is routed by scope. This tool retrieves. You write the answer " +
+      "one, or leave it out and the question is routed by scope. Send the question's English search words " +
+      "in terms, so a question in any language finds its concepts. This tool retrieves. You write the answer " +
       "from what it returns, and it tells you how. Start here for any question.",
     inputSchema: {
       type: "object",
       properties: {
-        question: { type: "string", description: "The question, in full." },
+        question: { type: "string", description: "The question, in full, in the words it was asked." },
+        terms: TERMS,
         brain: { type: "string", description: "Optional brain slug or name. Omit to search every brain." },
       },
       required: ["question"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "one_pager",
+    title: "Write a one-pager",
+    description:
+      "Build a one-pager from the brains, the same four the app makes. summary: bullets, each concept then what " +
+      "it adds. quiz: 8 questions from the basics to the hardest, the answers after. deepdive: 500 to 800 words " +
+      "in five sections. usecase: 3 to 5 real situations, each with steps, a result and a risk. It returns what " +
+      "the brains hold and the exact rules for the page, and you write the page from them. A summary with no " +
+      "subject comes back already written: show it as it is.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: [...PAGE_KINDS], description: "summary, quiz, deepdive or usecase." },
+        subject: { type: "string", description: "Optional. A question or a subject that keeps the page to it. Omit it for the fullest positions." },
+        terms: TERMS,
+        brain: { type: "string", description: "Optional brain slug or name. Omit it to read every brain." },
+        instructions: { type: "string", description: "Optional special instructions: the angle, the audience or the tone." },
+      },
+      required: ["kind"],
       additionalProperties: false,
     },
   },
@@ -643,7 +685,8 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
     if (!q) return text("Give a question.");
     if (!brains.length) return text("No brains exist yet, so there is nothing to read.");
 
-    const words = keywords(q);
+    const terms = termsOf(args?.terms);
+    const words = keywords([q, ...terms].join(" "));
     if (!words.length) {
       return text(`"${q}" carries no subject to route on. The brains cover:\n\n` +
         brains.map((b: any) => `- ${b.name} (${b.slug}): ${b.scope}`).join("\n") +
@@ -658,11 +701,12 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
        accents folded, a title hit counting three. Substring matching found
        "rate" in "corporate" and "que" in "unique". */
     const chosenPool = named ? [named] : brains;
-    const plan = planDossier(chosenPool, concepts, q);
+    const plan = planDossier(chosenPool, concepts, q, undefined, { terms });
     if (!plan.hits.length && !named) {
-      return text(`Nothing in these brains matches "${q}". Their scopes are:\n\n` +
+      return text(`Nothing in these brains matches "${q}"${terms.length ? ` or ${terms.join(", ")}` : ""}. Their scopes are:\n\n` +
         brains.map((b: any) => `- ${b.name} (${b.slug}): ${b.scope}`).join("\n") +
-        `\n\nSay so plainly rather than answering from outside the brains.`);
+        `\n\n${terms.length ? "Say so plainly rather than answering from outside the brains."
+          : "Call ask again with terms: the question as English search words. If that finds nothing too, say so plainly rather than answering from outside the brains."}`);
     }
     /* The top 8 open in full; a question that hits nothing in a named brain
        still gets that brain's 6 fullest. */
@@ -709,6 +753,58 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
       `- Answer from what is above. Where it falls short, say so in one sentence and name the kind of source that would fill the gap.`,
     ].join("\n");
     return text(out);
+  }
+
+  /**
+   * A one-pager, as the app builds it: the same search, the same reading and
+   * the same rules. The app pays a model to write it; here the client writes
+   * it from what this returns. A summary of stored positions needs no writing
+   * at all, so it comes back finished.
+   */
+  if (name === "one_pager") {
+    const kind = String(args?.kind ?? "") as (typeof PAGE_KINDS)[number];
+    if (!PAGE_KINDS.includes(kind)) return text(`kind is one of: ${PAGE_KINDS.join(", ")}.`);
+    if (!brains.length) return text("No brains exist yet, so there is nothing to put on a page.");
+    const named = args?.brain ? findBrain(brains, args.brain) : null;
+    if (args?.brain && !named) {
+      return text(`No brain matches "${args.brain}". These exist: ` + brains.map((b: any) => b.slug).join(", "));
+    }
+    const pool = named ? [named] : brains;
+    const slugs = new Set(pool.map((b: any) => b.slug));
+    const inPool = concepts.filter((c: any) => slugs.has(c.brain));
+    if (!inPool.length) return text("Those brains hold no positions yet, so the page would be empty.");
+    const q = String(args?.subject ?? "").trim().slice(0, 300);
+    const terms = termsOf(args?.terms);
+    const note = String(args?.instructions ?? "").trim().slice(0, 600);
+
+    if (kind === "summary" && !q) {
+      const page = assemble(space, pool, concepts, sources, named ? named.slug : "all",
+        new Map((await whole(pageIds(pool, concepts))).map((c: any) => [idOf(c), c])));
+      return text(`===== THE PAGE, READY =====\nShow it as it is: the title, the line under it, the bullets, then the foot.\n\n${asText(page)}`);
+    }
+
+    const plan: any = q ? planDossier(pool, concepts, q, undefined, { terms }) : fullestPlan(inPool);
+    const read = new Set(sources.filter((s: any) => (s.brains ?? []).some((x: string) => slugs.has(x))).map((s: any) => s.sid)).size;
+    const found = writeDossier(pool, plan,
+      new Map((await whole(plan.lead.slice(0, OPEN_READ).map(idOf))).map((c: any) => [idOf(c), c])));
+    const doc = kind === "summary" ? null : kind as DocType;
+    const subject = (t => t.length > 78 ? t.slice(0, 75).trimEnd() + "..." : t)(q || (named ? named.name : SPACE_NAME[space]));
+    const rules = doc ? docRules(doc, note)
+      : BULLET_RULES + (note ? `\n\nOWNER'S INSTRUCTION\n${note}\nIt sets the angle, the audience or the tone. The shape above stays.` : "");
+    return text([
+      `ONE-PAGER: ${doc ? DOC_TITLE[doc] : "Summary"}`,
+      `TITLE: ${doc ? `${DOC_TITLE[doc]}: ${subject}` : subject}`,
+      `FOOT: ${found.opened.length} of ${inPool.length} positions · ${read} source${read === 1 ? "" : "s"} read · ${today()}`,
+      ``,
+      `===== WHAT THE BRAINS HOLD =====`,
+      found.dossier,
+      ...(q ? [``, `${doc ? "SUBJECT" : "QUESTION"}: ${q}`] : []),
+      ``,
+      `===== HOW TO WRITE THE PAGE =====`,
+      rules,
+      ``,
+      `- Open with the TITLE as a heading. End with the FOOT line, as it is.`,
+    ].join("\n"));
   }
 
   if (name === "list_brains") {
@@ -806,9 +902,10 @@ export async function handleRpc(ctx: any, msg: any, caller: Caller = null): Prom
       serverInfo: serverOf(spaceOf(caller)),
       instructions:
         `These are ${SPACE_NAME[spaceOf(caller)]} brains: a knowledge base split by subject, each brain holding positions derived ` +
-        "from the sources it has read. For a question, call ask with the question text, and a brain name " +
-        "only if the user named one. It returns the relevant positions, their dated evidence, any open " +
-        "conflict, and the rules for writing the answer. The other tools are for browsing: list_brains, " +
+        "from the sources it has read. For a question, call ask with the question text and its English search " +
+        "words in terms, and a brain name only if the user named one. It returns the relevant positions, their " +
+        "dated evidence, any open conflict, and the rules for writing the answer. For a summary, a quiz, a deep " +
+        "dive or use cases, call one_pager. The other tools are for browsing: list_brains, " +
         "read_brain, read_concept, search_brains, list_sources. Answer from what the tools return, cite the " +
         "authors and dates they carry, and say plainly when the brains do not cover a question rather than " +
         "filling the gap yourself." +

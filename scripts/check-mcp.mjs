@@ -21,7 +21,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-mcp-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["mcp.ts", "drop.ts", "lib.ts", "words.ts", "space.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["mcp.ts", "drop.ts", "lib.ts", "words.ts", "space.ts", "onepager.ts", "route.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => " +
   "new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
@@ -141,8 +141,8 @@ const ME = { account:"octopus", name:"Octopus" };
   const anon = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"tools/list" }, null);
   const signed = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"tools/list" }, ME);
   const an = anon.result.tools.map(t => t.name), sn = signed.result.tools.map(t => t.name);
-  check("anonymous sees 6 read tools", an.length === 6 && !an.includes("drop_store"), an.join(","));
-  check("signed sees 12 tools", sn.length === 12 && sn.includes("drop_store"), sn.join(","));
+  check("anonymous sees 7 read tools, one_pager among them", an.length === 7 && an.includes("one_pager") && !an.includes("drop_store"), an.join(","));
+  check("signed sees 13 tools", sn.length === 13 && sn.includes("drop_store"), sn.join(","));
 }
 
 /* ---- the space a read asks for ---- */
@@ -166,6 +166,45 @@ const ME = { account:"octopus", name:"Octopus" };
   check("an initialize is never refused for its header", versionOk("2099-01-01", { ...init, params:{ protocolVersion:"2099-01-01" } }));
   check("a later call on a version never agreed still is", !versionOk("2099-01-01", { method:"tools/list" }));
   check("no header reads as an older client", versionOk(null, { method:"tools/list" }));
+}
+
+/* ---- a question in any language, through the client's English words ---- */
+{
+  const fr = "comment bâtir une proposition commerciale ?";
+  const bare = await call("ask", { question: fr }, ME);
+  check("a French question alone finds nothing, and asks for English words", /Nothing in these brains matches/.test(bare)
+    && /Call ask again with terms/.test(bare), bare.slice(0, 160));
+  const withTerms = await call("ask", { question: fr, terms: ["offer", "creation", "sales"] }, ME);
+  check("with the client's English words it finds the concept", /# Offer creation as a key skill/.test(withTerms)
+    && /QUESTION: comment bâtir/.test(withTerms), withTerms.slice(0, 200));
+  const junk = await call("ask", { question: fr, terms: "offer" }, ME);
+  check("terms that are not a list are ignored, not thrown on", /Nothing in these brains matches/.test(junk));
+  const tools = (await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"tools/list" }, null)).result.tools;
+  check("the ask tool asks for the terms every time", tools.find(t => t.name === "ask").inputSchema.properties.terms?.type === "array"
+    && /send these every time/.test(tools.find(t => t.name === "ask").inputSchema.properties.terms.description));
+}
+
+/* ---- a one-pager, written by the client from the app's own rules ---- */
+{
+  const bad = await call("one_pager", { kind: "poem" }, null);
+  check("a one-pager names its four kinds", /summary, quiz, deepdive, usecase/.test(bad), bad);
+  const ready = await call("one_pager", { kind: "summary", brain: "content" }, null);
+  check("a summary with no subject comes back written, as the app lays it out", /THE PAGE, READY/.test(ready)
+    && /^Content$/m.test(ready) && /- Offer creation as a key skill/.test(ready) && /positions · \d+ sources? read/.test(ready), ready.slice(0, 300));
+  const quiz = await call("one_pager", { kind: "quiz", subject: "comment bâtir une offre", terms: ["offer", "creation"] }, ME);
+  check("a quiz returns the app's quiz rules and the concepts it rests on", /ONE-PAGER: Quiz/.test(quiz) && /"## Questions"/.test(quiz)
+    && /### Offer creation as a key skill/.test(quiz) && /SUBJECT: comment bâtir une offre/.test(quiz), quiz.slice(0, 300));
+  check("with its title and foot to copy", /TITLE: Quiz: comment bâtir une offre/.test(quiz) && /FOOT: \d+ of \d+ positions · \d+ sources? read · \d{4}-\d\d-\d\d/.test(quiz));
+  const deep = await call("one_pager", { kind: "deepdive", brain: "content", instructions: "For a new client" }, ME);
+  check("a deep dive with no subject reads the fullest positions, and carries the instruction", /ONE-PAGER: Deep dive/.test(deep)
+    && /500 to 800 words/.test(deep) && /OWNER'S INSTRUCTION\nFor a new client/.test(deep) && /TITLE: Deep dive: Content/.test(deep), deep.slice(0, 300));
+  const uses = await call("one_pager", { kind: "usecase", subject: "personal brand", brain: "content" }, ME);
+  check("use cases return their own shape", /ONE-PAGER: Use cases/.test(uses) && /3 to 5 cases/.test(uses) && /### Personal brand/.test(uses));
+  const sum = await call("one_pager", { kind: "summary", subject: "why does a named face help", terms: ["personal brand"] }, ME);
+  check("a summary of a question keeps the bullet rules", /ONE-PAGER: Summary/.test(sum) && /Core concept: what it says/.test(sum) && /QUESTION: why/.test(sum));
+  DB.spacesRead.length = 0;
+  await call("one_pager", { kind: "quiz" }, { account:"owner-squidgy", name:"Owner", space:"squidgy" });
+  check("a Squidgy address builds from Squidgy only", DB.spacesRead.length >= 1 && DB.spacesRead.every(x => x === "squidgy"), DB.spacesRead.join(","));
 }
 
 /* ---- one address per project ---- */
