@@ -14,7 +14,7 @@ import {
   canDrop,
 } from "./lib";
 import type { Who } from "./lib";
-import { handleRpc, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
+import { handleRpc, versionOk, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from "./drop";
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, DOC_TYPES } from "./onepager";
@@ -577,14 +577,6 @@ const mcpGet = httpAction(async () => mcpJson({ error: "This endpoint answers PO
 const mcpDelete = httpAction(async () => new Response(null, { status: 405, headers: MCP_CORS }));
 
 const mcpPost = httpAction(async (ctx, req) => {
-    /* An unsupported protocol version is a 400 under the spec. An absent header
-       means an older client, which the spec says to read as 2025-03-26. */
-    const ver = req.headers.get("MCP-Protocol-Version");
-    if (ver && !PROTOCOLS.includes(ver)) {
-      return mcpJson({ jsonrpc: "2.0", id: null,
-        error: { code: -32000, message: `Unsupported MCP-Protocol-Version: ${ver}. This server speaks ${PROTOCOLS.join(", ")}.` } }, 400);
-    }
-
     const who = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
     const gateOk = await ctx.runMutation(internal.store.mcpRate,
       { who, max: RATE_MAX, windowMs: RATE_WINDOW_MS });
@@ -606,6 +598,15 @@ const mcpPost = httpAction(async (ctx, req) => {
     let msg: any;
     try { msg = await req.json(); }
     catch { return mcpJson({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, 400); }
+
+    /* An unsupported protocol version is a 400 under the spec, once a version
+       has been agreed. An absent header means an older client, which the spec
+       says to read as 2025-03-26. */
+    const ver = req.headers.get("MCP-Protocol-Version");
+    if (!versionOk(ver, msg)) {
+      return mcpJson({ jsonrpc: "2.0", id: null,
+        error: { code: -32000, message: `Unsupported MCP-Protocol-Version: ${ver}. This server speaks ${PROTOCOLS.join(", ")}.` } }, 400);
+    }
 
     /* A batch is a list. Notifications drop out, so an all-notification batch
        gets 202 with no body, exactly as a lone notification does. */

@@ -28,7 +28,21 @@ import { dropCheck, dropSettle, feedable, fetchPage, planContext, PLAN_RULES } f
 import { loadSpace } from "./space";
 
 /** Versions this server speaks. The newest sits first, so it wins by default. */
-export const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
+export const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
+
+/**
+ * Whether a request's MCP-Protocol-Version header can be served.
+ *
+ * Absent means an older client. The header binds only after initialize, which
+ * settles the version in its own body, so an initialize is never refused for
+ * it. Claude's connector check sends its newest version on that first call,
+ * and a 400 there read as "server not found".
+ */
+export function versionOk(ver: string | null, msg: any): boolean {
+  if (!ver || PROTOCOLS.includes(ver)) return true;
+  const first = Array.isArray(msg) ? msg[0] : msg;
+  return first?.method === "initialize";
+}
 
 /** Per address, per window. Real reading sits far below this. A loop does not. */
 export const RATE_MAX = 120;

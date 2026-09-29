@@ -27,7 +27,7 @@ writeFileSync(join(dir, "_generated/api.ts"),
   "new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 await esbuild.build({ entryPoints: [join(dir, "mcp.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { handleRpc } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { handleRpc, versionOk } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 /* Every candidate becomes a concept on the drop that argues for it. */
 const MENTIONS = 1;
 await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm",
@@ -153,6 +153,19 @@ const ME = { account:"octopus", name:"Octopus" };
   check("every read names the octopus space",
     DB.spacesRead.length >= 2 && DB.spacesRead.every(x => x === "octopus"),
     DB.spacesRead.join(","));
+}
+
+/* ---- Claude's connector check sends the newest protocol version ---- */
+{
+  const init = { jsonrpc:"2.0", id:1, method:"initialize", params:{ protocolVersion:"2025-11-25" } };
+  check("the 2025-11-25 version is spoken", versionOk("2025-11-25", init) && versionOk("2025-11-25", { method:"tools/list" }));
+  const r = await handleRpc(ctx, init, null);
+  check("and agreed to when a client asks for it", r.result.protocolVersion === "2025-11-25", r.result.protocolVersion);
+  const later = await handleRpc(ctx, { ...init, params:{ protocolVersion:"2099-01-01" } }, null);
+  check("a version from the future gets the newest this server speaks", later.result.protocolVersion === "2025-11-25", later.result.protocolVersion);
+  check("an initialize is never refused for its header", versionOk("2099-01-01", { ...init, params:{ protocolVersion:"2099-01-01" } }));
+  check("a later call on a version never agreed still is", !versionOk("2099-01-01", { method:"tools/list" }));
+  check("no header reads as an older client", versionOk(null, { method:"tools/list" }));
 }
 
 /* ---- one address per project ---- */
