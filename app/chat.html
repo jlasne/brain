@@ -2289,6 +2289,9 @@ function openPagerSheet(pre = {}){
         <div class="hint" id="pDocHint"></div></div>
       <div class="f" id="pNoteF" hidden><label for="pNote" id="pNoteL">Special instructions</label>
         <textarea id="pNote"></textarea></div>
+      <div class="f"><label for="pLang">Language</label>
+        <select id="pLang" class="pick">${["English","French","Spanish","German","Italian","Portuguese","Dutch","Japanese","Chinese"]
+          .map(l => `<option value="${l}">${l}</option>`).join("")}</select></div>
       <div class="f"><label for="pQ">Focus on a question</label>
         <textarea id="pQ"></textarea>
         <div class="hint" id="pQHint"></div></div>
@@ -2350,6 +2353,9 @@ function openPagerSheet(pre = {}){
   veil.querySelector("#pCancel").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
   if (pre.q) veil.querySelector("#pQ").value = pre.q;
+  /* The language last picked, English the first time. */
+  const langI = veil.querySelector("#pLang");
+  try { const l = localStorage.getItem("octopus.pagerLang"); if (l && [...langI.options].some(o => o.value === l)) langI.value = l; } catch {}
   setTimeout(() => veil.querySelector("#pQ").focus(), 30);
 
   /* The button says what it will do: build, or build and send. */
@@ -2369,6 +2375,8 @@ function openPagerSheet(pre = {}){
     const q = veil.querySelector("#pQ").value.trim();
     const note = kind === "custom" ? veil.querySelector("#pNote").value.trim() : "";
     const to = toI.value.trim();
+    const lang = langI.value;
+    try { localStorage.setItem("octopus.pagerLang", lang); } catch {}
     if (kind === "custom" && doc === "other" && !note){ warn("Describe the document you want."); veil.querySelector("#pNote").focus(); return; }
     /* A typo stays in the dialog, where it can be fixed, rather than failing
        after the page is built. */
@@ -2376,11 +2384,11 @@ function openPagerSheet(pre = {}){
     shut();
 
     /* A page the model writes waits on it, so the mascot keeps it company. */
-    const viaModel = !!q || kind !== "summary";
+    const viaModel = !!q || kind !== "summary" || lang !== "English";
     const body = thinking(to ? `${viaModel ? "Writing" : "Building"} the page, then sending it to ${to}`
                              : viaModel ? undefined : "Building the page");
     let r;
-    const ask = { pick, q, kind, ...(kind === "custom" ? { doc } : {}), ...(note ? { note } : {}) };
+    const ask = { pick, q, kind, ...(kind === "custom" ? { doc } : {}), ...(note ? { note } : {}), ...(lang !== "English" ? { lang } : {}) };
     try { r = await api("/api/onepager", { ...ask, ...(to ? { mail: to } : {}) }); }
     catch (e) {
       body.innerHTML = rich("**The page did not build.** " + esc(e.message));
@@ -2431,7 +2439,7 @@ function showPager(page, text, built, mailed){
         }
         /* A quiz keeps its answers folded, so the questions are worked
            through first. Copy, print and mail carry them in full. */
-        if (/^answers?$/i.test(sec.head || "")){
+        if (sec.fold || /^answers?$/i.test(sec.head || "")){
           const d = el("details","answers");
           d.append(el("summary",null,"Show the answers"), ul);
           slot.append(d);
@@ -2457,7 +2465,7 @@ function showPager(page, text, built, mailed){
     const to = el("input");
     to.type = "email"; to.placeholder = "Send it to"; to.value = lastMail();
     const send = el("button","fresh","Mail it");
-    send.title = built.q || (built.kind && built.kind !== "summary")
+    send.title = built.q || built.lang || (built.kind && built.kind !== "summary")
       ? "The page is written again so the page that is sent is the page you see. One model call."
       : "Built again from the stored positions, which gives the same page.";
 

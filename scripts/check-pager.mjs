@@ -21,7 +21,7 @@ for (const f of ["onepager.ts", "lib.ts", "words.ts", "route.ts"]) copyFileSync(
 writeFileSync(join(dir, "_generated/api.ts"), "export const internal = {};\n");
 await esbuild.build({ entryPoints: [join(dir, "onepager.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { assemble, fromQuestion, fromModel, asText, asHtml, looksLikeMail, bulletText, addedLine, parseDoc } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { assemble, fromQuestion, fromModel, asText, asHtml, looksLikeMail, bulletText, addedLine, parseDoc, translatePage, langOf } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -229,6 +229,42 @@ const sources = [
   const summary = await fromModel("octopus", [brains[0]], concepts, sources, { q: "why did retention rise", kind: "summary", pick: "content" }, "k");
   check("a summary keeps its bullets, and only a summary", summary.sections[0].bullets[0].k === "Retention" && !summary.sections[0].blocks
     && /Core concept: what it says/.test(prompt), JSON.stringify(summary.sections));
+  globalThis.fetch = real;
+}
+
+/* ---- a page in the language picked, English by default ---- */
+{
+  const real = globalThis.fetch;
+  const prompts = [];
+  /* A translation returns each string marked, so the test can see which ones travelled. */
+  globalThis.fetch = async (_u, opt) => {
+    const m = JSON.parse(opt.body).messages, p = m[1].content;
+    prompts.push({ system: m[0].content, p });
+    const content = /^Translate each string/.test(p)
+      ? JSON.stringify({ t: JSON.parse(p.slice(p.lastIndexOf("\n\n") + 2)).map(x => "FR:" + x) })
+      : "## Questions\n1. Pourquoi la rétention a-t-elle monté de 31 % ?\n\n## Réponses\n1. Les deux premières secondes décident.";
+    return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
+  };
+  const fr = await fromModel("octopus", [brains[0]], concepts, sources, { kind: "custom", doc: "quiz", pick: "content", lang: "French" }, "k");
+  const writing = prompts.find(x => /Ask for reasoning/.test(x.p));
+  check("a page in French is written in French, its headings too", /Write in French, always\./.test(writing?.p || "")
+    && /headings named above are translated too/.test(writing?.p || "") && /answer in French/.test(writing?.system || ""));
+  check("a quiz's answers fold, whatever their heading says", fr.sections[1]?.head === "Réponses" && fr.sections[1]?.fold === true && !fr.sections[0].fold,
+    JSON.stringify(fr.sections.map(x => [x.head, x.fold])));
+  check("its title, line and foot follow in one small call, the body untouched", /^FR:Quiz: Content/.test(fr.title) && /^FR:/.test(fr.line)
+    && /^FR:/.test(fr.foot) && /^Pourquoi/.test(fr.sections[0].blocks[0].ol[0]), `${fr.title} | ${fr.foot}`);
+
+  const page = assemble("octopus", [brains[0]], concepts, sources, "content");
+  const whole = await translatePage(page, "French", undefined, "k");
+  const b0 = whole.sections[0].bullets[0];
+  check("a summary laid out for free is translated whole, bullet by bullet", /^FR:/.test(whole.title) && /^FR:/.test(b0.k) && /^FR:/.test(b0.say)
+    && whole.sections[0].bullets.length === page.sections[0].bullets.length, JSON.stringify(b0));
+  const n = prompts.length;
+  const en = await translatePage(page, "English", undefined, "k");
+  check("English calls no model", en === page && prompts.length === n);
+  check("a language not offered reads as English", langOf("Klingon") === "English" && langOf("French") === "French");
+  globalThis.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"t":["one"]}' } }] }), { status: 200 });
+  check("a translation that does not match leaves the page in English, whole", (await translatePage(page, "French", undefined, "k")) === page);
   globalThis.fetch = real;
 }
 

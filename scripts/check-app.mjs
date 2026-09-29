@@ -341,6 +341,8 @@ async function boot(path, init, arg) {
   check("and bold kept as bold", quiz.bold === "named face", JSON.stringify(quiz));
 
   await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  check("the page is in English unless another language is picked", await page.inputValue("#pLang") === "English");
+  await page.selectOption("#pLang", "French");
   await page.fill("#pTo", "");
   await page.click('#pKind button[data-k="custom"]');
   await page.click('#pDoc button[data-d="deepdive"]');
@@ -354,6 +356,11 @@ async function boot(path, init, arg) {
   check("a deep dive lands as sections of paragraphs and lists", deep.heads.join("|") === "The short answer|The evidence"
     && /beats reach/.test(deep.p) && deep.list === 2, JSON.stringify(deep));
   check("its special instructions travel with it", deep.asked.doc === "deepdive" && deep.asked.note === "For a new client", JSON.stringify(deep.asked));
+  check("and so does the language picked", deep.asked.lang === "French", JSON.stringify(deep.asked));
+  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  check("the next page opens on the language last picked", await page.inputValue("#pLang") === "French");
+  await page.selectOption("#pLang", "English");
+  await page.click("#pCancel");
 
   /* ---- the loader is the space's own mark ---- */
   await page.fill("#input", "anything");

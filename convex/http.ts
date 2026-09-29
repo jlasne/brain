@@ -17,7 +17,7 @@ import type { Who } from "./lib";
 import { handleRpc, versionOk, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from "./drop";
 import { DOC_STYLE, DOC_BODY } from "./doc";
-import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, DOC_TYPES } from "./onepager";
+import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, translatePage, langOf, DOC_TYPES } from "./onepager";
 import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
@@ -494,11 +494,14 @@ route("/api/onepager", async (ctx, _req, b) => {
   const doc: DocType = oldQuiz ? "quiz" : DOC_TYPES.includes(b.doc) ? b.doc : "other";
   const note = String(b.note ?? "").trim().slice(0, 600);
   if (kind === "custom" && doc === "other" && !note) return { error: "describe the document you want" };
+  /* English by default. A page the model writes is written in the language
+     picked; a summary laid out from the stored positions is translated. */
+  const lang = langOf(b.lang);
   const page = q || kind !== "summary"
-    ? await fromModel(who.space, brains, concepts, sources, { q, kind, doc, note, pick },
+    ? await fromModel(who.space, brains, concepts, sources, { q, kind, doc, note, pick, lang },
                       undefined, modelName(b), load)
-    : assemble(who.space, brains, concepts, sources, pick,
-               new Map((await load(pageIds(brains, concepts))).map((c: any) => [idOf(c), c])));
+    : await translatePage(assemble(who.space, brains, concepts, sources, pick,
+               new Map((await load(pageIds(brains, concepts))).map((c: any) => [idOf(c), c]))), lang, undefined, undefined, modelName(b));
 
   if (!hasBody(page)) {
     return { error: "those brains hold no positions yet, so the page would be empty" };

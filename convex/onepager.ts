@@ -13,7 +13,7 @@
  * the same page.
  */
 
-import { ask, SPACE_NAME } from "./lib";
+import { ask, parseJson, SPACE_NAME } from "./lib";
 import type { Who, Space } from "./lib";
 import { planDossier, writeDossier, keywords, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
@@ -25,8 +25,69 @@ export type Bullet = { k: string; say: string };
    mark a label or a figure inside the text. */
 export type Block = { p: string } | { ul: string[] } | { ol: string[] };
 
-/* A summary section holds bullets; a document section holds blocks. */
-export type Section = { head: string; bullets: Bullet[]; blocks?: Block[] };
+/* A summary section holds bullets; a document section holds blocks. A quiz's
+   answers are folded on screen, whatever language their heading is in. */
+export type Section = { head: string; bullets: Bullet[]; blocks?: Block[]; fold?: boolean };
+
+/* The languages a page can be written in. English is the default, and what
+   the brains are stored in. */
+export const LANGS = ["English", "French", "Spanish", "German", "Italian", "Portuguese", "Dutch", "Japanese", "Chinese"];
+export const langOf = (x: any) => LANGS.includes(String(x)) ? String(x) : "English";
+
+/**
+ * A page in another language.
+ *
+ * Every piece of text travels in one list and comes back in the same order,
+ * so the page keeps its shape: its sections, bullets, lists and folds. A reply
+ * that does not match the list leaves the page in English rather than half
+ * translated.
+ */
+export async function translatePage(p: Pager, lang: string, only?: "chrome",
+  key?: string, model?: string, timeout?: number): Promise<Pager> {
+  if (langOf(lang) === "English") return p;
+  const strings: string[] = [];
+  const put = (t: any) => { const x = String(t ?? ""); if (!x.trim()) return -1; strings.push(x); return strings.length - 1; };
+  const map = {
+    title: put(p.title), line: put(p.line), foot: put(p.foot),
+    sections: only ? [] : p.sections.map(sec => ({
+      head: put(sec.head),
+      bullets: sec.bullets.map(b => typeof b === "string" ? { say: put(b) } : { k: put(b.k), say: put(b.say) }),
+      blocks: (sec.blocks ?? []).map(x => "p" in x ? { p: put(x.p) } : "ul" in x ? { ul: x.ul.map(put) } : { ol: x.ol.map(put) }),
+    })),
+  };
+  if (!strings.length) return p;
+  let t: any;
+  try {
+    const { text } = await ask([
+      { role: "system", content: "You translate. You reply with JSON only." },
+      { role: "user", content: `Translate each string of the list into ${lang}.
+- Keep numbers, dates, names of people and places, and **bold** marks exactly as they are.
+- A name of a brain or a person stays as it is.
+- No em-dashes.
+Reply with only JSON: {"t":["..."]}, exactly ${strings.length} strings, in the same order.
+
+${JSON.stringify(strings)}` },
+    ], { json: true, maxTokens: Math.min(16000, 400 + strings.join(" ").length), key, model, timeout: timeout ?? 60000 });
+    t = parseJson(text)?.t;
+  } catch { return p; }
+  if (!Array.isArray(t) || t.length !== strings.length) return p;
+  const get = (i: number, was: any) => i < 0 ? String(was ?? "") : String(t[i] ?? strings[i]);
+  return {
+    title: get(map.title, p.title), line: get(map.line, p.line), foot: get(map.foot, p.foot),
+    sections: only ? p.sections : p.sections.map((sec, n) => {
+      const m: any = map.sections[n];
+      return {
+        ...sec, head: get(m.head, sec.head),
+        bullets: sec.bullets.map((b, k) => typeof b === "string" ? get(m.bullets[k].say, b)
+          : { k: get(m.bullets[k].k, b.k), say: get(m.bullets[k].say, b.say) }) as Bullet[],
+        ...(sec.blocks ? { blocks: sec.blocks.map((x, k) => {
+          const y = m.blocks[k];
+          return "p" in x ? { p: get(y.p, x.p) } : "ul" in x ? { ul: x.ul.map((v, j) => get(y.ul[j], v)) } : { ol: x.ol.map((v, j) => get(y.ol[j], v)) };
+        }) } : {}),
+      };
+    }),
+  };
+}
 
 export type Pager = {
   title: string;
@@ -328,10 +389,11 @@ export async function fromQuestion(
  */
 export async function fromModel(
   space: Space, brains: any[], concepts: any[], sources: any[],
-  opts: { q?: string; kind: PageKind; doc?: DocType; note?: string; pick?: string },
+  opts: { q?: string; kind: PageKind; doc?: DocType; note?: string; pick?: string; lang?: string },
   key?: string, model?: string, load?: (ids: string[]) => Promise<any[]>,
 ): Promise<Pager> {
   const today = new Date().toISOString().slice(0, 10);
+  const lang = langOf(opts.lang);
   const q = String(opts.q ?? "").trim(), kind = opts.kind, note = String(opts.note ?? "").trim();
   const doc: DocType = DOC_TYPES.includes(opts.doc as DocType) ? opts.doc as DocType : "other";
   const slugs = brains.map(b => b.slug);
@@ -353,9 +415,11 @@ export async function fromModel(
   const whole = load ? await load(plan.lead.slice(0, OPEN_READ).map(idOf)) : concepts;
   const found = writeDossier(brains, plan, new Map(whole.map((c: any) => [idOf(c), c])));
 
-  const rules = kind === "custom" ? docRules(doc, note) : BULLET_RULES;
+  /* The page is written in the language picked, its headings included. */
+  const rules = (kind === "custom" ? docRules(doc, note) : BULLET_RULES).replace(/English, always\./g, `Write in ${lang}, always.`) +
+    (lang !== "English" ? `\n- Write every word in ${lang}: the headings named above are translated too. Quotes, names and figures stay as they are.` : "");
   const { text } = await ask([
-    { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You always answer in English." },
+    { role: "system", content: `You are the user's own knowledge base, answering from what it holds. You always answer in ${lang}.` },
     { role: "user", content: `${rules}
 
 STORED KNOWLEDGE
@@ -368,6 +432,8 @@ ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
   let sections: Pager["sections"];
   if (kind === "custom") {
     sections = parseDoc(text);
+    /* A quiz's second section holds its answers, whatever it is called. */
+    if (doc === "quiz" && sections.length > 1) sections[sections.length - 1] = { ...sections[sections.length - 1], fold: true };
   } else {
     /* A line naming sources is dropped: the foot counts them once. */
     const lines = String(text).split("\n").map(l => l.trim()).filter(l => l && !/^(\*\*)?sources?\b/i.test(l));
@@ -393,7 +459,7 @@ ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
     : doc === "usecase" ? `${sections.length} case${sections.length === 1 ? "" : "s"} from ${where}.${written}`
     : `Written to: ${note.length > 110 ? note.slice(0, 107).trimEnd() + "..." : note}`;
 
-  return {
+  const page: Pager = {
     title, line, sections,
     foot: [
       `${found.opened.length} of ${inPool.length} position${inPool.length === 1 ? "" : "s"}`,
@@ -401,6 +467,10 @@ ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
       today,
     ].join(" · "),
   };
+  /* The body came back in the language picked; the title, the line under it
+     and the foot are made here in English, so they follow in one small call. */
+  return lang === "English" ? page
+    : await translatePage(page, lang, "chrome", key, model, Math.max(30000, 170000 - (Date.now() - t0)));
 }
 
 /** "Core concept: what it says", with the markdown a model adds taken off. */
