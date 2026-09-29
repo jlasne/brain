@@ -370,6 +370,12 @@ async function boot(path, init, arg) {
   }
   await page.waitForTimeout(700);
   check("and it goes when the answer lands", await page.$(".thinking .spinner") === null);
+  const acts = await page.evaluate(() => [...document.querySelectorAll(".msg.ai .ans-acts button")].map(b => b.textContent));
+  check("under the answer: Copy and One-pager from this", acts.join(",") === "Copy,One-pager from this", acts.join(","));
+  await page.click(".ans-acts button:nth-child(2)"); await page.waitForTimeout(120);
+  const pre = await page.evaluate(() => ({ q: document.getElementById("pQ")?.value, pick: document.getElementById("pPick")?.value }));
+  check("One-pager from this opens the page with the question and its brains", pre.q === "anything" && pre.pick === "all", JSON.stringify(pre));
+  await page.click("#pCancel");
 
   /* ---- the export reads whole concepts only when asked ---- */
   const side = await page.evaluate(() => ({ gone: !document.getElementById("exportBtn") && !document.getElementById("stat"),
@@ -549,7 +555,12 @@ for (const kind of ["study", "argument"]) {
   await page.click('#mode button[data-m="drop"]');
   await page.fill("#srcInput", "Long manual.pdf");
   await page.fill("#input", "Sixty rules, each explained.");
+  await page.evaluate(() => { window.__titles = []; new MutationObserver(() => window.__titles.push(document.title))
+    .observe(document.querySelector("title"), { childList: true, characterData: true, subtree: true }); });
   await page.click("#send"); await page.waitForTimeout(700);
+  const titles = await page.evaluate(() => [...new Set(window.__titles)]);
+  check("the tab follows the drop, step by step", titles.includes("Checking \u00b7 Octopus") && titles.some(t => /^Filing \d+ of 3 \u00b7 Octopus$/.test(t))
+    && (await page.title()) === "Octopus", titles.join(" | "));
   const planned = await page.evaluate(() => ({
     n: window.__plans.length, sizes: window.__plans.map(p => p.ext.topics.length),
     proposed: window.__plans.map(p => (p.proposed || []).length),
@@ -801,7 +812,14 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click('#mode button[data-m="drop"]');
   await page.fill("#srcInput", found === "youtube" ? "https://youtu.be/goldTalk42" : "Offers talk");
   await page.fill("#input", "Stack the offer until saying no feels stupid.");
+  /* The tab is looked away from while it works. */
+  if (found === "") await page.evaluate(() => { window.__hidden = true; Object.defineProperty(document, "hidden", { get: () => window.__hidden, configurable: true }); });
   await page.click("#send"); await page.waitForTimeout(900);
+  if (found === "") {
+    check("a card that lands in a hidden tab says so in the tab", await page.title() === "Card ready \u00b7 Octopus", await page.title());
+    await page.evaluate(() => { window.__hidden = false; document.dispatchEvent(new Event("visibilitychange")); });
+    check("and the tab goes back to its name once looked at", await page.title() === "Octopus", await page.title());
+  }
   const f = await page.evaluate(() => ({ value: document.getElementById("cardAuthor")?.value,
     shown: !document.getElementById("cardAuthor")?.hidden, pick: !!document.getElementById("cardAuthorPick"),
     options: [...(document.getElementById("cardAuthorPick")?.options || [])].map(o => o.textContent) }));
@@ -910,6 +928,19 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("no field under 16px, which makes iPhone zoom", !r.small.length, r.small.join(","));
   check("every composer button reaches 40px", !r.short.length, r.short.join(","));
   check("the send button stays on screen in Drop", r.sendIn);
+
+  /* Ask: the levels sit on a row of their own, every button on screen. */
+  await page.click('#mode button[data-m="ask"]'); await page.waitForTimeout(100);
+  const lv = await page.evaluate(() => {
+    const W = document.documentElement.clientWidth, c = document.querySelector(".ctrls");
+    const mode = document.getElementById("mode").getBoundingClientRect(), wrap = document.getElementById("levelWrap").getBoundingClientRect();
+    return { W, off: [...document.querySelectorAll("#level button, #mode button, #scopeBtn")].filter(b => {
+        const r = b.getBoundingClientRect(); return r.left < 0 || r.right > W; }).map(b => b.dataset.v || b.id || b.textContent.trim()),
+      scrolls: c.scrollWidth > c.clientWidth + 1, below: wrap.top >= mode.bottom, wide: Math.round(wrap.width),
+      tall: [...document.querySelectorAll("#level button")].every(b => b.getBoundingClientRect().height >= 40) };
+  });
+  check("on a phone the levels take their own row, every button on screen", !lv.off.length && !lv.scrolls && lv.below && lv.wide >= 300 && lv.tall,
+    JSON.stringify(lv));
 
   await page.click("#burger"); await page.waitForTimeout(300);
   const open = await page.evaluate(() => document.getElementById("side").classList.contains("open"));

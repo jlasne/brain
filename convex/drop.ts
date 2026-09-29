@@ -73,8 +73,9 @@ RULES
   argument: passages arguing the same idea from several angles are one concept. File the ideas, not the passages.
   unknown: judge from the topics which of the two the source is.
 - Before replying, walk every "###" topic under THE NEW SOURCE. Each one ends up under "matched" or "candidates", unless it falls outside every brain's scope or is thin.
-- "matched" = an EXISTING concept this source adds to. Copy its id exactly as listed below, in the form brain/slug. One entry per concept touched. "whatItAdds" says what this source contributes to it.
-- "candidates" = a NEW concept this source argues for, one no listed concept covers. Give a short title, the brain slug it belongs in, and why.
+- "matched" = an EXISTING concept this source adds to. Copy its id exactly as listed below, in the form brain/slug. One entry per concept touched. "whatItAdds" is what this source says about it.
+- "candidates" = a NEW concept this source argues for, one no listed concept covers. Give a short title, the brain slug it belongs in, and in "why" the idea itself.
+- "whatItAdds" and "why" are stored as evidence, word for word, so each one is the CLAIM ITSELF, with its numbers, as a reader would quote it: "Gold and bonds returned the same since 1973, with large missed moves." Never describe the source or the filing: no "the source presents", "adds", "reinforces", "provides", "not covered by existing concepts", "new to the list".
 - EVERY item in "new" MUST also be filed: under "matched" when a listed concept covers it, under "candidates" when none does. An idea belonging to no concept and needing no new one is thin, not new.
 - So "matched" and "candidates" are both empty only when "new" is empty too.
 - "related" links a concept to up to 4 others it builds on, explains, or is used with: a listed concept by its id brain/slug, or a candidate proposed in this reply by brain/its title. Leave it empty when nothing connects. These links are how an answer moves from one concept to the next.
@@ -148,6 +149,7 @@ export const REWRITE_RULES =
 
 RULES
 - One view per position, a few lines, stating what holds.
+- Write about the subject, never about the filing: no "the source", "this concept", "not covered by existing concepts", "new to the list", "NEW:".
 - Obey MY DECISION on every concept that carries one. It is the owner's ruling, so it outranks your own reading of the evidence.
 - NEW means the position flips to the new claim, and the old view moves into evidence with its date.
 - OLD means the stored position holds, and the new claim joins the evidence as a minority view.
@@ -562,6 +564,34 @@ export async function dropMerge(ctx: any, who: Who, b: any, key?: string, model?
 }
 
 /**
+ * A claim as it should be stored: the idea, never a note about the source or
+ * about how it was filed.
+ *
+ * The planner described its own filing ("which is not explicitly covered by
+ * existing concepts", "The source presents...") and those words landed in 69
+ * of 329 positions, read by every answer and adding nothing. The rules now ask
+ * for the claim itself; this catches what slips through, on new writes only.
+ */
+const FILING = /\b(?:not\s+(?:explicitly\s+|fully\s+|yet\s+|directly\s+)?(?:covered|captured|present|mentioned|included|listed)\s+(?:by|in|among)\s+(?:any\s+)?(?:of\s+)?(?:the\s+)?(?:existing|listed|current|stored|other)\s+(?:concepts?|list|positions?)|absent\s+from\s+(?:the\s+)?existing\s+concepts?|new\s+to\s+(?:the\s+)?existing\s+(?:list|concepts?)|could\s+be\s+a\s+new\s+concept)\b/i;
+const ABOUT = /^(?:(?:the|this)\s+source\s+(?:extensively\s+)?(?:presents|proposes|introduces|adds|discusses|emphasi[sz]es|reinforces|provides|highlights|argues|suggests|illustrates|describes|explains|notes|claims|states|shows|outlines|covers|details|offers|gives)|(?:adds|reinforces|reaffirms|emphasi[sz]es|highlights|echoes|supports|extends|confirms|illustrates)(?:\s+(?:and\s+clarifies\s+)?the\s+(?:idea|view|point|distinction|claim))?|(?:argues|suggests|notes|claims|states|shows|explains|warns|stresses)(?=\s+that\b))\s+(?:that\s+)?/i;
+export function plainClaim(t: any): string {
+  const out: string[] = [];
+  for (let s of String(str(t)).replace(/^\s*NEW:\s*/i, "").split(/(?<=[.!?])\s+/)) {
+    const at = s.search(FILING);
+    if (at >= 0) {
+      /* A clause about the filing is cut; a sentence that is nothing else goes. */
+      const kept = s.slice(0, at).replace(/[,;:]?\s*(?:which|that|and|this|it)?\s*(?:is|are|was)?\s*$/i, "").trim();
+      if (kept.split(/\s+/).length < 3) continue;
+      s = kept + ".";
+    }
+    /* Only a sentence that lost its opening words is given a capital again. */
+    const cut = s.replace(ABOUT, "");
+    if (cut) out.push(cut === s ? s : cut.charAt(0).toUpperCase() + cut.slice(1));
+  }
+  return out.join(" ").trim();
+}
+
+/**
  * Whether a source names who wrote or said it.
  *
  * Every drop is stored under a named author: the person confirms the name the
@@ -802,13 +832,14 @@ ${excerptFor(ext.topics ?? [], touched)}`;
        makes a resumed store, and a source read again, add nothing twice. */
     const fresh = !(c.sources ?? []).includes(sid);
     const ev = fresh
-      ? [{ date: ext.date || today(), author: ext.author || "unknown", claim: String(adds ?? "").slice(0, 240), source: sid }, ...(c.evidence ?? [])]
+      ? [{ date: ext.date || today(), author: ext.author || "unknown", claim: plainClaim(adds).slice(0, 240), source: sid }, ...(c.evidence ?? [])]
       : (c.evidence ?? []);
     await ctx.runMutation(internal.store.upsertConcept, {
       brain: c.brain, title: c.title, slug: c.slug,
       doc: {
-        position: str(rw.position) || c.position || "",
-        summaryLine: str(rw.summaryLine) || c.summaryLine || "",
+        /* A new write is stated plainly; a position left as it was stays so. */
+        position: plainClaim(rw.position) || c.position || "",
+        summaryLine: plainClaim(rw.summaryLine) || c.summaryLine || "",
         evidence: compress(ev),
         /* The model's figures lead and the stored ones follow, so a rewrite
            that forgot them loses none. Conflicts the same way. */

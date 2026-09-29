@@ -32,7 +32,7 @@ const { handleRpc, versionOk } = await import(pathToFileURL(join(dir, "bundle.mj
 const MENTIONS = 1;
 await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle-drop.mjs"), logLevel: "silent" });
-const { dropSettle, fetchPage, planContext, dropMerge, dropPlan, youtubeChannel } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
+const { dropSettle, fetchPage, planContext, dropMerge, dropPlan, youtubeChannel, plainClaim, PLAN_RULES: RULES_P, REWRITE_RULES } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle-words.mjs"), logLevel: "silent" });
 const { findByTitle, cardOf } = await import(pathToFileURL(join(dir, "bundle-words.mjs")).href);
@@ -457,6 +457,36 @@ let job = "";
   globalThis.fetch = async () => { throw new Error("offline"); };
   check("a channel YouTube will not give is just no channel", await youtubeChannel("https://youtu.be/zzz999") === "");
   globalThis.fetch = real;
+}
+
+/* ---- a new write states the claim, never a note about the filing ---- */
+{
+  const cases = [
+    ["The source presents a gold/bond ratio to position assets, which is not explicitly covered by existing concepts.",
+     "A gold/bond ratio to position assets."],
+    ["NEW: A four-quadrant framework. Rule: switch on a 7-year moving average.", "A four-quadrant framework. Rule: switch on a 7-year moving average."],
+    ["Argues that the state can seize wealth under law 512. New to existing list.", "The state can seize wealth under law 512."],
+    ["Reinforces the idea that gold is a risk-reducing asset.", "Gold is a risk-reducing asset."],
+    ["Concrete 4% real return via equal parts cash, bonds, gold, stocks; not mentioned in existing concepts.", "Concrete 4% real return via equal parts cash, bonds, gold, stocks."],
+    ["Gold and bonds returned the same since 1973.", "Gold and bonds returned the same since 1973."],
+    ["The source of inflation is money growth above output.", "The source of inflation is money growth above output."],
+  ];
+  const off = cases.filter(([a, b]) => plainClaim(a) !== b).map(([a, b]) => `${plainClaim(a)} | wanted ${b}`);
+  check("filing notes come off a claim, and a claim about the subject stays whole", !off.length, off.join(" || "));
+  check("the planner is told to write the claim itself", /CLAIM ITSELF/.test(RULES_P) && /no "the source presents"/.test(RULES_P));
+  check("and the rewriter to write about the subject", /never about the filing/.test(REWRITE_RULES));
+
+  const before = DB.writes.length;
+  await dropSettle(ctx, { account:"octopus", kind:"owner", space:"octopus" }, {
+    ext:{ ...EXT, title:"Filing notes", author:"Marc Durand" }, sid:"s-filing",
+    plan:{ brains:["content"], matched:[], new:["x"], echo:[], conflicts:[],
+      candidates:[{ title:"Gold bond ratio", brain:"content", why:"The source presents a gold/bond ratio, which is not explicitly covered by existing concepts." }] },
+    rewrites:[{ conceptId:"content/gold-bond-ratio", position:"NEW: Switch gold and bonds on a 7-year average. Not covered by existing concepts.",
+      summaryLine:"Adds the idea that a 7-year average times the switch." }] });
+  const w = DB.writes.slice(before).find(x => x.kind === "concept")?.doc;
+  check("a new concept stores the claim as its evidence", w?.evidence?.[0]?.claim === "A gold/bond ratio.", JSON.stringify(w?.evidence?.[0]));
+  check("and its position and line with no filing words", w?.position === "Switch gold and bonds on a 7-year average."
+    && w?.summaryLine === "A 7-year average times the switch.", `${w?.position} | ${w?.summaryLine}`);
 }
 
 /* ---- an answer says where it comes from, in one label ---- */

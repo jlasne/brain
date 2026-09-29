@@ -449,6 +449,12 @@
     margin-top:14px; padding-top:11px; border-top:1px solid var(--line);
     font:400 12px/1.6 var(--mono); color:var(--ink-3);
   }
+  .ans-acts{ display:flex; gap:6px; margin-top:10px; }
+  .mini{
+    min-height:30px; padding:4px 10px; border:1px solid var(--line); border-radius:6px; background:transparent;
+    font:500 12px/1 var(--sans); color:var(--ink-3); cursor:pointer;
+  }
+  .mini:hover{ border-color:var(--accent-line); color:var(--accent); }
   .smallbrain{
     display:inline-block; margin-bottom:10px;
     font:400 11px/1.5 var(--mono); color:var(--accent);
@@ -836,19 +842,16 @@
     /* The name goes back to the door, so it is a target too. */
     .topbar h1 a, .brand h1 a{ display:inline-block; padding:12px 4px; margin:0 -4px; }
 
-    /* The composer's controls stay on one row that scrolls sideways, instead
-       of wrapping into three rows that took a third of the screen. */
-    .ctrls{
-      flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;
-      margin:0 -16px 9px; padding:0 16px; -webkit-overflow-scrolling:touch;
-    }
-    .ctrls::-webkit-scrollbar{ display:none; }
+    /* Two rows, nothing off screen: Ask or Drop and the brains first, then
+       the levels and New thread. One row that scrolled sideways hid the
+       levels past the edge. */
+    .ctrls{ flex-wrap:wrap; row-gap:8px; margin:0 0 9px; }
+    .ctrls > *{ flex-shrink:0; }
     /* A soft edge says the row goes on. */
-    .ctrls, .tools{
+    .tools{
       -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 28px), transparent);
               mask-image:linear-gradient(to right, #000 calc(100% - 28px), transparent);
     }
-    .ctrls > *{ flex-shrink:0; }
     .seg button{ min-height:42px; padding:0 17px; font-size:14px; }
     .scope{ min-height:44px; }
     .scope label{ font-size:14px; }
@@ -906,10 +909,19 @@
   @keyframes up{ from{ transform:translateY(24px); opacity:0; } }
 
   @media (max-width:520px){
-    /* On a phone the icons carry the levels, and the line under the box names
-       the one picked. */
-    .seg.lv button span{ display:none; }
-    .seg.lv button{ padding:0 14px; }
+    /* On a phone, two rows: Ask or Drop and the brains, then the levels with
+       New thread beside them. */
+    .ctrls{ display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:8px; }
+    #mode{ grid-area:1 / 1; }
+    #scopeBtn{ grid-area:1 / 2 / 2 / 4; max-width:none; min-width:0; }
+    #levelWrap{ grid-area:2 / 1 / 3 / 3; display:flex; }
+    #levelWrap:has(~ #freshBtn[hidden]){ grid-column:1 / 4; }
+    #levelWrap[hidden]{ display:none; }
+    #freshBtn{ grid-area:2 / 3; }
+    #levelWrap .seg.lv{ flex:1; }
+    #levelWrap .seg.lv button{ flex:1; justify-content:center; }
+    /* The level picked shows its name; the others show their icon. */
+    .seg.lv button{ padding:0 12px; }
     .col, .composer, .foot-note{ padding-left:16px; padding-right:16px; }
     .zero{ padding-left:16px; padding-right:16px; }
     .card-grid{ grid-template-columns:1fr; gap:4px 0; }
@@ -1552,7 +1564,27 @@ const WAITING = {
  * and it changes while the wait lasts. A drop's steps pass their own label,
  * because "part 3 of 8" says more than a joke.
  */
+/**
+ * The browser tab says what a drop is doing, so a long one can run while
+ * another tab is open: "Reading 3 of 8 · Octopus". A card or a store that
+ * lands while the tab is hidden says so until the tab is looked at.
+ */
+function tabTitle(step){ document.title = step ? `${step} \u00b7 ${S.spaceName}` : S.spaceName; }
+function tabStep(label){
+  const t = String(label || ""), n = t.match(/(\d+) of (\d+)/), of = n ? ` ${n[1]} of ${n[2]}` : "";
+  const step = /^Checking for a repeat/.test(t) ? "Checking"
+    : /^Opening the link/.test(t) ? "Opening"
+    : /^Reading/.test(t) ? "Reading" + of
+    : /^Comparing against/.test(t) ? "Filing" + of
+    : /^Rewriting the positions/.test(t) ? "Storing" + of : "";
+  if (step) tabTitle(step);
+}
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && /^(Card ready|Stored) /.test(document.title)) tabTitle("");
+});
+
 function thinking(label){
+  tabStep(label);
   return push("ai", b => {
     const t = el("div","thinking"), mark = el("span","spinner");
     mark.setAttribute("aria-hidden", "true");
@@ -1575,12 +1607,14 @@ function thinking(label){
   });
 }
 function setThinking(body, label){
+  tabStep(label);
   const t = body.querySelector(".thinking");
   const s = body.querySelector(".thinking .tl");
   if (t) t.dataset.fixed = "1";
   if (s) s.textContent = label;
 }
 function fail(body, msg){
+  tabTitle("");
   body.innerHTML = "";
   const e = el("div","err");
   e.append(el("b",null,"Nothing was stored"), el("span",null,msg || "Something failed on the way. Send it again."));
@@ -2153,7 +2187,7 @@ function pickOptions(){
   return out;
 }
 
-function openPagerSheet(){
+function openPagerSheet(pre = {}){
   closeSide();
   const here = S.brains.find(b => b.slug === S.scope);
   const people = S.brains.some(b => b.type === "person");
@@ -2185,7 +2219,7 @@ function openPagerSheet(){
     </div>`;
   document.body.append(veil);
 
-  let pick = here ? here.slug : "all";
+  let pick = pre.pick && (pre.pick === "all" || S.brains.some(b => b.slug === pre.pick)) ? pre.pick : here ? here.slug : "all";
   /* Summary lays out the positions in bullets, free, or answers the question
      in 9 bullets. Custom writes a document of the type picked, in its own
      format, with one model call. */
@@ -2234,6 +2268,7 @@ function openPagerSheet(){
   const shut = () => veil.remove();
   veil.querySelector("#pCancel").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
+  if (pre.q) veil.querySelector("#pQ").value = pre.q;
   setTimeout(() => veil.querySelector("#pQ").focus(), 30);
 
   /* The button says what it will do: build, or build and send. */
@@ -2533,7 +2568,11 @@ async function go(){
   if (S.mode === "drop") $("srcInput").value = "";
   S.busy = true; renderComposer();
   try { S.mode==="drop" ? await doDrop(src, text) : await doAsk(text); }
-  finally { S.busy = false; renderComposer(); }
+  finally {
+    S.busy = false; renderComposer();
+    /* A drop that ended without a card leaves no step running. */
+    if (!S.pendingCard && !/^Card ready /.test(document.title)) tabTitle("");
+  }
 }
 
 /* ---------- ask ---------- */
@@ -2551,6 +2590,18 @@ async function doAsk(q){
     if (r.sources > 0 && r.sources < 10)
       body.append(el("div","smallbrain",`Small brain: ${r.sources} source${r.sources===1?"":"s"} behind this`));
     const out = el("div"); out.innerHTML = splitAnswer(r.answer); body.append(out);
+    /* Two small actions: the answer to the clipboard, or the same question
+       as a one-pager. */
+    const acts = el("div","ans-acts"), asked = S.scope;
+    const cp = el("button","mini","Copy");
+    cp.onclick = async () => {
+      try { await navigator.clipboard.writeText(String(r.answer ?? "")); cp.textContent = "Copied"; }
+      catch { cp.textContent = "Blocked"; }
+      setTimeout(() => { cp.textContent = "Copy"; }, 1600);
+    };
+    const pg = el("button","mini","One-pager from this");
+    pg.onclick = () => openPagerSheet({ q, pick: asked });
+    acts.append(cp, pg); body.append(acts);
     /* Six turns is what a thread of follow-ups runs to before the subject has
        moved anyway. Only the last four travel. */
     S.thread.push({ q, a: String(r.answer ?? "") });
@@ -2997,6 +3048,7 @@ async function planAndCard(body, sid, link, ext, len, held){
                   ...(plan.conflicts||[]).filter(c=>c.kind!=="flip")];
   const pc = { sid, link, ext, plan, choices:{}, byKey:{}, len };
   S.pendingCard = pc; renderComposer();
+  tabTitle(document.hidden ? "Card ready" : "");
 
   body.innerHTML = "";
   body.append(buildCard(pc, decide));
@@ -3174,6 +3226,7 @@ function buildCard(pc, decide){
     try {
       const r = await storeAll(pc, (i, n) => { if (n > 1) setThinking(b2, `Rewriting the positions it touched, part ${i} of ${n}`); });
       card.remove(); await refresh();
+      tabTitle(document.hidden ? "Stored" : "");
       b2.innerHTML = "";
       b2.append(receipt(r, pc));
       bottom();
