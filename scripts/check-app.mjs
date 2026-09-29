@@ -528,7 +528,7 @@ for (const kind of ["study", "argument"]) {
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test");
     const topics = Array.from({ length: 60 }, (_, i) => ({ topic: `Rule ${i + 1}`, ideas: [`Rule ${i + 1} works like this.`], data: [] }));
-    window.__plans = []; window.__settles = []; window.__live = 0; window.__peak = 0; window.__failOnce = true;
+    window.__plans = []; window.__settles = []; window.__live = 0; window.__peak = 0; window.__failHard = 2;
     window.__bodies = []; window.__links = [];
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}");
@@ -547,10 +547,14 @@ for (const kind of ["study", "argument"]) {
         window.__live++; window.__peak = Math.max(window.__peak, window.__live);
         await new Promise(ok => setTimeout(ok, 40));
         window.__live--;
-        /* The fourth batch fails once, the way a timeout would. */
-        if (window.__failOnce && body.plan.candidates[0]?.title === "Rule 25") {
-          window.__failOnce = false;
-          return Response.json({ error: "was still writing after 150 seconds" });
+        /* A part holding Rule 25 is too big for one call until it is down to
+           two concepts. A part holding Rule 41 fails once for another reason. */
+        const titles = body.plan.candidates.map(c => c.title);
+        if (titles.includes("Rule 25") && titles.length > 2)
+          return Response.json({ error: "deepseek/deepseek-v4-flash was still writing after 150 seconds. The job was too big for one call." });
+        if (window.__failHard && titles.includes("Rule 41")) {
+          window.__failHard--;
+          return Response.json({ error: "that part could not be written" });
         }
         window.__settles.push(body.plan.candidates.map(c => c.title));
         return Response.json({ sid: "s-long", brains: ["content"], positions: body.plan.candidates.length, counted: [],
@@ -595,7 +599,11 @@ for (const kind of ["study", "argument"]) {
   check("with a name, every part is stored under it", sentAs.length === 1 && sentAs[0] === "Jane Roe", JSON.stringify(sentAs));
   const first = await page.evaluate(() => ({ stored: window.__settles.flat().length, peak: window.__peak,
     msg: [...document.querySelectorAll(".msg.ai")].pop()?.textContent || "" }));
-  check("a failed batch says how much is already stored", /Part of it is stored/.test(first.msg) && /of 8 parts are stored/.test(first.msg), first.msg.slice(0, 120));
+  const split = await page.evaluate(() => window.__settles.filter(t => t.some(x => /^Rule (2[5-9]|3[0-2])$/.test(x))).map(t => t.length));
+  check("a part too big for one call is split by itself until it fits", split.join(",") === "2,2,4", split.join(","));
+  check("a part that failed for another reason says how much is stored", /Part of it is stored/.test(first.msg)
+    && /52 of 60 concepts are stored/.test(first.msg), first.msg.slice(0, 160));
+  check("after the other parts, and one more try of its own", await page.evaluate(() => window.__failHard) === 0);
   check("never more than 3 calls at once", first.peak <= 3 && first.peak >= 2, String(first.peak));
 
   await page.click(".card-foot .go"); await page.waitForTimeout(900);
@@ -604,7 +612,7 @@ for (const kind of ["study", "argument"]) {
     return { total: all.length, unique: new Set(all).size, receipt: document.querySelector(".receipt")?.textContent || "" };
   });
   check("Store it again finishes the rest", done.total === 60, String(done.total));
-  check("and repeats no batch already stored", done.unique === 60, `${done.unique} unique of ${done.total}`);
+  check("and repeats no concept already stored", done.unique === 60, `${done.unique} unique of ${done.total}`);
   check("the receipt counts every position", /Rewritten: 60 positions/.test(done.receipt), done.receipt.slice(0, 120));
   check("nothing threw across the batches", !bad.length, bad.join(" | "));
   const sent = await page.evaluate(() => ({ bodies: window.__bodies, links: window.__links }));
@@ -946,6 +954,48 @@ for (const space of ["octopus", "squidgy"]) {
     check("and Squidgy waits with its turning mark", /squidgy-mark/.test(spin?.bg || "") && spin?.anim === "turn", JSON.stringify(spin));
   }
   check(`nothing threw in the empty ${space} chat`, !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- a pass or a plan too big for one call splits by itself ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__reads = []; window.__plans = []; let n = 0;
+    const slow = { error: "deepseek/deepseek-v4-flash was still writing after 150 seconds. The job was too big for one call." };
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/drop/check")) return Response.json({ duplicate: false, sid: "s-big" });
+      if (s.includes("/api/drop/read")) {
+        window.__reads.push(body.chunk.length);
+        if (body.chunk.length > 10000) return Response.json(slow);
+        return Response.json({ part: { title: "Big course", author: "Ada Lane", kind: "study",
+          topics: Array.from({ length: Math.ceil(body.chunk.length / 1000) }, () => ({ topic: `Topic ${++n}`, ideas: ["x"], data: [] })) } });
+      }
+      if (s.includes("/api/drop/plan")) {
+        window.__plans.push(body.ext.topics.length);
+        if (body.ext.topics.length > 10) return Response.json(slow);
+        return Response.json({ plan: { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
+          candidates: body.ext.topics.map(t => ({ title: t.topic, brain: "content", why: "taught" })) } });
+      }
+      return Response.json({});
+    };
+  }, STATE);
+  await page.click('#mode button[data-m="drop"]');
+  await page.fill("#srcInput", "Big course.pdf");
+  /* 20,000 characters in paragraphs: an 18,000 pass that must split, and a 2,000 one. */
+  await page.fill("#input", Array.from({ length: 100 }, (_, i) => `Paragraph ${i} ` + "word ".repeat(38)).join("\n\n"));
+  await page.click("#send"); await page.waitForTimeout(2500);
+  const r = await page.evaluate(() => ({ reads: window.__reads, plans: window.__plans,
+    note: document.querySelector(".coverage")?.textContent || "", card: !!document.querySelector(".card-foot .go"),
+    err: document.querySelector(".err")?.textContent || "" }));
+  check("a pass too big for one call is read again as two halves", r.reads[0] > 10000 && r.reads.filter(x => x <= 10000).length >= 3 && !r.err,
+    JSON.stringify(r.reads) + " " + r.err);
+  check("a plan too big for one call is split until it fits, and every topic is filed",
+    r.plans.some(x => x > 10) && r.card && /filed into (\d+) concepts/.test(r.note)
+    && /(\d+) passages read, filed into \1 concepts/.test(r.note), JSON.stringify(r.plans) + " " + r.note);
+  check("nothing threw splitting", !bad.length, bad.join(" | "));
   await page.close();
 }
 

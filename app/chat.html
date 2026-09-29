@@ -1156,11 +1156,20 @@ async function api(path, body = {}) {
  * Reading and planning a long document is about 40 calls. One busy model or
  * one dropped connection among them used to throw the whole reading away.
  */
-async function apiRetry(path, body = {}){
+/**
+ * The model ran out of time on a job this big. The same call again runs out
+ * the same way, so the caller splits the job in two instead of retrying it.
+ */
+const tooBig = e => /still\s(thinking|writing)|sent nothing for|too big for one call|cut off by the token budget|ran past 3 minutes/i
+  .test(String(e?.message || ""));
+
+async function apiRetry(path, body = {}, opts = {}){
   for (let n = 1; ; n++){
     try { return await api(path, body); }
     catch (e) {
-      const passing = /did not answer|ran past|timed out|still\s(thinking|writing)|429|rate limit|overloaded|busy|50[0-9]|temporar|unreadable|cut off/i
+      /* A job too big for one call goes back to be split, not sent again. */
+      if (opts.split && tooBig(e)) throw e;
+      const passing = /did not answer|unreachable|ran past|timed out|still\s(thinking|writing)|429|rate limit|overloaded|busy|50[0-9]|temporar|unreadable|cut off/i
         .test(e.message);
       if (!passing || n >= 3 || e.message === "locked") throw e;
       await new Promise(ok => setTimeout(ok, n * 2500));
@@ -2847,12 +2856,25 @@ async function doDrop(src, content, again){
   const parts = new Array(chunks.length);
   let nextRead = 0, readDone = 0, readErr = null;
   setThinking(body, chunks.length>1 ? `Reading, pass 0 of ${chunks.length}` : "Reading the source");
+  /* A pass the model runs out of time on is read again as two halves, cut at a
+     paragraph or a sentence, and the halves read as one part. */
+  const readText = async (text, i) => {
+    try { return (await apiRetry("/api/drop/read", { chunk: text, part: i+1, total: chunks.length }, { split: true })).part || {}; }
+    catch (e) {
+      if (!tooBig(e) || text.length < 3000) throw e;
+      const mid = text.length >> 1;
+      const at = [text.lastIndexOf("\n\n", mid + 2000), text.lastIndexOf(". ", mid + 2000)].find(x => x > mid - 2000) ?? mid;
+      const cut = at > 0 ? at + 1 : mid;
+      const [a, b] = [await readText(text.slice(0, cut), i), await readText(text.slice(cut), i)];
+      return { ...b, ...a, topics: [...(a.topics || []), ...(b.topics || [])],
+               quotes: [...(a.quotes || []), ...(b.quotes || [])], thin: [...(a.thin || []), ...(b.thin || [])] };
+    }
+  };
   const reader = async () => {
     while (nextRead < chunks.length && !readErr){
       const i = nextRead++;
       try {
-        const r = await apiRetry("/api/drop/read", { chunk: chunks[i], part: i+1, total: chunks.length });
-        parts[i] = r.part || {};
+        parts[i] = await readText(chunks[i], i);
         if (chunks.length > 1) setThinking(body, `Reading, pass ${++readDone} of ${chunks.length}`);
       } catch(e){ readErr = readErr || e; }
     }
@@ -2950,13 +2972,21 @@ async function planAll(ext, held, progress){
     const id = conceptSlug(title), t = String(title || "").trim().toLowerCase();
     return S.concepts.find(x => x.brain === brain && (x.slug === id || String(x.title || "").trim().toLowerCase() === t));
   };
-  const planOne = i => apiRetry("/api/drop/plan", {
-      ext: { ...ext, topics: batches[i] },
+  /* A part the model runs out of time on is planned again as two halves, and
+     both plans are absorbed. */
+  const planOne = i => planTopics(batches[i]);
+  const planTopics = topics => planCall(topics).then(p => [p]).catch(async e => {
+    if (!tooBig(e) || topics.length < 2) throw e;
+    const h = Math.ceil(topics.length / 2);
+    return [...await planTopics(topics.slice(0, h)), ...await planTopics(topics.slice(h))];
+  });
+  const planCall = topics => apiRetry("/api/drop/plan", {
+      ext: { ...ext, topics },
       /* Several brains ticked: the plan feeds each one. None: it picks. */
       ...(S.into.length > 1 ? { brains: S.into } : { brain: S.into[0] || "all" }),
       ...(held && held.length ? { exclude: held } : {}),
       ...(merged.candidates.length ? { proposed: merged.candidates.map(c => `${c.brain} | ${c.title}`) } : {}),
-    }).then(r => r.plan || {});
+    }, { split: true }).then(r => r.plan || {});
   const absorb = p => {
     for (const b of p.brains || []) if (!merged.brains.includes(b)) merged.brains.push(b);
     for (const m of p.matched || []) addMatched(m);
@@ -2991,10 +3021,11 @@ async function planAll(ext, held, progress){
      group: a 207 page source plans in about a third of the time. */
   let done = 0;
   const tick = () => { if (batches.length > 1) progress(++done, batches.length); };
-  absorb(await planOne(0)); tick();
+  for (const p of await planOne(0)) absorb(p);
+  tick();
   for (let i = 1; i < batches.length; i += PLAN_PARALLEL){
     const group = await Promise.all(batches.slice(i, i + PLAN_PARALLEL).map((_, k) => planOne(i + k).then(p => { tick(); return p; })));
-    for (const p of group) absorb(p);
+    for (const ps of group) for (const p of ps) absorb(p);
   }
 
   /* Parts planned side by side cannot see each other's titles, so one idea
@@ -3046,24 +3077,29 @@ async function planAll(ext, held, progress){
 }
 
 /**
- * The plan stored a batch of concepts at a time, three batches at once.
+ * Store a drop, a part at a time, in one press.
  *
- * Each batch writes different concepts, and the server leaves a concept that
- * already carries this source as it is, so a batch that failed can simply run
- * again. pc.stored remembers which batches landed, and Store it resumes there.
+ * What is stored is tracked by concept, not by part, so a part the model runs
+ * out of time on is split in two and both halves go on their own, down to one
+ * concept, with nothing written twice. A press after a real failure picks up
+ * where the last one stopped.
  */
 async function storeAll(pc, progress){
   const plan = pc.plan;
+  const keyOf = u => u.matched ? "m:" + u.matched.conceptId : "c:" + unitKey(u.candidate.brain, u.candidate.title);
   const units = [
     ...(plan.matched || []).map(m => ({ matched: m })),
     ...(plan.candidates || []).map(c => ({ candidate: c })),
   ];
-  const batches = [];
-  for (let i = 0; i < units.length; i += STORE_BATCH) batches.push(units.slice(i, i + STORE_BATCH));
-  if (!batches.length) batches.push([]);
-  pc.stored = pc.stored || new Set();
+  pc.done = pc.done || new Set();
   pc.written = pc.written || new Set();
-  const earlier = [...pc.stored];
+  const earlier = units.filter(u => pc.done.has(keyOf(u))).length;
+  const todo = units.filter(u => !pc.done.has(keyOf(u)));
+  const queue = [];
+  for (let i = 0; i < todo.length; i += STORE_BATCH) queue.push(todo.slice(i, i + STORE_BATCH));
+  /* A plan with nothing to rewrite still stores its source and its note. */
+  if (!queue.length && !pc.noted) queue.push([]);
+  let total = queue.length, stored = 0;
 
   /* The source's text travels once. The first part carries it and the whole
      plan, and the server keeps both with the source's note; the other parts
@@ -3072,9 +3108,8 @@ async function storeAll(pc, progress){
   /* A note keeps 500 passages at most, to fit a database row. A longer source
      sends its text with every part, so no part reads a note cut short. */
   const every = (pc.ext.topics || []).length > 450;
-  const body = (i, whole) => {
+  const body = (part, whole) => {
     whole = whole || every || pc.sendAll;
-    const part = batches[i];
     return {
       sid: pc.sid, link: pc.link, linkLater: true,
       ext: whole ? pc.ext : slim,
@@ -3087,49 +3122,69 @@ async function storeAll(pc, progress){
   };
 
   const results = [];
-  let next = 0, done = pc.stored.size, failed = null;
-  const one = async (i, whole) => {
-    const r = await api("/api/drop/settle", body(i, whole));
-    results.push(r); pc.stored.add(i);
-    for (const id of r.written || []) pc.written.add(id);
-    if (whole) pc.noted = true;
-    /* The note kept fewer passages than the source has: the other parts send
-       the text themselves rather than read a note cut short. */
-    if (whole && r.noteTopics != null && r.noteTopics < (pc.ext.topics || []).length) pc.sendAll = true;
-    progress(++done, batches.length);
-  };
-  /* The first part alone, so the note exists before any part reads it. */
-  if (!pc.noted){
-    const first = batches.findIndex((_, i) => !pc.stored.has(i));
-    if (first >= 0){
-      try { await one(first, true); }
-      catch (e) { failed = e; }
+  const send = async part => {
+    const whole = !pc.noted;
+    try {
+      const r = await apiRetry("/api/drop/settle", body(part, whole), { split: true });
+      results.push(r);
+      for (const u of part) pc.done.add(keyOf(u));
+      for (const id of r.written || []) pc.written.add(id);
+      if (whole) pc.noted = true;
+      /* The note kept fewer passages than the source has: the other parts send
+         the text themselves rather than read a note cut short. */
+      if (whole && r.noteTopics != null && r.noteTopics < (pc.ext.topics || []).length) pc.sendAll = true;
+      progress(++stored, total);
+    } catch (e) {
+      if (!tooBig(e) || part.length < 2) throw e;
+      /* Too big for one call: two halves, the first carrying the note if it
+         is not written yet. */
+      const h = Math.ceil(part.length / 2);
+      total++;
+      await send(part.slice(0, h));
+      await send(part.slice(h));
     }
+  };
+
+  /* A part that fails for another reason does not stop the others. It gets
+     one more try once they are in, and only then does the press end short. */
+  let failed = null;
+  const again = [];
+  /* The first part alone, so the note exists before any part reads it. */
+  if (!pc.noted && queue.length){
+    const first = queue.shift();
+    try { await send(first); }
+    catch (e) { failed = e; again.push(first); }
   }
   const worker = async () => {
-    while (next < batches.length && !failed){
-      const i = next++;
-      if (pc.stored.has(i)) continue;
-      try { await one(i, !pc.noted); }
-      catch (e) { failed = failed || e; }
+    while (queue.length){
+      const part = queue.shift();
+      try { await send(part); }
+      catch (e) { failed = e; again.push(part); }
     }
   };
-  if (!failed) await Promise.all(Array.from({ length: Math.min(STORE_PARALLEL, batches.length) }, worker));
+  /* Without the note, a part cannot read the source back, so the rest waits. */
+  if (pc.noted) await Promise.all(Array.from({ length: Math.min(STORE_PARALLEL, queue.length) }, worker));
+  if (again.length){
+    failed = null;
+    for (const part of again.concat(pc.noted ? [] : queue.splice(0))){
+      try { await send(part); } catch (e) { failed = e; }
+    }
+  }
   if (failed){
-    const err = new Error(`${pc.stored.size} of ${batches.length} parts are stored. ${failed.message} ` +
-      `Press Store it again to finish: the stored parts are not repeated.`);
+    const left = units.filter(u => !pc.done.has(keyOf(u))).length;
+    const err = new Error(`${units.length - left} of ${units.length} concepts are stored. ${failed.message} ` +
+      `Press Store it again to finish: what is stored is not repeated.`);
     err.partial = true; throw err;
   }
   /* Linking runs once, in the background, over everything this drop wrote. */
   try { await api("/api/drop/link", { sid: pc.sid, ids: [...pc.written] }); } catch (_) {}
   const last = results[results.length - 1] || {};
   /* What the server wrote, not what the plan hoped for. A resumed store counts
-     the parts that landed earlier from the plan, since their answers are gone. */
+     the concepts that landed earlier from the plan, since their answers are gone. */
   return {
     sid: last.sid || pc.sid, brains: last.brains || plan.brains,
     counts: { new: (plan.new || []).length, echo: (plan.echo || []).length },
-    positions: results.reduce((n, r) => n + (r.positions || 0), 0) +
-      earlier.reduce((n, i) => n + (batches[i] || []).length, 0),
+    positions: results.reduce((n, r) => n + (r.positions || 0), 0) + earlier,
     missed: results.flatMap(r => r.missed || []),
   };
 }
