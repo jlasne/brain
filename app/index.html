@@ -67,6 +67,11 @@
   .mk{ display:block; height:56px; margin-bottom:20px; color:var(--tint); }
   .mk img{ height:56px; width:auto; display:block; }
   .mk b{ font:600 40px/56px var(--sans); letter-spacing:-.02em; }
+  /* The octopus's loop in place of its still mark. Its frame holds the
+     sparkles and the landing ring around a body about half its width, so it
+     runs at twice the mark's height and gives the extra back in margins: the
+     doors still line up at 56 pixels. */
+  .mk .loop{ display:block; width:112px; height:112px; margin:-40px 0 -16px -26px; pointer-events:none; }
 
   .door h1{
     font-size:clamp(27px,3.3vw,36px); line-height:1.04; letter-spacing:-.032em;
@@ -190,6 +195,27 @@
     if (d.error) throw new Error(d.error);
     return d;
   };
+
+  /**
+   * The Octopus door plays the octopus's loop. The WebM keeps its
+   * transparency in 271 KB; Safari and every iPhone browser play WebM without
+   * it, so they get the animated WebP. Asked for less motion, the still mark
+   * stays.
+   */
+  function octopusLoop(){
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const img = $("imgOctopus"), ua = navigator.userAgent;
+    const webkit = /iPhone|iPad|iPod/.test(ua) || (/Safari\//.test(ua) && !/Chrome|Chromium|Edg|OPR|Firefox/.test(ua));
+    const loop = document.createElement(webkit ? "img" : "video");
+    loop.className = "loop"; loop.setAttribute("aria-hidden", "true");
+    if (webkit){ loop.src = "/brand/octopus-loop.webp"; loop.alt = ""; }
+    else Object.assign(loop, { src: "/brand/octopus-loop.webm", autoplay: true, loop: true, muted: true, playsInline: true,
+                               disablePictureInPicture: true });
+    /* A loop that cannot play leaves the still mark where it was. */
+    loop.onerror = () => { loop.remove(); img.hidden = false; };
+    img.hidden = true;
+    img.after(loop);
+  }
 
   /* A mark with no file yet falls back to its letter, so the door still reads. */
   function markFallback(space){
@@ -317,6 +343,8 @@
     for (const s of SPACES) { markFallback(s); wire(s); }
     const one = asked();
     focusOne(one);
+    /* Only where the Octopus door shows: /squidgy loads no loop. */
+    if (one !== "squidgy") octopusLoop();
     paintDoors();
     paintTally();
     setTimeout(() => $("pass" + nameOf(one || "octopus")).focus(), 40);

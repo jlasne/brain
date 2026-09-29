@@ -1136,6 +1136,13 @@ for (const space of ["octopus", "squidgy"]) {
     set: document.getElementById("msgOctopus").textContent,
   }));
   check("both doors show on the landing", doors.both);
+  const loop = await page.evaluate(() => { const v = document.querySelector("#dOctopus .mk .loop");
+    return v ? { tag: v.tagName, src: v.getAttribute("src"), loop: v.loop, muted: v.muted, still: document.getElementById("imgOctopus").hidden,
+      h: Math.round(document.querySelector("#dOctopus .mk").getBoundingClientRect().height),
+      hs: Math.round(document.querySelector("#dSquidgy .mk").getBoundingClientRect().height) } : null; });
+  check("the Octopus door plays the octopus's loop in place of its still mark", loop?.tag === "VIDEO" && /octopus-loop\.webm$/.test(loop.src)
+    && loop.loop && loop.muted && loop.still, JSON.stringify(loop));
+  check("and the two doors still line up", loop && loop.h === loop.hs, JSON.stringify(loop));
   check("a door with no passphrase says it is shut", /Shut until its owner/.test(doors.unset), doors.unset);
   check("a door with one says nothing", doors.set === "", `"${doors.set}"`);
   await page.close();
