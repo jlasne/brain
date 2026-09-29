@@ -342,8 +342,9 @@
     width:16px; height:16px; border-radius:50%; background:var(--accent-soft); text-align:center;
   }
 
-  /* Three controls that look like controls. Underlined words read as footnotes,
-     and a person hunting for the model picker never found one. */
+  /* Controls that look like controls. Underlined words read as footnotes,
+     and a person hunting for the model picker never found one. Setup holds
+     the model and the export; the sidebar keeps Setup and Sign out. */
   .side-foot{ border-top:1px solid var(--line); padding:12px; display:grid; gap:7px; }
   .foot-btn{
     display:flex; align-items:center; gap:9px; width:100%; min-width:0;
@@ -360,7 +361,8 @@
     margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     font:400 11.5px/1.3 var(--mono); color:var(--ink-3);
   }
-  #stat.pick .val{ color:var(--accent); }
+  #setModel.pick .val{ color:var(--accent); }
+  .sheet .set-row{ display:grid; gap:7px; }
   .foot-row{ display:flex; gap:7px; }
   .foot-row .foot-btn{ justify-content:center; }
 
@@ -927,14 +929,8 @@
       <div id="brains"></div>
     </div>
     <div class="side-foot">
-      <button class="foot-btn" id="exportBtn" title="Every brain of this space, as one markdown file">
-        <span class="lbl">Export</span><span class="val">markdown</span>
-      </button>
-      <button class="foot-btn" id="stat" title="The model that answers, and what it costs">
-        <span class="lbl">Model</span><span class="val"></span>
-      </button>
       <div class="foot-row">
-        <button class="foot-btn" id="keyBtn" title="Your address for other AI clients, and the transcript service">Setup</button>
+        <button class="foot-btn" id="keyBtn" title="The model, the export, the MCP address and the transcript service">Setup</button>
         <button class="foot-btn" id="lockBtn" title="Sign out and forget your key">Sign out</button>
       </div>
     </div>
@@ -1276,12 +1272,17 @@ function renderSide(){
     }
   }
 
+}
+
+/** The model in use, as Setup names it: short on the button, whole in its title. */
+function modelLabel(){
   const live = S.pick || S.model;
-  $("stat").querySelector(".val").textContent = live ? live.split("/").pop() : "default";
-  $("stat").classList.toggle("pick", !!S.pick);
-  $("stat").title = S.pick
-    ? `${S.pick}, your choice. Click to change it. Build ${window.OCTOPUS_BUILD}.`
-    : `${S.model || "the server default"}. Click to pick another. Build ${window.OCTOPUS_BUILD}.`;
+  return {
+    val: live ? live.split("/").pop() : "default",
+    title: S.pick
+      ? `${S.pick}, your choice. Click to change it. Build ${window.OCTOPUS_BUILD}.`
+      : `${S.model || "the server default"}. Click to pick another. Build ${window.OCTOPUS_BUILD}.`,
+  };
 }
 
 /**
@@ -1614,7 +1615,7 @@ $("burger").onclick = () => $("side").classList.toggle("open");
 $("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
-$("stat").onclick = openModelSheet;
+
 $("freshBtn").onclick = () => {
   S.thread = [];
   $("thread").innerHTML = "";
@@ -1644,7 +1645,7 @@ $("input").addEventListener("drop", e => {
 });
 /* The portable form of the brains: one markdown file, downloaded. */
 window.octopusExport = exportAll;
-$("exportBtn").onclick = () => { closeSide(); exportAll(); };
+
 $("lockBtn").onclick = async () => {
   try { await api("/api/lock"); } catch(_){}
   sessionStorage.removeItem(TOKEN_KEY);
@@ -1664,11 +1665,20 @@ async function openSetupSheet(){
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Setup</h3>
-      <p>Each project has its own MCP address. This one lets Claude, ChatGPT or any MCP client read and
-        feed the ${esc(S.spaceName)} brains, and no others.</p></header>
+      <p>The model that answers in this app, the export of every ${esc(S.spaceName)} brain, and the MCP
+        address for Claude.</p></header>
 
-      <div class="f">
+      <div class="f set-row">
+        <button class="foot-btn${S.pick ? " pick" : ""}" id="setModel" title="${esc(modelLabel().title)}">
+          <span class="lbl">Model</span><span class="val">${esc(modelLabel().val)}</span></button>
+        <button class="foot-btn" id="setExport" title="Every brain of this space, as one markdown file">
+          <span class="lbl">Export</span><span class="val">markdown</span></button>
+      </div>
+
+      <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
         <label>${esc(S.spaceName)} MCP address</label>
+        <div class="hint" style="margin:0 0 8px">It lets Claude, ChatGPT or any MCP client read and feed the
+          ${esc(S.spaceName)} brains, and no others. That client's own model does the thinking.</div>
         <div id="feedSlot"></div>
       </div>
 
@@ -1685,6 +1695,17 @@ async function openSetupSheet(){
   const shut = () => veil.remove();
   veil.querySelector("#kDone").onclick = shut;
   veil.onclick = e => { if(e.target===veil) shut(); };
+
+  /* ---- the model and the export ---- */
+  veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet(); };
+  const exp = veil.querySelector("#setExport");
+  exp.onclick = async () => {
+    const v = exp.querySelector(".val");
+    v.textContent = "reading"; exp.disabled = true;
+    try { await exportAll(); v.textContent = "downloaded"; }
+    catch (e) { v.textContent = "failed"; msg.className = "bad"; msg.textContent = e.message; }
+    finally { exp.disabled = false; setTimeout(() => { v.textContent = "markdown"; }, 2000); }
+  };
 
   /* ---- the address ---- */
   const paint = (st) => {

@@ -372,15 +372,28 @@ async function boot(path, init, arg) {
   check("and it goes when the answer lands", await page.$(".thinking .spinner") === null);
 
   /* ---- the export reads whole concepts only when asked ---- */
-  const above = await page.evaluate(() => document.getElementById("exportBtn")?.nextElementSibling?.id);
-  check("Export sits just above the model", above === "stat", String(above));
-  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#exportBtn")]);
+  const side = await page.evaluate(() => ({ gone: !document.getElementById("exportBtn") && !document.getElementById("stat"),
+    foot: [...document.querySelectorAll(".side-foot button")].map(b => b.textContent.trim()).join(",") }));
+  check("the sidebar keeps Setup and Sign out only", side.gone && side.foot === "Setup,Sign out", side.foot);
+  await page.click("#burger").catch(() => {});
+  await page.evaluate(() => document.getElementById("keyBtn").click());
+  await page.waitForTimeout(150);
+  const setup = await page.evaluate(() => ({ model: document.querySelector("#setModel .val")?.textContent,
+    exp: !!document.getElementById("setExport"), order: [...document.querySelectorAll(".sheet .set-row button")].map(b => b.id).join(",") }));
+  check("Setup holds the model, then the export", setup.order === "setModel,setExport" && setup.model === "model", JSON.stringify(setup));
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#setExport")]);
   const { readFileSync } = await import("node:fs");
   const exported = readFileSync(await dl.path(), "utf8");
   check("Export downloads one markdown file", /\.md$/.test(dl.suggestedFilename()), dl.suggestedFilename());
   check("with each brain's concepts whole, read on demand", /sold out twice/.test(exported) && /31 percent/.test(exported),
     exported.slice(0, 200));
   check("page after page, until the brain is read to its end", /70% of watch time/.test(exported), exported.slice(-300));
+  await page.waitForTimeout(100);
+  check("the export says it is done", await page.textContent("#setExport .val") === "downloaded", await page.textContent("#setExport .val"));
+  await page.click("#setModel"); await page.waitForTimeout(150);
+  check("Model opens the model list in place of Setup", !!(await page.$("#mList")) && !(await page.$("#setModel")));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(80);
+  await page.evaluate(() => document.querySelectorAll(".veil").forEach(v => v.remove()));
 
   /* ---- inside a brain ---- */
   await page.click(".brain-row .ed >> text=open");
