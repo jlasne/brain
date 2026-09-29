@@ -128,6 +128,8 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/state` | Brains, concept names and summary lines, sources | Yes |
 | `/api/export` | One brain's concepts whole, 100 a page, for the markdown export | Yes |
 | `/api/concept` | One concept whole, for the brain viewer | Yes |
+| `/api/conflicts` | The open conflicts that are real contradictions. Each clash is checked once and marked | Yes |
+| `/api/conflicts/settle` | Settles one: the side that holds rewrites the position, or both hold and it only leaves the list | Yes |
 | `/api/brain` | Creates one | Yes |
 | `/api/drop/check` | The duplicate check, an index lookup. No model call, so the test button is free | Yes |
 | `/api/drop/read` | One extraction pass over one chunk | Yes |

@@ -22,6 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace } from "./space";
+import { listConflicts, settleConflict } from "./conflicts";
 
 const router = httpRouter();
 
@@ -208,6 +209,18 @@ route("/api/concept", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   const [c] = await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids: [String(b.id ?? "")] });
   return c ? { concept: c } : { error: "that concept is not in this space" };
+});
+
+/** The open conflicts that are real contradictions, for Setup. */
+route("/api/conflicts", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return await listConflicts(ctx, who.space, modelName(b));
+});
+
+/** Settle one conflict: a side holds and the position is rewritten, or both hold. */
+route("/api/conflicts/settle", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return await settleConflict(ctx, who.space, b, modelName(b));
 });
 
 /** One page of a brain's concepts whole, for the markdown export. The app

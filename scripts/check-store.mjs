@@ -17,7 +17,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-store-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 /* A query or mutation is its definition, so a test can call its handler. */
@@ -32,6 +32,9 @@ const admin = await import(pathToFileURL(join(dir, "admin.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "digest.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "digest.mjs"), logLevel: "silent" });
 const digest = await import(pathToFileURL(join(dir, "digest.mjs")).href);
+await esbuild.build({ entryPoints: [join(dir, "conflicts.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
+  platform: "node", outfile: join(dir, "conflicts.mjs"), logLevel: "silent" });
+const conflicts = await import(pathToFileURL(join(dir, "conflicts.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -328,6 +331,53 @@ function seed() {
   await run(store.connectorHolder, old.ctx, { space: "squidgy", salt: "s" });
   check("and keeps working once Squidgy has one too",
     (await run(store.accountByMcpToken, old.ctx, { token: "j".repeat(48) }))?.space === "octopus");
+}
+
+/* ---- open conflicts: checked once, the real ones settled from Setup ---- */
+{
+  const { T, ctx } = seed();
+  T.concepts[0].conflicts = [
+    { a: "Gold holds its value", aDate: "2026-01-01", b: "Gold lost 20% since January 2025", bDate: "2026-09-23", why: "one says it holds, one says it fell" },
+    { a: "Gold is antifragile", aDate: "", b: "Bitcoin is antifragile too", bDate: "2026", why: "extends it to more assets" },
+  ];
+  T.brains.push({ _id: "b9", slug: "dogs2", name: "Dogs two", type: "subject", scope: "s", space: "squidgy" });
+  T.concepts.push({ _id: "c9", brain: "dogs2", slug: "walks", n: 1, title: "Walks", position: "", summaryLine: "", evidence: [], data: [],
+    conflicts: [{ a: "one walk", b: "two walks", why: "x" }], sources: [], related: [], updated: "x" });
+  const actx = { runQuery: (ref, a) => run(store[String(ref).split(".")[1]], ctx, a),
+                 runMutation: (ref, a) => run(store[String(ref).split(".")[1]], ctx, a) };
+  const real = globalThis.fetch;
+  let calls = 0, reply = '{"real":[true,false]}';
+  globalThis.fetch = async () => { calls++; return new Response(JSON.stringify({ choices: [{ message: { content: reply } }] }), { status: 200 }); };
+  process.env.OPENROUTER_API_KEY = "sk-test";
+
+  const first = await conflicts.listConflicts(actx, "octopus");
+  check("only the real contradiction is offered, the addition is counted apart",
+    first.conflicts.length === 1 && /lost 20%/.test(first.conflicts[0].b) && first.others === 1, JSON.stringify(first));
+  check("a conflict of the other space is never listed", !JSON.stringify(first).includes("two walks"));
+  check("each clash is marked once, on the concept", T.concepts[0].conflicts[0].real === true && T.concepts[0].conflicts[1].real === false);
+  const again = await conflicts.listConflicts(actx, "octopus");
+  check("so a second look calls no model", calls === 1 && again.conflicts.length === 1, `${calls} calls`);
+
+  reply = '{"position":"NEW: Gold lost 20% since January 2025, a correction. An earlier view held that gold keeps its value (2026-01-01).","summaryLine":"Gold fell 20% since January 2025, a correction."}';
+  const c0 = first.conflicts[0];
+  const r = await conflicts.settleConflict(actx, "octopus", { id: c0.id, a: c0.a, b: c0.b, pick: "b" });
+  check("a side that holds rewrites the position around it", r.ok && /^Gold lost 20%/.test(T.concepts[0].position)
+    && T.concepts[0].summaryLine === "Gold fell 20% since January 2025, a correction.", JSON.stringify(r).slice(0, 200));
+  check("and the clash leaves the list, the other one stays", T.concepts[0].conflicts.length === 1 && /Bitcoin/.test(T.concepts[0].conflicts[0].b));
+  check("the card follows", (T.cards ?? []).find(x => x.cid === "c1")?.summaryLine === "Gold fell 20% since January 2025, a correction.",
+    JSON.stringify((T.cards ?? []).find(x => x.cid === "c1")));
+  const twice = await conflicts.settleConflict(actx, "octopus", { id: c0.id, a: c0.a, b: c0.b, pick: "a" });
+  check("a clash settled already says so", /already settled/.test(twice.error || ""), JSON.stringify(twice));
+
+  const before = calls, pos = T.concepts[0].position;
+  const c1 = T.concepts[0].conflicts[0];
+  const both = await run(store.settleConflict, ctx, { space: "octopus", id: "wealth/gold", a: c1.a, b: c1.b });
+  const bothHold = await conflicts.settleConflict(actx, "octopus", { id: "wealth/gold", a: "x", b: "y", pick: "both" });
+  check("both hold clears it and leaves the position, with no model call", both.ok && T.concepts[0].conflicts.length === 0
+    && T.concepts[0].position === pos && calls === before && bothHold.ok === false, JSON.stringify([both, bothHold]));
+  const cross = await conflicts.settleConflict(actx, "octopus", { id: "dogs2/walks", a: "one walk", b: "two walks", pick: "both" });
+  check("a conflict of the other space is never settled", cross.ok === false && T.concepts.find(c => c._id === "c9").conflicts.length === 1);
+  globalThis.fetch = real; delete process.env.OPENROUTER_API_KEY;
 }
 
 /* ---- the weekly digest: every space, what changed, no model ---- */

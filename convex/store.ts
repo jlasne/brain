@@ -684,6 +684,81 @@ export const conceptsOfBrain = internalQuery({
   },
 });
 
+/**
+ * One page of a brain's concepts that carry an open conflict, with only what
+ * settling one needs. A page reads 100 concepts, so a brain of any size is
+ * walked a page at a time.
+ */
+export const conflictsPage = internalQuery({
+  args: { space: v.optional(v.string()), brain: v.string(), cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, a) => {
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.brain)).unique();
+    if (!b || readSpace(b.space) !== readSpace(a.space)) return { items: [], next: null };
+    const p = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain))
+      .paginate({ numItems: 100, cursor: a.cursor });
+    return {
+      items: p.page.filter(c => (c.conflicts ?? []).length).map(c => ({
+        id: `${c.brain}/${c.slug}`, brain: c.brain, title: c.title, conflicts: c.conflicts })),
+      next: p.isDone ? null : p.continueCursor,
+    };
+  },
+});
+
+/* A clash is known by its two claims, which stay put while its index may not. */
+const sameClash = (x: any, a: string, b: string) => String(x?.a ?? "") === a && String(x?.b ?? "") === b;
+
+/** Whether each open conflict is a real contradiction, as a check decided once. */
+export const flagConflicts = internalMutation({
+  args: { space: v.optional(v.string()), flags: v.array(v.object({ id: v.string(), a: v.string(), b: v.string(), real: v.boolean() })) },
+  handler: async (ctx, a) => {
+    const by = new Map<string, typeof a.flags>();
+    for (const f of a.flags) by.set(f.id, [...(by.get(f.id) ?? []), f]);
+    for (const [id, fs] of by) {
+      const c = await conceptIn(ctx, a.space, id);
+      if (!c) continue;
+      const next = (c.conflicts ?? []).map((x: any) => {
+        const f = fs.find(y => sameClash(x, y.a, y.b));
+        return f ? { ...x, real: f.real } : x;
+      });
+      await ctx.db.patch(c._id, { conflicts: next });
+      await syncCard(ctx, c._id);
+    }
+  },
+});
+
+/**
+ * Settle one open conflict: it leaves the list, and when the owner picked a
+ * side, the position rewritten around it replaces the old one.
+ */
+export const settleConflict = internalMutation({
+  args: { space: v.optional(v.string()), id: v.string(), a: v.string(), b: v.string(),
+          position: v.optional(v.string()), summaryLine: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const c = await conceptIn(ctx, a.space, a.id);
+    if (!c) return { ok: false, why: "that concept is not in this space" };
+    const had = (c.conflicts ?? []).length;
+    const conflicts = (c.conflicts ?? []).filter((x: any) => !sameClash(x, a.a, a.b));
+    if (conflicts.length === had) return { ok: false, why: "that conflict is already settled" };
+    await ctx.db.patch(c._id, {
+      conflicts,
+      ...(a.position ? { position: a.position, updated: today() } : {}),
+      ...(a.summaryLine ? { summaryLine: a.summaryLine } : {}),
+    });
+    await syncCard(ctx, c._id);
+    return { ok: true };
+  },
+});
+
+/** A concept by its brain/slug id, only inside the given space. */
+async function conceptIn(ctx: any, space: string | undefined, id: string) {
+  const cut = id.indexOf("/");
+  if (cut < 1) return null;
+  const brain = id.slice(0, cut), slugged = id.slice(cut + 1);
+  const b = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", brain)).unique();
+  if (!b || readSpace(b.space) !== readSpace(space)) return null;
+  return await ctx.db.query("concepts").withIndex("by_brain_slug", (q: any) => q.eq("brain", brain).eq("slug", slugged)).unique();
+}
+
 /** One page of the card build. */
 export const cardsBatch = internalMutation({
   args: { cursor: v.union(v.string(), v.null()) },

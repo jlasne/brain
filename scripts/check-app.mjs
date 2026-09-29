@@ -878,6 +878,45 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
+/* ---- Setup: the real open conflicts, each settled in place ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__settles = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/conflicts/settle")) { window.__settles.push(body);
+        return Response.json(body.pick === "both" ? { ok: true } : { ok: true, position: "Rates fell around AI releases.", summaryLine: "Long rates fell around AI releases." }); }
+      if (s.includes("/api/conflicts")) return Response.json({ others: 8, conflicts: [
+        { id: "content/ai-rates", brain: "content", title: "Financing AI", a: "AI pushes rates up", aDate: "", b: "Rates fell around AI releases", bDate: "2026-09-01", why: "Crowding out implies higher rates" },
+        { id: "content/paywall", brain: "content", title: "Scaling at $10k MRR", a: "A hard paywall wins", aDate: "", b: "Growth runs on referrals", bDate: "", why: "" } ] });
+      return Response.json({});
+    };
+  }, STATE);
+  await page.evaluate(() => document.getElementById("keyBtn").click());
+  await page.waitForTimeout(250);
+  const shown = await page.evaluate(() => ({ count: document.getElementById("cfCount").textContent,
+    items: [...document.querySelectorAll(".cf-item")].map(x => ({ title: x.querySelector(".cf-top b").textContent,
+      sides: [...x.querySelectorAll(".cf-claim")].map(c => c.textContent), holds: x.querySelectorAll(".cf-go").length })),
+    note: [...document.querySelectorAll("#cfSlot > .hint")].map(h => h.textContent).join(" ") }));
+  check("Setup lists the real conflicts, each with both sides and a button on each",
+    shown.count === "2" && shown.items.length === 2 && shown.items[0].sides.join("|") === "AI pushes rates up|Rates fell around AI releases"
+    && shown.items.every(i => i.holds === 2), JSON.stringify(shown));
+  check("and says how many were additions, not contradictions", /8 more add detail/.test(shown.note), shown.note);
+  await page.click(".cf-item >> nth=0 >> .cf-go >> nth=1"); await page.waitForTimeout(200);
+  const one = await page.evaluate(() => ({ sent: window.__settles[0], text: document.querySelector(".cf-item.done")?.textContent,
+    count: document.getElementById("cfCount").textContent }));
+  check("This holds settles on that side and shows the new position", one.sent?.pick === "b" && one.sent?.id === "content/ai-rates"
+    && /Settled\. The position now reads: Long rates fell/.test(one.text || "") && one.count === "1", JSON.stringify(one));
+  await page.click(".cf-item:not(.done) .mini"); await page.waitForTimeout(200);
+  const two = await page.evaluate(() => ({ sent: window.__settles[1], count: document.getElementById("cfCount").textContent,
+    none: /None to settle\. 8 recorded clashes add detail/.test(document.getElementById("cfSlot").textContent) }));
+  check("Both hold clears the last one, and the list says none are left", two.sent?.pick === "both" && two.count === "" && two.none, JSON.stringify(two));
+  check("nothing threw settling conflicts", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- a drop can feed several brains at once ---- */
 {
   const three = { ...STATE, brains: [

@@ -369,6 +369,18 @@
   }
   #setModel.pick .val{ color:var(--accent); }
   .sheet .set-row{ display:grid; gap:7px; }
+  /* An open conflict: its two sides, each with the button that makes it hold. */
+  .cf-count{ font:500 11px/1 var(--mono); color:var(--accent); margin-left:6px; }
+  .cf-item{ border:1px solid var(--line-2); border-radius:10px; padding:12px; margin-bottom:10px; background:var(--surface); }
+  .cf-item.done{ border-style:dashed; }
+  .cf-top{ display:flex; align-items:baseline; gap:8px; margin-bottom:8px; font-size:14px; color:var(--ink); }
+  .cf-brain{ margin-left:auto; font:400 11px/1 var(--mono); color:var(--ink-4); white-space:nowrap; }
+  .cf-side{ display:grid; grid-template-columns:1fr auto; gap:2px 10px; align-items:center;
+            padding:8px 0; border-top:1px solid var(--line); }
+  .cf-claim{ font-size:13.5px; line-height:1.45; color:var(--ink-2); }
+  .cf-date{ grid-row:2; font:400 11px/1.4 var(--mono); color:var(--ink-4); }
+  .cf-go{ grid-row:1 / 3; grid-column:2; white-space:nowrap; }
+  .cf-why{ font-size:12.5px; color:var(--ink-3); padding:6px 0 8px; border-top:1px solid var(--line); }
   .foot-row{ display:flex; gap:7px; }
   .foot-row .foot-btn{ justify-content:center; }
 
@@ -958,7 +970,7 @@
     </div>
     <div class="side-foot">
       <div class="foot-row">
-        <button class="foot-btn" id="keyBtn" title="The model, the export, the MCP address and the transcript service">Setup</button>
+        <button class="foot-btn" id="keyBtn" title="The model, the export, open conflicts, the MCP address and the transcript service">Setup</button>
         <button class="foot-btn" id="lockBtn" title="Sign out and forget your key">Sign out</button>
       </div>
     </div>
@@ -1715,14 +1727,20 @@ async function openSetupSheet(){
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Setup</h3>
-      <p>The model that answers in this app, the export of every ${esc(S.spaceName)} brain, and the MCP
-        address for Claude.</p></header>
+      <p>The model that answers in this app, the export of every ${esc(S.spaceName)} brain, the open
+        conflicts to settle, and the MCP address for Claude.</p></header>
 
       <div class="f set-row">
         <button class="foot-btn${S.pick ? " pick" : ""}" id="setModel" title="${esc(modelLabel().title)}">
           <span class="lbl">Model</span><span class="val">${esc(modelLabel().val)}</span></button>
         <button class="foot-btn" id="setExport" title="Every brain of this space, as one markdown file">
           <span class="lbl">Export</span><span class="val">markdown</span></button>
+      </div>
+
+      <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
+        <label>Open conflicts <b id="cfCount" class="cf-count"></b></label>
+        <div class="hint" style="margin:0 0 8px">Contradictions a drop left on "keep both". Rule on each one here.</div>
+        <div id="cfSlot"></div>
       </div>
 
       <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
@@ -1756,6 +1774,63 @@ async function openSetupSheet(){
     catch (e) { v.textContent = "failed"; msg.className = "bad"; msg.textContent = e.message; }
     finally { exp.disabled = false; setTimeout(() => { v.textContent = "markdown"; }, 2000); }
   };
+
+  /* ---- open conflicts: only the real contradictions, each one settled here ---- */
+  const cfSlot = veil.querySelector("#cfSlot"), cfCount = veil.querySelector("#cfCount");
+  const brainName = slug => S.brains.find(x => x.slug === slug)?.name || slug;
+  let left = 0, others = 0;
+  const paintCount = () => { cfCount.textContent = left ? String(left) : ""; };
+  const none = () => el("div","hint", others
+    ? `None to settle. ${others} recorded clash${others === 1 ? " adds" : "es add"} detail rather than contradict${others === 1 ? "s" : ""}, so ${others === 1 ? "it stays" : "they stay"} off this list.`
+    : "None to settle.");
+  const conflictRow = c => {
+    const box = el("div","cf-item");
+    const top = el("div","cf-top");
+    top.append(el("b",null,c.title), el("span","cf-brain",brainName(c.brain)));
+    box.append(top);
+    const settle = async (pick, btn) => {
+      box.querySelectorAll("button").forEach(x => x.disabled = true);
+      btn.textContent = pick === "both" ? "Clearing" : "Rewriting";
+      try {
+        const r = await api("/api/conflicts/settle", { id: c.id, a: c.a, b: c.b, pick });
+        if (r.error || r.ok === false) throw new Error(r.error || r.why);
+        box.innerHTML = "";
+        box.classList.add("done");
+        box.append(el("b",null,c.title), el("div","hint", pick === "both"
+          ? "Both hold. It is off the list, and the position is as it was."
+          : `Settled. The position now reads: ${r.summaryLine || r.position}`));
+        left--; paintCount();
+        if (!left) cfSlot.append(none());
+        refresh();
+      } catch (e) {
+        box.querySelectorAll("button").forEach(x => x.disabled = false);
+        btn.textContent = pick === "both" ? "Both hold" : "This holds";
+        msg.className = "bad"; msg.textContent = e.message;
+      }
+    };
+    for (const [pick, claim, date] of [["a", c.a, c.aDate], ["b", c.b, c.bDate]]){
+      const side = el("div","cf-side");
+      side.append(el("div","cf-claim", claim), el("div","cf-date", date || "undated"));
+      const go = el("button","ghost cf-go","This holds");
+      go.onclick = () => settle(pick, go);
+      side.append(go);
+      box.append(side);
+    }
+    if (c.why) box.append(el("div","cf-why", "They differ because " + c.why.replace(/^[A-Z]/, m => m.toLowerCase())));
+    const both = el("button","mini","Both hold");
+    both.onclick = () => settle("both", both);
+    box.append(both);
+    return box;
+  };
+  cfSlot.innerHTML = `<div class="hint">Checking</div>`;
+  api("/api/conflicts", {}).then(r => {
+    cfSlot.innerHTML = "";
+    const list = r.conflicts || [];
+    left = list.length; others = r.others || 0; paintCount();
+    if (!list.length){ cfSlot.append(none()); return; }
+    for (const c of list) cfSlot.append(conflictRow(c));
+    if (others) cfSlot.append(el("div","hint", `${others} more add detail rather than contradict, so they are not listed.`));
+  }).catch(e => { cfSlot.innerHTML = `<div class="hint">${esc(e.message)}</div>`; });
 
   /* ---- the address ---- */
   const paint = (st) => {
