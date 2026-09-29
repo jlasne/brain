@@ -383,6 +383,26 @@ export async function fetchPage(ctx: any, raw: string): Promise<any> {
 
 
 /** R1.2 runs before anything expensive, so a repeat costs zero pasting. */
+/**
+ * A YouTube video's channel, which is the author of anything dropped from it.
+ *
+ * YouTube's oEmbed answers with the channel's name for any public video, with
+ * no key and no quota. A link that is not a video, or a video it cannot see,
+ * gives "", and the author is asked for as usual.
+ */
+export async function youtubeChannel(link: string): Promise<string> {
+  const k = linkKey(link);
+  if (!k.startsWith("yt:")) return "";
+  const watch = "https://www.youtube.com/watch?v=" + k.slice(3);
+  try {
+    const r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(watch)}`,
+      { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return "";
+    const d: any = await r.json();
+    return str(d?.author_name).trim().slice(0, 120);
+  } catch { return ""; }
+}
+
 export async function dropCheck(ctx: any, b: any, space: string = HOME) {
   const link = String(b.link ?? "");
   /* A space other than home prefixes its ids, so the same link dropped in both
@@ -393,7 +413,7 @@ export async function dropCheck(ctx: any, b: any, space: string = HOME) {
   return found
     ? { duplicate: true, sid: found.sid, date: found.date, brains: found.brains,
         title: found.title, author: found.author, link: found.link }
-    : { duplicate: false, sid };
+    : { duplicate: false, sid, channel: await youtubeChannel(link) };
 }
 
 /** R2. One pass over one chunk. The caller loops, the transcript is never stored. */

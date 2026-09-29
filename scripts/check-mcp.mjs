@@ -32,7 +32,7 @@ const { handleRpc, versionOk } = await import(pathToFileURL(join(dir, "bundle.mj
 const MENTIONS = 1;
 await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle-drop.mjs"), logLevel: "silent" });
-const { dropSettle, fetchPage, planContext, dropMerge, dropPlan } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
+const { dropSettle, fetchPage, planContext, dropMerge, dropPlan, youtubeChannel } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm",
   platform: "node", outfile: join(dir, "bundle-words.mjs"), logLevel: "silent" });
 const { findByTitle, cardOf } = await import(pathToFileURL(join(dir, "bundle-words.mjs")).href);
@@ -435,6 +435,28 @@ let job = "";
   const direct = await dropSettle(ctx, { account:"octopus", kind:"owner", space:"octopus" },
     { ext:{ ...EXT, author:"unknown" }, plan, sid:"s-x" });
   check("the app's store step refuses an unknown author too", direct.needAuthor === true && /name the author/.test(direct.error), JSON.stringify(direct));
+}
+
+/* ---- a YouTube video is filed under its channel ---- */
+{
+  const real = globalThis.fetch;
+  const asked = [];
+  globalThis.fetch = async (u) => { asked.push(String(u));
+    return String(u).startsWith("https://www.youtube.com/oembed")
+      ? new Response(JSON.stringify({ author_name: "Finary", title: "L'or" }), { status: 200 }) : new Response("", { status: 404 }); };
+  check("a short link asks YouTube for its channel", await youtubeChannel("https://youtu.be/abc123XYZ") === "Finary"
+    && /oembed\?format=json&url=https%3A%2F%2Fwww\.youtube\.com%2Fwatch%3Fv%3Dabc123XYZ/.test(asked[0] || ""), asked[0]);
+  asked.length = 0;
+  check("a page that is not a video asks nothing", await youtubeChannel("https://example.com/post") === "" && asked.length === 0);
+  const t = await call("drop_source", { extraction: { ...EXT, title:"Gold talk", author:"Nicolas Chéron" },
+    link:"https://www.youtube.com/watch?v=goldTalk42", brain:"content" }, ME);
+  const d = (t.match(/DRAFT (\w+)/) ?? [])[1] ?? "";
+  const card = await call("drop_plan", { draft:d, plan:{ brains:["content"], matched:[], new:["x"], echo:[], conflicts:[],
+    candidates:[{ title:"Gold talk concept", brain:"content", why:"x" }] } }, ME);
+  check("a connector drop from YouTube names the channel, whoever speaks", /AUTHOR: Finary/.test(card), card.slice(0, 120));
+  globalThis.fetch = async () => { throw new Error("offline"); };
+  check("a channel YouTube will not give is just no channel", await youtubeChannel("https://youtu.be/zzz999") === "");
+  globalThis.fetch = real;
 }
 
 /* ---- an answer says where it comes from, in one label ---- */

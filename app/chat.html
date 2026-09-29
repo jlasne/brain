@@ -2707,6 +2707,8 @@ async function doDrop(src, content, again){
     quotes: parts.flatMap(p=>p.quotes||[]),
     thin: parts.flatMap(p=>p.thin||[]),
   };
+  /* A YouTube video is filed under its channel, whoever speaks in it. */
+  if (chk.channel) ext.author = chk.channel;
 
   /* An extraction with no topics means the read came back empty, which is a
      different thing from a source that holds nothing. Left alone, the plan runs
@@ -3077,7 +3079,7 @@ function buildCard(pc, decide){
     who.append(whoPick);
   }
   const whoHint = el("div","author-hint", whoIn.value
-    ? "Found in the source. Rewrite it if it is wrong."
+    ? (/youtu\.?be/.test(pc.link || "") ? "The YouTube channel. Rewrite it if it is wrong." : "Found in the source. Rewrite it if it is wrong.")
     : known.length ? "The source names no one. Pick who wrote or said it, or someone else."
     : "The source names no one. Write who wrote or said it.");
   who.append(whoIn, whoHint);

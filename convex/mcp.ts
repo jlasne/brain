@@ -561,6 +561,8 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     }
 
     const ext = mergeExt(part, {});
+    /* A YouTube video is filed under its channel, whoever speaks in it. */
+    if (chk.channel) ext.author = chk.channel;
     const draft = randomHex(16);
     await ctx.runMutation(internal.store.newDraft,
       { token: draft, account: caller.account, link, sid: chk.sid, brain, ext });

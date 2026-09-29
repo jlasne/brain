@@ -772,7 +772,7 @@ for (const kind of ["study", "argument"]) {
 }
 
 /* ---- the author: filled in when found, picked from the brain's own when not ---- */
-for (const found of ["Charles Gave", ""]) {
+for (const found of ["Charles Gave", "", "youtube"]) {
   const held = { ...STATE,
     brains: [...STATE.brains, { slug: "health", name: "Health", type: "subject", scope: "sleep" }],
     sources: [
@@ -788,8 +788,9 @@ for (const found of ["Charles Gave", ""]) {
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}");
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/drop/check")) return Response.json({ duplicate: false, sid: "s-new" });
-      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Offers", author: found, topics: [{ topic: "Offers", ideas: ["x"], data: [] }] } });
+      if (s.includes("/api/drop/check")) return Response.json({ duplicate: false, sid: "s-new", ...(found === "youtube" ? { channel: "Finary" } : {}) });
+      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Offers", author: found === "youtube" ? "Nicolas Chéron" : found,
+        topics: [{ topic: "Offers", ideas: ["x"], data: [] }] } });
       if (s.includes("/api/drop/plan")) return Response.json({ plan: { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
         candidates: [{ title: "Offer stacking", brain: "content", why: "new" }] } });
       if (s.includes("/api/drop/settle")) { window.__authors.push(body.ext?.author);
@@ -798,13 +799,18 @@ for (const found of ["Charles Gave", ""]) {
     };
   }, [held, found]);
   await page.click('#mode button[data-m="drop"]');
-  await page.fill("#srcInput", "Offers talk");
+  await page.fill("#srcInput", found === "youtube" ? "https://youtu.be/goldTalk42" : "Offers talk");
   await page.fill("#input", "Stack the offer until saying no feels stupid.");
   await page.click("#send"); await page.waitForTimeout(900);
   const f = await page.evaluate(() => ({ value: document.getElementById("cardAuthor")?.value,
     shown: !document.getElementById("cardAuthor")?.hidden, pick: !!document.getElementById("cardAuthorPick"),
     options: [...(document.getElementById("cardAuthorPick")?.options || [])].map(o => o.textContent) }));
-  if (found) {
+  if (found === "youtube") {
+    check("a YouTube drop is filed under its channel, not its speaker", f.value === "Finary" && f.shown && !f.pick
+      && /YouTube channel/.test(await page.textContent(".author-hint")), JSON.stringify(f));
+    await page.click(".card-foot .go"); await page.waitForTimeout(400);
+    check("and stores under it", JSON.stringify(await page.evaluate(() => window.__authors)) === '["Finary"]');
+  } else if (found) {
     check("a found author is filled in, with no list to pick from", f.value === "Charles Gave" && f.shown && !f.pick, JSON.stringify(f));
     await page.click(".card-foot .go"); await page.waitForTimeout(400);
     check("and stores as it is", JSON.stringify(await page.evaluate(() => window.__authors)) === '["Charles Gave"]');
