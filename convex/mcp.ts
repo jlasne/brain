@@ -67,9 +67,10 @@ const text = (s: string) => ({ content: [{ type: "text", text: s }] });
    the app's router does with a model call, done here by the client for free. */
 const TERMS = {
   type: "array", items: { type: "string" }, maxItems: 12,
-  description: "The question as English search words: its subject, synonyms, and any abbreviation or jargon " +
-    "spelled out, up to 12. The brains are written in English, so send these every time, above all when the " +
-    "question is in another language. Example for \"l'or est-il dangereux ?\": [\"gold\", \"risk\", \"danger\", \"volatility\"].",
+  description: "The question's own words in English, up to 12: translate each word that carries the subject, and " +
+    "spell out any abbreviation or jargon. Add no related topic: every extra word pulls in concepts about that " +
+    "word and pushes the subject down. The brains are written in English, so send these every time, above all " +
+    "when the question is in another language. Example for \"l'or est-il dangereux ?\": [\"gold\", \"dangerous\"].",
 };
 
 /** The terms a client sent, cleaned: 12 at most, 60 characters each. */
@@ -706,7 +707,7 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
       return text(`Nothing in these brains matches "${q}"${terms.length ? ` or ${terms.join(", ")}` : ""}. Their scopes are:\n\n` +
         brains.map((b: any) => `- ${b.name} (${b.slug}): ${b.scope}`).join("\n") +
         `\n\n${terms.length ? "Say so plainly rather than answering from outside the brains."
-          : "Call ask again with terms: the question as English search words. If that finds nothing too, say so plainly rather than answering from outside the brains."}`);
+          : "Call ask again with terms: the question's own words in English, nothing added. If that finds nothing too, say so plainly rather than answering from outside the brains."}`);
     }
     /* The top 8 open in full; a question that hits nothing in a named brain
        still gets that brain's 6 fullest. */
