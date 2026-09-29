@@ -23,6 +23,7 @@ import { planDossier, writeDossier, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace } from "./space";
 import { listConflicts, settleConflict } from "./conflicts";
+import { splitGap, GAP_RULE, spotsFrom, adviseSpots } from "./gaps";
 
 const router = httpRouter();
 
@@ -427,9 +428,10 @@ ${isPerson
 - Mention an open conflict only when it changes what the reader would do.
 - No file paths anywhere.
 ${nSources > 0 && nSources < 10 ? `- This rests on ${nSources} source${nSources === 1 ? "" : "s"} only. Open by saying it is a small brain.` : ""}
-- Then a blank line, then exactly one final line: "Sources: {author}, {date} - {author}, {date}" listing only sources you used. Omit that line if you used none.
+- Then a blank line, then one line: "Sources: {author}, {date} - {author}, {date}" listing only sources you used. Omit that line if you used none.
 - English, always. No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
 - If the stored knowledge does not answer it, say so plainly in one sentence and name what kind of source would fill the gap. Never invent evidence.
+${GAP_RULE}
 ${earlier ? `- The question may be a follow-up. Read it against the conversation below, so a pronoun or "the second one" points at the right thing.` : ""}
 ${earlier ? `
 EARLIER IN THIS CONVERSATION
@@ -447,7 +449,39 @@ QUESTION: ${String(b.q ?? "")}` },
           answer's, so the two never add up past it. */
        timeout: Math.max(60000, 165000 - (Date.now() - t0)) });
 
-  return { answer: text, sources: nSources, level };
+  /* A question the brains fell short on is kept as a blind spot. The GAP
+     line is for that list, so it comes off the answer. Logging never costs
+     the answer: a failed write is only a missed spot. */
+  const cut = splitGap(text);
+  if (cut.gap || !pick.opened.length) {
+    try {
+      await ctx.runMutation(internal.store.logGap, { space: who.space, q: String(b.q ?? "").slice(0, 600),
+        gap: cut.gap || "Nothing stored bears on this question.", find: cut.find,
+        brains: (reading.length ? reading : pool).map((x: any) => x.slug) });
+    } catch { /* the answer still goes out */ }
+  }
+  return { answer: cut.answer, sources: nSources, level, ...(cut.gap ? { gap: { gap: cut.gap, find: cut.find } } : {}) };
+});
+
+/**
+ * Blind spots: questions the brains fell short on, and brains that rest on
+ * too little. The list is free. With `advise`, one model call writes each
+ * spot precisely, with the kind of source to look for.
+ */
+route("/api/gaps", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const { brains, cards, sources } = await loadSpace(ctx, who.space);
+  const gaps = await ctx.runQuery(internal.store.gapsOf, { space: who.space });
+  const spots = spotsFrom(brains, cards, sources, gaps);
+  if (!b.advise) return { spots, advised: false };
+  return await adviseSpots(spots, brains, cards, { model: modelName(b) });
+});
+
+/** Clear the logged questions behind a blind spot the owner has dealt with. */
+route("/api/gaps/drop", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const ids = (Array.isArray(b.ids) ? b.ids : []).map(String).slice(0, 200);
+  return await ctx.runMutation(internal.store.dropGaps, { space: who.space, ids });
 });
 
 /* ---------- one page ---------- */

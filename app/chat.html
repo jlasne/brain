@@ -384,6 +384,60 @@
   .cf-date{ grid-row:2; font:400 11px/1.4 var(--mono); color:var(--ink-4); }
   .cf-go{ grid-row:1 / 3; grid-column:2; white-space:nowrap; }
   .cf-why{ font-size:12.5px; color:var(--ink-3); padding:6px 0 8px; border-top:1px solid var(--line); }
+  .cf-deck-go{ margin:0 0 10px; }
+
+  /* The conflict deck: one clash at a time, settled by a swipe or a key. */
+  .deck{
+    width:100%; max-width:640px; max-height:92vh; display:flex; flex-direction:column;
+    background:var(--surface); border:1px solid var(--line); border-radius:18px; overflow:hidden;
+    box-shadow:var(--shadow-lift); animation:rise .24s var(--ease) both;
+  }
+  .dk-h{ display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--line); }
+  .dk-h b{ font:600 16px/1.2 var(--sans); color:var(--ink); }
+  .dk-n{ font:400 12px/1 var(--mono); color:var(--ink-3); }
+  .dk-x{ margin-left:auto; width:34px; height:34px; border-radius:8px; font:400 20px/1 var(--sans); color:var(--ink-3); }
+  .dk-x:hover{ background:var(--surface-2); color:var(--ink); }
+  .dk-stage{ position:relative; flex:1; min-height:0; overflow:hidden; padding:16px; display:grid; }
+  .dk-card{
+    grid-area:1 / 1; position:relative; overflow:auto; touch-action:none; user-select:none; cursor:grab;
+    border:1px solid var(--line-2); border-radius:14px; background:var(--bg); padding:16px;
+    box-shadow:var(--shadow); transition:transform .25s var(--ease), opacity .25s var(--ease);
+  }
+  .dk-card.drag{ transition:none; cursor:grabbing; }
+  .dk-brain{ font:400 11px/1 var(--mono); letter-spacing:.05em; text-transform:uppercase; color:var(--ink-4); }
+  .dk-card h4{ margin:6px 0 14px; font:600 17px/1.3 var(--sans); color:var(--ink); }
+  .dk-sides{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .dk-side{ border:1px solid var(--line); border-radius:10px; padding:11px 12px; background:var(--surface);
+    transition:border-color .12s var(--ease), background .12s var(--ease); }
+  .dk-side.lit{ border-color:var(--accent-fill); background:var(--accent-soft); }
+  .dk-tag{ display:block; font:600 11px/1 var(--sans); letter-spacing:.04em; text-transform:uppercase; color:var(--accent); margin-bottom:7px; }
+  .dk-side p{ font:400 14.5px/1.5 var(--sans); color:var(--ink); }
+  .dk-side time{ display:block; margin-top:7px; font:400 11px/1.4 var(--mono); color:var(--ink-4); }
+  .dk-why{ margin-top:12px; font:400 13px/1.55 var(--sans); color:var(--ink-3); }
+  .dk-stamp{
+    position:absolute; top:12px; right:12px; padding:6px 10px; border-radius:8px;
+    border:2px solid var(--accent-fill); color:var(--accent); background:var(--surface);
+    font:600 13px/1 var(--sans); letter-spacing:.03em; text-transform:uppercase; opacity:0; pointer-events:none;
+  }
+  .dk-acts{ display:grid; grid-template-columns:repeat(4, 1fr); gap:7px; padding:0 16px 12px; }
+  .dk-acts button{ padding:10px 6px; font-size:13px; }
+  .dk-foot{ display:flex; align-items:center; gap:10px; min-height:44px; padding:0 16px 14px;
+    font:400 12.5px/1.5 var(--sans); color:var(--ink-3); }
+  .dk-foot .mini{ flex-shrink:0; }
+  .dk-toast{ flex:1; min-width:0; color:var(--ink-2); }
+  .dk-toast.bad{ color:var(--accent); }
+  .dk-state{ flex-shrink:0; font:400 11.5px/1.4 var(--mono); color:var(--ink-4); }
+  .dk-done{ grid-area:1 / 1; align-self:center; text-align:center; padding:20px; }
+  .dk-done b{ display:block; font:600 18px/1.3 var(--sans); color:var(--ink); margin-bottom:8px; }
+  .dk-done p{ font-size:14px; line-height:1.6; color:var(--ink-3); margin-bottom:14px; }
+  @media (max-width:560px){
+    .veil.deck-veil{ padding:0; }
+    .deck{ max-width:none; height:100%; max-height:none; border-radius:0; border:none; }
+    .dk-sides{ grid-template-columns:1fr; }
+    .dk-acts{ grid-template-columns:1fr 1fr; }
+    .dk-acts button{ min-height:44px; }
+  }
+  @media (prefers-reduced-motion:reduce){ .dk-card{ transition:none; } }
   .foot-row{ display:flex; gap:7px; }
   .foot-row .foot-btn{ justify-content:center; }
 
@@ -471,6 +525,25 @@
     font:400 12px/1.6 var(--mono); color:var(--ink-3);
   }
   .ans-acts{ display:flex; gap:6px; margin-top:10px; }
+  /* A blind spot an answer found: what is missing, and what to look for. */
+  .gapnote{ margin-top:12px; padding:10px 12px; border-left:3px solid var(--accent-fill); background:var(--surface-2);
+    border-radius:0 8px 8px 0; font:400 13.5px/1.55 var(--sans); color:var(--ink-2); }
+  .gapnote b{ display:block; font:600 11px/1.4 var(--sans); letter-spacing:.04em; text-transform:uppercase; color:var(--accent); margin-bottom:3px; }
+  .gapnote .find{ display:block; margin-top:4px; color:var(--ink-3); }
+  .gapnote button{ margin-top:6px; padding:0; font:500 12.5px/1.4 var(--sans); color:var(--accent); text-decoration:underline; }
+
+  /* The blind spots list. */
+  .sheet.gaps{ max-width:620px; max-height:88vh; display:flex; flex-direction:column; }
+  .gp-body{ flex:1; min-height:0; overflow-y:auto; padding:14px 20px 6px; }
+  .gp-state{ font:400 12px/1.5 var(--mono); color:var(--ink-4); margin-bottom:10px; }
+  .gp{ border:1px solid var(--line-2); border-radius:12px; padding:13px 14px; margin-bottom:10px; background:var(--bg); }
+  .gp-kind{ font:600 11px/1 var(--sans); letter-spacing:.04em; text-transform:uppercase; color:var(--accent); }
+  .gp-gap{ margin-top:7px; font:600 14.5px/1.45 var(--sans); color:var(--ink); }
+  .gp-find{ margin-top:6px; font:400 14px/1.55 var(--sans); color:var(--ink-2); }
+  .gp-find span{ font-weight:600; color:var(--ink); }
+  .gp-q{ margin-top:6px; font:italic 400 13px/1.5 var(--sans); color:var(--ink-3); }
+  .gp-why{ margin-top:7px; font:400 11.5px/1.5 var(--mono); color:var(--ink-4); }
+  .gp .mini{ margin-top:9px; }
   .mini{
     min-height:30px; padding:4px 10px; border:1px solid var(--line); border-radius:6px; background:transparent;
     font:500 12px/1 var(--sans); color:var(--ink-3); cursor:pointer;
@@ -978,6 +1051,8 @@
     <div class="side-scroll">
       <button class="side-act" id="pagerBtn" title="A brain, a group, or a question, as bullets on one page">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>One-pager</button>
+      <button class="side-act" id="gapsBtn" title="What the brains cannot answer yet, and what kind of source to look for">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21M11 8v3.5M11 14.5v.01"/></svg>Blind spots</button>
       <button class="new-brain" id="newBrain">+ Create a brain</button>
       <div class="side-h">Brains <b id="bcount"></b></div>
       <div id="brains"></div>
@@ -1725,6 +1800,7 @@ $("freshBtn").onclick = () => {
 };
 $("keyBtn").onclick = openSetupSheet;
 $("pagerBtn").onclick = () => { closeSide(); openPagerSheet(); };
+$("gapsBtn").onclick = () => { closeSide(); openGapsSheet(); };
 $("navToggle").onclick = () => { navOpen = false; paintNav(); };
 $("navOpen").onclick  = () => { navOpen = true;  paintNav(); };
 paintNav();
@@ -1752,6 +1828,267 @@ $("lockBtn").onclick = async () => {
   sessionStorage.removeItem(TOKEN_KEY);
   location.reload();
 };
+
+/**
+ * Blind spots: what the brains cannot answer yet, and the kind of source that
+ * would fill each one.
+ *
+ * The list comes first, read from what is stored at no cost. One model call
+ * then writes each spot precisely and the list repaints. It names the kind of
+ * source to look for and never a source itself: finding it is yours.
+ */
+function openGapsSheet(){
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet gaps" role="dialog" aria-modal="true">
+      <header><h3>Blind spots</h3>
+        <p>Questions the ${esc(S.spaceName)} brains fell short on, and brains that rest on too little.
+          Each one says what kind of source to look for. Finding it is up to you.</p></header>
+      <div class="gp-body"><div class="gp-state" id="gpState">Reading the brains</div><div id="gpList"></div></div>
+      <footer><button class="go" id="gpDone">Done</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const onKey = e => { if (e.key === "Escape") shut(); };
+  const shut = () => { document.removeEventListener("keydown", onKey); veil.remove(); };
+  document.addEventListener("keydown", onKey);
+  veil.querySelector("#gpDone").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  const list = veil.querySelector("#gpList"), state = veil.querySelector("#gpState");
+  const gone = new Set();
+  const KIND = { asked: "Asked, not answered", few: "Thin brain", "one-voice": "One voice", old: "Old sources", "one-source": "One source per idea" };
+
+  const paint = spots => {
+    list.innerHTML = "";
+    spots = spots.filter(sp => !gone.has(sp.id));
+    if (!spots.length){ list.append(el("div","hint","No blind spot found. Every question was answered, and every brain rests on several sources.")); return; }
+    for (const sp of spots){
+      const card = el("div","gp");
+      card.dataset.id = sp.id;
+      card.append(el("div","gp-kind",KIND[sp.kind] || sp.kind), el("div","gp-gap",sp.gap));
+      const f = el("div","gp-find"); f.append(el("span",null,"Look for: "), document.createTextNode(sp.find));
+      card.append(f);
+      for (const q of (sp.questions || []).slice(0, 3)) card.append(el("div","gp-q",`"${q}"`));
+      card.append(el("div","gp-why",sp.why));
+      /* A question spot clears once dealt with. A brain spot clears itself
+         when the brain is fed. */
+      if (sp.kind === "asked"){
+        const done = el("button","mini","Dealt with");
+        done.onclick = async () => {
+          done.disabled = true; done.textContent = "Clearing";
+          try { await api("/api/gaps/drop", { ids: sp.gapIds || [] }); gone.add(sp.id); card.remove();
+                if (!list.children.length) paint([]); }
+          catch (e) { done.disabled = false; done.textContent = "Dealt with"; state.textContent = e.message; }
+        };
+        card.append(done);
+      }
+      list.append(card);
+    }
+  };
+
+  api("/api/gaps", {}).then(r => {
+    paint(r.spots || []);
+    if (!(r.spots || []).length){ state.textContent = ""; return; }
+    state.textContent = `${r.spots.length} blind spot${r.spots.length === 1 ? "" : "s"}. Writing each one precisely`;
+    return api("/api/gaps", { advise: true }).then(x => {
+      if (!veil.isConnected) return;
+      paint(x.spots || r.spots);
+      state.textContent = `${(x.spots || r.spots).length} blind spot${(x.spots || r.spots).length === 1 ? "" : "s"}` +
+        (x.advised ? "" : ". The precise version did not come back, so these are the short ones.");
+    });
+  }).catch(e => { state.textContent = e.message; });
+}
+
+/**
+ * The conflict deck: one open clash at a time, settled with a swipe.
+ *
+ * Left keeps A, right keeps B, up says both hold, down leaves it for later.
+ * The arrow keys and the four buttons do the same. A ruling waits 4 seconds
+ * before it is sent, so Undo can take it back; closing the deck sends what is
+ * waiting at once. A ruling rewrites the position, which takes a model call,
+ * so rewrites run behind the next card. Two rulings on one concept run one
+ * after the other, each on the position the one before it wrote.
+ */
+function openConflictDeck(list, others){
+  const UNDO_MS = 4000;
+  const brainName = slug => S.brains.find(x => x.slug === slug)?.name || slug;
+  const veil = el("div","veil deck-veil");
+  veil.innerHTML = `
+    <div class="deck" role="dialog" aria-modal="true" aria-label="Open conflicts">
+      <header class="dk-h"><b>Open conflicts</b><span class="dk-n" id="dkN"></span>
+        <button class="dk-x" id="dkX" aria-label="Close">&times;</button></header>
+      <div class="dk-stage" id="dkStage"></div>
+      <div class="dk-acts" id="dkActs">
+        <button class="ghost" data-p="a">&larr; A holds</button>
+        <button class="ghost" data-p="both">&uarr; Both hold</button>
+        <button class="ghost" data-p="later">&darr; Later</button>
+        <button class="ghost" data-p="b">B holds &rarr;</button>
+      </div>
+      <div class="dk-foot"><span class="dk-toast" id="dkToast">Swipe toward the side that holds. Up: both hold. Down: later.</span>
+        <button class="mini" id="dkUndo" hidden>Undo</button><span class="dk-state" id="dkState"></span></div>
+    </div>`;
+  document.body.append(veil);
+  const $d = id => veil.querySelector("#" + id);
+  const stage = $d("dkStage"), toast = $d("dkToast"), undoB = $d("dkUndo"), stateL = $d("dkState");
+
+  let pile = list.slice(), later = [], done = 0, total = list.length;
+  let running = 0, card = null, closed = false;
+  const waiting = [];            // rulings inside their undo window
+  const chains = new Map();      // one rewrite at a time per concept
+
+  const say = (t, bad) => { toast.textContent = t; toast.className = "dk-toast" + (bad ? " bad" : ""); };
+  const paintState = () => {
+    stateL.textContent = [done ? `${done} settled` : "", running ? `${running} rewriting` : ""].filter(Boolean).join(" \u00b7 ");
+  };
+
+  /* ---- sending a ruling ---- */
+  const send = r => {
+    running++; paintState();
+    const prev = chains.get(r.c.id) || Promise.resolve();
+    const next = prev.then(async () => {
+      try {
+        const x = await api("/api/conflicts/settle", { id: r.c.id, a: r.c.a, b: r.c.b, pick: r.pick });
+        if (x.error || x.ok === false) throw new Error(x.error || x.why);
+        done++;
+      } catch (e) {
+        /* Back in the pile, so a failed ruling is never lost. */
+        pile.push(r.c); total++;
+        if (!closed){ say(`Not settled: ${e.message}. "${r.c.title}" is back in the pile.`, true); if (!card) show(); }
+      } finally { running--; paintState(); if (!closed && !card && !pile.length) show(); }
+    });
+    chains.set(r.c.id, next);
+  };
+  const flush = () => { while (waiting.length){ const r = waiting.shift(); clearTimeout(r.t); send(r); } undoB.hidden = true; };
+
+  const LABEL = { a: "A holds", b: "B holds", both: "Both hold", later: "Later" };
+  const rule = pick => {
+    if (!card) return;
+    const c = pile.shift();
+    fly(pick);
+    if (pick === "later"){
+      later.push(c);
+      say(`"${c.title}" is left for later.`);
+    } else {
+      const r = { c, pick };
+      r.t = setTimeout(() => {
+        const i = waiting.indexOf(r); if (i < 0) return;
+        waiting.splice(i, 1); send(r);
+        if (!waiting.length) undoB.hidden = true;
+      }, UNDO_MS);
+      waiting.push(r);
+      say(`${LABEL[pick]}: ${c.title}.`);
+      undoB.hidden = false;
+    }
+    setTimeout(show, 180);
+  };
+  undoB.onclick = () => {
+    const r = waiting.pop(); if (!r) return;
+    clearTimeout(r.t);
+    pile.unshift(r.c);
+    if (card){ card.remove(); card = null; }
+    undoB.hidden = !waiting.length;
+    say(`Taken back: ${r.c.title}.`);
+    show();
+  };
+
+  /* ---- the card ---- */
+  const fly = pick => {
+    if (!card) return;
+    const c = card; card = null;
+    c.classList.add("gone");
+    const [x, y] = { a: [-1, 0], b: [1, 0], both: [0, -1], later: [0, 1] }[pick];
+    c.style.transform = `translate(${x * 120}%, ${y * 120}%) rotate(${x * 14}deg)`;
+    c.style.opacity = "0";
+    setTimeout(() => c.remove(), 260);
+  };
+  const show = () => {
+    if (closed) return;
+    stage.querySelectorAll(".dk-card:not(.gone), .dk-done").forEach(n => { if (n !== card) n.remove(); });
+    if (card) return;
+    const c = pile[0];
+    $d("dkActs").hidden = !c;
+    $d("dkN").textContent = c ? `${total - pile.length - later.length + 1} of ${total}` : "";
+    if (!c){
+      const end = el("div","dk-done");
+      end.append(el("b",null, running ? "Rewriting the last ones" : later.length ? "The rest is for later" : "All settled"));
+      end.append(el("p",null, [done ? `${done} settled.` : "", running ? `${running} still rewriting: they finish on their own.` : "",
+        later.length ? `${later.length} left for later.` : "", others ? `${others} more add detail rather than contradict.` : ""].filter(Boolean).join(" ")));
+      if (later.length){
+        const again = el("button","go", `Go through the ${later.length} again`);
+        again.id = "dkAgain";
+        again.onclick = () => { pile = later; later = []; total = pile.length; show(); };
+        end.append(again);
+      }
+      const close = el("button","ghost","Close"); close.style.marginLeft = "8px";
+      close.onclick = shut;
+      end.append(close);
+      stage.append(end);
+      return;
+    }
+    const n = el("div","dk-card");
+    n.innerHTML = `<span class="dk-brain">${esc(brainName(c.brain))}</span><h4>${esc(c.title)}</h4>
+      <div class="dk-sides">
+        <div class="dk-side" data-s="a"><span class="dk-tag">&larr; A</span><p>${esc(c.a)}</p><time>${esc(c.aDate || "undated")}</time></div>
+        <div class="dk-side" data-s="b"><span class="dk-tag">B &rarr;</span><p>${esc(c.b)}</p><time>${esc(c.bDate || "undated")}</time></div>
+      </div>
+      ${c.why ? `<div class="dk-why">They differ because ${esc(c.why.replace(/^[A-Z]/, m => m.toLowerCase()))}</div>` : ""}
+      <div class="dk-stamp"></div>`;
+    drag(n);
+    stage.append(n); card = n;
+  };
+
+  /* ---- the swipe ---- */
+  const intent = (dx, dy) => Math.abs(dx) > Math.abs(dy)
+    ? (dx < -30 ? "a" : dx > 30 ? "b" : "")
+    : (dy < -30 ? "both" : dy > 30 ? "later" : "");
+  const drag = n => {
+    let x0 = 0, y0 = 0, on = false;
+    const lit = p => {
+      n.querySelectorAll(".dk-side").forEach(s => s.classList.toggle("lit", s.dataset.s === p || p === "both"));
+      const st = n.querySelector(".dk-stamp");
+      st.textContent = p ? LABEL[p] : ""; st.style.opacity = p ? "1" : "0";
+    };
+    n.addEventListener("pointerdown", e => {
+      if (e.button) return;
+      on = true; x0 = e.clientX; y0 = e.clientY;
+      n.setPointerCapture(e.pointerId); n.classList.add("drag");
+    });
+    n.addEventListener("pointermove", e => {
+      if (!on) return;
+      const dx = e.clientX - x0, dy = e.clientY - y0;
+      n.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx / 22}deg)`;
+      lit(intent(dx, dy));
+    });
+    const end = e => {
+      if (!on) return;
+      on = false; n.classList.remove("drag");
+      const dx = e.clientX - x0, dy = e.clientY - y0, p = intent(dx, dy);
+      const far = Math.abs(dx) > 90 || Math.abs(dy) > 80;
+      if (p && far && card === n) rule(p);
+      else { n.style.transform = ""; lit(""); }
+    };
+    n.addEventListener("pointerup", end);
+    n.addEventListener("pointercancel", end);
+  };
+
+  /* ---- keys, buttons, closing ---- */
+  $d("dkActs").onclick = e => { const b = e.target.closest("button[data-p]"); if (b) rule(b.dataset.p); };
+  const KEYS = { ArrowLeft: "a", ArrowRight: "b", ArrowUp: "both", ArrowDown: "later" };
+  const onKey = e => {
+    if (e.key === "Escape"){ shut(); return; }
+    if ((e.key === "z" || e.key === "Z") && !undoB.hidden){ undoB.click(); return; }
+    if (KEYS[e.key]){ e.preventDefault(); rule(KEYS[e.key]); }
+  };
+  function shut(){
+    if (closed) return;
+    flush(); closed = true;
+    document.removeEventListener("keydown", onKey);
+    veil.remove();
+    Promise.all([...chains.values()]).then(() => { if (done) refresh(); });
+  }
+  document.addEventListener("keydown", onKey);
+  $d("dkX").onclick = shut;
+  paintState(); show();
+}
 
 /* ============ create a brain ============ */
 
@@ -1817,7 +2154,7 @@ async function openSetupSheet(){
   /* ---- open conflicts: only the real contradictions, each one settled here ---- */
   const cfSlot = veil.querySelector("#cfSlot"), cfCount = veil.querySelector("#cfCount");
   const brainName = slug => S.brains.find(x => x.slug === slug)?.name || slug;
-  let left = 0, others = 0;
+  let left = 0, others = 0, openList = [];
   const paintCount = () => { cfCount.textContent = left ? String(left) : ""; };
   const none = () => el("div","hint", others
     ? `None to settle. ${others} recorded clash${others === 1 ? " adds" : "es add"} detail rather than contradict${others === 1 ? "s" : ""}, so ${others === 1 ? "it stays" : "they stay"} off this list.`
@@ -1828,6 +2165,7 @@ async function openSetupSheet(){
     top.append(el("b",null,c.title), el("span","cf-brain",brainName(c.brain)));
     box.append(top);
     const settle = async (pick, btn) => {
+      openList = openList.filter(x => x !== c);
       box.querySelectorAll("button").forEach(x => x.disabled = true);
       btn.textContent = pick === "both" ? "Clearing" : "Rewriting";
       try {
@@ -1839,9 +2177,12 @@ async function openSetupSheet(){
           ? "Both hold. It is off the list, and the position is as it was."
           : `Settled. The position now reads: ${r.summaryLine || r.position}`));
         left--; paintCount();
+        const deck = cfSlot.querySelector("#cfDeck");
+        if (deck){ if (left) deck.textContent = `Review one by one: ${left}`; else deck.remove(); }
         if (!left) cfSlot.append(none());
         refresh();
       } catch (e) {
+        openList.push(c);
         box.querySelectorAll("button").forEach(x => x.disabled = false);
         btn.textContent = pick === "both" ? "Both hold" : "This holds";
         msg.className = "bad"; msg.textContent = e.message;
@@ -1867,6 +2208,12 @@ async function openSetupSheet(){
     const list = r.conflicts || [];
     left = list.length; others = r.others || 0; paintCount();
     if (!list.length){ cfSlot.append(none()); return; }
+    /* One at a time, full screen: the quick way through a long list. */
+    openList = list.slice();
+    const deck = el("button","go cf-deck-go", `Review one by one: ${list.length}`);
+    deck.id = "cfDeck";
+    deck.onclick = () => { shut(); openConflictDeck(openList.slice(), others); };
+    cfSlot.append(deck);
     for (const c of list) cfSlot.append(conflictRow(c));
     if (others) cfSlot.append(el("div","hint", `${others} more add detail rather than contradict, so they are not listed.`));
   }).catch(e => { cfSlot.innerHTML = `<div class="hint">${esc(e.message)}</div>`; });
@@ -2759,6 +3106,17 @@ async function doAsk(q){
     const pg = el("button","mini","One-pager from this");
     pg.onclick = () => openPagerSheet({ q, pick: asked });
     acts.append(cp, pg); body.append(acts);
+    /* The answer found the brains short: what is missing, and the kind of
+       source to look for. It is kept in Blind spots as well. */
+    if (r.gap?.gap){
+      const g = el("div","gapnote");
+      g.append(el("b",null,"Blind spot"), el("span",null,r.gap.gap));
+      if (r.gap.find) g.append(el("span","find","Look for: " + r.gap.find));
+      const all = el("button",null,"All blind spots");
+      all.onclick = () => openGapsSheet();
+      g.append(el("br"), all);
+      body.append(g);
+    }
     /* Six turns is what a thread of follow-ups runs to before the subject has
        moved anyway. Only the last four travel. */
     S.thread.push({ q, a: String(r.answer ?? "") });

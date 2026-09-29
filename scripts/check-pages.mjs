@@ -93,8 +93,9 @@ for (const page of pages) {
     "of in do else try throw delete void instanceof yield case " +
     /* import() loads a library on the branch that needs it. */
     "import " +
-    /* var() is CSS, which these files carry inside template strings. */
-    "var let const").split(" "));
+    /* var(), rotate() and :not() are CSS, which these files carry inside
+       template strings and selectors. */
+    "var rotate not let const").split(" "));
   const called = [...code.matchAll(/(^|[^.\w$'"`])([a-z_$][\w$]*)\s*\(/gm)].map(m => m[2]);
   for (const name of new Set(called)) {
     if (KEYWORDS.has(name) || declared.has(name) || (name in globalThis)) continue;

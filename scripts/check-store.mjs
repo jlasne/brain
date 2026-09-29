@@ -51,13 +51,13 @@ function makeDb() {
     let conds = [];
     const api = {
       withIndex(_name, fn) {
-        const q = { eq(f, v) { conds.push([f, v]); return q; } };
+        const q = { eq(f, v) { conds.push([f, v]); return q; }, gte(f, v) { conds.push([f, v, "gte"]); return q; } };
         if (fn) fn(q);
         return api;
       },
       order(dir) { api._desc = dir === "desc"; return api; },
       async collect() {
-        const all = rows(t).filter(r => conds.every(([f, v]) => r[f] === v));
+        const all = rows(t).filter(r => conds.every(([f, v, op]) => op === "gte" ? r[f] >= v : r[f] === v));
         return api._desc ? all.slice().reverse() : all;
       },
       async first() { return (await api.collect())[0] ?? null; },
@@ -81,6 +81,7 @@ function makeDb() {
     db: {
       query,
       async get(_id) { return find(_id) ?? null; },
+      normalizeId(t, _id) { return rows(t).some(r => r._id === _id) ? _id : null; },
       async insert(t, doc) { const r = { _id: `id${++id}`, ...doc }; rows(t).push(r); return r._id; },
       async patch(_id, doc) { Object.assign(find(_id), doc); },
       async delete(_id) { for (const t in T) T[t] = T[t].filter(r => r._id !== _id); },
@@ -397,6 +398,8 @@ function seed() {
   T.concepts.push({ _id: "c9", _creationTime: now - day, brain: "dogs", slug: "walks", n: 1, title: "Walks", position: "",
     summaryLine: "Two walks a day.", evidence: [], data: [], conflicts: [{ a: "one walk", aDate: "2026-01-01", b: "two walks", bDate: "2026-09-01", why: "age" }],
     sources: [], related: [], updated: today });
+  T.gaps = [{ _id: "g1", space: "octopus", q: "Crypto tax in France?", gap: "Crypto taxes in France", find: "A French tax adviser's guide", brains: ["wealth"], at: now - day },
+            { _id: "g2", space: "octopus", q: "Old one", gap: "Silver as a hedge", find: "", brains: ["wealth"], at: now - 20 * day }];
   const actx = { runQuery: (ref, args) => run(store[String(ref).split(".")[1]], ctx, args) };
 
   const dry = await run(digest.send, actx, { dry: true });
@@ -406,6 +409,8 @@ function seed() {
   check("a concept left alone stays out", !/Silver/.test(dry.text));
   check("the week's sources and open conflicts are listed", /Rates report/.test(dry.text) && /one walk \(2026-01-01\) against two walks/.test(dry.text));
   check("the title counts the week", /^Your week: 2 new concepts, 1 fed again/.test(dry.text), dry.text.split("\n")[0]);
+  check("the week's blind spots are listed with what to look for, older ones left out", /OCTOPUS: 1 BLIND SPOT FROM YOUR QUESTIONS/.test(dry.text)
+    && /Crypto taxes in France[\s\S]*Look for: A French tax adviser's guide/.test(dry.text) && !/Silver as a hedge/.test(dry.text), dry.text);
 
   const real = globalThis.fetch;
   let mailed = null;
@@ -421,11 +426,26 @@ function seed() {
 
   for (const c of T.concepts) c.updated = old;
   T.sources = T.sources.filter(s => s.sid !== "wk-1");
+  T.gaps = [];
   mailed = null;
   const quiet = await run(digest.send, actx, {});
   check("a week with nothing new sends nothing", !quiet.sent && /nothing new/.test(quiet.why) && !mailed, JSON.stringify(quiet));
   globalThis.fetch = real;
   delete process.env.DIGEST_TO; delete process.env.RESEND_API_KEY;
+}
+
+/* ---- blind spots: logged per space, capped, cleared only in their own space ---- */
+{
+  const { T, ctx } = seed();
+  for (let i = 0; i < 203; i++) await run(store.logGap, ctx, { space: "octopus", q: "q" + i, gap: "gap " + i, find: "", brains: ["wealth"] });
+  await run(store.logGap, ctx, { space: "squidgy", q: "dog food?", gap: "Dog food brands", find: "A vet's guide", brains: ["dogs"] });
+  check("a space keeps its newest 200 gaps", T.gaps.filter(g => g.space === "octopus").length === 200
+    && !T.gaps.some(g => g.q === "q0") && T.gaps.some(g => g.q === "q202"));
+  const mine = await run(store.gapsOf, ctx, { space: "squidgy" });
+  check("each space reads only its own gaps", mine.length === 1 && mine[0].gap === "Dog food brands", JSON.stringify(mine));
+  const other = T.gaps.find(g => g.space === "octopus")._id;
+  const r = await run(store.dropGaps, ctx, { space: "squidgy", ids: [mine[0]._id, other, "nope"] });
+  check("clearing drops only this space's rows", r.dropped === 1 && T.gaps.some(g => g._id === other) && !T.gaps.some(g => g.space === "squidgy"), JSON.stringify(r));
 }
 
 rmSync(dir, { recursive: true, force: true });

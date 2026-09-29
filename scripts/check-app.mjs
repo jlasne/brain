@@ -228,9 +228,9 @@ async function boot(path, init, arg) {
   await page.click("#scopeBtn"); await page.keyboard.press("Escape");
   check("Escape closes the menu", !(await page.$(".pick-menu")));
   await page.click("#scopeBtn"); await page.click(".pick-menu .pk-row >> nth=0");
-  check("the one-pager sits in the side panel, above Create a brain",
-    await page.evaluate(() => { const p = document.getElementById("pagerBtn");
-      return !!p.closest("aside") && p.nextElementSibling === document.getElementById("newBrain"); }));
+  check("the one-pager and blind spots sit in the side panel, above Create a brain",
+    await page.evaluate(() => { const p = document.getElementById("pagerBtn"), g = document.getElementById("gapsBtn");
+      return !!p.closest("aside") && p.nextElementSibling === g && g.nextElementSibling === document.getElementById("newBrain"); }));
 
   /* ---- a new brain asks for a name, a scope and a kind, nothing more ---- */
   await page.click("#newBrain"); await page.waitForTimeout(80);
@@ -954,6 +954,124 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     none: /None to settle\. 8 recorded clashes add detail/.test(document.getElementById("cfSlot").textContent) }));
   check("Both hold clears the last one, and the list says none are left", two.sent?.pick === "both" && two.count === "" && two.none, JSON.stringify(two));
   check("nothing threw settling conflicts", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- the conflict deck: one clash at a time, a swipe or a key settles it ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__settles = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/conflicts/settle")) { window.__settles.push(body);
+        return Response.json(body.pick === "both" ? { ok: true } : { ok: true, position: "P.", summaryLine: "S." }); }
+      if (s.includes("/api/conflicts")) return Response.json({ others: 3, conflicts: [
+        { id: "content/ai-rates", brain: "content", title: "Financing AI", a: "AI pushes rates up", aDate: "2026-01-02", b: "Rates fell around AI releases", bDate: "2026-09-01", why: "Crowding out implies higher rates" },
+        { id: "content/paywall", brain: "content", title: "Scaling at $10k MRR", a: "A hard paywall wins", aDate: "", b: "Growth runs on referrals", bDate: "", why: "" } ] });
+      return Response.json({});
+    };
+  }, STATE);
+  await page.evaluate(() => document.getElementById("keyBtn").click());
+  await page.waitForTimeout(250);
+  check("Setup offers the conflicts one by one", (await page.textContent("#cfDeck")) === "Review one by one: 2", await page.textContent("#cfDeck"));
+  await page.click("#cfDeck"); await page.waitForTimeout(150);
+  const card = () => page.evaluate(() => {
+    const c = document.querySelector(".dk-card:not(.gone)");
+    return { title: c?.querySelector("h4")?.textContent || "", n: document.getElementById("dkN").textContent,
+      sides: [...(c?.querySelectorAll(".dk-side p") || [])].map(p => p.textContent), undo: !document.getElementById("dkUndo").hidden,
+      toast: document.getElementById("dkToast").textContent, done: document.querySelector(".dk-done")?.textContent || "" };
+  });
+  const first = await card();
+  check("the deck opens on the first clash, both sides shown", first.title === "Financing AI" && first.n === "1 of 2"
+    && first.sides.join("|") === "AI pushes rates up|Rates fell around AI releases" && !(await page.$(".sheet")), JSON.stringify(first));
+
+  await page.keyboard.press("ArrowRight"); await page.waitForTimeout(250);
+  const after = await card();
+  check("the right arrow keeps B and moves to the next clash, with an undo", after.title === "Scaling at $10k MRR" && after.n === "2 of 2"
+    && after.undo && /B holds: Financing AI/.test(after.toast), JSON.stringify(after));
+  check("and waits before it sends", (await page.evaluate(() => window.__settles.length)) === 0);
+  await page.click("#dkUndo"); await page.waitForTimeout(100);
+  const back = await card();
+  check("Undo takes the ruling back, nothing sent", back.title === "Financing AI" && back.n === "1 of 2" && !back.undo
+    && (await page.evaluate(() => window.__settles.length)) === 0, JSON.stringify(back));
+
+  /* A swipe to the left, with the mouse as a finger. */
+  const box = await page.$eval(".dk-card:not(.gone)", n => { const r = n.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.mouse.move(box.x, box.y); await page.mouse.down();
+  await page.mouse.move(box.x - 80, box.y + 4, { steps: 4 });
+  const stamp = await page.evaluate(() => ({ t: document.querySelector(".dk-card:not(.gone) .dk-stamp").textContent,
+    lit: [...document.querySelectorAll(".dk-card:not(.gone) .dk-side.lit")].map(s => s.dataset.s).join() }));
+  check("dragging left lights side A and says so", stamp.t === "A holds" && stamp.lit === "a", JSON.stringify(stamp));
+  await page.mouse.move(box.x - 200, box.y + 6, { steps: 4 }); await page.mouse.up();
+  await page.waitForTimeout(4400);
+  const sent = await page.evaluate(() => window.__settles);
+  check("a swipe left settles on A once the undo window closes", sent.length === 1 && sent[0].pick === "a" && sent[0].id === "content/ai-rates", JSON.stringify(sent));
+
+  await page.keyboard.press("ArrowDown"); await page.waitForTimeout(300);
+  const end = await card();
+  check("down leaves a clash for later, and the end says what is left", /1 settled/.test(end.done) && /1 left for later/.test(end.done)
+    && /3 more add detail/.test(end.done), end.done);
+  await page.click("#dkAgain"); await page.waitForTimeout(150);
+  const again = await card();
+  check("the ones left for later come round again", again.title === "Scaling at $10k MRR" && again.n === "1 of 1", JSON.stringify(again));
+  await page.keyboard.press("ArrowUp"); await page.waitForTimeout(100);
+  await page.keyboard.press("Escape"); await page.waitForTimeout(250);
+  const last = await page.evaluate(() => ({ sent: window.__settles, open: !!document.querySelector(".deck") }));
+  check("closing sends what was waiting at once", last.sent.length === 2 && last.sent[1].pick === "both"
+    && last.sent[1].id === "content/paywall" && !last.open, JSON.stringify(last));
+  check("nothing threw in the deck", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- blind spots: an answer names one, the list gathers them ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__dropped = []; window.__gapCalls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/ask")) return Response.json({ answer: "The brains hold nothing on crypto tax in France.", sources: 12, level: "normal",
+        gap: { gap: "Crypto taxes in France", find: "A French tax adviser's written guide with 2026 rates" } });
+      if (s.includes("/api/gaps/drop")) { window.__dropped.push(body.ids); return Response.json({ dropped: body.ids.length }); }
+      if (s.includes("/api/gaps")) {
+        window.__gapCalls.push(!!body.advise);
+        const spots = [
+          { id: "q-g1", kind: "asked", brain: "content", gap: "Crypto taxes in France", find: "A French tax adviser's guide", why: "Asked 2 times, last on 2026-09-28",
+            gapIds: ["g1", "g2"], questions: ["What tax do I pay on crypto in France?"] },
+          { id: "b-sport", kind: "few", brain: "sport", gap: "Sport rests on 1 source for 4 concepts.", find: "A second source on sport, by a different author.", why: "Sport: 4 concepts from 1 source" } ];
+        if (body.advise) { await new Promise(ok => setTimeout(ok, 150));
+          spots[1] = { ...spots[1], gap: "Sport holds nothing on recovery between sessions: 4 concepts from 1 source.", find: "A sports physiologist's guide to recovery, with timings." }; }
+        return Response.json({ spots, advised: !!body.advise });
+      }
+      return Response.json({});
+    };
+  }, STATE);
+  await page.fill("#input", "What tax do I pay on crypto in France?");
+  await page.click("#send"); await page.waitForTimeout(300);
+  const note = await page.evaluate(() => { const g = [...document.querySelectorAll(".gapnote")].pop();
+    return g ? { text: g.textContent, answer: g.parentElement.querySelector(".ln")?.textContent } : null; });
+  check("an answer that falls short names the blind spot and what to look for", note && /Blind spotCrypto taxes in France/.test(note.text)
+    && /Look for: A French tax adviser's written guide/.test(note.text) && /nothing on crypto tax/.test(note.answer), JSON.stringify(note));
+
+  await page.click(".gapnote button"); await page.waitForTimeout(80);
+  const first = await page.evaluate(() => ({ cards: [...document.querySelectorAll(".gp")].map(c => ({ kind: c.querySelector(".gp-kind").textContent,
+    gap: c.querySelector(".gp-gap").textContent, find: c.querySelector(".gp-find").textContent, done: !!c.querySelector(".mini") })),
+    state: document.getElementById("gpState").textContent }));
+  check("the list opens at once from what is stored", first.cards.length === 2 && first.cards[0].kind === "Asked, not answered"
+    && first.cards[1].kind === "Thin brain" && /Writing each one precisely/.test(first.state), JSON.stringify(first));
+  check("each says what to look for, and only a question can be cleared by hand", /^Look for: A French tax adviser/.test(first.cards[0].find)
+    && first.cards[0].done && !first.cards[1].done, JSON.stringify(first.cards));
+  await page.waitForTimeout(300);
+  const precise = await page.evaluate(() => ({ gap: document.querySelectorAll(".gp .gp-gap")[1]?.textContent, state: document.getElementById("gpState").textContent }));
+  check("then each is rewritten precisely", /nothing on recovery between sessions/.test(precise.gap) && precise.state === "2 blind spots", JSON.stringify(precise));
+  await page.click(".gp .mini"); await page.waitForTimeout(150);
+  const after = await page.evaluate(() => ({ dropped: window.__dropped, left: document.querySelectorAll(".gp").length }));
+  check("Dealt with clears the questions behind it", JSON.stringify(after.dropped) === '[["g1","g2"]]' && after.left === 1, JSON.stringify(after));
+  check("the sidebar opens it too", await page.$("#gapsBtn") !== null);
+  check("nothing threw on blind spots", !bad.length, bad.join(" | "));
   await page.close();
 }
 

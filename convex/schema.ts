@@ -126,6 +126,20 @@ export default defineSchema({
     written: v.string(),
   }).index("by_sid", ["sid"]),
 
+  /**
+   * A question an answer found the brains short on: what is missing and the
+   * kind of source that would fill it. Blind spots read these. The answer
+   * already told the owner; this is so the list can say it again later.
+   */
+  gaps: defineTable({
+    space: v.string(),
+    q: v.string(),
+    gap: v.string(),
+    find: v.string(),
+    brains: v.array(v.string()),
+    at: v.number(),
+  }).index("by_space_at", ["space", "at"]),
+
   /* The public MCP endpoint has no passphrase, so a per-address counter is the
      only thing standing between a scraping loop and the deployment quota. */
   mcpHits: defineTable({
