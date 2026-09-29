@@ -370,12 +370,11 @@ async function boot(path, init, arg) {
     return m ? { bg: getComputedStyle(m).backgroundImage, anim: getComputedStyle(m).animationName,
                  line: document.querySelector(".thinking span:last-child")?.textContent } : null;
   });
-  check("a question shows the turning mark while it waits", !!loader, "no .spinner");
+  check("a question shows the waiting mark while it waits", !!loader, "no .spinner");
   check("with Octopus's first waiting line and the step it stands for",
     loader?.line === "Octopus is reaching into every brain... (searching)", loader?.line);
   if (loader) {
-    check("and it is this space's mark", /logo-mark\.png/.test(loader.bg), loader.bg);
-    check("turning", loader.anim === "turn", loader.anim);
+    check("and it is the octopus's own loop, not a turning mark", /octopus-loop-64\.webp/.test(loader.bg) && loader.anim === "none", `${loader.bg} ${loader.anim}`);
   }
   await page.waitForTimeout(700);
   check("and it goes when the answer lands", await page.$(".thinking .spinner") === null);
@@ -921,6 +920,32 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     none: /None to settle\. 8 recorded clashes add detail/.test(document.getElementById("cfSlot").textContent) }));
   check("Both hold clears the last one, and the list says none are left", two.sent?.pick === "both" && two.count === "" && two.none, JSON.stringify(two));
   check("nothing threw settling conflicts", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- the empty chat: the octopus's loop in Octopus, the dog's mark in Squidgy ---- */
+for (const space of ["octopus", "squidgy"]) {
+  const st = { ...STATE, space, spaceName: space === "octopus" ? "Octopus" : "Squidgy" };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.fetch = async (u) => { const s = String(u);
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/ask")) { await new Promise(ok => setTimeout(ok, 500)); return Response.json({ answer: "x", sources: 12 }); }
+      return Response.json({}); };
+  }, st);
+  const z = await page.evaluate(() => { const v = document.querySelector(".zero .zero-loop, .zero .zero-mark");
+    return v ? { tag: v.tagName, src: v.getAttribute("src"), loop: v.loop, muted: v.muted, playing: v.tagName === "VIDEO" ? !v.paused : null } : null; });
+  await page.fill("#input", "anything"); await page.click("#send"); await page.waitForTimeout(150);
+  const spin = await page.evaluate(() => { const m = document.querySelector(".thinking .spinner");
+    return m ? { bg: getComputedStyle(m).backgroundImage, anim: getComputedStyle(m).animationName } : null; });
+  if (space === "octopus") {
+    check("an empty Octopus chat plays the octopus's loop, muted, on repeat", z?.tag === "VIDEO" && /octopus-loop\.webm$/.test(z.src) && z.loop && z.muted,
+      JSON.stringify(z));
+  } else {
+    check("an empty Squidgy chat keeps the dog's mark", z?.tag === "IMG" && /squidgy-mark/.test(z.src), JSON.stringify(z));
+    check("and Squidgy waits with its turning mark", /squidgy-mark/.test(spin?.bg || "") && spin?.anim === "turn", JSON.stringify(spin));
+  }
+  check(`nothing threw in the empty ${space} chat`, !bad.length, bad.join(" | "));
   await page.close();
 }
 

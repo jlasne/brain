@@ -72,6 +72,9 @@
 
   /* The dog greets an empty thread. */
   .zero-mark{ display:block; height:92px; width:auto; margin-bottom:22px; }
+  /* The octopus's loop, on the empty chat. Its frame holds the sparkles and
+     the landing ring, so it runs larger than a still mark. */
+  .zero-loop{ display:block; width:150px; height:150px; margin:-18px 0 6px -24px; pointer-events:none; }
 
   html{ background:var(--bg); }
   body{
@@ -491,6 +494,12 @@
     animation:turn 1.3s linear infinite;
   }
   @keyframes turn{ to{ transform:rotate(360deg); } }
+  /* Octopus waits with its own loop rather than a turning mark. Squidgy
+     keeps its turning mark. */
+  :root:not([data-space="squidgy"]) .spinner{
+    width:36px; height:36px; animation:none;
+    background-image:url("/brand/octopus-loop-64.webp");
+  }
 
   .err{
     border:1px solid var(--accent-line); background:var(--accent-soft);
@@ -949,6 +958,8 @@
 
   @media (prefers-reduced-motion:reduce){
     *{ animation:none !important; transition:none !important; scroll-behavior:auto !important; }
+    /* A loop is motion too: the still mark stands in for it. */
+    :root:not([data-space="squidgy"]) .spinner{ background-image:var(--mark); }
   }
 </style>
 
@@ -1516,6 +1527,22 @@ function dropHint(src, content){
   return "paste what it says, drop a document, or give a link";
 }
 
+/**
+ * The octopus's loop, see-through on the page.
+ *
+ * The WebM carries its transparency in 270 KB. Safari and every iPhone
+ * browser play WebM without that transparency, a black square, so they get
+ * the animated WebP instead. Asked for less motion, it stays still.
+ */
+function octopusLoop(){
+  const ua = navigator.userAgent;
+  const webkit = /iPhone|iPad|iPod/.test(ua) || (/Safari\//.test(ua) && !/Chrome|Chromium|Edg|OPR|Firefox/.test(ua));
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return `<img class="zero-mark" src="/brand/logo-mark.png" alt="">`;
+  return webkit
+    ? `<img class="zero-loop" src="/brand/octopus-loop.webp" alt="">`
+    : `<video class="zero-loop" src="/brand/octopus-loop.webm" autoplay loop muted playsinline disablepictureinpicture aria-hidden="true"></video>`;
+}
+
 function renderZero(){
   const th = $("thread");
   /* The shell paints before the state call says which space this is, so an
@@ -1526,7 +1553,7 @@ function renderZero(){
   const z = el("div","zero");
   z.dataset.space = S.space;
   z.innerHTML = `
-    ${S.space === "squidgy" ? `<img class="zero-mark" src="/brand/squidgy-mark.png" alt="">` : ""}
+    ${S.space === "squidgy" ? `<img class="zero-mark" src="/brand/squidgy-mark.png" alt="">` : octopusLoop()}
     <h2>A folder that gets smarter every time you feed it.</h2>
     <p class="lede">Feed it any source and it reads the whole thing, files each idea under the right subject, flags every claim that clashes with what you already hold, then answers from dated evidence.</p>`;
   th.append(z);
