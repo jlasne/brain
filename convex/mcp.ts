@@ -433,7 +433,7 @@ const mergeExt = (a: any, b: any) => ({
 });
 
 /** The card, as text, because a connector has no card to click. */
-function cardText(plan: any, brains: any[], concepts: any[], draft: string, author: string) {
+function cardText(plan: any, brains: any[], concepts: any[], draft: string, author: string, sources: any[] = []) {
   const named = (s2: string) => brains.find((b: any) => b.slug === s2)?.name ?? s2;
   const matched = (plan.matched ?? []).map((m: any) => {
     const c = concepts.find((x: any) => `${x.brain}/${x.slug}` === m.conceptId);
@@ -453,6 +453,15 @@ function cardText(plan: any, brains: any[], concepts: any[], draft: string, auth
   });
 
   const named2 = knownAuthor(author);
+  /* With no author found, the ones these brains already hold, most frequent
+     first, so the person can pick one. */
+  const counts = new Map<string, number>();
+  if (!named2) for (const s of sources) {
+    if (!(s.brains ?? []).some((x: string) => (plan.brains ?? []).includes(x)) || !knownAuthor(s.author)) continue;
+    const a = String(s.author).trim();
+    counts.set(a, (counts.get(a) ?? 0) + 1);
+  }
+  const held = [...counts].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).map(x => x[0]).slice(0, 20);
   return [
     `DRAFT ${draft}`,
     `AUTHOR: ${named2 ? author : "not found in the source"}`,
@@ -477,7 +486,9 @@ function cardText(plan: any, brains: any[], concepts: any[], draft: string, auth
     `===== WHAT TO DO NOW =====`,
     named2
       ? `Ask the person to confirm the author, "${author}". If they correct it, send their version as author to drop_prepare.`
-      : `The source names no author. Ask the person who wrote or said it, and send it as author to drop_prepare. Nothing is stored without one.`,
+      : `The source names no author. Ask the person who wrote or said it${held.length
+          ? `, offering the authors these brains already hold as choices, plus someone else: ${held.join(", ")}`
+          : ""}. Send the answer as author to drop_prepare. Nothing is stored without one.`,
     clashes.length
       ? `Show every contradiction above to the person and ask which side holds. Then call drop_prepare with rulings, keyed by the concept id in brackets: "new", "old" or "both". Silence keeps both.`
       : `Nothing here contradicts what the brains hold. Ask the person to confirm, then call drop_prepare.`,
@@ -580,7 +591,7 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     const plan = args?.plan;
     if (!plan || typeof plan !== "object") return text("Send the plan, in the shape drop_source asked for.");
 
-    const { brains, concepts, pool } = await feedable(ctx, who, d.brain || "all");
+    const { brains, concepts, sources, pool } = await feedable(ctx, who, d.brain || "all");
     const targets = (plan.brains ?? []).filter((x: string) => pool.some((y: any) => y.slug === x));
     if (!targets.length) {
       return text(`"brains" named none you may feed. Pick from: ${pool.map((b: any) => b.slug).join(", ")}.`);
@@ -599,7 +610,7 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     }
 
     await ctx.runMutation(internal.store.saveDraft, { token, account: caller.account, plan });
-    return text(cardText(plan, brains, concepts, token, str(d.ext?.author).trim()));
+    return text(cardText(plan, brains, concepts, token, str(d.ext?.author).trim(), sources));
   }
 
   if (name === "drop_prepare") {

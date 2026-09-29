@@ -497,12 +497,14 @@
   .card-grid dd li{ margin-bottom:3px; }
   .card-grid dd li:last-child{ margin-bottom:0; }
   .card-grid dd .none{ color:var(--ink-3); }
-  .card-grid .author input{
-    width:100%; max-width:340px; padding:7px 10px; border:1px solid var(--line-2); border-radius:7px;
+  .card-grid .author input, .card-grid .author select{
+    display:block; width:100%; max-width:340px; padding:7px 10px; border:1px solid var(--line-2); border-radius:7px;
     background:var(--surface); font:inherit; font-size:14.5px; color:var(--ink);
   }
-  .card-grid .author input:focus{ outline:none; border-color:var(--accent-fill); }
-  .card-grid .author input.bad{ border-color:var(--accent); background:var(--accent-soft); }
+  .card-grid .author input[hidden]{ display:none; }
+  .card-grid .author select + input{ margin-top:6px; }
+  .card-grid .author input:focus, .card-grid .author select:focus{ outline:none; border-color:var(--accent-fill); }
+  .card-grid .author .bad{ border-color:var(--accent); background:var(--accent-soft); }
   .card-grid .author-hint{ margin-top:4px; font-size:12.5px; color:var(--ink-3); }
 
   .chips{ display:flex; flex-wrap:wrap; gap:6px; }
@@ -885,7 +887,7 @@
     .pager{ padding:18px 16px; }
     .pager .acts{ gap:8px; }
     .pager .acts input{ flex:1 0 100%; order:-1; font-size:16px; min-height:44px; }
-    .card-grid .author input{ font-size:16px; min-height:44px; max-width:none; }
+    .card-grid .author input, .card-grid .author select{ font-size:16px; min-height:44px; max-width:none; }
     .pager .acts .fresh{ flex:1; }
     .pager .foot, .pager h4{ font-size:12px; }
 
@@ -3020,6 +3022,17 @@ const knownAuthor = a => {
   return t.length >= 2 && !/^(unknown|inconnu|anonymous|anonyme|n\/?a|none|null|undefined|not found|\?+|-+)\b/i.test(t);
 };
 
+/** The authors the given brains already hold, the most frequent first. */
+function authorsIn(slugs){
+  const n = new Map();
+  for (const s of S.sources){
+    if (!(s.brains || []).some(b => slugs.includes(b)) || !knownAuthor(s.author)) continue;
+    const a = String(s.author).trim();
+    n.set(a, (n.get(a) || 0) + 1);
+  }
+  return [...n].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).map(x => x[0]).slice(0, 40);
+}
+
 /* The decision travels under the concept it concerns, never under a position
    number, because the rewriter reads it per concept. */
 const ckey = (c, i) => c.conceptId || (c.brain && c.concept ? c.brain+"/"+c.concept : c.concept) || ("c"+i);
@@ -3036,17 +3049,37 @@ function buildCard(pc, decide){
   const dl = el("dl","card-grid");
   const row = (k,node) => { dl.append(el("dt",null,k)); const d=el("dd"); d.append(node); dl.append(d); };
 
-  /* The author the reading found, for the person to confirm or rewrite.
-     Nothing is stored without one. */
+  /* The author the reading found, filled in. When it found none, the person
+     picks one of the authors these brains already hold, or writes a new
+     name. Nothing is stored without one. */
   const who = el("div","author");
   const whoIn = el("input");
   whoIn.id = "cardAuthor"; whoIn.autocomplete = "off"; whoIn.spellcheck = false;
   whoIn.placeholder = "Who wrote or said it";
   whoIn.value = knownAuthor(ext.author) ? String(ext.author).trim() : "";
+  whoIn.oninput = () => whoIn.classList.remove("bad");
+  const known = whoIn.value ? [] : authorsIn(plan.brains || []);
+  let whoPick = null;
+  if (known.length){
+    whoPick = el("select");
+    whoPick.id = "cardAuthorPick";
+    whoPick.append(Object.assign(el("option",null,"Pick the author"), { value: "", disabled: true, selected: true }));
+    for (const a of known) whoPick.append(Object.assign(el("option",null,a), { value: a }));
+    whoPick.append(Object.assign(el("option",null,"Someone else..."), { value: "__other__" }));
+    whoIn.hidden = true;
+    whoPick.onchange = () => {
+      whoPick.classList.remove("bad");
+      const other = whoPick.value === "__other__";
+      whoIn.hidden = !other;
+      whoIn.value = other ? "" : whoPick.value;
+      if (other) whoIn.focus();
+    };
+    who.append(whoPick);
+  }
   const whoHint = el("div","author-hint", whoIn.value
     ? "Found in the source. Rewrite it if it is wrong."
+    : known.length ? "The source names no one. Pick who wrote or said it, or someone else."
     : "The source names no one. Write who wrote or said it.");
-  whoIn.oninput = () => whoIn.classList.remove("bad");
   who.append(whoIn, whoHint);
   row("Author", who);
 
@@ -3121,9 +3154,11 @@ function buildCard(pc, decide){
   ok.onclick = async () => {
     const author = whoIn.value.trim();
     if (!knownAuthor(author)){
-      whoIn.classList.add("bad");
-      whoHint.textContent = "Write the author first. Nothing is stored without one.";
-      whoIn.focus();
+      const field = whoIn.hidden && whoPick ? whoPick : whoIn;
+      field.classList.add("bad");
+      whoHint.textContent = whoIn.hidden ? "Pick the author first. Nothing is stored without one."
+        : "Write the author first. Nothing is stored without one.";
+      field.focus();
       return;
     }
     pc.ext.author = author;

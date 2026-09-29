@@ -403,9 +403,14 @@ let job = "";
   const d = (t.match(/DRAFT (\w+)/) ?? [])[1] ?? "";
   const plan = { brains:["content"], matched:[], new:["x"], echo:[], conflicts:[],
     candidates:[{ title:"Byline test concept", brain:"content", why:"taught" }] };
+  DB.sources.push({ sid:"a1", brains:["content"], author:"Alex Hormozi" }, { sid:"a2", brains:["content"], author:"Alex Hormozi" },
+    { sid:"a3", brains:["content"], author:"Marc Durand" }, { sid:"a4", brains:["health"], author:"Sleep Doc" });
   const card = await call("drop_plan", { draft:d, plan }, ME);
+  DB.sources.splice(-4);
   check("a card with no author says so, and asks the person", /AUTHOR: not found in the source/.test(card)
     && /Ask the person who wrote or said it/.test(card), card.slice(0, 160));
+  check("offering the authors that brain already holds, most frequent first",
+    /as choices, plus someone else: Alex Hormozi, Marc Durand\./.test(card) && !/Sleep Doc/.test(card), (card.match(/Ask the person[^\n]*/) || [""])[0]);
   await call("drop_prepare", { draft:d }, ME);
   const before = DB.writes.length;
   const refused = await call("drop_store", { draft:d, rewrites:[] }, ME);

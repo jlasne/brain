@@ -771,6 +771,61 @@ for (const kind of ["study", "argument"]) {
   await page.close();
 }
 
+/* ---- the author: filled in when found, picked from the brain's own when not ---- */
+for (const found of ["Charles Gave", ""]) {
+  const held = { ...STATE,
+    brains: [...STATE.brains, { slug: "health", name: "Health", type: "subject", scope: "sleep" }],
+    sources: [
+      { sid: "s1", author: "Alex Hormozi", brains: ["content"], title: "a" },
+      { sid: "s2", author: "Alex Hormozi", brains: ["content"], title: "b" },
+      { sid: "s3", author: "Marc Durand", brains: ["content"], title: "c" },
+      { sid: "s4", author: "unknown", brains: ["content"], title: "d" },
+      { sid: "s5", author: "Sleep Doc", brains: ["health"], title: "e" },
+    ] };
+  const { page, bad } = await boot("/chat.html", ([state, found]) => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__authors = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/drop/check")) return Response.json({ duplicate: false, sid: "s-new" });
+      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Offers", author: found, topics: [{ topic: "Offers", ideas: ["x"], data: [] }] } });
+      if (s.includes("/api/drop/plan")) return Response.json({ plan: { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
+        candidates: [{ title: "Offer stacking", brain: "content", why: "new" }] } });
+      if (s.includes("/api/drop/settle")) { window.__authors.push(body.ext?.author);
+        return Response.json({ sid: "s-new", brains: ["content"], positions: 1, counted: [], written: ["content/offer-stacking"], counts: { new: 1, echo: 0 } }); }
+      return Response.json({});
+    };
+  }, [held, found]);
+  await page.click('#mode button[data-m="drop"]');
+  await page.fill("#srcInput", "Offers talk");
+  await page.fill("#input", "Stack the offer until saying no feels stupid.");
+  await page.click("#send"); await page.waitForTimeout(900);
+  const f = await page.evaluate(() => ({ value: document.getElementById("cardAuthor")?.value,
+    shown: !document.getElementById("cardAuthor")?.hidden, pick: !!document.getElementById("cardAuthorPick"),
+    options: [...(document.getElementById("cardAuthorPick")?.options || [])].map(o => o.textContent) }));
+  if (found) {
+    check("a found author is filled in, with no list to pick from", f.value === "Charles Gave" && f.shown && !f.pick, JSON.stringify(f));
+    await page.click(".card-foot .go"); await page.waitForTimeout(400);
+    check("and stores as it is", JSON.stringify(await page.evaluate(() => window.__authors)) === '["Charles Gave"]');
+  } else {
+    check("with none found, the brain's own authors are offered, most frequent first",
+      f.pick && !f.shown && f.options.join("|") === "Pick the author|Alex Hormozi|Marc Durand|Someone else...", JSON.stringify(f));
+    await page.click(".card-foot .go"); await page.waitForTimeout(200);
+    check("Store it waits for a pick", await page.evaluate(() => window.__authors.length) === 0
+      && /Pick the author first/.test(await page.textContent(".author-hint")));
+    await page.selectOption("#cardAuthorPick", "__other__");
+    check("someone else opens a box for a new name", await page.isVisible("#cardAuthor"));
+    await page.selectOption("#cardAuthorPick", "Marc Durand");
+    check("and a pick closes it again", !(await page.isVisible("#cardAuthor")));
+    await page.click(".card-foot .go"); await page.waitForTimeout(400);
+    check("the picked author is the one stored", JSON.stringify(await page.evaluate(() => window.__authors)) === '["Marc Durand"]',
+      JSON.stringify(await page.evaluate(() => window.__authors)));
+  }
+  check("nothing threw on the author", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- a drop can feed several brains at once ---- */
 {
   const three = { ...STATE, brains: [
