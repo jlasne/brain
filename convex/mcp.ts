@@ -26,7 +26,7 @@ import { randomHex, today, slug as slugOf, HOME, SPACE_NAME, readSpace } from ".
 import { norm, keywords, planDossier, writeDossier, scoreConcept, idOf, OPEN_READ } from "./words";
 import { assemble, pageIds, asText, fullestPlan, docRules, BULLET_RULES, DOC_TITLE } from "./onepager";
 import type { DocType } from "./onepager";
-import { dropCheck, dropSettle, feedable, fetchPage, planContext, PLAN_RULES } from "./drop";
+import { dropCheck, dropSettle, feedable, fetchPage, planContext, knownAuthor, str, PLAN_RULES } from "./drop";
 import { loadSpace } from "./space";
 
 /** Versions this server speaks. The newest sits first, so it wins by default. */
@@ -262,7 +262,7 @@ export const WRITE_TOOLS = [
           description: "Everything worth keeping from the source.",
           properties: {
             title: { type: "string" },
-            author: { type: "string" },
+            author: { type: "string", description: "Who wrote or speaks in the source, as it names them. Leave it empty rather than guess: the person confirms it before anything is stored." },
             date: { type: "string", description: "YYYY-MM-DD, or empty when the source carries none." },
             topics: {
               type: "array",
@@ -312,7 +312,7 @@ export const WRITE_TOOLS = [
     name: "drop_prepare",
     title: "Settle the contradictions and take the rewrite job",
     description:
-      "Step 3 of 4. Show the card from drop_plan to the person and get their ruling on every " +
+      "Step 3 of 4. Show the card from drop_plan to the person, with its author, and get their ruling on every " +
       'contradiction first. "new" means the source wins and the old view moves into evidence. ' +
       '"old" means the stored position holds and the new claim joins the evidence. "both" keeps ' +
       "the position and records the clash. A contradiction left out keeps both. Returns the whole " +
@@ -321,6 +321,7 @@ export const WRITE_TOOLS = [
       type: "object",
       properties: {
         draft: { type: "string", description: "The draft id from drop_source." },
+        author: { type: "string", description: "The author the person confirmed or wrote. Send it when it differs from the card's." },
         rulings: {
           type: "object",
           description: 'Concept id to "new", "old" or "both". Ids come from the card.',
@@ -335,13 +336,15 @@ export const WRITE_TOOLS = [
     name: "drop_store",
     title: "Write the rewritten positions",
     description:
-      "Step 4 of 4. This writes. Send the rewrites you produced from the job drop_prepare returned. " +
+      "Step 4 of 4. This writes. Send the rewrites you produced from the job drop_prepare returned, and the " +
+      "author the person confirmed. Nothing is stored under an unknown author. " +
       "Each position is re-derived from its whole evidence list, never appended to. The source row " +
       "and the note are written, and the receipt comes back. Tell the person what moved.",
     inputSchema: {
       type: "object",
       properties: {
         draft: { type: "string", description: "The draft id from drop_source." },
+        author: { type: "string", description: "Who wrote or said the source, as the person confirmed or wrote it." },
         rewrites: {
           type: "array",
           description: "One entry per concept in the job.",
@@ -430,7 +433,7 @@ const mergeExt = (a: any, b: any) => ({
 });
 
 /** The card, as text, because a connector has no card to click. */
-function cardText(plan: any, brains: any[], concepts: any[], draft: string) {
+function cardText(plan: any, brains: any[], concepts: any[], draft: string, author: string) {
   const named = (s2: string) => brains.find((b: any) => b.slug === s2)?.name ?? s2;
   const matched = (plan.matched ?? []).map((m: any) => {
     const c = concepts.find((x: any) => `${x.brain}/${x.slug}` === m.conceptId);
@@ -449,8 +452,10 @@ function cardText(plan: any, brains: any[], concepts: any[], draft: string) {
     ].join("\n");
   });
 
+  const named2 = knownAuthor(author);
   return [
     `DRAFT ${draft}`,
+    `AUTHOR: ${named2 ? author : "not found in the source"}`,
     `GOES TO: ${(plan.brains ?? []).map(named).join(", ") || "no brain matched"}`,
     ``,
     `POSITIONS IT TOUCHES (${matched.length})`,
@@ -470,6 +475,9 @@ function cardText(plan: any, brains: any[], concepts: any[], draft: string) {
     clashes.join("\n\n") || "none",
     ``,
     `===== WHAT TO DO NOW =====`,
+    named2
+      ? `Ask the person to confirm the author, "${author}". If they correct it, send their version as author to drop_prepare.`
+      : `The source names no author. Ask the person who wrote or said it, and send it as author to drop_prepare. Nothing is stored without one.`,
     clashes.length
       ? `Show every contradiction above to the person and ask which side holds. Then call drop_prepare with rulings, keyed by the concept id in brackets: "new", "old" or "both". Silence keeps both.`
       : `Nothing here contradicts what the brains hold. Ask the person to confirm, then call drop_prepare.`,
@@ -591,7 +599,7 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     }
 
     await ctx.runMutation(internal.store.saveDraft, { token, account: caller.account, plan });
-    return text(cardText(plan, brains, concepts, token));
+    return text(cardText(plan, brains, concepts, token, str(d.ext?.author).trim()));
   }
 
   if (name === "drop_prepare") {
@@ -601,11 +609,14 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     if (!d.plan) return text(`Draft ${token} has no plan yet. Call drop_plan first.`);
 
     const choices = rulings(args);
+    /* The author the person confirmed or wrote, kept with the draft. */
+    const author = str(args?.author).trim().slice(0, 120);
+    const ext = author ? { ...d.ext, author } : d.ext;
     await ctx.runMutation(internal.store.saveDraft,
-      { token, account: caller.account, plan: { ...d.plan, choices } });
+      { token, account: caller.account, plan: { ...d.plan, choices }, ...(author ? { ext } : {}) });
 
     const r = await dropSettle(ctx, who, {
-      ext: d.ext, plan: d.plan, sid: d.sid, link: d.link, choices, packetOnly: true });
+      ext, plan: d.plan, sid: d.sid, link: d.link, choices, packetOnly: true });
     if (r.error) return text(String(r.error));
     if (!r.job) {
       return text([
@@ -629,19 +640,24 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     if (!d) return text(`Draft ${token} is gone. Start again with drop_source.`);
     if (!d.plan) return text(`Draft ${token} has no plan yet. Call drop_plan first.`);
     const rw = Array.isArray(args?.rewrites) ? args.rewrites : [];
+    const author = (str(args?.author).trim() || str(d.ext?.author).trim()).slice(0, 120);
+    if (!knownAuthor(author)) {
+      return text("No author yet. Ask the person who wrote or said this source, then call drop_store again " +
+        "with author. Nothing was written.");
+    }
 
     /* The rulings were fixed at drop_prepare, so they cannot change under the
        rewrites they produced. */
     const choices = d.plan.choices ?? {};
 
     const r = await dropSettle(ctx, who, {
-      ext: d.ext, plan: d.plan, sid: d.sid, link: d.link,
+      ext: { ...d.ext, author }, plan: d.plan, sid: d.sid, link: d.link,
       location: "sent through a connector", choices, rewrites: rw });
     if (r.error) return text(String(r.error));
 
     await ctx.runMutation(internal.store.killDraft, { token, account: caller.account });
     return text([
-      `STORED ${r.sid} on ${today()}, by ${caller.name}.`,
+      `STORED ${r.sid} on ${today()}, by ${caller.name}. Author: ${author}.`,
       `Brains: ${(r.brains ?? []).join(", ")}`,
       `Positions rewritten: ${r.positions}`,
       `New claims: ${r.counts?.new ?? 0} | echoes: ${r.counts?.echo ?? 0}`,
@@ -722,6 +738,7 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
       .map((s: any) => s.sid)).size;
     const person = chosen.length === 1 && chosen[0].type === "person";
 
+    const label = `${SPACE_NAME[space].toUpperCase()} BRAIN`;
     const out = [
       `QUESTION: ${q}`,
       ``,
@@ -739,6 +756,8 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
         `Call read_concept on any of those if the question needs it.`] : []),
       ``,
       `===== HOW TO WRITE THE ANSWER =====`,
+      `- The first line reads "${label}" and nothing else, so the person sees where it comes from. The answer starts on the next line.`,
+      `- Never write "in your brains", "according to the brains" or "the brains say". The label already says it.`,
       `- The question's own instruction about shape wins. Asked for a list, give a list. Asked for steps, number them. Asked for a table, give a table.`,
       `- Otherwise, one sentence per line. End every sentence with a full stop, then a line break.`,
       `- A full stop, never a semicolon. Two ideas are two sentences on two lines.`,
@@ -781,7 +800,8 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
     if (kind === "summary" && !q) {
       const page = assemble(space, pool, concepts, sources, named ? named.slug : "all",
         new Map((await whole(pageIds(pool, concepts))).map((c: any) => [idOf(c), c])));
-      return text(`===== THE PAGE, READY =====\nShow it as it is: the title, the line under it, the bullets, then the foot.\n\n${asText(page)}`);
+      return text(`===== THE PAGE, READY =====\nShow it as it is, under a first line reading "${SPACE_NAME[space].toUpperCase()} BRAIN": ` +
+        `the title, the line under it, the bullets, then the foot.\n\n${asText(page)}`);
     }
 
     const plan: any = q ? planDossier(pool, concepts, q, undefined, { terms }) : fullestPlan(inPool);
@@ -804,7 +824,7 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
       `===== HOW TO WRITE THE PAGE =====`,
       rules,
       ``,
-      `- Open with the TITLE as a heading. End with the FOOT line, as it is.`,
+      `- The first line reads "${SPACE_NAME[space].toUpperCase()} BRAIN". Then the TITLE as a heading. End with the FOOT line, as it is.`,
     ].join("\n"));
   }
 
@@ -907,7 +927,8 @@ export async function handleRpc(ctx: any, msg: any, caller: Caller = null): Prom
         "words in terms, and a brain name only if the user named one. It returns the relevant positions, their " +
         "dated evidence, any open conflict, and the rules for writing the answer. For a summary, a quiz, a deep " +
         "dive or use cases, call one_pager. The other tools are for browsing: list_brains, " +
-        "read_brain, read_concept, search_brains, list_sources. Answer from what the tools return, cite the " +
+        "read_brain, read_concept, search_brains, list_sources. Start every answer built from these tools " +
+        `with a line reading "${SPACE_NAME[spaceOf(caller)].toUpperCase()} BRAIN". Answer from what the tools return, cite the ` +
         "authors and dates they carry, and say plainly when the brains do not cover a question rather than " +
         "filling the gap yourself." +
         (caller

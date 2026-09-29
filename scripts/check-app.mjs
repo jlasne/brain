@@ -558,7 +558,22 @@ for (const kind of ["study", "argument"]) {
   check("the first part plans alone, the next ones see its titles", planned.proposed.join(",") === "0,25,25", planned.proposed.join(","));
   check("and every topic is filed", /60 passages read, filed into 60 concepts/.test(planned.note), planned.note);
 
+  /* ---- a source is stored under a named author ---- */
+  const who = await page.evaluate(() => ({ value: document.getElementById("cardAuthor")?.value,
+    hint: document.querySelector(".author-hint")?.textContent }));
+  check("a source naming no one shows an empty author to fill", who.value === "" && /names no one/.test(who.hint || ""), JSON.stringify(who));
+  await page.click(".card-foot .go"); await page.waitForTimeout(200);
+  check("Store it waits for an author, and stores nothing", await page.evaluate(() => window.__settles.length) === 0
+    && /Write the author first/.test(await page.textContent(".author-hint")) && await page.evaluate(() => document.getElementById("cardAuthor").classList.contains("bad")));
+  await page.fill("#cardAuthor", "Unknown");
+  await page.click(".card-foot .go"); await page.waitForTimeout(200);
+  check("\"Unknown\" is not a name", await page.evaluate(() => window.__settles.length) === 0);
+  await page.fill("#cardAuthor", "Jane Roe");
+  await page.evaluate(() => { window.__authors = []; const f = window.fetch; window.fetch = async (u, o) => {
+    if (String(u).includes("/api/drop/settle")) window.__authors.push(JSON.parse(o.body).ext?.author); return f(u, o); }; });
   await page.click(".card-foot .go"); await page.waitForTimeout(900);
+  const sentAs = await page.evaluate(() => [...new Set(window.__authors)]);
+  check("with a name, every part is stored under it", sentAs.length === 1 && sentAs[0] === "Jane Roe", JSON.stringify(sentAs));
   const first = await page.evaluate(() => ({ stored: window.__settles.flat().length, peak: window.__peak,
     msg: [...document.querySelectorAll(".msg.ai")].pop()?.textContent || "" }));
   check("a failed batch says how much is already stored", /Part of it is stored/.test(first.msg) && /of 8 parts are stored/.test(first.msg), first.msg.slice(0, 120));
@@ -682,6 +697,7 @@ for (const kind of ["study", "argument"]) {
   check("a link deep inside a document is not its identity", got.checks[0]?.link === "", JSON.stringify(got.checks[0]));
   check("the document is fingerprinted by its text", /^Guide\.pdf #\w+$/.test(got.checks[0]?.text || ""), got.checks[0]?.text);
   check("a busy model is tried again, not fatal", got.reads === 2 && got.card, `${got.reads} reads, card ${got.card}`);
+  await page.fill("#cardAuthor", "Guide Team");
   await page.click(".card-foot .go"); await page.waitForTimeout(600);
   const stored = await page.evaluate(() => ({ plans: window.__settles,
     msg: [...document.querySelectorAll(".msg.ai")].pop()?.textContent || "" }));
@@ -745,6 +761,7 @@ for (const kind of ["study", "argument"]) {
   check("the first part plans before the rest start", r.plans[0] === 0 && r.plans.slice(1).every(n => n > 0), r.plans.join(","));
   check("twin titles from parts planned together are merged into one concept",
     !!r.merge && /filed into 252 concepts/.test(r.note), r.note);
+  await page.fill("#cardAuthor", "Big Manual Press");
   await page.click(".card-foot .go"); await page.waitForTimeout(1500);
   const st = await page.evaluate(() => ({ mm: (window.__stored || []).find(c => c.title === "Money market hedge"), link: window.__link }));
   check("a link to a merged title now names the title kept", JSON.stringify(st.mm?.related) === JSON.stringify(["content/Hedging with forwards"]),

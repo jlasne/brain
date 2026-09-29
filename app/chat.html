@@ -497,6 +497,13 @@
   .card-grid dd li{ margin-bottom:3px; }
   .card-grid dd li:last-child{ margin-bottom:0; }
   .card-grid dd .none{ color:var(--ink-3); }
+  .card-grid .author input{
+    width:100%; max-width:340px; padding:7px 10px; border:1px solid var(--line-2); border-radius:7px;
+    background:var(--surface); font:inherit; font-size:14.5px; color:var(--ink);
+  }
+  .card-grid .author input:focus{ outline:none; border-color:var(--accent-fill); }
+  .card-grid .author input.bad{ border-color:var(--accent); background:var(--accent-soft); }
+  .card-grid .author-hint{ margin-top:4px; font-size:12.5px; color:var(--ink-3); }
 
   .chips{ display:flex; flex-wrap:wrap; gap:6px; }
   .chip{
@@ -878,6 +885,7 @@
     .pager{ padding:18px 16px; }
     .pager .acts{ gap:8px; }
     .pager .acts input{ flex:1 0 100%; order:-1; font-size:16px; min-height:44px; }
+    .card-grid .author input{ font-size:16px; min-height:44px; max-width:none; }
     .pager .acts .fresh{ flex:1; }
     .pager .foot, .pager h4{ font-size:12px; }
 
@@ -3005,6 +3013,13 @@ async function planAndCard(body, sid, link, ext, len, held){
   bottom();
 }
 
+/* A source is stored under a named author. The same test the server holds:
+   an empty name, or "unknown" and its kin, is no author. */
+const knownAuthor = a => {
+  const t = String(a ?? "").trim();
+  return t.length >= 2 && !/^(unknown|inconnu|anonymous|anonyme|n\/?a|none|null|undefined|not found|\?+|-+)\b/i.test(t);
+};
+
 /* The decision travels under the concept it concerns, never under a position
    number, because the rewriter reads it per concept. */
 const ckey = (c, i) => c.conceptId || (c.brain && c.concept ? c.brain+"/"+c.concept : c.concept) || ("c"+i);
@@ -3014,12 +3029,26 @@ function buildCard(pc, decide){
   const card = el("div","card");
   const top = el("div","card-top");
   top.append(el("span","id",sid),
-    el("span","meta",[ext.author, ext.date,
+    el("span","meta",[ext.date,
       pc.len ? Math.round(pc.len/1000)+"k chars" : "read already"].filter(Boolean).join(" · ")));
   card.append(top);
 
   const dl = el("dl","card-grid");
   const row = (k,node) => { dl.append(el("dt",null,k)); const d=el("dd"); d.append(node); dl.append(d); };
+
+  /* The author the reading found, for the person to confirm or rewrite.
+     Nothing is stored without one. */
+  const who = el("div","author");
+  const whoIn = el("input");
+  whoIn.id = "cardAuthor"; whoIn.autocomplete = "off"; whoIn.spellcheck = false;
+  whoIn.placeholder = "Who wrote or said it";
+  whoIn.value = knownAuthor(ext.author) ? String(ext.author).trim() : "";
+  const whoHint = el("div","author-hint", whoIn.value
+    ? "Found in the source. Rewrite it if it is wrong."
+    : "The source names no one. Write who wrote or said it.");
+  whoIn.oninput = () => whoIn.classList.remove("bad");
+  who.append(whoIn, whoHint);
+  row("Author", who);
 
   row("Goes to", el("span",null,
     (plan.brains||[]).map(x => { const b=S.brains.find(y=>y.slug===x); return b?`${b.name} (${b.type})`:x; }).join(" · ") || "no brain matched"));
@@ -3090,6 +3119,14 @@ function buildCard(pc, decide){
   skip.onclick = () => { card.remove(); S.pendingCard=null;
     push("ai", b => { b.innerHTML = rich("Rejected. Nothing was stored and no position moved."); }); };
   ok.onclick = async () => {
+    const author = whoIn.value.trim();
+    if (!knownAuthor(author)){
+      whoIn.classList.add("bad");
+      whoHint.textContent = "Write the author first. Nothing is stored without one.";
+      whoIn.focus();
+      return;
+    }
+    pc.ext.author = author;
     ok.disabled = skip.disabled = true; ok.textContent = "Storing";
     if (Object.values(pc.choices).includes("skip")){
       card.remove(); S.pendingCard=null;

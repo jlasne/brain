@@ -541,6 +541,19 @@ export async function dropMerge(ctx: any, who: Who, b: any, key?: string, model?
   }
 }
 
+/**
+ * Whether a source names who wrote or said it.
+ *
+ * Every drop is stored under a named author: the person confirms the name the
+ * reading found, or writes it. Evidence filed as "unknown" cannot be weighed
+ * or cited, so it is refused here, at the write. Sources stored before this
+ * rule keep what they have.
+ */
+export const knownAuthor = (a: any): boolean => {
+  const t = str(a).trim();
+  return t.length >= 2 && !/^(unknown|inconnu|anonymous|anonyme|n\/?a|none|null|undefined|not found|\?+|-+)\b/i.test(t);
+};
+
 /** Text, whatever the model sent: a list of authors, a year as a number. */
 export const str = (x: any): string =>
   typeof x === "string" ? x : Array.isArray(x) ? x.map(str).filter(Boolean).join(", ")
@@ -566,6 +579,10 @@ function fitNote(n: any) {
 
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
 export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model?: string) {
+  /* Checked first, before a single read: nothing is written without it. */
+  if (!b.packetOnly && !knownAuthor(b.ext?.author)) {
+    return { error: "name the author before storing: who wrote or said this source?", needAuthor: true };
+  }
   const plan = b.plan ?? {}, sid = String(b.sid ?? "");
   /* Only what this batch touches is read: the concepts its plan names, and
      whether each new title is already a concept. */

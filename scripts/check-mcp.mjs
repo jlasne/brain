@@ -282,7 +282,7 @@ const ME = { account:"octopus", name:"Octopus" };
 }
 
 /* ---- step 1 ---- */
-const EXT = { title:"Hooks that hold", author:"C", date:"2026-09-10",
+const EXT = { title:"Hooks that hold", author:"Carla Ruiz", date:"2026-09-10",
   topics:[{ topic:"Hooks", ideas:["First 2 seconds decide the watch"], data:["retention 42% at 3s"] }], quotes:[], thin:[] };
 let draft = "";
 {
@@ -394,6 +394,54 @@ let job = "";
     JSON.stringify(link?.ids));
   check("a stored long title is fed, not doubled", link.ids.filter(x => x.startsWith("content/forward-contract")).length === 2);
   DB.concepts.pop();
+}
+
+/* ---- every drop is stored under a named author, confirmed by the person ---- */
+{
+  const noAuthor = { ...EXT, title:"Hooks without a byline", author:"" };
+  const t = await call("drop_source", { extraction: noAuthor, link:"https://example.com/no-byline", brain:"content" }, ME);
+  const d = (t.match(/DRAFT (\w+)/) ?? [])[1] ?? "";
+  const plan = { brains:["content"], matched:[], new:["x"], echo:[], conflicts:[],
+    candidates:[{ title:"Byline test concept", brain:"content", why:"taught" }] };
+  const card = await call("drop_plan", { draft:d, plan }, ME);
+  check("a card with no author says so, and asks the person", /AUTHOR: not found in the source/.test(card)
+    && /Ask the person who wrote or said it/.test(card), card.slice(0, 160));
+  await call("drop_prepare", { draft:d }, ME);
+  const before = DB.writes.length;
+  const refused = await call("drop_store", { draft:d, rewrites:[] }, ME);
+  check("drop_store refuses an unknown author, and writes nothing", /No author yet/.test(refused) && DB.writes.length === before, refused);
+  const junk = await call("drop_store", { draft:d, rewrites:[], author:"Unknown" }, ME);
+  check("\"Unknown\" is no author", /No author yet/.test(junk) && DB.writes.length === before);
+  const ok = await call("drop_store", { draft:d, rewrites:[], author:"Marc Durand" }, ME);
+  const src = DB.writes.slice(before).find(w => w.kind === "source");
+  check("with the person's name it stores, under that name", /STORED .* Author: Marc Durand\./.test(ok) && src?.doc?.author === "Marc Durand",
+    ok.slice(0, 120) + " | " + JSON.stringify(src?.doc?.author));
+  const ev = DB.writes.slice(before).find(w => w.kind === "concept")?.doc?.evidence?.[0];
+  check("and its evidence carries the name too", ev?.author === "Marc Durand", JSON.stringify(ev));
+
+  const t2 = await call("drop_source", { extraction: { ...EXT, title:"Hooks, second byline" }, link:"https://example.com/byline-2", brain:"content" }, ME);
+  const d2 = (t2.match(/DRAFT (\w+)/) ?? [])[1] ?? "";
+  const card2 = await call("drop_plan", { draft:d2, plan }, ME);
+  check("a card with an author asks the person to confirm it", /AUTHOR: Carla Ruiz/.test(card2) && /confirm the author, "Carla Ruiz"/.test(card2));
+  await call("drop_prepare", { draft:d2, author:"Carla Ruiz-Ortega" }, ME);
+  const b2 = DB.writes.length;
+  await call("drop_store", { draft:d2, rewrites:[] }, ME);
+  check("a name corrected at drop_prepare is the one stored", DB.writes.slice(b2).find(w => w.kind === "source")?.doc?.author === "Carla Ruiz-Ortega");
+  const direct = await dropSettle(ctx, { account:"octopus", kind:"owner", space:"octopus" },
+    { ext:{ ...EXT, author:"unknown" }, plan, sid:"s-x" });
+  check("the app's store step refuses an unknown author too", direct.needAuthor === true && /name the author/.test(direct.error), JSON.stringify(direct));
+}
+
+/* ---- an answer says where it comes from, in one label ---- */
+{
+  const a = await call("ask", { question:"what beats a bigger audience", terms:["offer"] }, ME);
+  check("an answer opens with OCTOPUS BRAIN", /The first line reads "OCTOPUS BRAIN"/.test(a) && /Never write "in your brains"/.test(a));
+  const sq = await call("ask", { question:"what beats a bigger audience" }, { account:"owner-squidgy", name:"Owner", space:"squidgy" });
+  check("a Squidgy answer opens with SQUIDGY BRAIN", /SQUIDGY BRAIN|Nothing in these brains/.test(sq), sq.slice(0, 120));
+  const pg = await call("one_pager", { kind:"quiz", brain:"content" }, ME);
+  check("a one-pager carries the label above its title", /first line reads "OCTOPUS BRAIN"\. Then the TITLE/.test(pg));
+  const init = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"initialize", params:{} }, ME);
+  check("and the server says so when a client connects", /with a line reading "OCTOPUS BRAIN"/.test(init.result.instructions));
 }
 
 /* ---- a drop feeds only the brains it may, once per concept, and keeps what was stored ---- */
