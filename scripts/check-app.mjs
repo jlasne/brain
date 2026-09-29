@@ -214,8 +214,10 @@ async function boot(path, init, arg) {
     rows: [...document.querySelectorAll(".pick-menu .pk-row .pk-nm")].map(x => x.firstChild.textContent),
     heads: [...document.querySelectorAll(".pick-menu .pk-h")].map(x => x.textContent),
   }));
-  check("its menu offers every brain, grouped", menu.rows.join(",") === "All brains,Content" && menu.heads.join(",") === "Subjects",
+  check("its menu offers every brain in one list", menu.rows.join(",") === "All brains,Content" && menu.heads.join(",") === "Or one brain",
     JSON.stringify(menu));
+  check("each with its person or subject mark", await page.evaluate(() =>
+    document.querySelector(".pick-menu .pk-row:nth-of-type(2) .b-ic")?.getAttribute("aria-label")) === "Subject");
   await page.click(".pick-menu .pk-row >> nth=1");
   const picked = await page.evaluate(() => ({ val: document.getElementById("scopeVal").textContent, open: !!document.querySelector(".pick-menu") }));
   check("picking a brain names it and closes the menu", picked.val === "Content" && !picked.open, JSON.stringify(picked));
@@ -402,7 +404,7 @@ async function boot(path, init, arg) {
   await page.evaluate(() => document.querySelectorAll(".veil").forEach(v => v.remove()));
 
   /* ---- inside a brain ---- */
-  await page.click(".brain-row .ed >> text=open");
+  await page.hover(".brain-row"); await page.click(".brain-row .ed >> text=open");
   await page.waitForTimeout(120);
   const vw = await page.evaluate(() => ({ title: document.querySelector(".viewer h3")?.textContent,
     rows: document.querySelectorAll(".viewer .vw-row").length, count: document.querySelector(".viewer .vw-count")?.textContent }));
@@ -425,7 +427,7 @@ async function boot(path, init, arg) {
       return Response.json({});
     };
   }, withOne);
-  await page.click(".brain-row .ed >> text=open");
+  await page.hover(".brain-row"); await page.click(".brain-row .ed >> text=open");
   await page.waitForTimeout(100);
   const list = await page.evaluate(() => [...document.querySelectorAll(".viewer .vw-row b")].map(b => b.textContent));
   check("the viewer lists each concept by name", list.join(",") === "Offer first", list.join(","));
@@ -847,6 +849,32 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       JSON.stringify(await page.evaluate(() => window.__authors)));
   }
   check("nothing threw on the author", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- the sidebar: one list, a mark for a person or a subject ---- */
+{
+  const mixed = { ...STATE,
+    brains: [{ slug: "content", name: "Content", type: "subject", scope: "c" }, { slug: "detente", name: "Richard Detente", type: "person", scope: "d" },
+             { slug: "health", name: "Health", type: "subject", scope: "h" }],
+    concepts: [..."abc"].map((x, i) => ({ brain: "content", slug: "c" + i, n: i + 1, title: "C" + i }))
+      .concat([..."abcde"].map((x, i) => ({ brain: "detente", slug: "d" + i, n: i + 1, title: "D" + i })))
+      .concat([{ brain: "health", slug: "h0", n: 1, title: "H0" }]) };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.fetch = async u => Response.json(String(u).includes("/api/state") ? state : {});
+  }, mixed);
+  const side = await page.evaluate(() => ({
+    rows: [...document.querySelectorAll("#brains .brain-row")].map(r => `${r.querySelector(".nm").textContent}:${r.querySelector(".b-ic")?.getAttribute("aria-label")}`),
+    heads: document.querySelectorAll("#brains .group-h").length }));
+  check("the sidebar is one list, the fullest first, no People or Subjects heading",
+    side.rows.join(",") === "Richard Detente:Person,Content:Subject,Health:Subject" && side.heads === 0, JSON.stringify(side));
+  await page.mouse.move(900, 400);
+  const room = await page.evaluate(() => getComputedStyle(document.querySelector("#brains .brain-row:not(.on) .ed")).display);
+  check("a row's open and edit take no room until it is pointed at", room === "none", room);
+  await page.hover("#brains .brain-row");
+  check("and show when it is", await page.evaluate(() => getComputedStyle(document.querySelector("#brains .brain-row .ed")).display) !== "none");
+  check("nothing threw on the list", !bad.length, bad.join(" | "));
   await page.close();
 }
 
