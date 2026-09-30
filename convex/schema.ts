@@ -142,11 +142,8 @@ export default defineSchema({
     updated: v.number(),
   }).index("by_space_updated", ["space", "updated"]),
 
-  /**
-   * A question an answer found the brains short on: what is missing and the
-   * kind of source that would fill it. Blind spots read these. The answer
-   * already told the owner; this is so the list can say it again later.
-   */
+  /* Blind spots were removed. The table stays so rows written while they
+     existed still match the schema; nothing writes to it. */
   gaps: defineTable({
     space: v.string(),
     q: v.string(),

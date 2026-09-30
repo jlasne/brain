@@ -39,8 +39,6 @@ export type SpaceWeek = {
   more: number;
   /* Sources stored this week. */
   sources: any[];
-  /* Questions the brains fell short on this week. */
-  gaps?: any[];
 };
 
 const cut = (s: unknown, n: number) => {
@@ -92,13 +90,6 @@ export function digestPage(weeks: SpaceWeek[], since: string, today: string): Pa
         say: cut(`${x.a ?? ""} (${x.aDate ?? "?"}) against ${x.b ?? ""} (${x.bDate ?? "?"})${x.why ? `. ${x.why}` : ""}`, 220) })),
     });
 
-    /* The same gap asked twice is one line. */
-    const gaps = [...new Map((w.gaps ?? []).map((g: any) => [String(g.gap).toLowerCase(), g])).values()];
-    if (gaps.length) sections.push({
-      head: `${name}: ${plural(gaps.length, "blind spot")} from your questions`,
-      bullets: list(gaps, (g: any) => ({ k: cut(g.gap, 160), say: g.find ? `Look for: ${cut(g.find, 200)}` : cut(`Asked: ${g.q}`, 200) })),
-    });
-
     nNew += w.fresh.length; nFed += w.fed.length + w.more; nConf += conflicts.length; nSrc += w.sources.length;
   }
   if (!sections.length) return null;
@@ -137,7 +128,6 @@ export const send = internalAction({
         fed: whole.filter(c => c._creationTime < sinceMs),
         more: touched.length - open.length,
         sources: sources.filter((s: any) => String(s.stored ?? "") >= since),
-        gaps: await ctx.runQuery(internal.store.gapsOf, { space, since: sinceMs }),
       });
     }
 

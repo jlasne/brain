@@ -31,60 +31,67 @@ const DAY = 86400000, NOW = Date.parse("2026-09-30T12:00:00Z");
 const ago = d => new Date(NOW - d * DAY).toISOString().slice(0, 10);
 const src = (brain, author, days) => ({ brains: [brain], author, stored: ago(days) });
 const cards = (brain, k, deep) => Array.from({ length: k }, (_, i) => ({ brain, slug: "c" + i, src: i < deep ? 2 : 1 }));
-/* Seven named authors: a name needs two letters at least, like the drop asks. */
-const SEVEN = ["Ann Lee", "Bo Chen", "Cy Park", "Di Roy", "Ed Moss", "Flo Ng", "Gus Hart"];
-const one = (b, cs, ss, open = 0) => healthOf([b], cs, ss, new Map([[b.slug, open]]), NOW)[0];
+const SIX = ["Ann Lee", "Bo Chen", "Cy Park", "Di Roy", "Ed Moss", "Flo Ng"];
 
-/* ---- variety ---- */
+/* Wealth: six authors, half its concepts deep, fed today, calm.
+   Crypto: one author, nothing deep, two weeks old, one open conflict.
+   Charles Gave: a person, every concept deep, fed today, calm. */
+const brains = [
+  { slug: "wealth", name: "Wealth", type: "subject" },
+  { slug: "crypto", name: "Crypto", type: "subject" },
+  { slug: "gave", name: "Charles Gave", type: "person" },
+];
+const all = [...cards("wealth", 10, 5), ...cards("crypto", 10, 0), ...cards("gave", 10, 10)];
+const sources = [...SIX.map(a => src("wealth", a, 0)), src("crypto", "coinacademy", 14), src("crypto", "coinacademy", 20),
+  ...[0, 1, 2].map(d => src("gave", "unknown", d))];
+const hs = Object.fromEntries(healthOf(brains, all, sources, new Map([["crypto", 1]]), NOW).map(h => [h.slug, h]));
+
+/* ---- the best brain reads 10, the others against it ---- */
 {
-  const b = { slug: "crypto", name: "Crypto", type: "subject" };
-  const h = one(b, cards("crypto", 38, 0), [src("crypto", "coinacademy", 1), src("crypto", "coinacademy", 1)]);
-  check("one author earns half a point of variety", h.parts.variety.got === 0.5 && /1 named author/.test(h.parts.variety.say), JSON.stringify(h.parts.variety));
-  check("and a brain with no concept on two sources earns half a point of depth", h.parts.depth.got === 0.5 && /0 of 38 concepts/.test(h.parts.depth.say));
-  check("the score adds the parts", h.score === 0.5 + 0.5 + 2 + 2, String(h.score));
-  check("the best move is a second author, worth a point", h.best === "A source by a new named author: +1", h.best);
-
-  const w = { slug: "wealth", name: "Wealth", type: "subject" };
-  const ws = ["Charles Gave", "Charles Gave (transmitting Romain Métivet's analysis)", "Ray Dalio", "Théophile Eliet", "Hur (YouTuber)",
-    "Institut des Libertés (Louis Vincent et Charles)", "Richard Detente, Les Financiers", "unknown", "Unknown (speaker 1 and speaker 2, transcript)",
-    "Inconnu", "Unnamed TV cameraman"].map((a, i) => src("wealth", a, i));
-  const hw = one(w, cards("wealth", 46, 24), ws);
-  check("unknown and unnamed authors count for nothing, one person under two spellings once", hw.parts.variety.say === "6 named authors, 4 unsigned",
-    hw.parts.variety.say);
-  check("6 named authors earn 2.5", hw.parts.variety.got === 2.5);
-  check("24 of 46 concepts on two sources earn 2.5 of depth", hw.parts.depth.got === 2.5 && /\(52%\)/.test(hw.parts.depth.say), hw.parts.depth.say);
-  check("7 named authors earn the full 3", one(w, [], SEVEN.map(a => src("wealth", a, 1))).parts.variety.got === 3);
+  check("the best brain reads 10 and says so", hs.gave.score === 10 && hs.gave.top && /best brain/.test(hs.gave.best), JSON.stringify(hs.gave));
+  check("the others read against it", hs.wealth.score === 8.5 && hs.crypto.score === 2.5 && !hs.wealth.top,
+    `${hs.wealth.score} ${hs.crypto.score}`);
+  check("a person brain is not marked down for one voice", hs.gave.parts.variety.counted === false && /one voice/.test(hs.gave.parts.variety.say));
 }
 
-/* ---- a person brain counts its sources ---- */
+/* ---- each part against the best on it ---- */
 {
-  const p = { slug: "gave", name: "Charles Gave", type: "person" };
-  const h = one(p, cards("gave", 12, 4), [1, 2, 3, 4].map(d => src("gave", "unknown", d)));
-  check("a person brain is one voice by design, so its sources count", h.parts.variety.got === 1.5 && /4 sources by this person/.test(h.parts.variety.say),
-    JSON.stringify(h.parts.variety));
-  const big = one(p, cards("gave", 12, 12), Array.from({ length: 10 }, (_, i) => src("gave", "unknown", i)));
-  check("10 sources earn the full 3", big.parts.variety.got === 3 && big.parts.depth.got === 3);
+  check("variety names the best subject", hs.wealth.parts.variety.pct === 100 && /6 named authors\. The most of any brain/.test(hs.wealth.parts.variety.say)
+    && hs.crypto.parts.variety.pct === 17 && /1 named author\. Best: Wealth, 6/.test(hs.crypto.parts.variety.say), JSON.stringify(hs.crypto.parts.variety));
+  check("depth compares with the deepest brain, a person included", hs.wealth.parts.depth.pct === 50
+    && /50% of 10 concepts rest on 2\+ sources\. Best: Charles Gave, 100%/.test(hs.wealth.parts.depth.say), hs.wealth.parts.depth.say);
+  check("freshness compares with the freshest", hs.crypto.parts.fresh.pct === 50 && /Last source 14 days ago\. Best: Wealth, today/.test(hs.crypto.parts.fresh.say),
+    JSON.stringify(hs.crypto.parts.fresh));
+  check("conflicts compare with the calmest", hs.crypto.parts.conflicts.pct === 50 && /1 open conflict in 10 concepts\. Best: Wealth, none open/.test(hs.crypto.parts.conflicts.say),
+    JSON.stringify(hs.crypto.parts.conflicts));
 }
 
-/* ---- freshness and conflicts ---- */
+/* ---- the best move closes the widest gap ---- */
 {
-  const b = { slug: "sport", name: "Sport", type: "subject" };
-  const f = d => one(b, cards("sport", 4, 0), [src("sport", "Coach", d)]).parts.fresh.got;
-  check("freshness steps down with the days since the last source", f(3) === 2 && f(30) === 1.5 && f(100) === 1 && f(300) === 0.5 && f(400) === 0,
-    [3, 30, 100, 300, 400].map(f).join(","));
-  const none = one(b, [], []);
-  check("an empty brain scores nothing it has not earned", none.parts.variety.got === 0 && none.parts.depth.got === 0 && none.parts.fresh.got === 0
-    && none.parts.fresh.say === "No source yet" && none.score === 2, JSON.stringify(none));
-  const c = n => one(b, cards("sport", 4, 0), [src("sport", "Coach", 1)], n).parts.conflicts.got;
-  check("open conflicts cost points", c(0) === 2 && c(2) === 1.5 && c(4) === 1 && c(9) === 0.5, [0, 2, 4, 9].map(c).join(","));
-  const stale = one(b, cards("sport", 4, 0), [src("sport", "Coach", 400)], 7);
-  check("the biggest gain leads: fresh sources before settling, when both are open", stale.best === "Add a source this week: +2", stale.best);
-  const calm = one(b, cards("sport", 4, 4), SEVEN.map(a => src("sport", a, 1)), 3);
-  check("with the rest full, settling is the move", calm.best === "Settle the 3 open conflicts: +1", calm.best);
-  const full = one(b, cards("sport", 4, 4), SEVEN.map(a => src("sport", a, 1)), 0);
-  check("full marks say so", full.score === 10 && /Full marks/.test(full.best), JSON.stringify(full));
-  const deep = one(b, cards("sport", 10, 3), SEVEN.map(a => src("sport", a, 1)), 0);
-  check("depth says how many concepts need a second source", deep.best === "Back 1 concept with a second source: +1", deep.best);
+  check("Wealth's widest gap is depth", hs.wealth.best === "Back more concepts with a second source: 50% here, 100% in Charles Gave.", hs.wealth.best);
+  check("Crypto's is depth too, ahead of variety", hs.crypto.best === "Back more concepts with a second source: 0% here, 100% in Charles Gave.", hs.crypto.best);
+  const calm = Object.fromEntries(healthOf(brains, all, sources, new Map([["wealth", 3]]), NOW).map(h => [h.slug, h]));
+  check("an open conflict lowers the score, and settling can be the move", calm.wealth.score < hs.wealth.score && calm.wealth.open === 3,
+    `${calm.wealth.score}`);
+}
+
+/* ---- authors ---- */
+{
+  const b = [{ slug: "w", name: "W", type: "subject" }];
+  const ss = ["Charles Gave", "Charles Gave (transmitting Romain Métivet's analysis)", "Ray Dalio", "unknown",
+    "Unknown (speaker 1 and speaker 2, transcript)", "Inconnu", "Unnamed TV cameraman"].map(a => src("w", a, 1));
+  const [h] = healthOf(b, cards("w", 4, 2), ss, new Map(), NOW);
+  check("unknown and unnamed authors count for nothing, one person under two spellings once", h.parts.variety.say.startsWith("2 named authors, 4 unsigned"),
+    h.parts.variety.say);
+  check("a lone brain is its own best, and reads 10", h.score === 10 && h.top);
+}
+
+/* ---- empty ---- */
+{
+  const b = [{ slug: "e", name: "Empty", type: "subject" }, { slug: "f", name: "Fed", type: "subject" }];
+  const hs2 = Object.fromEntries(healthOf(b, cards("f", 3, 1), [src("f", "Ann Lee", 2)], new Map(), NOW).map(h => [h.slug, h]));
+  check("an empty brain reads 0 and asks for a first source", hs2.e.score === 0 && /first source/.test(hs2.e.best) && hs2.f.score === 10, JSON.stringify(hs2.e));
+  check("an empty space scores nothing", healthOf([], [], [], new Map(), NOW).length === 0);
 }
 
 console.log(failures ? `\n${failures} failed` : "\nthe health score holds");

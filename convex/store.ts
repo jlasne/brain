@@ -836,50 +836,6 @@ export const settleReads = internalQuery({
   },
 });
 
-/* ---------------- blind spots ---------------- */
-
-/* A space keeps its newest 200 gaps. */
-const GAP_KEEP = 200;
-
-/** Log a question the brains fell short on. */
-export const logGap = internalMutation({
-  args: { space: v.string(), q: v.string(), gap: v.string(), find: v.string(), brains: v.array(v.string()) },
-  handler: async (ctx, a) => {
-    const space = readSpace(a.space);
-    await ctx.db.insert("gaps", { space, q: a.q.slice(0, 600), gap: a.gap.slice(0, 300),
-      find: a.find.slice(0, 300), brains: a.brains.slice(0, 20), at: Date.now() });
-    const old = await ctx.db.query("gaps").withIndex("by_space_at", (q: any) => q.eq("space", space))
-      .order("desc").collect();
-    for (const g of old.slice(GAP_KEEP)) await ctx.db.delete(g._id);
-  },
-});
-
-/** A space's logged gaps, newest first. */
-export const gapsOf = internalQuery({
-  args: { space: v.string(), since: v.optional(v.number()) },
-  handler: async (ctx, a) => {
-    const space = readSpace(a.space);
-    return await ctx.db.query("gaps")
-      .withIndex("by_space_at", (q: any) => q.eq("space", space).gte("at", a.since ?? 0))
-      .order("desc").take(GAP_KEEP);
-  },
-});
-
-/** Clear logged gaps the owner has dealt with. Only this space's rows go. */
-export const dropGaps = internalMutation({
-  args: { space: v.string(), ids: v.array(v.string()) },
-  handler: async (ctx, a) => {
-    const space = readSpace(a.space);
-    let n = 0;
-    for (const id of a.ids.slice(0, 200)) {
-      const nid = ctx.db.normalizeId("gaps", id);
-      const g = nid ? await ctx.db.get(nid) : null;
-      if (g && g.space === space) { await ctx.db.delete(g._id); n++; }
-    }
-    return { dropped: n };
-  },
-});
-
 /* ---------------- chats ---------------- */
 
 export const CHAT_DAYS = 30;
