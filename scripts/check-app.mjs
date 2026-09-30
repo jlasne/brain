@@ -1740,6 +1740,12 @@ for (const space of ["octopus", "squidgy"]) {
     && l.tiles === "It argues back|It keeps score|It draws itself|It learns you" && l.own === "Your data|Your key|Your code|Your AI",
     JSON.stringify({ a: l.layers, t: l.tiles, o: l.own }));
   check("three blocks and nothing more: the hero, the video, the goods", l.sections === "top|video|goods", l.sections);
+  await page.evaluate(() => document.getElementById("map").scrollIntoView({ block: "center", behavior: "instant" })); await page.waitForTimeout(2800);
+  const cards = await page.evaluate(() => ({ map: document.getElementById("map").getBoundingClientRect().width, talk: document.getElementById("talk").getBoundingClientRect().width,
+    tile: document.getElementById("map").closest(".tile").getBoundingClientRect().width,
+    arm: parseFloat(getComputedStyle(document.querySelector("#map .arm")).strokeDashoffset), said: getComputedStyle(document.querySelector("#talk .b")).opacity }));
+  check("the map and the chat fill their cards and play when seen", cards.map > cards.tile - 4 && cards.talk > cards.tile - 60 && cards.arm < 1 && cards.said === "1",
+    JSON.stringify(cards));
   await page.click("#openYours"); await page.waitForTimeout(400);
   check("Open your workspace, in the bar, opens the live list", await page.evaluate(() => document.getElementById("wsLive").open));
   await page.evaluate(() => { document.getElementById("wsLive").open = false; window.scrollTo(0, 0); });
