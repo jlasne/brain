@@ -52,7 +52,7 @@ async function gate(ctx: any, body: any, opts: { ownerOnly?: boolean } = {}): Pr
      accounts and guest keys that were removed reads as locked. */
   if (!who || !["owner", "demo"].includes(who.kind ?? "owner")) throw new Response("locked", { status: 401 });
   const demo = who.kind === "demo";
-  if (demo && opts.ownerOnly) throw new Error("the demo lets you ask, drop and explore. Create your own workspace to do this.");
+  if (demo && opts.ownerOnly) throw new Error("the demo lets you ask, drop and explore. Make your own workspace to do this.");
   const ws = owners.includes(who.space) ? null : await ctx.runQuery(internal.store.workspaceOf, { slug: who.space });
   const byok = ws?.kind === "byok";
   const k = String(body?.key ?? "").trim();
@@ -69,17 +69,25 @@ function keyFor(who: Caller): string | undefined {
 /** The model: the default for a demo visitor, the one picked otherwise. */
 const modelFor = (who: Caller, b: any) => who.demo ? undefined : modelName(b);
 
-/* A demo visitor's allowance, and the demo's, per day. Each route that calls
-   a model counts once. Past it, the demo says how to keep going. */
-const DEMO_PER_VISITOR = Number(process.env.DEMO_VISITOR_CALLS || 40);
-const DEMO_PER_DAY = Number(process.env.DEMO_DAILY_CALLS || 1500);
-async function spend(ctx: any, who: Caller) {
+/**
+ * What the demo may spend, shared by every visitor, over 30 days: 30 drops
+ * and 300 questions. A drop counts once, when it starts; a question, a
+ * one-pager the model writes and a settled conflict each count as one.
+ * The steps inside a drop are capped too, so no call can go around the
+ * drop count.
+ */
+const MONTH = 30 * 24 * 60 * 60 * 1000;
+const DEMO_DROPS = Number(process.env.DEMO_MONTHLY_DROPS || 30);
+const DEMO_ASKS = Number(process.env.DEMO_MONTHLY_ASKS || 300);
+async function demoCount(ctx: any, who: Caller, what: "drop" | "ask" | "step") {
   if (!who.demo) return;
-  const day = 24 * 60 * 60 * 1000;
-  const me = await ctx.runMutation(internal.store.mcpRate, { who: "demo:" + who.visitor, max: DEMO_PER_VISITOR, windowMs: day });
-  if (!me.allowed) throw new Error(`you used today's demo allowance of ${DEMO_PER_VISITOR} steps. Create your own workspace with your own key to keep going.`);
-  const all = await ctx.runMutation(internal.store.mcpRate, { who: "demo:all", max: DEMO_PER_DAY, windowMs: day });
-  if (!all.allowed) throw new Error("the demo used its allowance for today. It opens again tomorrow, or create your own workspace with your own key.");
+  const max = what === "drop" ? DEMO_DROPS : what === "ask" ? DEMO_ASKS : DEMO_DROPS * 60;
+  const r = await ctx.runMutation(internal.store.mcpRate, { who: `demo:${what}s`, max, windowMs: MONTH });
+  if (r.allowed) return;
+  const back = Math.max(1, Math.ceil((r.retryAfter ?? 0) / 86400));
+  throw new Error(what === "ask"
+    ? `the demo has answered its ${DEMO_ASKS} questions for this month. More in ${back} day${back === 1 ? "" : "s"}, or make your own workspace to keep going.`
+    : `the demo has used its ${DEMO_DROPS} drops for this month. More in ${back} day${back === 1 ? "" : "s"}, or make your own workspace to keep going.`);
 }
 
 /**
@@ -149,9 +157,10 @@ route("/api/unlock", async (ctx, _req, b) => {
 });
 
 /**
- * The demo: anyone opens it, with no passphrase. The workspace is made once
- * by the owner (npx convex run admin:makeDemo --prod) and fed like any other.
- * A visitor gets a session of their own, so their chats stay theirs.
+ * The demo: anyone opens it, and nobody holds a passphrase to it. The owner
+ * makes it once (npx convex run admin:makeDemo --prod) and fills it with
+ * admin:copyBrain. A visitor gets a session of their own, so their chats
+ * stay theirs.
  */
 route("/api/demo", async (ctx) => {
   const ws = await ctx.runQuery(internal.store.demoWorkspace, {});
@@ -305,14 +314,14 @@ route("/api/concept", async (ctx, _req, b) => {
 /** The open conflicts that are real contradictions, for Setup. */
 route("/api/conflicts", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  await spend(ctx, who);
+  await demoCount(ctx, who, "step");
   return await listConflicts(ctx, who.space, modelFor(who, b), keyFor(who));
 });
 
 /** Settle one conflict: a side holds and the position is rewritten, or both hold. */
 route("/api/conflicts/settle", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  await spend(ctx, who);
+  await demoCount(ctx, who, "ask");
   return await settleConflict(ctx, who.space, b, modelFor(who, b), keyFor(who));
 });
 
@@ -354,7 +363,9 @@ route("/api/fetch", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   /* The transcript service is the owner's, so other workspaces get a few a day. */
   if (!owners.includes(who.space)) {
-    const r = await ctx.runMutation(internal.store.mcpRate, { who: "fetch:" + (who.demo ? "demo:" + who.visitor : who.space), max: who.demo ? 5 : 20, windowMs: 24 * 60 * 60 * 1000 });
+    const r = await ctx.runMutation(internal.store.mcpRate, who.demo
+      ? { who: "fetch:demo", max: DEMO_DROPS + 10, windowMs: MONTH }
+      : { who: "fetch:" + who.space, max: 20, windowMs: 24 * 60 * 60 * 1000 });
     if (!r.allowed) return { error: "today's allowance of fetched pages and transcripts is used. Paste the text instead." };
   }
   return await fetchPage(ctx, String(b.url ?? ""));
@@ -363,6 +374,8 @@ route("/api/fetch", async (ctx, _req, b) => {
 /** R1.2 runs before anything expensive, so a repeat costs zero pasting. */
 route("/api/drop/check", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
+  /* Every drop starts here, so this is where the demo counts one. */
+  await demoCount(ctx, who, "drop");
   return await dropCheck(ctx, b, who.space);
 });
 
@@ -385,28 +398,28 @@ route("/api/drop/again", async (ctx, _req, b) => {
 /** R2. One pass over one chunk. The caller loops, the transcript is never stored. */
 route("/api/drop/read", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  await spend(ctx, who);
+  await demoCount(ctx, who, "step");
   return await dropRead(ctx, who, b, keyFor(who), modelFor(who, b));
 });
 
 /** R3. Summaries only, never whole brains, so this costs the same at any size. */
 route("/api/drop/plan", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  await spend(ctx, who);
+  await demoCount(ctx, who, "step");
   return await dropPlan(ctx, who, b, keyFor(who), modelFor(who, b));
 });
 
 /** Parts planned in parallel can name one idea twice. This groups them. */
 route("/api/drop/merge", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  await spend(ctx, who);
+  await demoCount(ctx, who, "step");
   return await dropMerge(ctx, who, b, keyFor(who), modelFor(who, b));
 });
 
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
 route("/api/drop/settle", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  await spend(ctx, who);
+  await demoCount(ctx, who, "step");
   return await dropSettle(ctx, who, b, keyFor(who), modelFor(who, b));
 });
 
@@ -453,7 +466,7 @@ route("/api/ask", async (ctx, _req, b) => {
    * is held. A follow-up borrows the words of the question before it.
    */
   const mKey = keyFor(who), mName = modelFor(who, b);
-  await spend(ctx, who);
+  await demoCount(ctx, who, "ask");
   const t0 = Date.now();
   const route = await routeQuestion(pool, concepts, String(b.q ?? ""), b.history, mKey, mName);
   /* Ranked on the slim copies; only the concepts that lead are read whole. */
@@ -690,7 +703,7 @@ route("/api/onepager", async (ctx, _req, b) => {
   /* English by default. A page the model writes is written in the language
      picked; a summary laid out from the stored positions is translated. */
   const lang = langOf(b.lang);
-  if (q || kind !== "summary" || lang !== "English") await spend(ctx, who);
+  if (q || kind !== "summary" || lang !== "English") await demoCount(ctx, who, "ask");
   const page = q || kind !== "summary"
     ? await fromModel(who.space, brains, concepts, sources, { q, kind, doc, note, pick, lang },
                       keyFor(who), modelFor(who, b), load)

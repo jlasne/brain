@@ -1539,10 +1539,21 @@ for (const space of ["octopus", "squidgy"]) {
   const l = await page.evaluate(() => ({ landing: getComputedStyle(document.getElementById("landing")).display !== "none",
     doors: getComputedStyle(document.getElementById("doors")).display, h1: document.querySelector(".hero h1").textContent,
     proof: document.getElementById("proof").textContent, karpathy: document.querySelectorAll("#karpathy .cmp-row").length,
-    uses: document.querySelectorAll("#uses .tile").length, wide: document.documentElement.scrollWidth <= innerWidth }));
-  check("the landing leads with the outcome, and hides the owner's doors", l.landing && l.doors === "none" && /answer you can check/.test(l.h1), JSON.stringify(l));
-  check("it counts the builder's own brains live", /2 brains, 3 concepts, 26 sources read/.test(l.proof), l.proof);
-  check("it compares with Karpathy's wiki and lists use cases", l.karpathy === 8 && l.uses === 6, JSON.stringify(l));
+    llm: [...document.querySelectorAll("#get .cmp-head span")].map(x => x.textContent).join("|"), get: document.querySelectorAll("#get .cmp-row").length,
+    uses: document.querySelectorAll("#uses .tile").length, brand: document.querySelector(".l-top b").textContent,
+    ws: [...document.querySelectorAll(".ws .ws-t b")].map(b => b.textContent).join("|"),
+    text: document.getElementById("landing").textContent }));
+  check("the landing leads with the outcome, and hides the owner's doors", l.landing && l.doors === "none" && /answers you can check/.test(l.h1)
+    && /read, watch and hear/.test(l.h1), JSON.stringify(l.h1));
+  check("the product is called Brain; Octopus is a workspace", l.brand === "Brain" && l.ws === "Demo|Octopus|Squidgy", `${l.brand} ${l.ws}`);
+  check("it counts the builder's Octopus workspace live", /Octopus workspace today: 2 brains, 3 concepts, 26 sources read/.test(l.proof), l.proof);
+  check("what you get compares a brain with a classic AI chat", l.llm === "|A classic AI chat|A brain" && l.get === 8, `${l.llm} ${l.get}`);
+  check("it compares with Karpathy's wiki and lists use cases", l.karpathy === 8 && l.uses === 6, JSON.stringify({ k: l.karpathy, u: l.uses }));
+  const foot = await page.textContent("footer.bot");
+  check("it names no competition and no licence", !/Build Games|MIT licen/i.test(l.text + foot), foot);
+  const links = await page.evaluate(() => ({ oct: document.querySelector('.ws a[href="/octopus"]') !== null, sq: document.querySelector('.ws a[href="/squidgy"]') !== null,
+    about: document.querySelectorAll('a[href="/about"]').length }));
+  check("Octopus and Squidgy lead to their doors, and nothing links to the old about page", links.oct && links.sq && links.about === 0, JSON.stringify(links));
 
   await page.fill("#cName", "Taken"); await page.fill("#cPass", "a long passphrase"); await page.fill("#cKey", "nope");
   await page.click("#cGo"); await page.waitForTimeout(100);

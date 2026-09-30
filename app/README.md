@@ -1,13 +1,12 @@
 # app/
 
-Four static pages, served by Vercel from this folder. `cleanUrls` is on, so a
+Three static pages, served by Vercel from this folder. `cleanUrls` is on, so a
 file name becomes its path.
 
 | File | Path | What it is |
 |---|---|---|
 | `index.html` | `/`, `/octopus`, `/squidgy` | The landing on `/`: the demo, a workspace of your own, or yours again. On `/octopus` and `/squidgy`, the owner's door to that workspace |
 | `chat.html` | `/chat` | The app: drop, ask, one-pager, create a brain. Behind a passphrase |
-| `about.html` | `/about` | What Octopus is, how to run your own, what is in the repo |
 | `doc.html` | `/doc` | The connector. The page holds no words: they arrive from the deployment, so an unsigned request gets a refusal |
 | `octopus.css` | `/octopus.css` | Tokens and layout shared by the pages around the app |
 
@@ -37,8 +36,7 @@ reaches a browser.
 
 | Page | Endpoint | Gated |
 |---|---|---|
-| `/` | `/api/status` for which doors exist, `/api/unlock` to open one, `/api/public/brains` for the counts | No, it is the door |
-| `/about` | `/api/public/brains`, for the live counts | No |
+| `/` | `/api/status` for which doors exist and whether the demo is open, `/api/demo`, `/api/workspace/create` and `/api/unlock` to enter, `/api/public/brains` for the counts | No, it is the door |
 | `/doc` | `/api/unlock` with the Octopus passphrase, then `/api/doc` for its own words | Yes |
 | `/chat` | Every `/api/*` route | Yes, a passphrase |
 

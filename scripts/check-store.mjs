@@ -484,9 +484,10 @@ function seed() {
 
   const demo = await run(admin.makeDemo, ctx, {});
   check("the owner opens the demo from the terminal", demo.slug === "demo" && demo.made && (await run(store.demoWorkspace, ctx, {}))?.slug === "demo");
-  const again = await run(admin.makeDemo, ctx, { pass: "a long passphrase" });
-  check("running it again only sets the owner's passphrase", !again.made && again.passphrase && T.workspaces.filter(w => w.kind === "demo").length === 1
-    && T.config.some(r => r.key === "gate:demo"));
+  T.config.push({ _id: "gOld", key: "gate:demo", salt: "s", hash: "h" });
+  const again = await run(admin.makeDemo, ctx, {});
+  check("running it again makes nothing new, and the demo keeps no passphrase", !again.made && T.workspaces.filter(w => w.kind === "demo").length === 1
+    && !T.config.some(r => r.key === "gate:demo"));
 
   const token = await run(store.newSession, ctx, { kind: "demo", space: "demo" });
   const who = await run(store.checkSession, ctx, { token });

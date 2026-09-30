@@ -74,7 +74,7 @@
     },
     {
       "source": "/brains",
-      "destination": "/about",
+      "destination": "/",
       "permanent": false
     }
   ]

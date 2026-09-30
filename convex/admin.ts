@@ -145,16 +145,15 @@ export const moveBrain = internalMutation({
 });
 
 /**
- * Open the demo workspace: anyone enters it from the landing, with no
- * passphrase, on the deployment's key (or DEMO_OPENROUTER_API_KEY when set)
- * and a daily allowance. A passphrase is optional: it lets the owner open the
- * demo as its owner, to feed it without the demo's limits.
+ * Open the demo workspace: anyone enters it from the landing, and nobody
+ * holds a passphrase to it. It runs on the deployment's key, or
+ * DEMO_OPENROUTER_API_KEY when set, within 30 drops and 300 questions a
+ * month. Fill it with admin:copyBrain.
  *
  *     npx convex run admin:makeDemo --prod
- *     npx convex run admin:makeDemo '{"pass":"a long passphrase"}' --prod
  */
 export const makeDemo = internalMutation({
-  args: { slug: v.optional(v.string()), name: v.optional(v.string()), pass: v.optional(v.string()) },
+  args: { slug: v.optional(v.string()), name: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const slug = readSpace(a.slug ?? "demo"), name = a.name ?? "Demo";
     if ((SPACES as readonly string[]).includes(slug)) throw new Error("the demo needs a slug of its own");
@@ -164,14 +163,10 @@ export const makeDemo = internalMutation({
       if (w.kind === "demo" && w.slug !== slug) throw new Error(`the demo is already "${w.slug}"`);
     }
     if (!had) await ctx.db.insert("workspaces", { slug, name, kind: "demo", created: today() });
-    if (a.pass) {
-      if (a.pass.length < 8) throw new Error("use at least 8 characters");
-      const key = gateKey(slug), salt = randomHex(16);
-      const doc = { key, salt, hash: await sha256(salt, a.pass), attempts: 0, attemptWindow: Date.now(), setAt: today() };
-      const row = await ctx.db.query("config").withIndex("by_key", q => q.eq("key", key)).unique();
-      if (row) await ctx.db.patch(row._id, doc); else await ctx.db.insert("config", doc);
-    }
-    return { slug, name, made: !had, passphrase: !!a.pass };
+    /* No door: a passphrase left from an earlier setup is removed. */
+    const gate = await ctx.db.query("config").withIndex("by_key", q => q.eq("key", gateKey(slug))).unique();
+    if (gate) await ctx.db.delete(gate._id);
+    return { slug, name, made: !had };
   },
 });
 
