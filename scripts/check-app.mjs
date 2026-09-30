@@ -1066,10 +1066,10 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("Chats folds, and the browser remembers it", folded.hidden && folded.exp === "false" && folded.kept === true, JSON.stringify(folded));
   await page.click("#chatsFold");
 
-  /* A row's own controls, by their exact label. */
-  const rowAct = (n, label) => page.evaluate(([n, label]) => {
-    for (const x of [...document.querySelectorAll("#chats .chat-row")][n].querySelectorAll(".ed")) if (x.textContent === label) x.click();
-  }, [n, label]);
+  /* A row's one button opens its menu; an item is picked by its label. */
+  const rowMenu = async n => { await page.hover(`#chats .chat-row >> nth=${n} >> .nm`); await page.click(`#chats .chat-row >> nth=${n} >> .more`); };
+  const pick = label => page.evaluate(label => { for (const x of document.querySelectorAll(".chat-menu .cm-it")) if (x.textContent === label) x.click(); }, label);
+  const rowAct = async (n, label) => { await rowMenu(n); await page.waitForTimeout(60); await pick(label); };
   await page.click("#chats .chat-row >> nth=0 >> .nm"); await page.waitForTimeout(200);
   const opened = await page.evaluate(() => ({ me: [...document.querySelectorAll(".msg.me .body")].map(b => b.textContent),
     ai: [...document.querySelectorAll(".msg.ai .body .para")].map(b => b.textContent),
@@ -1091,18 +1091,27 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("New starts a fresh chat, which then joins the list", fresh.sent.chat === null && fresh.sent.history.length === 0 && fresh.rows === 3
     && fresh.on === "What is a hook?", JSON.stringify(fresh));
 
-  await rowAct(2, "pin"); await page.waitForTimeout(150);
+  const menu = await page.evaluate(() => ({ each: [...document.querySelectorAll("#chats .chat-row")].map(r => r.querySelectorAll(".more").length),
+    old: document.querySelectorAll("#chats .chat-row .ed").length }));
+  check("each chat has one button for its actions", menu.each.every(n => n === 1) && menu.old === 0, JSON.stringify(menu));
+  /* Row 1 is the pinned chat: the new one went on top. */
+  await rowMenu(1); await page.waitForTimeout(60);
+  const items = await page.evaluate(() => [...document.querySelectorAll(".chat-menu .cm-it")].map(x => x.textContent));
+  check("it opens pin, rename and delete, Unpin on a pinned chat", items.join("|") === "Unpin|Rename|Delete", items.join("|"));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(60);
+  check("Escape closes the menu", !(await page.$(".chat-menu")));
+  await rowAct(2, "Pin"); await page.waitForTimeout(150);
   check("a sixth pin says why it is refused", /5 chats are pinned already/.test(await page.textContent("#chatMsg")) && await page.isVisible("#chatMsg"));
 
-  await rowAct(2, "rename"); await page.waitForTimeout(80);
+  await rowAct(2, "Rename"); await page.waitForTimeout(80);
   await page.fill("#rnT", "Openers");
   await page.click("#rnGo"); await page.waitForTimeout(200);
   check("rename saves the new name", (await page.evaluate(() => [...document.querySelectorAll("#chats .chat-row .nm")].map(n => n.textContent))).includes("Openers"));
 
-  await rowAct(2, "delete"); await page.waitForTimeout(80);
-  const asked = await page.evaluate(() => ({ sure: document.querySelector("#chats .chat-row .ed.sure")?.textContent, sent: window.__edits.filter(e => e.remove).length }));
-  check("delete asks once more on the row before it goes", asked.sure === "sure?" && asked.sent === 0, JSON.stringify(asked));
-  await rowAct(2, "sure?"); await page.waitForTimeout(200);
+  await rowAct(2, "Delete"); await page.waitForTimeout(80);
+  const asked = await page.evaluate(() => ({ sure: document.querySelector(".chat-menu .cm-it.sure")?.textContent, sent: window.__edits.filter(e => e.remove).length }));
+  check("delete asks once more in the menu before it goes", asked.sure === "Sure? Delete" && asked.sent === 0, JSON.stringify(asked));
+  await pick("Sure? Delete"); await page.waitForTimeout(200);
   const gone = await page.evaluate(() => ({ removed: window.__edits.filter(e => e.remove).map(e => e.id), rows: document.querySelectorAll("#chats .chat-row").length }));
   check("the second tap deletes it", JSON.stringify(gone.removed) === '["k2"]' && gone.rows === 2, JSON.stringify(gone));
 
