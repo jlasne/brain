@@ -3,7 +3,7 @@
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap, cardOf } from "./words";
-import { sha256, randomHex, today, slug, gateKey, readSpace, HOME,
+import { sha256, randomHex, today, slug, gateKey, readSpace, HOME, SPACE_RE, SPACES,
          SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS } from "./lib";
 
 /* ---------------- the gate ---------------- */
@@ -78,6 +78,8 @@ export const newSession = internalMutation({
     await ctx.db.insert("sessions", {
       token, expires: Date.now() + SESSION_MS, kind: a.kind, space: readSpace(a.space),
       ...(a.account ? { account: a.account } : {}),
+      /* A demo visitor gets a name of their own, for their chats. */
+      ...(a.kind === "demo" ? { visitor: randomHex(8) } : {}),
     });
     return token;
   },
@@ -92,8 +94,8 @@ export const checkSession = internalQuery({
   handler: async (ctx, a) => {
     const s = await ctx.db.query("sessions").withIndex("by_token", q => q.eq("token", a.token)).unique();
     if (!s || s.expires <= Date.now()) return null;
-    const kind = s.kind === "member" || s.kind === "guest" ? s.kind : "owner";
-    return { kind, account: s.account ?? null, space: readSpace(s.space) };
+    const kind = s.kind === "member" || s.kind === "guest" || s.kind === "demo" ? s.kind : "owner";
+    return { kind, account: s.account ?? null, space: readSpace(s.space), visitor: s.visitor ?? null };
   },
 });
 
@@ -200,9 +202,19 @@ export const createBrain = internalMutation({
           visibility: v.optional(v.string()), owner: v.optional(v.string()),
           space: v.optional(v.string()) },
   handler: async (ctx, a) => {
-    const s = slug(a.name);
-    const seen = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", s)).unique();
-    if (seen) throw new Error("a brain with that name exists");
+    /* Slugs are unique across every workspace. A name taken in another one
+       gets this workspace's slug added, so it never collides or says the
+       other exists. */
+    const space = readSpace(a.space);
+    const base = slug(a.name);
+    let s = base;
+    for (let n = 1; ; n++) {
+      const seen = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", s)).unique();
+      if (!seen) break;
+      if (readSpace(seen.space) === space && s === base) throw new Error("a brain with that name exists");
+      s = n === 1 ? `${base}-${space}` : `${base}-${space}-${n}`;
+      if (n > 50) throw new Error("pick another name");
+    }
     await ctx.db.insert("brains", {
       slug: s, name: a.name, type: a.type, scope: a.scope, created: today(),
       visibility: a.visibility === "private" ? "private" : a.visibility === "drop" ? "drop" : "ask",
@@ -624,8 +636,10 @@ export const spaceHead = internalQuery({
     const brains = (await ctx.db.query("brains").collect()).filter(b => readSpace(b.space) === space);
     const mine = new Set(brains.map(b => b.slug));
     const ready = !!(await ctx.db.query("config").withIndex("by_key", q => q.eq("key", CARDS_READY)).unique());
+    /* A source filed in two workspaces lists only this one's brains here. */
     const sources = (await ctx.db.query("sources").collect())
-      .filter(s => (s.brains ?? []).some((x: string) => mine.has(x)));
+      .filter(s => (s.brains ?? []).some((x: string) => mine.has(x)))
+      .map(s => ({ ...s, brains: (s.brains ?? []).filter((x: string) => mine.has(x)) }));
     return { brains, sources, ready };
   },
 });
@@ -845,34 +859,39 @@ export const CHAT_PINS = 5;
    row may reach. */
 const CHAT_TURNS = 60;
 
-/** Unpinned chats past 30 days, and past the newest 20, go. */
-async function pruneChats(ctx: any, space: string) {
+/* Whose chats: the workspace's, or one demo visitor's. */
+const ownerOf = (c: any) => c.owner ?? "";
+
+/** Unpinned chats past 30 days, and past the newest 20 of this owner, go. */
+async function pruneChats(ctx: any, space: string, owner = "") {
   const rows = await ctx.db.query("chats").withIndex("by_space_updated", (q: any) => q.eq("space", space))
     .order("desc").collect();
   const cut = Date.now() - CHAT_DAYS * 86400000;
   let kept = 0;
   for (const c of rows) {
     if (c.pinned) continue;
-    if (c.updated < cut || kept >= CHAT_KEEP) await ctx.db.delete(c._id);
+    if (c.updated < cut) { await ctx.db.delete(c._id); continue; }
+    if (ownerOf(c) !== owner) continue;
+    if (kept >= CHAT_KEEP) await ctx.db.delete(c._id);
     else kept++;
   }
 }
 
-/** A chat of this space, or null. */
-async function chatIn(ctx: any, space: string, id: any) {
+/** A chat of this space and this owner, or null. */
+async function chatIn(ctx: any, space: string, id: any, owner = "") {
   const nid = typeof id === "string" ? ctx.db.normalizeId("chats", id) : null;
   const c = nid ? await ctx.db.get(nid) : null;
-  return c && c.space === space ? c : null;
+  return c && c.space === space && ownerOf(c) === owner ? c : null;
 }
 
 /** The chats of a space, pinned first, then newest. Old ones are cleared first. */
 export const chatList = internalMutation({
-  args: { space: v.string() },
+  args: { space: v.string(), owner: v.optional(v.string()) },
   handler: async (ctx, a) => {
-    const space = readSpace(a.space);
-    await pruneChats(ctx, space);
-    const rows = await ctx.db.query("chats").withIndex("by_space_updated", (q: any) => q.eq("space", space))
-      .order("desc").collect();
+    const space = readSpace(a.space), owner = a.owner ?? "";
+    await pruneChats(ctx, space, owner);
+    const rows = (await ctx.db.query("chats").withIndex("by_space_updated", (q: any) => q.eq("space", space))
+      .order("desc").collect()).filter((c: any) => ownerOf(c) === owner);
     return rows.sort((x: any, y: any) => Number(y.pinned) - Number(x.pinned) || y.updated - x.updated)
       .map((c: any) => ({ id: String(c._id), title: c.title, brain: c.brain, pinned: c.pinned,
                           updated: c.updated, turns: c.turns.length }));
@@ -881,37 +900,39 @@ export const chatList = internalMutation({
 
 /** One chat whole, to reopen it. */
 export const chatGet = internalQuery({
-  args: { space: v.string(), id: v.string() },
+  args: { space: v.string(), id: v.string(), owner: v.optional(v.string()) },
   handler: async (ctx, a) => {
-    const c = await chatIn(ctx, readSpace(a.space), a.id);
+    const c = await chatIn(ctx, readSpace(a.space), a.id, a.owner ?? "");
     return c ? { id: String(c._id), title: c.title, brain: c.brain, pinned: c.pinned, turns: c.turns } : null;
   },
 });
 
 /** A question and its answer, added to a chat. No chat, or one gone, starts a new one. */
 export const chatTurn = internalMutation({
-  args: { space: v.string(), id: v.optional(v.union(v.string(), v.null())), brain: v.string(), turn: v.any() },
+  args: { space: v.string(), id: v.optional(v.union(v.string(), v.null())), brain: v.string(), turn: v.any(), owner: v.optional(v.string()) },
   handler: async (ctx, a) => {
-    const space = readSpace(a.space), now = Date.now();
-    const had = await chatIn(ctx, space, a.id);
+    const space = readSpace(a.space), now = Date.now(), owner = a.owner ?? "";
+    const had = await chatIn(ctx, space, a.id, owner);
     if (had) {
       await ctx.db.patch(had._id, { turns: [...had.turns, a.turn].slice(-CHAT_TURNS), brain: a.brain, updated: now });
       return { id: String(had._id), created: false };
     }
     const q = String(a.turn?.q ?? "").replace(/\s+/g, " ").trim();
     const title = q.length > 80 ? q.slice(0, 77).replace(/\s+\S*$/, "") + "..." : q || "Untitled chat";
-    const id = await ctx.db.insert("chats", { space, title, brain: a.brain, pinned: false, turns: [a.turn], created: now, updated: now });
-    await pruneChats(ctx, space);
+    const id = await ctx.db.insert("chats", { space, title, brain: a.brain, pinned: false, turns: [a.turn], created: now, updated: now,
+      ...(owner ? { owner } : {}) });
+    await pruneChats(ctx, space, owner);
     return { id: String(id), created: true };
   },
 });
 
 /** Rename, pin or unpin, or delete a chat. At most 5 are pinned. */
 export const chatEdit = internalMutation({
-  args: { space: v.string(), id: v.string(), title: v.optional(v.string()), pinned: v.optional(v.boolean()), remove: v.optional(v.boolean()) },
+  args: { space: v.string(), id: v.string(), title: v.optional(v.string()), pinned: v.optional(v.boolean()), remove: v.optional(v.boolean()),
+          owner: v.optional(v.string()) },
   handler: async (ctx, a) => {
-    const space = readSpace(a.space);
-    const c = await chatIn(ctx, space, a.id);
+    const space = readSpace(a.space), owner = a.owner ?? "";
+    const c = await chatIn(ctx, space, a.id, owner);
     if (!c) return { error: "that chat is gone" };
     if (a.remove) { await ctx.db.delete(c._id); return { ok: true, removed: true }; }
     const patch: any = {};
@@ -923,7 +944,7 @@ export const chatEdit = internalMutation({
     if (a.pinned != null && a.pinned !== c.pinned) {
       if (a.pinned) {
         const pins = (await ctx.db.query("chats").withIndex("by_space_updated", (q: any) => q.eq("space", space)).collect())
-          .filter((x: any) => x.pinned).length;
+          .filter((x: any) => x.pinned && ownerOf(x) === owner).length;
         if (pins >= CHAT_PINS) return { error: `${CHAT_PINS} chats are pinned already. Unpin one first.` };
       }
       patch.pinned = a.pinned;
@@ -931,7 +952,40 @@ export const chatEdit = internalMutation({
       if (!a.pinned) patch.updated = Date.now();
     }
     await ctx.db.patch(c._id, patch);
-    if (a.pinned === false) await pruneChats(ctx, space);
+    if (a.pinned === false) await pruneChats(ctx, space, owner);
     return { ok: true };
+  },
+});
+
+/* ---------------- workspaces ---------------- */
+
+/** A workspace beyond the owner's two, or null. */
+export const workspaceOf = internalQuery({
+  args: { slug: v.string() },
+  handler: async (ctx, a) => await ctx.db.query("workspaces").withIndex("by_slug", q => q.eq("slug", a.slug)).unique(),
+});
+
+/** The demo workspace, when there is one. */
+export const demoWorkspace = internalQuery({
+  args: {},
+  handler: async (ctx) => (await ctx.db.query("workspaces").collect()).find(w => w.kind === "demo") ?? null,
+});
+
+/**
+ * A new workspace and its passphrase, in one write. A slug the owner's
+ * workspaces hold, one taken, or one a brain already uses is refused.
+ */
+export const createWorkspace = internalMutation({
+  args: { slug: v.string(), name: v.string(), kind: v.string(), salt: v.optional(v.string()), hash: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const slug = a.slug;
+    if (!SPACE_RE.test(slug) || (SPACES as readonly string[]).includes(slug)) return { error: "that name is taken. Pick another." };
+    if (await ctx.db.query("workspaces").withIndex("by_slug", q => q.eq("slug", slug)).unique()) return { error: "that name is taken. Pick another." };
+    if (await ctx.db.query("config").withIndex("by_key", q => q.eq("key", gateKey(slug))).unique()) return { error: "that name is taken. Pick another." };
+    await ctx.db.insert("workspaces", { slug, name: a.name.slice(0, 60), kind: a.kind, created: today() });
+    if (a.salt && a.hash) {
+      await ctx.db.insert("config", { key: gateKey(slug), salt: a.salt, hash: a.hash, attempts: 0, attemptWindow: Date.now(), setAt: today() });
+    }
+    return { ok: true, slug };
   },
 });

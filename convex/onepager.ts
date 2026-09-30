@@ -13,7 +13,7 @@
  * the same page.
  */
 
-import { ask, parseJson, SPACE_NAME } from "./lib";
+import { ask, parseJson, spaceName } from "./lib";
 import type { Who, Space } from "./lib";
 import { planDossier, writeDossier, keywords, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
@@ -246,7 +246,7 @@ export function assemble(
   const title = one ? brains[0].name
     : pick === "person" ? "People"
     : pick === "subject" ? "Subjects"
-    : SPACE_NAME[space];
+    : spaceName(space);
   const line = one ? String(brains[0].scope ?? "")
     : `${brains.length} brains, ${ideas} positions.`;
 
@@ -458,7 +458,7 @@ ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
 
   const one = brains.length === 1;
   const scope = one ? brains[0].name
-    : opts.pick === "person" ? "People" : opts.pick === "subject" ? "Subjects" : SPACE_NAME[space];
+    : opts.pick === "person" ? "People" : opts.pick === "subject" ? "Subjects" : spaceName(space);
   const where = one ? brains[0].name : `${brains.length} brains`;
   const cap = (t: string) => t.length > 78 ? t.slice(0, 75).trimEnd() + "..." : t;
   const subject = cap(q || scope);
@@ -466,7 +466,7 @@ ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
   const count = (head: RegExp) => (sections.find(x => head.test(x.head))?.blocks ?? [])
     .reduce((n, x: any) => n + (x.ol?.length ?? x.ul?.length ?? 0), 0);
   const written = note ? ` Written to: ${note.length > 110 ? note.slice(0, 107).trimEnd() + "..." : note}` : "";
-  const line = kind === "summary" ? `Asked of ${where} in ${SPACE_NAME[space]}.`
+  const line = kind === "summary" ? `Asked of ${where} in ${spaceName(space)}.`
     : doc === "quiz" ? `${count(/question/i)} questions on ${where}. The answers follow.${written}`
     : doc === "deepdive" ? `From ${where}.${written}`
     : doc === "usecase" ? `${sections.length} case${sections.length === 1 ? "" : "s"} from ${where}.${written}`
@@ -582,7 +582,7 @@ export async function mail(to: string, p: Pager, space: Space): Promise<{ sent: 
   /* MAIL_FROM wins. The fallback is the address this deployment sends from, so
      a MAIL_FROM set on dev instead of prod still sends from the verified domain. */
   const address = (process.env.MAIL_FROM || "hello@kaught.app").trim();
-  const name = SPACE_NAME[space];
+  const name = spaceName(space);
 
   let r: Response;
   try {

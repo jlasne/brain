@@ -16,7 +16,7 @@
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { SPACES, SPACE_NAME, HOME } from "./lib";
+import { SPACES, spaceName, HOME } from "./lib";
 import type { Space } from "./lib";
 import { loadSpace } from "./space";
 import { mail, asText, looksLikeMail } from "./onepager";
@@ -53,7 +53,7 @@ export function digestPage(weeks: SpaceWeek[], since: string, today: string): Pa
   let nNew = 0, nFed = 0, nConf = 0, nSrc = 0;
 
   for (const w of weeks) {
-    const name = SPACE_NAME[w.space];
+    const name = spaceName(w.space);
     const brainName = (slug: string) => w.brains.find((b: any) => b.slug === slug)?.name ?? slug;
     const fromWeek = new Set(w.sources.map((s: any) => s.sid));
     const list = <T>(items: T[], line: (x: T) => Bullet, extra = 0): Bullet[] => {
@@ -98,7 +98,7 @@ export function digestPage(weeks: SpaceWeek[], since: string, today: string): Pa
     title: `Your week: ${plural(nNew, "new concept")}, ${nFed} fed again`,
     line: `${since} to ${today} · ${plural(nSrc, "source")} read · ${plural(nConf, "open conflict")}`,
     sections,
-    foot: `Across ${weeks.map(w => SPACE_NAME[w.space]).join(" and ")}. Sent every Monday.`,
+    foot: `Across ${weeks.map(w => spaceName(w.space)).join(" and ")}. Sent every Monday.`,
   };
 }
 

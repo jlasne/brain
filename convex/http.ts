@@ -9,7 +9,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
   ask, json, cors, sha256, slug, randomHex, isOpen,
-  readSpace, SPACE_NAME, HOME,
+  readSpace, SPACE_NAME, HOME, spaceName, slugOfName, SPACE_RE, SPACES,
   MODEL, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, CHUNK,
   canDrop,
 } from "./lib";
@@ -29,15 +29,57 @@ const router = httpRouter();
 
 /* ---------- the gate ---------- */
 
-/** Who is calling. Three kinds, described on `Who` in lib.ts. */
-async function gate(ctx: any, body: any): Promise<Who> {
+/**
+ * Who is calling, and on whose key.
+ *
+ *   owner   a passphrase opened this workspace.
+ *   demo    a visitor in the demo workspace: no passphrase, a daily
+ *           allowance, the default model, and nothing that edits the brains'
+ *           shape or sends mail.
+ *   byok    a workspace a visitor made: every model call runs on the key
+ *           their browser sends with it. It is used for that call and never
+ *           written, logged or passed to a query or mutation.
+ */
+type Caller = Who & { demo: boolean; byok: boolean; key?: string; visitor: string | null; wsName: string };
+const KEY_RE = /^sk-or-[A-Za-z0-9_-]{20,200}$/;
+const owners = SPACES as readonly string[];
+
+async function gate(ctx: any, body: any, opts: { ownerOnly?: boolean } = {}): Promise<Caller> {
   const who = body?.token
     ? await ctx.runQuery(internal.store.checkSession, { token: body.token })
     : null;
-  /* Only a passphrase session opens the app. A session left from the member
+  /* A passphrase session, or a demo visitor. A session left from the member
      accounts and guest keys that were removed reads as locked. */
-  if (!who || (who.kind ?? "owner") !== "owner") throw new Response("locked", { status: 401 });
-  return { ...who, kind: "owner" };
+  if (!who || !["owner", "demo"].includes(who.kind ?? "owner")) throw new Response("locked", { status: 401 });
+  const demo = who.kind === "demo";
+  if (demo && opts.ownerOnly) throw new Error("the demo lets you ask, drop and explore. Create your own workspace to do this.");
+  const ws = owners.includes(who.space) ? null : await ctx.runQuery(internal.store.workspaceOf, { slug: who.space });
+  const byok = ws?.kind === "byok";
+  const k = String(body?.key ?? "").trim();
+  return { ...who, kind: "owner", demo, byok, visitor: demo ? who.visitor : null, wsName: ws?.name ?? spaceName(who.space),
+    key: byok ? (KEY_RE.test(k) ? k : undefined) : ws?.kind === "demo" ? (process.env.DEMO_OPENROUTER_API_KEY || undefined) : undefined };
+}
+
+/** The key a model call runs on. A workspace on its own key never falls back to the owner's. */
+function keyFor(who: Caller): string | undefined {
+  if (who.byok && !who.key) throw new Error("this workspace runs on your own OpenRouter key. Add it in Setup, then try again.");
+  return who.key;
+}
+
+/** The model: the default for a demo visitor, the one picked otherwise. */
+const modelFor = (who: Caller, b: any) => who.demo ? undefined : modelName(b);
+
+/* A demo visitor's allowance, and the demo's, per day. Each route that calls
+   a model counts once. Past it, the demo says how to keep going. */
+const DEMO_PER_VISITOR = Number(process.env.DEMO_VISITOR_CALLS || 40);
+const DEMO_PER_DAY = Number(process.env.DEMO_DAILY_CALLS || 1500);
+async function spend(ctx: any, who: Caller) {
+  if (!who.demo) return;
+  const day = 24 * 60 * 60 * 1000;
+  const me = await ctx.runMutation(internal.store.mcpRate, { who: "demo:" + who.visitor, max: DEMO_PER_VISITOR, windowMs: day });
+  if (!me.allowed) throw new Error(`you used today's demo allowance of ${DEMO_PER_VISITOR} steps. Create your own workspace with your own key to keep going.`);
+  const all = await ctx.runMutation(internal.store.mcpRate, { who: "demo:all", max: DEMO_PER_DAY, windowMs: day });
+  if (!all.allowed) throw new Error("the demo used its allowance for today. It opens again tomorrow, or create your own workspace with your own key.");
 }
 
 /**
@@ -79,7 +121,9 @@ const route = (path: string, fn: (ctx: any, req: Request, body: any) => Promise<
  * set one from a terminal instead, and the door is closed before it is public.
  */
 route("/api/unlock", async (ctx, _req, b) => {
-  const space = readSpace(b.space);
+  /* A door by its slug, or a workspace by the name typed on the landing. */
+  const space = b.name ? slugOfName(String(b.name)) : readSpace(b.space);
+  if (!SPACE_RE.test(space)) return { error: "no workspace has that name" };
   const pass = String(b.pass ?? "");
   if (pass.length < 8) return { error: "use at least 8 characters" };
 
@@ -88,7 +132,8 @@ route("/api/unlock", async (ctx, _req, b) => {
   /* A door with no passphrase stays shut. Setting one over the web let the
      first visitor to arrive choose it, so only the terminal sets it now. */
   if (!g?.set) {
-    return { error: `this door has no passphrase yet. Its owner sets one with: npx convex run admin:setPass "{space:'${space}',pass:'...'}" --prod` };
+    return { error: b.name ? "no workspace has that name and passphrase"
+      : `this door has no passphrase yet. Its owner sets one with: npx convex run admin:setPass "{space:'${space}',pass:'...'}" --prod` };
   }
 
   /* The count only holds inside its window. Checked alone, eight wrong
@@ -99,8 +144,48 @@ route("/api/unlock", async (ctx, _req, b) => {
 
   const good = await sha256(g.salt!, pass) === g.hash;
   await ctx.runMutation(internal.store.noteAttempt, { ok: good, space });
-  if (!good) return { error: "that is not it" };
+  if (!good) return { error: b.name ? "no workspace has that name and passphrase" : "that is not it" };
   return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space }), space };
+});
+
+/**
+ * The demo: anyone opens it, with no passphrase. The workspace is made once
+ * by the owner (npx convex run admin:makeDemo --prod) and fed like any other.
+ * A visitor gets a session of their own, so their chats stay theirs.
+ */
+route("/api/demo", async (ctx) => {
+  const ws = await ctx.runQuery(internal.store.demoWorkspace, {});
+  if (!ws) return { error: "the demo is not open yet" };
+  const r = await ctx.runMutation(internal.store.mcpRate, { who: "demo:sessions", max: 2000, windowMs: 24 * 60 * 60 * 1000 });
+  if (!r.allowed) return { error: "the demo is full for today. Create your own workspace with your own key." };
+  return { token: await ctx.runMutation(internal.store.newSession, { kind: "demo", space: ws.slug }), space: ws.slug };
+});
+
+/**
+ * A workspace of your own, on your own OpenRouter key.
+ *
+ * The key is checked once with OpenRouter, which costs nothing, and then
+ * handed back to the browser. It is never stored here: the app sends it with
+ * each call that needs a model.
+ */
+route("/api/workspace/create", async (ctx, _req, b) => {
+  const name = String(b.name ?? "").replace(/\s+/g, " ").trim().slice(0, 60);
+  const pass = String(b.pass ?? ""), key = String(b.key ?? "").trim();
+  const slugged = slugOfName(name);
+  if (!name || slugged.length < 2) return { error: "give the workspace a name of 2 letters or more" };
+  if (pass.length < 8) return { error: "use a passphrase of at least 8 characters" };
+  if (!KEY_RE.test(key)) return { error: "that is not an OpenRouter key. It starts with sk-or-" };
+  const r = await ctx.runMutation(internal.store.mcpRate, { who: "ws:create", max: 100, windowMs: 24 * 60 * 60 * 1000 });
+  if (!r.allowed) return { error: "too many workspaces were made today. Try again tomorrow." };
+  try {
+    const ok = await fetch("https://openrouter.ai/api/v1/key", { headers: { Authorization: "Bearer " + key } });
+    if (!ok.ok) return { error: "OpenRouter refused that key. Check it and try again." };
+  } catch { return { error: "OpenRouter did not answer. Try again in a minute." }; }
+  const salt = randomHex(16);
+  const made = await ctx.runMutation(internal.store.createWorkspace,
+    { slug: slugged, name, kind: "byok", salt, hash: await sha256(salt, pass) });
+  if (made.error) return { error: made.error };
+  return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space: slugged }), space: slugged, name };
 });
 
 route("/api/status", async (ctx) => {
@@ -108,7 +193,8 @@ route("/api/status", async (ctx) => {
      names no account and no brain, so a visitor learns only what the landing
      needs to draw two doors. */
   const gates = await ctx.runQuery(internal.store.gatesSet, {});
-  return { gates, gateSet: !!gates.octopus };
+  const demo = !!(await ctx.runQuery(internal.store.demoWorkspace, {}));
+  return { gates, gateSet: !!gates.octopus, demo };
 });
 
 route("/api/lock", async (ctx, _req, b) => {
@@ -125,7 +211,10 @@ route("/api/lock", async (ctx, _req, b) => {
  * which kills whatever was pointed at the old one.
  */
 route("/api/account/mcp", async (ctx, _req, b) => {
-  const who = await gate(ctx, b);
+  const who = await gate(ctx, b, { ownerOnly: true });
+  /* The connector runs some steps on the deployment's key, so it stays with
+     the owner's workspaces for now. */
+  if (!owners.includes(who.space)) return { error: "the Claude connector is not open for this workspace yet" };
   const account = await ctx.runMutation(internal.store.connectorHolder, { space: who.space, salt: randomHex(16) });
   if (b.forget) {
     await ctx.runMutation(internal.store.setMcpToken, { slug: account, token: null });
@@ -160,7 +249,8 @@ route("/api/doc", async (ctx, _req, b) => {
  * running at, over a window you choose.
  */
 route("/api/usage", async (ctx, _req, b) => {
-  await gate(ctx, b);
+  const who = await gate(ctx, b, { ownerOnly: true });
+  if (!owners.includes(who.space)) return { configured: false, mine: 0, hidden: true };
   const days = Math.min(Math.max(Number(b.days) || 30, 1), 365);
   const mine = await ctx.runQuery(internal.store.fetchCount, { days });
 
@@ -202,7 +292,7 @@ route("/api/state", async (ctx, _req, b) => {
     brain: c.brain, slug: c.slug, n: c.n, title: c.title, summaryLine: c.summaryLine, updated: c.updated,
     ev: c.ev ?? 0, src: c.src ?? 0, links: (c.related ?? []).length })) };
   return { ...s, model: MODEL, chunk: CHUNK,
-           space: who.space, spaceName: SPACE_NAME[who.space] };
+           space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok };
 });
 
 /** One concept whole, by its brain/slug id, for the brain viewer. */
@@ -215,13 +305,15 @@ route("/api/concept", async (ctx, _req, b) => {
 /** The open conflicts that are real contradictions, for Setup. */
 route("/api/conflicts", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return await listConflicts(ctx, who.space, modelName(b));
+  await spend(ctx, who);
+  return await listConflicts(ctx, who.space, modelFor(who, b), keyFor(who));
 });
 
 /** Settle one conflict: a side holds and the position is rewritten, or both hold. */
 route("/api/conflicts/settle", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return await settleConflict(ctx, who.space, b, modelName(b));
+  await spend(ctx, who);
+  return await settleConflict(ctx, who.space, b, modelFor(who, b), keyFor(who));
 });
 
 /** One page of a brain's concepts whole, for the markdown export. The app
@@ -233,7 +325,7 @@ route("/api/export", async (ctx, _req, b) => {
 });
 
 route("/api/brain", async (ctx, _req, b) => {
-  const who = await gate(ctx, b);
+  const who = await gate(ctx, b, { ownerOnly: true });
   const name = String(b.name ?? "").trim(), scope = String(b.scope ?? "").trim();
   if (!name || !scope) return { error: "a name and a scope line are both required" };
   const type = b.type === "person" ? "person" : "subject";
@@ -244,7 +336,7 @@ route("/api/brain", async (ctx, _req, b) => {
 
 /** Rename a brain, and move its concepts, sources and candidates with it. */
 route("/api/brain/rename", async (ctx, _req, b) => {
-  const who = await gate(ctx, b);
+  const who = await gate(ctx, b, { ownerOnly: true });
   return await ctx.runMutation(internal.store.renameBrain, {
     slug: String(b.slug ?? ""), name: String(b.name ?? ""),
     scope: String(b.scope ?? ""), account: null, space: who.space });
@@ -259,7 +351,12 @@ route("/api/brain/rename", async (ctx, _req, b) => {
  * once, and only the extraction ever reaches a brain.
  */
 route("/api/fetch", async (ctx, _req, b) => {
-  await gate(ctx, b);
+  const who = await gate(ctx, b);
+  /* The transcript service is the owner's, so other workspaces get a few a day. */
+  if (!owners.includes(who.space)) {
+    const r = await ctx.runMutation(internal.store.mcpRate, { who: "fetch:" + (who.demo ? "demo:" + who.visitor : who.space), max: who.demo ? 5 : 20, windowMs: 24 * 60 * 60 * 1000 });
+    if (!r.allowed) return { error: "today's allowance of fetched pages and transcripts is used. Paste the text instead." };
+  }
   return await fetchPage(ctx, String(b.url ?? ""));
 });
 
@@ -288,25 +385,29 @@ route("/api/drop/again", async (ctx, _req, b) => {
 /** R2. One pass over one chunk. The caller loops, the transcript is never stored. */
 route("/api/drop/read", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return await dropRead(ctx, who, b, undefined, modelName(b));
+  await spend(ctx, who);
+  return await dropRead(ctx, who, b, keyFor(who), modelFor(who, b));
 });
 
 /** R3. Summaries only, never whole brains, so this costs the same at any size. */
 route("/api/drop/plan", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return await dropPlan(ctx, who, b, undefined, modelName(b));
+  await spend(ctx, who);
+  return await dropPlan(ctx, who, b, keyFor(who), modelFor(who, b));
 });
 
 /** Parts planned in parallel can name one idea twice. This groups them. */
 route("/api/drop/merge", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return await dropMerge(ctx, who, b, undefined, modelName(b));
+  await spend(ctx, who);
+  return await dropMerge(ctx, who, b, keyFor(who), modelFor(who, b));
 });
 
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
 route("/api/drop/settle", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return await dropSettle(ctx, who, b, undefined, modelName(b));
+  await spend(ctx, who);
+  return await dropSettle(ctx, who, b, keyFor(who), modelFor(who, b));
 });
 
 
@@ -324,6 +425,9 @@ route("/api/drop/link", async (ctx, _req, b) => {
   const mine = new Set(head.brains.filter((x: any) => canDrop(x, who)).map((x: any) => x.slug));
   const ids = [...new Set<string>((Array.isArray(b.ids) ? b.ids : []).map(String))]
     .filter(x => /^[a-z0-9-]+\/[a-z0-9-]+$/.test(x) && mine.has(x.split("/")[0])).slice(0, 5000);
+  /* Linking runs later, on the deployment's key, so a workspace on its own
+     key skips it rather than spend the owner's. */
+  if (who.byok) return { linking: 0 };
   if (ids.length) await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: who.space, ids, sid });
   return { linking: ids.length };
 });
@@ -348,7 +452,8 @@ route("/api/ask", async (ctx, _req, b) => {
    * budget, and the next ones are named by title so the answer knows what else
    * is held. A follow-up borrows the words of the question before it.
    */
-  const mKey = undefined, mName = modelName(b);
+  const mKey = keyFor(who), mName = modelFor(who, b);
+  await spend(ctx, who);
   const t0 = Date.now();
   const route = await routeQuestion(pool, concepts, String(b.q ?? ""), b.history, mKey, mName);
   /* Ranked on the slim copies; only the concepts that lead are read whole. */
@@ -453,7 +558,7 @@ QUESTION: ${String(b.q ?? "")}` },
   let chat: string | undefined;
   if ("chat" in b) {
     try {
-      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space,
+      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
         id: typeof b.chat === "string" ? b.chat : null, brain: only ?? "all",
         turn: { q: String(b.q ?? "").slice(0, 2000), a: text, level, sources: nSources, at: Date.now() } });
       chat = r.id;
@@ -467,20 +572,20 @@ QUESTION: ${String(b.q ?? "")}` },
 /** The chats, pinned first then newest. Old ones are cleared as this runs. */
 route("/api/chats", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return { chats: await ctx.runMutation(internal.store.chatList, { space: who.space }) };
+  return { chats: await ctx.runMutation(internal.store.chatList, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}) }) };
 });
 
 /** One chat whole, to reopen it. */
 route("/api/chats/get", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const c = await ctx.runQuery(internal.store.chatGet, { space: who.space, id: String(b.id ?? "") });
+  const c = await ctx.runQuery(internal.store.chatGet, { space: who.space, id: String(b.id ?? ""), ...(who.visitor ? { owner: who.visitor } : {}) });
   return c ? { chat: c } : { error: "that chat is gone" };
 });
 
 /** Rename, pin, unpin or delete a chat. */
 route("/api/chats/edit", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return await ctx.runMutation(internal.store.chatEdit, { space: who.space, id: String(b.id ?? ""),
+  return await ctx.runMutation(internal.store.chatEdit, { space: who.space, id: String(b.id ?? ""), ...(who.visitor ? { owner: who.visitor } : {}),
     ...(typeof b.title === "string" ? { title: b.title } : {}),
     ...(typeof b.pinned === "boolean" ? { pinned: b.pinned } : {}),
     ...(b.remove === true ? { remove: true } : {}) });
@@ -570,6 +675,8 @@ route("/api/onepager", async (ctx, _req, b) => {
      least of all a model call on a question. */
   const to = String(b.mail ?? "").trim();
   if (to && !looksLikeMail(to)) return { error: `"${to.slice(0, 60)}" is not an address` };
+  /* Mail goes out from the owner's domain, so only the owner's workspaces send it. */
+  if (to && !owners.includes(who.space)) return { error: "mail is off in this workspace. Copy or print the page instead." };
 
   const q = String(b.q ?? "").trim();
   /* Summary lays out the positions in bullets, free, or answers a question.
@@ -583,11 +690,12 @@ route("/api/onepager", async (ctx, _req, b) => {
   /* English by default. A page the model writes is written in the language
      picked; a summary laid out from the stored positions is translated. */
   const lang = langOf(b.lang);
+  if (q || kind !== "summary" || lang !== "English") await spend(ctx, who);
   const page = q || kind !== "summary"
     ? await fromModel(who.space, brains, concepts, sources, { q, kind, doc, note, pick, lang },
-                      undefined, modelName(b), load)
+                      keyFor(who), modelFor(who, b), load)
     : await translatePage(assemble(who.space, brains, concepts, sources, pick,
-               new Map((await load(pageIds(brains, concepts))).map((c: any) => [idOf(c), c]))), lang, undefined, undefined, modelName(b));
+               new Map((await load(pageIds(brains, concepts))).map((c: any) => [idOf(c), c]))), lang, undefined, lang === "English" ? undefined : keyFor(who), modelFor(who, b));
 
   if (!hasBody(page)) {
     return { error: "those brains hold no positions yet, so the page would be empty" };

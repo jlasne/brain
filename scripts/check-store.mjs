@@ -472,6 +472,57 @@ function seed() {
   check("delete removes it", (await run(store.chatEdit, ctx, { space: "octopus", id: ids[4], remove: true })).removed && !T.chats.some(c => c._id === ids[4]));
 }
 
+/* ---- workspaces: the demo, and ones visitors make ---- */
+{
+  const { T, ctx } = seed();
+  const made = await run(store.createWorkspace, ctx, { slug: "acme-research", name: "Acme Research", kind: "byok", salt: "s", hash: "h" });
+  check("a workspace is made with its passphrase", made.ok && T.workspaces[0].slug === "acme-research" && T.workspaces[0].kind === "byok"
+    && T.config.some(r => r.key === "gate:acme-research" && r.hash === "h"), JSON.stringify(made));
+  check("a taken name is refused, and so are the owner's two", /taken/.test((await run(store.createWorkspace, ctx, { slug: "acme-research", name: "x", kind: "byok" })).error)
+    && /taken/.test((await run(store.createWorkspace, ctx, { slug: "octopus", name: "x", kind: "byok" })).error)
+    && /taken/.test((await run(store.createWorkspace, ctx, { slug: "-bad", name: "x", kind: "byok" })).error));
+
+  const demo = await run(admin.makeDemo, ctx, {});
+  check("the owner opens the demo from the terminal", demo.slug === "demo" && demo.made && (await run(store.demoWorkspace, ctx, {}))?.slug === "demo");
+  const again = await run(admin.makeDemo, ctx, { pass: "a long passphrase" });
+  check("running it again only sets the owner's passphrase", !again.made && again.passphrase && T.workspaces.filter(w => w.kind === "demo").length === 1
+    && T.config.some(r => r.key === "gate:demo"));
+
+  const token = await run(store.newSession, ctx, { kind: "demo", space: "demo" });
+  const who = await run(store.checkSession, ctx, { token });
+  check("a demo visitor gets a session of their own", who.kind === "demo" && who.space === "demo" && /^[0-9a-f]{16}$/.test(who.visitor || ""), JSON.stringify(who));
+
+  /* A brain named like one in another workspace gets a slug of its own. */
+  const own = await run(store.createBrain, ctx, { name: "Wealth", type: "subject", scope: "s", space: "acme-research" });
+  check("a brain name taken in another workspace gets its own slug, and says nothing of the other", own === "wealth-acme-research",
+    own);
+  check("the same name twice in one workspace is refused", /exists/.test(await throws(run(store.createBrain, ctx, { name: "Wealth", type: "subject", scope: "s", space: "octopus" }))));
+
+  /* A source filed in two workspaces shows each only its own brains. */
+  T.sources[0].brains.push("wealth-acme-research");
+  const head = await run(store.spaceHead, ctx, { space: "acme-research" });
+  check("a shared source lists only this workspace's brains", head.sources.length === 1 && JSON.stringify(head.sources[0].brains) === '["wealth-acme-research"]',
+    JSON.stringify(head.sources));
+
+  /* Copying a brain into the demo brings its concepts, cards and sources. */
+  const copy = await run(admin.copyBrain, ctx, { slug: "wealth", space: "demo" });
+  const cs = T.concepts.filter(c => c.brain === copy.slug);
+  check("a brain copies into the demo with its concepts, links and sources", copy.slug === "wealth-demo" && copy.concepts === 2
+    && cs.find(c => c.slug === "gold").related[0] === "wealth-demo/silver" && T.brains.find(b => b.slug === "wealth-demo").space === "demo"
+    && T.sources[0].brains.includes("wealth-demo") && T.cards.some(c => c.brain === "wealth-demo"), JSON.stringify(copy));
+  check("the original stays where it was", T.concepts.filter(c => c.brain === "wealth").length === 2 && T.brains.find(b => b.slug === "wealth").space === undefined);
+
+  /* Demo chats are each visitor's own. */
+  const turn = q => ({ q, a: "A.", level: "normal", sources: 1, at: Date.now() });
+  const mine = await run(store.chatTurn, ctx, { space: "demo", id: null, brain: "all", turn: turn("mine"), owner: "v1" });
+  await run(store.chatTurn, ctx, { space: "demo", id: null, brain: "all", turn: turn("theirs"), owner: "v2" });
+  const l1 = await run(store.chatList, ctx, { space: "demo", owner: "v1" });
+  check("a demo visitor lists only their own chats", l1.length === 1 && l1[0].title === "mine", JSON.stringify(l1));
+  check("and cannot open, join or delete another's", (await run(store.chatGet, ctx, { space: "demo", id: mine.id, owner: "v2" })) === null
+    && (await run(store.chatTurn, ctx, { space: "demo", id: mine.id, brain: "all", turn: turn("x"), owner: "v2" })).created
+    && /gone/.test((await run(store.chatEdit, ctx, { space: "demo", id: mine.id, remove: true, owner: "v2" })).error));
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe store holds");
 process.exit(failures ? 1 : 0);

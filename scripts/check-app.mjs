@@ -1238,6 +1238,72 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
+/* ---- the demo: open to anyone, nothing that reshapes it ---- */
+{
+  const demo = { ...STATE, space: "demo", spaceName: "Demo", demo: true };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u); window.__calls.push({ s, body: JSON.parse(opt?.body || "{}") });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/conflicts")) return Response.json({ conflicts: [], others: 0 });
+      return Response.json({});
+    };
+  }, demo);
+  await page.waitForTimeout(200);
+  const d = await page.evaluate(() => ({ bar: !document.getElementById("demoBar").hidden && /Live demo/.test(document.getElementById("demoBar").textContent),
+    make: document.getElementById("newBrain").hidden, edit: [...document.querySelectorAll("#brains .brain-row .ed")].map(x => x.textContent) }));
+  check("the demo says what it is, and offers no brain to create or edit", d.bar && d.make && !d.edit.includes("edit"), JSON.stringify(d));
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(250);
+  const set = await page.evaluate(() => ({ model: document.getElementById("setModel").hidden, mcp: document.getElementById("mcpBlock").hidden,
+    use: document.getElementById("useBlock").hidden, key: document.getElementById("keyBlock").hidden,
+    asked: window.__calls.filter(c => /\/api\/(account\/mcp|usage)/.test(c.s)).length }));
+  check("Setup in the demo keeps the default model, and leaves out the connector and transcripts", set.model && set.mcp && set.use && set.key && set.asked === 0,
+    JSON.stringify(set));
+  await page.click("#kDone");
+  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  check("a one-pager in the demo is copied or printed, never mailed", !(await page.isVisible("#pTo")));
+  await page.click("#pCancel");
+  await page.evaluate(() => localStorage.setItem("octopus.model", "openai/gpt-5"));
+  await page.fill("#input", "What is a hook?"); await page.click("#send"); await page.waitForTimeout(200);
+  const asked = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/ask")).pop()?.body);
+  check("nothing in the demo sends a model of its own choosing", asked && !("model" in asked) && !("key" in asked), JSON.stringify(asked));
+  check("nothing threw in the demo", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- a workspace on its own key ---- */
+{
+  const mine = { ...STATE, space: "acme", spaceName: "Acme", byok: true };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u); window.__calls.push({ s, body: JSON.parse(opt?.body || "{}") });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/conflicts")) return Response.json({ conflicts: [], others: 0 });
+      return Response.json({});
+    };
+  }, mine);
+  await page.waitForTimeout(700);
+  const asked = await page.evaluate(() => ({ open: !!document.getElementById("ownKey"), shown: !document.getElementById("keyBlock")?.hidden,
+    msg: document.getElementById("ownKeyMsg")?.textContent, mcp: document.getElementById("mcpBlock")?.hidden }));
+  check("a workspace on its own key asks for the key on the first visit", asked.open && asked.shown && /No key in this browser yet/.test(asked.msg) && asked.mcp,
+    JSON.stringify(asked));
+  await page.fill("#ownKey", "not-a-key"); await page.click("#ownKeySave");
+  check("a key that is not OpenRouter's is refused", /starts with sk-or-/.test(await page.textContent("#ownKeyMsg")));
+  await page.fill("#ownKey", "sk-or-v1-0123456789abcdef0123456789abcdef"); await page.click("#ownKeySave");
+  const saved = await page.evaluate(() => localStorage.getItem("octopus.key.acme"));
+  check("the key is saved in this browser only, one per workspace", saved === "sk-or-v1-0123456789abcdef0123456789abcdef" && /Saved in this browser/.test(await page.textContent("#ownKeyMsg")));
+  await page.click("#kDone");
+  await page.fill("#input", "What is a hook?"); await page.click("#send"); await page.waitForTimeout(200);
+  const sent = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/ask")).pop()?.body);
+  check("each call carries the workspace's own key", sent?.key === "sk-or-v1-0123456789abcdef0123456789abcdef", JSON.stringify(sent));
+  check("nothing threw in a workspace on its own key", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- the empty chat: the octopus's loop in Octopus, the dog's mark in Squidgy ---- */
 for (const space of ["octopus", "squidgy"]) {
   const st = { ...STATE, space, spaceName: space === "octopus" ? "Octopus" : "Squidgy" };

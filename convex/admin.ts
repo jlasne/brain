@@ -109,7 +109,7 @@ export const setPass = internalMutation({
   handler: async (ctx, a) => {
     const space = readSpace(a.space);
     if (String(a.space).trim().toLowerCase() !== space) {
-      throw new Error(`space reads one of: ${SPACES.join(", ")}`);
+      throw new Error(`a workspace slug is lower case letters, digits and dashes, like ${SPACES.join(" or ")}`);
     }
     if (a.pass.length < 8) throw new Error("use at least 8 characters");
     const key = gateKey(space);
@@ -141,6 +141,75 @@ export const moveBrain = internalMutation({
     if (from === space) return { slug: a.slug, from, to: space, moved: false, why: "already there" };
     if (!a.dry) await ctx.db.patch(b._id, { space });
     return { slug: a.slug, name: b.name, from, to: space, moved: !a.dry };
+  },
+});
+
+/**
+ * Open the demo workspace: anyone enters it from the landing, with no
+ * passphrase, on the deployment's key (or DEMO_OPENROUTER_API_KEY when set)
+ * and a daily allowance. A passphrase is optional: it lets the owner open the
+ * demo as its owner, to feed it without the demo's limits.
+ *
+ *     npx convex run admin:makeDemo --prod
+ *     npx convex run admin:makeDemo '{"pass":"a long passphrase"}' --prod
+ */
+export const makeDemo = internalMutation({
+  args: { slug: v.optional(v.string()), name: v.optional(v.string()), pass: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const slug = readSpace(a.slug ?? "demo"), name = a.name ?? "Demo";
+    if ((SPACES as readonly string[]).includes(slug)) throw new Error("the demo needs a slug of its own");
+    const had = await ctx.db.query("workspaces").withIndex("by_slug", q => q.eq("slug", slug)).unique();
+    if (had && had.kind !== "demo") throw new Error(`"${slug}" is a workspace someone made. Pick another slug.`);
+    for (const w of await ctx.db.query("workspaces").collect()) {
+      if (w.kind === "demo" && w.slug !== slug) throw new Error(`the demo is already "${w.slug}"`);
+    }
+    if (!had) await ctx.db.insert("workspaces", { slug, name, kind: "demo", created: today() });
+    if (a.pass) {
+      if (a.pass.length < 8) throw new Error("use at least 8 characters");
+      const key = gateKey(slug), salt = randomHex(16);
+      const doc = { key, salt, hash: await sha256(salt, a.pass), attempts: 0, attemptWindow: Date.now(), setAt: today() };
+      const row = await ctx.db.query("config").withIndex("by_key", q => q.eq("key", key)).unique();
+      if (row) await ctx.db.patch(row._id, doc); else await ctx.db.insert("config", doc);
+    }
+    return { slug, name, made: !had, passphrase: !!a.pass };
+  },
+});
+
+/**
+ * Copy a brain into another workspace, the demo most often, with its
+ * concepts and its sources. The copy gets a slug of its own; the original
+ * stays where it was, untouched.
+ *
+ *     npx convex run admin:copyBrain '{"slug":"alex-hormozi","space":"demo"}' --prod
+ */
+export const copyBrain = internalMutation({
+  args: { slug: v.string(), space: v.string(), name: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const src = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    if (!src) throw new Error(`no brain called "${a.slug}"`);
+    let ns = `${a.slug}-${space}`;
+    for (let n = 2; await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", ns)).unique(); n++) ns = `${a.slug}-${space}-${n}`;
+    const { _id, _creationTime, ...brain } = src as any;
+    await ctx.db.insert("brains", { ...brain, slug: ns, name: a.name ?? src.name, space, created: today() });
+    let n = 0;
+    for (const c of await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.slug)).collect()) {
+      const { _id: _cid, _creationTime: _ct, ...rest } = c as any;
+      const related = (c.related ?? []).map((r: string) => {
+        const id = linkId(r, a.slug);
+        return id.startsWith(a.slug + "/") ? `${ns}/${id.slice(a.slug.length + 1)}` : id;
+      });
+      const id = await ctx.db.insert("concepts", { ...rest, brain: ns, related });
+      await syncCard(ctx, id);
+      n++;
+    }
+    let sources = 0;
+    for (const s of await ctx.db.query("sources").collect()) {
+      if (!(s.brains ?? []).includes(a.slug)) continue;
+      await ctx.db.patch(s._id, { brains: [...s.brains, ns] });
+      sources++;
+    }
+    return { slug: ns, space, concepts: n, sources };
   },
 });
 

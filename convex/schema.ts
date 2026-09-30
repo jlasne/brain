@@ -25,7 +25,23 @@ export default defineSchema({
     /* Which space this session sees. Absent reads as "octopus", which is where
        every session written before the split belonged. */
     space: v.optional(v.string()),
+    /* A demo visitor, so each one keeps their own chats. */
+    visitor: v.optional(v.string()),
   }).index("by_token", ["token"]),
+
+  /**
+   * A workspace beyond the owner's two. "demo" opens to anyone, with no
+   * passphrase, on the deployment's hidden key and a daily allowance. "byok"
+   * was made by a visitor: its passphrase opens it and every model call runs
+   * on the visitor's own key, which stays in their browser and is never
+   * written here.
+   */
+  workspaces: defineTable({
+    slug: v.string(),
+    name: v.string(),
+    kind: v.string(),
+    created: v.string(),
+  }).index("by_slug", ["slug"]),
 
   /**
    * A member. A name and a password get them in. Their model key pays for their
@@ -137,6 +153,8 @@ export default defineSchema({
     /* The brain it asked, or "all". */
     brain: v.string(),
     pinned: v.boolean(),
+    /* In the demo, the visitor whose chat it is. Absent: the workspace's. */
+    owner: v.optional(v.string()),
     turns: v.array(v.any()),
     created: v.number(),
     updated: v.number(),

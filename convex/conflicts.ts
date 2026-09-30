@@ -47,7 +47,7 @@ Reply with only JSON: {"position":"","summaryLine":""}`;
 export type Clash = { id: string; brain: string; title: string; a: string; aDate: string; b: string; bDate: string; why: string; real?: boolean };
 
 /** Every open conflict of a space, each marked real or not, the unmarked ones checked once. */
-export async function listConflicts(ctx: any, space: string, model?: string): Promise<{ conflicts: Clash[]; others: number }> {
+export async function listConflicts(ctx: any, space: string, model?: string, key?: string): Promise<{ conflicts: Clash[]; others: number }> {
   const head = await ctx.runQuery(internal.store.spaceHead, { space });
   const all: Clash[] = [];
   for (const br of head.brains) {
@@ -74,7 +74,7 @@ export async function listConflicts(ctx: any, space: string, model?: string): Pr
         { role: "system", content: "You judge whether two claims contradict. You reply with JSON only." },
         { role: "user", content: `${CHECK_RULES}\n\n` + part.map((c, k) =>
           `${k + 1}. A: "${c.a.slice(0, 300)}" | B: "${c.b.slice(0, 300)}" | recorded because: ${c.why.slice(0, 200)}`).join("\n") },
-      ], { json: true, maxTokens: 600, timeout: 60000, model });
+      ], { json: true, maxTokens: 600, timeout: 60000, model, key });
       const real = parseJson(text)?.real;
       if (!Array.isArray(real) || real.length !== part.length) continue;
       part.forEach((c, k) => { c.real = real[k] === true; });
@@ -88,7 +88,7 @@ export async function listConflicts(ctx: any, space: string, model?: string): Pr
 }
 
 /** Settle one: "a" or "b" holds, and the position is rewritten; "both" only clears it. */
-export async function settleConflict(ctx: any, space: string, b: any, model?: string) {
+export async function settleConflict(ctx: any, space: string, b: any, model?: string, key?: string) {
   const id = String(b.id ?? ""), a = String(b.a ?? ""), bb = String(b.b ?? ""), pick = String(b.pick ?? "");
   if (!["a", "b", "both"].includes(pick)) return { error: "pick a, b or both" };
   if (pick === "both") return await ctx.runMutation(internal.store.settleConflict, { space, id, a, b: bb });
@@ -103,7 +103,7 @@ export async function settleConflict(ctx: any, space: string, b: any, model?: st
   const { text } = await ask([
     { role: "system", content: "You maintain a knowledge base. You write in English. You reply with JSON only." },
     { role: "user", content: REWRITE(String(c.position ?? ""), held, heldDate, other, otherDate) },
-  ], { json: true, maxTokens: 1200, timeout: 90000, model });
+  ], { json: true, maxTokens: 1200, timeout: 90000, model, key });
   const out = parseJson(text) ?? {};
   const position = plainClaim(out.position), summaryLine = plainClaim(out.summaryLine);
   if (!position) return { error: "the rewrite came back empty, so nothing changed. Try again." };

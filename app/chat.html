@@ -208,6 +208,12 @@
   .brain-row.on .nm, .brain-row.on .ct{ color:var(--accent); }
   .empty-side{ padding:6px 3px; font:400 12.5px/1.55 var(--sans); color:var(--ink-4); }
 
+  /* The demo says what it is, above the thread. */
+  .demo-bar{ margin:12px auto 0; width:min(760px, calc(100% - 32px)); padding:10px 14px; border-radius:10px;
+    border:1px solid var(--accent-line); background:var(--accent-soft); font:400 13.5px/1.55 var(--sans); color:var(--ink-2); }
+  .demo-bar b{ color:var(--accent); }
+  .demo-bar a{ color:var(--accent); font-weight:600; }
+
   /* Chats and Brains, each a group that folds, remembered per browser. */
   .side-h.fold{ margin-top:12px; }
   .fold-t{ display:flex; align-items:center; gap:6px; flex:1; min-width:0; padding:3px 0; text-align:left;
@@ -1157,6 +1163,8 @@
       <h1><a href="/" id="spaceNameBar" title="Back to the door">Octopus</a></h1>
     </div>
 
+    <div class="demo-bar" id="demoBar" hidden><b>Live demo.</b> Ask anything, drop a video or an article, open the map in Setup.
+      Your chats stay yours. <a href="/#create">Make your own workspace</a> to keep your own brains.</div>
     <div class="thread" id="thread"></div>
 
     <div class="composer-wrap">
@@ -1232,6 +1240,8 @@ const S = {
   chats: [], chatId: null,
   /* Each brain's health out of 10, and the concepts with an open conflict. */
   health: {}, conflicted: new Set(),
+  /* The demo, or a workspace on the visitor's own key. */
+  demo: false, byok: false,
   level: "normal",
   /* Which space this session reads, and what it calls itself. The passphrase at
      the door decided it, and the app only reports it. */
@@ -1293,7 +1303,7 @@ async function api(path, body = {}) {
     r = await fetch(API + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: S.token, ...(S.pick ? { model: S.pick } : {}), ...body }),
+      body: JSON.stringify({ token: S.token, ...(S.pick && !S.demo ? { model: S.pick } : {}), ...(S.byok && myKey() ? { key: myKey() } : {}), ...body }),
       signal: ctl.signal,
     });
   } catch (e) {
@@ -1399,6 +1409,8 @@ async function refresh(){
   S.brains = d.brains || []; S.concepts = d.concepts || []; S.sources = d.sources || [];
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
+  S.demo = !!d.demo; S.byok = !!d.byok;
+  paintWorkspace();
   render();
   /* The rings and the chat list follow, so the brains never wait on them. */
   loadHealth(); loadChats();
@@ -1496,12 +1508,34 @@ function brainRow(b){
     op.title = "See what this brain holds";
     op.onclick = e => { e.stopPropagation(); openBrainView(b); };
     row.append(op);
-    const ed = el("span","ed","edit");
-    ed.title = "Name and scope";
-    ed.onclick = e => { e.stopPropagation(); openBrainSheet(b); };
-    row.append(ed);
+    if (!S.demo){
+      const ed = el("span","ed","edit");
+      ed.title = "Name and scope";
+      ed.onclick = e => { e.stopPropagation(); openBrainSheet(b); };
+      row.append(ed);
+    }
   }
   return row;
+}
+
+/* ---- which workspace this is ---- */
+
+/** The owner's two workspaces: the only ones with mail, the connector and transcripts to spare. */
+function ownerWs(){ return !S.demo && !S.byok && (S.space === "octopus" || S.space === "squidgy"); }
+/** A workspace's own key lives in this browser only, one per workspace. */
+function myKey(){ try { return localStorage.getItem("octopus.key." + S.space) || ""; } catch { return ""; } }
+function setMyKey(k){ try { localStorage.setItem("octopus.key." + S.space, k); } catch {} }
+
+/**
+ * What changes with the workspace: the demo says what it is and keeps its
+ * brains' shape as it is; a workspace on its own key asks for the key once.
+ */
+let keyAsked = false;
+function paintWorkspace(){
+  document.documentElement.dataset.demo = S.demo ? "1" : "";
+  $("newBrain").hidden = S.demo;
+  $("demoBar").hidden = !S.demo;
+  if (S.byok && !myKey() && !keyAsked){ keyAsked = true; setTimeout(openSetupSheet, 300); }
 }
 
 /* ---- the two folding groups ---- */
@@ -2582,13 +2616,14 @@ async function openSetupSheet(){
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Setup</h3>
-      <p>The model that answers in this app, the export of every ${esc(S.spaceName)} brain, the map of
-        them all, the open conflicts to settle, and the MCP address for Claude.</p></header>
+      <p>${S.demo ? `The demo runs on the default model. Export its brains, open the map, and settle open conflicts.`
+        : `The model that answers in this app, the export of every ${esc(S.spaceName)} brain, the map of
+        them all, the open conflicts to settle${ownerWs() ? ", and the MCP address for Claude" : ""}.`}</p></header>
 
       <div class="f set-row">
         <button class="foot-btn${S.pick ? " pick" : ""}" id="setModel" title="${esc(modelLabel().title)}">
           <span class="lbl">Model</span><span class="val">${esc(modelLabel().val)}</span></button>
-        <button class="foot-btn" id="setExport" title="Every brain of this space, as one markdown file">
+        <button class="foot-btn" id="setExport" title="Every brain of this workspace, as one markdown file">
           <span class="lbl">Export</span><span class="val">markdown</span></button>
         <button class="foot-btn" id="setMap" title="Every brain as an arm of the octopus: its concepts, the links between brains and the open conflicts">
           <span class="lbl">Map</span><span class="val">open</span></button>
@@ -2600,14 +2635,22 @@ async function openSetupSheet(){
         <div id="cfSlot"></div>
       </div>
 
-      <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
+      <div class="f" id="keyBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${S.byok ? "" : "hidden"}>
+        <label for="ownKey">Your OpenRouter key</label>
+        <div class="hint" style="margin:0 0 8px">This workspace runs on your own key. It stays in this browser and
+          travels with each call that needs a model. It is never saved on the server.</div>
+        <div class="urlbox"><input id="ownKey" type="password" spellcheck="false" autocomplete="off" placeholder="sk-or-..."><button id="ownKeySave">Save</button></div>
+        <div class="hint" id="ownKeyMsg"></div>
+      </div>
+
+      <div class="f" id="mcpBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${ownerWs() ? "" : "hidden"}>
         <label>${esc(S.spaceName)} MCP address</label>
         <div class="hint" style="margin:0 0 8px">It lets Claude, ChatGPT or any MCP client read and feed the
           ${esc(S.spaceName)} brains, and no others. That client's own model does the thinking.</div>
         <div id="feedSlot"></div>
       </div>
 
-      <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
+      <div class="f" id="useBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${ownerWs() ? "" : "hidden"}>
         <label>Video transcripts</label>
         <div id="useSlot"></div>
       </div>
@@ -2622,6 +2665,7 @@ async function openSetupSheet(){
   veil.onclick = e => { if(e.target===veil) shut(); };
 
   /* ---- the model and the export ---- */
+  veil.querySelector("#setModel").hidden = S.demo;
   veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet(); };
   veil.querySelector("#setMap").onclick = () => { shut(); openMap(); };
   const exp = veil.querySelector("#setExport");
@@ -2733,6 +2777,22 @@ async function openSetupSheet(){
     if (off) off.onclick = () => act({ forget: true }, "Turned off. A client holding it can no longer feed.");
   };
 
+  /* ---- your own key, in a workspace that runs on one ---- */
+  const kIn = veil.querySelector("#ownKey"), kMsg = veil.querySelector("#ownKeyMsg");
+  if (S.byok){
+    kIn.value = myKey();
+    kMsg.textContent = myKey() ? "Saved in this browser." : "No key in this browser yet: asking and dropping need one.";
+    const saveKey = () => {
+      const k = kIn.value.trim();
+      if (!/^sk-or-[A-Za-z0-9_-]{20,200}$/.test(k)){ kMsg.textContent = "That is not an OpenRouter key. It starts with sk-or-"; return; }
+      setMyKey(k); kMsg.textContent = "Saved in this browser.";
+    };
+    veil.querySelector("#ownKeySave").onclick = saveKey;
+    kIn.onkeydown = e => { if (e.key === "Enter") saveKey(); };
+  }
+
+  /* The connector and the transcript service are the owner's. */
+  if (!ownerWs()) return;
   slot.innerHTML = `<div class="hint">Checking</div>`;
   try { paint(await api("/api/account/mcp", {})); }
   catch(e){ slot.innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
@@ -3162,7 +3222,7 @@ function openPagerSheet(pre = {}){
       <div class="f"><label for="pQ">Focus on a question</label>
         <textarea id="pQ"></textarea>
         <div class="hint" id="pQHint"></div></div>
-      <div class="f"><label for="pTo">Send it to</label>
+      <div class="f" ${ownerWs() ? "" : "hidden"}><label for="pTo">Send it to</label>
         <input id="pTo" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com">
         <div class="hint">It lands in the thread as well. Leave this empty to read it there first.</div></div>
       <div id="pSlot"></div>
@@ -3394,7 +3454,8 @@ function showPager(page, text, built, mailed, r){
       else tell(false, mailed.why);
     }
 
-    acts.append(copy, print, to, send);
+    /* Mail goes from the owner's domain, so other workspaces copy or print. */
+    acts.append(copy, print, ...(ownerWs() ? [to, send] : []));
   });
   bottom();
 }

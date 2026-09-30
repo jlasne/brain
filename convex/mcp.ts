@@ -22,7 +22,7 @@
  */
 
 import { internal } from "./_generated/api";
-import { randomHex, today, slug as slugOf, HOME, SPACE_NAME, readSpace } from "./lib";
+import { randomHex, today, slug as slugOf, HOME, spaceName, readSpace } from "./lib";
 import { norm, keywords, planDossier, writeDossier, scoreConcept, idOf, OPEN_READ } from "./words";
 import { assemble, pageIds, asText, fullestPlan, docRules, BULLET_RULES, DOC_TITLE, LANGS, langOf } from "./onepager";
 import type { DocType } from "./onepager";
@@ -52,7 +52,7 @@ export const RATE_WINDOW_MS = 1000 * 60 * 10;
 
 /* Named for the project the address serves. */
 const serverOf = (space: string) =>
-  ({ name: `${space}-brains`, title: `${SPACE_NAME[readSpace(space)]} Brains`, version: "1.0.0" });
+  ({ name: `${space}-brains`, title: `${spaceName(readSpace(space))} Brains`, version: "1.0.0" });
 
 /* ---------- shapes ---------- */
 
@@ -572,7 +572,7 @@ async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
     if (!pool.length) {
       return text(brain
         ? `You cannot feed "${brain}". Either it does not exist, or its owner keeps it closed.`
-        : `There is no brain to feed yet. Create one in ${SPACE_NAME[space]} first.`);
+        : `There is no brain to feed yet. Create one in ${spaceName(space)} first.`);
     }
 
     return text([
@@ -752,7 +752,7 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
       .map((s: any) => s.sid)).size;
     const person = chosen.length === 1 && chosen[0].type === "person";
 
-    const label = `${SPACE_NAME[space].toUpperCase()} BRAIN`;
+    const label = `${spaceName(space).toUpperCase()} BRAIN`;
     const out = [
       `QUESTION: ${q}`,
       ``,
@@ -821,8 +821,8 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
         new Map((await whole(pageIds(pool, concepts))).map((c: any) => [idOf(c), c])));
       return text(`===== THE PAGE, READY =====\n` + (other
         ? `Translate it into ${lang}, every line, the headings, the line under the title and the foot included. ` +
-          `Numbers, dates and names of people and brains stay as they are. Then show it under a first line reading "${SPACE_NAME[space].toUpperCase()} BRAIN": `
-        : `Show it as it is, under a first line reading "${SPACE_NAME[space].toUpperCase()} BRAIN": `) +
+          `Numbers, dates and names of people and brains stay as they are. Then show it under a first line reading "${spaceName(space).toUpperCase()} BRAIN": `
+        : `Show it as it is, under a first line reading "${spaceName(space).toUpperCase()} BRAIN": `) +
         `the title, the line under it, the bullets, then the foot.\n\n${asText(page)}`);
     }
 
@@ -831,7 +831,7 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
     const found = writeDossier(pool, plan,
       new Map((await whole(plan.lead.slice(0, OPEN_READ).map(idOf))).map((c: any) => [idOf(c), c])));
     const doc = kind === "summary" ? null : kind as DocType;
-    const subject = (t => t.length > 78 ? t.slice(0, 75).trimEnd() + "..." : t)(q || (named ? named.name : SPACE_NAME[space]));
+    const subject = (t => t.length > 78 ? t.slice(0, 75).trimEnd() + "..." : t)(q || (named ? named.name : spaceName(space)));
     const rules = (doc ? docRules(doc, note)
       : BULLET_RULES + (note ? `\n\nOWNER'S INSTRUCTION\n${note}\nIt sets the angle, the audience or the tone. The shape above stays.` : ""))
       .replace(/English, always\./g, `Write in ${lang}, always.`) +
@@ -848,7 +848,7 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
       `===== HOW TO WRITE THE PAGE =====`,
       rules,
       ``,
-      `- The first line reads "${SPACE_NAME[space].toUpperCase()} BRAIN". Then the TITLE as a heading. End with the FOOT line, as it is.`,
+      `- The first line reads "${spaceName(space).toUpperCase()} BRAIN". Then the TITLE as a heading. End with the FOOT line, as it is.`,
     ].join("\n"));
   }
 
@@ -946,13 +946,13 @@ export async function handleRpc(ctx: any, msg: any, caller: Caller = null): Prom
       capabilities: { tools: { listChanged: false } },
       serverInfo: serverOf(spaceOf(caller)),
       instructions:
-        `These are ${SPACE_NAME[spaceOf(caller)]} brains: a knowledge base split by subject, each brain holding positions derived ` +
+        `These are ${spaceName(spaceOf(caller))} brains: a knowledge base split by subject, each brain holding positions derived ` +
         "from the sources it has read. For a question, call ask with the question text and its English search " +
         "words in terms, and a brain name only if the user named one. It returns the relevant positions, their " +
         "dated evidence, any open conflict, and the rules for writing the answer. For a summary, a quiz, a deep " +
         "dive or use cases, call one_pager. The other tools are for browsing: list_brains, " +
         "read_brain, read_concept, search_brains, list_sources. Start every answer built from these tools " +
-        `with a line reading "${SPACE_NAME[spaceOf(caller)].toUpperCase()} BRAIN". Answer from what the tools return, cite the ` +
+        `with a line reading "${spaceName(spaceOf(caller)).toUpperCase()} BRAIN". Answer from what the tools return, cite the ` +
         "authors and dates they carry, and say plainly when the brains do not cover a question rather than " +
         "filling the gap yourself." +
         (caller
