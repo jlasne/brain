@@ -152,9 +152,10 @@
   .hero .lw{ display:grid; grid-template-columns:1.25fr .75fr; gap:40px; align-items:center; }
   .eyebrow{ display:inline-block; font:500 12px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--accent);
     padding:7px 10px; border:1px solid var(--accent-line); border-radius:999px; background:var(--accent-soft); }
-  .hero h1{ margin-top:18px; font:700 clamp(34px,5.2vw,58px)/1.02 var(--sans); letter-spacing:-.035em; color:var(--ink); }
+  .hero h1{ margin-top:18px; font:700 clamp(34px,5.2vw,60px)/1.04 var(--sans); letter-spacing:-.035em; color:var(--ink); }
+  .hero h1 em{ display:block; }
   .hero h1 em{ font-style:normal; color:var(--accent-fill); }
-  .hero .sub{ margin-top:18px; max-width:600px; font:400 clamp(16px,1.6vw,19px)/1.6 var(--sans); color:var(--ink-2); }
+  .hero .sub{ margin-top:18px; max-width:640px; font:400 clamp(16px,1.6vw,19px)/1.6 var(--sans); color:var(--ink-2); }
   .hero .ctas{ margin-top:26px; display:flex; gap:10px; flex-wrap:wrap; }
   .hero .proof{ margin-top:18px; font:400 12.5px/1.6 var(--mono); color:var(--ink-4); min-height:1.6em; }
   .hero .msg{ margin-top:10px; font:400 13.5px/1.5 var(--sans); color:var(--accent); min-height:1.5em; }
@@ -196,10 +197,21 @@
   .cmp-head > span{ color:var(--ink-3) !important; }
   .cmp .win{ color:var(--good); font-weight:600; }
   .note{ margin-top:12px; font:400 13px/1.6 var(--sans); color:var(--ink-4); }
-  .replace{ margin-top:22px; display:flex; flex-wrap:wrap; gap:10px; }
-  .replace span{ padding:9px 13px; border-radius:10px; background:var(--surface); border:1px solid var(--line); font:500 14px/1.3 var(--sans); color:var(--ink-2); }
-  .replace span s{ color:var(--ink-4); }
 
+  .cmp.two .cmp-row{ grid-template-columns:22% 1fr; }
+  .cmp.uses .cmp-row{ grid-template-columns:18% 1fr 1fr; }
+  .cmp.uses q{ quotes:"\201C" "\201D"; display:inline-block; padding:7px 11px; border-radius:12px 12px 12px 4px; background:var(--accent-soft);
+    border:1px solid var(--accent-line); color:var(--ink); font:400 14px/1.5 var(--sans); }
+  .ws-ic{ display:grid; place-items:center; width:44px; height:44px; border-radius:12px; background:var(--surface-2); color:var(--ink-2);
+    font:600 24px/1 var(--sans); }
+  .ws-panel{ grid-column:1 / -1; padding-top:4px; }
+  .ws-panel .grid{ margin-top:6px; }
+  .ws-panel .tile{ background:var(--bg); }
+  .ws-inline{ display:flex; gap:8px; max-width:460px; }
+  .ws-inline input{ flex:1; min-width:0; }
+  .ws-inline .cta{ margin-top:0; width:auto; min-height:44px; }
+  .ws-msg{ grid-column:2 / -1; margin:0; min-height:0; }
+  .ws-msg:empty{ display:none; }
   .ws-list{ margin-top:24px; background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
   .ws{ display:grid; grid-template-columns:44px 1fr auto; gap:14px; align-items:center; padding:14px 16px; border-top:1px solid var(--line); }
   .ws:first-child{ border-top:none; }
@@ -215,7 +227,7 @@
   .start input{ width:100%; border:1px solid var(--line-2); border-radius:10px; background:var(--bg); padding:11px 13px;
     font:400 16px/1.4 var(--sans); color:var(--ink); }
   .start input:focus{ border-color:var(--accent-fill); outline:none; }
-  .start .cta{ margin-top:14px; width:100%; }
+  .start .tile .cta{ margin-top:14px; width:100%; }
   .start .push{ margin-top:auto; }
   .start .fine{ margin-top:10px; font:400 12.5px/1.55 var(--sans); color:var(--ink-4); }
   .start .msg{ margin-top:8px; min-height:1.5em; font:400 13px/1.5 var(--sans); color:var(--accent); }
@@ -236,6 +248,9 @@
     .cmp-row{ grid-template-columns:1fr; padding:8px 0; }
     .cmp-row > span{ padding:3px 14px; }
     .cmp-row > span[data-l]::before{ content:attr(data-l) ": "; font-weight:600; color:var(--ink-2); }
+    .cmp.two .cmp-row, .cmp.uses .cmp-row{ grid-template-columns:1fr; }
+    .cmp.two .cmp-row > span[data-l]::before{ content:none; }
+    .ws-msg{ grid-column:1 / -1; }
   }
 </style>
 
@@ -243,7 +258,7 @@
   <header class="l-top"><div class="lw">
     <img src="/brand/brain.svg" alt="" width="26" height="26"><b>Brain</b>
     <nav>
-      <a class="opt" href="#get">What you get</a>
+      <a class="opt" href="#vs-chat">Vs. an AI chat</a>
       <a class="opt" href="#how">How it works</a>
       <a class="opt" href="#karpathy">Vs. an LLM wiki</a>
       <a class="opt" href="#uses">Use cases</a>
@@ -254,14 +269,9 @@
   <section class="hero"><div class="lw">
     <div>
       <span class="eyebrow">Open source</span>
-      <h1>What you read, watch and hear becomes <em>answers you can check.</em></h1>
-      <p class="sub">Drop an article, a PDF, a Word file, a video or a podcast transcript. Brain files each claim under the right subject
-        with its author and date, flags what contradicts what you already hold, and answers from that evidence, in 9 languages.</p>
-      <div class="ctas">
-        <button class="cta main" id="demoGo" type="button">Try the live demo</button>
-        <a class="cta" href="#create">Make your workspace</a>
-      </div>
-      <p class="msg" id="demoMsg" role="alert"></p>
+      <h1>Feed it what you read. <em>Ask it what you know.</em></h1>
+      <p class="sub">Brain reads your articles, PDFs, videos and notes once, and files every claim under the right subject with its author and date.
+        When a new source contradicts what you hold, you decide which one wins. Then it answers from that evidence, and shows where each line comes from.</p>
       <p class="proof" id="proof">Its builder feeds it every day.</p>
     </div>
     <div class="stage">
@@ -276,8 +286,71 @@
     </div>
   </div></section>
 
-  <section class="band" id="get"><div class="lw">
-    <h2>What you get: a brain, not a chat</h2>
+  <section class="band start" id="start"><div class="lw">
+    <h2>Workspaces</h2>
+    <p class="lede">A workspace holds its own brains and chats, and sees nothing of the others.</p>
+    <div class="ws-list">
+      <div class="ws">
+        <img src="/brand/brain.svg" alt="" width="44" height="44">
+        <div class="ws-t"><b>Demo</b><span>Open to everyone, no sign-up: brains on health, content and social skills. Every visitor shares 30 drops and 300 questions a month, and keeps their own chats.</span></div>
+        <div class="ws-go"><button class="cta main" id="demoGo" type="button">Open</button></div>
+        <p class="msg ws-msg" id="demoMsg" role="alert"></p>
+      </div>
+      <div class="ws">
+        <img src="/brand/octopus-door.png" alt="" width="44" height="44">
+        <div class="ws-t"><b>Octopus</b><span>The builder's own workspace: one brain per subject or person. Private.</span></div>
+        <div class="ws-go"><button class="cta" type="button" data-open="octopus">Enter</button></div>
+        <form class="ws-panel ws-pass" id="pOctopus" data-space="octopus" hidden>
+          <label for="wpOctopus">Passphrase</label>
+          <div class="ws-inline"><input id="wpOctopus" type="password" autocomplete="current-password"><button class="cta main" type="submit">Enter</button></div>
+          <p class="msg" role="alert"></p>
+        </form>
+      </div>
+      <div class="ws">
+        <img src="/brand/squidgy-mark.png" alt="" width="44" height="44">
+        <div class="ws-t"><b>Squidgy</b><span>A second private workspace.</span></div>
+        <div class="ws-go"><button class="cta" type="button" data-open="squidgy">Enter</button></div>
+        <form class="ws-panel ws-pass" id="pSquidgy" data-space="squidgy" hidden>
+          <label for="wpSquidgy">Passphrase</label>
+          <div class="ws-inline"><input id="wpSquidgy" type="password" autocomplete="current-password"><button class="cta main" type="submit">Enter</button></div>
+          <p class="msg" role="alert"></p>
+        </form>
+      </div>
+      <div class="ws">
+        <span class="ws-ic" aria-hidden="true">+</span>
+        <div class="ws-t"><b>Your own workspace</b><span>Make one on your own OpenRouter key, or open the one you made.</span></div>
+        <div class="ws-go"><button class="cta" type="button" data-open="create" id="wsCreate">Create</button></div>
+        <div class="ws-panel" id="pCreate" hidden>
+          <div class="grid two">
+            <form class="tile" id="create">
+              <h3>Make your workspace</h3>
+              <label for="cName">Workspace name</label><input id="cName" autocomplete="off" maxlength="60" placeholder="Acme Research">
+              <label for="cPass">Passphrase, 8 characters or more</label><input id="cPass" type="password" autocomplete="new-password">
+              <label for="cKey">OpenRouter key</label><input id="cKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-...">
+              <p class="fine">Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. It is checked once, then kept in this
+                browser only and sent with each call that needs a model. It is never saved on our server.</p>
+              <div class="push"><button class="cta main" id="cGo" type="submit">Create it</button><p class="msg" id="cMsg" role="alert"></p></div>
+            </form>
+            <form class="tile" id="open">
+              <h3>Open your workspace</h3>
+              <label for="oName">Workspace name</label><input id="oName" autocomplete="username" maxlength="60">
+              <label for="oPass">Passphrase</label><input id="oPass" type="password" autocomplete="current-password">
+              <p class="fine">On a new device, the app asks for your OpenRouter key once.</p>
+              <div class="push"><button class="cta" id="oGo" type="submit">Open it</button><p class="msg" id="oMsg" role="alert"></p></div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="ws">
+        <span class="ws-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.4 11.4 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z"/></svg></span>
+        <div class="ws-t"><b>The open source</b><span>Every line of the app and the server. Run your own on Convex and Vercel.</span></div>
+        <div class="ws-go"><a class="cta" href="https://github.com/jlasne/brain">Explore</a></div>
+      </div>
+    </div>
+  </div></section>
+
+  <section class="band alt" id="vs-chat"><div class="lw">
+    <h2>A brain vs. a classic AI chat</h2>
     <p class="lede">A classic AI chat answers from what its model absorbed in training. A brain answers from the sources you gave it, and shows them.</p>
     <div class="cmp" role="table" aria-label="A classic AI chat compared with a brain">
       <div class="cmp-row cmp-head" role="row"><span role="columnheader"></span><span role="columnheader">A classic AI chat</span><span role="columnheader">A brain</span></div>
@@ -292,22 +365,23 @@
     <p class="note">A brain still uses a language model: to read your sources and to write each answer. It answers only from what you gave it, and says so when that is not enough.</p>
   </div></section>
 
-  <section class="band alt" id="how"><div class="lw">
+  <section class="band" id="how"><div class="lw">
     <h2>How it works</h2>
     <p class="lede">One pass per source. The brain is compiled as you feed it, so a question reads positions, never raw files.</p>
-    <div class="steps">
-      <div class="step"><h3>Drop</h3><p>An article or a link, a PDF or a Word file, a pasted transcript. Video captions are fetched for you.</p></div>
-      <div class="step"><h3>Read</h3><p>Every topic is extracted, with its numbers and quotes. The author is named on every source.</p></div>
-      <div class="step"><h3>File</h3><p>Each idea joins a concept or starts one: a position, dated evidence, figures, links to other brains.</p></div>
-      <div class="step"><h3>Settle</h3><p>A claim that contradicts a position waits for your ruling. Additions and details go straight in.</p></div>
-      <div class="step"><h3>Ask</h3><p>Answers, one-pagers and the map read the compiled positions, with every source cited.</p></div>
+    <div class="cmp two" role="table" aria-label="How a source becomes an answer">
+      <div class="cmp-row cmp-head" role="row"><span role="columnheader">Step</span><span role="columnheader">What happens</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">1. Drop</span><span role="cell" data-l="What happens">An article or a link, a PDF or a Word file, a pasted transcript. Video captions are fetched for you.</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">2. Read</span><span role="cell" data-l="What happens">Every topic is extracted once, with its numbers and quotes. The author is named on every source.</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">3. File</span><span role="cell" data-l="What happens">Each idea joins a concept or starts one: a position, dated evidence, figures, links to other brains.</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">4. Settle</span><span role="cell" data-l="What happens">A claim that contradicts a position waits for your ruling. Additions and details go straight in.</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">5. Ask</span><span role="cell" data-l="What happens">Answers, one-pagers and the map read the compiled positions, and cite every source.</span></div>
     </div>
   </div></section>
 
-  <section class="band" id="karpathy"><div class="lw">
-    <h2>Karpathy's LLM wiki, for people who do not live in a terminal</h2>
+  <section class="band alt" id="karpathy"><div class="lw">
+    <h2>A brain vs. Karpathy's LLM wiki</h2>
     <p class="lede">Andrej Karpathy showed that an AI should compile your sources into a wiki once, rather than search raw files on every question.
-      Brain takes that idea and adds what a wiki leaves open: who said what, when, and what to do when sources disagree.</p>
+      A brain keeps that idea and adds what a wiki leaves open: who said what, when, and what to do when sources disagree.</p>
     <div class="cmp" role="table" aria-label="Karpathy's LLM wiki compared with Brain">
       <div class="cmp-row cmp-head" role="row"><span role="columnheader"></span><span role="columnheader">Karpathy's LLM wiki</span><span role="columnheader">Brain</span></div>
       <div class="cmp-row" role="row"><span role="rowheader">Setup</span><span role="cell" data-l="Karpathy's wiki">Scripts, Obsidian and a coding agent</span><span role="cell" data-l="Brain" class="win">A web page, on desktop and phone</span></div>
@@ -321,74 +395,17 @@
     <p class="note">From Karpathy's own description of his setup: about 100 articles and 400,000 words, maintained by the AI, rarely edited by hand.</p>
   </div></section>
 
-  <section class="band alt" id="uses"><div class="lw">
+  <section class="band" id="uses"><div class="lw">
     <h2>Use cases</h2>
     <p class="lede">A brain per subject, or per person. Each one answers from what you fed it, and says so when it does not know.</p>
-    <div class="grid">
-      <div class="tile"><span class="k">Investing</span><h3>Follow the experts you trust</h3>
-        <p>One brain per analyst: their letters, interviews and reports. See what each one holds today and where two of them disagree.</p>
-        <div class="ex">"Where do my two macro voices disagree on gold, and since when?"</div></div>
-      <div class="tile"><span class="k">Founders and sales</span><h3>Turn 20 talks and guides into one playbook</h3>
-        <p>Feed the outreach and pricing material you read and watch. Ask for the steps, with the numbers each author gave.</p>
-        <div class="ex">"Write my first cold email from what the outreach brain holds."</div></div>
-      <div class="tile"><span class="k">Creators</span><h3>A swipe file that files itself</h3>
-        <p>Hooks, formats and scripting frameworks, each with the creator who taught it and the result they reported.</p>
-        <div class="ex">"Give me 5 hook formats with the numbers behind them."</div></div>
-      <div class="tile"><span class="k">Health</span><h3>Protocols from studies and podcasts, reconciled</h3>
-        <p>Sleep, training and nutrition advice from many sources, with the clashes laid out so you pick the one that holds.</p>
-        <div class="ex">"What dose and timing do my sources give for creatine?"</div></div>
-      <div class="tile"><span class="k">Learning</span><h3>Study from your own material</h3>
-        <p>Course PDFs, articles and lectures in one brain. Learning level walks you to the answer in steps; quizzes come out of the same brain.</p>
-        <div class="ex">"Quiz me on depreciation, 8 questions, answers folded."</div></div>
-      <div class="tile"><span class="k">Your AI</span><h3>A memory Claude can read</h3>
-        <p>The builder's workspaces connect to Claude through MCP: Claude reads and feeds the brains with its own model. Self-host it to connect yours.</p>
-        <div class="ex">"What do my brains hold on retention?"</div></div>
-    </div>
-    <h2 style="margin-top:44px; font-size:clamp(22px,2.6vw,28px)">What it replaces</h2>
-    <p class="lede">Open source and self-hostable. On your own OpenRouter key you pay only for the model calls you make.</p>
-    <div class="replace">
-      <span><s>Recall</s> $10/mo</span><span><s>Readwise Reader</s> $9.99/mo</span><span><s>A Notion wiki you never update</s></span>
-      <span><s>A "read later" list you never read</s></span>
-    </div>
-  </div></section>
-
-  <section class="band start" id="start"><div class="lw">
-    <h2>Workspaces</h2>
-    <p class="lede">A workspace holds its own brains and chats, and sees nothing of the others.</p>
-    <div class="ws-list">
-      <div class="ws">
-        <img src="/brand/brain.svg" alt="" width="44" height="44">
-        <div class="ws-t"><b>Demo</b><span>Open to everyone, no sign-up. Every visitor shares 30 drops and 300 questions a month, and each keeps their own chats.</span></div>
-        <div class="ws-go"><button class="cta main" id="demoGo2" type="button">Open</button><p class="msg" id="demoMsg2" role="alert"></p></div>
-      </div>
-      <div class="ws">
-        <img src="/brand/octopus-door.png" alt="" width="44" height="44">
-        <div class="ws-t"><b>Octopus</b><span>The builder's own workspace: one brain per subject or person. Private, opened by passphrase.</span></div>
-        <div class="ws-go"><a class="cta" href="/octopus">Enter</a></div>
-      </div>
-      <div class="ws">
-        <img src="/brand/squidgy-mark.png" alt="" width="44" height="44">
-        <div class="ws-t"><b>Squidgy</b><span>A second private workspace. Opened by passphrase.</span></div>
-        <div class="ws-go"><a class="cta" href="/squidgy">Enter</a></div>
-      </div>
-    </div>
-    <div class="grid two" style="margin-top:22px">
-      <form class="tile" id="create">
-        <span class="k">Your own key</span><h3>Make your workspace</h3>
-        <label for="cName">Workspace name</label><input id="cName" autocomplete="off" maxlength="60" placeholder="Acme Research">
-        <label for="cPass">Passphrase, 8 characters or more</label><input id="cPass" type="password" autocomplete="new-password">
-        <label for="cKey">OpenRouter key</label><input id="cKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-...">
-        <p class="fine">Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. It is checked once, then kept in this
-          browser only and sent with each call that needs a model. It is never saved on our server.</p>
-        <div class="push"><button class="cta main" id="cGo" type="submit">Create it</button><p class="msg" id="cMsg" role="alert"></p></div>
-      </form>
-      <form class="tile" id="open">
-        <span class="k">Welcome back</span><h3>Open your workspace</h3>
-        <label for="oName">Workspace name</label><input id="oName" autocomplete="username" maxlength="60">
-        <label for="oPass">Passphrase</label><input id="oPass" type="password" autocomplete="current-password">
-        <p class="fine">On a new device, the app asks for your OpenRouter key once.</p>
-        <div class="push"><button class="cta" id="oGo" type="submit">Open it</button><p class="msg" id="oMsg" role="alert"></p></div>
-      </form>
+    <div class="cmp uses" role="table" aria-label="Use cases">
+      <div class="cmp-row cmp-head" role="row"><span role="columnheader">Who</span><span role="columnheader">What they feed it</span><span role="columnheader">What they ask</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">Investors</span><span role="cell" data-l="Feeds">Letters, interviews and reports from the analysts they follow, one person brain each</span><span role="cell" data-l="Asks"><q>Where do my two macro voices disagree on gold, and since when?</q></span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">Founders and sales</span><span role="cell" data-l="Feeds">Outreach and pricing talks, guides and case studies</span><span role="cell" data-l="Asks"><q>Write my first cold email from what the outreach brain holds.</q></span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">Creators</span><span role="cell" data-l="Feeds">Hook, format and scripting tutorials</span><span role="cell" data-l="Asks"><q>Give me 5 hook formats with the numbers behind them.</q></span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">Health</span><span role="cell" data-l="Feeds">Studies, podcasts and protocols on sleep, training and food</span><span role="cell" data-l="Asks"><q>What dose and timing do my sources give for creatine?</q></span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">Students</span><span role="cell" data-l="Feeds">Course PDFs, articles and lectures</span><span role="cell" data-l="Asks"><q>Quiz me on depreciation, 8 questions, answers folded.</q></span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">Your AI</span><span role="cell" data-l="Feeds">Any of the above, read by Claude through MCP</span><span role="cell" data-l="Asks"><q>What do my brains hold on retention?</q></span></div>
     </div>
   </div></section>
 </div>
@@ -622,7 +639,23 @@
 
   function landing(){
     document.body.classList.add("landing");
-    for (const [b, m] of [["demoGo", "demoMsg"], ["demoGo2", "demoMsg2"]]) $(b).onclick = () => openDemo($(b), $(m));
+    $("demoGo").onclick = () => openDemo($("demoGo"), $("demoMsg"));
+
+    /* Enter and Create open their panel under the row; a second press folds it. */
+    for (const b of document.querySelectorAll("[data-open]")) b.onclick = () => {
+      const panel = $("p" + b.dataset.open.charAt(0).toUpperCase() + b.dataset.open.slice(1));
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden) panel.querySelector("input")?.focus();
+    };
+    /* The builder's two workspaces open here too, with their passphrase. */
+    for (const f of document.querySelectorAll(".ws-pass")) f.addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const input = f.querySelector("input"), btn = f.querySelector("button"), msg = f.querySelector(".msg");
+      if (input.value.length < 8){ msg.textContent = "A passphrase runs 8 characters or more."; input.focus(); return; }
+      btn.disabled = true; msg.textContent = "Checking";
+      try { const r = await post("/api/unlock", { space: f.dataset.space, pass: input.value }); enter(r.token, r.space); }
+      catch (e) { btn.disabled = false; input.value = ""; input.focus(); msg.textContent = e.message; }
+    });
 
     $("create").addEventListener("submit", async ev => {
       ev.preventDefault();
@@ -648,9 +681,7 @@
 
     /* Whether the demo is open, and the builder's own brains, counted live. */
     post("/api/status").then(st => {
-      if (st.demo === false) for (const [b, m] of [["demoGo", "demoMsg"], ["demoGo2", "demoMsg2"]]) {
-        $(b).disabled = true; $(m).textContent = "The demo opens soon.";
-      }
+      if (st.demo === false){ $("demoGo").disabled = true; $("demoMsg").textContent = "The demo opens soon."; }
     }).catch(() => {});
     fetch(API + "/api/public/brains").then(r => r.ok ? r.json() : null).then(d => {
       const brains = d?.brains || [];

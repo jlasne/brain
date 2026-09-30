@@ -148,12 +148,12 @@ export const moveBrain = internalMutation({
  * Open the demo workspace: anyone enters it from the landing, and nobody
  * holds a passphrase to it. It runs on the deployment's key, or
  * DEMO_OPENROUTER_API_KEY when set, within 30 drops and 300 questions a
- * month. Fill it with admin:copyBrain.
+ * month. `copy` fills it with copies of the brains named, in the same call.
  *
- *     npx convex run admin:makeDemo --prod
+ *     npx convex run admin:makeDemo '{"copy":["health","content","social"]}' --prod
  */
 export const makeDemo = internalMutation({
-  args: { slug: v.optional(v.string()), name: v.optional(v.string()) },
+  args: { slug: v.optional(v.string()), name: v.optional(v.string()), copy: v.optional(v.array(v.string())) },
   handler: async (ctx, a) => {
     const slug = readSpace(a.slug ?? "demo"), name = a.name ?? "Demo";
     if ((SPACES as readonly string[]).includes(slug)) throw new Error("the demo needs a slug of its own");
@@ -166,46 +166,54 @@ export const makeDemo = internalMutation({
     /* No door: a passphrase left from an earlier setup is removed. */
     const gate = await ctx.db.query("config").withIndex("by_key", q => q.eq("key", gateKey(slug))).unique();
     if (gate) await ctx.db.delete(gate._id);
-    return { slug, name, made: !had };
+    /* A brain already copied in is not copied twice. */
+    const copied = [];
+    for (const from of a.copy ?? []) {
+      const inDemo = (await ctx.db.query("brains").collect()).some(b => readSpace(b.space) === slug && (b.slug === `${from}-${slug}` || b.slug.startsWith(`${from}-${slug}-`)));
+      if (inDemo) { copied.push({ slug: from, skipped: "already in the demo" }); continue; }
+      copied.push(await copyOne(ctx, from, slug));
+    }
+    return { slug, name, made: !had, copied };
   },
 });
 
+/** One brain copied into a workspace, with its concepts, cards and sources. */
+async function copyOne(ctx: any, from: string, space: string, name?: string) {
+  const src = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", from)).unique();
+  if (!src) throw new Error(`no brain called "${from}"`);
+  let ns = `${from}-${space}`;
+  for (let n = 2; await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", ns)).unique(); n++) ns = `${from}-${space}-${n}`;
+  const { _id, _creationTime, ...brain } = src as any;
+  await ctx.db.insert("brains", { ...brain, slug: ns, name: name ?? src.name, space, created: today() });
+  let n = 0;
+  for (const c of await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", from)).collect()) {
+    const { _id: _cid, _creationTime: _ct, ...rest } = c as any;
+    const related = (c.related ?? []).map((r: string) => {
+      const id = linkId(r, from);
+      return id.startsWith(from + "/") ? `${ns}/${id.slice(from.length + 1)}` : id;
+    });
+    const id = await ctx.db.insert("concepts", { ...rest, brain: ns, related });
+    await syncCard(ctx, id);
+    n++;
+  }
+  let sources = 0;
+  for (const s of await ctx.db.query("sources").collect()) {
+    if (!(s.brains ?? []).includes(from)) continue;
+    await ctx.db.patch(s._id, { brains: [...s.brains, ns] });
+    sources++;
+  }
+  return { slug: ns, from, space, concepts: n, sources };
+}
+
 /**
- * Copy a brain into another workspace, the demo most often, with its
- * concepts and its sources. The copy gets a slug of its own; the original
- * stays where it was, untouched.
+ * Copy one more brain into a workspace, the demo most often. The copy gets
+ * a slug of its own; the original stays where it was, untouched.
  *
- *     npx convex run admin:copyBrain '{"slug":"alex-hormozi","space":"demo"}' --prod
+ *     npx convex run admin:copyBrain '{"slug":"health","space":"demo"}' --prod
  */
 export const copyBrain = internalMutation({
   args: { slug: v.string(), space: v.string(), name: v.optional(v.string()) },
-  handler: async (ctx, a) => {
-    const space = readSpace(a.space);
-    const src = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
-    if (!src) throw new Error(`no brain called "${a.slug}"`);
-    let ns = `${a.slug}-${space}`;
-    for (let n = 2; await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", ns)).unique(); n++) ns = `${a.slug}-${space}-${n}`;
-    const { _id, _creationTime, ...brain } = src as any;
-    await ctx.db.insert("brains", { ...brain, slug: ns, name: a.name ?? src.name, space, created: today() });
-    let n = 0;
-    for (const c of await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.slug)).collect()) {
-      const { _id: _cid, _creationTime: _ct, ...rest } = c as any;
-      const related = (c.related ?? []).map((r: string) => {
-        const id = linkId(r, a.slug);
-        return id.startsWith(a.slug + "/") ? `${ns}/${id.slice(a.slug.length + 1)}` : id;
-      });
-      const id = await ctx.db.insert("concepts", { ...rest, brain: ns, related });
-      await syncCard(ctx, id);
-      n++;
-    }
-    let sources = 0;
-    for (const s of await ctx.db.query("sources").collect()) {
-      if (!(s.brains ?? []).includes(a.slug)) continue;
-      await ctx.db.patch(s._id, { brains: [...s.brains, ns] });
-      sources++;
-    }
-    return { slug: ns, space, concepts: n, sources };
-  },
+  handler: async (ctx, a) => await copyOne(ctx, a.slug, readSpace(a.space), a.name),
 });
 
 /* ======================================================================

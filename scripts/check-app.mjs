@@ -1539,22 +1539,27 @@ for (const space of ["octopus", "squidgy"]) {
   const l = await page.evaluate(() => ({ landing: getComputedStyle(document.getElementById("landing")).display !== "none",
     doors: getComputedStyle(document.getElementById("doors")).display, h1: document.querySelector(".hero h1").textContent,
     proof: document.getElementById("proof").textContent, karpathy: document.querySelectorAll("#karpathy .cmp-row").length,
-    llm: [...document.querySelectorAll("#get .cmp-head span")].map(x => x.textContent).join("|"), get: document.querySelectorAll("#get .cmp-row").length,
-    uses: document.querySelectorAll("#uses .tile").length, brand: document.querySelector(".l-top b").textContent,
+    llm: [...document.querySelectorAll("#vs-chat .cmp-head span")].map(x => x.textContent).join("|"), get: document.querySelectorAll("#vs-chat .cmp-row").length,
+    how: document.querySelectorAll("#how .cmp-row").length, next: document.querySelector(".hero").nextElementSibling.id,
+    uses: document.querySelectorAll("#uses .cmp-row:not(.cmp-head)").length, brand: document.querySelector(".l-top b").textContent,
     ws: [...document.querySelectorAll(".ws .ws-t b")].map(b => b.textContent).join("|"),
     text: document.getElementById("landing").textContent }));
-  check("the landing leads with the outcome, and hides the owner's doors", l.landing && l.doors === "none" && /answers you can check/.test(l.h1)
-    && /read, watch and hear/.test(l.h1), JSON.stringify(l.h1));
-  check("the product is called Brain; Octopus is a workspace", l.brand === "Brain" && l.ws === "Demo|Octopus|Squidgy", `${l.brand} ${l.ws}`);
+  check("the landing leads with the outcome, and hides the owner's doors", l.landing && l.doors === "none" && /Feed it what you read\. Ask it what you know\./.test(l.h1),
+    JSON.stringify(l.h1));
+  check("the workspaces come right after, as a list", l.next === "start" && l.ws === "Demo|Octopus|Squidgy|Your own workspace|The open source", `${l.next} ${l.ws}`);
+  check("the product is called Brain; Octopus is a workspace", l.brand === "Brain", l.brand);
+  check("how it works is one compact table of 5 steps", l.how === 6, String(l.how));
   check("it counts the builder's Octopus workspace live", /Octopus workspace today: 2 brains, 3 concepts, 26 sources read/.test(l.proof), l.proof);
-  check("what you get compares a brain with a classic AI chat", l.llm === "|A classic AI chat|A brain" && l.get === 8, `${l.llm} ${l.get}`);
+  check("a brain is set against a classic AI chat, as a concept", l.llm === "|A classic AI chat|A brain" && l.get === 8 && !/What you get/.test(l.text), `${l.llm} ${l.get}`);
   check("it compares with Karpathy's wiki and lists use cases", l.karpathy === 8 && l.uses === 6, JSON.stringify({ k: l.karpathy, u: l.uses }));
   const foot = await page.textContent("footer.bot");
-  check("it names no competition and no licence", !/Build Games|MIT licen/i.test(l.text + foot), foot);
-  const links = await page.evaluate(() => ({ oct: document.querySelector('.ws a[href="/octopus"]') !== null, sq: document.querySelector('.ws a[href="/squidgy"]') !== null,
-    about: document.querySelectorAll('a[href="/about"]').length }));
-  check("Octopus and Squidgy lead to their doors, and nothing links to the old about page", links.oct && links.sq && links.about === 0, JSON.stringify(links));
+  check("it names no competition, no licence, no price list", !/Build Games|MIT licen|What it replaces|terminal/i.test(l.text + foot), foot);
+  const links = await page.evaluate(() => ({ about: document.querySelectorAll('a[href="/about"]').length,
+    code: document.querySelector('.ws a[href="https://github.com/jlasne/brain"]') !== null }));
+  check("the open source is one click away, and nothing links to the old about page", links.code && links.about === 0, JSON.stringify(links));
 
+  check("the create form waits behind its row", await page.isHidden("#pCreate"));
+  await page.click("#wsCreate");
   await page.fill("#cName", "Taken"); await page.fill("#cPass", "a long passphrase"); await page.fill("#cKey", "nope");
   await page.click("#cGo"); await page.waitForTimeout(100);
   check("a key that is not OpenRouter's is caught before anything is sent", /starts with sk-or-/.test(await page.textContent("#cMsg"))
@@ -1569,6 +1574,19 @@ for (const space of ["octopus", "squidgy"]) {
     && new URL(page.url()).pathname === "/chat", JSON.stringify(made) + " " + page.url());
   check("nothing threw on the landing", !bad.length, bad.join(" | "));
   await page.close();
+
+  const w = await boot("/", () => {
+    window.fetch = async (u, opt) => { const s = String(u);
+      if (s.includes("/api/unlock")) { sessionStorage.setItem("test.unlock", opt.body); return Response.json({ token: "tOcto", space: "octopus" }); }
+      return Response.json({ demo: true }); };
+  });
+  check("Octopus's passphrase waits behind its row", await w.page.isHidden("#pOctopus"));
+  await w.page.click('[data-open="octopus"]');
+  await w.page.fill("#wpOctopus", "a long passphrase");
+  await Promise.all([w.page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), w.page.click("#pOctopus button")]);
+  const oc = await w.page.evaluate(() => ({ body: sessionStorage.getItem("test.unlock"), token: sessionStorage.getItem("octopus.token.v1") }));
+  check("Octopus opens from the list with its passphrase", oc.body === '{"space":"octopus","pass":"a long passphrase"}' && oc.token === "tOcto", JSON.stringify(oc));
+  await w.page.close();
 
   const d = await boot("/", () => {
     window.fetch = async u => { const s = String(u);
@@ -1589,6 +1607,7 @@ for (const space of ["octopus", "squidgy"]) {
   });
   await o.page.waitForTimeout(150);
   check("with no demo open, the button says so", await o.page.isDisabled("#demoGo") && /opens soon/.test(await o.page.textContent("#demoMsg")));
+  await o.page.click("#wsCreate");
   await o.page.fill("#oName", "Acme Research"); await o.page.fill("#oPass", "a long passphrase");
   await Promise.all([o.page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), o.page.click("#oGo")]);
   const sent = await o.page.evaluate(() => ({ body: sessionStorage.getItem("test.unlock"), token: sessionStorage.getItem("octopus.token.v1") }));

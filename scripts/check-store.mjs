@@ -505,8 +505,13 @@ function seed() {
   check("a shared source lists only this workspace's brains", head.sources.length === 1 && JSON.stringify(head.sources[0].brains) === '["wealth-acme-research"]',
     JSON.stringify(head.sources));
 
-  /* Copying a brain into the demo brings its concepts, cards and sources. */
-  const copy = await run(admin.copyBrain, ctx, { slug: "wealth", space: "demo" });
+  /* Copying a brain into the demo brings its concepts, cards and sources;
+     making the demo with a list copies them in one call, never twice. */
+  const once = await run(admin.makeDemo, ctx, { copy: ["wealth"] });
+  const twice = await run(admin.makeDemo, ctx, { copy: ["wealth"] });
+  check("the demo fills itself from a list of brains, each once", once.copied[0]?.slug === "wealth-demo" && /already/.test(twice.copied[0]?.skipped || "")
+    && T.brains.filter(b => b.space === "demo").length === 1, JSON.stringify([once.copied, twice.copied]));
+  const copy = { slug: "wealth-demo", concepts: once.copied[0].concepts };
   const cs = T.concepts.filter(c => c.brain === copy.slug);
   check("a brain copies into the demo with its concepts, links and sources", copy.slug === "wealth-demo" && copy.concepts === 2
     && cs.find(c => c.slug === "gold").related[0] === "wealth-demo/silver" && T.brains.find(b => b.slug === "wealth-demo").space === "demo"

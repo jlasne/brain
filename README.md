@@ -10,7 +10,7 @@ Built for [The Build Games](https://canivibecodeit.com/thebuildgames). Open sour
 
 ---
 
-## What you get: a brain, not a chat
+## A brain vs. a classic AI chat
 
 | | A classic AI chat | A brain |
 |---|---|---|
@@ -24,7 +24,7 @@ Built for [The Build Games](https://canivibecodeit.com/thebuildgames). Open sour
 
 A brain still uses a language model: to read your sources and to write each answer. It answers only from what you gave it, and says so when that is not enough.
 
-### In detail
+### What a brain gives you
 
 | Outcome | How |
 |---|---|
@@ -36,7 +36,7 @@ A brain still uses a language model: to read your sources and to write each answ
 | **Chats that stay** | Every question and answer is kept. Reopen, rename, pin up to 5. Old ones clear after 30 days. |
 | **A memory for Claude** | The owner's workspaces connect to Claude through MCP: Claude reads and feeds the brains with its own model. |
 
-Its builder uses it every day: 126 sources, 369 concepts and 12 brains in the Octopus workspace at the end of September 2026. 618 automated checks run on every change.
+Its builder uses it every day: 126 sources, 369 concepts and 12 brains in the Octopus workspace at the end of September 2026. 624 automated checks run on every change.
 
 ## How it works
 
@@ -56,7 +56,7 @@ Speed stays flat as brains grow, because a question reads summaries and position
 | 200 concepts, 1,000 sources | 2.6k words | 5.1k words |
 | 500 concepts, 5,000 sources | 5.0k words | 7.5k words |
 
-## Inspired by Karpathy's LLM wiki
+## A brain vs. Karpathy's LLM wiki
 
 Andrej Karpathy showed that an AI should compile your sources into a wiki once, rather than search raw files on every question. Brain keeps that idea and adds what a wiki leaves open: who said what, when, and what to do when sources disagree.
 
@@ -79,17 +79,13 @@ Andrej Karpathy showed that an AI should compile your sources into a wiki once, 
 - **Learning.** Study from your own sources: steps instead of answers, quizzes, deep dives.
 - **Your AI.** A knowledge base Claude reads through MCP, with every claim sourced.
 
-## What it replaces
-
-Recall ($10/mo), Readwise Reader ($9.99/mo), the Notion wiki you never update, and the "watch later" list you never watch. On your own OpenRouter key you pay only for the model calls you make.
-
 ## Workspaces
 
 A workspace holds its own brains and chats, and sees nothing of the others. Octopus and Squidgy are the builder's own; the landing lists them next to the demo.
 
 | | The owner's (Octopus, Squidgy) | The demo | Your own |
 |---|---|---|---|
-| How you enter | Passphrase, at `/octopus` or `/squidgy` | One click from the landing, no passphrase | Name and passphrase from the landing |
+| How you enter | Passphrase, from the landing or at `/octopus` and `/squidgy` | One click from the landing, no passphrase | Name and passphrase from the landing |
 | Model calls paid by | The deployment's key | The deployment's key, or `DEMO_OPENROUTER_API_KEY` | Your OpenRouter key |
 | Model | Any, picked in Setup | The default | Any, picked in Setup |
 | Limits | None | 30 drops and 300 questions a month, shared by every visitor | Your key's own |
@@ -119,11 +115,10 @@ Point `window.OCTOPUS_API` in the four pages under `app/` at your deployment's `
 ### Open the demo
 
 ```bash
-npx convex run admin:makeDemo --prod
-npx convex run admin:copyBrain '{"slug":"alex-hormozi","space":"demo"}' --prod
+npx convex run admin:makeDemo '{"copy":["health","content","social"]}' --prod
 ```
 
-`makeDemo` opens the demo workspace. Nobody holds a passphrase to it. `copyBrain` copies one of your brains into it, with its concepts and sources, and leaves the original where it was.
+`makeDemo` opens the demo workspace and copies the brains listed into it, with their concepts and sources. The originals stay where they were, and running it again copies nothing twice. Nobody holds a passphrase to the demo. `admin:copyBrain '{"slug":"...","space":"demo"}'` adds one more brain later.
 
 ### Settings
 
@@ -174,7 +169,7 @@ templates/, brains/    the markdown shape of a brain
 npm run check
 ```
 
-618 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, and the app itself driven in a real browser.
+624 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, and the app itself driven in a real browser.
 
 ## License
 

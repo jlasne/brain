@@ -42,11 +42,11 @@
   "rewrites": [
     {
       "source": "/octopus",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/squidgy",
-      "destination": "/index.html"
+      "destination": "/"
     },
     {
       "source": "/mcp/v0",
