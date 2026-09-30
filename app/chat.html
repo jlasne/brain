@@ -28,7 +28,7 @@
     --line:#e2e2c4; --line-2:#cfcfab;
     --accent:#a54b2f; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#ffffff;
     --accent-soft:rgba(217,119,87,.10); --accent-line:rgba(217,119,87,.34);
-    --good:#3f7d5c;
+    --good:#3f7d5c; --warn:#94650f; --bad:#b3372a;
     --shadow:0 1px 2px rgba(20,20,19,.05), 0 1px 8px rgba(20,20,19,.04);
     --shadow-lift:0 2px 6px rgba(20,20,19,.07), 0 12px 32px rgba(20,20,19,.10);
 
@@ -207,6 +207,90 @@
   .brain-row.on{ background:var(--surface); border-color:var(--accent-line); }
   .brain-row.on .nm, .brain-row.on .ct{ color:var(--accent); }
   .empty-side{ padding:6px 3px; font:400 12.5px/1.55 var(--sans); color:var(--ink-4); }
+
+  /* Chats and Brains, each a group that folds, remembered per browser. */
+  .side-h.fold{ margin-top:12px; }
+  .fold-t{ display:flex; align-items:center; gap:6px; flex:1; min-width:0; padding:3px 0; text-align:left;
+    font:inherit; letter-spacing:inherit; text-transform:inherit; color:inherit; }
+  .fold-t:hover{ color:var(--ink-2); }
+  .fold-t b{ color:var(--accent); font-weight:500; margin-left:auto; }
+  .chev{ width:0; height:0; border-left:4px solid currentColor; border-top:3.5px solid transparent; border-bottom:3.5px solid transparent;
+    transform:rotate(90deg); transition:transform .15s var(--ease); flex:none; }
+  .fold-t[aria-expanded="false"] .chev{ transform:rotate(0deg); }
+  .side-plus{ flex:none; padding:3px 7px; border-radius:6px; font:500 11px/1.2 var(--sans); letter-spacing:0; text-transform:none; color:var(--accent); }
+  .side-plus:hover{ background:var(--accent-soft); }
+  .side-note{ padding:2px 3px 6px; font:400 11.5px/1.5 var(--sans); color:var(--accent); }
+
+  /* One line per chat: its first question, and the brain it asked. */
+  .chat-row{ display:flex; align-items:center; gap:6px; width:100%; text-align:left; padding:7px 10px; border-radius:8px;
+    border:1px solid transparent; transition:background .15s var(--ease), border-color .15s var(--ease); }
+  .chat-row + .chat-row{ margin-top:2px; }
+  .chat-row .cm{ flex:1; min-width:0; }
+  .chat-row .nm{ display:block; font:500 13px/1.35 var(--sans); color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chat-row .cb{ display:block; margin-top:2px; font:400 10.5px/1.3 var(--mono); color:var(--ink-4); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chat-row .pin{ flex:none; width:12px; height:12px; fill:var(--accent-fill); }
+  .chat-row .ed{ display:none; font:500 10.5px/1 var(--sans); color:var(--ink-4); padding:3px 5px; border-radius:5px; }
+  .chat-row:hover .ed, .chat-row:focus-within .ed, .chat-row.on .ed{ display:inline-block; }
+  @media (hover:none){ .chat-row .ed{ display:inline-block; } }
+  .chat-row .ed:hover{ color:var(--accent); background:var(--accent-soft); }
+  .chat-row .ed.sure{ display:inline-block; color:var(--accent-on); background:var(--bad); }
+  .chat-row:hover{ background:var(--surface); }
+  .chat-row.on{ background:var(--surface); border-color:var(--accent-line); }
+  .chat-row.on .nm{ color:var(--accent); }
+
+  /* A brain's health, out of 10: a ring that fills, green, amber or red. */
+  .hring{ flex:none; align-self:center; width:24px; height:24px; cursor:pointer; border-radius:50%; margin-left:auto; }
+  .brain-row .hring + .ct{ margin-left:2px; min-width:18px; text-align:right; }
+  .hring:hover{ background:var(--accent-soft); }
+  .hring svg{ width:24px; height:24px; display:block; }
+  .hring .tr{ fill:none; stroke:var(--line-2); stroke-width:2.6; }
+  .hring .ar{ fill:none; stroke-width:2.6; stroke-linecap:round; transform:rotate(-90deg); transform-origin:12px 12px; }
+  .hring text{ font:600 7.6px var(--mono); fill:var(--ink-2); text-anchor:middle; dominant-baseline:central; }
+  .h-hi{ stroke:var(--good); } .h-mid{ stroke:var(--warn); } .h-lo{ stroke:var(--bad); }
+  .hb-row{ padding:10px 0; border-top:1px solid var(--line); }
+  .hb-row:first-child{ border-top:none; padding-top:0; }
+  .hb-top{ display:flex; align-items:baseline; gap:8px; font:500 13.5px/1.3 var(--sans); color:var(--ink); }
+  .hb-top span{ margin-left:auto; font:400 12px/1 var(--mono); color:var(--ink-3); }
+  .hb-bar{ margin-top:7px; height:6px; border-radius:3px; background:var(--surface-2); overflow:hidden; }
+  .hb-bar i{ display:block; height:100%; border-radius:3px; }
+  .hb-bar .h-hi{ background:var(--good); } .hb-bar .h-mid{ background:var(--warn); } .hb-bar .h-lo{ background:var(--bad); }
+  .hb-say{ margin-top:6px; font:400 12.5px/1.5 var(--sans); color:var(--ink-3); }
+  .hb-best{ padding:11px 13px; border-radius:10px; background:var(--accent-soft); border:1px solid var(--accent-line);
+    font:400 14px/1.5 var(--sans); color:var(--ink); }
+  .hb-best b{ display:block; font:600 11px/1.4 var(--sans); letter-spacing:.04em; text-transform:uppercase; color:var(--accent); margin-bottom:3px; }
+
+  /* The map: every brain an arm of the octopus. */
+  .mapbox{ width:100%; max-width:1100px; height:92vh; display:flex; flex-direction:column; background:var(--bg);
+    border:1px solid var(--line); border-radius:18px; overflow:hidden; box-shadow:var(--shadow-lift); animation:rise .24s var(--ease) both; }
+  .mp-h{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line); background:var(--surface); }
+  .mp-h b{ font:600 16px/1.2 var(--sans); color:var(--ink); }
+  .mp-n{ font:400 11.5px/1.3 var(--mono); color:var(--ink-3); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mp-zoom{ margin-left:auto; display:flex; gap:4px; }
+  .mp-zoom button{ min-width:32px; height:32px; padding:0 9px; border-radius:8px; border:1px solid var(--line-2);
+    font:500 14px/1 var(--sans); color:var(--ink-2); background:var(--surface); }
+  .mp-zoom button:hover{ border-color:var(--accent-fill); color:var(--accent); }
+  .mp-stage{ position:relative; flex:1; min-height:0; }
+  .mp-stage svg{ width:100%; height:100%; display:block; touch-action:none; cursor:grab; user-select:none; }
+  .mp-stage svg.panning{ cursor:grabbing; }
+  .mp-key{ padding:9px 14px 11px; border-top:1px solid var(--line); background:var(--surface);
+    font:400 12px/1.5 var(--sans); color:var(--ink-3); }
+  .mp-arm{ fill:var(--accent-fill); fill-opacity:.16; stroke:var(--accent-fill); stroke-opacity:.45; stroke-width:1; cursor:pointer; }
+  .mp-arm.person{ fill-opacity:.24; }
+  .mp-link{ fill:none; stroke:var(--ink-3); stroke-opacity:.22; stroke-width:.8; pointer-events:none; }
+  .mp-sk{ fill:var(--surface); stroke:var(--accent); stroke-width:1.1; cursor:pointer; }
+  .mp-sk:hover{ fill:var(--accent-fill); }
+  .mp-cf{ fill:var(--bad); stroke:var(--surface); stroke-width:.8; cursor:pointer; }
+  .mp-name{ font:600 13px var(--sans); fill:var(--ink); cursor:pointer; }
+  .mp-sub{ font:400 10px var(--mono); fill:var(--ink-3); }
+  .mp-head{ fill:var(--surface); stroke:var(--accent-fill); stroke-width:1.5; }
+  .mp-stage svg.focus .mp-arm:not(.hot), .mp-stage svg.focus .mp-sk:not(.hot){ opacity:.25; }
+  .mp-stage svg.focus .mp-link{ stroke-opacity:.06; }
+  .mp-stage svg .mp-link.hot{ stroke:var(--accent); stroke-opacity:.85; stroke-width:1.3; }
+  @media (max-width:560px){
+    .map-veil.veil{ padding:0; }
+    .mapbox{ height:100%; max-width:none; border-radius:0; border:none; }
+    .mp-n{ display:none; }
+  }
 
   /* The brain viewer: a wide sheet, a list, then one concept. */
   .sheet.viewer{ max-width:760px; max-height:88vh; display:flex; flex-direction:column; }
@@ -1053,9 +1137,20 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>One-pager</button>
       <button class="side-act" id="gapsBtn" title="What the brains cannot answer yet, and what kind of source to look for">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21M11 8v3.5M11 14.5v.01"/></svg>Blind spots</button>
-      <button class="new-brain" id="newBrain">+ Create a brain</button>
-      <div class="side-h">Brains <b id="bcount"></b></div>
-      <div id="brains"></div>
+      <button class="side-act" id="mapBtn" title="Every brain as an arm of the octopus: its concepts, the links between brains and the open conflicts">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4.2"/><path d="M8.6 11.2C7 14 5 15.5 3 20M10.4 12.3c-.6 3-1.6 5.3-3.4 8.2M13.6 12.3c.6 3 1.6 5.3 3.4 8.2M15.4 11.2c1.6 2.8 3.6 4.3 5.6 8.8"/></svg>Map</button>
+      <div class="side-h fold" id="chatsH" title="Unpinned chats go 30 days after their last question, or past the newest 20. Up to 5 pinned chats stay.">
+        <button class="fold-t" id="chatsFold" aria-expanded="true" aria-controls="chatsBox"><span class="chev"></span>Chats <b id="ccount"></b></button>
+        <button class="side-plus" id="newChat" title="Start a new chat">+ New</button>
+      </div>
+      <div id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="chats"></div></div>
+      <div class="side-h fold" id="brainsH">
+        <button class="fold-t" id="brainsFold" aria-expanded="true" aria-controls="brainsBox"><span class="chev"></span>Brains <b id="bcount"></b></button>
+      </div>
+      <div id="brainsBox">
+        <button class="new-brain" id="newBrain">+ Create a brain</button>
+        <div id="brains"></div>
+      </div>
     </div>
     <div class="side-foot">
       <div class="foot-row">
@@ -1104,7 +1199,7 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z"/></svg><span>Learning</span></button>
             </div>
           </div>
-          <button class="fresh" id="freshBtn" hidden title="Forget the questions so far and clear the screen">New thread</button>
+          <button class="fresh" id="freshBtn" hidden title="Keep this chat in the list and start a new one">New chat</button>
         </div>
         <div class="box">
           <!-- A drop is two things: where it comes from, and what it says. They
@@ -1150,6 +1245,10 @@ const S = {
      a follow-up means something, and it is never written down: closing the tab
      ends it. */
   thread: [],
+  /* The saved conversations, and the one on screen. Each question joins it. */
+  chats: [], chatId: null,
+  /* Each brain's health out of 10, and the concepts with an open conflict. */
+  health: {}, conflicted: new Set(),
   level: "normal",
   /* Which space this session reads, and what it calls itself. The passphrase at
      the door decided it, and the app only reports it. */
@@ -1318,6 +1417,24 @@ async function refresh(){
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
   render();
+  /* The rings and the chat list follow, so the brains never wait on them. */
+  loadHealth(); loadChats();
+}
+
+/** Each brain's health, then the rings repaint, and an open map with them. */
+var mapRepaint = null;
+async function loadHealth(){
+  try {
+    const d = await api("/api/health");
+    S.health = Object.fromEntries((d.health || []).map(h => [h.slug, h]));
+    S.conflicted = new Set(d.conflicted || []);
+  } catch { return; }
+  renderSide();
+  if (mapRepaint) mapRepaint();
+}
+async function loadChats(){
+  try { S.chats = (await api("/api/chats")).chats || []; } catch { return; }
+  renderChats();
 }
 
 /* ============ render ============ */
@@ -1383,7 +1500,10 @@ function brainRow(b){
   const row = el("button","brain-row" + (on ? " on" : ""));
   const ideas = conceptsOf(b.slug).length, read = sourcesOf(b.slug).length;
   /* The concept count on the row; the sources behind it on hover. */
-  row.append(brainIcon(b), el("span","nm",b.name), el("span","ct",String(ideas)));
+  row.append(brainIcon(b), el("span","nm",b.name));
+  const h = S.health[b.slug];
+  if (h) row.append(healthRing(h, b));
+  row.append(el("span","ct",String(ideas)));
   row.title = `${b.scope || "no scope line"}\n${ideas} concepts, ${read} sources`;
   /* On a phone the drawer covers the thread, so a pick closes it. */
   row.onclick = () => { S.scope = on ? "all" : b.slug; S.into = on ? [] : [b.slug]; closeSide(); render(); };
@@ -1400,7 +1520,205 @@ function brainRow(b){
   return row;
 }
 
+/* ---- the two folding groups ---- */
+/* Read on first use: the sidebar can paint before this part of the script has run. */
+function folds(){
+  if (!folds.v){ try { folds.v = JSON.parse(localStorage.getItem("octopus.fold") || "{}") || {}; } catch { folds.v = {}; } }
+  return folds.v;
+}
+function paintFolds(){
+  for (const k of ["chats","brains"]){
+    const shut = !!folds()[k];
+    $(k + "Fold").setAttribute("aria-expanded", String(!shut));
+    $(k + "Box").hidden = shut;
+  }
+}
+for (const k of ["chats","brains"]) $(k + "Fold").onclick = () => {
+  folds()[k] = !folds()[k];
+  try { localStorage.setItem("octopus.fold", JSON.stringify(folds())); } catch {}
+  paintFolds();
+};
+
+/* ---- chats ---- */
+function brainLabel(slug){ return !slug || slug === "all" ? "All brains" : S.brains.find(b => b.slug === slug)?.name || slug; }
+var chatMsgTimer = 0;
+function chatMsg(t){
+  const m = $("chatMsg"); m.textContent = t; m.hidden = !t;
+  clearTimeout(chatMsgTimer);
+  if (t) chatMsgTimer = setTimeout(() => { m.hidden = true; }, 5000);
+}
+const PIN_SVG = `<svg class="pin" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3l6 6-3 1-4 4 1 5-2 2-4.5-4.5L3 22l-1-1 5.5-5.5L3 11l2-2 5 1 4-4z"/></svg>`;
+
+function chatRow(c){
+  const on = S.chatId === c.id;
+  const row = el("div","chat-row" + (on ? " on" : "") + (c.pinned ? " pinned" : ""));
+  row.tabIndex = 0; row.setAttribute("role","button");
+  if (c.pinned){ const p = el("span"); p.innerHTML = PIN_SVG; row.append(p.firstChild); }
+  const main = el("span","cm");
+  main.append(el("span","nm",c.title),
+    el("span","cb",`${brainLabel(c.brain)} \u00b7 ${c.turns} question${c.turns === 1 ? "" : "s"}`));
+  row.append(main);
+  row.title = c.title;
+  const open = () => { if (S.chatId !== c.id) openChat(c.id); else closeSide(); };
+  row.onclick = open;
+  row.onkeydown = e => { if (e.key === "Enter" && e.target === row) open(); };
+
+  const act = (label, title, fn) => {
+    const x = el("span","ed",label); x.title = title; x.setAttribute("role","button");
+    x.onclick = e => { e.stopPropagation(); fn(x); };
+    row.append(x); return x;
+  };
+  act(c.pinned ? "unpin" : "pin", c.pinned ? "Let it go with the others after 30 days" : "Keep it at the top, past 30 days", async () => {
+    try {
+      const r = await api("/api/chats/edit", { id: c.id, pinned: !c.pinned });
+      if (r.error) throw new Error(r.error);
+      loadChats();
+    } catch (e) { chatMsg(e.message); }
+  });
+  act("rename", "Give it a name", () => renameChat(c));
+  /* Delete asks once more on the row itself, then goes. */
+  act("delete", "Delete this chat", async x => {
+    if (!x.classList.contains("sure")){
+      x.classList.add("sure"); x.textContent = "sure?";
+      setTimeout(() => { x.classList.remove("sure"); x.textContent = "delete"; }, 3000);
+      return;
+    }
+    try {
+      const r = await api("/api/chats/edit", { id: c.id, remove: true });
+      if (r.error) throw new Error(r.error);
+      if (S.chatId === c.id) newChat();
+      loadChats();
+    } catch (e) { chatMsg(e.message); }
+  });
+  return row;
+}
+
+function renderChats(){
+  const box = $("chats"); box.innerHTML = "";
+  $("ccount").textContent = S.chats.length || "";
+  if (!S.chats.length){ box.append(el("div","empty-side","No chat yet. Ask a question and it lands here.")); return; }
+  for (const c of S.chats) box.append(chatRow(c));
+}
+
+/** A clean screen, and the next question starts a new chat. */
+function newChat(){
+  S.thread = []; S.chatId = null;
+  $("thread").innerHTML = "";
+  render(); renderChats();
+}
+
+/** A saved chat back on screen, ready to continue on the brain it asked. */
+async function openChat(id){
+  closeSide();
+  let c;
+  try { c = (await api("/api/chats/get", { id })).chat; }
+  catch (e) { chatMsg(e.message); loadChats(); return; }
+  if (!c) return;
+  S.chatId = c.id;
+  S.scope = S.brains.some(b => b.slug === c.brain) ? c.brain : "all";
+  S.into = S.scope === "all" ? [] : [S.scope];
+  if (S.mode !== "ask"){ S.mode = "ask"; [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m === "ask")); }
+  $("thread").innerHTML = "";
+  for (const t of c.turns || []){
+    says(t.q);
+    push("ai", body => showAnswer(body, t, t.q, S.scope));
+  }
+  S.thread = (c.turns || []).slice(-6).map(t => ({ q: t.q, a: String(t.a ?? "") }));
+  render(); renderChats(); bottom();
+}
+
+function renameChat(c){
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <header><h3>Rename the chat</h3></header>
+      <div class="f"><label for="rnT">Name</label><input id="rnT" class="pick" maxlength="80"></div>
+      <div class="f"><div id="rnMsg" class="bad" role="alert"></div></div>
+      <footer><button class="ghost" id="rnNo">Cancel</button><button class="go" id="rnGo">Save</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const t = veil.querySelector("#rnT"); t.value = c.title; t.focus(); t.select();
+  const shut = () => veil.remove();
+  veil.querySelector("#rnNo").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  const save = async () => {
+    const title = t.value.trim();
+    if (!title){ t.focus(); return; }
+    try {
+      const r = await api("/api/chats/edit", { id: c.id, title });
+      if (r.error) throw new Error(r.error);
+      shut(); loadChats();
+    } catch (e) { veil.querySelector("#rnMsg").textContent = e.message; }
+  };
+  veil.querySelector("#rnGo").onclick = save;
+  t.onkeydown = e => { if (e.key === "Enter") save(); if (e.key === "Escape") shut(); };
+}
+
+/* ---- health ---- */
+function healthTone(x){ return x >= 7 ? "h-hi" : x >= 4 ? "h-mid" : "h-lo"; }
+function fmtScore(x){ return Number.isInteger(x) ? String(x) : x.toFixed(1); }
+/** The ring on a brain row: it fills with the score, and opens the breakdown. */
+function healthRing(h, b){
+  const r = el("span","hring");
+  const C = 2 * Math.PI * 9, fill = Math.max(0, Math.min(1, h.score / 10)) * C;
+  r.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="tr" cx="12" cy="12" r="9"/>
+    <circle class="ar ${healthTone(h.score)}" cx="12" cy="12" r="9" stroke-dasharray="${fill.toFixed(2)} ${C.toFixed(2)}"/>
+    <text x="12" y="12.4">${fmtScore(h.score)}</text></svg>`;
+  r.title = `Health ${fmtScore(h.score)}/10. ${h.best}`;
+  r.setAttribute("role","button"); r.setAttribute("aria-label", `Health of ${b.name}: ${fmtScore(h.score)} out of 10`);
+  r.onclick = e => { e.stopPropagation(); openHealthSheet(b); };
+  return r;
+}
+
+/** The four parts of a brain's score, and the one move that raises it most. */
+function openHealthSheet(b){
+  const h = S.health[b.slug]; if (!h) return;
+  closeSide();
+  const veil = el("div","veil");
+  const NAMES = { variety: "Variety", depth: "Depth", fresh: "Freshness", conflicts: "Conflicts" };
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <header><h3>${esc(b.name)}: ${fmtScore(h.score)}/10</h3><p>${esc(b.scope || "")}</p></header>
+      <div class="f" id="hbParts"></div>
+      <div class="f"><div class="hb-best"><b>Best move</b>${esc(h.best)}</div></div>
+      <footer>${h.open ? `<button class="ghost" id="hbSettle">Settle conflicts</button>` : ""}<button class="ghost" id="hbOpen">Open the brain</button><button class="go" id="hbDone">Done</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const parts = veil.querySelector("#hbParts");
+  for (const k of ["variety","depth","fresh","conflicts"]){
+    const p = h.parts[k];
+    const row = el("div","hb-row");
+    row.innerHTML = `<div class="hb-top">${NAMES[k]}<span>${fmtScore(p.got)} / ${p.max}</span></div>
+      <div class="hb-bar"><i class="${healthTone(p.got / p.max * 10)}" style="width:${Math.round(p.got / p.max * 100)}%"></i></div>
+      <div class="hb-say">${esc(p.say)}</div>`;
+    parts.append(row);
+  }
+  const onKey = e => { if (e.key === "Escape") shut(); };
+  const shut = () => { document.removeEventListener("keydown", onKey); veil.remove(); };
+  document.addEventListener("keydown", onKey);
+  veil.querySelector("#hbDone").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  veil.querySelector("#hbOpen").onclick = () => { shut(); openBrainView(b); };
+  const st = veil.querySelector("#hbSettle");
+  if (st) st.onclick = () => { shut(); settleFrom(null, b.slug); };
+}
+
+/**
+ * The conflict deck, opened from the map or a health sheet: this concept's
+ * clashes first, or this brain's.
+ */
+async function settleFrom(id, brain){
+  let r;
+  try { r = await api("/api/conflicts", {}); } catch (e) { chatMsg(e.message); return; }
+  const list = (r.conflicts || []).slice();
+  const rank = c => (id && c.id === id) ? 2 : (brain && c.brain === brain) ? 1 : 0;
+  list.sort((x, y) => rank(y) - rank(x));
+  if (!list.length){ loadHealth(); return; }
+  openConflictDeck(list, r.others || 0);
+}
+
 function renderSide(){
+  paintFolds();
   const box = $("brains"); box.innerHTML = "";
   $("bcount").textContent = S.brains.length || "";
   if (!S.brains.length){
@@ -1792,12 +2110,9 @@ $("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
 
-$("freshBtn").onclick = () => {
-  S.thread = [];
-  $("thread").innerHTML = "";
-  render();
-  $("input").focus();
-};
+$("freshBtn").onclick = () => { newChat(); $("input").focus(); };
+$("newChat").onclick = () => { closeSide(); newChat(); $("input").focus(); };
+$("mapBtn").onclick = () => { closeSide(); openMap(); };
 $("keyBtn").onclick = openSetupSheet;
 $("pagerBtn").onclick = () => { closeSide(); openPagerSheet(); };
 $("gapsBtn").onclick = () => { closeSide(); openGapsSheet(); };
@@ -1828,6 +2143,214 @@ $("lockBtn").onclick = async () => {
   sessionStorage.removeItem(TOKEN_KEY);
   location.reload();
 };
+
+/**
+ * The map: every brain an arm of the octopus.
+ *
+ * Arms run out from the space's mark, one per brain, each with its health
+ * ring at the tip. Its concepts are the suckers, bigger when more sources
+ * stand behind them. Ink lines join concepts linked across two brains. A red
+ * dot is an open conflict, and a tap takes it to the swipe deck. A sucker
+ * opens its concept. Drag to move, wheel or pinch to zoom; tap an arm to
+ * light it and its links.
+ */
+async function openMap(){
+  const veil = el("div","veil map-veil");
+  veil.innerHTML = `
+    <div class="mapbox" role="dialog" aria-modal="true" aria-label="Map of the brains">
+      <header class="mp-h"><b>Map</b><span class="mp-n" id="mpN"></span>
+        <div class="mp-zoom"><button id="mpIn" aria-label="Zoom in">+</button><button id="mpOut" aria-label="Zoom out">&minus;</button><button id="mpFit">Fit</button></div>
+        <button class="dk-x" id="mpX" aria-label="Close">&times;</button></header>
+      <div class="mp-stage" id="mpStage"><div class="hint" style="padding:20px">Drawing the octopus</div></div>
+      <div class="mp-key">Arm: a brain, its health at the tip. Sucker: a concept, bigger with more sources. Line: a link between two brains. Red dot: an open conflict, tap it to settle.</div>
+    </div>`;
+  document.body.append(veil);
+  const stage = veil.querySelector("#mpStage");
+  const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
+  const shut = () => { document.removeEventListener("keydown", onKey); mapRepaint = null; veil.remove(); };
+  document.addEventListener("keydown", onKey);
+  veil.querySelector("#mpX").onclick = shut;
+
+  let links = [];
+  try { links = (await api("/api/map", {})).links || []; } catch { links = []; }
+  if (!veil.isConnected) return;
+
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (tag, attrs, parent) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.append(n);
+    return n;
+  };
+  const svg = mk("svg", { role: "img", "aria-label": "Every brain as an arm of the octopus" });
+  let vb = null, fit = null, focus = null;
+  const setVb = () => svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+
+  const draw = () => {
+    svg.innerHTML = "";
+    const brains = ordered(), n = brains.length;
+    const root = mk("g", {}, svg);
+    if (!n){ stage.innerHTML = `<div class="hint" style="padding:20px">No brain yet. Create one and it grows an arm.</div>`; return; }
+    const CX = 500, CY = 500, R0 = 78, L = 360;
+    const linkG = mk("g", {}, root), armG = mk("g", {}, root), skG = mk("g", {}, root), tipG = mk("g", {}, root);
+    const at = {}, byBrain = {};
+    brains.forEach((b, i) => {
+      /* Every arm curls the same way, so the tips stay evenly spaced. */
+      const ang = (-90 + i * 360 / n) * Math.PI / 180, curl = 0.42;
+      const pt = t => { const r = R0 + L * t, th = ang + curl * t * t; return [CX + r * Math.cos(th), CY + r * Math.sin(th)]; };
+      const nrm = t => { const [x1, y1] = pt(t), [x2, y2] = pt(Math.min(1, t + 0.01)); const dx = x2 - x1, dy = y2 - y1, d = Math.hypot(dx, dy) || 1; return [-dy / d, dx / d]; };
+      const w = t => 30 * (1 - t) + 7;
+      /* The arm: a band that thins to its tip. */
+      const left = [], right = [];
+      for (let t = 0; t <= 1.0001; t += 0.04){
+        const [x, y] = pt(t), [nx, ny] = nrm(t), h = w(t) / 2;
+        left.push(`${(x + nx * h).toFixed(1)},${(y + ny * h).toFixed(1)}`);
+        right.unshift(`${(x - nx * h).toFixed(1)},${(y - ny * h).toFixed(1)}`);
+      }
+      const arm = mk("path", { d: `M${left.join("L")}L${right.join("L")}Z`, class: "mp-arm" + (b.type === "person" ? " person" : ""), "data-b": b.slug }, armG);
+      mk("title", {}, arm).textContent = b.name;
+
+      /* The suckers, two rows once an arm holds many. */
+      const cs = conceptsOf(b.slug), k = cs.length, rows = k > 18 ? 2 : 1, m = Math.max(1, Math.ceil(k / rows));
+      const rMax = Math.max(1.6, Math.min(7, (L * 0.9 / m) * 0.42));
+      byBrain[b.slug] = [];
+      cs.forEach((c, j) => {
+        const row = rows === 2 ? j % 2 : 0, idx = rows === 2 ? Math.floor(j / 2) : j;
+        const t = 0.06 + 0.9 * (idx + 0.5) / m;
+        const [x, y] = pt(t), [nx, ny] = nrm(t), off = rows === 2 ? (row ? 1 : -1) * w(t) * 0.24 : 0;
+        const px = x + nx * off, py = y + ny * off;
+        const r = Math.min(rMax, 1.8 + 1.4 * Math.sqrt(Math.max(1, c.src || 0)));
+        const id = `${c.brain}/${c.slug}`;
+        at[id] = [px, py];
+        const sk = mk("circle", { cx: px.toFixed(1), cy: py.toFixed(1), r: r.toFixed(1), class: "mp-sk", "data-id": id, "data-b": b.slug }, skG);
+        mk("title", {}, sk).textContent = `${c.title}\n${c.src || 0} source${c.src === 1 ? "" : "s"} \u00b7 ${b.name}`;
+        sk.addEventListener("click", e => { e.stopPropagation(); openBrainView(b, id); });
+        sk.addEventListener("mouseenter", () => hot(id, true));
+        sk.addEventListener("mouseleave", () => hot(id, false));
+        byBrain[b.slug].push(sk);
+        if (S.conflicted.has(id)){
+          /* On the rim, so the sucker under it can still be pointed at. */
+          const dr = Math.max(3.6, r * 0.6), off = (r + dr * 0.35) * 0.707;
+          const cf = mk("circle", { cx: (px + off).toFixed(1), cy: (py - off).toFixed(1), r: dr.toFixed(1), class: "mp-cf", "data-id": id }, skG);
+          mk("title", {}, cf).textContent = `Open conflict on ${c.title}. Tap to settle it.`;
+          cf.addEventListener("click", e => { e.stopPropagation(); settleFrom(id, b.slug); });
+        }
+      });
+
+      /* The tip: the health ring and the name. */
+      const th = ang + curl, rr = R0 + L + 24, tx = CX + rr * Math.cos(th), ty = CY + rr * Math.sin(th);
+      const h = S.health[b.slug];
+      const tip = mk("g", { transform: `translate(${tx.toFixed(1)} ${ty.toFixed(1)})` }, tipG);
+      mk("circle", { r: 13, class: "tr", style: "fill:var(--surface);stroke:var(--line-2);stroke-width:3" }, tip);
+      if (h){
+        const C = 2 * Math.PI * 13;
+        mk("circle", { r: 13, class: healthTone(h.score), style: "fill:none;stroke-width:3;stroke-linecap:round",
+          "stroke-dasharray": `${(h.score / 10 * C).toFixed(2)} ${C.toFixed(2)}`, transform: "rotate(-90)" }, tip);
+        mk("text", { class: "mp-sub", "text-anchor": "middle", "dominant-baseline": "central", style: "font-weight:600;fill:var(--ink-2)" }, tip).textContent = fmtScore(h.score);
+        tip.style.cursor = "pointer";
+        tip.addEventListener("click", e => { e.stopPropagation(); openHealthSheet(b); });
+      }
+      const cos = Math.cos(th), sin = Math.sin(th);
+      const anchor = cos > 0.35 ? "start" : cos < -0.35 ? "end" : "middle";
+      const lx = anchor === "start" ? 19 : anchor === "end" ? -19 : 0, ly = anchor === "middle" ? (sin > 0 ? 30 : -24) : 0;
+      const name = mk("text", { x: lx, y: ly, class: "mp-name", "text-anchor": anchor, "dominant-baseline": "central" }, tip);
+      name.textContent = b.name;
+      name.addEventListener("click", e => { e.stopPropagation(); openBrainView(b); });
+      mk("text", { x: lx, y: ly + 15, class: "mp-sub", "text-anchor": anchor, "dominant-baseline": "central" }, tip)
+        .textContent = `${k} concept${k === 1 ? "" : "s"}`;
+    });
+
+    /* Ink between brains, bowed through the body. */
+    let drawn = 0;
+    for (const [a, b] of links){
+      const p = at[a], q = at[b];
+      if (!p || !q) continue;
+      const mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
+      const cx = mx + (CX - mx) * 0.55, cy = my + (CY - my) * 0.55;
+      mk("path", { d: `M${p[0].toFixed(1)},${p[1].toFixed(1)}Q${cx.toFixed(1)},${cy.toFixed(1)} ${q[0].toFixed(1)},${q[1].toFixed(1)}`,
+        class: "mp-link", "data-a": a, "data-b": b }, linkG);
+      drawn++;
+    }
+
+    /* The head: the space's own mark. */
+    mk("circle", { cx: CX, cy: CY, r: R0, class: "mp-head" }, root);
+    mk("image", { href: $("spaceMark").getAttribute("src") || "/brand/logo-mark.png", x: CX - R0 * 0.78, y: CY - R0 * 0.78,
+      width: R0 * 1.56, height: R0 * 1.56 }, root);
+
+    const nCs = brains.reduce((t, b) => t + conceptsOf(b.slug).length, 0);
+    veil.querySelector("#mpN").textContent = `${n} brain${n === 1 ? "" : "s"} \u00b7 ${nCs} concepts \u00b7 ${drawn} link${drawn === 1 ? "" : "s"} between brains \u00b7 ${S.conflicted.size} with an open conflict`;
+    if (!svg.isConnected){ stage.innerHTML = ""; stage.append(svg); }
+    const bb = root.getBBox(), pad = 24;
+    fit = { x: bb.x - pad, y: bb.y - pad, w: bb.width + pad * 2, h: bb.height + pad * 2 };
+    if (!vb) vb = { ...fit };
+    setVb(); paintFocus();
+  };
+
+  /* A pointed sucker, or a tapped arm, lights its links. */
+  const hot = (id, on) => {
+    svg.querySelectorAll(`.mp-link[data-a="${CSS.escape(id)}"], .mp-link[data-b="${CSS.escape(id)}"]`).forEach(l => l.classList.toggle("hot", on));
+  };
+  const paintFocus = () => {
+    svg.classList.toggle("focus", !!focus);
+    svg.querySelectorAll(".mp-arm, .mp-sk").forEach(x => x.classList.toggle("hot", !!focus && x.dataset.b === focus));
+    svg.querySelectorAll(".mp-link").forEach(l => l.classList.toggle("hot",
+      !!focus && (l.dataset.a.split("/")[0] === focus || l.dataset.b.split("/")[0] === focus)));
+  };
+
+  /* Move and zoom: drag the background, the wheel, two fingers, or the buttons. */
+  const toSvg = (cx, cy) => { const r = svg.getBoundingClientRect(); return [vb.x + (cx - r.left) / r.width * vb.w, vb.y + (cy - r.top) / r.height * vb.h]; };
+  const zoom = (f, cx, cy) => {
+    const r = svg.getBoundingClientRect();
+    const [px, py] = cx == null ? [vb.x + vb.w / 2, vb.y + vb.h / 2] : toSvg(cx, cy);
+    const w = Math.max(fit.w / 8, Math.min(fit.w * 2, vb.w / f)), h = w * vb.h / vb.w;
+    const rx = cx == null ? 0.5 : (cx - r.left) / r.width, ry = cy == null ? 0.5 : (cy - r.top) / r.height;
+    vb = { x: px - rx * w, y: py - ry * h, w, h }; setVb();
+  };
+  svg.addEventListener("wheel", e => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY); }, { passive: false });
+  /* A press that barely moves is a tap: on an arm it lights that brain, on
+     the background it clears the light. */
+  const pts = new Map(); let last = null, pinch = null, start = null, downOn = null;
+  svg.addEventListener("pointerdown", e => {
+    if (e.target.closest(".mp-sk, .mp-cf, .mp-name") || e.target.closest("g[transform]")?.querySelector(".mp-name")) return;
+    pts.set(e.pointerId, [e.clientX, e.clientY]);
+    svg.setPointerCapture(e.pointerId); svg.classList.add("panning");
+    last = [e.clientX, e.clientY]; start = [e.clientX, e.clientY]; downOn = e.target;
+    if (pts.size === 2){ const [a, b] = [...pts.values()]; pinch = Math.hypot(a[0] - b[0], a[1] - b[1]); }
+  });
+  svg.addEventListener("pointermove", e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pts.size === 2 && pinch){
+      const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      zoom(d / pinch, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); pinch = d; return;
+    }
+    const r = svg.getBoundingClientRect();
+    vb.x -= (e.clientX - last[0]) / r.width * vb.w; vb.y -= (e.clientY - last[1]) / r.height * vb.h;
+    last = [e.clientX, e.clientY];
+    setVb();
+  });
+  const up = e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.delete(e.pointerId); if (pts.size < 2) pinch = null;
+    if (pts.size) return;
+    svg.classList.remove("panning");
+    if (e.type === "pointerup" && start && Math.hypot(e.clientX - start[0], e.clientY - start[1]) < 5){
+      const arm = downOn?.closest?.(".mp-arm");
+      focus = arm ? (focus === arm.dataset.b ? null : arm.dataset.b) : null;
+      paintFocus();
+    }
+    start = null; downOn = null;
+  };
+  svg.addEventListener("pointerup", up); svg.addEventListener("pointercancel", up);
+  veil.querySelector("#mpIn").onclick = () => zoom(1.3);
+  veil.querySelector("#mpOut").onclick = () => zoom(1 / 1.3);
+  veil.querySelector("#mpFit").onclick = () => { vb = { ...fit }; setVb(); };
+
+  stage.innerHTML = ""; stage.append(svg);
+  draw();
+  /* A settled conflict or a new ring redraws the map where it stands. */
+  mapRepaint = () => { if (veil.isConnected) draw(); };
+}
 
 /**
  * Blind spots: what the brains cannot answer yet, and the kind of source that
@@ -3088,35 +3611,12 @@ async function doAsk(q){
   }
   const body = thinking();
   try {
+    /* "chat" files the turn in the chat on screen, or starts one. */
     const r = await api("/api/ask",
-      { q, brain: S.scope, level: S.level, history: S.thread.slice(-4) });
+      { q, brain: S.scope, level: S.level, history: S.thread.slice(-4), chat: S.chatId });
     body.innerHTML = "";
-    if (r.sources > 0 && r.sources < 10)
-      body.append(el("div","smallbrain",`Small brain: ${r.sources} source${r.sources===1?"":"s"} behind this`));
-    const out = el("div"); out.innerHTML = splitAnswer(r.answer); body.append(out);
-    /* Two small actions: the answer to the clipboard, or the same question
-       as a one-pager. */
-    const acts = el("div","ans-acts"), asked = S.scope;
-    const cp = el("button","mini","Copy");
-    cp.onclick = async () => {
-      try { await navigator.clipboard.writeText(String(r.answer ?? "")); cp.textContent = "Copied"; }
-      catch { cp.textContent = "Blocked"; }
-      setTimeout(() => { cp.textContent = "Copy"; }, 1600);
-    };
-    const pg = el("button","mini","One-pager from this");
-    pg.onclick = () => openPagerSheet({ q, pick: asked });
-    acts.append(cp, pg); body.append(acts);
-    /* The answer found the brains short: what is missing, and the kind of
-       source to look for. It is kept in Blind spots as well. */
-    if (r.gap?.gap){
-      const g = el("div","gapnote");
-      g.append(el("b",null,"Blind spot"), el("span",null,r.gap.gap));
-      if (r.gap.find) g.append(el("span","find","Look for: " + r.gap.find));
-      const all = el("button",null,"All blind spots");
-      all.onclick = () => openGapsSheet();
-      g.append(el("br"), all);
-      body.append(g);
-    }
+    showAnswer(body, r, q, S.scope);
+    if (r.chat){ S.chatId = r.chat; loadChats(); }
     /* Six turns is what a thread of follow-ups runs to before the subject has
        moved anyway. Only the last four travel. */
     S.thread.push({ q, a: String(r.answer ?? "") });
@@ -3125,6 +3625,40 @@ async function doAsk(q){
     bottom();
   } catch(e){ fail(body, e.message); }
 }
+/**
+ * An answer on screen, live or from a saved chat: the small-brain note, the
+ * answer, its two actions, and the blind spot when it found one.
+ */
+function showAnswer(body, r, q, asked){
+  if (r.sources > 0 && r.sources < 10)
+    body.append(el("div","smallbrain",`Small brain: ${r.sources} source${r.sources===1?"":"s"} behind this`));
+  const out = el("div"); out.innerHTML = splitAnswer(r.answer ?? r.a ?? ""); body.append(out);
+  /* Two small actions: the answer to the clipboard, or the same question
+     as a one-pager. */
+  const text = String(r.answer ?? r.a ?? "");
+  const acts = el("div","ans-acts");
+  const cp = el("button","mini","Copy");
+  cp.onclick = async () => {
+    try { await navigator.clipboard.writeText(text); cp.textContent = "Copied"; }
+    catch { cp.textContent = "Blocked"; }
+    setTimeout(() => { cp.textContent = "Copy"; }, 1600);
+  };
+  const pg = el("button","mini","One-pager from this");
+  pg.onclick = () => openPagerSheet({ q, pick: asked });
+  acts.append(cp, pg); body.append(acts);
+  /* The answer found the brains short: what is missing, and the kind of
+     source to look for. It is kept in Blind spots as well. */
+  if (r.gap?.gap){
+    const g = el("div","gapnote");
+    g.append(el("b",null,"Blind spot"), el("span",null,r.gap.gap));
+    if (r.gap.find) g.append(el("span","find","Look for: " + r.gap.find));
+    const all = el("button",null,"All blind spots");
+    all.onclick = () => openGapsSheet();
+    g.append(el("br"), all);
+    body.append(g);
+  }
+}
+
 /**
  * The answer arrives as one sentence per line, which is what the prompt asks
  * for. Each line becomes its own block, so the gap between sentences is a

@@ -127,6 +127,22 @@ export default defineSchema({
   }).index("by_sid", ["sid"]),
 
   /**
+   * A conversation in the app: its questions and answers, kept so it can be
+   * reopened and continued. An unpinned chat goes 30 days after its last
+   * question, or when it falls past the newest 20. Up to 5 pinned chats stay.
+   */
+  chats: defineTable({
+    space: v.string(),
+    title: v.string(),
+    /* The brain it asked, or "all". */
+    brain: v.string(),
+    pinned: v.boolean(),
+    turns: v.array(v.any()),
+    created: v.number(),
+    updated: v.number(),
+  }).index("by_space_updated", ["space", "updated"]),
+
+  /**
    * A question an answer found the brains short on: what is missing and the
    * kind of source that would fill it. Blind spots read these. The answer
    * already told the owner; this is so the list can say it again later.

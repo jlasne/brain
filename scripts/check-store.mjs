@@ -448,6 +448,49 @@ function seed() {
   check("clearing drops only this space's rows", r.dropped === 1 && T.gaps.some(g => g._id === other) && !T.gaps.some(g => g.space === "squidgy"), JSON.stringify(r));
 }
 
+/* ---- chats: saved per space, 20 kept, 30 days, 5 pins ---- */
+{
+  const { T, ctx } = seed();
+  const turn = q => ({ q, a: "An answer.", level: "normal", sources: 3, at: Date.now() });
+  const first = await run(store.chatTurn, ctx, { space: "octopus", id: null, brain: "wealth", turn: turn("Is gold a hedge against inflation over twenty years, and what does the evidence say about the 1980 to 2001 stretch?") });
+  const again = await run(store.chatTurn, ctx, { space: "octopus", id: first.id, brain: "wealth", turn: turn("And since 2001?") });
+  const row = T.chats.find(c => c._id === first.id);
+  check("a first question starts a chat, titled by it in 80 characters or less", first.created && row.title.length <= 80 && /^Is gold a hedge/.test(row.title)
+    && /\.\.\.$/.test(row.title), row.title);
+  check("the next one joins it", !again.created && again.id === first.id && row.turns.length === 2 && row.turns[1].q === "And since 2001?");
+  const other = await run(store.chatTurn, ctx, { space: "squidgy", id: first.id, brain: "dogs", turn: turn("Walks?") });
+  check("a chat of another space is never written to: a new one starts in its own", other.created && other.id !== first.id
+    && T.chats.find(c => c._id === other.id).space === "squidgy" && row.turns.length === 2);
+  check("and the other space never reads it", (await run(store.chatGet, ctx, { space: "squidgy", id: first.id })) === null
+    && (await run(store.chatGet, ctx, { space: "octopus", id: first.id })).turns.length === 2);
+
+  for (let i = 0; i < 64; i++) await run(store.chatTurn, ctx, { space: "octopus", id: first.id, brain: "wealth", turn: turn("q" + i) });
+  check("a chat keeps its last 60 turns", row.turns.length === 60 && row.turns[59].q === "q63");
+
+  /* 24 more chats: only the newest 20 unpinned stay, a pinned one stays too. */
+  await run(store.chatEdit, ctx, { space: "octopus", id: first.id, pinned: true });
+  for (let i = 0; i < 24; i++) { await run(store.chatTurn, ctx, { space: "octopus", id: null, brain: "all", turn: turn("chat " + i) }); }
+  const list = await run(store.chatList, ctx, { space: "octopus" });
+  check("the newest 20 unpinned chats stay, and the pinned one on top", list.length === 21 && list[0].id === first.id && list[0].pinned
+    && list.filter(c => !c.pinned).length === 20 && !list.some(c => c.title === "chat 0") && list.some(c => c.title === "chat 23"), list.map(c => c.title).join("|"));
+  const old = T.chats.find(c => c.title === "chat 5");
+  old.updated = Date.now() - 31 * 86400000;
+  T.chats.find(c => c._id === first.id).updated = Date.now() - 90 * 86400000;
+  const later = await run(store.chatList, ctx, { space: "octopus" });
+  check("an unpinned chat goes 30 days after its last question; a pinned one stays", !later.some(c => c.title === "chat 5") && later.some(c => c.id === first.id),
+    later.map(c => c.title).join("|"));
+
+  const ids = later.filter(c => !c.pinned).map(c => c.id);
+  for (const id of ids.slice(0, 4)) check("pinning up to 5 works", (await run(store.chatEdit, ctx, { space: "octopus", id, pinned: true })).ok === true);
+  const sixth = await run(store.chatEdit, ctx, { space: "octopus", id: ids[4], pinned: true });
+  check("a sixth pin is refused with the reason", /5 chats are pinned already/.test(sixth.error || ""), JSON.stringify(sixth));
+  check("rename sets a name, an empty one is refused", (await run(store.chatEdit, ctx, { space: "octopus", id: ids[4], title: "  Gold notes  " })).ok
+    && T.chats.find(c => c._id === ids[4]).title === "Gold notes" && /needs a name/.test((await run(store.chatEdit, ctx, { space: "octopus", id: ids[4], title: " " })).error));
+  check("another space cannot rename or delete it", /gone/.test((await run(store.chatEdit, ctx, { space: "squidgy", id: ids[4], remove: true })).error)
+    && T.chats.some(c => c._id === ids[4]));
+  check("delete removes it", (await run(store.chatEdit, ctx, { space: "octopus", id: ids[4], remove: true })).removed && !T.chats.some(c => c._id === ids[4]));
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe store holds");
 process.exit(failures ? 1 : 0);

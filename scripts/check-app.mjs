@@ -228,9 +228,10 @@ async function boot(path, init, arg) {
   await page.click("#scopeBtn"); await page.keyboard.press("Escape");
   check("Escape closes the menu", !(await page.$(".pick-menu")));
   await page.click("#scopeBtn"); await page.click(".pick-menu .pk-row >> nth=0");
-  check("the one-pager and blind spots sit in the side panel, above Create a brain",
-    await page.evaluate(() => { const p = document.getElementById("pagerBtn"), g = document.getElementById("gapsBtn");
-      return !!p.closest("aside") && p.nextElementSibling === g && g.nextElementSibling === document.getElementById("newBrain"); }));
+  check("one-pager, blind spots and map lead the side panel, then Chats, then Brains with Create a brain",
+    await page.evaluate(() => { const p = document.getElementById("pagerBtn"), g = document.getElementById("gapsBtn"), m = document.getElementById("mapBtn");
+      return !!p.closest("aside") && p.nextElementSibling === g && g.nextElementSibling === m && m.nextElementSibling.id === "chatsH"
+        && document.getElementById("brainsBox").firstElementChild.id === "newBrain"; }));
 
   /* ---- a new brain asks for a name, a scope and a kind, nothing more ---- */
   await page.click("#newBrain"); await page.waitForTimeout(80);
@@ -1072,6 +1073,180 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("Dealt with clears the questions behind it", JSON.stringify(after.dropped) === '[["g1","g2"]]' && after.left === 1, JSON.stringify(after));
   check("the sidebar opens it too", await page.$("#gapsBtn") !== null);
   check("nothing threw on blind spots", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- chats: saved, listed, reopened, renamed, pinned and deleted ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__asks = []; window.__edits = [];
+    const chats = [
+      { id: "k1", title: "Is gold a hedge?", brain: "content", pinned: true, updated: Date.now(), turns: 2 },
+      { id: "k2", title: "Cold email openers", brain: "all", pinned: false, updated: Date.now() - 3600e3, turns: 1 } ];
+    window.__chats = chats;
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/chats/get")) return Response.json({ chat: { id: body.id, title: "Is gold a hedge?", brain: "content", pinned: true,
+        turns: [{ q: "Is gold a hedge?", a: "Gold held its value over 20 years.\n\nSources: Gave, 2025-03-01", sources: 4, level: "normal" },
+                { q: "And since 2001?", a: "It rose 12% a year.", sources: 4, level: "normal", gap: { gap: "Silver", find: "A study" } }] } });
+      if (s.includes("/api/chats/edit")) { window.__edits.push(body);
+        if (body.pinned === true) return Response.json({ error: "5 chats are pinned already. Unpin one first." });
+        if (body.remove) window.__chats = window.__chats.filter(c => c.id !== body.id);
+        if (body.title) window.__chats = window.__chats.map(c => c.id === body.id ? { ...c, title: body.title } : c);
+        return Response.json({ ok: true }); }
+      if (s.includes("/api/chats")) return Response.json({ chats: window.__chats });
+      if (s.includes("/api/ask")) { window.__asks.push(body);
+        if (!body.chat) window.__chats = [{ id: "k9", title: body.q, brain: body.brain, pinned: false, updated: Date.now(), turns: 1 }, ...window.__chats];
+        return Response.json({ answer: "One line.", sources: 12, level: "normal", chat: body.chat || "k9" }); }
+      return Response.json({});
+    };
+  }, STATE);
+  await page.waitForTimeout(200);
+  const listed = await page.evaluate(() => ({ rows: [...document.querySelectorAll("#chats .chat-row")].map(r => ({
+    t: r.querySelector(".nm").textContent, b: r.querySelector(".cb").textContent, pin: !!r.querySelector(".pin") })),
+    count: document.getElementById("ccount").textContent }));
+  check("the chats are listed, pinned first, each with the brain it asked", listed.count === "2" && listed.rows[0].t === "Is gold a hedge?"
+    && listed.rows[0].pin && /^Content · 2 questions$/.test(listed.rows[0].b) && /^All brains · 1 question$/.test(listed.rows[1].b), JSON.stringify(listed));
+
+  await page.click("#chatsFold");
+  const folded = await page.evaluate(() => ({ hidden: document.getElementById("chatsBox").hidden, exp: document.getElementById("chatsFold").getAttribute("aria-expanded"),
+    kept: JSON.parse(localStorage.getItem("octopus.fold") || "{}").chats }));
+  check("Chats folds, and the browser remembers it", folded.hidden && folded.exp === "false" && folded.kept === true, JSON.stringify(folded));
+  await page.click("#chatsFold");
+
+  /* A row's own controls, by their exact label. */
+  const rowAct = (n, label) => page.evaluate(([n, label]) => {
+    for (const x of [...document.querySelectorAll("#chats .chat-row")][n].querySelectorAll(".ed")) if (x.textContent === label) x.click();
+  }, [n, label]);
+  await page.click("#chats .chat-row >> nth=0 >> .nm"); await page.waitForTimeout(200);
+  const opened = await page.evaluate(() => ({ me: [...document.querySelectorAll(".msg.me .body")].map(b => b.textContent),
+    ai: [...document.querySelectorAll(".msg.ai .body .para")].map(b => b.textContent), gap: !!document.querySelector(".gapnote"),
+    scope: document.getElementById("scopeVal")?.textContent, on: document.querySelector("#chats .chat-row.on .nm")?.textContent }));
+  check("reopening a chat shows its questions and answers, on the brain it asked", opened.me.join("|") === "Is gold a hedge?|And since 2001?"
+    && /held its value/.test(opened.ai[0]) && opened.gap && opened.scope === "Content" && opened.on === "Is gold a hedge?", JSON.stringify(opened));
+
+  await page.fill("#input", "And in euros?");
+  await page.click("#send"); await page.waitForTimeout(300);
+  const cont = await page.evaluate(() => window.__asks.at(-1));
+  check("a question asked there continues that chat, with its thread", cont.chat === "k1" && cont.brain === "content"
+    && cont.history.length === 2 && cont.history[1].q === "And since 2001?", JSON.stringify(cont));
+
+  await page.click("#newChat"); await page.waitForTimeout(100);
+  await page.fill("#input", "What is a hook?");
+  await page.click("#send"); await page.waitForTimeout(400);
+  const fresh = await page.evaluate(() => ({ sent: window.__asks.at(-1), rows: document.querySelectorAll("#chats .chat-row").length,
+    on: document.querySelector("#chats .chat-row.on .nm")?.textContent }));
+  check("New starts a fresh chat, which then joins the list", fresh.sent.chat === null && fresh.sent.history.length === 0 && fresh.rows === 3
+    && fresh.on === "What is a hook?", JSON.stringify(fresh));
+
+  await rowAct(2, "pin"); await page.waitForTimeout(150);
+  check("a sixth pin says why it is refused", /5 chats are pinned already/.test(await page.textContent("#chatMsg")) && await page.isVisible("#chatMsg"));
+
+  await rowAct(2, "rename"); await page.waitForTimeout(80);
+  await page.fill("#rnT", "Openers");
+  await page.click("#rnGo"); await page.waitForTimeout(200);
+  check("rename saves the new name", (await page.evaluate(() => [...document.querySelectorAll("#chats .chat-row .nm")].map(n => n.textContent))).includes("Openers"));
+
+  await rowAct(2, "delete"); await page.waitForTimeout(80);
+  const asked = await page.evaluate(() => ({ sure: document.querySelector("#chats .chat-row .ed.sure")?.textContent, sent: window.__edits.filter(e => e.remove).length }));
+  check("delete asks once more on the row before it goes", asked.sure === "sure?" && asked.sent === 0, JSON.stringify(asked));
+  await rowAct(2, "sure?"); await page.waitForTimeout(200);
+  const gone = await page.evaluate(() => ({ removed: window.__edits.filter(e => e.remove).map(e => e.id), rows: document.querySelectorAll("#chats .chat-row").length }));
+  check("the second tap deletes it", JSON.stringify(gone.removed) === '["k2"]' && gone.rows === 2, JSON.stringify(gone));
+  check("nothing threw in chats", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- health: a ring per brain, its four parts, the best move ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.fetch = async (u, opt) => {
+      const s = String(u);
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/health")) return Response.json({ conflicted: ["content/offer"], health: [{ slug: "content", score: 6.5, open: 1,
+        best: "A source by a new named author: +0.5",
+        parts: { variety: { got: 2.5, max: 3, say: "5 named authors, 9 unsigned" }, depth: { got: 1.5, max: 3, say: "12 of 40 concepts rest on 2+ sources (30%)" },
+                 fresh: { got: 1, max: 2, say: "Last source 90 days ago" }, conflicts: { got: 1.5, max: 2, say: "1 open conflict" } } }] });
+      return Response.json({});
+    };
+  }, STATE);
+  await page.waitForTimeout(200);
+  const ring = await page.evaluate(() => { const r = document.querySelector("#brains .brain-row .hring");
+    return r ? { text: r.querySelector("text").textContent, tone: r.querySelector(".ar").getAttribute("class"), title: r.title } : null; });
+  check("each brain carries its health ring, amber at 6.5", ring && ring.text === "6.5" && /h-mid/.test(ring.tone) && /Health 6.5\/10/.test(ring.title), JSON.stringify(ring));
+  await page.click("#brains .brain-row .hring"); await page.waitForTimeout(150);
+  const sheet = await page.evaluate(() => ({ h: document.querySelector(".sheet h3")?.textContent,
+    parts: [...document.querySelectorAll(".hb-row")].map(r => r.querySelector(".hb-top").textContent + " | " + r.querySelector(".hb-say").textContent),
+    best: document.querySelector(".hb-best")?.textContent, settle: !!document.getElementById("hbSettle"), scope: document.querySelector(".brain-row.on") }));
+  check("tapping the ring opens its four parts and the best move, without picking the brain", sheet.h === "Content: 6.5/10" && sheet.parts.length === 4
+    && /^Variety2.5 \/ 3 \| 5 named authors/.test(sheet.parts[0]) && /^Conflicts1.5 \/ 2/.test(sheet.parts[3])
+    && /Best moveA source by a new named author: \+0.5/.test(sheet.best) && sheet.settle && !sheet.scope, JSON.stringify(sheet));
+  check("nothing threw on health", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- the map: arms, suckers, links, conflicts ---- */
+{
+  const two = { ...STATE, brains: [...STATE.brains, { slug: "gave", name: "Charles Gave", type: "person", scope: "Gave", owner: null }],
+    concepts: [{ brain: "content", slug: "offer", n: 1, title: "Offer first", summaryLine: "", src: 4, ev: 3, links: 1 },
+               { brain: "content", slug: "brand", n: 2, title: "Personal brand", summaryLine: "", src: 1, ev: 1, links: 0 },
+               { brain: "gave", slug: "gold", n: 1, title: "Gold", summaryLine: "", src: 2, ev: 2, links: 1 }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u); window.__calls.push(s);
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/health")) return Response.json({ conflicted: ["content/offer"], health: [
+        { slug: "content", score: 8, open: 1, best: "x", parts: {} }, { slug: "gave", score: 3, open: 0, best: "y", parts: {} }] });
+      if (s.includes("/api/map")) return Response.json({ links: [["content/offer", "gave/gold"]] });
+      if (s.includes("/api/concept")) return Response.json({ concept: { brain: "content", slug: "offer", n: 1, title: "Offer first", summaryLine: "S.",
+        position: "P.", evidence: [], data: [], conflicts: [], sources: [], related: [] } });
+      if (s.includes("/api/conflicts")) return Response.json({ others: 0, conflicts: [
+        { id: "content/offer", brain: "content", title: "Offer first", a: "A", aDate: "", b: "B", bDate: "", why: "" }] });
+      return Response.json({});
+    };
+  }, two);
+  await page.waitForTimeout(200);
+  await page.click("#mapBtn"); await page.waitForTimeout(400);
+  const drawn = await page.evaluate(() => ({ arms: document.querySelectorAll(".mp-arm").length, person: document.querySelectorAll(".mp-arm.person").length,
+    suckers: [...document.querySelectorAll(".mp-sk")].map(c => c.dataset.id + ":" + c.getAttribute("r")), links: document.querySelectorAll(".mp-link").length,
+    dots: [...document.querySelectorAll(".mp-cf")].map(c => c.dataset.id), names: [...document.querySelectorAll(".mp-name")].map(t => t.textContent),
+    n: document.getElementById("mpN").textContent, head: document.querySelector(".mapbox image")?.getAttribute("href") }));
+  check("the map draws an arm per brain, a sucker per concept, the link and the conflict", drawn.arms === 2 && drawn.person === 1
+    && drawn.suckers.length === 3 && drawn.links === 1 && JSON.stringify(drawn.dots) === '["content/offer"]'
+    && drawn.names.join("|") === "Content|Charles Gave" && /2 brains · 3 concepts · 1 link between brains · 1 with an open conflict/.test(drawn.n)
+    && /logo-mark/.test(drawn.head || ""), JSON.stringify(drawn));
+  const r = Object.fromEntries(drawn.suckers.map(x => x.split(":")));
+  check("a sucker grows with its sources", Number(r["content/offer"]) > Number(r["content/brand"]), JSON.stringify(r));
+
+  await page.hover('.mp-sk[data-id="content/offer"]');
+  check("pointing at a sucker lights its links", await page.evaluate(() => document.querySelector(".mp-link").classList.contains("hot")));
+  const fitBefore = await page.evaluate(() => document.querySelector(".mapbox svg").getAttribute("viewBox"));
+  await page.click("#mpIn");
+  const zoomed = await page.evaluate(() => document.querySelector(".mapbox svg").getAttribute("viewBox"));
+  await page.click("#mpFit");
+  check("zoom in narrows the view and Fit brings it back", zoomed !== fitBefore
+    && Number(zoomed.split(" ")[2]) < Number(fitBefore.split(" ")[2])
+    && (await page.evaluate(() => document.querySelector(".mapbox svg").getAttribute("viewBox"))) === fitBefore, `${fitBefore} -> ${zoomed}`);
+
+  await page.evaluate(() => document.querySelector('.mp-sk[data-id="content/offer"]').dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  await page.waitForTimeout(250);
+  check("a sucker opens its concept, over the map", await page.evaluate(() => !!document.querySelector(".viewer") && !!document.querySelector(".mapbox")));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+  check("Escape closes the concept first, the map stays", await page.evaluate(() => !document.querySelector(".viewer") && !!document.querySelector(".mapbox")));
+
+  await page.evaluate(() => document.querySelector(".mp-cf").dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  await page.waitForTimeout(300);
+  const deck = await page.evaluate(() => ({ title: document.querySelector(".dk-card h4")?.textContent }));
+  check("a red dot opens the swipe deck on that conflict", deck.title === "Offer first", JSON.stringify(deck));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+  check("Escape then closes the map", !(await page.$(".mapbox")));
+  check("nothing threw on the map", !bad.length, bad.join(" | "));
   await page.close();
 }
 

@@ -19,11 +19,12 @@ import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from 
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, translatePage, langOf, DOC_TYPES } from "./onepager";
 import type { DocType } from "./onepager";
-import { planDossier, writeDossier, idOf, OPEN_READ } from "./words";
+import { planDossier, writeDossier, idOf, OPEN_READ, linkId } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace } from "./space";
 import { listConflicts, settleConflict } from "./conflicts";
 import { splitGap, GAP_RULE, spotsFrom, adviseSpots } from "./gaps";
+import { healthOf } from "./health";
 
 const router = httpRouter();
 
@@ -460,7 +461,93 @@ QUESTION: ${String(b.q ?? "")}` },
         brains: (reading.length ? reading : pool).map((x: any) => x.slug) });
     } catch { /* the answer still goes out */ }
   }
-  return { answer: cut.answer, sources: nSources, level, ...(cut.gap ? { gap: { gap: cut.gap, find: cut.find } } : {}) };
+  const gap = cut.gap ? { gap: cut.gap, find: cut.find } : null;
+  /* The app keeps its conversations: a question sent with "chat" joins that
+     chat, or starts one. A failed save is only a chat that does not list it. */
+  let chat: string | undefined;
+  if ("chat" in b) {
+    try {
+      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space,
+        id: typeof b.chat === "string" ? b.chat : null, brain: only ?? "all",
+        turn: { q: String(b.q ?? "").slice(0, 2000), a: cut.answer, level, sources: nSources, at: Date.now(), ...(gap ? { gap } : {}) } });
+      chat = r.id;
+    } catch { /* the answer still goes out */ }
+  }
+  return { answer: cut.answer, sources: nSources, level, ...(gap ? { gap } : {}), ...(chat ? { chat } : {}) };
+});
+
+/* ---------- chats ---------- */
+
+/** The chats, pinned first then newest. Old ones are cleared as this runs. */
+route("/api/chats", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return { chats: await ctx.runMutation(internal.store.chatList, { space: who.space }) };
+});
+
+/** One chat whole, to reopen it. */
+route("/api/chats/get", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const c = await ctx.runQuery(internal.store.chatGet, { space: who.space, id: String(b.id ?? "") });
+  return c ? { chat: c } : { error: "that chat is gone" };
+});
+
+/** Rename, pin, unpin or delete a chat. */
+route("/api/chats/edit", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return await ctx.runMutation(internal.store.chatEdit, { space: who.space, id: String(b.id ?? ""),
+    ...(typeof b.title === "string" ? { title: b.title } : {}),
+    ...(typeof b.pinned === "boolean" ? { pinned: b.pinned } : {}),
+    ...(b.remove === true ? { remove: true } : {}) });
+});
+
+/* ---------- health and the map ---------- */
+
+/** Open conflicts per brain, and the concepts holding one. No model call:
+    a clash the check has not read yet counts as open. */
+async function openConflicts(ctx: any, space: string, brains: any[]) {
+  const open = new Map<string, number>(), conflicted: string[] = [];
+  for (const br of brains) {
+    let cursor: string | null = null;
+    for (;;) {
+      const p: any = await ctx.runQuery(internal.store.conflictsPage, { space, brain: br.slug, cursor });
+      for (const c of p.items) {
+        const n = (c.conflicts ?? []).filter((x: any) => x?.real !== false).length;
+        if (!n) continue;
+        open.set(c.brain, (open.get(c.brain) ?? 0) + n);
+        conflicted.push(c.id);
+      }
+      if (!p.next) break;
+      cursor = p.next;
+    }
+  }
+  return { open, conflicted };
+}
+
+/** Each brain's health out of 10, and the concepts with an open conflict. */
+route("/api/health", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const { brains, cards, sources } = await loadSpace(ctx, who.space);
+  const { open, conflicted } = await openConflicts(ctx, who.space, brains);
+  return { health: healthOf(brains, cards, sources, open), conflicted };
+});
+
+/** The links between concepts of different brains, each pair once, for the map. */
+route("/api/map", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const { cards } = await loadSpace(ctx, who.space);
+  const known = new Set(cards.map((c: any) => `${c.brain}/${c.slug}`));
+  const seen = new Set<string>(), links: [string, string][] = [];
+  for (const c of cards) {
+    const from = `${c.brain}/${c.slug}`;
+    for (const r of c.related ?? []) {
+      const to = linkId(String(r), c.brain);
+      if (!known.has(to) || to.split("/")[0] === c.brain) continue;
+      const key = [from, to].sort().join("|");
+      if (seen.has(key)) continue;
+      seen.add(key); links.push([from, to]);
+    }
+  }
+  return { links };
 });
 
 /**

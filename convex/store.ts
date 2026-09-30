@@ -879,3 +879,103 @@ export const dropGaps = internalMutation({
     return { dropped: n };
   },
 });
+
+/* ---------------- chats ---------------- */
+
+export const CHAT_DAYS = 30;
+export const CHAT_KEEP = 20;
+export const CHAT_PINS = 5;
+/* A chat keeps its last 60 turns, which holds a long one under the size a
+   row may reach. */
+const CHAT_TURNS = 60;
+
+/** Unpinned chats past 30 days, and past the newest 20, go. */
+async function pruneChats(ctx: any, space: string) {
+  const rows = await ctx.db.query("chats").withIndex("by_space_updated", (q: any) => q.eq("space", space))
+    .order("desc").collect();
+  const cut = Date.now() - CHAT_DAYS * 86400000;
+  let kept = 0;
+  for (const c of rows) {
+    if (c.pinned) continue;
+    if (c.updated < cut || kept >= CHAT_KEEP) await ctx.db.delete(c._id);
+    else kept++;
+  }
+}
+
+/** A chat of this space, or null. */
+async function chatIn(ctx: any, space: string, id: any) {
+  const nid = typeof id === "string" ? ctx.db.normalizeId("chats", id) : null;
+  const c = nid ? await ctx.db.get(nid) : null;
+  return c && c.space === space ? c : null;
+}
+
+/** The chats of a space, pinned first, then newest. Old ones are cleared first. */
+export const chatList = internalMutation({
+  args: { space: v.string() },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    await pruneChats(ctx, space);
+    const rows = await ctx.db.query("chats").withIndex("by_space_updated", (q: any) => q.eq("space", space))
+      .order("desc").collect();
+    return rows.sort((x: any, y: any) => Number(y.pinned) - Number(x.pinned) || y.updated - x.updated)
+      .map((c: any) => ({ id: String(c._id), title: c.title, brain: c.brain, pinned: c.pinned,
+                          updated: c.updated, turns: c.turns.length }));
+  },
+});
+
+/** One chat whole, to reopen it. */
+export const chatGet = internalQuery({
+  args: { space: v.string(), id: v.string() },
+  handler: async (ctx, a) => {
+    const c = await chatIn(ctx, readSpace(a.space), a.id);
+    return c ? { id: String(c._id), title: c.title, brain: c.brain, pinned: c.pinned, turns: c.turns } : null;
+  },
+});
+
+/** A question and its answer, added to a chat. No chat, or one gone, starts a new one. */
+export const chatTurn = internalMutation({
+  args: { space: v.string(), id: v.optional(v.union(v.string(), v.null())), brain: v.string(), turn: v.any() },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space), now = Date.now();
+    const had = await chatIn(ctx, space, a.id);
+    if (had) {
+      await ctx.db.patch(had._id, { turns: [...had.turns, a.turn].slice(-CHAT_TURNS), brain: a.brain, updated: now });
+      return { id: String(had._id), created: false };
+    }
+    const q = String(a.turn?.q ?? "").replace(/\s+/g, " ").trim();
+    const title = q.length > 80 ? q.slice(0, 77).replace(/\s+\S*$/, "") + "..." : q || "Untitled chat";
+    const id = await ctx.db.insert("chats", { space, title, brain: a.brain, pinned: false, turns: [a.turn], created: now, updated: now });
+    await pruneChats(ctx, space);
+    return { id: String(id), created: true };
+  },
+});
+
+/** Rename, pin or unpin, or delete a chat. At most 5 are pinned. */
+export const chatEdit = internalMutation({
+  args: { space: v.string(), id: v.string(), title: v.optional(v.string()), pinned: v.optional(v.boolean()), remove: v.optional(v.boolean()) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const c = await chatIn(ctx, space, a.id);
+    if (!c) return { error: "that chat is gone" };
+    if (a.remove) { await ctx.db.delete(c._id); return { ok: true, removed: true }; }
+    const patch: any = {};
+    if (a.title != null) {
+      const t = a.title.replace(/\s+/g, " ").trim().slice(0, 80);
+      if (!t) return { error: "a chat needs a name" };
+      patch.title = t;
+    }
+    if (a.pinned != null && a.pinned !== c.pinned) {
+      if (a.pinned) {
+        const pins = (await ctx.db.query("chats").withIndex("by_space_updated", (q: any) => q.eq("space", space)).collect())
+          .filter((x: any) => x.pinned).length;
+        if (pins >= CHAT_PINS) return { error: `${CHAT_PINS} chats are pinned already. Unpin one first.` };
+      }
+      patch.pinned = a.pinned;
+      /* An unpinned chat counts from now, so unpinning an old one does not delete it on the spot. */
+      if (!a.pinned) patch.updated = Date.now();
+    }
+    await ctx.db.patch(c._id, patch);
+    if (a.pinned === false) await pruneChats(ctx, space);
+    return { ok: true };
+  },
+});
