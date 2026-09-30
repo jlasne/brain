@@ -1168,10 +1168,38 @@
     .seg.lv button{ padding:0 12px; }
     .col, .composer, .foot-note{ padding-left:16px; padding-right:16px; }
     .zero{ padding-left:16px; padding-right:16px; }
+    /* The empty chat stays short, so its questions to try are on screen. */
+    .zero{ padding-top:14px; }
+    .zero-mark{ height:52px; margin-bottom:12px; }
+    .zero-loop{ width:96px; height:96px; margin:-10px 0 0 -14px; }
+    .zero h2{ font-size:22px; }
+    .zero .lede{ display:none; }
+    .zero .try{ margin-top:14px; }
+    .zero .try button{ font-size:14px; }
+    /* The demo bar: one line of text, the three buttons on one row. */
+    .demo-bar{ margin-top:8px; padding:9px 11px; gap:8px; font-size:12.5px; line-height:1.45; }
+    .demo-bar .db-more{ display:none; }
+    .demo-bar .db-acts{ flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
+    .demo-bar .db-b{ padding:7px 10px; font-size:12px; white-space:nowrap; }
+    /* A personal chat: Add memory, the brain and New chat, on one row. */
+    #memBtn{ grid-area:1 / 1; }
+    .ctrls:has(#mode[hidden]) #scopeBtn{ grid-area:1 / 2; }
+    .ctrls:has(#mode[hidden]) #freshBtn{ grid-area:1 / 3; }
+    .ctrls:has(#mode[hidden]) .pk-lbl{ display:none; }
+    /* A brain's open and edit become icons, so its name has room. */
+    .brain-row .nm{ flex:1 1 auto; min-width:0; }
+    .brain-row .ed{ font-size:0; width:30px; height:30px; padding:0; place-items:center; }
+    .brain-row:hover .ed, .brain-row.on .ed{ display:inline-grid; }
+    .brain-row .ed::before{ content:""; width:16px; height:16px; background:currentColor;
+      -webkit-mask:var(--ic) center/contain no-repeat; mask:var(--ic) center/contain no-repeat; }
+    .brain-row .ed.op{ --ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7Zm0 3.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z'/%3E%3C/svg%3E"); }
+    .brain-row .ed.edt{ --ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M15.2 4.3a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L9 19.5 4 20l.5-5Z'/%3E%3C/svg%3E"); }
     .card-grid{ grid-template-columns:1fr; gap:4px 0; }
     .card-grid dt{ margin-top:8px; }
     .cf{ grid-template-columns:1fr; gap:4px; }
   }
+
+  @media (max-width:520px) and (hover:none){ .brain-row .ed{ display:inline-grid; } }
 
   @media (prefers-reduced-motion:reduce){
     *{ animation:none !important; transition:none !important; scroll-behavior:auto !important; }
@@ -1228,7 +1256,7 @@
     </div>
 
     <div class="demo-bar" id="demoBar" hidden>
-      <span class="db-t"><b>Live demo.</b> Every visitor shares 30 drops and 300 questions a month. Your chats stay yours.</span>
+      <span class="db-t"><b>Live demo.</b> Every visitor shares 30 drops and 300 questions a month.<span class="db-more"> Your chats stay yours.</span></span>
       <span class="db-acts"><button class="db-b" id="demoMap" type="button">Open the map</button><button class="db-b" id="demoSettle" type="button">Settle a clash</button><a class="db-b main" href="/#create">Make your own</a></span>
     </div>
     <div class="thread" id="thread"></div>
@@ -1746,12 +1774,12 @@ function brainRow(b){
   /* On a phone the drawer covers the thread, so a pick closes it. */
   row.onclick = () => { crossing(on ? "all" : b.slug); S.scope = on ? "all" : b.slug; S.into = on ? [] : [b.slug]; closeSide(); render(); };
   {
-    const op = el("span","ed","open");
+    const op = el("span","ed op","open");
     op.title = "See what this brain holds";
     op.onclick = e => { e.stopPropagation(); openBrainView(b); };
     row.append(op);
     if (!S.demo){
-      const ed = el("span","ed","edit");
+      const ed = el("span","ed edt","edit");
       ed.title = "Name and scope";
       ed.onclick = e => { e.stopPropagation(); openBrainSheet(b); };
       row.append(ed);

@@ -10,7 +10,7 @@ Feed it the people and sources you trust. Ask anything, and see who said it.
 
 [**Open the live demo**](https://brain.jeremylasne.com) &nbsp;·&nbsp; [How it works](#how-it-works) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="677 checks passing" src="https://img.shields.io/badge/checks-677%20passing-5fa8d3?style=flat-square&labelColor=050b16">
+<img alt="679 checks passing" src="https://img.shields.io/badge/checks-679%20passing-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-5fa8d3?style=flat-square&labelColor=050b16">
@@ -187,7 +187,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 ```
 app/            the landing, the app (one file) and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        677 checks, the app driven in a real browser included
+scripts/        679 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -201,7 +201,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-677 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+679 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 <br>
 
