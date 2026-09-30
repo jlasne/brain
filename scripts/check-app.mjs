@@ -1390,7 +1390,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
       if (s.includes("/api/state")) return Response.json(state);
       if (s.includes("/api/ask")) return Response.json({ answer: "Noted. Porto replaces Lisbon.", sources: 0, level: "normal", personal: true,
-        filed: { new: 1, updated: 1, titles: ["Moving abroad", "Budget"] }, chat: "c1" });
+        filed: { new: 1, updated: 1, titles: ["Moving abroad", "Budget"] }, called: ["Health"], chat: "c1" });
       if (s.includes("/api/personal/remember")) return Response.json({ filed: { new: 2, updated: 0, titles: ["A", "B"] } });
       if (s.includes("/api/brain")) return Response.json({ slug: "me-2" });
       return Response.json({ chats: [] });
@@ -1407,9 +1407,10 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     JSON.stringify(c));
   await page.fill("#input", "Actually Porto, not Lisbon"); await page.click("#send"); await page.waitForTimeout(250);
   const a = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/ask")).pop()?.body,
-    filed: document.querySelector(".msg.ai:last-child .filed")?.textContent, pager: [...document.querySelectorAll(".msg.ai:last-child .ans-acts .mini")].map(b => b.textContent) }));
+    filed: document.querySelector(".msg.ai:last-child .filed")?.textContent, called: document.querySelector(".msg.ai:last-child .filed.called")?.textContent, pager: [...document.querySelectorAll(".msg.ai:last-child .ans-acts .mini")].map(b => b.textContent) }));
   check("a message goes to the personal brain, and the reply says what it filed", a.sent?.brain === "me" && a.filed === "Filed: 1 new note, 1 note updated",
     JSON.stringify(a));
+  check("and names the other brain it called on its own", a.called === "Called your Health brain", JSON.stringify(a.called));
   check("a personal reply offers no one-pager", JSON.stringify(a.pager) === '["Copy"]', JSON.stringify(a.pager));
 
   /* Add memory: a long paste goes in pieces of 6,000 characters at most. */

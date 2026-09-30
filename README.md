@@ -10,7 +10,7 @@ Drop the talks, PDFs and links you trust. Ask anything, and see who said it and 
 
 [**Open the live demo**](https://brain.jeremylasne.com) &nbsp;·&nbsp; [Read the white paper](https://brain.jeremylasne.com/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="685 checks passing" src="https://img.shields.io/badge/checks-685%20passing-5fa8d3?style=flat-square&labelColor=050b16">
+<img alt="691 checks passing" src="https://img.shields.io/badge/checks-691%20passing-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-5fa8d3?style=flat-square&labelColor=050b16">
@@ -93,7 +93,9 @@ A third kind of brain, next to subjects and experts. You talk to it, and it keep
 - **It files your words.** Each message becomes up to 3 notes, each claim dated and signed "You". Only your words get filed.
 - **A change of mind** rewrites the note: the new view, and the one it replaces with its date.
 - **Add memory.** Paste what another assistant knows about you, or a notes file.
-- **Private.** It can call your other brains. Its own chat is its only reader.
+- **It talks to you as "you".** Its notes read "You want to move to Lisbon", and so do its replies.
+- **It calls your other brains on its own.** When one holds something that bears on what you said, it brings it up and names it: "your Health brain says 3 to 5 g a day". A line under the reply shows which brains it called.
+- **Private.** Its own chat is its only reader.
 
 ## Workspaces
 
@@ -176,7 +178,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 ```
 app/            the landing, the app (one file), the white paper and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        685 checks, the app driven in a real browser included
+scripts/        691 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -190,7 +192,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-685 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+691 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 <br>
 

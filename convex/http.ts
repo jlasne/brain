@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal } from "./space";
-import { remember, REPLY_RULES, MAX_CHARS } from "./personal";
+import { remember, REPLY_RULES, MAX_CHARS, calledBrains } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
 
@@ -632,8 +632,10 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   const date = new Date().toISOString().slice(0, 10);
   const history = (Array.isArray(b.history) ? b.history : []).slice(-4);
   const last = history.slice(-1).map((h: any) => `They said: ${String(h.q ?? "").slice(0, 500)}\nThe brain replied: ${String(h.a ?? "").slice(0, 600)}`).join("");
-  /* This personal brain and every brain that is not personal. */
+  /* This personal brain and every brain that is not personal: the reply may
+     call on any of them without being asked. */
   const pool = every.brains.filter((x: any) => x.type !== "personal" || x.slug === mine.slug);
+  const others = pool.filter((x: any) => x.slug !== mine.slug);
   const cards = every.cards.filter((c: any) => pool.some((x: any) => x.slug === c.brain));
   const t0 = Date.now();
 
@@ -649,23 +651,25 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
     const { text } = await ask([
       { role: "system", content: REPLY_RULES },
       { role: "user", content: `TODAY: ${date}\n\n${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}` +
-        `WHAT THEIR NOTES AND BRAINS HOLD (the notes of "${mine.name}" are their own words; the rest are their other brains)\n${pick.dossier}\n\nTHEIR MESSAGE\n${q}` },
+        `THEIR OTHER BRAINS, yours to call on: ${others.map((x: any) => `${x.name} (${x.type})`).join(", ") || "none yet"}\n\n` +
+        `WHAT THEIR NOTES AND BRAINS HOLD (entries "in ${mine.name}" are their own notes; every other entry comes from the brain it names)\n${pick.dossier}\n\nTHEIR MESSAGE\n${q}` },
     ], { maxTokens: 1200, key: mKey, model: mName, timeout: Math.max(60000, 160000 - (Date.now() - t0)) });
     return text;
   })();
   const [answer, filed] = await Promise.all([reply, filing]);
+  const called = calledBrains(answer, others);
 
   let chat: string | undefined;
   if ("chat" in b) {
     try {
       const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
         id: typeof b.chat === "string" ? b.chat : null, brain: mine.slug,
-        turn: { q: q.slice(0, 2000), a: answer, level: "normal", sources: 0, at: Date.now(), filed: filed ?? null } });
+        turn: { q: q.slice(0, 2000), a: answer, level: "normal", sources: 0, at: Date.now(), filed: filed ?? null, called } });
       chat = r.id;
     } catch { /* the reply still goes out */ }
   }
   return { answer, sources: 0, level: "normal", personal: true, filed: filed ?? { new: 0, updated: 0, titles: [], failed: true },
-           ...(chat ? { chat } : {}) };
+           called, ...(chat ? { chat } : {}) };
 }
 
 /**

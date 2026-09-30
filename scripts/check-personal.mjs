@@ -95,6 +95,19 @@ const TODAY = "2026-09-30";
   check("the filer is told to file only the owner's words, never a guess or a reply", /Never file a guess/.test(u) && /Never file what an assistant said/.test(u));
   check("it sees the notes held now, the nearest whole with their last date", /"Sleep": Aims for 8 hours\. \(last said 2026-09-12\)/.test(u) && /"Pricing": 20 euros/.test(u));
   check("the chat before is context only", /context only, never filed/.test(u) && /TODAY: 2026-09-30/.test(u));
+  check("a note is written to its owner as you, while the claim keeps their own words", /written to them as "you"/.test(u) && /first person kept/.test(u));
+}
+
+/* ---- the reply: to you, and it reaches for your other brains ---- */
+{
+  const r = personal.REPLY_RULES;
+  check("the reply talks to you, never about you", /Talk to them as "you"/.test(r) && /Never call them "the user", "the owner" or by their name/.test(r));
+  check("it brings up another brain on its own, and names it", /Take the initiative with their other brains/.test(r) && /without being asked/.test(r) && /"your \{Name\} brain"/.test(r));
+  const brains = [{ name: "Health", type: "subject" }, { name: "Content", type: "subject" }, { name: "Social", type: "subject" },
+    { name: "Richard Detente", type: "person" }, { name: "Me", type: "personal" }];
+  const called = personal.calledBrains("Noted. Your Health brain puts creatine at 3 to 5 g a day. Your Richard Detente brain calls compute scarce. Your Me brain agrees.", brains);
+  check("the brains a reply called are the ones it names as your X brain, the personal one aside", JSON.stringify(called) === '["Health","Richard Detente"]', JSON.stringify(called));
+  check("a subject named in passing is no call", personal.calledBrains("Your health comes first, and social time helps.", brains).length === 0);
 }
 
 /* ---- filing: a new note, then a change of mind on it ---- */

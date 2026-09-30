@@ -1008,6 +1008,8 @@
   /* A personal brain's reply says, quietly, what it filed. */
   .filed{ margin-top:9px; font:400 12.5px/1.5 var(--sans); color:var(--ink-4); display:flex; align-items:center; gap:6px; }
   .filed::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--accent-fill); flex:none; }
+  .filed.called{ margin-top:4px; }
+  .filed.called::before{ background:transparent; box-shadow:inset 0 0 0 1.5px var(--accent-fill); }
   .sheet textarea.mem{ min-height:180px; font:400 14px/1.55 var(--sans); }
   .mem-bar{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; }
 
@@ -2233,7 +2235,7 @@ function renderComposer(){
   }
   $("fileBtn").hidden = !drop;
   $("footNote").textContent = mine
-    ? "Personal, alpha: your words are filed as dated notes. Its replies are never filed, and only this chat reads it."
+    ? "Personal, alpha: your words are filed as dated notes. It calls your other brains when they help, and only this chat reads it."
     : drop
     ? "The source gets read once, then you reply to one card."
     : S.level==="educational" ? "Educational: terms defined, mechanism built, one worked example."
@@ -4144,9 +4146,18 @@ function showAnswer(body, r, q, asked){
   if (r.filed){
     const line = filedLine(r.filed);
     if (line){ const f = el("div","filed",line); f.title = (r.filed.titles || []).join(", "); body.append(f); }
+    const call = calledLine(r.called);
+    if (call) body.append(el("div","filed called",call));
     acts.append(cp);
   } else acts.append(cp, pg);
   body.append(acts);
+}
+
+/** The other brains a personal reply reached for on its own, or nothing. */
+function calledLine(names){
+  const n = (Array.isArray(names) ? names : []).map(String).filter(Boolean);
+  if (!n.length) return "";
+  return n.length === 1 ? `Called your ${n[0]} brain` : `Called your ${n.slice(0, -1).join(", ")} and ${n[n.length - 1]} brains`;
 }
 
 /** What a personal reply filed, in a few words, or nothing when it filed nothing. */

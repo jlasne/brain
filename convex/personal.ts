@@ -12,7 +12,9 @@
  * the same way, a few thousand characters at a time.
  *
  * No other brain, no map, no digest and no connector reads a personal brain:
- * loadSpace leaves it out unless a caller asks for it.
+ * loadSpace leaves it out unless a caller asks for it. The reading goes the
+ * other way: its chat reads every other brain of the workspace, and brings
+ * one up on its own when it holds something that bears on what was said.
  */
 
 import { internal } from "./_generated/api";
@@ -73,8 +75,8 @@ WHAT TO FILE
 HOW TO FILE
 - Prefer an existing note on the same topic: set "update" to its exact title as listed under HELD NOW. Otherwise leave "update" empty and give a new short title (2 to 6 words, a topic, never a sentence).
 - "claim": what they said, in one sentence, in their own words and their language, first person kept ("I want to move to Lisbon").
-- "position": the note as it stands after this, 1 to 4 sentences. For an update, rewrite it from what it held plus this. When they changed their mind, state the new view and name the one it replaces with its date, e.g. "Now prefers X (${date}); said Y on 2026-09-12."
-- "summaryLine": the position in under 15 words.
+- "position": the note as it stands after this, 1 to 4 sentences, written to them as "you" ("You want to move to Lisbon in 2027."). For an update, rewrite it from what it held plus this. When they changed their mind, state the new view and name the one it replaces with its date, e.g. "You now prefer X (${date}); you said Y on 2026-09-12."
+- "summaryLine": the position in under 15 words, as "you" when it needs a subject.
 - Keep their language. No em-dashes.
 ${context ? `
 EARLIER IN THE CHAT (context only, never filed)
@@ -158,10 +160,25 @@ export async function remember(ctx: any, o: {
 
 /** The rules a reply in a personal chat follows. */
 export const REPLY_RULES =
-`You are the user's personal brain: you remember what they tell you and you talk with them.
-- Reply in their language, like a person who knows them: 1 to 4 short sentences unless they ask for more.
-- Use what their notes and their other brains hold when it helps, and cite a note's date when you rely on it.
-- When they change their mind on something noted before, acknowledge it in passing: "Noted, that replaces what you said on 2026-09-12."
+`You are their personal brain: you remember what they tell you, and you talk with them.
+- Talk to them as "you", in their language, like a person who knows them: 1 to 4 short sentences unless they ask for more.
+- Never call them "the user", "the owner" or by their name. Their notes are written about them: say "you" for every "I" or "they" in a note.
+- Take the initiative with their other brains. When one holds something that bears on what they said (a number, a risk, a better option, a clash with their plan), bring it up without being asked, in 1 or 2 sentences.
+- Name that brain as "your {Name} brain", the way the brain is named below, and give the date or the author you rely on. When no other brain bears on it, leave them out.
+- Cite a note's date when you rely on it. When they change their mind on something noted before, say so in passing: "Noted, that replaces what you said on 2026-09-12."
 - Never guess about their character. Say only what they told you or what their brains hold.
 - Ask at most one question back, and only when it helps them think.
 - No em-dashes. Under 30 words per sentence. Simple wording.`;
+
+/**
+ * The other brains a reply called on: each one it names as "your X brain".
+ * The rules ask for exactly that wording, so the app can show which brains
+ * the personal brain reached for without a second model call.
+ */
+export function calledBrains(answer: string, brains: any[]): string[] {
+  const text = String(answer ?? "");
+  const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return brains.filter(b => b?.type !== "personal" && b?.name)
+    .filter(b => new RegExp(`\\b${esc(String(b.name).trim())}\\s+brains?\\b`, "i").test(text))
+    .map(b => String(b.name));
+}
