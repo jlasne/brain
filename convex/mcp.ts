@@ -708,8 +708,9 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
   const space = spaceOf(caller);
   /* Slim copies for every list; a concept is read whole only when opened. */
   const { brains, cards: concepts, sources } = await loadSpace(ctx, space);
+  /* Only concepts of the brains listed: a personal brain's never reach a client. */
   const whole = async (ids: string[]) => ids.length
-    ? await ctx.runQuery(internal.store.conceptsByIds, { space, ids }) : [];
+    ? (await ctx.runQuery(internal.store.conceptsByIds, { space, ids })).filter((c: any) => brains.some((x: any) => x.slug === c.brain)) : [];
 
   if (name === "ask") {
     const q = String(args?.question ?? "").trim();

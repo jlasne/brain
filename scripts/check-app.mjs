@@ -1324,6 +1324,71 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
+/* ---- a personal brain: a chat that files what you say ---- */
+{
+  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "What I say", owner: null }],
+    concepts: [{ brain: "me", slug: "lisbon", n: 1, title: "Moving abroad", summaryLine: "Lisbon in 2027" }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/ask")) return Response.json({ answer: "Noted. Porto replaces Lisbon.", sources: 0, level: "normal", personal: true,
+        filed: { new: 1, updated: 1, titles: ["Moving abroad", "Budget"] }, chat: "c1" });
+      if (s.includes("/api/personal/remember")) return Response.json({ filed: { new: 2, updated: 0, titles: ["A", "B"] } });
+      if (s.includes("/api/brain")) return Response.json({ slug: "me-2" });
+      return Response.json({ chats: [] });
+    };
+  }, mine);
+  await page.waitForTimeout(250);
+  const first = await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent)[0]);
+  check("a personal brain leads the list", first === "Me", first);
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent)).click());
+  await page.waitForTimeout(100);
+  const c = await page.evaluate(() => ({ mode: document.getElementById("mode").hidden, mem: !document.getElementById("memBtn").hidden,
+    level: document.getElementById("levelWrap").hidden, ph: document.getElementById("input").placeholder, foot: document.getElementById("footNote").textContent }));
+  check("its chat has no Drop and no levels, and offers Add memory", c.mode && c.mem && c.level && /Tell it anything/.test(c.ph) && /only this chat reads it/.test(c.foot),
+    JSON.stringify(c));
+  await page.fill("#input", "Actually Porto, not Lisbon"); await page.click("#send"); await page.waitForTimeout(250);
+  const a = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/ask")).pop()?.body,
+    filed: document.querySelector(".msg.ai:last-child .filed")?.textContent, pager: [...document.querySelectorAll(".msg.ai:last-child .ans-acts .mini")].map(b => b.textContent) }));
+  check("a message goes to the personal brain, and the reply says what it filed", a.sent?.brain === "me" && a.filed === "Filed: 1 new note, 1 note updated",
+    JSON.stringify(a));
+  check("a personal reply offers no one-pager", JSON.stringify(a.pager) === '["Copy"]', JSON.stringify(a.pager));
+
+  /* Add memory: a long paste goes in pieces of 6,000 characters at most. */
+  await page.click("#memBtn"); await page.waitForTimeout(100);
+  const para = "I like long walks and I plan my week on Sundays. ".repeat(40);
+  await page.fill("#memText", Array.from({ length: 7 }, () => para).join("\n\n"));
+  await page.click("#memGo"); await page.waitForTimeout(500);
+  const m = await page.evaluate(() => ({ calls: window.__calls.filter(x => x.s.includes("/api/personal/remember")).map(x => ({ b: x.body.brain, n: x.body.text.length })),
+    said: [...document.querySelectorAll(".msg.ai")].pop()?.textContent, open: !!document.getElementById("memText") }));
+  check("Add memory files a long paste in pieces, each under 6,000 characters", m.calls.length >= 3 && m.calls.every(x => x.b === "me" && x.n <= 6000)
+    && /Remembered\. 6 new notes/.test(m.said || "") && !m.open, JSON.stringify(m));
+
+  /* It is never fed by a drop. */
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent)).click());
+  await page.waitForTimeout(80);
+  check("leaving the personal chat brings Drop back", !(await page.evaluate(() => document.getElementById("mode").hidden)));
+  await page.click('#mode [data-m="drop"]'); await page.click("#scopeBtn"); await page.waitForTimeout(80);
+  const rows = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-nm")].map(x => x.textContent));
+  check("a drop never offers the personal brain", !rows.some(r => /^Me/.test(r)) && rows.some(r => /Content/.test(r)), JSON.stringify(rows));
+  await page.keyboard.press("Escape"); await page.evaluate(() => document.body.click());
+
+  /* Making one: the third kind, with no scope line to write. */
+  await page.click("#newBrain"); await page.waitForTimeout(100);
+  await page.click('#bType [data-t="personal"]');
+  const sheet = await page.evaluate(() => ({ scope: document.getElementById("bScopeF").hidden, name: document.getElementById("bName").value,
+    hint: document.getElementById("bKindHint").textContent }));
+  check("a personal brain needs no scope line, and says what it is", sheet.scope && sheet.name === "Me" && /they never read it/.test(sheet.hint), JSON.stringify(sheet));
+  await page.fill("#bName", "Me too"); await page.click("#bMake"); await page.waitForTimeout(250);
+  const made = await page.evaluate(() => window.__calls.filter(x => x.s.endsWith("/api/brain")).pop()?.body);
+  check("and it is made as one", made?.type === "personal" && made?.name === "Me too" && made?.scope === "", JSON.stringify(made));
+  check("nothing threw around the personal brain", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- a workspace on its own key ---- */
 {
   const mine = { ...STATE, space: "acme", spaceName: "Acme", byok: true };

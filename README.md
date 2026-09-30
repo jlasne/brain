@@ -35,8 +35,9 @@ A brain still uses a language model: to read your sources and to write each answ
 | **See it whole** | Each brain scores out of 10 against your best one on variety, depth, freshness and conflicts. The map draws every brain as an arm of the octopus. |
 | **Chats that stay** | Every question and answer is kept. Reopen, rename, pin up to 5. Old ones clear after 30 days. |
 | **A memory for Claude** | The owner's workspaces connect to Claude through MCP: Claude reads and feeds the brains with its own model. |
+| **A brain of your own (alpha)** | A personal brain is a chat. It files what you say as dated notes in your words, and answers from them and from your other brains. |
 
-Its builder uses it every day: 126 sources, 369 concepts and 12 brains in the Octopus workspace at the end of September 2026. 624 automated checks run on every change.
+Its builder uses it every day: 126 sources, 369 concepts and 12 brains in the Octopus workspace at the end of September 2026. 669 automated checks run on every change.
 
 ## How it works
 
@@ -79,19 +80,34 @@ Andrej Karpathy showed that an AI should compile your sources into a wiki once, 
 - **Learning.** Study from your own sources: steps instead of answers, quizzes, deep dives.
 - **Your AI.** A knowledge base Claude reads through MCP, with every claim sourced.
 
+## The personal brain (alpha)
+
+A third kind of brain, next to subjects and people. You talk to it; it keeps what you said.
+
+- **What it files.** Anything you state: a plan, a decision, an idea, a view, something you learned. Each message is read once and filed as up to 3 notes, each claim dated and signed "You".
+- **What it never files.** Its own replies, and any guess about you. A greeting or a plain lookup files nothing.
+- **A change of mind.** The note on that topic is rewritten: the new view, and the one it replaces with its date. The reply can say so in passing.
+- **Receipts.** Under each reply, one quiet line: "Filed: 1 new note, 1 note updated". Hover it for the titles.
+- **Add memory.** Paste or drop what another assistant knows about you: a ChatGPT memory, a Claude project note, a markdown file. It is filed in pieces of 6,000 characters, the same way.
+- **Who reads it.** Its own chat, which can call on every other brain. No other chat, no one-pager, no map, no health score, no digest and no Claude connector ever reads a personal brain. The demo has none.
+
+A workspace holds as many personal brains as you make.
+
 ## Workspaces
 
 A workspace holds its own brains and chats, and sees nothing of the others. Octopus and Squidgy are the builder's own; the landing lists them next to the demo.
 
 | | The owner's (Octopus, Squidgy) | The demo | Your own |
 |---|---|---|---|
-| How you enter | Passphrase, from the landing or at `/octopus` and `/squidgy` | One click from the landing, no passphrase | Name and passphrase from the landing |
+| How you enter | Its own page, `/octopus` or `/squidgy`, with the passphrase on top | One click from the landing, no passphrase | Made on the landing; opened again from "Open your workspace" |
 | Model calls paid by | The deployment's key | The deployment's key, or `DEMO_OPENROUTER_API_KEY` | Your OpenRouter key |
 | Model | Any, picked in Setup | The default | Any, picked in Setup |
 | Limits | None | 30 drops and 300 questions a month, shared by every visitor | Your key's own |
 | Mail, Claude connector, weekly digest | Yes | No | No |
 | Create or rename brains | Yes | No | Yes |
 | Chats | Shared by the workspace | Each visitor's own | Shared by the workspace |
+
+**Your look.** Setup takes a logo, an accent and a page colour for each workspace, previewed as you pick them. The shades that carry text are derived to read at 4.5:1, and the page colour is kept light. The page that asks for the passphrase wears the look too. Octopus and Squidgy keep their own colours; every other workspace starts in Brain's blue, the demo included.
 
 **Your key stays yours.** It is checked once with OpenRouter when the workspace is made, then kept in your browser only. It travels with each call that needs a model and is never written to the database or logs. A workspace on its own key never falls back to the owner's.
 
@@ -145,17 +161,18 @@ Preview the digest without sending it: `npx convex run digest:send '{"dry":true}
 
 - Passphrases are stored as salted SHA-256 hashes, one per workspace, each with its own counter: 8 wrong guesses close that door for an hour.
 - Every route checks the session before it reads a brain or calls a model.
-- The demo runs on the default model within its monthly limits, sends no mail and cannot create, rename or connect brains.
+- The demo runs on the default model within its monthly limits, sends no mail and cannot create, rename or connect brains, or change its look.
+- A personal brain is read by its own chat only. Every other reader loads the workspace without it.
 - A visitor's OpenRouter key is never stored on the server.
 - Raw transcripts are never stored: only what was extracted from them.
 
 ## Layout
 
 ```
-app/index.html         the landing, and the doors to Octopus and Squidgy
-app/chat.html          the app, one file
+app/index.html         the landing: the workspaces, what makes a brain, how it works
+app/chat.html          the app, one file, and each workspace's passphrase page
 app/doc.html           the connector setup
-convex/                the server: routes, store, drop, one-pager, health, conflicts
+convex/                the server: routes, store, drop, one-pager, health, conflicts, personal
 scripts/               the checks: npm run check
 PROTOCOL.md            the 41 rules the brain follows
 CONVEX.md              the server build, and why the key belongs there
@@ -169,7 +186,7 @@ templates/, brains/    the markdown shape of a brain
 npm run check
 ```
 
-624 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, and the app itself driven in a real browser.
+669 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 ## License
 

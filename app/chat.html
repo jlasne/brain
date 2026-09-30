@@ -988,6 +988,12 @@
   .sheet .bad{ color:var(--accent); font-size:13.5px; line-height:1.5; margin-top:4px; min-height:1.2em; }
   .sheet .spin{ color:var(--ink-3); font-size:13.5px; line-height:1.5; margin-top:4px; min-height:1.2em; }
 
+  /* A personal brain's reply says, quietly, what it filed. */
+  .filed{ margin-top:9px; font:400 12.5px/1.5 var(--sans); color:var(--ink-4); display:flex; align-items:center; gap:6px; }
+  .filed::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--accent-fill); flex:none; }
+  .sheet textarea.mem{ min-height:180px; font:400 14px/1.55 var(--sans); }
+  .mem-bar{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; }
+
   /* The look: a logo and two colours, previewed on the page as they change. */
   .look{ display:flex; gap:10px; flex-wrap:wrap; }
   .sheet .look-logo, .sheet .look-c{
@@ -1231,6 +1237,7 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z"/></svg><span>Learning</span></button>
             </div>
           </div>
+          <button class="fresh" id="memBtn" hidden title="Paste or drop what another assistant knows about you">Add memory</button>
           <button class="fresh" id="freshBtn" hidden title="Keep this chat in the list and start a new one">New chat</button>
         </div>
         <div class="box">
@@ -1684,17 +1691,24 @@ function paintSpace(){
  */
 const weight = b => conceptsOf(b.slug).length * 1000 + sourcesOf(b.slug).length;
 function grouped(){
-  const of = t => ordered().filter(b => (b.type === "person" ? "person" : "subject") === t);
+  const of = t => ordered().filter(b => b.type !== "personal" && (b.type === "person" ? "person" : "subject") === t);
   return [{ head: "People", rows: of("person") }, { head: "Subjects", rows: of("subject") }]
     .filter(g => g.rows.length);
 }
 /** Every brain in one list, the fullest first. An icon tells a person from a subject. */
-const ordered = () => [...S.brains].sort((x, y) => weight(y) - weight(x) || x.name.localeCompare(y.name));
+/* Personal brains lead: they are yours, and the list's first stop. */
+const ordered = () => [...S.brains].sort((x, y) => (y.type === "personal") - (x.type === "personal") || weight(y) - weight(x) || x.name.localeCompare(y.name));
 const BRAIN_ICON = {
+  personal: `<svg class="b-ic" viewBox="0 0 24 24" role="img" aria-label="Personal"><title>Personal</title><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>`,
   person: `<svg class="b-ic" viewBox="0 0 24 24" role="img" aria-label="Person"><title>Person</title><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/></svg>`,
   subject: `<svg class="b-ic" viewBox="0 0 24 24" role="img" aria-label="Subject"><title>Subject</title><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/></svg>`,
 };
-const brainIcon = b => { const w = el("span","b-ico"); w.innerHTML = BRAIN_ICON[b.type === "person" ? "person" : "subject"]; return w.firstChild; };
+const brainIcon = b => { const w = el("span","b-ico"); w.innerHTML = BRAIN_ICON[b.type === "person" || b.type === "personal" ? b.type : "subject"]; return w.firstChild; };
+/* A personal brain: a chat that files what its owner says. Only its own chat reads it. */
+function isPersonal(slug){ return S.brains.find(b => b.slug === slug)?.type === "personal"; }
+/* Into a personal chat or out of one, the thread starts fresh: the two never share a chat. */
+function crossing(to){ if (S.chatId && isPersonal(to) !== isPersonal(S.scope)) newChat(); }
+const shared = () => S.brains.filter(b => b.type !== "personal");
 
 /* Clicking a row picks that brain to ask or to feed. A second click goes back
    to every brain. Edit is the one control a row carries. */
@@ -1708,9 +1722,10 @@ function brainRow(b){
   row.append(brainIcon(b), el("span","nm",b.name));
   const h = S.health[b.slug];
   if (h) row.append(healthRing(h, b));
-  row.title = `${b.scope || "no scope line"}\n${ideas} concepts, ${read} sources`;
+  row.title = b.type === "personal" ? `Personal, alpha: it files what you say in its chat, dated. Only that chat reads it.\n${ideas} notes`
+    : `${b.scope || "no scope line"}\n${ideas} concepts, ${read} sources`;
   /* On a phone the drawer covers the thread, so a pick closes it. */
-  row.onclick = () => { S.scope = on ? "all" : b.slug; S.into = on ? [] : [b.slug]; closeSide(); render(); };
+  row.onclick = () => { crossing(on ? "all" : b.slug); S.scope = on ? "all" : b.slug; S.into = on ? [] : [b.slug]; closeSide(); render(); };
   {
     const op = el("span","ed","open");
     op.title = "See what this brain holds";
@@ -2066,10 +2081,11 @@ function openBrainSheet(b){
 /** The picker's face: the space's mark, where it goes, and to which brain. */
 function renderScope(){
   if (!S.brains.some(b => b.slug === S.scope)) S.scope = "all";
-  S.into = S.into.filter(x => S.brains.some(b => b.slug === x));
+  S.into = S.into.filter(x => S.brains.some(b => b.slug === x) && !isPersonal(x));
+  if (isPersonal(S.scope) && S.mode === "drop") S.mode = "ask";
   const drop = S.mode === "drop";
   const nameOf = x => S.brains.find(b => b.slug === x)?.name || x;
-  $("scopeLabel").textContent = drop ? "Into" : "Across";
+  $("scopeLabel").textContent = drop ? "Into" : isPersonal(S.scope) ? "Chat with" : "Across";
   /* A drop can feed several brains: the first by name, then how many more. */
   $("scopeVal").textContent = drop
     ? (!S.into.length ? "Suggest for me" : S.into.length === 1 ? nameOf(S.into[0]) : `${nameOf(S.into[0])} +${S.into.length - 1}`)
@@ -2105,7 +2121,7 @@ function fillPick(){
     if (count != null) r.append(el("span","pk-ct", count));
     r.onclick = e => {
       e.stopPropagation();
-      if (!drop){ S.scope = slug; S.into = slug === "all" ? [] : [slug]; closePick(); render(); $("input").focus(); return; }
+      if (!drop){ crossing(slug); S.scope = slug; S.into = slug === "all" ? [] : [slug]; closePick(); render(); $("input").focus(); return; }
       if (slug === "all") S.into = [];
       else S.into = S.into.includes(slug) ? S.into.filter(x => x !== slug) : [...S.into, slug];
       S.scope = S.into.length === 1 ? S.into[0] : "all";
@@ -2118,7 +2134,7 @@ function fillPick(){
     drop ? "The AI picks where it belongs" : `${S.brains.length} brain${S.brains.length===1?"":"s"}, ${ideas} concept${ideas===1?"":"s"}`));
   if (drop) m.append(el("div","pk-h","Or tick the brains to feed"));
   if (!drop) m.append(el("div","pk-h","Or one brain"));
-  for (const b of ordered()) m.append(row(b.slug, b.name, "", String(conceptsOf(b.slug).length), b));
+  for (const b of ordered()) if (!drop || b.type !== "personal") m.append(row(b.slug, b.name, b.type === "personal" ? "your chat" : "", String(conceptsOf(b.slug).length), b));
   if (drop){
     const done = el("button","pk-done", S.into.length > 1 ? `Feed ${S.into.length} brains` : "Done");
     done.onclick = e => { e.stopPropagation(); closePick(); $("input").focus(); };
@@ -2149,21 +2165,29 @@ function closePick(){
 
 function renderComposer(){
   [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m === S.mode));
+  /* A personal brain is a chat: no Drop, no levels, and a way to bring in
+     what another assistant already knows about you. */
+  const mine = S.mode === "ask" && isPersonal(S.scope);
+  $("mode").hidden = mine;
+  $("memBtn").hidden = !mine || S.demo;
   /* It appears once there is something to forget. */
   $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length;
   const drop = S.mode==="drop";
   $("srcLine").hidden = !drop;
   $("input").placeholder = drop
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
+    : mine ? "Tell it anything: a plan, a decision, an idea. Or ask what you said."
     : S.scope==="all" ? "Ask anything your brains have read."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this brain") + ".";
-  $("levelWrap").hidden = drop;
+  $("levelWrap").hidden = drop || mine;
   for (const x of $("level").children){
     const on = x.dataset.v === S.level;
     x.classList.toggle("on", on); x.setAttribute("aria-checked", on ? "true" : "false");
   }
   $("fileBtn").hidden = !drop;
-  $("footNote").textContent = drop
+  $("footNote").textContent = mine
+    ? "Personal, alpha: your words are filed as dated notes. Its replies are never filed, and only this chat reads it."
+    : drop
     ? "The source gets read once, then you reply to one card."
     : S.level==="educational" ? "Educational: terms defined, mechanism built, one worked example."
     : S.level==="learning" ? "Learning: no answer given. Steps and hints to reach it yourself."
@@ -2465,7 +2489,7 @@ async function openMap(){
 
   const draw = () => {
     svg.innerHTML = "";
-    const brains = ordered(), n = brains.length;
+    const brains = ordered().filter(b => b.type !== "personal"), n = brains.length;
     const root = mk("g", {}, svg);
     if (!n){ stage.innerHTML = `<div class="hint" style="padding:20px">No brain yet. Create one and it grows an arm.</div>`; return; }
     const CX = 500, CY = 500, R0 = 78, L = 360;
@@ -3228,10 +3252,11 @@ function openSheet(name, scope, type){
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Create a brain</h3>
       <p>A brain is a subject or a person. Its scope line is the only test of what belongs inside, so make it specific.</p></header>
-      <div class="f"><label for="bName">Name</label><input id="bName" autocomplete="off"></div>
-      <div class="f"><label for="bScope">Scope, in one line</label><textarea id="bScope"></textarea></div>
       <div class="f"><label>Kind</label><div class="seg" id="bType">
-        <button data-t="subject">Subject</button><button data-t="person">Person</button></div></div>
+        <button data-t="subject">Subject</button><button data-t="person">Person</button><button data-t="personal">Personal</button></div>
+        <div class="hint" id="bKindHint"></div></div>
+      <div class="f"><label for="bName">Name</label><input id="bName" autocomplete="off"></div>
+      <div class="f" id="bScopeF"><label for="bScope">Scope, in one line</label><textarea id="bScope"></textarea></div>
       <div id="closestSlot"></div>
       <footer><button class="ghost" id="bCancel">Cancel</button><button class="go" id="bMake">Check and create</button></footer>
     </div>`;
@@ -3243,6 +3268,11 @@ function openSheet(name, scope, type){
   let kind = type||"subject";
   const paint = () => {
     [...veil.querySelectorAll("#bType button")].forEach(b => b.classList.toggle("on", b.dataset.t===kind));
+    veil.querySelector("#bScopeF").hidden = kind === "personal";
+    veil.querySelector("#bKindHint").textContent = kind === "personal"
+      ? "Alpha. A chat that files what you say, dated, in your words. It can call on your other brains; they never read it."
+      : kind === "person" ? "One expert's views, kept apart from the rest." : "A subject, fed from any source that fits its scope.";
+    if (kind === "personal" && !nameI.value.trim()) nameI.value = "Me";
   };
   paint();
   veil.querySelector("#bType").onclick = e => { const b=e.target.closest("button"); if(b){ kind=b.dataset.t; paint(); } };
@@ -3253,9 +3283,9 @@ function openSheet(name, scope, type){
 
   let confirmed = false;
   veil.querySelector("#bMake").onclick = async () => {
-    const nm = nameI.value.trim(), sc = scopeI.value.trim();
-    if (!nm || !sc){ (nm?scopeI:nameI).focus(); return; }
-    if (!confirmed && S.brains.length){
+    const nm = nameI.value.trim(), sc = kind === "personal" ? "" : scopeI.value.trim();
+    if (!nm || (!sc && kind !== "personal")){ (nm?scopeI:nameI).focus(); return; }
+    if (!confirmed && S.brains.length && kind !== "personal"){
       const near = nearest(sc);
       if (near){
         const slot = veil.querySelector("#closestSlot"); slot.innerHTML = "";
@@ -3272,6 +3302,16 @@ function openSheet(name, scope, type){
     try {
       const r = await api("/api/brain", { name:nm, scope:sc, type:kind });
       shut(); await refresh();
+      if (kind === "personal"){
+        if (S.chatId) newChat();
+        S.scope = r.slug; S.into = []; S.mode = "ask";
+        [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="ask"));
+        render();
+        push("ai", b => { b.innerHTML = rich(`**${esc(nm)}** is ready. Talk to it: it files what you say as dated notes, and answers from them and from your other brains. ` +
+          `**Add memory** brings in what another assistant already knows about you.`); });
+        $("input").focus();
+        return;
+      }
       S.scope = r.slug; S.into = [r.slug]; S.mode = "drop";
       [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="drop"));
       render();
@@ -3286,6 +3326,85 @@ function openSheet(name, scope, type){
     }
   };
 }
+
+/**
+ * Add memory: what another assistant knows about you, pasted or dropped in.
+ * It is cut into pieces of about 6,000 characters on paragraph breaks, and
+ * each piece is filed like a message, one call at a time.
+ */
+function memPieces(t, max = 6000){
+  const out = []; let cur = "";
+  for (const para of String(t).replace(/\r/g, "").split(/\n{2,}/)){
+    let p = para.trim();
+    if (!p) continue;
+    while (p.length > max){
+      const cut = Math.max(p.lastIndexOf(". ", max), p.lastIndexOf("\n", max), p.lastIndexOf(" ", max), Math.floor(max / 2));
+      if (cur){ out.push(cur); cur = ""; }
+      out.push(p.slice(0, cut + 1).trim()); p = p.slice(cut + 1).trim();
+    }
+    if (cur && cur.length + p.length + 2 > max){ out.push(cur); cur = ""; }
+    cur = cur ? cur + "\n\n" + p : p;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+function openMemorySheet(){
+  const b = S.brains.find(x => x.slug === S.scope && x.type === "personal");
+  if (!b) return;
+  closeSide();
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true">
+      <header><h3>Add memory to ${esc(b.name)}</h3>
+      <p>Paste what another assistant knows about you, or drop a text, markdown or JSON file. In ChatGPT it sits under
+        Settings, Personalization, Memory. It is filed as dated notes, like what you say in the chat.</p></header>
+      <div class="f"><textarea class="mem" id="memText" placeholder="Paste it here"></textarea>
+        <div class="mem-bar"><button class="mini" id="memFile" type="button">+ file</button><span class="hint" id="memCount"></span></div>
+        <input type="file" id="memIn" hidden accept=".txt,.md,.markdown,.json,text/plain,text/markdown,application/json"></div>
+      <div class="f"><div id="memMsg" class="hint" role="status"></div></div>
+      <footer><button class="ghost" id="memNo">Cancel</button><button class="go" id="memGo">Remember it</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const t = veil.querySelector("#memText"), msg = veil.querySelector("#memMsg"), go = veil.querySelector("#memGo");
+  const count = () => { const n = t.value.length; veil.querySelector("#memCount").textContent = n ? `${n.toLocaleString()} characters, ${memPieces(t.value).length} piece${memPieces(t.value).length === 1 ? "" : "s"}` : ""; };
+  t.oninput = count;
+  let busy = false;
+  const shut = () => { if (!busy) veil.remove(); };
+  veil.querySelector("#memNo").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  veil.querySelector("#memFile").onclick = () => veil.querySelector("#memIn").click();
+  veil.querySelector("#memIn").onchange = async ev => {
+    const f = ev.target.files?.[0]; ev.target.value = "";
+    if (!f) return;
+    if (f.size > 400000){ msg.textContent = "That file is over 400 KB. Paste the part that matters."; return; }
+    t.value = (t.value ? t.value + "\n\n" : "") + await f.text(); count();
+  };
+  setTimeout(() => t.focus(), 30);
+  go.onclick = async () => {
+    const text = t.value.trim();
+    if (!text){ t.focus(); return; }
+    if (text.length > 200000){ msg.textContent = "Up to 200,000 characters at a time. Paste the part that matters most."; return; }
+    const pieces = memPieces(text);
+    busy = true; go.disabled = true; t.disabled = true;
+    let made = 0, updated = 0, done = 0;
+    try {
+      for (const piece of pieces){
+        msg.textContent = pieces.length > 1 ? `Filing piece ${done + 1} of ${pieces.length}` : "Filing";
+        const r = await apiRetry("/api/personal/remember", { brain: b.slug, text: piece });
+        made += r.filed?.new || 0; updated += r.filed?.updated || 0; done++;
+      }
+      busy = false; veil.remove();
+      await refresh().catch(() => {});
+      push("ai", x => { x.innerHTML = rich(made || updated
+        ? `**Remembered.** ${filedLine({ new: made, updated }).replace(/^Filed: /, "")}, in ${esc(b.name)}. Ask it what it knows about you.`
+        : "Nothing in that was worth filing as a note."); });
+    } catch (e) {
+      busy = false; go.disabled = false; t.disabled = false;
+      msg.textContent = (done ? `${done} of ${pieces.length} pieces were filed. ` : "") + e.message;
+    }
+  };
+}
+$("memBtn").onclick = openMemorySheet;
 
 function nearest(scope){
   const stop = new Set("the a an and or of for my own to in on with about from at by as is are".split(" "));
@@ -3461,7 +3580,8 @@ const lastMail = () => { try { return localStorage.getItem(MAIL_KEY) || ""; } ca
 function pickOptions(){
   const opt = (v, t) => `<option value="${esc(v)}">${esc(t)}</option>`;
   const groups = grouped();
-  let out = opt("all", `Everything (${S.brains.length} brain${S.brains.length === 1 ? "" : "s"})`);
+  const n = shared().length;
+  let out = opt("all", `Everything (${n} brain${n === 1 ? "" : "s"})`);
   for (const g of groups){
     const whole = g.head === "People" ? "person" : "subject";
     out += `<optgroup label="${esc(g.head)}">` + opt(whole, `All ${g.head.toLowerCase()} (${g.rows.length})`) +
@@ -3472,9 +3592,10 @@ function pickOptions(){
 
 function openPagerSheet(pre = {}){
   closeSide();
-  const here = S.brains.find(b => b.slug === S.scope);
+  /* A one-pager is built from shared brains: a personal one is read by its own chat only. */
+  const here = S.brains.find(b => b.slug === S.scope && b.type !== "personal");
   const people = S.brains.some(b => b.type === "person");
-  const subjects = S.brains.some(b => b.type !== "person");
+  const subjects = S.brains.some(b => b.type !== "person" && b.type !== "personal");
   const veil = el("div","veil");
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
@@ -3911,6 +4032,7 @@ async function doAsk(q){
     body.innerHTML = "";
     showAnswer(body, r, q, S.scope);
     if (r.chat){ S.chatId = r.chat; loadChats(); }
+    if (r.filed && (r.filed.new || r.filed.updated)) refresh().catch(() => {});
     /* Six turns is what a thread of follow-ups runs to before the subject has
        moved anyway. Only the last four travel. */
     S.thread.push({ q, a: String(r.answer ?? "") });
@@ -3939,7 +4061,20 @@ function showAnswer(body, r, q, asked){
   };
   const pg = el("button","mini","One-pager from this");
   pg.onclick = () => openPagerSheet({ q, pick: asked });
-  acts.append(cp, pg); body.append(acts);
+  if (r.filed){
+    const line = filedLine(r.filed);
+    if (line){ const f = el("div","filed",line); f.title = (r.filed.titles || []).join(", "); body.append(f); }
+    acts.append(cp);
+  } else acts.append(cp, pg);
+  body.append(acts);
+}
+
+/** What a personal reply filed, in a few words, or nothing when it filed nothing. */
+function filedLine(f){
+  if (f.failed) return "Not filed this time. Say it again to keep it.";
+  const n = f.new || 0, u = f.updated || 0;
+  const news = n ? `${n} new note${n === 1 ? "" : "s"}` : "", ups = u ? `${u} note${u === 1 ? "" : "s"} updated` : "";
+  return n || u ? "Filed: " + [news, ups].filter(Boolean).join(", ") : "";
 }
 
 /**

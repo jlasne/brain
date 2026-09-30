@@ -21,7 +21,8 @@ import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, tra
 import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId } from "./words";
 import { routeQuestion } from "./route";
-import { loadSpace } from "./space";
+import { loadSpace, withoutPersonal } from "./space";
+import { remember, REPLY_RULES, MAX_CHARS } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
 
@@ -294,7 +295,7 @@ route("/api/state", async (ctx, _req, b) => {
      concepts, a page at a time. */
   const { brains, cards, sources } = await loadSpace(ctx, who.space, async head => {
     if (!head.ready && ctx.scheduler) await ctx.scheduler.runAfter(0, internal.admin.buildCards, {});
-  });
+  }, { personal: true });
   /* The app lists and counts concepts, so it gets their names and summary
      lines. The whole concept travels only for the export. */
   const s = { brains, sources, concepts: cards.map((c: any) => ({
@@ -364,9 +365,11 @@ route("/api/export", async (ctx, _req, b) => {
 
 route("/api/brain", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  const name = String(b.name ?? "").trim(), scope = String(b.scope ?? "").trim();
+  const name = String(b.name ?? "").trim();
+  /* A personal brain holds whatever its owner says, so it needs no scope line. */
+  const scope = String(b.scope ?? "").trim() || (b.type === "personal" ? "What I say in its chat, in my own words, dated." : "");
   if (!name || !scope) return { error: "a name and a scope line are both required" };
-  const type = b.type === "person" ? "person" : "subject";
+  const type = b.type === "person" || b.type === "personal" ? String(b.type) : "subject";
   const visibility = String(b.visibility ?? "closed");
   return { slug: await ctx.runMutation(internal.store.createBrain,
     { name, type, scope, visibility, space: who.space }) };
@@ -478,9 +481,13 @@ route("/api/drop/link", async (ctx, _req, b) => {
 
 route("/api/ask", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  /* Every brain in this space answers questions, whoever is asking. */
-  const { brains, cards: concepts, sources } = await loadSpace(ctx, who.space);
+  /* Every brain in this space answers questions, whoever is asking. A personal
+     brain answers in its own chat only, and no other chat reads it. */
+  const every = await loadSpace(ctx, who.space, undefined, { personal: true });
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
+  const mine = only ? every.brains.find((x: any) => x.slug === only && x.type === "personal") : null;
+  if (mine) return await personalChat(ctx, who, b, mine, every);
+  const { brains, cards: concepts, sources } = withoutPersonal(every);
   const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
   if (!pool.length) return { answer: "No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
 
@@ -607,6 +614,77 @@ QUESTION: ${String(b.q ?? "")}` },
     } catch { /* the answer still goes out */ }
   }
   return { answer: text, sources: nSources, level, ...(chat ? { chat } : {}) };
+});
+
+/**
+ * A message in a personal brain's chat: filed, and answered.
+ *
+ * The two run side by side. The filer reads the owner's message alone and
+ * files what is worth keeping, dated, in their words. The reply reads the
+ * personal notes and every other brain, which is how a personal chat calls on
+ * them; no other chat ever reads a personal brain. The reply never files.
+ */
+async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any) {
+  const mKey = keyFor(who), mName = modelFor(who, b);
+  const q = String(b.q ?? "").slice(0, MAX_CHARS.chat).trim();
+  if (!q) return { error: "write something first" };
+  await demoCount(ctx, who, "ask");
+  const date = new Date().toISOString().slice(0, 10);
+  const history = (Array.isArray(b.history) ? b.history : []).slice(-4);
+  const last = history.slice(-1).map((h: any) => `They said: ${String(h.q ?? "").slice(0, 500)}\nThe brain replied: ${String(h.a ?? "").slice(0, 600)}`).join("");
+  /* This personal brain and every brain that is not personal. */
+  const pool = every.brains.filter((x: any) => x.type !== "personal" || x.slug === mine.slug);
+  const cards = every.cards.filter((c: any) => pool.some((x: any) => x.slug === c.brain));
+  const t0 = Date.now();
+
+  const filing = remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text: q, context: last, kind: "chat", date,
+    model: async m => (await ask(m, { json: true, maxTokens: 1800, key: mKey, model: mName, timeout: 120000 })).text })
+    .catch(() => null);
+  const reply = (async () => {
+    const route = await routeQuestion(pool, cards, q, b.history, mKey, mName);
+    const plan = planDossier(pool, cards, q, b.history, route);
+    const whole = await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
+    const pick = writeDossier(pool, plan, new Map(whole.map((c: any) => [idOf(c), c])));
+    const earlier = history.map((h: any) => `They said: ${String(h.q ?? "").slice(0, 400)}\nYou replied: ${String(h.a ?? "").slice(0, 800)}`).join("\n\n");
+    const { text } = await ask([
+      { role: "system", content: REPLY_RULES },
+      { role: "user", content: `TODAY: ${date}\n\n${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}` +
+        `WHAT THEIR NOTES AND BRAINS HOLD (the notes of "${mine.name}" are their own words; the rest are their other brains)\n${pick.dossier}\n\nTHEIR MESSAGE\n${q}` },
+    ], { maxTokens: 1200, key: mKey, model: mName, timeout: Math.max(60000, 160000 - (Date.now() - t0)) });
+    return text;
+  })();
+  const [answer, filed] = await Promise.all([reply, filing]);
+
+  let chat: string | undefined;
+  if ("chat" in b) {
+    try {
+      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
+        id: typeof b.chat === "string" ? b.chat : null, brain: mine.slug,
+        turn: { q: q.slice(0, 2000), a: answer, level: "normal", sources: 0, at: Date.now(), filed: filed ?? null } });
+      chat = r.id;
+    } catch { /* the reply still goes out */ }
+  }
+  return { answer, sources: 0, level: "normal", personal: true, filed: filed ?? { new: 0, updated: 0, titles: [], failed: true },
+           ...(chat ? { chat } : {}) };
+}
+
+/**
+ * A memory export or notes, pasted or dropped into a personal brain, one
+ * piece of at most 8,000 characters per call. The app cuts a long one up.
+ */
+route("/api/personal/remember", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const every = await loadSpace(ctx, who.space, undefined, { personal: true });
+  const mine = every.brains.find((x: any) => x.slug === String(b.brain ?? "") && x.type === "personal");
+  if (!mine) return { error: "that is not a personal brain of this workspace" };
+  const text = String(b.text ?? "").trim();
+  if (!text) return { error: "there is nothing to remember in that" };
+  if (text.length > MAX_CHARS.import) return { error: `send at most ${MAX_CHARS.import} characters at a time` };
+  const mKey = keyFor(who), mName = modelFor(who, b);
+  const filed = await remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text, kind: "import",
+    date: new Date().toISOString().slice(0, 10),
+    model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: 150000 })).text });
+  return { filed };
 });
 
 /* ---------- chats ---------- */

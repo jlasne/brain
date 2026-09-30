@@ -5,24 +5,22 @@ file name becomes its path.
 
 | File | Path | What it is |
 |---|---|---|
-| `index.html` | `/`, `/octopus`, `/squidgy` | The landing on `/`: the demo, a workspace of your own, or yours again. On `/octopus` and `/squidgy`, the owner's door to that workspace |
-| `chat.html` | `/chat` | The app: drop, ask, one-pager, create a brain. Behind a passphrase |
+| `index.html` | `/` | The landing: the workspaces, what makes a brain, how it works. The system font and the colours of jeremylasne.com |
+| `chat.html` | `/chat`, `/chat?w=octopus` | The app: drop, ask, one-pager, create a brain. With no session, it asks for the passphrase on top of the workspace the address names. `/octopus` and `/squidgy` redirect here |
 | `doc.html` | `/doc` | The connector. The page holds no words: they arrive from the deployment, so an unsigned request gets a refusal |
 | `octopus.css` | `/octopus.css` | Tokens and layout shared by the pages around the app |
 
-## The two colours
+## The colours
 
-Each door carries four values, `--tint`, `--tint-deep`, `--tint-on` and
-`--tint-wash`, set in one block at the top of `index.html`. Nothing below names
-a colour directly, so swapping those eight values reskins both doors.
+The landing wears Brain's own: night navy `#050b16`, ice `#eaf4fb` and one
+blue, `#5fa8d3`, the tokens of jeremylasne.com, set once at the top of
+`index.html`.
 
-Inside the app, `:root[data-space="squidgy"]` redefines the accent and nothing
-else, so every button, rule and focus ring follows. Octopus keeps the
-terracotta.
-
-The Squidgy mark is `brand/squidgy-mark.png`. Until that file exists the door
-shows a letter and the app keeps the Octopus mark, so a missing file leaves no
-gap.
+Inside the app, `:root` is Octopus's beige and terracotta,
+`:root[data-space="squidgy"]` is Squidgy's pink and brown, and every other
+workspace gets Brain's blue on ice. A workspace's own look, set in Setup,
+overrides the accent, the page and the mark with inline variables, and this
+browser remembers them so the next visit paints in them from the first frame.
 
 `chat.html` stays self contained, styles and script inline. Pulling its layout
 out from under a working screen buys nothing today, so `octopus.css` copies its
@@ -36,9 +34,9 @@ reaches a browser.
 
 | Page | Endpoint | Gated |
 |---|---|---|
-| `/` | `/api/status` for which doors exist and whether the demo is open, `/api/demo`, `/api/workspace/create` and `/api/unlock` to enter, `/api/public/brains` for the counts | No, it is the door |
+| `/` | `/api/status` for whether the demo is open, `/api/demo` and `/api/workspace/create` to enter | No |
 | `/doc` | `/api/unlock` with the Octopus passphrase, then `/api/doc` for its own words | Yes |
-| `/chat` | Every `/api/*` route | Yes, a passphrase |
+| `/chat` | `/api/status`, `/api/brand/public` and `/api/unlock` before the passphrase; every other `/api/*` route after it | Yes, a passphrase |
 
 `/api/public/brains` reads Octopus, because every Octopus brain is published. It
 never writes, and it never reads Squidgy.

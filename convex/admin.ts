@@ -181,6 +181,7 @@ export const makeDemo = internalMutation({
 async function copyOne(ctx: any, from: string, space: string, name?: string) {
   const src = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", from)).unique();
   if (!src) throw new Error(`no brain called "${from}"`);
+  if (src.type === "personal") throw new Error(`"${from}" is a personal brain, and stays in its own workspace`);
   let ns = `${from}-${space}`;
   for (let n = 2; await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", ns)).unique(); n++) ns = `${from}-${space}-${n}`;
   const { _id, _creationTime, ...brain } = src as any;
