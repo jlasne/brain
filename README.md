@@ -1,182 +1,168 @@
 # Octopus
 
-A folder that gets smarter every time you feed it. One arm in each brain.
+**Every video, article and PDF you consume, turned into answers you can check.**
 
-Drop articles, transcripts, studies, links. The brain stores each one once, files it where it belongs, argues with you when a claim clashes with what it already believes, then rewrites its position instead of piling up quotes. Ask it a question and you get an answer, not a list of everything ever said.
+Drop a source. Octopus files each claim under the right subject with its author and date, flags what contradicts what you already hold, and answers from that evidence, in 9 languages.
 
-Plain markdown at its core, with a chat on top. Brains stay portable whichever way you use it.
+**[Try the live demo](https://brain.jeremylasne.com)**: no sign-up. Or make a workspace of your own on your own OpenRouter key.
 
-## Two ways in
+Built for [The Build Games](https://canivibecodeit.com/thebuildgames). Open source, MIT.
 
-| | Chat | Claude Code |
+---
+
+## What you get
+
+| Outcome | How |
+|---|---|
+| **Answers with receipts** | Every claim is stored with its author and date. Answers cite them on one line, and newer evidence wins on the same question. |
+| **Contradictions settled by you** | A new source that disagrees with a position waits for your ruling. Swipe left, right or "both hold", and the position is rewritten. |
+| **One page, any shape** | A brain or a question becomes a summary, a quiz, a deep dive or use cases, in English, French, Spanish, German, Italian, Portuguese, Dutch, Japanese or Chinese. |
+| **Three levels** | Normal answers with the numbers. Educational teaches from zero. Learning gives the steps and lets you reach the answer yourself. |
+| **See it whole** | Each brain scores out of 10 against your best one on variety, depth, freshness and conflicts. The map draws every brain as an arm of the octopus. |
+| **Chats that stay** | Every question and answer is kept. Reopen, rename, pin up to 5. Old ones clear after 30 days. |
+| **A memory for Claude** | The owner's workspaces connect to Claude through MCP: Claude reads and feeds the brains with its own model. |
+
+Its builder uses it every day: 126 sources, 369 concepts and 12 brains in the main workspace at the end of September 2026. 615 automated checks run on every change.
+
+## How it works
+
+1. **Drop.** A link, a pasted transcript, a PDF or a Word file. YouTube captions are fetched for you. Files are read in the browser and never uploaded.
+2. **Read.** Every topic is extracted with its numbers and quotes, once. The author is named on every source.
+3. **File.** Each idea joins a concept or starts one: a position, dated evidence, figures, links to concepts in other brains.
+4. **Settle.** A claim that contradicts a position waits for you. Additions and details go straight in.
+5. **Ask.** Answers, one-pagers and the map read the compiled positions, never the raw transcripts.
+
+A position is re-derived from its whole evidence list, never appended to, so a sixth source rewrites the view from all six. Every drop finishes coherent: there is no pending pile to clean up later.
+
+Speed stays flat as brains grow, because a question reads summaries and positions, not whole brains:
+
+| Brain size | Read per drop | Read per question |
 |---|---|---|
-| Where | `brain.jeremylasne.com`, five pages under `app/` | The `brain` skill, in your terminal |
-| Model | OpenRouter, your key, server side | Whatever your session runs |
-| Brains | Convex tables, exportable to markdown | Markdown files under `brains/` |
-| Gate | A passphrase, one per space | Your own machine |
+| 10 concepts, 30 sources | 1.0k words | 3.5k words |
+| 200 concepts, 1,000 sources | 2.6k words | 5.1k words |
+| 500 concepts, 5,000 sources | 5.0k words | 7.5k words |
 
-### Two spaces
+## Inspired by Karpathy's LLM wiki
 
-One deployment holds two spaces that see none of each other: **Octopus**, which
-holds one brain per subject, and **Squidgy**, which holds one brain that
-everything lands in. Each has its own passphrase, its own colour and its own
-door on the landing page, at `/octopus` and `/squidgy`.
+Andrej Karpathy showed that an AI should compile your sources into a wiki once, rather than search raw files on every question. Octopus keeps that idea and adds what a wiki leaves open: who said what, when, and what to do when sources disagree.
 
-A space owns its brains, and every read filters by it. Rows written before the
-split carry no space and read as Octopus, so nothing had to move. The MCP server
-and the public brain list serve Octopus only.
+| | Karpathy's LLM wiki | Octopus |
+|---|---|---|
+| Setup | Scripts, Obsidian and a coding agent | A web page, on desktop and phone |
+| Contradictions | Stay in the pages unresolved | Caught at every drop, and you rule on each |
+| Proof | A summary per page | Author and date on every claim |
+| Size | One index file, about 100 articles | Every title read in one pass, up to about 2,300 concepts |
+| People | Topics only | Person brains: one expert's views, kept apart |
+| Outputs | Slides and charts | Answers at 3 levels, one-pagers in 9 languages, a weekly digest, a map |
+| Answers | Filed back into the wiki | Kept as chats you reopen and continue |
 
-Set a passphrase from a terminal, which closes a door before it is public:
+## Use cases
+
+- **Investing.** One brain per analyst you follow. See what each one holds today and where two of them disagree.
+- **Founders and sales.** Turn 20 outreach and pricing talks into one playbook, with the numbers each speaker gave.
+- **Creators.** A swipe file of hooks and formats that files itself, each with who taught it and the result they reported.
+- **Health.** Sleep, training and nutrition protocols from many podcasts, with the clashes laid out so you pick the one that holds.
+- **Learning.** Study from your own sources: steps instead of answers, quizzes, deep dives.
+- **Your AI.** A knowledge base Claude reads through MCP, with every claim sourced.
+
+## What it replaces
+
+Recall ($10/mo), Readwise Reader ($9.99/mo), the Notion wiki you never update, and the "watch later" list you never watch. On your own OpenRouter key you pay only for the model calls you make.
+
+## Workspaces
+
+A workspace holds its own brains, chats and passphrase, and sees nothing of the others.
+
+| | The owner's (Octopus, Squidgy) | The demo | Your own |
+|---|---|---|---|
+| How you enter | Passphrase, at `/octopus` or `/squidgy` | One click from the landing | Name and passphrase from the landing |
+| Model calls paid by | The deployment's key | The deployment's key, or `DEMO_OPENROUTER_API_KEY` | Your OpenRouter key |
+| Model | Any, picked in Setup | The default | Any, picked in Setup |
+| Limits | None | 40 steps a day per visitor, 1,500 for the whole demo | Your key's own |
+| Mail, Claude connector, weekly digest | Yes | No | No |
+| Create or rename brains | Yes | No | Yes |
+| Chats | Shared by the workspace | Each visitor's own | Shared by the workspace |
+
+**Your key stays yours.** It is checked once with OpenRouter when the workspace is made, then kept in your browser only. It travels with each call that needs a model and is never written to the database or logs. A workspace on its own key never falls back to the owner's.
+
+## Self-host
+
+A Convex deployment holds the data. Any static host serves `app/`; `vercel.json` is ready for Vercel.
 
 ```bash
-# macOS, Linux
-npx convex run admin:setPass '{"space":"squidgy","pass":"at least 8 characters"}' --prod
-```
-
-```powershell
-# Windows PowerShell strips the double quotes inside an argument, so the values
-# go in single quotes, which the CLI's JSON5 parser accepts
-npx convex run admin:setPass "{space:'squidgy',pass:'at least 8 characters'}" --prod
-```
-
-In PowerShell, keep `$` and `'` out of the passphrase, or the shell rewrites it
-before the CLI sees it.
-
-Same protocol, same three actions, same export format.
-
-## Why this exists
-
-Most second-brain tools store and search. They skip the hard part, which happens the moment you add something: do I already have this, where does it go, what did it add, and does it contradict what I believed. This brain makes those four calls on every drop, and it finishes each one coherent, so nothing waits in a pile.
-
-## Two kinds of brain
-
-A brain is a **subject** or a **person**.
-
-| Folder | Answers | Names in the answer |
-|---|---|---|
-| `brain-subject-health` | Does cold water help recovery? | Kept out, listed at the end |
-| `brain-person-sarah-chen` | What does she argue about recovery? | Named, because she is the subject |
-
-One source often lands in both. An interview about sleep feeds the sleep brain and the guest's own brain, from one note.
-
-## What you do
-
-**Drop.** A drop is two things: the source, and what it says. A link on the source line is enough, because the page gets opened and a video's transcript gets fetched. Anything else takes the content: pasted text, or a PDF, Word or text file dropped in, read in the browser and never uploaded. Reply to one card. That card shows where the source goes, what is new, what it repeats, and every conflict it raises, numbered. One line settles all of it, and silence keeps both views.
-
-**Ask.** Ask the way you would ask a person. The first sentence answers. Numbers sit inside the answer, sources on one line underneath.
-
-**One-pager.** A summary in bullets of a brain, a group of brains, or a question. A brain and a group read what is stored, so they cost nothing. Or a document of the type you pick: a quiz, a deep dive, use cases, or one you describe, written in sections and paragraphs. English by default, or French, Spanish, German, Italian, Portuguese, Dutch, Japanese or Chinese. Copy it, print it, or mail it.
-
-**Create a brain.** Rare. A name, a one-line scope, subject or person.
-
-## No queue
-
-Every drop finishes coherent before the brain says done. No pending pile, no cleanup counter, no separate tidy command.
-
-This works because a position is re-derived from its whole evidence list, never appended to. Adding a sixth source rewrites the view from all six, so one weak source cannot drag a position on its own.
-
-## Size
-
-Nothing counts concepts or sources against a limit. Fit is the only gate: every brain carries a one-line scope, and a concept either fits it or becomes a new brain.
-
-Speed stays flat because of two rules. Summaries get read, whole brains never do. The map gets searched, never read whole.
-
-| Brain size | Read per drop | Read per question | Files opened |
-|---|---|---|---|
-| 10 concepts · 30 sources | 1.0k | 3.5k | 3 to 5 |
-| 200 concepts · 1,000 sources | 2.6k | 5.1k | 3 to 5 |
-| 500 concepts · 5,000 sources | 5.0k | 7.5k | 3 to 5 |
-
-Words read, estimated. The deep work stays fixed whatever the size.
-
-## Install
-
-**The chat.** A Convex deployment holds the data, any static host serves `app/`.
-
-```
 git clone https://github.com/jlasne/brain
 cd brain && npm install
 npx convex dev
 npx convex env set OPENROUTER_API_KEY sk-or-... --prod
 npx convex deploy
-npx convex run admin:setPass "{space:'octopus',pass:'...'}" --prod
+npx convex run admin:setPass '{"space":"octopus","pass":"at least 8 characters"}' --prod
 ```
 
-One passphrase per door opens the app. The deployment's key pays for every model call.
+In Windows PowerShell, write the argument as `"{space:'octopus',pass:'...'}"`: PowerShell strips double quotes inside an argument, and the CLI accepts JSON5.
 
-A video link carries no transcript on its own: YouTube hands captions to a signed-in browser and to nothing else, which a deployment is not. Set a [Supadata](https://supadata.ai) key and a video link becomes enough.
+Point `window.OCTOPUS_API` in the four pages under `app/` at your deployment's `.convex.site` address.
 
-```
-npx convex env set SUPADATA_API_KEY sd_... --prod
-```
+### Open the demo
 
-It asks for captions that already exist, at one credit each, and says to paste when a video has none. `SUPADATA_MODE=auto` generates them from the audio instead, at 2 credits per minute, so one hour costs 120 credits rather than 1. Unset, a video link asks you to paste, which is what it did before.
-
-A one-pager can be mailed. Set a [Resend](https://resend.com) key, and verify the sending domain there.
-
-```
-npx convex env set RESEND_API_KEY re_... --prod
-npx convex env set MAIL_FROM hey@yourdomain.com --prod
+```bash
+npx convex run admin:makeDemo --prod
+npx convex run admin:makeDemo '{"pass":"a long passphrase"}' --prod   # also lets you open it as its owner
+npx convex run admin:copyBrain '{"slug":"alex-hormozi","space":"demo"}' --prod
 ```
 
-`MAIL_FROM` defaults to `hello@kaught.app`, so set it to your own. The space names itself as the sender. Unset `RESEND_API_KEY` and the page still builds, copies and prints.
+`makeDemo` opens the demo workspace. `copyBrain` copies one of your brains into it, with its concepts and sources, and leaves the original where it was. You can also feed the demo directly by opening it with its passphrase.
 
-Every Monday at 06:00 UTC, one mail sums up the week across both spaces: sources read, new concepts, concepts fed again with the evidence added, and open conflicts. It calls no model. A week with nothing new sends nothing. Set the address it goes to:
+### Settings
 
-```
-npx convex env set DIGEST_TO you@yourdomain.com --prod
-npx convex run digest:send '{"dry":true}' --prod
-```
+| Variable | What it does |
+|---|---|
+| `OPENROUTER_API_KEY` | Pays for model calls in the owner's workspaces. Required. |
+| `DEMO_OPENROUTER_API_KEY` | A separate key for the demo, so its spend shows apart. Falls back to the one above. |
+| `DEMO_VISITOR_CALLS` | Model steps a demo visitor gets per day. Default 40. |
+| `DEMO_DAILY_CALLS` | Model steps the whole demo gets per day. Default 1,500. |
+| `SUPADATA_API_KEY` | Fetches YouTube captions from a bare link. Without it, a video link asks you to paste the transcript. Other workspaces get 5 to 20 fetches a day. |
+| `SUPADATA_MODE` | `auto` transcribes videos that have no captions, at 2 credits a minute. |
+| `RESEND_API_KEY`, `MAIL_FROM` | Mail one-pagers from the owner's workspaces. Verify the sending domain in Resend. |
+| `DIGEST_TO` | Where the Monday digest goes: the week's sources, new concepts and open conflicts. It calls no model. |
 
-The second line shows this week's digest without sending it. Drop `'{"dry":true}'` to send it now.
+Preview the digest without sending it: `npx convex run digest:send '{"dry":true}' --prod`.
 
-Then serve `app/` as the site root. `vercel.json` already does it. The landing page is two doors, one per space. A door stays shut until its passphrase is set from a terminal with `npx convex run admin:setPass`. Then create a brain and drop a source.
+## Claude
 
-**Claude Code.** Copy `skill/brain/` into your skills folder: `~/.claude/skills/brain/` for personal, `.claude/skills/brain/` for one project. On Claude.ai, upload `skill/brain/SKILL.md` as a skill. Then ask for your first brain.
+**Connector.** In an owner's workspace, Setup gives an MCP address. Paste it into Claude, ChatGPT or any MCP client: it reads and feeds that workspace's brains, and the client's own model does the thinking, so nothing is spent on the deployment. `/doc` has the setup steps.
 
-Runs on Claude Opus 5 or better. A drop reads a full transcript once and ranks what contradicts what, so a weaker model costs you extraction depth you cannot get back without re-dropping. `CONVEX.md` carries the numbers for cheaper models.
+**Claude Code.** Copy `skill/brain/` into `~/.claude/skills/brain/` or a project's `.claude/skills/brain/`. On Claude.ai, upload `skill/brain/SKILL.md` as a skill. The brains are then plain markdown files under `brains/`.
 
-## The passphrase gate
+## Security
 
-Nothing reads a brain and nothing reaches the model until the passphrase is entered. Only a salted SHA-256 hash gets stored, one per space, each with its own attempt counter, so eight wrong guesses at one door leave the other open.
-
-In the artifact build this is a lock on the door: model calls spend each viewer's own Claude usage, so your balance is never at risk. In the Convex build it becomes a real gate, because your OpenRouter key sits on the server and every call spends your money. `CONVEX.md` covers that split.
+- Passphrases are stored as salted SHA-256 hashes, one per workspace, each with its own counter: 8 wrong guesses close that door for an hour.
+- Every route checks the session before it reads a brain or calls a model.
+- The demo runs on the default model with daily limits, sends no mail and cannot create, rename or connect brains.
+- A visitor's OpenRouter key is never stored on the server.
+- Raw transcripts are never stored: only what was extracted from them.
 
 ## Layout
 
 ```
-README.md              this file
-PROTOCOL.md            the 41 rules, addressable by number
-CONVEX.md              the server build, and why the key belongs there
-app/index.html         the two doors, one file
+app/index.html         the landing, and the owner's doors
 app/chat.html          the app, one file
 app/about.html         how it works
-app/doc.html           the connector, served rather than published
+app/doc.html           the connector setup
+convex/                the server: routes, store, drop, one-pager, health, conflicts
 scripts/               the checks: npm run check
-skill/brain/SKILL.md   the behaviour, for Claude Code
-templates/             the shape of every file a brain writes
-brains/                your brains, as markdown
+PROTOCOL.md            the 41 rules the brain follows
+CONVEX.md              the server build, and why the key belongs there
+skill/brain/SKILL.md   the same behaviour, for Claude Code
+templates/, brains/    the markdown shape of a brain
 ```
 
-## The rules
+## Checks
 
-`PROTOCOL.md` holds 41 numbered rules, 8 writing rules and 9 guarantees. It reads in ten minutes and it is the whole product.
+```bash
+npm run check
+```
 
-Each guarantee names the rule holding it, so it survives a thousand drops rather than depending on memory:
-
-- Position text changes only after your card reply.
-- Positions get re-derived from the whole evidence list, never appended to.
-- Every source is checked twice: by link, then by idea.
-- Every view survives, carrying its date.
-- A summary carries one line per concept file, always.
-- Candidates carry a threshold, so a misc file never appears.
-- Raw transcripts stay outside the brain.
-- Every drop ends coherent, and the receipt proves it.
-- A brain grows without limit while its concepts fit its scope.
-
-## The more specific the scope, the better
-
-A brain scoped to "investing" is a folder. A brain scoped to "macro regimes and emerging markets for my own portfolio" has a test, and that test is what makes filing and deduplication work. Creating a brain pushes back once on a vague scope, on purpose.
+615 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, and the app itself driven in a real browser.
 
 ## License
 

@@ -5,7 +5,7 @@ file name becomes its path.
 
 | File | Path | What it is |
 |---|---|---|
-| `index.html` | `/`, `/octopus`, `/squidgy` | The two doors. One panel per space, each with its own colour, mark and passphrase field |
+| `index.html` | `/`, `/octopus`, `/squidgy` | The landing on `/`: the demo, a workspace of your own, or yours again. On `/octopus` and `/squidgy`, the owner's door to that workspace |
 | `chat.html` | `/chat` | The app: drop, ask, one-pager, create a brain. Behind a passphrase |
 | `about.html` | `/about` | What Octopus is, how to run your own, what is in the repo |
 | `doc.html` | `/doc` | The connector. The page holds no words: they arrive from the deployment, so an unsigned request gets a refusal |
