@@ -1324,6 +1324,39 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
+/* ---- the demo shows what to try: questions, the map, a clash ---- */
+{
+  const demo = { ...STATE, space: "demo", spaceName: "Demo", demo: true,
+    brains: [{ slug: "health", name: "Health", type: "subject", scope: "s" }, { slug: "social", name: "Social", type: "subject", scope: "s" }],
+    concepts: [{ brain: "health", slug: "sleep", n: 1, title: "Sleep optimization", src: 4 }, { brain: "health", slug: "light", n: 2, title: "Light", src: 1 },
+      { brain: "social", slug: "hooks", n: 1, title: "Opening hooks for speeches", src: 2 }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u); window.__calls.push({ s, body: JSON.parse(opt?.body || "{}") });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/conflicts")) return Response.json({ conflicts: [], others: 0 });
+      if (s.includes("/api/ask")) return Response.json({ answer: "Seven to nine hours.", sources: 4, level: "normal" });
+      return Response.json({ chats: [] });
+    };
+  }, demo);
+  await page.waitForTimeout(300);
+  const tries = await page.evaluate(() => [...document.querySelectorAll(".zero .try button")].map(b => b.textContent));
+  check("the empty demo offers questions its brains can answer", JSON.stringify(tries) === '["What does Health hold on sleep optimization?","What does Social hold on opening hooks for speeches?"]',
+    JSON.stringify(tries));
+  await page.click(".zero .try button"); await page.waitForTimeout(300);
+  check("one tap asks it", (await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/ask")).pop()?.body.q)) === "What does Health hold on sleep optimization?");
+  const font = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+  check("the demo wears the landing's type", /^system-ui/.test(font), font);
+  await page.click("#demoSettle"); await page.waitForTimeout(250);
+  check("Settle a clash says when there is none to settle", /No open clash in the demo/.test(await page.textContent("#thread")));
+  await page.click("#demoMap"); await page.waitForTimeout(300);
+  check("Open the map opens it from the demo bar", await page.evaluate(() => !!document.querySelector(".mapbox")));
+  check("nothing threw trying the demo", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- a personal brain: a chat that files what you say ---- */
 {
   const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "What I say", owner: null }],
@@ -1692,7 +1725,11 @@ for (const space of ["octopus", "squidgy"]) {
     steps: document.querySelectorAll("#how .step").length, sections: [...document.querySelectorAll("main > section")].map(x => x.id).join("|"),
     font: getComputedStyle(document.body).fontFamily, bg: getComputedStyle(document.documentElement).backgroundColor,
     brand: document.querySelector(".bar .me").textContent.trim(), text: document.body.textContent }));
-  check("the landing leads with the outcome", /^Your AI brain learns what you feed it and answers with receipts\.$/.test(l.h1), JSON.stringify(l.h1));
+  check("the landing leads with the outcome", /^Your AI brain remembers who said what, and catches every contradiction\.$/.test(l.h1), JSON.stringify(l.h1));
+  const top = await page.evaluate(() => ({ mark: !!document.querySelector(".hero .mark"), cta: document.getElementById("openYours").getAttribute("href"),
+    again: document.getElementById("openMine").getAttribute("href"), tiles: [...document.querySelectorAll("#inside .tile h3")].map(h => h.firstChild.textContent.trim()).join("|") }));
+  check("no logo over the headline, and Open your workspace goes to the workspaces", !top.mark && top.cta === "#start" && top.again === "/chat?w=", JSON.stringify(top));
+  check("inside a brain: four ideas, each shown moving", top.tiles === "It argues back|It keeps score|It draws itself|It learns you", top.tiles);
   check("the workspaces come right after the line under it", l.next === "start"
     && l.ws === "Demo|Octopus|Squidgy|Create your workspace|Explore the open source", `${l.next} ${l.ws}`);
   check("Octopus and Squidgy open on their own workspace page", l.octo === "/chat?w=octopus" && l.squid === "/chat?w=squidgy", `${l.octo} ${l.squid}`);
@@ -1701,7 +1738,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("one section sets a brain against a classic chat and Karpathy's wiki, with who uses it", l.cols === "|Classic AI chat|Karpathy's LLM wiki|Brain"
     && l.rows === 7 && l.uses === 6, JSON.stringify({ c: l.cols, r: l.rows, u: l.uses }));
   check("how it works is 4 outcomes", l.steps === 4, String(l.steps));
-  check("three sections below the fold, no separate use cases or wiki section", l.sections === "top|why|how|go", l.sections);
+  check("four sections below the fold, no separate use cases or wiki section", l.sections === "top|inside|why|how|go", l.sections);
   check("it wears jeremylasne.com: the system font on the night navy", /^system-ui/.test(l.font) && l.bg === "rgb(5, 11, 22)", `${l.font} ${l.bg}`);
   check("the product is called Brain", l.brand === "Brain", l.brand);
   check("no example card, no builder's tally, no competition, no licence", !/cold email a reply|workspace today|Build Games|MIT licen|What it replaces/i.test(l.text));

@@ -44,14 +44,29 @@
   [hidden]{ display:none !important; }
   :focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:6px; }
 
-  /* ---- the field, and the light behind the headline ---- */
-  #field{ position:fixed; inset:0; z-index:0; width:100%; height:100%; pointer-events:none; }
-  .glow{ position:fixed; inset:0; z-index:0; pointer-events:none;
-    background:
-      radial-gradient(60% 45% at 50% 8%, rgba(95,168,211,.20), transparent 70%),
-      radial-gradient(40% 35% at 85% 60%, rgba(95,168,211,.07), transparent 70%),
-      radial-gradient(45% 40% at 10% 85%, rgba(245,201,209,.05), transparent 70%); }
+  /* ---- the sky: an aurora drifting, the field of nodes, grain and a vignette ---- */
+  .aurora{ position:fixed; inset:-20%; z-index:0; pointer-events:none; filter:blur(60px); opacity:.9; }
+  .aurora i{ position:absolute; display:block; border-radius:50%; mix-blend-mode:screen; will-change:transform; }
+  .aurora i:nth-child(1){ width:52vmax; height:40vmax; left:24%; top:-6%; background:radial-gradient(closest-side, rgba(95,168,211,.34), transparent);
+    animation:drift1 38s ease-in-out infinite alternate; }
+  .aurora i:nth-child(2){ width:44vmax; height:36vmax; left:58%; top:30%; background:radial-gradient(closest-side, rgba(40,110,160,.30), transparent);
+    animation:drift2 46s ease-in-out infinite alternate; }
+  .aurora i:nth-child(3){ width:40vmax; height:34vmax; left:2%; top:46%; background:radial-gradient(closest-side, rgba(245,201,209,.10), transparent);
+    animation:drift3 52s ease-in-out infinite alternate; }
+  .aurora i:nth-child(4){ width:30vmax; height:26vmax; left:40%; top:70%; background:radial-gradient(closest-side, rgba(95,211,196,.10), transparent);
+    animation:drift1 60s ease-in-out infinite alternate-reverse; }
+  @keyframes drift1{ from{ transform:translate(0,0) rotate(0) scale(1); } to{ transform:translate(8vmax,6vmax) rotate(25deg) scale(1.15); } }
+  @keyframes drift2{ from{ transform:translate(0,0) scale(1.1); } to{ transform:translate(-10vmax,-4vmax) scale(.9); } }
+  @keyframes drift3{ from{ transform:translate(0,0) rotate(0); } to{ transform:translate(6vmax,-8vmax) rotate(-20deg); } }
+  #field{ position:fixed; inset:0; z-index:1; width:100%; height:100%; pointer-events:none; }
+  .grain{ position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.07; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  .vignette{ position:fixed; inset:0; z-index:1; pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 30%, transparent 55%, rgba(2,5,11,.75) 100%); }
   .page{ position:relative; z-index:2; }
+  /* Beyond the first screen the sky dims a little, so reading comes first. */
+  .veil-lower{ position:fixed; inset:0; z-index:1; pointer-events:none; background:rgba(5,11,22,.0); transition:background .6s var(--ease); }
+  .veil-lower.on{ background:rgba(5,11,22,.35); }
 
   @keyframes riseIn{ from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:none; } }
   .reveal{ animation:riseIn .7s var(--ease) both; animation-delay:calc(var(--d, 0) * 1ms); }
@@ -73,19 +88,18 @@
   /* ---- the hero: the headline, the line under it, and the workspaces ---- */
   .hero{ min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding:96px 20px 64px; text-align:center; }
-  .mark{ position:relative; margin-bottom:28px; }
-  .mark::before{ content:""; position:absolute; inset:-18px; border-radius:50%; z-index:-1;
-    background:rgba(95,168,211,.35); filter:blur(30px); animation:breathe 5s ease-in-out infinite; }
-  @keyframes breathe{ 0%,100%{ opacity:.75; transform:scale(1); } 50%{ opacity:1; transform:scale(1.12); } }
-  .mark img{ display:block; width:84px; height:84px; filter:drop-shadow(0 10px 30px rgba(95,168,211,.35)); }
-  .hero h1{ max-width:860px; font-size:clamp(34px, 6.4vw, 68px); line-height:1.05; font-weight:650; letter-spacing:-.04em; text-wrap:balance; }
+  .kicker{ display:inline-flex; align-items:center; gap:8px; margin-bottom:22px; padding:6px 13px 6px 8px; border-radius:999px;
+    border:1px solid var(--line-2); background:rgba(10,20,36,.55); font-size:13px; color:var(--ice-70); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+  .kicker b{ font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink); background:var(--blue);
+    border-radius:999px; padding:3px 8px; }
+  .hero h1{ max-width:980px; font-size:clamp(34px, 5.6vw, 62px); line-height:1.05; font-weight:650; letter-spacing:-.04em; text-wrap:balance; }
   .hero h1 em{ font-style:normal;
     background:linear-gradient(100deg, var(--ice) 5%, var(--blue-2) 45%, var(--blue) 95%);
     -webkit-background-clip:text; background-clip:text; color:transparent; }
   .hero .sub{ margin-top:22px; max-width:640px; font-size:clamp(17px, 2vw, 20px); line-height:1.55; color:var(--ice-70); text-wrap:pretty; }
 
   /* The workspaces, in the list style of jeremylasne.com. */
-  .spaces{ width:100%; max-width:700px; margin-top:40px; text-align:left; padding:10px 22px 12px; border-radius:22px;
+  .spaces{ width:100%; max-width:740px; margin-top:40px; text-align:left; padding:10px 22px 12px; border-radius:22px;
     background:var(--glass); border:1px solid var(--line); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
     box-shadow:0 30px 80px -30px rgba(0,0,0,.7), inset 0 1px 0 rgba(234,244,251,.05); }
   h2.tiny{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ice-45); padding:12px 0 6px; }
@@ -140,13 +154,83 @@
   .btn:disabled{ opacity:.55; cursor:default; transform:none; }
   .make .btn{ margin-top:16px; width:100%; }
 
+  .again{ margin:6px 0 4px; font-size:13.5px; color:var(--ice-45); }
+  .again a{ color:var(--ice-70); border-bottom:1px solid var(--line-2); }
+  @media (hover:hover){ .again a:hover{ color:var(--blue); border-color:var(--blue); } }
   .scroll{ margin-top:34px; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12px; letter-spacing:.08em;
     text-transform:uppercase; color:var(--ice-45); }
   .scroll i{ display:block; width:1px; height:34px; background:linear-gradient(var(--blue), transparent); animation:drip 2.4s var(--ease) infinite; transform-origin:top; }
   @keyframes drip{ 0%{ transform:scaleY(0); opacity:0; } 30%{ opacity:1; } 100%{ transform:scaleY(1); opacity:0; } }
 
   /* ---- the bands below ---- */
-  .band{ padding:clamp(72px, 10vw, 120px) 20px; }
+  .band{ padding:clamp(64px, 9vw, 104px) 20px; }
+
+  /* Inside a brain: four things it does, each shown moving. */
+  .tiles{ margin-top:40px; display:grid; grid-template-columns:repeat(2, 1fr); gap:16px; }
+  .tile{ position:relative; border-radius:22px; border:1px solid var(--line); background:rgba(10,20,36,.6); overflow:hidden;
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); transition:border-color .3s, transform .3s var(--ease); }
+  @media (hover:hover){ .tile:hover{ border-color:var(--line-2); transform:translateY(-3px); } }
+  .tile .stage{ position:relative; height:210px; border-bottom:1px solid var(--line); overflow:hidden;
+    background:radial-gradient(90% 120% at 50% 0%, rgba(95,168,211,.12), transparent 70%); }
+  .tile .txt{ padding:18px 22px 22px; }
+  .tile h3{ font-size:20px; font-weight:650; letter-spacing:-.02em; }
+  .tile h3 small{ margin-left:8px; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--blue);
+    border:1px solid var(--line-2); border-radius:999px; padding:2px 8px; vertical-align:3px; }
+  .tile p{ margin-top:8px; font-size:15px; line-height:1.55; color:var(--ice-70); }
+
+  /* 1. The deck: a clash, swiped. */
+  .deck{ position:absolute; left:50%; top:50%; width:280px; height:136px; transform:translate(-50%,-50%); }
+  .deck .cd{ position:absolute; inset:0; border-radius:16px; border:1px solid var(--line-2); background:#0d1a2e; padding:14px 16px;
+    box-shadow:0 18px 40px -18px rgba(0,0,0,.8); font-size:13px; line-height:1.45; color:var(--ice-70); }
+  .deck .cd b{ color:var(--ice); font-weight:600; }
+  .deck .cd .who{ display:block; margin-top:2px; font-size:11.5px; color:var(--ice-45); }
+  .deck .cd .vs{ display:block; margin:8px 0 6px; height:1px; background:var(--line); }
+  .deck .back1{ transform:translateY(10px) scale(.95); opacity:.55; }
+  .deck .back2{ transform:translateY(20px) scale(.9); opacity:.3; }
+  .deck .top{ animation:swipe 5.5s var(--ease) infinite; }
+  .deck .stamp{ position:absolute; top:12px; right:12px; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ink); background:var(--blue); border-radius:6px; padding:3px 7px; opacity:0; animation:stamp 5.5s var(--ease) infinite; }
+  @keyframes swipe{ 0%,38%{ transform:none; opacity:1; } 58%{ transform:translateX(18px) rotate(3deg); opacity:1; }
+    76%{ transform:translateX(340px) rotate(16deg); opacity:0; } 77%{ transform:translateY(10px) scale(.95); opacity:0; } 100%{ transform:none; opacity:1; } }
+  @keyframes stamp{ 0%,44%{ opacity:0; transform:scale(1.3); } 52%,70%{ opacity:1; transform:scale(1); } 76%,100%{ opacity:0; } }
+
+  /* 2. The rings: each brain against the best. */
+  .rings{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:30px; }
+  .ring{ text-align:center; font-size:12.5px; color:var(--ice-70); }
+  .ring .rw{ display:block; position:relative; width:84px; height:84px; margin:0 auto 8px; }
+  .ring svg{ display:block; width:84px; height:84px; transform:rotate(-90deg); }
+  .ring circle{ fill:none; stroke-width:7; }
+  .ring .bgc{ stroke:rgba(234,244,251,.08); }
+  .ring .val{ stroke:var(--blue); stroke-linecap:round; stroke-dasharray:226; stroke-dashoffset:226; transition:stroke-dashoffset 1.6s var(--ease); }
+  .ring.mid .val{ stroke:#8cc4e6; } .ring.low .val{ stroke:#e0b35a; }
+  .ring b{ position:absolute; inset:0; display:grid; place-items:center; font-size:20px; font-weight:650; color:var(--ice); letter-spacing:-.02em; }
+
+  /* 3. The map: arms, suckers, links between brains, a red dot to settle. */
+  .map svg{ position:absolute; inset:0; width:100%; height:100%; }
+  .map .arm{ fill:none; stroke:rgba(95,168,211,.55); stroke-width:2.2; stroke-linecap:round; stroke-dasharray:160; stroke-dashoffset:160; }
+  .map .sk{ fill:#0d1a2e; stroke:#8cc4e6; stroke-width:1.2; opacity:0; }
+  .map .lk{ fill:none; stroke:rgba(234,244,251,.28); stroke-width:1; stroke-dasharray:3 4; opacity:0; }
+  .map .hd{ fill:#0d1a2e; stroke:var(--blue); stroke-width:1.6; }
+  .map .red{ fill:#e5484d; opacity:0; filter:drop-shadow(0 0 6px rgba(229,72,77,.8)); }
+  .map.play .arm{ animation:draw 1.6s var(--ease) forwards; animation-delay:calc(var(--i) * 120ms); }
+  .map.play .sk{ animation:pop .4s var(--ease) forwards; animation-delay:calc(900ms + var(--i) * 60ms); }
+  .map.play .lk{ animation:pop .6s ease forwards 1.9s; }
+  .map.play .red{ animation:pop .3s ease forwards 2.3s; }
+  .map.play .sway{ animation:sway 7s ease-in-out infinite alternate; transform-origin:50% 50%; transform-box:view-box; }
+  @keyframes draw{ to{ stroke-dashoffset:0; } }
+  @keyframes pop{ to{ opacity:1; } }
+  @keyframes sway{ from{ transform:rotate(-2.5deg); } to{ transform:rotate(2.5deg); } }
+
+  /* 4. The personal chat: a change of mind, filed. */
+  .talk{ position:absolute; inset:0; padding:22px 26px; display:flex; flex-direction:column; gap:9px; justify-content:center; }
+  .talk .b{ max-width:82%; padding:9px 13px; border-radius:14px; font-size:13.5px; line-height:1.45; opacity:0; transform:translateY(8px); }
+  .talk .me{ align-self:flex-end; background:var(--blue); color:var(--ink); border-bottom-right-radius:4px; }
+  .talk .ai{ align-self:flex-start; background:rgba(234,244,251,.08); color:var(--ice); border-bottom-left-radius:4px; }
+  .talk .rc{ align-self:flex-start; font-size:12px; color:var(--ice-45); opacity:0; display:flex; align-items:center; gap:6px; }
+  .talk .rc::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--blue); }
+  .talk.play .b, .talk.play .rc{ animation:say .5s var(--ease) forwards; }
+  .talk.play .b:nth-child(2){ animation-delay:1.1s; } .talk.play .rc{ animation-delay:1.9s; }
+  @keyframes say{ to{ opacity:1; transform:none; } }
   .wide{ max-width:1080px; margin:0 auto; }
   .eyebrow{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--blue); }
   .band h2{ margin-top:14px; max-width:780px; font-size:clamp(30px, 4.4vw, 48px); line-height:1.08; font-weight:650; letter-spacing:-.035em; text-wrap:balance; }
@@ -226,6 +310,7 @@
   footer .by{ margin-left:auto; }
 
   @media (max-width:960px){
+    .tiles{ grid-template-columns:1fr; }
     .steps{ grid-template-columns:1fr 1fr; }
     .cards{ grid-template-columns:1fr 1fr; }
   }
@@ -254,21 +339,27 @@
     footer .by{ margin-left:0; }
   }
   @media (prefers-reduced-motion:reduce){
-    .reveal, .mark::before, .scroll i{ animation:none; }
+    .reveal, .scroll i, .aurora i, .deck .top, .deck .stamp{ animation:none !important; }
+    .deck .stamp{ opacity:1; }
+    .map .arm{ stroke-dashoffset:0; } .map .sk, .map .lk, .map .red{ opacity:1; }
+    .talk .b, .talk .rc{ opacity:1; transform:none; }
     .later{ opacity:1; transform:none; transition:none; }
   }
 </style>
 </head>
 <body>
 
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <canvas id="field" aria-hidden="true"></canvas>
-<div class="glow" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+<div class="veil-lower" id="veilLower" aria-hidden="true"></div>
 
 <div class="page">
   <header class="bar"><div class="in">
     <a class="me" href="/"><img src="/brand/brain.svg" alt="" width="26" height="26">Brain</a>
     <nav>
-      <a href="/chat?w=" id="openYours">Open your workspace
+      <a href="#start" id="openYours">Open your workspace
         <svg viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z"/></svg></a>
       <a href="https://github.com/jlasne/brain" aria-label="The code on GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#gh"/></svg></a>
     </nav>
@@ -276,10 +367,10 @@
 
   <main>
     <section class="hero" id="top">
-      <div class="mark reveal"><img src="/brand/brain.svg" alt="" width="84" height="84"></div>
-      <h1 class="reveal" style="--d:80">Your AI brain learns what you feed it and <em>answers with receipts.</em></h1>
-      <p class="sub reveal" style="--d:160">Drop an article, a PDF, a video or a thought. Brain files every claim with its author and date,
-        flags what contradicts what you know, and answers from your sources only.</p>
+      <a class="kicker reveal" href="#inside"><b>New</b>A personal brain that learns you</a>
+      <h1 class="reveal" style="--d:80">Your AI brain remembers who said what, and <em>catches every contradiction.</em></h1>
+      <p class="sub reveal" style="--d:160">Drop an article, a PDF, a video or a thought. Brain files each claim with its author and date,
+        asks you to settle each clash, then answers with receipts.</p>
 
       <section class="spaces reveal" style="--d:260" id="start" aria-labelledby="spacesH">
         <h2 class="tiny" id="spacesH">Workspaces</h2>
@@ -340,16 +431,67 @@
             </a>
           </li>
         </ul>
+        <p class="again">Made a workspace already? <a href="/chat?w=" id="openMine">Open it with its name</a></p>
       </section>
 
-      <a class="scroll reveal" style="--d:420" href="#why">What makes a brain<i></i></a>
+      <a class="scroll reveal" style="--d:420" href="#inside">See inside<i></i></a>
     </section>
+
+    <section class="band later" id="inside"><div class="wide">
+      <span class="eyebrow">Inside a brain</span>
+      <h2>It argues back, keeps score, draws itself and learns you.</h2>
+      <div class="tiles">
+        <div class="tile">
+          <div class="stage"><div class="deck" aria-hidden="true">
+            <div class="cd back2"></div><div class="cd back1"></div>
+            <div class="cd top"><span class="stamp">Both hold</span>
+              <b>You hold:</b> 8 hours of sleep a night.<span class="who">2 sources, newest 2026-08-02</span><span class="vs"></span>
+              <b>New source:</b> 7 hours is enough for most adults.<span class="who">Podcast, 2026-09-21</span></div>
+          </div></div>
+          <div class="txt"><h3>It argues back</h3><p>A source that contradicts what you hold waits for your call. Swipe: keep it, replace it, or both hold. The position is rewritten from all the evidence.</p></div>
+        </div>
+        <div class="tile">
+          <div class="stage"><div class="rings" id="rings" aria-hidden="true">
+            <div class="ring" data-v="10"><span class="rw"><svg viewBox="0 0 84 84"><circle class="bgc" cx="42" cy="42" r="36"/><circle class="val" cx="42" cy="42" r="36"/></svg><b>10</b></span>Content</div>
+            <div class="ring mid" data-v="7.4"><span class="rw"><svg viewBox="0 0 84 84"><circle class="bgc" cx="42" cy="42" r="36"/><circle class="val" cx="42" cy="42" r="36"/></svg><b>7.4</b></span>Health</div>
+            <div class="ring low" data-v="4.8"><span class="rw"><svg viewBox="0 0 84 84"><circle class="bgc" cx="42" cy="42" r="36"/><circle class="val" cx="42" cy="42" r="36"/></svg><b>4.8</b></span>Social</div>
+          </div></div>
+          <div class="txt"><h3>It keeps score</h3><p>Each brain scores out of 10 against your best one: variety of authors, depth, freshness, open conflicts. With the one move that closes the gap.</p></div>
+        </div>
+        <div class="tile">
+          <div class="stage map" id="map" aria-hidden="true">
+            <svg viewBox="0 0 400 210"><g class="sway">
+              <path class="lk" d="M88 64 Q200 20 318 70"/><path class="lk" d="M110 170 Q210 120 300 160"/>
+              <path class="arm" style="--i:0" d="M200 105 Q150 80 88 64"/><path class="arm" style="--i:1" d="M200 105 Q150 130 110 170"/>
+              <path class="arm" style="--i:2" d="M200 105 Q205 60 176 26"/><path class="arm" style="--i:3" d="M200 105 Q255 80 318 70"/>
+              <path class="arm" style="--i:4" d="M200 105 Q250 140 300 160"/><path class="arm" style="--i:5" d="M200 105 Q205 150 226 190"/>
+              <circle class="sk" style="--i:0" cx="88" cy="64" r="6"/><circle class="sk" style="--i:1" cx="124" cy="75" r="4"/>
+              <circle class="sk" style="--i:2" cx="110" cy="170" r="7"/><circle class="sk" style="--i:3" cx="140" cy="146" r="4"/>
+              <circle class="sk" style="--i:4" cx="176" cy="26" r="5"/><circle class="sk" style="--i:5" cx="318" cy="70" r="8"/>
+              <circle class="sk" style="--i:6" cx="268" cy="76" r="4"/><circle class="sk" style="--i:7" cx="300" cy="160" r="6"/>
+              <circle class="sk" style="--i:8" cx="226" cy="190" r="5"/><circle class="sk" style="--i:9" cx="258" cy="146" r="3.5"/>
+              <circle class="hd" cx="200" cy="105" r="15"/>
+              <circle class="red" cx="318" cy="70" r="4"><animate attributeName="r" values="4;7;4" dur="1.6s" repeatCount="indefinite"/></circle>
+            </g></svg>
+          </div>
+          <div class="txt"><h3>It draws itself</h3><p>The map: every brain an arm, every concept a sucker, every line a link between brains. A red dot is a clash to settle.</p></div>
+        </div>
+        <div class="tile">
+          <div class="stage"><div class="talk" id="talk" aria-hidden="true">
+            <div class="b me">Actually Porto, not Lisbon. Budget stays at 2,000 a month.</div>
+            <div class="b ai">Noted. Porto replaces Lisbon, which you chose on 12 September.</div>
+            <div class="rc">Filed: 1 note updated, 1 new</div>
+          </div></div>
+          <div class="txt"><h3>It learns you <small>Alpha</small></h3><p>A personal brain: tell it anything and it files your words as dated notes. It can call your other brains; they never read it.</p></div>
+        </div>
+      </div>
+    </div></section>
 
     <section class="band later" id="why"><div class="wide">
       <span class="eyebrow">What makes a brain</span>
-      <h2>Every claim keeps its author, its date and your verdict.</h2>
+      <h2>"Isn't it just ChatGPT with my files?"</h2>
       <p class="lede">A classic AI chat answers from its training data. Karpathy's LLM wiki compiles your files into pages.
-        A brain compiles them into positions, each backed by dated evidence you can open.</p>
+        A brain compiles them into positions, each backed by dated evidence you can open, and asks you when two sources clash.</p>
 
       <div class="cmp" role="table" aria-label="A classic AI chat, Karpathy's LLM wiki and a brain, compared">
         <div class="cmp-row cmp-head" role="row"><span role="columnheader"></span><span role="columnheader">Classic AI chat</span><span role="columnheader">Karpathy's LLM wiki</span><span role="columnheader" class="me">Brain</span></div>
@@ -520,95 +662,176 @@
     later.forEach(s => io.observe(s));
   })();
 
+  /* Inside a brain: each tile plays when it comes into view. */
+  (() => {
+    const play = el => {
+      if (el.id === "rings") for (const r of el.querySelectorAll(".ring")) {
+        r.querySelector(".val").style.strokeDashoffset = String(226 * (1 - Number(r.dataset.v) / 10));
+      } else el.classList.add("play");
+      /* The chat replays, so a reader who lingers sees it again. */
+      if (el.id === "talk") setInterval(() => { el.classList.remove("play"); void el.offsetWidth; el.classList.add("play"); }, 9000);
+    };
+    const els = ["rings", "map", "talk"].map($).filter(Boolean);
+    if (!("IntersectionObserver" in window)) { els.forEach(play); return; }
+    const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { play(e.target); io.unobserve(e.target); } }), { threshold: .35 });
+    els.forEach(e => io.observe(e));
+    /* Past the first screen the sky dims a little, so reading comes first. */
+    const v = $("veilLower");
+    window.addEventListener("scroll", () => v.classList.toggle("on", window.scrollY > window.innerHeight * .6), { passive: true });
+  })();
+
   /**
-   * The field.
+   * The sky.
    *
-   * Nodes drift at three depths, near ones larger and brighter. Two nodes close
-   * enough are linked, fainter with distance, and now and then a spark runs a
-   * link, the way a new source is filed against what the brain holds. The
-   * pointer links the nodes around it. Asked for less motion, one still frame.
+   * Three layers. Far away, dust that twinkles. Closer, nodes drifting at three
+   * depths, linked when near, fainter with distance; they slide at their own
+   * pace as the page scrolls, so the field has depth. Every few seconds a
+   * thought fires: one node lights and the spark runs out along its links, two
+   * or three hops deep, the way a new source reaches what the brain already
+   * holds. The pointer bends the nodes toward it and links them; a click or a
+   * tap fires a thought where it lands. Asked for less motion, one still frame.
    */
   (() => {
     const c = $("field"), x = c.getContext("2d");
     if (!x) return;
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const LINK = 132, REACH = 170;
-    let W = 0, H = 0, nodes = [], sparks = [], last = 0;
+    const LINK = 132, REACH = 180, TAU = 6.2832;
+    let W = 0, H = 0, nodes = [], dust = [], sparks = [], rings = [], nextFire = 0;
     const p = { x: -1e4, y: -1e4 };
 
     function size(){
-      const dpr = Math.min(devicePixelRatio || 1, 2);
-      W = innerWidth; H = innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = window.innerWidth; H = window.innerHeight;
       c.width = W * dpr; c.height = H * dpr;
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const n = Math.max(24, Math.min(150, Math.round(W * H / 10500)));
+      const n = Math.max(26, Math.min(140, Math.round(W * H / 10500)));
       nodes = Array.from({ length: n }, () => {
         const z = Math.random();
-        return { x: Math.random() * W, y: Math.random() * H, z, r: .7 + z * 1.9,
-          vx: (Math.random() - .5) * (.12 + z * .3), vy: (Math.random() - .5) * (.12 + z * .3), ph: Math.random() * 6.28 };
+        return { x: Math.random() * W, y: Math.random() * (H + 40) - 20, z, r: .7 + z * 1.9, flash: 0, sx: 0, sy: 0,
+          vx: (Math.random() - .5) * (.1 + z * .28), vy: (Math.random() - .5) * (.1 + z * .28), ph: Math.random() * TAU };
       });
-      sparks = [];
+      dust = Array.from({ length: Math.min(200, Math.round(W * H / 7000)) }, () => ({
+        x: Math.random() * W, y: Math.random() * H, r: Math.random() * .8 + .2, ph: Math.random() * TAU, sp: .4 + Math.random() * 1.2 }));
+      sparks = []; rings = [];
       if (still) frame(0);
     }
 
-    function spark(){
-      const a = nodes[Math.floor(Math.random() * nodes.length)];
-      let b = null, best = LINK;
-      for (const o of nodes) { if (o === a) continue; const d = Math.hypot(o.x - a.x, o.y - a.y); if (d < best) { best = d; b = o; } }
-      if (b) sparks.push({ a, b, t: 0 });
+    /* Where a node shows: its place, moved by the scroll at its depth, and bent toward the pointer. */
+    function place(sy){
+      for (const n of nodes) {
+        const off = sy * (.04 + n.z * .16);
+        let yy = ((n.y - off + 20) % (H + 40) + (H + 40)) % (H + 40) - 20, xx = n.x;
+        const dx = p.x - xx, dy = p.y - yy, d = Math.hypot(dx, dy);
+        if (d < REACH) { const k = (1 - d / REACH) * .14 * (.5 + n.z); xx += dx * k; yy += dy * k; }
+        n.sx = xx; n.sy = yy;
+      }
     }
+
+    /* A thought: a node lights and its spark runs out along the links, hop by hop. */
+    function fire(from, now){
+      if (!from) return;
+      const pink = Math.random() < .18, seen = new Set([from]);
+      let wave = [from], delay = 0;
+      from.flash = 1;
+      for (let hop = 0; hop < 3 && wave.length; hop++) {
+        const next = [];
+        for (const a of wave) {
+          const near = nodes.filter(o => !seen.has(o) && Math.hypot(o.sx - a.sx, o.sy - a.sy) < LINK)
+            .sort(() => Math.random() - .5).slice(0, hop ? 2 : 3);
+          for (const b of near) { seen.add(b); next.push(b); sparks.push({ a, b, t: 0, at: now + delay, pink }); }
+        }
+        wave = next; delay += 420;
+      }
+    }
+    const nearest = (px, py) => nodes.reduce((best, n) => {
+      const d = Math.hypot(n.sx - px, n.sy - py); return d < best.d ? { n, d } : best; }, { n: null, d: 1e9 }).n;
 
     function frame(now){
       x.clearRect(0, 0, W, H);
-      if (!still) {
-        for (const n of nodes) {
-          n.x += n.vx; n.y += n.vy;
-          if (n.x < -20) n.x = W + 20; else if (n.x > W + 20) n.x = -20;
-          if (n.y < -20) n.y = H + 20; else if (n.y > H + 20) n.y = -20;
-        }
-        if (now - last > 380 && sparks.length < 6) { spark(); last = now; }
+      const sy = window.scrollY || 0;
+      if (!still) for (const n of nodes) {
+        n.x += n.vx; n.y += n.vy;
+        if (n.x < -20) n.x = W + 20; else if (n.x > W + 20) n.x = -20;
+        n.flash *= .95;
+      }
+      place(sy);
+      if (!still && now > nextFire) { fire(nodes[Math.floor(Math.random() * nodes.length)], now); nextFire = now + 2200 + Math.random() * 1800; }
+
+      /* the dust, far behind */
+      for (const d of dust) {
+        const tw = still ? .5 : .5 + .5 * Math.sin(now * .001 * d.sp + d.ph);
+        const yy = ((d.y - sy * .015) % H + H) % H;
+        x.fillStyle = `rgba(234,244,251,${.08 + tw * .22})`;
+        x.fillRect(d.x, yy, d.r, d.r);
+      }
+      /* the pointer's halo */
+      if (p.x > -1e3) {
+        const g = x.createRadialGradient(p.x, p.y, 0, p.x, p.y, REACH);
+        g.addColorStop(0, "rgba(95,168,211,.10)"); g.addColorStop(1, "rgba(95,168,211,0)");
+        x.fillStyle = g; x.beginPath(); x.arc(p.x, p.y, REACH, 0, TAU); x.fill();
       }
       /* the links */
       x.lineWidth = 1;
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
         for (let j = i + 1; j < nodes.length; j++) {
-          const b = nodes[j], dx = a.x - b.x, dy = a.y - b.y;
+          const b = nodes[j], dx = a.sx - b.sx, dy = a.sy - b.sy;
           if (dx > LINK || dx < -LINK || dy > LINK || dy < -LINK) continue;
           const d = Math.hypot(dx, dy);
           if (d > LINK) continue;
-          x.strokeStyle = `rgba(95,168,211,${(1 - d / LINK) * .22 * (.4 + (a.z + b.z) * .35)})`;
-          x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(b.x, b.y); x.stroke();
+          const lit = Math.max(a.flash, b.flash);
+          x.strokeStyle = `rgba(${lit > .1 ? "140,196,230" : "95,168,211"},${(1 - d / LINK) * (.2 * (.4 + (a.z + b.z) * .35) + lit * .45)})`;
+          x.beginPath(); x.moveTo(a.sx, a.sy); x.lineTo(b.sx, b.sy); x.stroke();
         }
-        /* the pointer, a thought forming */
-        const pd = Math.hypot(a.x - p.x, a.y - p.y);
+        const pd = Math.hypot(a.sx - p.x, a.sy - p.y);
         if (pd < REACH) {
-          x.strokeStyle = `rgba(140,196,230,${(1 - pd / REACH) * .5})`;
-          x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(p.x, p.y); x.stroke();
+          x.strokeStyle = `rgba(140,196,230,${(1 - pd / REACH) * .45})`;
+          x.beginPath(); x.moveTo(a.sx, a.sy); x.lineTo(p.x, p.y); x.stroke();
         }
       }
-      /* the nodes */
+      /* the nodes, and the ones a thought just reached */
       for (const n of nodes) {
         const tw = still ? 1 : .75 + .25 * Math.sin(now * .0012 + n.ph);
-        x.fillStyle = `rgba(234,244,251,${(.22 + n.z * .55) * tw})`;
-        x.beginPath(); x.arc(n.x, n.y, n.r, 0, 6.2832); x.fill();
+        if (n.flash > .05) {
+          const g = x.createRadialGradient(n.sx, n.sy, 0, n.sx, n.sy, 16);
+          g.addColorStop(0, `rgba(140,196,230,${n.flash * .6})`); g.addColorStop(1, "rgba(140,196,230,0)");
+          x.fillStyle = g; x.beginPath(); x.arc(n.sx, n.sy, 16, 0, TAU); x.fill();
+        }
+        x.fillStyle = `rgba(234,244,251,${Math.min(1, (.22 + n.z * .55) * tw + n.flash * .6)})`;
+        x.beginPath(); x.arc(n.sx, n.sy, n.r + n.flash * 1.6, 0, TAU); x.fill();
       }
-      /* the sparks */
+      /* the sparks, each on its link */
       for (const s of sparks) {
-        s.t += .018;
-        const k = Math.min(1, s.t), sx = s.a.x + (s.b.x - s.a.x) * k, sy = s.a.y + (s.b.y - s.a.y) * k;
-        const g = x.createRadialGradient(sx, sy, 0, sx, sy, 9);
-        g.addColorStop(0, "rgba(234,244,251,.95)"); g.addColorStop(.35, "rgba(95,168,211,.55)"); g.addColorStop(1, "rgba(95,168,211,0)");
-        x.fillStyle = g; x.beginPath(); x.arc(sx, sy, 9, 0, 6.2832); x.fill();
+        if (now < s.at) continue;
+        s.t += .026;
+        const k = Math.min(1, s.t), px = s.a.sx + (s.b.sx - s.a.sx) * k, py = s.a.sy + (s.b.sy - s.a.sy) * k;
+        if (k >= 1) s.b.flash = 1;
+        const g = x.createRadialGradient(px, py, 0, px, py, 9);
+        g.addColorStop(0, "rgba(234,244,251,.95)");
+        g.addColorStop(.35, s.pink ? "rgba(245,201,209,.6)" : "rgba(95,168,211,.6)");
+        g.addColorStop(1, s.pink ? "rgba(245,201,209,0)" : "rgba(95,168,211,0)");
+        x.fillStyle = g; x.beginPath(); x.arc(px, py, 9, 0, TAU); x.fill();
       }
       sparks = sparks.filter(s => s.t < 1);
+      /* a click's ripple */
+      for (const r of rings) {
+        r.r += 4.5; r.life -= .018;
+        x.strokeStyle = `rgba(140,196,230,${Math.max(0, r.life) * .45})`; x.lineWidth = 1.2;
+        x.beginPath(); x.arc(r.x, r.y, r.r, 0, TAU); x.stroke();
+      }
+      rings = rings.filter(r => r.life > 0);
       if (!still) window.requestAnimationFrame(frame);
     }
 
     window.addEventListener("resize", size);
-    window.addEventListener("pointermove", e => { p.x = e.clientX; p.y = e.clientY; }, { passive: true });
-    window.addEventListener("pointerleave", () => { p.x = p.y = -1e4; });
+    window.addEventListener("pointermove", e => { if (e.pointerType !== "touch") { p.x = e.clientX; p.y = e.clientY; } }, { passive: true });
     document.addEventListener("pointerout", e => { if (!e.relatedTarget) p.x = p.y = -1e4; });
+    /* A click on the sky, not on a control, fires a thought where it lands. */
+    window.addEventListener("pointerdown", e => {
+      if (still || e.target.closest("a, button, input, summary, label, form, .tile, .cmp, .card, .step")) return;
+      rings.push({ x: e.clientX, y: e.clientY, r: 4, life: 1 });
+      fire(nearest(e.clientX, e.clientY), performance.now());
+    }, { passive: true });
     size();
     if (!still) window.requestAnimationFrame(frame);
   })();

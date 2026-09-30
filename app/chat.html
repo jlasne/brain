@@ -100,6 +100,8 @@
      ====================================================================== */
   :root:not([data-space="octopus"]):not([data-space="squidgy"]){
     --mark:url("/brand/brain.svg");
+    /* The type of the landing and of jeremylasne.com. */
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     --bg:#eef5fa; --surface:#ffffff; --surface-2:#e0ecf5; --surface-3:#d0e2ef;
     --ink:#050b16; --ink-2:#1d2a3b; --ink-3:#3e4f63; --ink-4:#4d5e72;
     --line:#d5e4ef; --line-2:#b5cde0;
@@ -250,8 +252,21 @@
   /* The demo says what it is, above the thread. */
   .demo-bar{ margin:12px auto 0; width:min(760px, calc(100% - 32px)); padding:10px 14px; border-radius:10px;
     border:1px solid var(--accent-line); background:var(--accent-soft); font:400 13.5px/1.55 var(--sans); color:var(--ink-2); }
+  .demo-bar{ display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap; }
   .demo-bar b{ color:var(--accent); }
-  .demo-bar a{ color:var(--accent); font-weight:600; }
+  .demo-bar .db-t{ flex:1 1 280px; }
+  .demo-bar .db-acts{ display:flex; gap:6px; flex-wrap:wrap; }
+  .demo-bar .db-b{ font:500 12.5px/1 var(--sans); padding:8px 11px; border-radius:999px; border:1px solid var(--accent-line);
+    background:var(--surface); color:var(--accent); cursor:pointer; text-decoration:none; transition:border-color .15s var(--ease), background .15s var(--ease); }
+  .demo-bar .db-b:hover{ border-color:var(--accent-fill); }
+  .demo-bar .db-b.main{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
+
+  /* The empty chat offers three questions its brains can answer. */
+  .zero .try{ margin-top:22px; display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+  .zero .try b{ font:600 11px/1 var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); margin-bottom:2px; }
+  .zero .try button{ text-align:left; font:400 14.5px/1.4 var(--sans); color:var(--ink); padding:9px 14px; border-radius:14px 14px 14px 4px;
+    border:1px solid var(--accent-line); background:var(--surface); box-shadow:var(--shadow); transition:border-color .15s var(--ease), transform .15s var(--ease); }
+  .zero .try button:hover{ border-color:var(--accent-fill); transform:translateY(-1px); }
 
   /* Chats and Brains, each a group that folds, remembered per browser. */
   .side-h.fold{ margin-top:12px; }
@@ -1210,8 +1225,10 @@
       <h1><a href="/" id="spaceNameBar" title="All workspaces">Brain</a></h1>
     </div>
 
-    <div class="demo-bar" id="demoBar" hidden><b>Live demo.</b> Ask anything, drop an article, a PDF or a video, open the map in Setup.
-      Every visitor shares 30 drops and 300 questions a month, and your chats stay yours. <a href="/#create">Make your own workspace</a> to keep your own brains.</div>
+    <div class="demo-bar" id="demoBar" hidden>
+      <span class="db-t"><b>Live demo.</b> Every visitor shares 30 drops and 300 questions a month. Your chats stay yours.</span>
+      <span class="db-acts"><button class="db-b" id="demoMap" type="button">Open the map</button><button class="db-b" id="demoSettle" type="button">Settle a clash</button><a class="db-b main" href="/#create">Make your own</a></span>
+    </div>
     <div class="thread" id="thread"></div>
 
     <div class="composer-wrap">
@@ -2245,16 +2262,37 @@ function renderZero(){
   /* The shell paints before the state call says which space this is, so an
      empty state drawn for the wrong space is replaced rather than kept. */
   const old = th.querySelector(".zero");
-  const mark = markOf(), logo = !!S.logo;
-  if (old && (old.dataset.space !== S.space || old.dataset.mark !== mark)) old.remove();
+  const mark = markOf(), logo = !!S.logo, ex = examples();
+  if (old && (old.dataset.space !== S.space || old.dataset.mark !== mark || old.dataset.ex !== ex.join("|"))) old.remove();
   if (th.children.length) return;
   const z = el("div","zero");
-  z.dataset.space = S.space; z.dataset.mark = mark;
+  z.dataset.space = S.space; z.dataset.mark = mark; z.dataset.ex = ex.join("|");
   z.innerHTML = `
     ${S.space === "octopus" && !logo ? octopusLoop() : `<img class="zero-mark" src="${esc(S.space === "squidgy" && !logo ? "/brand/squidgy-mark.png" : mark)}" alt="">`}
     <h2>A folder that gets smarter every time you feed it.</h2>
     <p class="lede">Feed it any source and it reads the whole thing, files each idea under the right subject, flags every claim that clashes with what you already hold, then answers from dated evidence.</p>`;
+  if (ex.length){
+    const t = el("div","try"); t.append(el("b",null,"Try"));
+    for (const q of ex){ const b = el("button",null,q); b.type = "button"; b.onclick = () => { $("input").value = q; go(); }; t.append(b); }
+    z.append(t);
+  }
   th.append(z);
+}
+
+/**
+ * Three questions the brains on screen can answer: the concept with the most
+ * sources in each of the three fullest shared brains. A personal chat gets none.
+ */
+function examples(){
+  if (S.mode !== "ask" || isPersonal(S.scope)) return [];
+  const pool = S.brains.filter(b => b.type !== "personal" && (S.scope === "all" || b.slug === S.scope));
+  const out = [];
+  for (const b of [...pool].sort((x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length)){
+    const top = conceptsOf(b.slug).slice().sort((x, y) => (y.src || 0) - (x.src || 0) || (y.ev || 0) - (x.ev || 0))[0];
+    if (top) out.push(`What does ${b.name} hold on ${top.title.replace(/\.$/, "").replace(/^[A-Z](?![A-Z])/, m => m.toLowerCase())}?`);
+    if (out.length === 3) break;
+  }
+  return out;
 }
 
 /* ============ thread ============ */
@@ -3405,6 +3443,18 @@ function openMemorySheet(){
   };
 }
 $("memBtn").onclick = openMemorySheet;
+$("demoMap").onclick = () => openMap();
+/* The clashes the demo holds, one card at a time; a line in the thread when there are none. */
+$("demoSettle").onclick = async () => {
+  const b = $("demoSettle"); b.disabled = true; b.textContent = "Looking";
+  try {
+    const r = await api("/api/conflicts", {});
+    const list = r.conflicts || [];
+    if (list.length) openConflictDeck(list, r.others || 0);
+    else push("ai", x => { x.innerHTML = rich("No open clash in the demo right now. Drop a source that disagrees with a brain, and one appears here."); });
+  } catch (e) { push("ai", x => { x.innerHTML = rich(esc(e.message)); }); }
+  finally { b.disabled = false; b.textContent = "Settle a clash"; }
+};
 
 function nearest(scope){
   const stop = new Set("the a an and or of for my own to in on with about from at by as is are".split(" "));
