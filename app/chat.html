@@ -4,7 +4,18 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="icon" href="/brand/logo-mark.png">
+<link rel="icon" href="/brand/brain.svg">
+
+<script>
+  /* The workspace's colours before anything paints: the one the address asks
+     for, or else the one this tab last opened. An address with an empty w asks
+     for a workspace by name, in Brain's own colours. */
+  try {
+    const q = new URLSearchParams(location.search);
+    const s = (q.has("w") ? q.get("w") : sessionStorage.getItem("octopus.space") || "").toLowerCase();
+    if (/^[a-z0-9][a-z0-9-]{1,31}$/.test(s)) document.documentElement.dataset.space = s;
+  } catch {}
+</script>
 
 <script>
   /* The deployment this app talks to. Public by design: the OpenRouter key
@@ -69,6 +80,29 @@
      a glance: yours in brown, the brain's on the page. */
   :root[data-space="squidgy"] .msg.me .body{ background:var(--accent-solid); color:var(--accent-on); border-color:transparent; }
   :root[data-space="squidgy"] .msg.me .body .attach{ color:var(--accent-on); opacity:.8; }
+
+  /* ======================================================================
+     EVERY OTHER WORKSPACE: BRAIN
+
+     The demo and every workspace made on the landing wear Brain's colours,
+     the ones of jeremylasne.com: the night navy #050b16 for text and the blue
+     #5fa8d3 on a pale ice page. Octopus and Squidgy keep their own, and a
+     workspace that sets a logo and a colour in Setup wears those instead.
+
+       --accent-fill   #5fa8d3, the brand blue: borders, rings, dots, bars
+       --accent-solid  #2b6f99, a fill under a white label, 5.5:1
+       --accent        #245f84, accent text, 6.3:1 on the page
+     ====================================================================== */
+  :root:not([data-space="octopus"]):not([data-space="squidgy"]){
+    --mark:url("/brand/brain.svg");
+    --bg:#eef5fa; --surface:#ffffff; --surface-2:#e0ecf5; --surface-3:#d0e2ef;
+    --ink:#050b16; --ink-2:#1d2a3b; --ink-3:#3e4f63; --ink-4:#4d5e72;
+    --line:#d5e4ef; --line-2:#b5cde0;
+    --accent:#245f84; --accent-fill:#5fa8d3; --accent-solid:#2b6f99; --accent-on:#ffffff;
+    --accent-soft:rgba(95,168,211,.13); --accent-line:rgba(95,168,211,.45);
+    --shadow:0 1px 2px rgba(5,11,22,.05), 0 1px 8px rgba(5,11,22,.05);
+    --shadow-lift:0 2px 6px rgba(5,11,22,.08), 0 12px 32px rgba(5,11,22,.12);
+  }
 
   /* The dog greets an empty thread. */
   .zero-mark{ display:block; height:92px; width:auto; margin-bottom:22px; }
@@ -644,9 +678,9 @@
     animation:turn 1.3s linear infinite;
   }
   @keyframes turn{ to{ transform:rotate(360deg); } }
-  /* Octopus waits with its own loop rather than a turning mark. Squidgy
-     keeps its turning mark. */
-  :root:not([data-space="squidgy"]) .spinner{
+  /* Octopus waits with its own loop rather than a turning mark. Every other
+     workspace turns its own mark. */
+  :root[data-space="octopus"] .spinner{
     width:36px; height:36px; animation:none;
     background-image:url("/brand/octopus-loop-64.webp");
   }
@@ -946,33 +980,17 @@
   .sheet .bad{ color:var(--accent); font-size:13.5px; line-height:1.5; margin-top:4px; min-height:1.2em; }
   .sheet .spin{ color:var(--ink-3); font-size:13.5px; line-height:1.5; margin-top:4px; min-height:1.2em; }
 
-  .gate{
-    position:fixed; inset:0; z-index:100; background:var(--bg);
-    display:grid; place-items:center; padding:24px;
-  }
-  .gate .panel{
-    width:100%; max-width:392px; text-align:left;
-    animation:rise .3s var(--ease) both;
-  }
-  .gate .mk{ width:38px; height:38px; color:var(--accent-fill); margin-bottom:20px; }
-  .gate .mk svg, .gate .mk img{ width:100%; height:100%; display:block; }
-  .gate h2{ font:600 25px/1.2 var(--sans); letter-spacing:-.02em; color:var(--ink); text-wrap:balance; }
-  .gate p{ margin-top:11px; font-size:15.5px; line-height:1.6; color:var(--ink-3); }
-  .gate form{ margin-top:22px; display:flex; flex-direction:column; gap:10px; }
-  .gate input{
-    width:100%; border:1px solid var(--line-2); border-radius:12px; background:var(--surface);
-    padding:13px 15px; font:400 16px/1.4 var(--sans); color:var(--ink);
-    box-shadow:var(--shadow); transition:border-color .15s var(--ease);
-  }
-  .gate input:focus{ border-color:var(--accent-fill); }
-  .gate .row{ display:flex; gap:9px; align-items:center; }
-  .gate .row .go{ flex:1; justify-content:center; }
-  .gate .note{
-    margin-top:18px; padding-top:16px; border-top:1px solid var(--line);
-    font-size:13.5px; line-height:1.6; color:var(--ink-3);
-  }
-  .gate .bad{ color:var(--accent); font-size:14px; line-height:1.5; }
-  .gate .spin{ font-size:14px; color:var(--ink-3); }
+  /* The passphrase, on top of the workspace it opens: the page behind wears
+     the workspace's colours and mark, blurred, and the card sits high, where
+     the eye lands first. */
+  .veil.gate-veil{ place-items:start center; padding:max(9vh, 20px) 20px 20px; background:rgba(20,20,19,.26); }
+  .sheet.wsgate{ max-width:400px; }
+  .wsgate .gmk{ display:block; width:46px; height:46px; object-fit:contain; margin-bottom:12px; }
+  .wsgate h3{ font-size:22px; letter-spacing:-.02em; }
+  .wsgate input{ font-size:16px; }
+  .wsgate .gmsg{ min-height:1.5em; color:var(--accent); }
+  .wsgate footer{ justify-content:space-between; align-items:center; }
+  .wsgate footer a.ghost{ text-decoration:none; }
 
   label.check{
     display:flex; align-items:flex-start; gap:8px; cursor:pointer;
@@ -1112,7 +1130,7 @@
   @media (prefers-reduced-motion:reduce){
     *{ animation:none !important; transition:none !important; scroll-behavior:auto !important; }
     /* A loop is motion too: the still mark stands in for it. */
-    :root:not([data-space="squidgy"]) .spinner{ background-image:var(--mark); }
+    :root[data-space="octopus"] .spinner{ background-image:var(--mark); }
   }
 </style>
 
@@ -1121,8 +1139,8 @@
 
   <aside id="side">
     <div class="brand">
-      <span class="mark"><img id="spaceMark" src="/brand/logo-mark.png" alt="" width="48" height="48"></span>
-      <h1><a href="/" id="spaceName" title="Back to the door">Octopus</a></h1>
+      <span class="mark"><img id="spaceMark" src="/brand/brain.svg" alt="" width="48" height="48"></span>
+      <h1><a href="/" id="spaceName" title="All workspaces">Brain</a></h1>
       <button class="navtoggle" id="navToggle" aria-label="Hide the brains" title="Hide the brains">&#171;</button>
     </div>
     <div class="side-scroll">
@@ -1159,8 +1177,8 @@
       <button class="burger" id="burger" aria-label="Brains">
         <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
       </button>
-      <img id="spaceMarkBar" class="barmark" src="/brand/logo-mark.png" alt="" width="24" height="24">
-      <h1><a href="/" id="spaceNameBar" title="Back to the door">Octopus</a></h1>
+      <img id="spaceMarkBar" class="barmark" src="/brand/brain.svg" alt="" width="24" height="24">
+      <h1><a href="/" id="spaceNameBar" title="All workspaces">Brain</a></h1>
     </div>
 
     <div class="demo-bar" id="demoBar" hidden><b>Live demo.</b> Ask anything, drop an article, a PDF or a video, open the map in Setup.
@@ -1175,7 +1193,7 @@
             <button data-m="drop">Drop</button>
           </div>
           <button class="pick-btn" id="scopeBtn" aria-haspopup="listbox" aria-expanded="false" title="Which brains to ask, or to feed">
-            <img class="pk-mark" id="scopeMark" src="/brand/logo-mark.png" alt="" width="18" height="18">
+            <img class="pk-mark" id="scopeMark" src="/brand/brain.svg" alt="" width="18" height="18">
             <span class="pk-lbl" id="scopeLabel">Across</span>
             <span class="pk-val" id="scopeVal">All brains</span>
             <svg class="pk-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 7.5 6 4.5l3 3"/></svg>
@@ -1245,7 +1263,7 @@ const S = {
   level: "normal",
   /* Which space this session reads, and what it calls itself. The passphrase at
      the door decided it, and the app only reports it. */
-  space: "octopus", spaceName: "Octopus",
+  space: document.documentElement.dataset.space || "", spaceName: "Brain",
 };
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
@@ -1313,7 +1331,7 @@ async function api(path, body = {}) {
   } finally { clearTimeout(cap); }
   if (r.status === 401) {
     sessionStorage.removeItem(TOKEN_KEY);
-    location.reload(); throw new Error("locked");
+    location.replace("/chat?w=" + encodeURIComponent(S.space || "")); throw new Error("locked");
   }
   const d = await r.json().catch(() => ({ error: "the server sent something unreadable" }));
   if (d.error) throw new Error(d.error);
@@ -1350,19 +1368,93 @@ async function apiRetry(path, body = {}, opts = {}){
 /* ============ the gate ============ */
 const MARK = document.querySelector(".brand .mark").innerHTML;
 
-/** A modal over the app, not a wall in front of it. It has no way out,
-    because every route behind it needs the token it hands back. */
+const SPACE_KEY = "octopus.space";
+const KNOWN_NAMES = { octopus: "Octopus", squidgy: "Squidgy", demo: "Demo" };
+const titleCase = slug => slug.split("-").filter(Boolean).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+const cap = t => String(t || "").charAt(0).toUpperCase() + String(t || "").slice(1);
+
 /**
- * Back to the door.
- *
- * The door is the landing page now, one panel per space, because the passphrase
- * is what decides which brains a session reads. Nothing here can ask for it
- * without already knowing which space to ask about, so a tab with no session
- * goes back where the choice is made.
+ * The workspace this address asks for: /chat?w=octopus. An empty w asks for
+ * one by name. With no w at all the tab keeps what it holds, so null.
  */
-function gateScreen() {
-  const here = encodeURIComponent(location.pathname + location.search);
-  location.replace("/?from=" + here);
+function askedSpace(){
+  let q;
+  try { q = new URLSearchParams(location.search); } catch { return null; }
+  if (!q.has("w")) return null;
+  const w = (q.get("w") || "").trim().toLowerCase();
+  return /^[a-z0-9][a-z0-9-]{1,31}$/.test(w) ? w : "";
+}
+
+/** A call made before there is a session: the passphrase, or the demo. */
+async function openCall(path, body = {}){
+  let r;
+  try {
+    r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  } catch { throw new Error("The server did not answer. Check your connection."); }
+  const d = await r.json().catch(() => ({ error: "the server sent something unreadable" }));
+  if (d.error) throw new Error(cap(d.error));
+  return d;
+}
+
+/**
+ * The passphrase, on top of the workspace.
+ *
+ * The page paints the workspace the address names, in its own colours and
+ * mark, blurred, with one card over it: the passphrase, or the name and the
+ * passphrase for a workspace made on the landing. The demo needs neither and
+ * opens straight away.
+ */
+function gateScreen(w, st = {}){
+  if (w) { S.space = w; S.spaceName = KNOWN_NAMES[w] || titleCase(w); paintSpace(); renderZero(); }
+  if (w === "demo") { demoDoor(st); return; }
+  $("app").classList.add("locked");
+  /* Only the owner's two doors report whether they have a passphrase yet. */
+  const shut = !!w && st.gates && st.gates[w] === false;
+  const veil = el("div", "veil gate-veil");
+  veil.innerHTML = `
+    <form class="sheet wsgate" id="wsGate" role="dialog" aria-modal="true" aria-labelledby="gateH" novalidate>
+      <header>
+        <img class="gmk" id="gateMark" src="${esc(markOf())}" alt="">
+        <h3 id="gateH">${w ? esc(S.spaceName) : "Open your workspace"}</h3>
+        <p>${w ? "Enter the passphrase to open this workspace." : "The name and the passphrase you chose when you made it."}</p>
+      </header>
+      <div class="f">
+        ${w ? `<input type="text" name="username" autocomplete="username" value="${esc(w)}" hidden>`
+            : `<label for="gName">Workspace name</label><input id="gName" autocomplete="username" maxlength="60" spellcheck="false"><div style="height:14px"></div>`}
+        <label for="gPass">Passphrase</label>
+        <input id="gPass" type="password" autocomplete="current-password" spellcheck="false">
+        <p class="hint gmsg" id="gMsg" role="alert">${shut ? "Shut until its owner sets a passphrase." : ""}</p>
+      </div>
+      <footer><a class="ghost" href="/">All workspaces</a><button class="go" id="gGo" type="submit">Enter</button></footer>
+    </form>`;
+  document.body.append(veil);
+  const pass = veil.querySelector("#gPass"), name = veil.querySelector("#gName");
+  const msg = veil.querySelector("#gMsg"), go = veil.querySelector("#gGo");
+  setTimeout(() => (name || pass).focus(), 60);
+  veil.querySelector("form").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    if (name && name.value.trim().length < 2) { msg.textContent = "Type the workspace's name."; name.focus(); return; }
+    if (pass.value.length < 8) { msg.textContent = "A passphrase runs 8 characters or more."; pass.focus(); return; }
+    go.disabled = true; msg.textContent = "Checking";
+    let d;
+    try { d = await openCall("/api/unlock", name ? { name: name.value.trim(), pass: pass.value } : { space: w, pass: pass.value }); }
+    catch (e) { go.disabled = false; pass.value = ""; pass.focus(); msg.textContent = e.message; return; }
+    sessionStorage.setItem(TOKEN_KEY, d.token);
+    S.token = d.token;
+    veil.remove(); $("app").classList.remove("locked");
+    try { await open(); } catch (e) { deadScreen(e.message); }
+  });
+}
+
+/** The demo, from its own address: a fresh visitor session, no passphrase. */
+async function demoDoor(st){
+  try {
+    if (st.demo === false) throw new Error("The demo opens soon.");
+    const d = await openCall("/api/demo");
+    sessionStorage.setItem(TOKEN_KEY, d.token);
+    S.token = d.token;
+    await open();
+  } catch (e) { deadScreen(e.message); }
 }
 
 /** Same modal shape when the deployment itself is unreachable. */
@@ -1386,7 +1478,14 @@ function deadScreen(why) {
 /* ============ boot ============ */
 (async () => {
   render(); sizeBox();                       // the shell paints straight away
-  const saved = sessionStorage.getItem(TOKEN_KEY);
+  const w = askedSpace(), held = sessionStorage.getItem(SPACE_KEY) || "";
+  if (S.space) { S.spaceName = KNOWN_NAMES[S.space] || titleCase(S.space); paintSpace(); }
+  let saved = sessionStorage.getItem(TOKEN_KEY);
+  /* An address that names another workspace than the one this tab holds
+     opens that one, behind its own passphrase. */
+  if (saved && w !== null && w !== held) {
+    sessionStorage.removeItem(TOKEN_KEY); saved = null;
+  }
   if (saved) {
     S.token = saved;
     try { await open(); return; }
@@ -1395,11 +1494,12 @@ function deadScreen(why) {
       S.token = null;
     }
   }
-  /* A reachability probe before the bounce, so an unreachable deployment says so
-     rather than sending the tab to a door that cannot answer either. */
-  try { await api("/api/status"); }
+  /* A reachability probe first, so an unreachable deployment says so rather
+     than asking for a passphrase it cannot check. */
+  let st;
+  try { st = await api("/api/status"); }
   catch (e) { deadScreen(e.message); return; }
-  gateScreen();
+  gateScreen(w ?? (S.space || ""), st);
 })();
 
 async function open(){ await refresh(); sizeBox(); $("input").focus(); }
@@ -1445,21 +1545,25 @@ function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); 
  * rule in the app. The name and the mark follow it. A mark with no file yet
  * leaves the Octopus one in place rather than a gap.
  */
+/** The workspace's mark: its own logo, the octopus, the dog's head, or Brain's. */
+function markOf(){
+  if (S.brand?.logo) return S.brand.logo;
+  return S.space === "octopus" ? "/brand/logo-mark.png" : S.space === "squidgy" ? "/brand/squidgy-icon.png" : "/brand/brain.svg";
+}
+
 function paintSpace(){
   document.documentElement.dataset.space = S.space;
+  try { sessionStorage.setItem(SPACE_KEY, S.space); } catch {}
   document.title = S.spaceName;
   $("spaceName").textContent = S.spaceName;
   $("spaceNameBar").textContent = S.spaceName;
   /* The header box is square, and a whole dachshund at 24 pixels is a smudge,
-     so a space other than Octopus shows its head icon there and in the tab. */
-  const mark = $("spaceMark");
-  const want = S.space === "octopus" ? "/brand/logo-mark.png" : `/brand/${S.space}-icon.png`;
-  if (mark.getAttribute("src") === want) return;
+     so Squidgy shows its head there and in the tab. */
+  const want = markOf();
+  if ($("spaceMark").getAttribute("src") === want) return;
   const probe = new Image();
   probe.onload = () => {
-    mark.src = want;
-    $("spaceMarkBar").src = want;
-    $("scopeMark").src = want;
+    for (const id of ["spaceMark", "spaceMarkBar", "scopeMark", "gateMark"]) { const m = $(id); if (m) m.src = want; }
     const tab = document.querySelector('link[rel="icon"]');
     if (tab) tab.href = want;
   };
@@ -2018,7 +2122,7 @@ function renderZero(){
   const z = el("div","zero");
   z.dataset.space = S.space;
   z.innerHTML = `
-    ${S.space === "squidgy" ? `<img class="zero-mark" src="/brand/squidgy-mark.png" alt="">` : octopusLoop()}
+    ${S.space === "octopus" ? octopusLoop() : `<img class="zero-mark" src="${esc(S.space === "squidgy" ? "/brand/squidgy-mark.png" : markOf())}" alt="">`}
     <h2>A folder that gets smarter every time you feed it.</h2>
     <p class="lede">Feed it any source and it reads the whole thing, files each idea under the right subject, flags every claim that clashes with what you already hold, then answers from dated evidence.</p>`;
   th.append(z);
@@ -2069,6 +2173,15 @@ const WAITING = {
   ],
 };
 
+/* Any other workspace waits in its own name. */
+const waitingFor = name => [
+  [`${name} is searching every title...`, "searching"],
+  [`${name} is matching the concepts...`, "matching"],
+  [`${name} is reading the notes...`, "reading"],
+  [`${name} is weighing the evidence...`, "weighing"],
+  [`${name} is writing the answer...`, "writing"],
+];
+
 /**
  * The turning mark and a line. Without a label, the line is the mascot's,
  * and it changes while the wait lasts. A drop's steps pass their own label,
@@ -2102,7 +2215,7 @@ function thinking(label){
     const line = el("span","tl",label||"Thinking");
     t.append(mark, line);
     b.append(t);
-    const lines = !label && (WAITING[S.space] || WAITING.octopus);
+    const lines = !label && (WAITING[S.space] || waitingFor(S.spaceName));
     if (lines){
       const show = i => { line.textContent = lines[i][0] + " "; line.append(el("span","act",`(${lines[i][1]})`)); };
       let i = 0;

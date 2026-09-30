@@ -1,471 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Brain: what you read, watch and hear, turned into answers you can check</title>
-<meta name="description" content="Drop an article, a PDF, a video or a transcript. Brain files each claim with its author and date, flags what contradicts what you hold, and answers from that evidence.">
-<meta property="og:title" content="Brain: a knowledge base that keeps itself current">
-<meta property="og:description" content="Every claim filed with its author and date. Contradictions settled by you. Answers with receipts, in 9 languages.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brain: your AI brain, with receipts</title>
+<meta name="description" content="Drop an article, a PDF, a video or a thought. Brain files every claim with its author and date, flags what contradicts what you know, and answers from your sources only.">
+<meta name="theme-color" content="#050b16">
+<meta property="og:title" content="Brain: your AI brain, with receipts">
+<meta property="og:description" content="Every claim filed with its author and date. Contradictions settled by you. Answers in 9 languages.">
 <link rel="icon" href="/brand/brain.svg" type="image/svg+xml">
 <link rel="icon" href="/brand/brain-64.png" type="image/png" sizes="64x64">
 <link rel="apple-touch-icon" href="/brand/brain-180.png">
-<link rel="stylesheet" href="/octopus.css">
 
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
 <style>
   /* ======================================================================
-     THE TWO COLOURS
+     BRAIN
 
-     One block, five values per door. Swap them and both doors, both buttons
-     and both focus rings follow, because nothing below names a colour directly.
+     The type and the colours of jeremylasne.com: the system font, a night
+     navy, ice text and one blue. Over the navy, a field of nodes links up the
+     way a brain files what it reads, and a spark runs a link now and then.
 
-       --tint       the brand colour: the rule under the name, the focus ring
-       --tint-btn   the button, which carries a label, so it has to reach 4.5:1
-                    against --tint-on
-       --tint-deep  the button on hover
-       --tint-on    the button label
-       --tint-wash  the panel behind the door, the same colour as that space's chat
-
-     Squidgy is brown #A8704E and pink #F5C9D1. White on the brown reads at
-     4.12:1, under the 4.5:1 a 15px label needs, so its button runs 7% darker at
-     #9c6849 (4.68:1) and the brand brown carries everything that holds no text.
+       --ink    the page
+       --blue   the one colour: links, focus, the button
+       --ice    the text, and two softer steps of it
+       --line   every rule and border
      ====================================================================== */
-  .door.octopus{
-    --tint:#d97757; --tint-btn:#d97757; --tint-deep:#bf5a3c; --tint-on:#ffffff;
-    --tint-wash:#F5F5DC;
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --ink:#050b16; --ink-2:#0a1424; --blue:#5fa8d3; --blue-2:#8cc4e6;
+    --ice:#eaf4fb; --ice-70:rgba(234,244,251,.72); --ice-45:rgba(234,244,251,.46); --ice-06:rgba(234,244,251,.06);
+    --line:rgba(95,168,211,.18); --line-2:rgba(95,168,211,.32);
+    --glass:rgba(10,20,36,.62);
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --ease:cubic-bezier(.22,1,.36,1);
   }
-  .door.squidgy{
-    --tint:#A8704E; --tint-btn:#9c6849; --tint-deep:#8b5d41; --tint-on:#ffffff;
-    --tint-wash:#fbe9ed;
-  }
+  html{ background:var(--ink); color-scheme:dark; scroll-behavior:smooth; }
+  body{ font-family:var(--sans); color:var(--ice); -webkit-font-smoothing:antialiased; overflow-x:hidden; min-height:100dvh; }
+  ::selection{ background:var(--blue); color:var(--ink); }
+  a{ color:inherit; text-decoration:none; }
+  button,input{ font:inherit; color:inherit; }
+  [hidden]{ display:none !important; }
+  :focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:6px; }
 
-  /* ---------------------------------------------------------------- frame */
-  main.doors{
-    flex:1; padding:0; display:grid; grid-template-columns:1fr 1fr;
-    align-items:stretch;
-  }
-  /* A deep link shows one door, so /squidgy is a door rather than a choice.
-     Centred, because a single column against a whole screen reads adrift. */
-  main.doors.one{ grid-template-columns:1fr; }
-  main.doors.one .door{ align-items:center; }
+  /* ---- the field, and the light behind the headline ---- */
+  #field{ position:fixed; inset:0; z-index:0; width:100%; height:100%; pointer-events:none; }
+  .glow{ position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(60% 45% at 50% 8%, rgba(95,168,211,.20), transparent 70%),
+      radial-gradient(40% 35% at 85% 60%, rgba(95,168,211,.07), transparent 70%),
+      radial-gradient(45% 40% at 10% 85%, rgba(245,201,209,.05), transparent 70%); }
+  .page{ position:relative; z-index:2; }
 
-  .door{
-    background:var(--tint-wash);
-    display:flex; flex-direction:column; justify-content:center; align-items:flex-start;
-    padding:clamp(30px,5vw,68px); transition:background .2s var(--ease);
-  }
-  .door + .door{ border-left:1px solid var(--line); }
-  /* Focus deepens the panel's own colour a little, so it still matches its chat. */
-  .door:focus-within{ background:color-mix(in srgb, var(--tint) 6%, var(--tint-wash)); }
-  .door > *{ width:100%; max-width:340px; }
+  @keyframes riseIn{ from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:none; } }
+  .reveal{ animation:riseIn .7s var(--ease) both; animation-delay:calc(var(--d, 0) * 1ms); }
+  /* Sections further down rise as they come into view. */
+  .later{ opacity:0; transform:translateY(22px); transition:opacity .8s var(--ease), transform .8s var(--ease); }
+  .later.seen{ opacity:1; transform:none; }
 
-  /* Both marks sit straight on the panel. Each file is transparent around its
-     animal, and a tile in the brand colour behind an animal in the same colour
-     left the octopus orange on orange. Both run 56 pixels tall so the doors line
-     up; the dachshund runs at its own length. */
-  .mk{ display:block; height:56px; margin-bottom:20px; color:var(--tint); }
-  .mk img{ height:56px; width:auto; display:block; }
-  .mk b{ font:600 40px/56px var(--sans); letter-spacing:-.02em; }
-  /* The octopus's loop in place of its still mark. Its frame holds the
-     sparkles and the landing ring around a body about half its width, so it
-     runs at twice the mark's height and gives the extra back in margins: the
-     doors still line up at 56 pixels. */
-  .mk .loop{ display:block; width:112px; height:112px; margin:-40px 0 -16px -26px; pointer-events:none; }
+  /* ---- the bar ---- */
+  .bar{ position:absolute; top:0; left:0; right:0; z-index:3; }
+  .bar .in{ max-width:1080px; margin:0 auto; padding:max(16px, env(safe-area-inset-top)) 20px 0; display:flex; align-items:center; gap:10px; }
+  .bar .me{ display:flex; align-items:center; gap:9px; font-size:16px; font-weight:600; letter-spacing:-.01em; }
+  .bar .me img{ width:26px; height:26px; }
+  .bar nav{ margin-left:auto; display:flex; align-items:center; gap:4px; }
+  .bar nav a{ display:flex; align-items:center; gap:7px; font-size:14px; color:var(--ice-70); padding:9px 12px; border-radius:999px;
+    transition:color .2s, background .2s; }
+  .bar nav a svg{ width:18px; height:18px; fill:currentColor; }
+  @media (hover:hover){ .bar nav a:hover{ color:var(--blue); background:var(--ice-06); } }
 
-  .door h1{
-    font-size:clamp(27px,3.3vw,36px); line-height:1.04; letter-spacing:-.032em;
-    font-weight:600; color:var(--ink);
-  }
-  .door h1::after{
-    content:""; display:block; width:34px; height:2px; background:var(--tint);
-    margin-top:14px;
-  }
-  .door .tally{
-    margin-top:7px; font:400 12px/1.6 var(--mono); color:var(--ink-4); min-height:1.6em;
-  }
+  /* ---- the hero: the headline, the line under it, and the workspaces ---- */
+  .hero{ min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:96px 20px 64px; text-align:center; }
+  .mark{ position:relative; margin-bottom:28px; }
+  .mark::before{ content:""; position:absolute; inset:-18px; border-radius:50%; z-index:-1;
+    background:rgba(95,168,211,.35); filter:blur(30px); animation:breathe 5s ease-in-out infinite; }
+  @keyframes breathe{ 0%,100%{ opacity:.75; transform:scale(1); } 50%{ opacity:1; transform:scale(1.12); } }
+  .mark img{ display:block; width:84px; height:84px; filter:drop-shadow(0 10px 30px rgba(95,168,211,.35)); }
+  .hero h1{ max-width:860px; font-size:clamp(34px, 6.4vw, 68px); line-height:1.05; font-weight:650; letter-spacing:-.04em; text-wrap:balance; }
+  .hero h1 em{ font-style:normal;
+    background:linear-gradient(100deg, var(--ice) 5%, var(--blue-2) 45%, var(--blue) 95%);
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero .sub{ margin-top:22px; max-width:640px; font-size:clamp(17px, 2vw, 20px); line-height:1.55; color:var(--ice-70); text-wrap:pretty; }
 
-  .door label{
-    display:block; margin:26px 0 7px;
-    font:500 12.5px/1 var(--sans); color:var(--ink-3);
+  /* The workspaces, in the list style of jeremylasne.com. */
+  .spaces{ width:100%; max-width:700px; margin-top:40px; text-align:left; padding:10px 22px 12px; border-radius:22px;
+    background:var(--glass); border:1px solid var(--line); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    box-shadow:0 30px 80px -30px rgba(0,0,0,.7), inset 0 1px 0 rgba(234,244,251,.05); }
+  h2.tiny{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ice-45); padding:12px 0 6px; }
+  ul{ list-style:none; }
+  li + li > .item, li + li > .fold > .item{ border-top:1px solid var(--line); }
+  .item{ display:flex; align-items:center; gap:14px; width:calc(100% + 28px); padding:15px 14px; margin:0 -14px; border-radius:14px;
+    color:inherit; background:none; border:0; text-align:left; cursor:pointer; }
+  .item .logo{ width:24px; height:24px; flex:none; object-fit:contain; }
+  .item .ic{ width:24px; height:24px; flex:none; display:grid; place-items:center; color:var(--ice-70); }
+  .item .ic svg{ width:20px; height:20px; fill:currentColor; }
+  .item .name{ font-size:16px; line-height:24px; font-weight:600; letter-spacing:-.01em; white-space:nowrap; flex:none; transition:color .2s; }
+  .item .desc{ font-size:15px; line-height:24px; color:var(--ice-70); flex:1 1 auto; min-width:0; }
+  .item .tag{ flex:none; font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--ice-45);
+    border:1px solid var(--line); border-radius:999px; padding:2px 8px; }
+  .item .tag.live{ color:var(--blue); border-color:var(--line-2); }
+  .item .arrow, .item .chev{ width:16px; height:16px; flex:none; fill:var(--ice-45); transition:transform .25s var(--ease), fill .2s; }
+  @media (hover:hover){
+    .item:hover{ background:var(--ice-06); }
+    .item:hover .name{ color:var(--blue); }
+    .item:hover .arrow{ fill:var(--blue); transform:translate(2px,-2px); }
+    .item:hover .chev{ fill:var(--blue); }
   }
-  .door input{
-    width:100%; border:1px solid var(--line-2); border-radius:10px;
-    background:var(--surface); padding:12px 14px;
+  .item:disabled{ cursor:default; opacity:.6; }
+  .fold summary{ list-style:none; }
+  .fold summary::-webkit-details-marker{ display:none; }
+  .fold[open] .chev{ transform:rotate(180deg); }
+  @keyframes foldIn{ from{ opacity:0; transform:translateY(-6px); } to{ opacity:1; transform:none; } }
+  .fold[open] .make{ animation:foldIn .25s ease both; }
+  .row-msg{ margin:-6px 0 8px 38px; font-size:13.5px; line-height:1.5; color:var(--blue); }
+  .row-msg:empty{ display:none; }
+
+  /* The one form: make your workspace. */
+  .make{ padding:4px 0 16px 38px; }
+  .make label{ display:block; margin:12px 0 6px; font-size:13px; font-weight:500; color:var(--ice-70); }
+  .make input{ width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line-2); background:rgba(234,244,251,.05);
     /* 16 pixels, because iPhone zooms the page into any field smaller. */
-    font:400 16px/1.4 var(--sans); color:var(--ink);
-    transition:border-color .15s var(--ease);
+    font-size:16px; line-height:1.4; color:var(--ice); transition:border-color .2s, background .2s; }
+  .make input::placeholder{ color:rgba(234,244,251,.3); }
+  .make input:focus{ outline:none; border-color:var(--blue); background:rgba(234,244,251,.08); }
+  .make .fine{ margin-top:10px; font-size:13px; line-height:1.55; color:var(--ice-45); }
+  .make .fine a{ color:var(--blue); }
+  .make .msg{ margin-top:10px; font-size:13.5px; line-height:1.5; color:var(--blue); min-height:1.5em; }
+
+  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:48px; padding:13px 22px; border-radius:999px;
+    font-size:15.5px; font-weight:600; letter-spacing:-.01em; cursor:pointer; border:1px solid var(--line-2); background:var(--ice-06); color:var(--ice);
+    transition:transform .2s var(--ease), background .2s, border-color .2s, box-shadow .2s; }
+  .btn.main{ background:var(--blue); border-color:var(--blue); color:var(--ink); box-shadow:0 10px 30px -10px rgba(95,168,211,.7); }
+  @media (hover:hover){
+    .btn:hover{ transform:translateY(-1px); border-color:var(--blue); }
+    .btn.main:hover{ background:var(--blue-2); border-color:var(--blue-2); }
   }
-  .door input:focus{ border-color:var(--tint); outline:none; }
-  .door .go{
-    margin-top:12px; width:100%; min-height:46px; border-radius:10px; padding:12px 16px;
-    background:var(--tint-btn); color:var(--tint-on);
-    font:500 15px/1 var(--sans); text-align:center;
-    transition:background .15s var(--ease);
-  }
-  .door .go:hover{ background:var(--tint-deep); }
-  .door .go:disabled{ opacity:.55; cursor:default; }
-  .door .msg{
-    margin-top:11px; font:400 13px/1.5 var(--sans); color:var(--tint); min-height:1.5em;
-  }
-  .door .msg.set{ color:var(--ink-3); }
+  .btn:disabled{ opacity:.55; cursor:default; transform:none; }
+  .make .btn{ margin-top:16px; width:100%; }
 
-  footer.bot .wrap{
-    max-width:none; justify-content:space-between; gap:14px; flex-wrap:wrap; font-size:12.5px;
-  }
+  .scroll{ margin-top:34px; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ice-45); }
+  .scroll i{ display:block; width:1px; height:34px; background:linear-gradient(var(--blue), transparent); animation:drip 2.4s var(--ease) infinite; transform-origin:top; }
+  @keyframes drip{ 0%{ transform:scaleY(0); opacity:0; } 30%{ opacity:1; } 100%{ transform:scaleY(1); opacity:0; } }
 
-  @media (max-width:760px){
-    main.doors{ grid-template-columns:1fr; }
-    .door + .door{ border-left:none; border-top:1px solid var(--line); }
-    .door{ padding-block:44px; }
-    .door > *{ max-width:none; }
-  }
+  /* ---- the bands below ---- */
+  .band{ padding:clamp(72px, 10vw, 120px) 20px; }
+  .wide{ max-width:1080px; margin:0 auto; }
+  .eyebrow{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--blue); }
+  .band h2{ margin-top:14px; max-width:780px; font-size:clamp(30px, 4.4vw, 48px); line-height:1.08; font-weight:650; letter-spacing:-.035em; text-wrap:balance; }
+  .band .lede{ margin-top:16px; max-width:680px; font-size:18px; line-height:1.6; color:var(--ice-70); text-wrap:pretty; }
 
-  /* ======================================================================
-     THE LANDING
+  /* The comparison: three columns, the brain's lit. */
+  .cmp{ margin-top:40px; border-radius:22px; border:1px solid var(--line); background:rgba(10,20,36,.55); overflow:hidden;
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); position:relative; }
+  .cmp-row{ display:grid; grid-template-columns:19% 1fr 1fr 1.15fr; }
+  .cmp-row + .cmp-row{ border-top:1px solid var(--line); }
+  .cmp-row > span{ padding:16px 18px; font-size:15px; line-height:1.5; color:var(--ice-45); min-width:0; }
+  .cmp-row > span:first-child{ color:var(--ice); font-weight:600; }
+  .cmp-row > span:nth-child(3){ color:var(--ice-70); }
+  .cmp-row > span.me{ color:var(--ice); background:rgba(95,168,211,.09); position:relative; padding-left:42px; }
+  .cmp-row > span.me::before{ content:""; position:absolute; left:18px; top:20px; width:14px; height:14px; border-radius:50%;
+    background:var(--blue) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3.5 7.2l2.3 2.3 4.7-4.9' fill='none' stroke='%23050b16' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/14px no-repeat; }
+  .cmp-head > span{ font-size:11px !important; font-weight:700 !important; letter-spacing:.1em; text-transform:uppercase; color:var(--ice-45) !important;
+    padding-top:18px; padding-bottom:14px; }
+  .cmp-head > span.me{ color:var(--blue) !important; padding-left:18px; }
+  .cmp-head > span.me::before{ content:none; }
 
-     What Brain does for you, in the order a visitor asks: what do I get,
-     how does it work, why not a wiki of my own, who is it for, and where do
-     I start. The owner's doors stay on /octopus and /squidgy.
-     ====================================================================== */
-  body.landing main.doors{ display:none; }
-  body.door-mode #landing{ display:none; }
-  .lw{ width:100%; max-width:1080px; margin:0 auto; padding-inline:24px; }
-  .l-top{ position:sticky; top:0; z-index:10; background:rgba(245,245,220,.92); backdrop-filter:blur(6px); border-bottom:1px solid var(--line); }
-  .l-top .lw{ display:flex; align-items:center; gap:10px; padding-block:12px; }
-  .l-top img{ width:26px; height:26px; }
-  .l-top b{ font:600 18px/1 var(--sans); letter-spacing:-.015em; }
-  .l-top nav{ margin-left:auto; display:flex; gap:6px; align-items:center; }
-  .l-top nav a{ font:500 13.5px/1 var(--sans); color:var(--ink-3); padding:8px 10px; border-radius:7px; }
-  .l-top nav a:hover{ background:var(--surface-2); color:var(--ink); text-decoration:none; }
-  .cta{ display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:46px; padding:12px 20px; border-radius:11px;
-    font:600 15px/1 var(--sans); border:1px solid var(--line-2); background:var(--surface); color:var(--ink); cursor:pointer;
-    transition:transform .15s var(--ease), background .15s var(--ease), border-color .15s var(--ease); }
-  .cta:hover{ transform:translateY(-1px); border-color:var(--accent-fill); text-decoration:none; }
-  .cta.main{ background:var(--accent-fill); border-color:var(--accent-fill); color:#fff; }
-  .cta.main:hover{ background:#bf5a3c; border-color:#bf5a3c; }
-  .cta:disabled{ opacity:.55; cursor:default; transform:none; }
-  .l-top .cta{ min-height:36px; padding:8px 14px; font-size:13.5px; }
+  /* Who feeds a brain what, and what they ask it. */
+  .who{ margin-top:56px; }
+  .who h3{ font-size:22px; font-weight:650; letter-spacing:-.02em; }
+  .who .lede{ margin-top:8px; font-size:16px; }
+  .cards{ margin-top:22px; display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; }
+  .card{ padding:20px; border-radius:18px; border:1px solid var(--line); background:rgba(10,20,36,.55);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); display:flex; flex-direction:column; gap:10px;
+    transition:border-color .25s, transform .25s var(--ease); }
+  @media (hover:hover){ .card:hover{ border-color:var(--line-2); transform:translateY(-2px); } }
+  .card .top{ display:flex; align-items:center; gap:8px; }
+  .card b{ font-size:16px; font-weight:600; letter-spacing:-.01em; }
+  .card .kind{ margin-left:auto; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ice-45);
+    border:1px solid var(--line); border-radius:999px; padding:2px 8px; }
+  .card .kind.new{ color:var(--blue); border-color:var(--line-2); }
+  .card p{ font-size:14.5px; line-height:1.55; color:var(--ice-70); }
+  .card q{ quotes:"\201C" "\201D"; margin-top:auto; display:block; padding:10px 13px; border-radius:14px 14px 14px 4px;
+    background:rgba(95,168,211,.12); border:1px solid var(--line-2); font-size:14.5px; line-height:1.5; color:var(--ice); }
 
-  .hero{ padding:clamp(40px,7vw,88px) 0 clamp(36px,6vw,64px); }
-  .hero .lw{ display:grid; grid-template-columns:1.25fr .75fr; gap:40px; align-items:center; }
-  .eyebrow{ display:inline-block; font:500 12px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--accent);
-    padding:7px 10px; border:1px solid var(--accent-line); border-radius:999px; background:var(--accent-soft); }
-  .hero h1{ margin-top:18px; font:700 clamp(34px,5.2vw,60px)/1.04 var(--sans); letter-spacing:-.035em; color:var(--ink); }
-  .hero h1 em{ display:block; }
-  .hero h1 em{ font-style:normal; color:var(--accent-fill); }
-  .hero .sub{ margin-top:18px; max-width:640px; font:400 clamp(16px,1.6vw,19px)/1.6 var(--sans); color:var(--ink-2); }
-  .hero .ctas{ margin-top:26px; display:flex; gap:10px; flex-wrap:wrap; }
-  .hero .proof{ margin-top:18px; font:400 12.5px/1.6 var(--mono); color:var(--ink-4); min-height:1.6em; }
-  .hero .msg{ margin-top:10px; font:400 13.5px/1.5 var(--sans); color:var(--accent); min-height:1.5em; }
-  .stage{ position:relative; display:grid; place-items:center; }
-  .stage .loop, .stage .still{ width:min(200px,50vw); height:auto; }
-  .card-demo{ margin-top:-18px; width:100%; max-width:360px; background:var(--surface); border:1px solid var(--line); border-radius:14px;
-    box-shadow:var(--shadow-lift); padding:14px 16px; font:400 13.5px/1.55 var(--sans); color:var(--ink-2); }
-  .card-demo .q{ font-weight:600; color:var(--ink); }
-  .card-demo .ex-tag{ float:right; font:500 10.5px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-4); }
-  .card-demo .a{ margin-top:6px; }
-  .card-demo .src{ margin-top:8px; font:400 11.5px/1.5 var(--mono); color:var(--ink-4); }
-  .card-demo .clash{ margin-top:8px; display:inline-block; font:600 11px/1 var(--sans); letter-spacing:.03em; text-transform:uppercase;
-    color:#b3372a; border:1px solid rgba(179,55,42,.35); border-radius:999px; padding:5px 8px; }
+  /* How it works: four outcomes, each with what you see. */
+  .steps{ margin-top:44px; display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; counter-reset:s; }
+  .step{ position:relative; padding:22px 20px 20px; border-radius:18px; border:1px solid var(--line); background:rgba(10,20,36,.55);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); display:flex; flex-direction:column; }
+  .step::before{ counter-increment:s; content:"0" counter(s); font-size:12px; font-weight:700; letter-spacing:.1em; color:var(--blue); }
+  .step h3{ margin-top:10px; font-size:19px; line-height:1.25; font-weight:650; letter-spacing:-.02em; }
+  .step p{ margin-top:8px; font-size:14.5px; line-height:1.55; color:var(--ice-70); }
+  .step .see{ margin-top:18px; padding-top:16px; border-top:1px dashed var(--line); font-size:13px; line-height:1.5; color:var(--ice-70); }
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chips span{ padding:4px 10px; border-radius:999px; border:1px solid var(--line-2); font-size:12.5px; color:var(--ice); }
+  .tree{ display:grid; gap:6px; }
+  .tree span{ display:block; padding:6px 10px; border-radius:9px; background:var(--ice-06); }
+  .tree span:nth-child(2){ margin-left:14px; }
+  .tree span:nth-child(3){ margin-left:28px; color:var(--ice); border-left:2px solid var(--blue); }
+  .swipe{ display:grid; gap:6px; }
+  .swipe .vs{ padding:6px 10px; border-radius:9px; background:var(--ice-06); }
+  .swipe .vs b{ color:var(--ice); font-weight:600; }
+  .swipe .acts{ display:flex; gap:6px; }
+  .swipe .acts span{ flex:1; text-align:center; padding:5px 0; border-radius:999px; border:1px solid var(--line-2); font-size:12px; color:var(--ice); }
+  .swipe .acts span:nth-child(2){ background:var(--blue); border-color:var(--blue); color:var(--ink); font-weight:600; }
+  .ans{ padding:8px 11px; border-radius:12px 12px 12px 4px; background:var(--ice-06); color:var(--ice); }
+  .ans small{ display:block; margin-top:6px; font-size:12px; color:var(--ice-45); }
+  .note{ margin-top:22px; max-width:760px; font-size:14.5px; line-height:1.6; color:var(--ice-45); }
 
-  .band{ padding:clamp(40px,6vw,72px) 0; border-top:1px solid var(--line); }
-  .band.alt{ background:var(--surface-2); }
-  .band h2{ font:700 clamp(26px,3.4vw,38px)/1.1 var(--sans); letter-spacing:-.03em; color:var(--ink); }
-  .band .lede{ margin-top:10px; max-width:680px; font:400 17px/1.6 var(--sans); color:var(--ink-3); }
-  .grid{ margin-top:28px; display:grid; gap:14px; grid-template-columns:repeat(3, 1fr); }
-  .grid.two{ grid-template-columns:repeat(2, 1fr); }
-  .tile{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px; }
-  .tile .k{ font:600 11.5px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--accent); }
-  .tile h3{ margin-top:10px; font:600 18px/1.3 var(--sans); letter-spacing:-.01em; color:var(--ink); }
-  .tile p{ margin-top:7px; font:400 14.5px/1.6 var(--sans); color:var(--ink-3); }
-  .tile .ex{ margin-top:10px; padding:9px 11px; border-radius:9px; background:var(--bg); font:400 13px/1.5 var(--sans); color:var(--ink-2); }
-  .steps{ margin-top:28px; display:grid; grid-template-columns:repeat(5, 1fr); gap:12px; counter-reset:s; }
-  .step{ position:relative; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px; }
-  .step::before{ counter-increment:s; content:counter(s); display:grid; place-items:center; width:28px; height:28px; border-radius:50%;
-    background:var(--accent-fill); color:#fff; font:700 13px/1 var(--sans); }
-  .step h3{ margin-top:10px; font:600 16px/1.3 var(--sans); color:var(--ink); }
-  .step p{ margin-top:6px; font:400 13.5px/1.55 var(--sans); color:var(--ink-3); }
-  .cmp{ margin-top:26px; background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden; font:400 14.5px/1.5 var(--sans); }
-  .cmp-row{ display:grid; grid-template-columns:22% 1fr 1fr; border-top:1px solid var(--line); }
-  .cmp-row:first-child{ border-top:none; }
-  .cmp-row > span{ padding:12px 14px; min-width:0; }
-  .cmp-head{ background:var(--surface-2); font:600 12px/1.3 var(--mono); letter-spacing:.05em; text-transform:uppercase; }
-  .cmp-row > span:first-child{ font-weight:600; color:var(--ink); }
-  .cmp-row > span:nth-child(2){ color:var(--ink-3); }
-  .cmp-head > span{ color:var(--ink-3) !important; }
-  .cmp .win{ color:var(--good); font-weight:600; }
-  .note{ margin-top:12px; font:400 13px/1.6 var(--sans); color:var(--ink-4); }
+  /* The last word, and the way in again. */
+  .end{ text-align:center; }
+  .end h2{ margin-left:auto; margin-right:auto; }
+  .end .ctas{ margin-top:30px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .end .msg{ margin-top:12px; font-size:13.5px; color:var(--blue); min-height:1.5em; }
 
-  .cmp.two .cmp-row{ grid-template-columns:22% 1fr; }
-  .cmp.uses .cmp-row{ grid-template-columns:18% 1fr 1fr; }
-  .cmp.uses q{ quotes:"\201C" "\201D"; display:inline-block; padding:7px 11px; border-radius:12px 12px 12px 4px; background:var(--accent-soft);
-    border:1px solid var(--accent-line); color:var(--ink); font:400 14px/1.5 var(--sans); }
-  .ws-ic{ display:grid; place-items:center; width:44px; height:44px; border-radius:12px; background:var(--surface-2); color:var(--ink-2);
-    font:600 24px/1 var(--sans); }
-  .ws-panel{ grid-column:1 / -1; padding-top:4px; }
-  .ws-panel .grid{ margin-top:6px; }
-  .ws-panel .tile{ background:var(--bg); }
-  .ws-inline{ display:flex; gap:8px; max-width:460px; }
-  .ws-inline input{ flex:1; min-width:0; }
-  .ws-inline .cta{ margin-top:0; width:auto; min-height:44px; }
-  .ws-msg{ grid-column:2 / -1; margin:0; min-height:0; }
-  .ws-msg:empty{ display:none; }
-  .ws-list{ margin-top:24px; background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
-  .ws{ display:grid; grid-template-columns:44px 1fr auto; gap:14px; align-items:center; padding:14px 16px; border-top:1px solid var(--line); }
-  .ws:first-child{ border-top:none; }
-  .ws img{ width:44px; height:44px; object-fit:contain; }
-  .ws-t b{ display:block; font:600 17px/1.3 var(--sans); color:var(--ink); }
-  .ws-t span{ display:block; margin-top:2px; font:400 14px/1.5 var(--sans); color:var(--ink-3); }
-  .ws-go{ text-align:right; }
-  .ws-go .cta{ min-width:96px; min-height:40px; }
-  .ws-go .msg{ margin-top:6px; max-width:260px; font:400 12.5px/1.4 var(--sans); color:var(--accent); min-height:0; }
-  .start .grid{ align-items:stretch; }
-  .start form, .start .tile{ display:flex; flex-direction:column; }
-  .start label{ display:block; margin:12px 0 6px; font:500 12.5px/1 var(--sans); color:var(--ink-3); }
-  .start input{ width:100%; border:1px solid var(--line-2); border-radius:10px; background:var(--bg); padding:11px 13px;
-    font:400 16px/1.4 var(--sans); color:var(--ink); }
-  .start input:focus{ border-color:var(--accent-fill); outline:none; }
-  .start .tile .cta{ margin-top:14px; width:100%; }
-  .start .push{ margin-top:auto; }
-  .start .fine{ margin-top:10px; font:400 12.5px/1.55 var(--sans); color:var(--ink-4); }
-  .start .msg{ margin-top:8px; min-height:1.5em; font:400 13px/1.5 var(--sans); color:var(--accent); }
+  footer{ position:relative; z-index:2; border-top:1px solid var(--line); }
+  footer .in{ max-width:1080px; margin:0 auto; padding:22px 20px max(22px, env(safe-area-inset-bottom)); display:flex; flex-wrap:wrap; gap:10px 20px;
+    align-items:center; font-size:13.5px; color:var(--ice-45); }
+  footer img{ width:20px; height:20px; }
+  footer .me{ display:flex; align-items:center; gap:8px; color:var(--ice-70); font-weight:600; }
+  footer a{ color:var(--ice-70); }
+  @media (hover:hover){ footer a:hover{ color:var(--blue); } }
+  footer .by{ margin-left:auto; }
 
-  @media (max-width:900px){
-    .hero .lw{ grid-template-columns:1fr; }
-    .stage .loop, .stage .still{ width:min(130px,34vw); }
-    .ws{ grid-template-columns:40px 1fr; }
-    .ws-go{ grid-column:1 / -1; text-align:left; }
-    .ws-go .cta{ width:100%; }
+  @media (max-width:960px){
     .steps{ grid-template-columns:1fr 1fr; }
-    .grid{ grid-template-columns:1fr 1fr; }
+    .cards{ grid-template-columns:1fr 1fr; }
   }
-  @media (max-width:620px){
-    .grid, .grid.two, .steps{ grid-template-columns:1fr; }
-    .l-top nav a.opt{ display:none; }
-    .cmp-head{ display:none !important; }
-    .cmp-row{ grid-template-columns:1fr; padding:8px 0; }
-    .cmp-row > span{ padding:3px 14px; }
-    .cmp-row > span[data-l]::before{ content:attr(data-l) ": "; font-weight:600; color:var(--ink-2); }
-    .cmp.two .cmp-row, .cmp.uses .cmp-row{ grid-template-columns:1fr; }
-    .cmp.two .cmp-row > span[data-l]::before{ content:none; }
-    .ws-msg{ grid-column:1 / -1; }
+  @media (max-width:720px){
+    /* The comparison stacks: one card per row, each column named. */
+    .cmp-head{ display:none; }
+    .cmp-row{ grid-template-columns:1fr; padding:12px 0; }
+    .cmp-row > span{ padding:4px 18px; }
+    .cmp-row > span:first-child{ padding-bottom:6px; font-size:16px; }
+    .cmp-row > span[data-l]::before{ content:attr(data-l) ": "; color:var(--ice-45); font-weight:600; }
+    .cmp-row > span.me{ margin:6px 12px 0; padding:9px 12px 9px 36px; border-radius:12px; }
+    .cmp-row > span.me::before{ left:12px; top:13px; }
+    .cmp-row > span.me[data-l]::before{ content:""; }
+  }
+  @media (max-width:640px){
+    .steps, .cards{ grid-template-columns:1fr; }
+    .spaces{ padding:8px 16px 10px; border-radius:18px; }
+  }
+  @media (max-width:520px){
+    .item{ flex-wrap:wrap; row-gap:3px; padding:13px 12px; margin:0 -12px; width:calc(100% + 24px); }
+    .item .name{ flex:1 1 auto; }
+    .item .tag, .item .arrow, .item .chev{ order:2; }
+    .item .desc{ flex-basis:100%; order:3; padding-left:38px; line-height:1.5; }
+    .make{ padding-left:0; }
+    .row-msg{ margin-left:0; }
+    footer .by{ margin-left:0; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    .reveal, .mark::before, .scroll i{ animation:none; }
+    .later{ opacity:1; transform:none; transition:none; }
   }
 </style>
+</head>
+<body>
 
-<div id="landing">
-  <header class="l-top"><div class="lw">
-    <img src="/brand/brain.svg" alt="" width="26" height="26"><b>Brain</b>
+<canvas id="field" aria-hidden="true"></canvas>
+<div class="glow" aria-hidden="true"></div>
+
+<div class="page">
+  <header class="bar"><div class="in">
+    <a class="me" href="/"><img src="/brand/brain.svg" alt="" width="26" height="26">Brain</a>
     <nav>
-      <a class="opt" href="#vs-chat">Vs. an AI chat</a>
-      <a class="opt" href="#how">How it works</a>
-      <a class="opt" href="#karpathy">Vs. an LLM wiki</a>
-      <a class="opt" href="#uses">Use cases</a>
-      <a class="cta main" href="#start">Workspaces</a>
+      <a href="/chat?w=" id="openYours">Open your workspace
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z"/></svg></a>
+      <a href="https://github.com/jlasne/brain" aria-label="The code on GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#gh"/></svg></a>
     </nav>
   </div></header>
 
-  <section class="hero"><div class="lw">
-    <div>
-      <span class="eyebrow">Open source</span>
-      <h1>Feed it what you read. <em>Ask it what you know.</em></h1>
-      <p class="sub">Brain reads your articles, PDFs, videos and notes once, and files every claim under the right subject with its author and date.
-        When a new source contradicts what you hold, you decide which one wins. Then it answers from that evidence, and shows where each line comes from.</p>
-      <p class="proof" id="proof">Its builder feeds it every day.</p>
-    </div>
-    <div class="stage">
-      <img class="still" src="/brand/brain.svg" alt="" width="200" height="175">
-      <div class="card-demo" aria-label="An example answer">
-        <span class="ex-tag">Example</span>
-        <div class="q">What gets a cold email a reply?</div>
-        <div class="a">Keep it under 90 words and open with the reader's problem. Replies rose from 1.2% to 4.8% after the rewrite.</div>
-        <div class="src">Sources: 2 videos, 1 article, 1 PDF &middot; newest 2026-09-17</div>
-        <span class="clash">1 open conflict: length</span>
-      </div>
-    </div>
-  </div></section>
+  <main>
+    <section class="hero" id="top">
+      <div class="mark reveal"><img src="/brand/brain.svg" alt="" width="84" height="84"></div>
+      <h1 class="reveal" style="--d:80">Your AI brain learns what you feed it and <em>answers with receipts.</em></h1>
+      <p class="sub reveal" style="--d:160">Drop an article, a PDF, a video or a thought. Brain files every claim with its author and date,
+        flags what contradicts what you know, and answers from your sources only.</p>
 
-  <section class="band start" id="start"><div class="lw">
-    <h2>Workspaces</h2>
-    <p class="lede">A workspace holds its own brains and chats, and sees nothing of the others.</p>
-    <div class="ws-list">
-      <div class="ws">
-        <img src="/brand/brain.svg" alt="" width="44" height="44">
-        <div class="ws-t"><b>Demo</b><span>Open to everyone, no sign-up: brains on health, content and social skills. Every visitor shares 30 drops and 300 questions a month, and keeps their own chats.</span></div>
-        <div class="ws-go"><button class="cta main" id="demoGo" type="button">Open</button></div>
-        <p class="msg ws-msg" id="demoMsg" role="alert"></p>
+      <section class="spaces reveal" style="--d:260" id="start" aria-labelledby="spacesH">
+        <h2 class="tiny" id="spacesH">Workspaces</h2>
+        <ul>
+          <li>
+            <button class="item" id="demoGo" type="button">
+              <img class="logo" src="/brand/brain.svg" alt="" width="24" height="24">
+              <span class="name">Demo</span>
+              <span class="desc">Try it now: health, content and social brains.</span>
+              <span class="tag live">No sign-up</span>
+              <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg>
+            </button>
+            <p class="row-msg" id="demoMsg" role="alert"></p>
+          </li>
+          <li>
+            <a class="item" href="/chat?w=octopus" id="goOctopus">
+              <img class="logo" src="/brand/logo-mark.png" alt="" width="24" height="24">
+              <span class="name">Octopus</span>
+              <span class="desc">The builder's own brains.</span>
+              <span class="tag">Private</span>
+              <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg>
+            </a>
+          </li>
+          <li>
+            <a class="item" href="/chat?w=squidgy" id="goSquidgy">
+              <img class="logo" src="/brand/squidgy-icon.png" alt="" width="24" height="24">
+              <span class="name">Squidgy</span>
+              <span class="desc">A second private workspace.</span>
+              <span class="tag">Private</span>
+              <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg>
+            </a>
+          </li>
+          <li>
+            <details class="fold" id="wsCreate">
+              <summary class="item">
+                <span class="ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 2.5a.75.75 0 0 1 .75.75v4h4a.75.75 0 0 1 0 1.5h-4v4a.75.75 0 0 1-1.5 0v-4h-4a.75.75 0 0 1 0-1.5h4v-4A.75.75 0 0 1 8 2.5Z"/></svg></span>
+                <span class="name">Create your workspace</span>
+                <span class="desc">Your brains, on your own OpenRouter key.</span>
+                <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"/></svg>
+              </summary>
+              <form class="make" id="create" aria-label="Make your workspace">
+                <label for="cName">Workspace name</label><input id="cName" autocomplete="off" maxlength="60" placeholder="Acme Research">
+                <label for="cPass">Passphrase, 8 characters or more</label><input id="cPass" type="password" autocomplete="new-password">
+                <label for="cKey">OpenRouter key</label><input id="cKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-...">
+                <p class="fine">Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>.
+                  It is checked once, then kept in this browser and sent with each call that needs a model. Our server keeps no copy.</p>
+                <button class="btn main" id="cGo" type="submit">Create it</button>
+                <p class="msg" id="cMsg" role="alert"></p>
+              </form>
+            </details>
+          </li>
+          <li>
+            <a class="item" href="https://github.com/jlasne/brain" id="goCode">
+              <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#gh"/></svg></span>
+              <span class="name">Explore the open source</span>
+              <span class="desc">Every line of the app and the server. Run your own.</span>
+              <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg>
+            </a>
+          </li>
+        </ul>
+      </section>
+
+      <a class="scroll reveal" style="--d:420" href="#why">What makes a brain<i></i></a>
+    </section>
+
+    <section class="band later" id="why"><div class="wide">
+      <span class="eyebrow">What makes a brain</span>
+      <h2>Every claim keeps its author, its date and your verdict.</h2>
+      <p class="lede">A classic AI chat answers from its training data. Karpathy's LLM wiki compiles your files into pages.
+        A brain compiles them into positions, each backed by dated evidence you can open.</p>
+
+      <div class="cmp" role="table" aria-label="A classic AI chat, Karpathy's LLM wiki and a brain, compared">
+        <div class="cmp-row cmp-head" role="row"><span role="columnheader"></span><span role="columnheader">Classic AI chat</span><span role="columnheader">Karpathy's LLM wiki</span><span role="columnheader" class="me">Brain</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">Answers from</span><span role="cell" data-l="Chat">Its training data</span><span role="cell" data-l="Wiki">Your files, as pages</span><span role="cell" class="me" data-l="Brain">Your sources, as positions with their evidence</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">Proof</span><span role="cell" data-l="Chat">None, or a link it made up</span><span role="cell" data-l="Wiki">A summary per page</span><span role="cell" class="me" data-l="Brain">Author and date on every claim</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">When sources disagree</span><span role="cell" data-l="Chat">Blended into one answer</span><span role="cell" data-l="Wiki">Left side by side in the pages</span><span role="cell" class="me" data-l="Brain">Flagged at each drop; you rule on each in a swipe</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">New information</span><span role="cell" data-l="Chat">Frozen at the training date</span><span role="cell" data-l="Wiki">Added when you run the agent</span><span role="cell" class="me" data-l="Brain">Filed the day you drop it</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">Whose view</span><span role="cell" data-l="Chat">An average of the internet</span><span role="cell" data-l="Wiki">Your topics</span><span role="cell" class="me" data-l="Brain">One brain per subject, per expert, or for you</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">Setup</span><span role="cell" data-l="Chat">A chat box</span><span role="cell" data-l="Wiki">Scripts, Obsidian and a coding agent</span><span role="cell" class="me" data-l="Brain">A web page, on desktop and phone</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">What you get</span><span role="cell" data-l="Chat">A reply</span><span role="cell" data-l="Wiki">Pages, slides and charts</span><span role="cell" class="me" data-l="Brain">Answers at 3 levels, one-pagers in 9 languages, a health score, a map</span></div>
       </div>
-      <div class="ws">
-        <img src="/brand/octopus-door.png" alt="" width="44" height="44">
-        <div class="ws-t"><b>Octopus</b><span>The builder's own workspace: one brain per subject or person. Private.</span></div>
-        <div class="ws-go"><button class="cta" type="button" data-open="octopus">Enter</button></div>
-        <form class="ws-panel ws-pass" id="pOctopus" data-space="octopus" hidden>
-          <label for="wpOctopus">Passphrase</label>
-          <div class="ws-inline"><input id="wpOctopus" type="password" autocomplete="current-password"><button class="cta main" type="submit">Enter</button></div>
-          <p class="msg" role="alert"></p>
-        </form>
-      </div>
-      <div class="ws">
-        <img src="/brand/squidgy-mark.png" alt="" width="44" height="44">
-        <div class="ws-t"><b>Squidgy</b><span>A second private workspace.</span></div>
-        <div class="ws-go"><button class="cta" type="button" data-open="squidgy">Enter</button></div>
-        <form class="ws-panel ws-pass" id="pSquidgy" data-space="squidgy" hidden>
-          <label for="wpSquidgy">Passphrase</label>
-          <div class="ws-inline"><input id="wpSquidgy" type="password" autocomplete="current-password"><button class="cta main" type="submit">Enter</button></div>
-          <p class="msg" role="alert"></p>
-        </form>
-      </div>
-      <div class="ws">
-        <span class="ws-ic" aria-hidden="true">+</span>
-        <div class="ws-t"><b>Your own workspace</b><span>Make one on your own OpenRouter key, or open the one you made.</span></div>
-        <div class="ws-go"><button class="cta" type="button" data-open="create" id="wsCreate">Create</button></div>
-        <div class="ws-panel" id="pCreate" hidden>
-          <div class="grid two">
-            <form class="tile" id="create">
-              <h3>Make your workspace</h3>
-              <label for="cName">Workspace name</label><input id="cName" autocomplete="off" maxlength="60" placeholder="Acme Research">
-              <label for="cPass">Passphrase, 8 characters or more</label><input id="cPass" type="password" autocomplete="new-password">
-              <label for="cKey">OpenRouter key</label><input id="cKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-...">
-              <p class="fine">Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. It is checked once, then kept in this
-                browser only and sent with each call that needs a model. It is never saved on our server.</p>
-              <div class="push"><button class="cta main" id="cGo" type="submit">Create it</button><p class="msg" id="cMsg" role="alert"></p></div>
-            </form>
-            <form class="tile" id="open">
-              <h3>Open your workspace</h3>
-              <label for="oName">Workspace name</label><input id="oName" autocomplete="username" maxlength="60">
-              <label for="oPass">Passphrase</label><input id="oPass" type="password" autocomplete="current-password">
-              <p class="fine">On a new device, the app asks for your OpenRouter key once.</p>
-              <div class="push"><button class="cta" id="oGo" type="submit">Open it</button><p class="msg" id="oMsg" role="alert"></p></div>
-            </form>
-          </div>
+
+      <div class="who">
+        <h3>One brain per subject, per expert, or for you</h3>
+        <p class="lede">What people feed a brain, and what they ask it.</p>
+        <div class="cards" id="uses">
+          <div class="card"><div class="top"><b>Investors</b><span class="kind">Expert</span></div>
+            <p>Letters and interviews from each analyst they follow, one brain each.</p>
+            <q>Where do my two macro voices disagree on gold, and since when?</q></div>
+          <div class="card"><div class="top"><b>Founders and sales</b><span class="kind">Subject</span></div>
+            <p>Outreach and pricing talks, guides and case studies.</p>
+            <q>Write my first cold email from what the outreach brain holds.</q></div>
+          <div class="card"><div class="top"><b>Creators</b><span class="kind">Subject</span></div>
+            <p>Hook, format and scripting tutorials.</p>
+            <q>Give me 5 hook formats with the numbers behind them.</q></div>
+          <div class="card"><div class="top"><b>Health</b><span class="kind">Subject</span></div>
+            <p>Studies, podcasts and protocols on sleep, training and food.</p>
+            <q>What dose and timing do my sources give for creatine?</q></div>
+          <div class="card"><div class="top"><b>Students</b><span class="kind">Subject</span></div>
+            <p>Course PDFs, articles and recorded lectures.</p>
+            <q>Quiz me on depreciation, 8 questions, answers folded.</q></div>
+          <div class="card"><div class="top"><b>You</b><span class="kind new">Personal, alpha</span></div>
+            <p>Your own words, as you chat: goals, decisions, what you learned. Each note is dated.</p>
+            <q>What did I decide on pricing last month, and why?</q></div>
         </div>
       </div>
-      <div class="ws">
-        <span class="ws-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.4 11.4 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z"/></svg></span>
-        <div class="ws-t"><b>The open source</b><span>Every line of the app and the server. Run your own on Convex and Vercel.</span></div>
-        <div class="ws-go"><a class="cta" href="https://github.com/jlasne/brain">Explore</a></div>
+    </div></section>
+
+    <section class="band later" id="how"><div class="wide">
+      <span class="eyebrow">How it works</span>
+      <h2>From a link to an answer you can check, in 4 steps.</h2>
+      <div class="steps">
+        <div class="step"><h3>Drop it, and it is read.</h3>
+          <p>A link, a PDF, a Word file or a pasted transcript. Video captions are fetched for you.</p>
+          <div class="see chips"><span>Article</span><span>PDF</span><span>Video</span><span>Word</span><span>Podcast</span></div></div>
+        <div class="step"><h3>Every claim lands in its place.</h3>
+          <p>Each idea joins a concept or starts one, with its author, its date and its numbers.</p>
+          <div class="see tree"><span>Brain: Health</span><span>Concept: Sleep</span><span>Claim, its author, its date</span></div></div>
+        <div class="step"><h3>Clashes wait for your call.</h3>
+          <p>A source that contradicts a position waits for you. The position is then rewritten.</p>
+          <div class="see swipe"><div class="vs"><b>You hold</b> one view. <b>A new source</b> says the opposite.</div>
+            <div class="acts"><span>Keep</span><span>Both hold</span><span>Replace</span></div></div></div>
+        <div class="step"><h3>Answers you can check.</h3>
+          <p>At 3 levels, or as a one-pager in 9 languages. Each answer names its sources.</p>
+          <div class="see"><div class="ans">The answer, in a few lines.<small>Sources: 2 videos, 1 PDF. Newest: last week.</small></div></div></div>
       </div>
-    </div>
-  </div></section>
+      <p class="note">A position is re-derived from its whole evidence list at each drop, so a sixth source rewrites the view from all six.</p>
+    </div></section>
 
-  <section class="band alt" id="vs-chat"><div class="lw">
-    <h2>A brain vs. a classic AI chat</h2>
-    <p class="lede">A classic AI chat answers from what its model absorbed in training. A brain answers from the sources you gave it, and shows them.</p>
-    <div class="cmp" role="table" aria-label="A classic AI chat compared with a brain">
-      <div class="cmp-row cmp-head" role="row"><span role="columnheader"></span><span role="columnheader">A classic AI chat</span><span role="columnheader">A brain</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Answers from</span><span role="cell" data-l="A classic AI chat">What the model absorbed in training</span><span role="cell" data-l="A brain" class="win">The sources you fed it</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Proof</span><span role="cell" data-l="A classic AI chat">No source, or one it made up</span><span role="cell" data-l="A brain" class="win">Author and date on every claim</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">When sources disagree</span><span role="cell" data-l="A classic AI chat">Blended into one smooth answer</span><span role="cell" data-l="A brain" class="win">Flagged, and you rule on each in a swipe</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">New information</span><span role="cell" data-l="A classic AI chat">Frozen at the training date</span><span role="cell" data-l="A brain" class="win">Every source you add, the day you add it</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Memory</span><span role="cell" data-l="A classic AI chat">Starts from zero in each chat</span><span role="cell" data-l="A brain" class="win">Compiled once and kept; chats saved, pinned, reopened</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Whose view</span><span role="cell" data-l="A classic AI chat">An average of the internet</span><span role="cell" data-l="A brain" class="win">The subjects and experts you chose, one brain each</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Outputs</span><span role="cell" data-l="A classic AI chat">A chat reply</span><span role="cell" data-l="A brain" class="win">Answers at 3 levels, one-pagers in 9 languages, a health score, a map</span></div>
-    </div>
-    <p class="note">A brain still uses a language model: to read your sources and to write each answer. It answers only from what you gave it, and says so when that is not enough.</p>
-  </div></section>
+    <section class="band end later" id="go"><div class="wide">
+      <h2>Feed it what you read. Ask it what you know.</h2>
+      <div class="ctas">
+        <button class="btn main" id="demoGo2" type="button">Open the demo</button>
+        <a class="btn" href="#start" id="makeGo">Create your workspace</a>
+      </div>
+      <p class="msg" id="demoMsg2" role="alert"></p>
+    </div></section>
+  </main>
 
-  <section class="band" id="how"><div class="lw">
-    <h2>How it works</h2>
-    <p class="lede">One pass per source. The brain is compiled as you feed it, so a question reads positions, never raw files.</p>
-    <div class="cmp two" role="table" aria-label="How a source becomes an answer">
-      <div class="cmp-row cmp-head" role="row"><span role="columnheader">Step</span><span role="columnheader">What happens</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">1. Drop</span><span role="cell" data-l="What happens">An article or a link, a PDF or a Word file, a pasted transcript. Video captions are fetched for you.</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">2. Read</span><span role="cell" data-l="What happens">Every topic is extracted once, with its numbers and quotes. The author is named on every source.</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">3. File</span><span role="cell" data-l="What happens">Each idea joins a concept or starts one: a position, dated evidence, figures, links to other brains.</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">4. Settle</span><span role="cell" data-l="What happens">A claim that contradicts a position waits for your ruling. Additions and details go straight in.</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">5. Ask</span><span role="cell" data-l="What happens">Answers, one-pagers and the map read the compiled positions, and cite every source.</span></div>
-    </div>
-  </div></section>
-
-  <section class="band alt" id="karpathy"><div class="lw">
-    <h2>A brain vs. Karpathy's LLM wiki</h2>
-    <p class="lede">Andrej Karpathy showed that an AI should compile your sources into a wiki once, rather than search raw files on every question.
-      A brain keeps that idea and adds what a wiki leaves open: who said what, when, and what to do when sources disagree.</p>
-    <div class="cmp" role="table" aria-label="Karpathy's LLM wiki compared with Brain">
-      <div class="cmp-row cmp-head" role="row"><span role="columnheader"></span><span role="columnheader">Karpathy's LLM wiki</span><span role="columnheader">Brain</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Setup</span><span role="cell" data-l="Karpathy's wiki">Scripts, Obsidian and a coding agent</span><span role="cell" data-l="Brain" class="win">A web page, on desktop and phone</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Contradictions</span><span role="cell" data-l="Karpathy's wiki">Stay in the pages unresolved</span><span role="cell" data-l="Brain" class="win">Caught at every drop, and you rule on each</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Proof</span><span role="cell" data-l="Karpathy's wiki">A summary per page</span><span role="cell" data-l="Brain" class="win">Author and date on every claim</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Size</span><span role="cell" data-l="Karpathy's wiki">One index file, about 100 articles</span><span role="cell" data-l="Brain" class="win">Every title read in one pass, up to about 2,300 concepts</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">People</span><span role="cell" data-l="Karpathy's wiki">Topics only</span><span role="cell" data-l="Brain" class="win">Person brains: one expert's views, kept apart</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Outputs</span><span role="cell" data-l="Karpathy's wiki">Slides and charts</span><span role="cell" data-l="Brain" class="win">Answers at 3 levels, one-pagers in 9 languages, a weekly digest, a map</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Answers</span><span role="cell" data-l="Karpathy's wiki">Filed back into the wiki</span><span role="cell" data-l="Brain">Kept as chats you reopen and continue</span></div>
-    </div>
-    <p class="note">From Karpathy's own description of his setup: about 100 articles and 400,000 words, maintained by the AI, rarely edited by hand.</p>
-  </div></section>
-
-  <section class="band" id="uses"><div class="lw">
-    <h2>Use cases</h2>
-    <p class="lede">A brain per subject, or per person. Each one answers from what you fed it, and says so when it does not know.</p>
-    <div class="cmp uses" role="table" aria-label="Use cases">
-      <div class="cmp-row cmp-head" role="row"><span role="columnheader">Who</span><span role="columnheader">What they feed it</span><span role="columnheader">What they ask</span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Investors</span><span role="cell" data-l="Feeds">Letters, interviews and reports from the analysts they follow, one person brain each</span><span role="cell" data-l="Asks"><q>Where do my two macro voices disagree on gold, and since when?</q></span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Founders and sales</span><span role="cell" data-l="Feeds">Outreach and pricing talks, guides and case studies</span><span role="cell" data-l="Asks"><q>Write my first cold email from what the outreach brain holds.</q></span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Creators</span><span role="cell" data-l="Feeds">Hook, format and scripting tutorials</span><span role="cell" data-l="Asks"><q>Give me 5 hook formats with the numbers behind them.</q></span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Health</span><span role="cell" data-l="Feeds">Studies, podcasts and protocols on sleep, training and food</span><span role="cell" data-l="Asks"><q>What dose and timing do my sources give for creatine?</q></span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Students</span><span role="cell" data-l="Feeds">Course PDFs, articles and lectures</span><span role="cell" data-l="Asks"><q>Quiz me on depreciation, 8 questions, answers folded.</q></span></div>
-      <div class="cmp-row" role="row"><span role="rowheader">Your AI</span><span role="cell" data-l="Feeds">Any of the above, read by Claude through MCP</span><span role="cell" data-l="Asks"><q>What do my brains hold on retention?</q></span></div>
-    </div>
-  </div></section>
+  <footer><div class="in">
+    <span class="me"><img src="/brand/brain.svg" alt="" width="20" height="20">Brain</span>
+    <a href="https://github.com/jlasne/brain">Open source on GitHub</a>
+    <span class="by">Made by <a href="https://www.jeremylasne.com">Jeremy Lasne</a></span>
+  </div></footer>
 </div>
 
-<main class="doors" id="doors">
-
-  <form class="door octopus" id="dOctopus">
-    <span class="mk" aria-hidden="true">
-      <img id="imgOctopus" src="/brand/octopus-door.png" alt="" width="75" height="56">
-      <b id="letterOctopus" hidden>O</b>
-    </span>
-    <h1>Octopus</h1>
-    <p class="tally" id="tallyOctopus"></p>
-    <label for="passOctopus">Passphrase</label>
-    <input type="password" id="passOctopus" autocomplete="current-password" spellcheck="false">
-    <button type="submit" class="go" id="goOctopus">Enter</button>
-    <p class="msg" id="msgOctopus" role="alert"></p>
-  </form>
-
-  <form class="door squidgy" id="dSquidgy">
-    <span class="mk" aria-hidden="true">
-      <!-- The whole dog, cut from brand/squidgy-logo.png. The letter below
-           only shows if the file fails to load. -->
-      <img id="imgSquidgy" src="/brand/squidgy-mark.png" alt="" width="89" height="56">
-      <b id="letterSquidgy" hidden>S</b>
-    </span>
-    <h1>Squidgy</h1>
-    <p class="tally" id="tallySquidgy"></p>
-    <label for="passSquidgy">Passphrase</label>
-    <input type="password" id="passSquidgy" autocomplete="current-password" spellcheck="false">
-    <button type="submit" class="go" id="goSquidgy">Enter</button>
-    <p class="msg" id="msgSquidgy" role="alert"></p>
-  </form>
-
-</main>
-
-<footer class="bot"><div class="wrap">
-  <span style="margin:0"><a href="https://github.com/jlasne/brain">jlasne/brain on GitHub</a></span>
-  <span><a href="/#how">How it works</a></span>
-</div></footer>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <path id="ar" fill-rule="evenodd" d="M4.22 11.78a.75.75 0 0 1 0-1.06L9.44 5.5H5.75a.75.75 0 0 1 0-1.5h5.5a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V6.56l-5.22 5.22a.75.75 0 0 1-1.06 0Z"/>
+    <path id="gh" d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.4 11.4 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z"/>
+  </defs>
+</svg>
 
 <script>
   /**
-   * The door.
+   * The landing.
    *
-   * Two spaces share one deployment and see none of each other. The passphrase
-   * decides which one the session reads, so this page is the whole sign-in: it
-   * takes a passphrase, gets a token back, and hands the app a session already
-   * pointed at one space.
+   * The demo opens in one click. Octopus and Squidgy open on their own page,
+   * which asks for the passphrase over the workspace itself. A new workspace
+   * is made here, on the visitor's own OpenRouter key.
    *
-   * The token lives in sessionStorage, which is per tab, so closing the tab ends
-   * the session and a second tab starts here again.
+   * The session token lives in sessionStorage, which is per tab, so closing
+   * the tab ends the session.
    */
   const API = window.OCTOPUS_API;
   const TOKEN_KEY = "octopus.token.v1";
   const $ = id => document.getElementById(id);
-  const SPACES = ["octopus", "squidgy"];
-
-  /* One capitalisation, so an id in the markup and a name in a message agree. */
-  const nameOf = s => s === "squidgy" ? "Squidgy" : "Octopus";
 
   const post = async (path, body) => {
     let r;
@@ -484,145 +465,6 @@
     return d;
   };
 
-  /**
-   * The Octopus door plays the octopus's loop. The WebM keeps its
-   * transparency in 271 KB; Safari and every iPhone browser play WebM without
-   * it, so they get the animated WebP. Asked for less motion, the still mark
-   * stays.
-   */
-  function octopusLoop(img = $("imgOctopus")){
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const ua = navigator.userAgent;
-    const webkit = /iPhone|iPad|iPod/.test(ua) || (/Safari\//.test(ua) && !/Chrome|Chromium|Edg|OPR|Firefox/.test(ua));
-    const loop = document.createElement(webkit ? "img" : "video");
-    loop.className = "loop"; loop.setAttribute("aria-hidden", "true");
-    if (webkit){ loop.src = "/brand/octopus-loop.webp"; loop.alt = ""; }
-    else Object.assign(loop, { src: "/brand/octopus-loop.webm", autoplay: true, loop: true, muted: true, playsInline: true,
-                               disablePictureInPicture: true });
-    /* A loop that cannot play leaves the still mark where it was. */
-    loop.onerror = () => { loop.remove(); img.hidden = false; };
-    img.hidden = true;
-    img.after(loop);
-  }
-
-  /* A mark with no file yet falls back to its letter, so the door still reads. */
-  function markFallback(space){
-    const img = $("img" + nameOf(space)), letter = $("letter" + nameOf(space));
-    const swap = () => { img.hidden = true; letter.hidden = false; };
-    img.onerror = swap;
-    /* A cached failure fires no event, so the natural size settles it. */
-    if (img.complete && !img.naturalWidth) swap();
-  }
-
-  /**
-   * One door, wired.
-   *
-   * A space with no passphrase takes the first one offered, which is how Octopus
-   * was opened. The button says so, because setting a passphrase and entering
-   * with one are different acts.
-   */
-  function wire(space){
-    const form = $("d" + nameOf(space));
-    const field = $("pass" + nameOf(space));
-    const btn = $("go" + nameOf(space));
-    const msg = $("msg" + nameOf(space));
-
-    form.addEventListener("submit", async ev => {
-      ev.preventDefault();
-      const pass = field.value;
-      msg.classList.remove("set");
-      if (pass.length < 8) {
-        msg.textContent = "a passphrase runs 8 characters or more";
-        field.focus();
-        return;
-      }
-      btn.disabled = true;
-      msg.textContent = "Checking";
-      try {
-        const r = await post("/api/unlock", { space, pass });
-        sessionStorage.setItem(TOKEN_KEY, r.token);
-        msg.textContent = r.created ? "Passphrase set. Opening" : "Opening";
-        location.assign("/chat");
-      } catch (e) {
-        btn.disabled = false;
-        field.value = ""; field.focus();
-        msg.textContent = e.message;
-      }
-    });
-  }
-
-  /** Which door a path asks for, or null for the choice. */
-  function asked(){
-    const p = location.pathname.replace(/\/+$/, "").split("/").pop().toLowerCase();
-    return SPACES.includes(p) ? p : null;
-  }
-
-  /* One door on a deep link, both on the landing. The tab takes that door's
-     name and icon, so /squidgy reads as Squidgy from the tab bar too. */
-  function focusOne(space){
-    if (!space) return;
-    $("doors").classList.add("one");
-    for (const s of SPACES) if (s !== space) $("d" + nameOf(s)).hidden = true;
-    document.title = nameOf(space);
-    /* Both icon links move, the SVG one included, and lose the type that would
-       make a browser ignore a PNG under an SVG label. */
-    const icon = space === "squidgy" ? "/brand/squidgy-icon.png" : "/brand/logo-mark.png";
-    for (const link of document.querySelectorAll('link[rel="icon"]')) {
-      link.removeAttribute("type"); link.removeAttribute("sizes"); link.href = icon;
-    }
-  }
-
-  /**
-   * Octopus publishes its brain list, so its line carries the real counts.
-   * Squidgy publishes nothing, so it shows nothing rather than a guess.
-   */
-  async function paintTally(){
-    try {
-      const r = await fetch(API + "/api/public/brains");
-      if (!r.ok) return;
-      const d = await r.json();
-      const brains = d.brains || [];
-      if (!brains.length) return;
-      const sources = brains.reduce((n, b) => n + (b.sources || 0), 0);
-      $("tallyOctopus").textContent =
-        brains.length + " brains · " + (d.concepts || []).length + " ideas · " + sources + " sources read";
-    } catch {}
-  }
-
-  /** A door with no passphrase yet says it is shut until its owner sets one. */
-  async function paintDoors(){
-    try {
-      const st = await post("/api/status");
-      /* Only an explicit false claims a door is unset. A deployment that has not
-         picked up this code yet sends no gates at all, and a wrong "no
-         passphrase yet" would invite someone to set one that already exists. */
-      const gates = st.gates || {};
-      for (const s of SPACES) {
-        if (gates[s] !== false) continue;
-        $("msg" + nameOf(s)).classList.add("set");
-        $("msg" + nameOf(s)).textContent = "Shut until its owner sets a passphrase.";
-      }
-    } catch (e) {
-      for (const s of SPACES) $("msg" + nameOf(s)).textContent = e.message;
-    }
-  }
-
-  /**
-   * Every door part exists.
-   *
-   * The ids are built by joining a prefix to a space name, so the page checker
-   * cannot see which ones are asked for. A renamed id would leave a dead button
-   * and no error. This says so instead, on the door itself.
-   */
-  function missing(){
-    const want = ["d", "img", "letter", "pass", "go", "msg"];
-    const gone = [];
-    for (const s of SPACES) for (const w of want) if (!$(w + nameOf(s))) gone.push(w + nameOf(s));
-    return gone;
-  }
-
-  /* ================= the landing ================= */
-
   /** Into the app with a fresh session, and the workspace's key when it has one. */
   const enter = (token, space, key) => {
     sessionStorage.setItem(TOKEN_KEY, token);
@@ -636,78 +478,140 @@
     try { const r = await post("/api/demo"); enter(r.token, r.space); }
     catch (e) { btn.disabled = false; msg.textContent = e.message; }
   }
+  $("demoGo").onclick = () => openDemo($("demoGo"), $("demoMsg"));
+  $("demoGo2").onclick = () => openDemo($("demoGo2"), $("demoMsg2"));
 
-  function landing(){
-    document.body.classList.add("landing");
-    $("demoGo").onclick = () => openDemo($("demoGo"), $("demoMsg"));
+  /* "Create your workspace" at the end scrolls back up and opens the form. */
+  $("makeGo").onclick = ev => {
+    ev.preventDefault();
+    $("wsCreate").open = true;
+    $("start").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+    setTimeout(() => $("cName").focus({ preventScroll: true }), 450);
+  };
+  /* The app's demo bar links here to make a workspace. */
+  if (location.hash === "#create") { $("wsCreate").open = true; setTimeout(() => $("start").scrollIntoView({ block: "center" }), 60); }
+  $("wsCreate").addEventListener("toggle", () => { if ($("wsCreate").open) $("cName").focus({ preventScroll: true }); });
 
-    /* Enter and Create open their panel under the row; a second press folds it. */
-    for (const b of document.querySelectorAll("[data-open]")) b.onclick = () => {
-      const panel = $("p" + b.dataset.open.charAt(0).toUpperCase() + b.dataset.open.slice(1));
-      panel.hidden = !panel.hidden;
-      if (!panel.hidden) panel.querySelector("input")?.focus();
-    };
-    /* The builder's two workspaces open here too, with their passphrase. */
-    for (const f of document.querySelectorAll(".ws-pass")) f.addEventListener("submit", async ev => {
-      ev.preventDefault();
-      const input = f.querySelector("input"), btn = f.querySelector("button"), msg = f.querySelector(".msg");
-      if (input.value.length < 8){ msg.textContent = "A passphrase runs 8 characters or more."; input.focus(); return; }
-      btn.disabled = true; msg.textContent = "Checking";
-      try { const r = await post("/api/unlock", { space: f.dataset.space, pass: input.value }); enter(r.token, r.space); }
-      catch (e) { btn.disabled = false; input.value = ""; input.focus(); msg.textContent = e.message; }
-    });
+  $("create").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const name = $("cName").value.trim(), pass = $("cPass").value, key = $("cKey").value.trim();
+    const msg = $("cMsg");
+    if (name.length < 2){ msg.textContent = "Give it a name of 2 letters or more."; $("cName").focus(); return; }
+    if (pass.length < 8){ msg.textContent = "Use a passphrase of 8 characters or more."; $("cPass").focus(); return; }
+    if (!/^sk-or-[A-Za-z0-9_-]{20,200}$/.test(key)){ msg.textContent = "That is not an OpenRouter key. It starts with sk-or-"; $("cKey").focus(); return; }
+    $("cGo").disabled = true; msg.textContent = "Checking the key with OpenRouter";
+    try { const r = await post("/api/workspace/create", { name, pass, key }); enter(r.token, r.space, key); }
+    catch (e) { $("cGo").disabled = false; msg.textContent = e.message; }
+  });
 
-    $("create").addEventListener("submit", async ev => {
-      ev.preventDefault();
-      const name = $("cName").value.trim(), pass = $("cPass").value, key = $("cKey").value.trim();
-      const msg = $("cMsg");
-      if (name.length < 2){ msg.textContent = "Give it a name of 2 letters or more."; $("cName").focus(); return; }
-      if (pass.length < 8){ msg.textContent = "Use a passphrase of 8 characters or more."; $("cPass").focus(); return; }
-      if (!/^sk-or-[A-Za-z0-9_-]{20,200}$/.test(key)){ msg.textContent = "That is not an OpenRouter key. It starts with sk-or-"; $("cKey").focus(); return; }
-      $("cGo").disabled = true; msg.textContent = "Checking the key with OpenRouter";
-      try { const r = await post("/api/workspace/create", { name, pass, key }); enter(r.token, r.space, key); }
-      catch (e) { $("cGo").disabled = false; msg.textContent = e.message; }
-    });
+  /* Whether the demo is open. */
+  post("/api/status").then(st => {
+    if (st.demo !== false) return;
+    for (const [b, m] of [["demoGo", "demoMsg"], ["demoGo2", "demoMsg2"]]) { $(b).disabled = true; $(m).textContent = "The demo opens soon."; }
+  }).catch(() => {});
 
-    $("open").addEventListener("submit", async ev => {
-      ev.preventDefault();
-      const name = $("oName").value.trim(), pass = $("oPass").value, msg = $("oMsg");
-      if (!name){ $("oName").focus(); return; }
-      if (pass.length < 8){ msg.textContent = "A passphrase runs 8 characters or more."; $("oPass").focus(); return; }
-      $("oGo").disabled = true; msg.textContent = "Checking";
-      try { const r = await post("/api/unlock", { name, pass }); enter(r.token, r.space); }
-      catch (e) { $("oGo").disabled = false; $("oPass").value = ""; msg.textContent = e.message; }
-    });
-
-    /* Whether the demo is open, and the builder's own brains, counted live. */
-    post("/api/status").then(st => {
-      if (st.demo === false){ $("demoGo").disabled = true; $("demoMsg").textContent = "The demo opens soon."; }
-    }).catch(() => {});
-    fetch(API + "/api/public/brains").then(r => r.ok ? r.json() : null).then(d => {
-      const brains = d?.brains || [];
-      if (!brains.length) return;
-      const sources = brains.reduce((n, b) => n + (b.sources || 0), 0);
-      $("proof").textContent = `The builder's Octopus workspace today: ${brains.length} brains, ${(d.concepts || []).length} concepts, ${sources} sources read.`;
-    }).catch(() => {});
-  }
-
+  /* The sections below rise as they come into view. */
   (() => {
-    /* The owner's doors live on /octopus and /squidgy. Everyone else lands here. */
-    if (!asked()) { landing(); return; }
-    document.body.classList.add("door-mode");
-    const gone = missing();
-    if (gone.length) {
-      document.getElementById("doors").innerHTML =
-        "<p style=\"padding:40px\">This page is missing " + gone.join(", ") + ".</p>";
-      return;
+    const later = document.querySelectorAll(".later");
+    if (!("IntersectionObserver" in window)) { later.forEach(s => s.classList.add("seen")); return; }
+    const io = new IntersectionObserver(es => es.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add("seen"); io.unobserve(e.target); }
+    }), { rootMargin: "0px 0px -10% 0px" });
+    later.forEach(s => io.observe(s));
+  })();
+
+  /**
+   * The field.
+   *
+   * Nodes drift at three depths, near ones larger and brighter. Two nodes close
+   * enough are linked, fainter with distance, and now and then a spark runs a
+   * link, the way a new source is filed against what the brain holds. The
+   * pointer links the nodes around it. Asked for less motion, one still frame.
+   */
+  (() => {
+    const c = $("field"), x = c.getContext("2d");
+    if (!x) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const LINK = 132, REACH = 170;
+    let W = 0, H = 0, nodes = [], sparks = [], last = 0;
+    const p = { x: -1e4, y: -1e4 };
+
+    function size(){
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      W = innerWidth; H = innerHeight;
+      c.width = W * dpr; c.height = H * dpr;
+      x.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const n = Math.max(24, Math.min(150, Math.round(W * H / 10500)));
+      nodes = Array.from({ length: n }, () => {
+        const z = Math.random();
+        return { x: Math.random() * W, y: Math.random() * H, z, r: .7 + z * 1.9,
+          vx: (Math.random() - .5) * (.12 + z * .3), vy: (Math.random() - .5) * (.12 + z * .3), ph: Math.random() * 6.28 };
+      });
+      sparks = [];
+      if (still) frame(0);
     }
-    for (const s of SPACES) { markFallback(s); wire(s); }
-    const one = asked();
-    focusOne(one);
-    /* Only where the Octopus door shows: /squidgy loads no loop. */
-    if (one !== "squidgy") octopusLoop();
-    paintDoors();
-    paintTally();
-    setTimeout(() => $("pass" + nameOf(one || "octopus")).focus(), 40);
+
+    function spark(){
+      const a = nodes[Math.floor(Math.random() * nodes.length)];
+      let b = null, best = LINK;
+      for (const o of nodes) { if (o === a) continue; const d = Math.hypot(o.x - a.x, o.y - a.y); if (d < best) { best = d; b = o; } }
+      if (b) sparks.push({ a, b, t: 0 });
+    }
+
+    function frame(now){
+      x.clearRect(0, 0, W, H);
+      if (!still) {
+        for (const n of nodes) {
+          n.x += n.vx; n.y += n.vy;
+          if (n.x < -20) n.x = W + 20; else if (n.x > W + 20) n.x = -20;
+          if (n.y < -20) n.y = H + 20; else if (n.y > H + 20) n.y = -20;
+        }
+        if (now - last > 380 && sparks.length < 6) { spark(); last = now; }
+      }
+      /* the links */
+      x.lineWidth = 1;
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i];
+        for (let j = i + 1; j < nodes.length; j++) {
+          const b = nodes[j], dx = a.x - b.x, dy = a.y - b.y;
+          if (dx > LINK || dx < -LINK || dy > LINK || dy < -LINK) continue;
+          const d = Math.hypot(dx, dy);
+          if (d > LINK) continue;
+          x.strokeStyle = `rgba(95,168,211,${(1 - d / LINK) * .22 * (.4 + (a.z + b.z) * .35)})`;
+          x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(b.x, b.y); x.stroke();
+        }
+        /* the pointer, a thought forming */
+        const pd = Math.hypot(a.x - p.x, a.y - p.y);
+        if (pd < REACH) {
+          x.strokeStyle = `rgba(140,196,230,${(1 - pd / REACH) * .5})`;
+          x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(p.x, p.y); x.stroke();
+        }
+      }
+      /* the nodes */
+      for (const n of nodes) {
+        const tw = still ? 1 : .75 + .25 * Math.sin(now * .0012 + n.ph);
+        x.fillStyle = `rgba(234,244,251,${(.22 + n.z * .55) * tw})`;
+        x.beginPath(); x.arc(n.x, n.y, n.r, 0, 6.2832); x.fill();
+      }
+      /* the sparks */
+      for (const s of sparks) {
+        s.t += .018;
+        const k = Math.min(1, s.t), sx = s.a.x + (s.b.x - s.a.x) * k, sy = s.a.y + (s.b.y - s.a.y) * k;
+        const g = x.createRadialGradient(sx, sy, 0, sx, sy, 9);
+        g.addColorStop(0, "rgba(234,244,251,.95)"); g.addColorStop(.35, "rgba(95,168,211,.55)"); g.addColorStop(1, "rgba(95,168,211,0)");
+        x.fillStyle = g; x.beginPath(); x.arc(sx, sy, 9, 0, 6.2832); x.fill();
+      }
+      sparks = sparks.filter(s => s.t < 1);
+      if (!still) window.requestAnimationFrame(frame);
+    }
+
+    window.addEventListener("resize", size);
+    window.addEventListener("pointermove", e => { p.x = e.clientX; p.y = e.clientY; }, { passive: true });
+    window.addEventListener("pointerleave", () => { p.x = p.y = -1e4; });
+    document.addEventListener("pointerout", e => { if (!e.relatedTarget) p.x = p.y = -1e4; });
+    size();
+    if (!still) window.requestAnimationFrame(frame);
   })();
 </script>
+</body>
+</html>

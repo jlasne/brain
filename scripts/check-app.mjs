@@ -55,8 +55,10 @@ const server = createServer(async (rq, rs) => {
      index.html, and typed from the path it would be an octet stream, which a
      browser downloads instead of rendering. Vercel's cleanUrls makes the same
      substitution, so /octopus and /squidgy resolve here too. */
-  /* vercel.json rewrites the owner's two doors to the landing's page. */
-  const file = asked === "/" || asked === "/octopus" || asked === "/squidgy" ? "index.html"
+  /* vercel.json sends the owner's two doors to their workspace page. */
+  const door = { "/octopus": "/chat?w=octopus", "/squidgy": "/chat?w=squidgy" }[asked];
+  if (door) { rs.writeHead(302, { Location: door }).end(); return; }
+  const file = asked === "/" ? "index.html"
     : /\.[a-z]+$/i.test(asked) ? asked.slice(1)
     : asked.slice(1) + ".html";
   try {
@@ -1474,52 +1476,85 @@ for (const space of ["octopus", "squidgy"]) {
   await ctx.close();
 }
 
-/* ---- the app with no session goes back to the door ---- */
+/* ---- the app with no session asks for a workspace by its name ---- */
 {
-  const page = await hermetic();
-  const bad = [];
-  page.on("pageerror", e => bad.push(e.message));
-  await page.addInitScript(() => {
-    window.fetch = async () => Response.json({ gates: { octopus: true, squidgy: true } });
+  const { page, bad } = await boot("/chat?w=", () => {
+    window.fetch = async (u, opt) => {
+      const s = String(u);
+      if (s.includes("/api/unlock")) { sessionStorage.setItem("test.unlock", opt.body); return Response.json({ token: "tOpen", space: "acme-research" }); }
+      if (s.includes("/api/state")) return Response.json({ brains: [], concepts: [], sources: [], space: "acme-research", spaceName: "Acme Research", byok: false });
+      if (s.includes("/api/status")) return Response.json({ gates: { octopus: true, squidgy: true }, demo: true });
+      return Response.json({});
+    };
   });
-  /* The page redirects while it is still loading, which supersedes the
-     navigation, so this waits for where it lands rather than for this one to
-     settle. */
-  await page.goto(ORIGIN + "/chat.html", { waitUntil: "commit" });
-  let landed = "";
-  try {
-    await page.waitForURL(u => new URL(u).pathname === "/", { timeout: 8000 });
-    landed = page.url();
-  } catch { landed = page.url(); }
-  check("a tab with no session lands on the door", new URL(landed).pathname === "/", landed);
+  const g = await page.evaluate(() => ({ gate: !!document.getElementById("wsGate"), name: !!document.getElementById("gName"),
+    h: document.getElementById("gateH")?.textContent, locked: document.getElementById("app").classList.contains("locked"),
+    theme: document.documentElement.dataset.space || "", bg: getComputedStyle(document.body).backgroundColor }));
+  check("a tab with no session asks for the workspace's name and passphrase, over the app", g.gate && g.name && g.locked && g.h === "Open your workspace", JSON.stringify(g));
+  check("and it wears Brain's colours, not Octopus's", g.theme === "" && g.bg === "rgb(238, 245, 250)", JSON.stringify(g));
+  await page.fill("#gName", "Acme Research"); await page.fill("#gPass", "short");
+  await page.click("#gGo"); await page.waitForTimeout(100);
+  check("a short passphrase is caught before anything is sent", /8 characters/.test(await page.textContent("#gMsg")) && !(await page.evaluate(() => sessionStorage.getItem("test.unlock"))));
+  await page.fill("#gPass", "a long passphrase"); await page.click("#gGo"); await page.waitForTimeout(400);
+  const o = await page.evaluate(() => ({ body: sessionStorage.getItem("test.unlock"), token: sessionStorage.getItem("octopus.token.v1"),
+    gate: !!document.getElementById("wsGate"), locked: document.getElementById("app").classList.contains("locked"), name: document.getElementById("spaceName").textContent }));
+  check("a workspace opens by its name and passphrase, in place", o.body === '{"name":"Acme Research","pass":"a long passphrase"}' && o.token === "tOpen"
+    && !o.gate && !o.locked && o.name === "Acme Research", JSON.stringify(o));
   check("and nothing threw on the way", !bad.length, bad.join("\n       "));
   await page.close();
 }
 
-/* ---- the owner's doors, on their own paths ---- */
+/* ---- the owner's doors: their workspace, with the passphrase on top ---- */
 {
   const { page, bad } = await boot("/octopus", () => {
-    window.fetch = async u => String(u).includes("/api/status")
-      ? Response.json({ gates: { octopus: true, squidgy: false } })
-      : Response.json({ brains: [], concepts: [] });
+    window.fetch = async (u, opt) => {
+      const s = String(u);
+      if (s.includes("/api/status")) return Response.json({ gates: { octopus: true, squidgy: false }, demo: true });
+      if (s.includes("/api/unlock")) {
+        sessionStorage.setItem("test.unlock", opt.body);
+        return JSON.parse(opt.body).pass === "a long passphrase" ? Response.json({ token: "tOcto", space: "octopus" }) : Response.json({ error: "that is not it" });
+      }
+      if (s.includes("/api/state")) return Response.json({ brains: [], concepts: [], sources: [], space: "octopus", spaceName: "Octopus" });
+      return Response.json({});
+    };
   });
+  const d = await page.evaluate(() => ({ url: location.pathname + location.search, h: document.getElementById("gateH")?.textContent,
+    name: !!document.getElementById("gName"), theme: document.documentElement.dataset.space, mark: document.getElementById("gateMark")?.getAttribute("src"),
+    bg: getComputedStyle(document.body).backgroundColor, top: document.getElementById("wsGate")?.getBoundingClientRect().top }));
+  check("/octopus opens the Octopus workspace with only its passphrase on top", d.url === "/chat?w=octopus" && d.h === "Octopus" && !d.name
+    && d.theme === "octopus" && /logo-mark/.test(d.mark) && d.bg === "rgb(245, 245, 220)" && d.top < 200, JSON.stringify(d));
+  await page.fill("#gPass", "a wrong passphrase"); await page.click("#gGo"); await page.waitForTimeout(150);
+  check("a wrong passphrase says so, and the card stays", /That is not it/.test(await page.textContent("#gMsg")), await page.textContent("#gMsg"));
+  await page.fill("#gPass", "a long passphrase"); await page.click("#gGo"); await page.waitForTimeout(400);
+  const o = await page.evaluate(() => ({ body: sessionStorage.getItem("test.unlock"), token: sessionStorage.getItem("octopus.token.v1"),
+    gate: !!document.getElementById("wsGate"), held: sessionStorage.getItem("octopus.space") }));
+  check("the right passphrase opens it where it stands", o.body === '{"space":"octopus","pass":"a long passphrase"}' && o.token === "tOcto" && !o.gate && o.held === "octopus",
+    JSON.stringify(o));
   check("the Octopus door boots with nothing thrown", !bad.length, bad.join("\n       "));
-  const door = await page.evaluate(() => ({ one: !document.getElementById("dOctopus").hidden && document.getElementById("dSquidgy").hidden,
-    landing: getComputedStyle(document.getElementById("landing")).display, msg: document.getElementById("msgOctopus").textContent }));
-  check("/octopus shows its door alone, not the landing", door.one && door.landing === "none" && door.msg === "", JSON.stringify(door));
-  const loop = await page.evaluate(() => { const v = document.querySelector("#dOctopus .mk .loop");
-    return v ? { tag: v.tagName, src: v.getAttribute("src"), loop: v.loop, muted: v.muted, still: document.getElementById("imgOctopus").hidden } : null; });
-  check("the Octopus door plays the octopus's loop in place of its still mark", loop?.tag === "VIDEO" && /octopus-loop\.webm$/.test(loop.src)
-    && loop.loop && loop.muted && loop.still, JSON.stringify(loop));
   await page.close();
+
   const sq = await boot("/squidgy", () => {
     window.fetch = async u => String(u).includes("/api/status") ? Response.json({ gates: { octopus: true, squidgy: false } }) : Response.json({});
   });
-  check("a door with no passphrase says it is shut", /Shut until its owner/.test(await sq.page.textContent("#msgSquidgy")));
+  const q = await sq.page.evaluate(() => ({ h: document.getElementById("gateH")?.textContent, theme: document.documentElement.dataset.space,
+    mark: document.getElementById("gateMark")?.getAttribute("src"), msg: document.getElementById("gMsg")?.textContent }));
+  check("Squidgy wears its own colours and mark, and says when it has no passphrase yet", q.h === "Squidgy" && q.theme === "squidgy"
+    && /squidgy-icon/.test(q.mark) && /Shut until its owner/.test(q.msg), JSON.stringify(q));
   await sq.page.close();
+
+  /* A tab that holds Octopus, sent to Squidgy, asks for Squidgy's passphrase. */
+  const sw = await boot("/chat?w=squidgy", () => {
+    sessionStorage.setItem("octopus.token.v1", "tOcto"); sessionStorage.setItem("octopus.space", "octopus");
+    window.fetch = async u => { const s = String(u);
+      if (s.includes("/api/state")) return Response.json({ brains: [], concepts: [], sources: [], space: "octopus", spaceName: "Octopus" });
+      return Response.json({ gates: { octopus: true, squidgy: true } }); };
+  });
+  const k = await sw.page.evaluate(() => ({ h: document.getElementById("gateH")?.textContent, token: sessionStorage.getItem("octopus.token.v1") }));
+  check("a link to another workspace asks for that one's passphrase", k.h === "Squidgy" && k.token === null, JSON.stringify(k));
+  await sw.page.close();
 }
 
-/* ---- the landing: the demo, a workspace of your own, or yours again ---- */
+/* ---- the landing: the workspaces first, then what makes a brain ---- */
 {
   const { page, bad } = await boot("/", () => {
     window.__posts = [];
@@ -1527,39 +1562,41 @@ for (const space of ["octopus", "squidgy"]) {
       const s = String(u), body = JSON.parse(opt?.body || "{}");
       window.__posts.push({ s, body });
       if (s.includes("/api/status")) return Response.json({ gates: { octopus: true }, demo: true });
-      if (s.includes("/api/public/brains")) return Response.json({ brains: [{ sources: 20 }, { sources: 6 }], concepts: [1, 2, 3] });
       if (s.includes("/api/demo")) return Response.json({ token: "tDemo", space: "demo" });
       if (s.includes("/api/workspace/create")) return body.name === "Taken" ? Response.json({ error: "that name is taken. Pick another." })
         : Response.json({ token: "tNew", space: "acme-research", name: body.name });
-      if (s.includes("/api/unlock")) return Response.json({ token: "tOpen", space: "acme-research" });
       return Response.json({});
     };
   });
   await page.waitForTimeout(200);
-  const l = await page.evaluate(() => ({ landing: getComputedStyle(document.getElementById("landing")).display !== "none",
-    doors: getComputedStyle(document.getElementById("doors")).display, h1: document.querySelector(".hero h1").textContent,
-    proof: document.getElementById("proof").textContent, karpathy: document.querySelectorAll("#karpathy .cmp-row").length,
-    llm: [...document.querySelectorAll("#vs-chat .cmp-head span")].map(x => x.textContent).join("|"), get: document.querySelectorAll("#vs-chat .cmp-row").length,
-    how: document.querySelectorAll("#how .cmp-row").length, next: document.querySelector(".hero").nextElementSibling.id,
-    uses: document.querySelectorAll("#uses .cmp-row:not(.cmp-head)").length, brand: document.querySelector(".l-top b").textContent,
-    ws: [...document.querySelectorAll(".ws .ws-t b")].map(b => b.textContent).join("|"),
-    text: document.getElementById("landing").textContent }));
-  check("the landing leads with the outcome, and hides the owner's doors", l.landing && l.doors === "none" && /Feed it what you read\. Ask it what you know\./.test(l.h1),
-    JSON.stringify(l.h1));
-  check("the workspaces come right after, as a list", l.next === "start" && l.ws === "Demo|Octopus|Squidgy|Your own workspace|The open source", `${l.next} ${l.ws}`);
-  check("the product is called Brain; Octopus is a workspace", l.brand === "Brain", l.brand);
-  check("how it works is one compact table of 5 steps", l.how === 6, String(l.how));
-  check("it counts the builder's Octopus workspace live", /Octopus workspace today: 2 brains, 3 concepts, 26 sources read/.test(l.proof), l.proof);
-  check("a brain is set against a classic AI chat, as a concept", l.llm === "|A classic AI chat|A brain" && l.get === 8 && !/What you get/.test(l.text), `${l.llm} ${l.get}`);
-  check("it compares with Karpathy's wiki and lists use cases", l.karpathy === 8 && l.uses === 6, JSON.stringify({ k: l.karpathy, u: l.uses }));
-  const foot = await page.textContent("footer.bot");
-  check("it names no competition, no licence, no price list", !/Build Games|MIT licen|What it replaces|terminal/i.test(l.text + foot), foot);
-  const links = await page.evaluate(() => ({ about: document.querySelectorAll('a[href="/about"]').length,
-    code: document.querySelector('.ws a[href="https://github.com/jlasne/brain"]') !== null }));
-  check("the open source is one click away, and nothing links to the old about page", links.code && links.about === 0, JSON.stringify(links));
+  const l = await page.evaluate(() => ({ h1: document.querySelector(".hero h1").textContent,
+    next: document.querySelector(".hero .sub").nextElementSibling.id,
+    ws: [...document.querySelectorAll("#start .item .name")].map(b => b.textContent).join("|"),
+    octo: document.getElementById("goOctopus").getAttribute("href"), squid: document.getElementById("goSquidgy").getAttribute("href"),
+    code: document.getElementById("goCode").getAttribute("href"), codeDesc: document.querySelector("#goCode .desc").textContent,
+    cols: [...document.querySelectorAll("#why .cmp-head span")].map(x => x.textContent).join("|"),
+    rows: document.querySelectorAll("#why .cmp-row:not(.cmp-head)").length, uses: document.querySelectorAll("#uses .card").length,
+    steps: document.querySelectorAll("#how .step").length, sections: [...document.querySelectorAll("main > section")].map(x => x.id).join("|"),
+    font: getComputedStyle(document.body).fontFamily, bg: getComputedStyle(document.documentElement).backgroundColor,
+    brand: document.querySelector(".bar .me").textContent.trim(), text: document.body.textContent }));
+  check("the landing leads with the outcome", /^Your AI brain learns what you feed it and answers with receipts\.$/.test(l.h1), JSON.stringify(l.h1));
+  check("the workspaces come right after the line under it", l.next === "start"
+    && l.ws === "Demo|Octopus|Squidgy|Create your workspace|Explore the open source", `${l.next} ${l.ws}`);
+  check("Octopus and Squidgy open on their own workspace page", l.octo === "/chat?w=octopus" && l.squid === "/chat?w=squidgy", `${l.octo} ${l.squid}`);
+  check("the open source names no host", l.code === "https://github.com/jlasne/brain" && l.codeDesc === "Every line of the app and the server. Run your own."
+    && !/Convex|Vercel/.test(l.codeDesc), l.codeDesc);
+  check("one section sets a brain against a classic chat and Karpathy's wiki, with who uses it", l.cols === "|Classic AI chat|Karpathy's LLM wiki|Brain"
+    && l.rows === 7 && l.uses === 6, JSON.stringify({ c: l.cols, r: l.rows, u: l.uses }));
+  check("how it works is 4 outcomes", l.steps === 4, String(l.steps));
+  check("three sections below the fold, no separate use cases or wiki section", l.sections === "top|why|how|go", l.sections);
+  check("it wears jeremylasne.com: the system font on the night navy", /^system-ui/.test(l.font) && l.bg === "rgb(5, 11, 22)", `${l.font} ${l.bg}`);
+  check("the product is called Brain", l.brand === "Brain", l.brand);
+  check("no example card, no builder's tally, no competition, no licence", !/cold email a reply|workspace today|Build Games|MIT licen|What it replaces/i.test(l.text));
 
-  check("the create form waits behind its row", await page.isHidden("#pCreate"));
-  await page.click("#wsCreate");
+  check("the create form waits behind its row", !(await page.evaluate(() => document.getElementById("wsCreate").open)));
+  await page.click("#wsCreate summary");
+  const only = await page.evaluate(() => ({ forms: document.querySelectorAll("#wsCreate form").length, open: !!document.getElementById("oName") }));
+  check("and it holds only the form to make one", only.forms === 1 && !only.open, JSON.stringify(only));
   await page.fill("#cName", "Taken"); await page.fill("#cPass", "a long passphrase"); await page.fill("#cKey", "nope");
   await page.click("#cGo"); await page.waitForTimeout(100);
   check("a key that is not OpenRouter's is caught before anything is sent", /starts with sk-or-/.test(await page.textContent("#cMsg"))
@@ -1575,19 +1612,6 @@ for (const space of ["octopus", "squidgy"]) {
   check("nothing threw on the landing", !bad.length, bad.join(" | "));
   await page.close();
 
-  const w = await boot("/", () => {
-    window.fetch = async (u, opt) => { const s = String(u);
-      if (s.includes("/api/unlock")) { sessionStorage.setItem("test.unlock", opt.body); return Response.json({ token: "tOcto", space: "octopus" }); }
-      return Response.json({ demo: true }); };
-  });
-  check("Octopus's passphrase waits behind its row", await w.page.isHidden("#pOctopus"));
-  await w.page.click('[data-open="octopus"]');
-  await w.page.fill("#wpOctopus", "a long passphrase");
-  await Promise.all([w.page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), w.page.click("#pOctopus button")]);
-  const oc = await w.page.evaluate(() => ({ body: sessionStorage.getItem("test.unlock"), token: sessionStorage.getItem("octopus.token.v1") }));
-  check("Octopus opens from the list with its passphrase", oc.body === '{"space":"octopus","pass":"a long passphrase"}' && oc.token === "tOcto", JSON.stringify(oc));
-  await w.page.close();
-
   const d = await boot("/", () => {
     window.fetch = async u => { const s = String(u);
       if (s.includes("/api/status")) return Response.json({ demo: true });
@@ -1599,21 +1623,21 @@ for (const space of ["octopus", "squidgy"]) {
   await d.page.close();
 
   const o = await boot("/", () => {
-    window.__unlock = null;
-    window.fetch = async (u, opt) => { const s = String(u);
-      if (s.includes("/api/unlock")) { sessionStorage.setItem("test.unlock", opt.body); return Response.json({ token: "tOpen", space: "acme-research" }); }
-      if (s.includes("/api/status")) return Response.json({ demo: false });
-      return Response.json({}); };
+    window.fetch = async u => String(u).includes("/api/status") ? Response.json({ demo: false }) : Response.json({});
   });
   await o.page.waitForTimeout(150);
   check("with no demo open, the button says so", await o.page.isDisabled("#demoGo") && /opens soon/.test(await o.page.textContent("#demoMsg")));
-  await o.page.click("#wsCreate");
-  await o.page.fill("#oName", "Acme Research"); await o.page.fill("#oPass", "a long passphrase");
-  await Promise.all([o.page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), o.page.click("#oGo")]);
-  const sent = await o.page.evaluate(() => ({ body: sessionStorage.getItem("test.unlock"), token: sessionStorage.getItem("octopus.token.v1") }));
-  check("a workspace opens by its name and passphrase", sent.body === '{"name":"Acme Research","pass":"a long passphrase"}' && sent.token === "tOpen",
-    JSON.stringify(sent));
   await o.page.close();
+
+  /* A phone gets the same page, one column, and nothing scrolls sideways. */
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const ph = await ctx.newPage();
+  await ph.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+  await ph.addInitScript(() => { window.fetch = async () => Response.json({ demo: true }); });
+  await ph.goto(ORIGIN + "/", { waitUntil: "domcontentloaded" }); await ph.waitForTimeout(400);
+  const wide = await ph.evaluate(() => document.documentElement.scrollWidth);
+  check("the landing fits a phone", wide <= 390, String(wide));
+  await ctx.close();
 }
 
 await browser.close();

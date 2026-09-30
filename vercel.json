@@ -41,14 +41,6 @@
   ],
   "rewrites": [
     {
-      "source": "/octopus",
-      "destination": "/"
-    },
-    {
-      "source": "/squidgy",
-      "destination": "/"
-    },
-    {
       "source": "/mcp/v0",
       "destination": "https://uncommon-wolf-174.eu-west-1.convex.site/mcp/v0"
     },
@@ -62,6 +54,16 @@
     }
   ],
   "redirects": [
+    {
+      "source": "/octopus",
+      "destination": "/chat?w=octopus",
+      "permanent": false
+    },
+    {
+      "source": "/squidgy",
+      "destination": "/chat?w=squidgy",
+      "permanent": false
+    },
     {
       "source": "/mcp",
       "destination": "/doc",
