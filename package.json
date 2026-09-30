@@ -1,8 +1,8 @@
 {
-  "name": "octopus-brain",
+  "name": "brain",
   "version": "1.0.0",
   "private": true,
-  "description": "A folder that gets smarter every time you feed it. One arm in each brain.",
+  "description": "Remember everything you read, watch and hear, and who said it.",
   "license": "MIT",
   "scripts": {
     "dev": "convex dev",

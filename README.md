@@ -1,184 +1,199 @@
+<div align="center">
+
+<img src="app/brand/brain.svg" width="76" alt="">
+
 # Brain
 
-**What you read, watch and hear, turned into answers you can check.**
+**Remember everything you read, watch and hear, and who said it.**
 
-Drop an article, a PDF, a Word file, a video or a podcast transcript. Brain files each claim under the right subject with its author and date, flags what contradicts what you already hold, and answers from that evidence, in 9 languages.
+Drop an article, a PDF, a video or a thought. Your brain files each claim with its author and date,<br>
+asks you when two sources clash, and answers you with receipts.
 
-**[Try the live demo](https://brain.jeremylasne.com)**: no sign-up. Or make a workspace of your own on your own OpenRouter key.
+[**Open the live demo**](https://brain.jeremylasne.com) &nbsp;·&nbsp; [How it works](#how-it-works) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-Built for [The Build Games](https://canivibecodeit.com/thebuildgames). Open source.
+<img alt="678 checks passing" src="https://img.shields.io/badge/checks-678%20passing-5fa8d3?style=flat-square&labelColor=050b16">
+<img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-5fa8d3?style=flat-square&labelColor=050b16">
+<img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-5fa8d3?style=flat-square&labelColor=050b16">
+<img alt="MIT license" src="https://img.shields.io/badge/license-MIT-5fa8d3?style=flat-square&labelColor=050b16">
 
----
+<br><br>
 
-## A brain vs. a classic AI chat
+<img src="docs/img/landing.jpg" alt="The Brain landing page" width="100%">
 
-| | A classic AI chat | A brain |
-|---|---|---|
-| Answers from | What the model absorbed in training | The sources you fed it |
-| Proof | No source, or one it made up | Author and date on every claim |
-| When sources disagree | Blended into one smooth answer | Flagged, and you rule on each in a swipe |
-| New information | Frozen at the training date | Every source you add, the day you add it |
-| Memory | Starts from zero in each chat | Compiled once and kept; chats saved, pinned, reopened |
-| Whose view | An average of the internet | The subjects and experts you chose, one brain each |
-| Outputs | A chat reply | Answers at 3 levels, one-pagers in 9 languages, a health score, a map |
+</div>
 
-A brain still uses a language model: to read your sources and to write each answer. It answers only from what you gave it, and says so when that is not enough.
+<br>
 
-### What a brain gives you
+## Why a brain
 
-| Outcome | How |
-|---|---|
-| **Answers with receipts** | Every claim is stored with its author and date. Answers cite them on one line, and newer evidence wins on the same question. |
-| **Contradictions settled by you** | A new source that disagrees with a position waits for your ruling. Swipe left, right or "both hold", and the position is rewritten. |
-| **One page, any shape** | A brain or a question becomes a summary, a quiz, a deep dive or use cases, in English, French, Spanish, German, Italian, Portuguese, Dutch, Japanese or Chinese. |
-| **Three levels** | Normal answers with the numbers. Educational teaches from zero. Learning gives the steps and lets you reach the answer yourself. |
-| **See it whole** | Each brain scores out of 10 against your best one on variety, depth, freshness and conflicts. The map draws every brain as an arm of the octopus. |
-| **Chats that stay** | Every question and answer is kept. Reopen, rename, pin up to 5. Old ones clear after 30 days. |
-| **A memory for Claude** | The owner's workspaces connect to Claude through MCP: Claude reads and feeds the brains with its own model. |
-| **A brain of your own (alpha)** | A personal brain is a chat. It files what you say as dated notes in your words, and answers from them and from your other brains. |
+A classic AI chat answers from its training data. Karpathy's LLM wiki compiles your files into pages. A brain compiles them into **positions**, each backed by dated evidence you can open, and asks you when two sources clash.
 
-Its builder uses it every day: 126 sources, 369 concepts and 12 brains in the Octopus workspace at the end of September 2026. 677 automated checks run on every change.
+| | Classic AI chat | Karpathy's LLM wiki | **Brain** |
+|---|---|---|---|
+| Answers from | Its training data | Your files, as pages | **Your sources, as positions with their evidence** |
+| Proof | None, or a link it made up | A summary per page | **Author and date on every claim** |
+| When sources disagree | Blended into one answer | Left side by side | **Flagged at each drop; you rule in a swipe** |
+| New information | Frozen at the training date | Added when you run the agent | **Filed the day you drop it** |
+| Whose view | An average of the internet | Your topics | **One brain per subject, per expert, or for you** |
+| Setup | A chat box | Scripts, Obsidian, a coding agent | **A web page, on desktop and phone** |
+| What you get | A reply | Pages, slides, charts | **Answers at 3 levels, one-pagers in 9 languages, a health score, a map** |
+
+## What you get
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/img/demo.jpg" alt="An answer with its sources">
+<br><b>Answers with receipts.</b> Every line comes from a source you fed it, and the sources line names each author and date. Newer evidence wins on the same question.
+</td>
+<td width="50%" valign="top">
+<img src="docs/img/deck.jpg" alt="Settling a clash, one card at a time">
+<br><b>It argues back.</b> A source that contradicts what you hold waits for your call. Swipe: A holds, B holds, or both. The position is rewritten from all its evidence.
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/img/map.jpg" alt="The map of every brain">
+<br><b>It draws itself.</b> Every brain an arm, every concept a sucker, every line a link between brains. Each arm carries its health score out of 10.
+</td>
+<td width="50%" valign="top">
+<img src="docs/img/uses.jpg" alt="Use cases">
+<br><b>One brain per subject, per expert, or for you.</b> Expert brains keep two analysts apart. A personal brain learns you as you talk to it.
+</td>
+</tr>
+</table>
+
+- **Three levels.** Normal answers with the numbers. Educational teaches from zero. Learning gives the steps and lets you reach the answer yourself.
+- **One page, any shape.** A brain or a question becomes a summary, a quiz, a deep dive or use cases, in English, French, Spanish, German, Italian, Portuguese, Dutch, Japanese or Chinese.
+- **Chats that stay.** Reopen, rename, pin up to 5. Old ones clear after 30 days.
+- **Your look.** Each workspace takes a logo, an accent and a page colour, previewed as you pick them.
+- **A memory for Claude.** The owner's workspaces connect to Claude through MCP: Claude reads and feeds the brains with its own model.
 
 ## How it works
 
-1. **Drop.** A link, a pasted transcript, a PDF or a Word file. YouTube captions are fetched for you. Files are read in the browser and never uploaded.
-2. **Read.** Every topic is extracted with its numbers and quotes, once. The author is named on every source.
-3. **File.** Each idea joins a concept or starts one: a position, dated evidence, figures, links to concepts in other brains.
-4. **Settle.** A claim that contradicts a position waits for you. Additions and details go straight in.
-5. **Ask.** Answers, one-pagers and the map read the compiled positions, never the raw transcripts.
+<img src="docs/img/how.jpg" alt="How it works: drop, file, settle, ask" width="100%">
 
-A position is re-derived from its whole evidence list, never appended to, so a sixth source rewrites the view from all six. Every drop finishes coherent: there is no pending pile to clean up later.
+1. **Drop.** A link, a PDF, a Word file or a pasted transcript. Video captions are fetched for you. Files are read in the browser, never uploaded.
+2. **File.** Every topic is extracted once, with its numbers and quotes. Each idea joins a concept or starts one, with its author and date.
+3. **Settle.** A claim that contradicts a position waits for you. Additions go straight in.
+4. **Ask.** Answers, one-pagers and the map read the compiled positions, never the raw transcripts.
 
-Speed stays flat as brains grow, because a question reads summaries and positions, not whole brains:
+A position is re-derived from its whole evidence list at each drop, so a sixth source rewrites the view from all six. It stays quick as it grows, because a question reads summaries and positions, not whole brains:
 
-| Brain size | Read per drop | Read per question |
+| Brain | Read per drop | Read per question |
 |---|---|---|
 | 10 concepts, 30 sources | 1.0k words | 3.5k words |
 | 200 concepts, 1,000 sources | 2.6k words | 5.1k words |
 | 500 concepts, 5,000 sources | 5.0k words | 7.5k words |
 
-## A brain vs. Karpathy's LLM wiki
-
-Andrej Karpathy showed that an AI should compile your sources into a wiki once, rather than search raw files on every question. Brain keeps that idea and adds what a wiki leaves open: who said what, when, and what to do when sources disagree.
-
-| | Karpathy's LLM wiki | Brain |
-|---|---|---|
-| Setup | Scripts, Obsidian and a coding agent | A web page, on desktop and phone |
-| Contradictions | Stay in the pages unresolved | Caught at every drop, and you rule on each |
-| Proof | A summary per page | Author and date on every claim |
-| Size | One index file, about 100 articles | Every title read in one pass, up to about 2,300 concepts |
-| People | Topics only | Person brains: one expert's views, kept apart |
-| Outputs | Slides and charts | Answers at 3 levels, one-pagers in 9 languages, a weekly digest, a map |
-| Answers | Filed back into the wiki | Kept as chats you reopen and continue |
-
 ## Use cases
 
-- **Investing.** One brain per analyst you follow. See what each one holds today and where two of them disagree.
-- **Founders and sales.** Turn 20 outreach and pricing talks into one playbook, with the numbers each speaker gave.
-- **Creators.** A swipe file of hooks and formats that files itself, each with who taught it and the result they reported.
-- **Health.** Sleep, training and nutrition protocols from many podcasts, with the clashes laid out so you pick the one that holds.
-- **Learning.** Study from your own sources: steps instead of answers, quizzes, deep dives.
-- **Your AI.** A knowledge base Claude reads through MCP, with every claim sourced.
+| Who | What they feed it | What they ask |
+|---|---|---|
+| **Investors** | Letters and interviews from each analyst they follow, one expert brain each | *"Where do my two macro voices disagree on gold, and since when?"* |
+| **Founders and sales** | Outreach and pricing talks, guides, case studies | *"Write my first cold email from what the outreach brain holds."* |
+| **Creators** | Hook, format and scripting tutorials | *"Give me 5 hook formats with the numbers behind them."* |
+| **Health** | Studies, podcasts and protocols on sleep, training and food | *"What dose and timing do my sources give for creatine?"* |
+| **Students** | Course PDFs, articles, recorded lectures | *"Quiz me on depreciation, 8 questions, answers folded."* |
+| **You** | Your own words, in a personal brain's chat | *"What did I decide on pricing last month, and why?"* |
 
-## The personal brain (alpha)
+## The personal brain <sup>alpha</sup>
 
-A third kind of brain, next to subjects and people. You talk to it; it keeps what you said.
+A third kind of brain, next to subjects and experts. You talk to it; it keeps what you said.
 
-- **What it files.** Anything you state: a plan, a decision, an idea, a view, something you learned. Each message is read once and filed as up to 3 notes, each claim dated and signed "You".
-- **What it never files.** Its own replies, and any guess about you. A greeting or a plain lookup files nothing.
-- **A change of mind.** The note on that topic is rewritten: the new view, and the one it replaces with its date. The reply can say so in passing.
-- **Receipts.** Under each reply, one quiet line: "Filed: 1 new note, 1 note updated". Hover it for the titles.
-- **Add memory.** Paste or drop what another assistant knows about you: a ChatGPT memory, a Claude project note, a markdown file. It is filed in pieces of 6,000 characters, the same way.
-- **Who reads it.** Its own chat, which can call on every other brain. No other chat, no one-pager, no map, no health score, no digest and no Claude connector ever reads a personal brain. The demo has none.
-
-A workspace holds as many personal brains as you make.
+- **It files your words.** A plan, a decision, an idea, a view. Each message becomes up to 3 notes, each claim dated and signed "You". Its own replies, and any guess about you, are never filed.
+- **A change of mind** rewrites the note: the new view, and the one it replaces with its date.
+- **Receipts.** One quiet line under each reply: "Filed: 1 new note, 1 note updated".
+- **Add memory.** Paste or drop what another assistant knows about you, a ChatGPT memory or a notes file.
+- **Private by design.** It can call your other brains; no other chat, one-pager, map, score, digest or connector reads it.
 
 ## Workspaces
 
-A workspace holds its own brains and chats, and sees nothing of the others. Octopus and Squidgy are the builder's own; the landing lists them next to the demo.
+A workspace holds its own brains and chats, and sees nothing of the others.
 
-| | The owner's (Octopus, Squidgy) | The demo | Your own |
+| | Octopus, Squidgy (the builder's) | The demo | Your own |
 |---|---|---|---|
-| How you enter | Its own page, `/octopus` or `/squidgy`, with the passphrase on top | One click from the landing, no passphrase | Made on the landing; opened again from "Open your workspace" |
-| Model calls paid by | The deployment's key | The deployment's key, or `DEMO_OPENROUTER_API_KEY` | Your OpenRouter key |
-| Model | Any, picked in Setup | The default | Any, picked in Setup |
-| Limits | None | 30 drops and 300 questions a month, shared by every visitor | Your key's own |
-| Mail, Claude connector, weekly digest | Yes | No | No |
-| Create or rename brains | Yes | No | Yes |
-| Chats | Shared by the workspace | Each visitor's own | Shared by the workspace |
+| Enter | Its own page, passphrase on top | One click, no passphrase | Made on the landing |
+| Model calls paid by | The deployment's key | A separate demo key | **Your OpenRouter key** |
+| Limits | None | 30 drops and 300 questions a month, shared | Your key's own |
+| Create brains, personal brains | Yes | No | Yes |
 
-**Your look.** Setup takes a logo, an accent and a page colour for each workspace, previewed as you pick them. The shades that carry text are derived to read at 4.5:1, and the page colour is kept light. The page that asks for the passphrase wears the look too. Octopus and Squidgy keep their own colours; every other workspace starts in Brain's blue, the demo included.
+**Your key stays yours.** It is checked once with OpenRouter, then kept in your browser. It travels with each call that needs a model and is never written to the database or logs. A workspace on its own key never falls back to the owner's.
 
-**Your key stays yours.** It is checked once with OpenRouter when the workspace is made, then kept in your browser only. It travels with each call that needs a model and is never written to the database or logs. A workspace on its own key never falls back to the owner's.
+## Run your own
 
-## Self-host
-
-A Convex deployment holds the data. Any static host serves `app/`; `vercel.json` is ready for Vercel.
+A Convex deployment holds the data. Any static host serves `app/`.
 
 ```bash
-git clone https://github.com/jlasne/brain
-cd brain && npm install
+git clone https://github.com/jlasne/brain && cd brain && npm install
 npx convex dev
 npx convex env set OPENROUTER_API_KEY sk-or-... --prod
 npx convex deploy
 npx convex run admin:setPass '{"space":"octopus","pass":"at least 8 characters"}' --prod
-```
-
-In Windows PowerShell, write the argument as `"{space:'octopus',pass:'...'}"`: PowerShell strips double quotes inside an argument, and the CLI accepts JSON5.
-
-Point `window.OCTOPUS_API` in the four pages under `app/` at your deployment's `.convex.site` address.
-
-### Open the demo
-
-```bash
 npx convex run admin:makeDemo '{"copy":["health","content","social"]}' --prod
 ```
 
-`makeDemo` opens the demo workspace and copies the brains listed into it, with their concepts and sources. The originals stay where they were, and running it again copies nothing twice. Nobody holds a passphrase to the demo. `admin:copyBrain '{"slug":"...","space":"demo"}'` adds one more brain later.
+Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.convex.site` address. In Windows PowerShell, write each argument as `"{space:'octopus',pass:'...'}"`.
 
-### Settings
+<details>
+<summary><b>Settings</b></summary>
+
+<br>
 
 | Variable | What it does |
 |---|---|
 | `OPENROUTER_API_KEY` | Pays for model calls in the owner's workspaces. Required. |
 | `DEMO_OPENROUTER_API_KEY` | A separate key for the demo, so its spend shows apart. Falls back to the one above. |
 | `DEMO_MONTHLY_DROPS` | Drops the demo takes in 30 days, all visitors together. Default 30. |
-| `DEMO_MONTHLY_ASKS` | Questions the demo answers in 30 days: asks, one-pagers the model writes, settled conflicts. Default 300. |
-| `SUPADATA_API_KEY` | Fetches YouTube captions from a bare link. Without it, a video link asks you to paste the transcript. The demo gets 40 fetches a month; a visitor's workspace, 20 a day. |
+| `DEMO_MONTHLY_ASKS` | Questions the demo answers in 30 days. Default 300. |
+| `SUPADATA_API_KEY` | Fetches YouTube captions from a bare link. Without it, a video link asks for the transcript. |
 | `SUPADATA_MODE` | `auto` transcribes videos that have no captions, at 2 credits a minute. |
-| `RESEND_API_KEY`, `MAIL_FROM` | Mail one-pagers from the owner's workspaces. Verify the sending domain in Resend. |
-| `DIGEST_TO` | Where the Monday digest goes: the week's sources, new concepts and open conflicts. It calls no model. |
+| `RESEND_API_KEY`, `MAIL_FROM` | Mail one-pagers from the owner's workspaces. |
+| `DIGEST_TO` | Where the Monday digest goes: the week's sources, new concepts and open conflicts. |
 
-Preview the digest without sending it: `npx convex run digest:send '{"dry":true}' --prod`.
+`admin:copyBrain '{"slug":"...","space":"demo"}'` adds one more brain to the demo. `digest:send '{"dry":true}'` previews the digest.
 
-## Claude
+</details>
 
-**Connector.** In an owner's workspace, Setup gives an MCP address. Paste it into Claude, ChatGPT or any MCP client: it reads and feeds that workspace's brains, and the client's own model does the thinking, so nothing is spent on the deployment. `/doc` has the setup steps.
+<details>
+<summary><b>Claude</b></summary>
 
-**Claude Code.** Copy `skill/brain/` into `~/.claude/skills/brain/` or a project's `.claude/skills/brain/`. On Claude.ai, upload `skill/brain/SKILL.md` as a skill. The brains are then plain markdown files under `brains/`.
+<br>
 
-## Security
+**Connector.** In an owner's workspace, Setup gives an MCP address. Paste it into Claude, ChatGPT or any MCP client: it reads and feeds that workspace's brains, and the client's own model does the thinking. `/doc` has the steps.
 
-- Passphrases are stored as salted SHA-256 hashes, one per workspace, each with its own counter: 8 wrong guesses close that door for an hour.
+**Claude Code.** Copy `skill/brain/` into `~/.claude/skills/brain/`. The brains are then plain markdown files under `brains/`, following [the 41 rules](docs/PROTOCOL.md).
+
+</details>
+
+<details>
+<summary><b>Security</b></summary>
+
+<br>
+
+- Passphrases are stored as salted SHA-256 hashes, one per workspace: 8 wrong guesses close that door for an hour.
 - Every route checks the session before it reads a brain or calls a model.
-- The demo runs on the default model within its monthly limits, sends no mail and cannot create, rename or connect brains, or change its look.
+- The demo runs on the default model within its monthly limits, and cannot create, rename or connect brains.
 - A personal brain is read by its own chat only. Every other reader loads the workspace without it.
-- A visitor's OpenRouter key is never stored on the server.
-- Raw transcripts are never stored: only what was extracted from them.
+- A visitor's OpenRouter key is never stored on the server. Raw transcripts are never stored either: only what was extracted.
 
-## Layout
+</details>
+
+<details>
+<summary><b>Project layout</b></summary>
+
+<br>
 
 ```
-app/index.html         the landing: the workspaces, what makes a brain, how it works
-app/chat.html          the app, one file, and each workspace's passphrase page
-app/doc.html           the connector setup
-convex/                the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/               the checks: npm run check
-PROTOCOL.md            the 41 rules the brain follows
-CONVEX.md              the server build, and why the key belongs there
-skill/brain/SKILL.md   the same behaviour, for Claude Code
-templates/, brains/    the markdown shape of a brain
+app/            the landing, the app (one file) and the connector page
+convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
+scripts/        678 checks, the app driven in a real browser included
+docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
+skill/brain/    the same behaviour, as a Claude Code skill
+templates/      the markdown shape of a brain
 ```
+
+</details>
 
 ## Checks
 
@@ -186,8 +201,12 @@ templates/, brains/    the markdown shape of a brain
 npm run check
 ```
 
-677 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+678 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
-## License
+<br>
 
-MIT.
+<div align="center">
+
+Built in September 2026 by [Jeremy Lasne](https://www.jeremylasne.com) for The Build Games. MIT license.
+
+</div>

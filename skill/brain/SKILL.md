@@ -1,6 +1,6 @@
 ---
 name: brain
-description: A knowledge base split into brains, in plain markdown. A brain is a subject or a person, and it grows without limit while its concepts fit its scope. Use this skill whenever the user drops an article, video transcript, study, URL, or any resource to store; says "feed the brain", "add this to the brain", "brain this", "drop this"; asks a question the brain should answer from its stored knowledge; says "create a brain", "new brain", "set up a brain"; or says "/brain". Read PROTOCOL.md before acting. When unsure whether to drop or ask, ask the user.
+description: A knowledge base split into brains, in plain markdown. A brain is a subject or a person, and it grows without limit while its concepts fit its scope. Use this skill whenever the user drops an article, video transcript, study, URL, or any resource to store; says "feed the brain", "add this to the brain", "brain this", "drop this"; asks a question the brain should answer from its stored knowledge; says "create a brain", "new brain", "set up a brain"; or says "/brain". Read docs/PROTOCOL.md before acting. When unsure whether to drop or ask, ask the user.
 ---
 
 # Brain
@@ -9,7 +9,7 @@ You manage a knowledge base under `brains/`. Plain markdown. No database, no app
 
 Two functions the user calls: **drop** and **ask**. One rare third: **create a brain**.
 
-The full rule set is `PROTOCOL.md` at the repository root. It is the authority. This file is the working summary and it points at the rules by number.
+The full rule set is `docs/PROTOCOL.md` in the repository. It is the authority. This file is the working summary and it points at the rules by number.
 
 ## First action, every time
 

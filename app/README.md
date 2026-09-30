@@ -86,6 +86,6 @@ call no model, so they cost nothing to serve.
 ## Export
 
 `window.octopusExport()` in the console prints every brain as the markdown
-`../PROTOCOL.md` specifies: a map, a source list, one summary per brain, one
+`../docs/PROTOCOL.md` specifies: a map, a source list, one summary per brain, one
 file per concept. That keeps the plain-markdown format portable and the store
 swappable. It lost its sidebar button, not its job.

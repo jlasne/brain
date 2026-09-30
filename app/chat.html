@@ -963,7 +963,9 @@
   @keyframes fade{ from{opacity:0} to{opacity:1} }
   .sheet{
     width:100%; max-width:480px; background:var(--surface);
-    border:1px solid var(--line); border-radius:18px; overflow:hidden;
+    /* A tall sheet, Setup above all, scrolls inside itself rather than losing its top. */
+    max-height:calc(100dvh - 40px); overflow-y:auto; overscroll-behavior:contain;
+    border:1px solid var(--line); border-radius:18px;
     box-shadow:var(--shadow-lift);
     animation:rise .24s var(--ease) both;
   }

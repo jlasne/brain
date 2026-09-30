@@ -21,4 +21,4 @@ Three things appear alongside your brains once the first one exists:
 
 Notes and the source list sit here rather than inside a brain, because raw capture belongs to no brain. That is what lets a repeat get caught across every brain at once.
 
-File shapes are in `../templates/`. The rules are in `../PROTOCOL.md`.
+File shapes are in `../templates/`. The rules are in `../docs/PROTOCOL.md`.
