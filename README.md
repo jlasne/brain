@@ -37,7 +37,7 @@ A brain still uses a language model: to read your sources and to write each answ
 | **A memory for Claude** | The owner's workspaces connect to Claude through MCP: Claude reads and feeds the brains with its own model. |
 | **A brain of your own (alpha)** | A personal brain is a chat. It files what you say as dated notes in your words, and answers from them and from your other brains. |
 
-Its builder uses it every day: 126 sources, 369 concepts and 12 brains in the Octopus workspace at the end of September 2026. 669 automated checks run on every change.
+Its builder uses it every day: 126 sources, 369 concepts and 12 brains in the Octopus workspace at the end of September 2026. 677 automated checks run on every change.
 
 ## How it works
 
@@ -186,7 +186,7 @@ templates/, brains/    the markdown shape of a brain
 npm run check
 ```
 
-669 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+677 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 ## License
 
