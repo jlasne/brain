@@ -55,7 +55,8 @@ const server = createServer(async (rq, rs) => {
      index.html, and typed from the path it would be an octet stream, which a
      browser downloads instead of rendering. Vercel's cleanUrls makes the same
      substitution, so /octopus and /squidgy resolve here too. */
-  const file = asked === "/" ? "index.html"
+  /* vercel.json rewrites the owner's two doors to the landing's page. */
+  const file = asked === "/" || asked === "/octopus" || asked === "/squidgy" ? "index.html"
     : /\.[a-z]+$/i.test(asked) ? asked.slice(1)
     : asked.slice(1) + ".html";
   try {
@@ -1495,30 +1496,94 @@ for (const space of ["octopus", "squidgy"]) {
   await page.close();
 }
 
-/* ---- both doors ---- */
+/* ---- the owner's doors, on their own paths ---- */
 {
-  const { page, bad } = await boot("/", () => {
+  const { page, bad } = await boot("/octopus", () => {
     window.fetch = async u => String(u).includes("/api/status")
       ? Response.json({ gates: { octopus: true, squidgy: false } })
       : Response.json({ brains: [], concepts: [] });
   });
-  check("the door boots with nothing thrown", !bad.length, bad.join("\n       "));
-  const doors = await page.evaluate(() => ({
-    both: !document.getElementById("dOctopus").hidden && !document.getElementById("dSquidgy").hidden,
-    unset: document.getElementById("msgSquidgy").textContent,
-    set: document.getElementById("msgOctopus").textContent,
-  }));
-  check("both doors show on the landing", doors.both);
+  check("the Octopus door boots with nothing thrown", !bad.length, bad.join("\n       "));
+  const door = await page.evaluate(() => ({ one: !document.getElementById("dOctopus").hidden && document.getElementById("dSquidgy").hidden,
+    landing: getComputedStyle(document.getElementById("landing")).display, msg: document.getElementById("msgOctopus").textContent }));
+  check("/octopus shows its door alone, not the landing", door.one && door.landing === "none" && door.msg === "", JSON.stringify(door));
   const loop = await page.evaluate(() => { const v = document.querySelector("#dOctopus .mk .loop");
-    return v ? { tag: v.tagName, src: v.getAttribute("src"), loop: v.loop, muted: v.muted, still: document.getElementById("imgOctopus").hidden,
-      h: Math.round(document.querySelector("#dOctopus .mk").getBoundingClientRect().height),
-      hs: Math.round(document.querySelector("#dSquidgy .mk").getBoundingClientRect().height) } : null; });
+    return v ? { tag: v.tagName, src: v.getAttribute("src"), loop: v.loop, muted: v.muted, still: document.getElementById("imgOctopus").hidden } : null; });
   check("the Octopus door plays the octopus's loop in place of its still mark", loop?.tag === "VIDEO" && /octopus-loop\.webm$/.test(loop.src)
     && loop.loop && loop.muted && loop.still, JSON.stringify(loop));
-  check("and the two doors still line up", loop && loop.h === loop.hs, JSON.stringify(loop));
-  check("a door with no passphrase says it is shut", /Shut until its owner/.test(doors.unset), doors.unset);
-  check("a door with one says nothing", doors.set === "", `"${doors.set}"`);
   await page.close();
+  const sq = await boot("/squidgy", () => {
+    window.fetch = async u => String(u).includes("/api/status") ? Response.json({ gates: { octopus: true, squidgy: false } }) : Response.json({});
+  });
+  check("a door with no passphrase says it is shut", /Shut until its owner/.test(await sq.page.textContent("#msgSquidgy")));
+  await sq.page.close();
+}
+
+/* ---- the landing: the demo, a workspace of your own, or yours again ---- */
+{
+  const { page, bad } = await boot("/", () => {
+    window.__posts = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      window.__posts.push({ s, body });
+      if (s.includes("/api/status")) return Response.json({ gates: { octopus: true }, demo: true });
+      if (s.includes("/api/public/brains")) return Response.json({ brains: [{ sources: 20 }, { sources: 6 }], concepts: [1, 2, 3] });
+      if (s.includes("/api/demo")) return Response.json({ token: "tDemo", space: "demo" });
+      if (s.includes("/api/workspace/create")) return body.name === "Taken" ? Response.json({ error: "that name is taken. Pick another." })
+        : Response.json({ token: "tNew", space: "acme-research", name: body.name });
+      if (s.includes("/api/unlock")) return Response.json({ token: "tOpen", space: "acme-research" });
+      return Response.json({});
+    };
+  });
+  await page.waitForTimeout(200);
+  const l = await page.evaluate(() => ({ landing: getComputedStyle(document.getElementById("landing")).display !== "none",
+    doors: getComputedStyle(document.getElementById("doors")).display, h1: document.querySelector(".hero h1").textContent,
+    proof: document.getElementById("proof").textContent, karpathy: document.querySelectorAll("#karpathy .cmp-row").length,
+    uses: document.querySelectorAll("#uses .tile").length, wide: document.documentElement.scrollWidth <= innerWidth }));
+  check("the landing leads with the outcome, and hides the owner's doors", l.landing && l.doors === "none" && /answer you can check/.test(l.h1), JSON.stringify(l));
+  check("it counts the builder's own brains live", /2 brains, 3 concepts, 26 sources read/.test(l.proof), l.proof);
+  check("it compares with Karpathy's wiki and lists use cases", l.karpathy === 8 && l.uses === 6, JSON.stringify(l));
+
+  await page.fill("#cName", "Taken"); await page.fill("#cPass", "a long passphrase"); await page.fill("#cKey", "nope");
+  await page.click("#cGo"); await page.waitForTimeout(100);
+  check("a key that is not OpenRouter's is caught before anything is sent", /starts with sk-or-/.test(await page.textContent("#cMsg"))
+    && !(await page.evaluate(() => window.__posts.some(p => p.s.includes("/api/workspace/create")))));
+  await page.fill("#cKey", "sk-or-v1-0123456789abcdef0123456789abcdef");
+  await page.click("#cGo"); await page.waitForTimeout(150);
+  check("a taken name says so", /taken/.test(await page.textContent("#cMsg")));
+  await page.fill("#cName", "Acme Research");
+  await Promise.all([page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), page.click("#cGo")]);
+  const made = await page.evaluate(() => ({ token: sessionStorage.getItem("octopus.token.v1"), key: localStorage.getItem("octopus.key.acme-research") }));
+  check("a new workspace opens in the app, its key kept in this browser only", made.token === "tNew" && made.key === "sk-or-v1-0123456789abcdef0123456789abcdef"
+    && new URL(page.url()).pathname === "/chat", JSON.stringify(made) + " " + page.url());
+  check("nothing threw on the landing", !bad.length, bad.join(" | "));
+  await page.close();
+
+  const d = await boot("/", () => {
+    window.fetch = async u => { const s = String(u);
+      if (s.includes("/api/status")) return Response.json({ demo: true });
+      if (s.includes("/api/demo")) return Response.json({ token: "tDemo", space: "demo" });
+      return Response.json({}); };
+  });
+  await Promise.all([d.page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), d.page.click("#demoGo")]);
+  check("the demo opens in one click", await d.page.evaluate(() => sessionStorage.getItem("octopus.token.v1")) === "tDemo" && new URL(d.page.url()).pathname === "/chat", d.page.url());
+  await d.page.close();
+
+  const o = await boot("/", () => {
+    window.__unlock = null;
+    window.fetch = async (u, opt) => { const s = String(u);
+      if (s.includes("/api/unlock")) { sessionStorage.setItem("test.unlock", opt.body); return Response.json({ token: "tOpen", space: "acme-research" }); }
+      if (s.includes("/api/status")) return Response.json({ demo: false });
+      return Response.json({}); };
+  });
+  await o.page.waitForTimeout(150);
+  check("with no demo open, the button says so", await o.page.isDisabled("#demoGo") && /opens soon/.test(await o.page.textContent("#demoMsg")));
+  await o.page.fill("#oName", "Acme Research"); await o.page.fill("#oPass", "a long passphrase");
+  await Promise.all([o.page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), o.page.click("#oGo")]);
+  const sent = await o.page.evaluate(() => ({ body: sessionStorage.getItem("test.unlock"), token: sessionStorage.getItem("octopus.token.v1") }));
+  check("a workspace opens by its name and passphrase", sent.body === '{"name":"Acme Research","pass":"a long passphrase"}' && sent.token === "tOpen",
+    JSON.stringify(sent));
+  await o.page.close();
 }
 
 await browser.close();

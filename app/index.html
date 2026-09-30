@@ -1,8 +1,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Knowledge Brains</title>
-<meta name="description" content="Two knowledge bases, one door each. A passphrase opens one of them.">
-<meta name="robots" content="noindex">
+<title>Octopus: every source you read, turned into answers you can check</title>
+<meta name="description" content="Drop a video, an article or a PDF. Octopus files each claim with its author and date, flags what contradicts what you hold, and answers from that evidence.">
+<meta property="og:title" content="Octopus: a knowledge brain that keeps itself current">
+<meta property="og:description" content="Every claim filed with its author and date. Contradictions settled by you. Answers with receipts, in 9 languages.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -120,7 +121,257 @@
     .door{ padding-block:44px; }
     .door > *{ max-width:none; }
   }
+
+  /* ======================================================================
+     THE LANDING
+
+     What Octopus does for you, in the order a visitor asks: what do I get,
+     how does it work, why not a wiki of my own, who is it for, and where do
+     I start. The owner's doors stay on /octopus and /squidgy.
+     ====================================================================== */
+  body.landing main.doors{ display:none; }
+  body.door-mode #landing{ display:none; }
+  .lw{ width:100%; max-width:1080px; margin:0 auto; padding-inline:24px; }
+  .l-top{ position:sticky; top:0; z-index:10; background:rgba(245,245,220,.92); backdrop-filter:blur(6px); border-bottom:1px solid var(--line); }
+  .l-top .lw{ display:flex; align-items:center; gap:10px; padding-block:12px; }
+  .l-top img{ width:26px; height:26px; }
+  .l-top b{ font:600 18px/1 var(--sans); letter-spacing:-.015em; }
+  .l-top nav{ margin-left:auto; display:flex; gap:6px; align-items:center; }
+  .l-top nav a{ font:500 13.5px/1 var(--sans); color:var(--ink-3); padding:8px 10px; border-radius:7px; }
+  .l-top nav a:hover{ background:var(--surface-2); color:var(--ink); text-decoration:none; }
+  .cta{ display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:46px; padding:12px 20px; border-radius:11px;
+    font:600 15px/1 var(--sans); border:1px solid var(--line-2); background:var(--surface); color:var(--ink); cursor:pointer;
+    transition:transform .15s var(--ease), background .15s var(--ease), border-color .15s var(--ease); }
+  .cta:hover{ transform:translateY(-1px); border-color:var(--accent-fill); text-decoration:none; }
+  .cta.main{ background:var(--accent-fill); border-color:var(--accent-fill); color:#fff; }
+  .cta.main:hover{ background:#bf5a3c; border-color:#bf5a3c; }
+  .cta:disabled{ opacity:.55; cursor:default; transform:none; }
+  .l-top .cta{ min-height:36px; padding:8px 14px; font-size:13.5px; }
+
+  .hero{ padding:clamp(40px,7vw,88px) 0 clamp(36px,6vw,64px); }
+  .hero .lw{ display:grid; grid-template-columns:1.25fr .75fr; gap:40px; align-items:center; }
+  .eyebrow{ display:inline-block; font:500 12px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--accent);
+    padding:7px 10px; border:1px solid var(--accent-line); border-radius:999px; background:var(--accent-soft); }
+  .hero h1{ margin-top:18px; font:700 clamp(34px,5.2vw,58px)/1.02 var(--sans); letter-spacing:-.035em; color:var(--ink); }
+  .hero h1 em{ font-style:normal; color:var(--accent-fill); }
+  .hero .sub{ margin-top:18px; max-width:600px; font:400 clamp(16px,1.6vw,19px)/1.6 var(--sans); color:var(--ink-2); }
+  .hero .ctas{ margin-top:26px; display:flex; gap:10px; flex-wrap:wrap; }
+  .hero .proof{ margin-top:18px; font:400 12.5px/1.6 var(--mono); color:var(--ink-4); min-height:1.6em; }
+  .hero .msg{ margin-top:10px; font:400 13.5px/1.5 var(--sans); color:var(--accent); min-height:1.5em; }
+  .stage{ position:relative; display:grid; place-items:center; }
+  .stage .loop, .stage .still{ width:min(300px,70vw); height:auto; }
+  .card-demo{ margin-top:-18px; width:100%; max-width:360px; background:var(--surface); border:1px solid var(--line); border-radius:14px;
+    box-shadow:var(--shadow-lift); padding:14px 16px; font:400 13.5px/1.55 var(--sans); color:var(--ink-2); }
+  .card-demo .q{ font-weight:600; color:var(--ink); }
+  .card-demo .ex-tag{ float:right; font:500 10.5px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-4); }
+  .card-demo .a{ margin-top:6px; }
+  .card-demo .src{ margin-top:8px; font:400 11.5px/1.5 var(--mono); color:var(--ink-4); }
+  .card-demo .clash{ margin-top:8px; display:inline-block; font:600 11px/1 var(--sans); letter-spacing:.03em; text-transform:uppercase;
+    color:#b3372a; border:1px solid rgba(179,55,42,.35); border-radius:999px; padding:5px 8px; }
+
+  .band{ padding:clamp(40px,6vw,72px) 0; border-top:1px solid var(--line); }
+  .band.alt{ background:var(--surface-2); }
+  .band h2{ font:700 clamp(26px,3.4vw,38px)/1.1 var(--sans); letter-spacing:-.03em; color:var(--ink); }
+  .band .lede{ margin-top:10px; max-width:680px; font:400 17px/1.6 var(--sans); color:var(--ink-3); }
+  .grid{ margin-top:28px; display:grid; gap:14px; grid-template-columns:repeat(3, 1fr); }
+  .grid.two{ grid-template-columns:repeat(2, 1fr); }
+  .tile{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px; }
+  .tile .k{ font:600 11.5px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--accent); }
+  .tile h3{ margin-top:10px; font:600 18px/1.3 var(--sans); letter-spacing:-.01em; color:var(--ink); }
+  .tile p{ margin-top:7px; font:400 14.5px/1.6 var(--sans); color:var(--ink-3); }
+  .tile .ex{ margin-top:10px; padding:9px 11px; border-radius:9px; background:var(--bg); font:400 13px/1.5 var(--sans); color:var(--ink-2); }
+  .steps{ margin-top:28px; display:grid; grid-template-columns:repeat(5, 1fr); gap:12px; counter-reset:s; }
+  .step{ position:relative; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  .step::before{ counter-increment:s; content:counter(s); display:grid; place-items:center; width:28px; height:28px; border-radius:50%;
+    background:var(--accent-fill); color:#fff; font:700 13px/1 var(--sans); }
+  .step h3{ margin-top:10px; font:600 16px/1.3 var(--sans); color:var(--ink); }
+  .step p{ margin-top:6px; font:400 13.5px/1.55 var(--sans); color:var(--ink-3); }
+  .cmp{ margin-top:26px; background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden; font:400 14.5px/1.5 var(--sans); }
+  .cmp-row{ display:grid; grid-template-columns:22% 1fr 1fr; border-top:1px solid var(--line); }
+  .cmp-row:first-child{ border-top:none; }
+  .cmp-row > span{ padding:12px 14px; min-width:0; }
+  .cmp-head{ background:var(--surface-2); font:600 12px/1.3 var(--mono); letter-spacing:.05em; text-transform:uppercase; }
+  .cmp-row > span:first-child{ font-weight:600; color:var(--ink); }
+  .cmp-row > span:nth-child(2){ color:var(--ink-3); }
+  .cmp-head > span{ color:var(--ink-3) !important; }
+  .cmp .win{ color:var(--good); font-weight:600; }
+  .note{ margin-top:12px; font:400 13px/1.6 var(--sans); color:var(--ink-4); }
+  .replace{ margin-top:22px; display:flex; flex-wrap:wrap; gap:10px; }
+  .replace span{ padding:9px 13px; border-radius:10px; background:var(--surface); border:1px solid var(--line); font:500 14px/1.3 var(--sans); color:var(--ink-2); }
+  .replace span s{ color:var(--ink-4); }
+
+  .start .grid{ align-items:stretch; }
+  .start form, .start .tile{ display:flex; flex-direction:column; }
+  .start label{ display:block; margin:12px 0 6px; font:500 12.5px/1 var(--sans); color:var(--ink-3); }
+  .start input{ width:100%; border:1px solid var(--line-2); border-radius:10px; background:var(--bg); padding:11px 13px;
+    font:400 16px/1.4 var(--sans); color:var(--ink); }
+  .start input:focus{ border-color:var(--accent-fill); outline:none; }
+  .start .cta{ margin-top:14px; width:100%; }
+  .start .push{ margin-top:auto; }
+  .start .fine{ margin-top:10px; font:400 12.5px/1.55 var(--sans); color:var(--ink-4); }
+  .start .msg{ margin-top:8px; min-height:1.5em; font:400 13px/1.5 var(--sans); color:var(--accent); }
+
+  @media (max-width:900px){
+    .hero .lw{ grid-template-columns:1fr; }
+    .stage .loop, .stage .still{ width:min(190px,50vw); }
+    .steps{ grid-template-columns:1fr 1fr; }
+    .grid{ grid-template-columns:1fr 1fr; }
+  }
+  @media (max-width:620px){
+    .grid, .grid.two, .steps{ grid-template-columns:1fr; }
+    .l-top nav a.opt{ display:none; }
+    .cmp-head{ display:none !important; }
+    .cmp-row{ grid-template-columns:1fr; padding:8px 0; }
+    .cmp-row > span{ padding:3px 14px; }
+    .cmp-row > span[data-l]::before{ content:attr(data-l) ": "; font-weight:600; color:var(--ink-2); }
+  }
 </style>
+
+<div id="landing">
+  <header class="l-top"><div class="lw">
+    <img src="/brand/logo-mark.png" alt="" width="26" height="26"><b>Octopus</b>
+    <nav>
+      <a class="opt" href="#how">How it works</a>
+      <a class="opt" href="#karpathy">Vs. an LLM wiki</a>
+      <a class="opt" href="#uses">Use cases</a>
+      <a class="opt" href="https://github.com/jlasne/brain">GitHub</a>
+      <a class="cta main" href="#start">Start</a>
+    </nav>
+  </div></header>
+
+  <section class="hero"><div class="lw">
+    <div>
+      <span class="eyebrow">Open source &middot; The Build Games</span>
+      <h1>Every video you watch becomes an answer <em>you can check.</em></h1>
+      <p class="sub">Drop a YouTube video, an article or a PDF. Octopus files each claim under the right subject with its author and date,
+        flags what contradicts what you already hold, and answers from that evidence, in 9 languages.</p>
+      <div class="ctas">
+        <button class="cta main" id="demoGo" type="button">Try the live demo</button>
+        <a class="cta" href="#create">Make your workspace</a>
+      </div>
+      <p class="msg" id="demoMsg" role="alert"></p>
+      <p class="proof" id="proof">Its builder feeds it every day.</p>
+    </div>
+    <div class="stage">
+      <img id="heroStill" class="still" src="/brand/octopus-door.png" alt="" width="300" height="224">
+      <div class="card-demo" aria-label="An example answer">
+        <span class="ex-tag">Example</span>
+        <div class="q">What gets a cold email a reply?</div>
+        <div class="a">Keep it under 90 words and open with the reader's problem. Replies rose from 1.2% to 4.8% after the rewrite.</div>
+        <div class="src">Sources: 3 videos, 1 article &middot; newest 2026-09-17</div>
+        <span class="clash">1 open conflict: length</span>
+      </div>
+    </div>
+  </div></section>
+
+  <section class="band" id="outcomes"><div class="lw">
+    <h2>What you get</h2>
+    <p class="lede">Your sources, read once and kept current. Each new one updates what you know, and every answer shows where it comes from.</p>
+    <div class="grid">
+      <div class="tile"><span class="k">Answers with receipts</span><h3>Every claim has an author and a date</h3>
+        <p>Answers cite who said it and when. Newer evidence wins on the same question, and a small brain says it is small.</p></div>
+      <div class="tile"><span class="k">You rule on clashes</span><h3>Contradictions, settled in a swipe</h3>
+        <p>When a new source disagrees with what a brain holds, it waits for you. Swipe left, right or both, and the position is rewritten.</p></div>
+      <div class="tile"><span class="k">One page, any shape</span><h3>Summary, quiz, deep dive, use cases</h3>
+        <p>Turn a brain or a question into one page in 9 languages. Copy it, print it, or mail it from your workspace.</p></div>
+      <div class="tile"><span class="k">Levels</span><h3>An answer, a lesson, or the steps</h3>
+        <p>Normal answers with the numbers. Educational teaches from zero. Learning gives the steps and lets you reach the answer yourself.</p></div>
+      <div class="tile"><span class="k">See it whole</span><h3>A health score and a map</h3>
+        <p>Each brain scores against your best one on variety, depth, freshness and conflicts. The map draws every brain as an arm of the octopus.</p></div>
+      <div class="tile"><span class="k">Chats that stay</span><h3>Pick up where you left off</h3>
+        <p>Every question and answer is kept. Reopen a chat, rename it, pin up to 5. Old ones clear themselves after 30 days.</p></div>
+    </div>
+  </div></section>
+
+  <section class="band alt" id="how"><div class="lw">
+    <h2>How it works</h2>
+    <p class="lede">One pass per source. The brain is compiled as you feed it, so a question reads positions, never raw transcripts.</p>
+    <div class="steps">
+      <div class="step"><h3>Drop</h3><p>A link, a pasted transcript, a PDF or a Word file. YouTube captions are fetched for you.</p></div>
+      <div class="step"><h3>Read</h3><p>Every topic is extracted, with its numbers and quotes. The author is named on every source.</p></div>
+      <div class="step"><h3>File</h3><p>Each idea joins a concept or starts one: a position, dated evidence, figures, links to other brains.</p></div>
+      <div class="step"><h3>Settle</h3><p>A claim that contradicts a position waits for your ruling. Additions and details go straight in.</p></div>
+      <div class="step"><h3>Ask</h3><p>Answers, one-pagers and the map read the compiled positions, with every source cited.</p></div>
+    </div>
+  </div></section>
+
+  <section class="band" id="karpathy"><div class="lw">
+    <h2>Karpathy's LLM wiki, for people who do not live in a terminal</h2>
+    <p class="lede">Andrej Karpathy showed that an AI should compile your sources into a wiki once, rather than search raw files on every question.
+      Octopus takes that idea and adds what a wiki leaves open: who said what, when, and what to do when sources disagree.</p>
+    <div class="cmp" role="table" aria-label="Karpathy's LLM wiki compared with Octopus">
+      <div class="cmp-row cmp-head" role="row"><span role="columnheader"></span><span role="columnheader">Karpathy's LLM wiki</span><span role="columnheader">Octopus</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">Setup</span><span role="cell" data-l="Karpathy's wiki">Scripts, Obsidian and a coding agent</span><span role="cell" data-l="Octopus" class="win">A web page, on desktop and phone</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">Contradictions</span><span role="cell" data-l="Karpathy's wiki">Stay in the pages unresolved</span><span role="cell" data-l="Octopus" class="win">Caught at every drop, and you rule on each</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">Proof</span><span role="cell" data-l="Karpathy's wiki">A summary per page</span><span role="cell" data-l="Octopus" class="win">Author and date on every claim</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">Size</span><span role="cell" data-l="Karpathy's wiki">One index file, about 100 articles</span><span role="cell" data-l="Octopus" class="win">Every title read in one pass, up to about 2,300 concepts</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">People</span><span role="cell" data-l="Karpathy's wiki">Topics only</span><span role="cell" data-l="Octopus" class="win">Person brains: one expert's views, kept apart</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">Outputs</span><span role="cell" data-l="Karpathy's wiki">Slides and charts</span><span role="cell" data-l="Octopus" class="win">Answers at 3 levels, one-pagers in 9 languages, a weekly digest, a map</span></div>
+      <div class="cmp-row" role="row"><span role="rowheader">Answers</span><span role="cell" data-l="Karpathy's wiki">Filed back into the wiki</span><span role="cell" data-l="Octopus">Kept as chats you reopen and continue</span></div>
+    </div>
+    <p class="note">From Karpathy's own description of his setup: about 100 articles and 400,000 words, maintained by the AI, rarely edited by hand.</p>
+  </div></section>
+
+  <section class="band alt" id="uses"><div class="lw">
+    <h2>Use cases</h2>
+    <p class="lede">A brain per subject, or per person. Each one answers from what you fed it, and says so when it does not know.</p>
+    <div class="grid">
+      <div class="tile"><span class="k">Investing</span><h3>Follow the experts you trust</h3>
+        <p>One brain per analyst. See what each one holds today, where two of them disagree, and what changed since last month.</p>
+        <div class="ex">"Where do my two macro voices disagree on gold, and since when?"</div></div>
+      <div class="tile"><span class="k">Founders and sales</span><h3>Turn 20 videos into one playbook</h3>
+        <p>Feed the outreach and pricing talks you watch. Ask for the steps, with the numbers each speaker gave.</p>
+        <div class="ex">"Write my first cold email from what the outreach brain holds."</div></div>
+      <div class="tile"><span class="k">Creators</span><h3>A swipe file that files itself</h3>
+        <p>Hooks, formats and scripting frameworks, each with the creator who taught it and the result they reported.</p>
+        <div class="ex">"Give me 5 hook formats with the numbers behind them."</div></div>
+      <div class="tile"><span class="k">Health</span><h3>Protocols from podcasts, reconciled</h3>
+        <p>Sleep, training and nutrition advice from many hosts, with the clashes laid out so you pick the one that holds.</p>
+        <div class="ex">"What dose and timing do my sources give for creatine?"</div></div>
+      <div class="tile"><span class="k">Learning</span><h3>Study from your own sources</h3>
+        <p>Learning level walks you to the answer in steps. Quizzes and deep dives come out of the same brain.</p>
+        <div class="ex">"Quiz me on depreciation, 8 questions, answers folded."</div></div>
+      <div class="tile"><span class="k">Your AI</span><h3>A memory Claude can read</h3>
+        <p>The owner's workspaces connect to Claude through MCP: Claude reads and feeds the brains with its own model.</p>
+        <div class="ex">"OCTOPUS BRAIN: what do we hold on retention?"</div></div>
+    </div>
+    <h2 style="margin-top:44px; font-size:clamp(22px,2.6vw,28px)">What it replaces</h2>
+    <p class="lede">Open source and self-hostable. On your own OpenRouter key you pay only for the model calls you make.</p>
+    <div class="replace">
+      <span><s>Recall</s> $10/mo</span><span><s>Readwise Reader</s> $9.99/mo</span><span><s>A Notion wiki you never update</s></span>
+      <span><s>A folder of unwatched "watch later" links</s></span>
+    </div>
+  </div></section>
+
+  <section class="band start" id="start"><div class="lw">
+    <h2>Start</h2>
+    <p class="lede">Try the demo with nothing to sign up for, or make a workspace of your own on your own key.</p>
+    <div class="grid">
+      <div class="tile">
+        <span class="k">No sign-up</span><h3>Try the live demo</h3>
+        <p>Ask its brains, drop a video or an article, build a one-pager, open the map. Your chats stay yours.</p>
+        <p class="fine">It runs on our key with a daily allowance per visitor.</p>
+        <div class="push"><button class="cta main" id="demoGo2" type="button">Open the demo</button><p class="msg" id="demoMsg2" role="alert"></p></div>
+      </div>
+      <form class="tile" id="create">
+        <span class="k">Your own key</span><h3>Make your workspace</h3>
+        <label for="cName">Workspace name</label><input id="cName" autocomplete="off" maxlength="60" placeholder="Acme Research">
+        <label for="cPass">Passphrase, 8 characters or more</label><input id="cPass" type="password" autocomplete="new-password">
+        <label for="cKey">OpenRouter key</label><input id="cKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-...">
+        <p class="fine">Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. It is checked once, then kept in this
+          browser only and sent with each call that needs a model. It is never saved on our server.</p>
+        <div class="push"><button class="cta main" id="cGo" type="submit">Create it</button><p class="msg" id="cMsg" role="alert"></p></div>
+      </form>
+      <form class="tile" id="open">
+        <span class="k">Welcome back</span><h3>Open your workspace</h3>
+        <label for="oName">Workspace name</label><input id="oName" autocomplete="username" maxlength="60">
+        <label for="oPass">Passphrase</label><input id="oPass" type="password" autocomplete="current-password">
+        <p class="fine">On a new device, the app asks for your OpenRouter key once.</p>
+        <div class="push"><button class="cta" id="oGo" type="submit">Open it</button><p class="msg" id="oMsg" role="alert"></p></div>
+      </form>
+    </div>
+  </div></section>
+</div>
 
 <main class="doors" id="doors">
 
@@ -155,7 +406,7 @@
 </main>
 
 <footer class="bot"><div class="wrap">
-  <span style="margin:0">MIT licensed &middot; <a href="https://github.com/jlasne/brain">jlasne/brain</a></span>
+  <span style="margin:0">MIT licensed &middot; <a href="https://github.com/jlasne/brain">jlasne/brain</a> &middot; Built for <a href="https://canivibecodeit.com/thebuildgames">The Build Games</a></span>
   <span><a href="/about">How it works</a></span>
 </div></footer>
 
@@ -202,9 +453,9 @@
    * it, so they get the animated WebP. Asked for less motion, the still mark
    * stays.
    */
-  function octopusLoop(){
+  function octopusLoop(img = $("imgOctopus")){
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const img = $("imgOctopus"), ua = navigator.userAgent;
+    const ua = navigator.userAgent;
     const webkit = /iPhone|iPad|iPod/.test(ua) || (/Safari\//.test(ua) && !/Chrome|Chromium|Edg|OPR|Firefox/.test(ua));
     const loop = document.createElement(webkit ? "img" : "video");
     loop.className = "loop"; loop.setAttribute("aria-hidden", "true");
@@ -333,7 +584,67 @@
     return gone;
   }
 
+  /* ================= the landing ================= */
+
+  /** Into the app with a fresh session, and the workspace's key when it has one. */
+  const enter = (token, space, key) => {
+    sessionStorage.setItem(TOKEN_KEY, token);
+    if (key) { try { localStorage.setItem("octopus.key." + space, key); } catch {} }
+    location.assign("/chat");
+  };
+
+  /** The demo opens with one click: no passphrase, no key. */
+  async function openDemo(btn, msg){
+    btn.disabled = true; msg.textContent = "Opening the demo";
+    try { const r = await post("/api/demo"); enter(r.token, r.space); }
+    catch (e) { btn.disabled = false; msg.textContent = e.message; }
+  }
+
+  function landing(){
+    document.body.classList.add("landing");
+    octopusLoop($("heroStill"));
+    for (const [b, m] of [["demoGo", "demoMsg"], ["demoGo2", "demoMsg2"]]) $(b).onclick = () => openDemo($(b), $(m));
+
+    $("create").addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const name = $("cName").value.trim(), pass = $("cPass").value, key = $("cKey").value.trim();
+      const msg = $("cMsg");
+      if (name.length < 2){ msg.textContent = "Give it a name of 2 letters or more."; $("cName").focus(); return; }
+      if (pass.length < 8){ msg.textContent = "Use a passphrase of 8 characters or more."; $("cPass").focus(); return; }
+      if (!/^sk-or-[A-Za-z0-9_-]{20,200}$/.test(key)){ msg.textContent = "That is not an OpenRouter key. It starts with sk-or-"; $("cKey").focus(); return; }
+      $("cGo").disabled = true; msg.textContent = "Checking the key with OpenRouter";
+      try { const r = await post("/api/workspace/create", { name, pass, key }); enter(r.token, r.space, key); }
+      catch (e) { $("cGo").disabled = false; msg.textContent = e.message; }
+    });
+
+    $("open").addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const name = $("oName").value.trim(), pass = $("oPass").value, msg = $("oMsg");
+      if (!name){ $("oName").focus(); return; }
+      if (pass.length < 8){ msg.textContent = "A passphrase runs 8 characters or more."; $("oPass").focus(); return; }
+      $("oGo").disabled = true; msg.textContent = "Checking";
+      try { const r = await post("/api/unlock", { name, pass }); enter(r.token, r.space); }
+      catch (e) { $("oGo").disabled = false; $("oPass").value = ""; msg.textContent = e.message; }
+    });
+
+    /* Whether the demo is open, and the builder's own brains, counted live. */
+    post("/api/status").then(st => {
+      if (st.demo === false) for (const [b, m] of [["demoGo", "demoMsg"], ["demoGo2", "demoMsg2"]]) {
+        $(b).disabled = true; $(m).textContent = "The demo opens soon. Make your workspace meanwhile.";
+      }
+    }).catch(() => {});
+    fetch(API + "/api/public/brains").then(r => r.ok ? r.json() : null).then(d => {
+      const brains = d?.brains || [];
+      if (!brains.length) return;
+      const sources = brains.reduce((n, b) => n + (b.sources || 0), 0);
+      $("proof").textContent = `Its builder's own workspace today: ${brains.length} brains, ${(d.concepts || []).length} concepts, ${sources} sources read.`;
+    }).catch(() => {});
+  }
+
   (() => {
+    /* The owner's doors live on /octopus and /squidgy. Everyone else lands here. */
+    if (!asked()) { landing(); return; }
+    document.body.classList.add("door-mode");
     const gone = missing();
     if (gone.length) {
       document.getElementById("doors").innerHTML =
