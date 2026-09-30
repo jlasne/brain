@@ -71,7 +71,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 
 ## How it works
 
-<img src="docs/img/goods.jpg" alt="Sources, positions, your call, and what you own" width="100%">
+<img src="docs/img/goods.jpg" alt="Why a brain, four ideas moving, and why it holds up" width="100%">
 
 1. **Drop.** A link, a PDF, a Word file or a pasted transcript. Video captions are fetched for you. Files are read in the browser, never uploaded.
 2. **File.** Every topic is extracted once, with its numbers and quotes. Each idea joins a concept or starts one, with its author and date.

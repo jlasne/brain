@@ -256,24 +256,23 @@
   .band h2{ margin-top:14px; max-width:780px; font-size:clamp(30px, 4.4vw, 48px); line-height:1.08; font-weight:650; letter-spacing:-.035em; text-wrap:balance; }
   .band .lede{ margin-top:16px; max-width:680px; font-size:18px; line-height:1.6; color:var(--ice-70); text-wrap:pretty; }
 
-  /* The comparison: three columns, the brain's lit. */
-  /* The goods: three layers, four ideas moving, and four lines on who owns what. */
-  .tiles{ margin-top:22px; }
-  .own{ margin-top:16px; display:grid; grid-template-columns:repeat(4, 1fr); border-radius:22px; border:1px solid var(--line-2); overflow:hidden;
+  /* The goods: why a brain, four ideas moving, and why it holds up. */
+  .part{ margin-top:48px; font-size:22px; font-weight:650; letter-spacing:-.02em; color:var(--ice); }
+  .tiles{ margin-top:30px; }
+  .own{ margin-top:16px; display:grid; grid-template-columns:repeat(3, 1fr); border-radius:22px; border:1px solid var(--line-2); overflow:hidden;
     background:linear-gradient(180deg, rgba(95,168,211,.10), rgba(10,20,36,.62)); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
-  .own > div{ padding:22px; }
-  .own > div + div{ border-left:1px solid var(--line); }
+  .own > div{ padding:22px; box-shadow:-1px 0 0 var(--line), 0 -1px 0 var(--line); }
   .own b{ display:block; font-size:17px; font-weight:650; letter-spacing:-.01em; color:var(--ice); }
   .own b::before{ content:""; display:inline-block; width:8px; height:8px; margin-right:9px; border-radius:50%; background:var(--blue); box-shadow:0 0 10px var(--blue); vertical-align:2px; }
   .own p{ margin-top:8px; font-size:14.5px; line-height:1.55; color:var(--ice-70); }
 
-  /* What makes a brain: three layers, left to right, a spark running along them. */
-  .layers{ margin-top:36px; list-style:none; display:grid; grid-template-columns:repeat(3, 1fr); position:relative; border-top:1px solid var(--line-2); }
-  .layers li{ padding:24px 24px 4px 0; }
-  .layers li + li{ padding-left:24px; border-left:1px solid var(--line); }
+  /* Why a brain: four points, left to right, a spark running along them. */
+  .layers{ margin-top:16px; list-style:none; display:grid; grid-template-columns:repeat(4, 1fr); position:relative; border-top:1px solid var(--line-2); }
+  .layers li{ padding:24px 22px 4px 0; }
+  .layers li + li{ padding-left:22px; border-left:1px solid var(--line); }
   .layers .ln{ font-size:12px; font-weight:700; letter-spacing:.12em; color:var(--blue); }
-  .layers b{ display:block; margin-top:10px; font-size:24px; font-weight:650; letter-spacing:-.02em; }
-  .layers p{ margin-top:8px; font-size:16px; line-height:1.55; color:var(--ice-70); max-width:320px; }
+  .layers b{ display:block; margin-top:10px; font-size:20px; line-height:1.25; font-weight:650; letter-spacing:-.02em; text-wrap:balance; }
+  .layers p{ margin-top:8px; font-size:15.5px; line-height:1.55; color:var(--ice-70); max-width:320px; }
   .layers::before{ content:""; position:absolute; top:-4px; left:0; width:7px; height:7px; border-radius:50%; background:var(--ice);
     box-shadow:0 0 14px 3px var(--blue); animation:travel 5s linear infinite; }
   @keyframes travel{ 0%{ left:0; opacity:0; } 8%{ opacity:1; } 92%{ opacity:1; } 100%{ left:calc(100% - 7px); opacity:0; } }
@@ -290,8 +289,9 @@
   @media (max-width:960px){
     .tiles{ grid-template-columns:1fr; }
     .own{ grid-template-columns:1fr 1fr; }
-    .own > div:nth-child(3){ border-left:0; }
-    .own > div:nth-child(n+3){ border-top:1px solid var(--line); }
+    .layers{ grid-template-columns:1fr 1fr; }
+    .layers li:nth-child(3){ padding-left:0; border-left:0; }
+    .layers li:nth-child(n+3){ border-top:1px solid var(--line); }
     .cards{ grid-template-columns:1fr 1fr; }
   }
   @media (max-width:720px){
@@ -299,6 +299,7 @@
     .layers li, .layers li + li{ padding:18px 0 4px; border-left:0; }
     .layers li + li{ border-top:1px solid var(--line); }
     .layers::before{ display:none; }
+    .own{ grid-template-columns:1fr; }
   }
   @media (max-width:640px){
     .spaces{ padding:8px 16px 10px; border-radius:18px; }
@@ -314,7 +315,7 @@
   }
   @media (prefers-reduced-motion:reduce){
     .reveal, .aurora i, .deck .top, .deck .stamp{ animation:none !important; }
-    .deck .stamp{ opacity:1; }
+    .deck .stamp{ opacity:1; top:-11px; right:14px; }
     .map .arm{ stroke-dashoffset:0; } .map .sk, .map .lk, .map .red{ opacity:1; }
     .talk .b, .talk .rc{ opacity:1; transform:none; }
     .layers::before, .item .glow-on{ animation:none !important; }
@@ -419,13 +420,14 @@
 
     <section class="band later" id="goods"><div class="wide">
       <span class="eyebrow">What you get</span>
-      <h2>A wiki that knows who said what. And it is yours.</h2>
-      <p class="lede">Karpathy's idea: an AI compiles your sources once, instead of rereading raw files for every question.
-        A brain adds who said it, when, and your call when they disagree.</p>
+      <h2>Be the expert on anything you feed it.</h2>
+      <p class="lede">Feed it 20 talks on a subject. Ask anything, and see who said it and when.</p>
+      <h3 class="part">Why a brain</h3>
       <ol class="layers">
-        <li><span class="ln">01</span><b>Sources</b><p>What you drop: articles, PDFs, videos. Each one is read once.</p></li>
-        <li><span class="ln">02</span><b>Positions</b><p>What it compiles: one position per concept, every claim signed with its author and date.</p></li>
-        <li><span class="ln">03</span><b>Your call</b><p>When two sources clash, you rule. The position is rewritten from all its evidence.</p></li>
+        <li><span class="ln">01</span><b>Expertise in any subject you choose</b><p>It learns from your sources only. 20 talks on a subject give you a specialist to question.</p></li>
+        <li><span class="ln">02</span><b>Knowledge that compounds</b><p>Your sixth source rewrites the view from all six. A talk you saw last year answers today's question.</p></li>
+        <li><span class="ln">03</span><b>One mind per expert</b><p>Each person you follow gets their own brain. Ask two together and see where they split, and since when.</p></li>
+        <li><span class="ln">04</span><b>Answers with receipts</b><p>Every claim carries who said it and when. You check an answer in one look.</p></li>
       </ol>
       <div class="tiles">
         <div class="tile">
@@ -472,11 +474,14 @@
           <div class="txt"><h3>It learns you <small>Alpha</small></h3><p>A personal brain: tell it anything and it files your words as dated notes. It can call your other brains; they never read it.</p></div>
         </div>
       </div>
+      <h3 class="part">Why it holds up</h3>
       <div class="own">
-        <div><b>Your data</b><p>In your own database, or as plain markdown files on your machine. One click exports every brain.</p></div>
-        <div><b>Your key</b><p>Model calls run on your OpenRouter key. It stays in your browser.</p></div>
-        <div><b>Your code</b><p>Open source, MIT. Run your own copy in five commands.</p></div>
-        <div><b>Your AI</b><p>Claude reads and feeds your brains through MCP.</p></div>
+        <div><b>Zero duplicates</b><p>A source dropped twice is caught on arrival. A new idea joins the concept it belongs to.</p></div>
+        <div><b>Zero hidden contradictions</b><p>Every clash is caught at drop and waits for your call, one swipe each. Each concept keeps one clear position.</p></div>
+        <div><b>Lightweight</b><p>It keeps the claims and drops the raw transcript. A concept weighs about 1 KB.</p></div>
+        <div><b>Fast search</b><p>It reads up to 2,300 concept titles in one pass. A question opens only the concepts it needs.</p></div>
+        <div><b>Scalable</b><p>A brain 50 times bigger reads about 2 times more per question.</p></div>
+        <div><b>Your data</b><p>In your own database or as markdown files, exported in one click. Open source, on your own key.</p></div>
       </div>
     </div></section>
   </main>

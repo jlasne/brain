@@ -1758,8 +1758,10 @@ for (const space of ["octopus", "squidgy"]) {
   check("the video section waits hidden until its link is set", l.video === true);
   check("the open source names no host", l.code === "https://github.com/jlasne/brain" && l.codeDesc === "Every line of the app and the server. Run your own."
     && !/Convex|Vercel/.test(l.codeDesc), l.codeDesc);
-  check("one section shows the goods: three layers, four ideas moving, and what you own", l.layers === "Sources|Positions|Your call"
-    && l.tiles === "It argues back|It keeps score|It draws itself|It learns you" && l.own === "Your data|Your key|Your code|Your AI",
+  check("one section shows the goods: why a brain, four ideas moving, and why it holds up",
+    l.layers === "Expertise in any subject you choose|Knowledge that compounds|One mind per expert|Answers with receipts"
+    && l.tiles === "It argues back|It keeps score|It draws itself|It learns you"
+    && l.own === "Zero duplicates|Zero hidden contradictions|Lightweight|Fast search|Scalable|Your data",
     JSON.stringify({ a: l.layers, t: l.tiles, o: l.own }));
   check("three blocks and nothing more: the hero, the video, the goods", l.sections === "top|video|goods", l.sections);
   await page.evaluate(() => document.getElementById("map").scrollIntoView({ block: "center", behavior: "instant" })); await page.waitForTimeout(2800);
