@@ -1264,6 +1264,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     asked: window.__calls.filter(c => /\/api\/(account\/mcp|usage)/.test(c.s)).length }));
   check("Setup in the demo keeps the default model, and leaves out the connector and transcripts", set.model && set.mcp && set.use && set.key && set.asked === 0,
     JSON.stringify(set));
+  check("the demo keeps Brain's look: no logo or colours to set", await page.evaluate(() => document.getElementById("lookBlock").hidden)
+    && await page.evaluate(() => document.documentElement.dataset.space === "demo" && getComputedStyle(document.body).backgroundColor === "rgb(238, 245, 250)"));
   await page.click("#kDone");
   await page.click("#pagerBtn"); await page.waitForTimeout(100);
   check("a one-pager in the demo is copied or printed, never mailed", !(await page.isVisible("#pTo")));
@@ -1273,6 +1275,52 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const asked = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/ask")).pop()?.body);
   check("nothing in the demo sends a model of its own choosing", asked && !("model" in asked) && !("key" in asked), JSON.stringify(asked));
   check("nothing threw in the demo", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- a workspace's own look: a logo and two colours ---- */
+{
+  const LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const mine = { ...STATE, space: "acme", spaceName: "Acme", brand: { logo: LOGO, accent: "#ff6600", bg: null } };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/conflicts")) return Response.json({ conflicts: [], others: 0 });
+      if (s.includes("/api/brand")) return Response.json({ brand: body.reset ? null : { logo: body.logo, accent: body.accent, bg: body.bg } });
+      return Response.json({});
+    };
+  }, mine);
+  await page.waitForTimeout(300);
+  const worn = await page.evaluate(() => ({ fill: document.documentElement.style.getPropertyValue("--accent-fill"),
+    solid: document.documentElement.style.getPropertyValue("--accent-solid"), mark: document.getElementById("spaceMark").getAttribute("src").slice(0, 22),
+    zero: document.querySelector(".zero .zero-mark")?.getAttribute("src").slice(0, 22), logo: document.documentElement.dataset.logo,
+    kept: localStorage.getItem("octopus.look.acme") }));
+  check("a saved look is worn: the accent, its darker shades, and the logo as the mark", worn.fill === "#ff6600" && worn.solid !== "#ff6600"
+    && worn.mark === "data:image/png;base64," && worn.zero === "data:image/png;base64," && worn.logo === "1" && /ff6600/.test(worn.kept || ""), JSON.stringify(worn));
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(250);
+  check("Setup offers the look to set", await page.isVisible("#lookBlock") && await page.isDisabled("#lookSave"));
+  await page.$eval("#lookAccent", i => { i.value = "#00aa55"; i.dispatchEvent(new Event("input", { bubbles: true })); });
+  await page.$eval("#lookBg", i => { i.value = "#223344"; i.dispatchEvent(new Event("input", { bubbles: true })); });
+  const pv = await page.evaluate(() => ({ fill: document.documentElement.style.getPropertyValue("--accent-fill"), bg: getComputedStyle(document.body).backgroundColor,
+    sent: window.__calls.some(c => c.s.includes("/api/brand")) }));
+  const rgb = pv.bg.match(/\d+/g).map(Number);
+  const lum = rgb.map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }).reduce((t, v, i) => t + v * [.2126, .7152, .0722][i], 0);
+  check("a colour previews on the page before it is saved, and a dark page is kept light", pv.fill === "#00aa55" && lum >= .77 && !pv.sent, JSON.stringify({ ...pv, lum }));
+  await page.click("#lookSave"); await page.waitForTimeout(150);
+  const saved = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/brand")).pop()?.body);
+  check("Save sends the logo and both colours", saved?.accent === "#00aa55" && saved?.bg === "#223344" && saved?.logo === mine.brand.logo && saved?.token === "test",
+    JSON.stringify(saved && { ...saved, logo: String(saved.logo).slice(0, 20) }));
+  await page.click("#lookReset"); await page.waitForTimeout(150);
+  const back = await page.evaluate(() => ({ fill: document.documentElement.style.getPropertyValue("--accent-fill"), mark: document.getElementById("spaceMark").getAttribute("src"),
+    kept: localStorage.getItem("octopus.look.acme"), reset: window.__calls.filter(c => c.s.includes("/api/brand")).pop()?.body.reset }));
+  check("Back to the default clears the look everywhere", back.fill === "" && back.kept === null && back.reset === true && back.mark === "/brand/brain.svg", JSON.stringify(back));
+  await page.$eval("#lookAccent", i => { i.value = "#aa0000"; i.dispatchEvent(new Event("input", { bubbles: true })); });
+  await page.click("#kDone"); await page.waitForTimeout(100);
+  check("a look previewed and not saved goes back on close", await page.evaluate(() => document.documentElement.style.getPropertyValue("--accent-fill")) === "");
+  check("nothing threw with a look of its own", !bad.length, bad.join(" | "));
   await page.close();
 }
 

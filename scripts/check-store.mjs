@@ -84,6 +84,7 @@ function makeDb() {
       normalizeId(t, _id) { return rows(t).some(r => r._id === _id) ? _id : null; },
       async insert(t, doc) { const r = { _id: `id${++id}`, ...doc }; rows(t).push(r); return r._id; },
       async patch(_id, doc) { Object.assign(find(_id), doc); },
+      async replace(_id, doc) { const r = find(_id); for (const k of Object.keys(r)) if (k !== "_id") delete r[k]; Object.assign(r, doc); },
       async delete(_id) { for (const t in T) T[t] = T[t].filter(r => r._id !== _id); },
     },
   };
@@ -527,6 +528,22 @@ function seed() {
   check("and cannot open, join or delete another's", (await run(store.chatGet, ctx, { space: "demo", id: mine.id, owner: "v2" })) === null
     && (await run(store.chatTurn, ctx, { space: "demo", id: mine.id, brain: "all", turn: turn("x"), owner: "v2" })).created
     && /gone/.test((await run(store.chatEdit, ctx, { space: "demo", id: mine.id, remove: true, owner: "v2" })).error));
+}
+
+/* ---- a workspace's look ---- */
+{
+  const { T, ctx } = seed();
+  check("a workspace with no look of its own wears the default", (await run(store.brandOf, ctx, { space: "acme" })) === null);
+  const logo = "data:image/png;base64,iVBORw0KGgo=";
+  const set = await run(store.setBrand, ctx, { space: "acme", logo, accent: "#ff6600" });
+  check("a logo and an accent are kept", set.logo === logo && set.accent === "#ff6600" && set.bg === null, JSON.stringify(set));
+  const bg = await run(store.setBrand, ctx, { space: "acme", bg: "#fff7ee" });
+  check("a field left out stays as it was", bg.logo === logo && bg.accent === "#ff6600" && bg.bg === "#fff7ee", JSON.stringify(bg));
+  const cleared = await run(store.setBrand, ctx, { space: "acme", logo: null });
+  check("a null clears one field", cleared.logo === null && cleared.accent === "#ff6600" && !("logo" in T.brands[0]), JSON.stringify(T.brands[0]));
+  check("each workspace keeps its own", (await run(store.brandOf, ctx, { space: "squidgy" })) === null && T.brands.length === 1);
+  await run(store.setBrand, ctx, { space: "acme", reset: true });
+  check("reset takes the workspace back to the default", (await run(store.brandOf, ctx, { space: "acme" })) === null && T.brands.length === 0);
 }
 
 rmSync(dir, { recursive: true, force: true });

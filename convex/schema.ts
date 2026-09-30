@@ -162,6 +162,21 @@ export default defineSchema({
 
   /* Blind spots were removed. The table stays so rows written while they
      existed still match the schema; nothing writes to it. */
+  /**
+   * A workspace's own look, set in Setup: a logo and two colours. Octopus and
+   * Squidgy wear their own without one; every other workspace wears Brain's
+   * until it sets one. The demo keeps Brain's.
+   */
+  brands: defineTable({
+    space: v.string(),
+    /* A PNG the browser drew, 128 pixels a side at most, as a data URL. */
+    logo: v.optional(v.string()),
+    /* #rrggbb: the accent, and the page. */
+    accent: v.optional(v.string()),
+    bg: v.optional(v.string()),
+    updated: v.number(),
+  }).index("by_space", ["space"]),
+
   gaps: defineTable({
     space: v.string(),
     q: v.string(),

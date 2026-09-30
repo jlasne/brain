@@ -300,8 +300,37 @@ route("/api/state", async (ctx, _req, b) => {
   const s = { brains, sources, concepts: cards.map((c: any) => ({
     brain: c.brain, slug: c.slug, n: c.n, title: c.title, summaryLine: c.summaryLine, updated: c.updated,
     ev: c.ev ?? 0, src: c.src ?? 0, links: (c.related ?? []).length })) };
+  const brand = await ctx.runQuery(internal.store.brandOf, { space: who.space });
   return { ...s, model: MODEL, chunk: CHUNK,
-           space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok };
+           space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand };
+});
+
+/**
+ * A workspace's own look: a logo and two colours, set in Setup. The demo keeps
+ * Brain's. The logo arrives as a small image the browser drew from the file,
+ * so only a PNG, JPEG or WebP data URL under 200 KB is taken.
+ */
+const HEX = /^#[0-9a-f]{6}$/i;
+const LOGO = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+route("/api/brand", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  if (b.reset === true) { await ctx.runMutation(internal.store.setBrand, { space: who.space, reset: true }); return { brand: null }; }
+  const field = (k: string) => b[k] === undefined ? undefined : b[k] === null || b[k] === "" ? null : String(b[k]);
+  const logo = field("logo"), accent = field("accent"), bg = field("bg");
+  if (logo && (logo.length > 200_000 || !LOGO.test(logo))) return { error: "that logo did not come through. Try a PNG or a JPEG." };
+  if (accent && !HEX.test(accent)) return { error: "the accent is not a colour" };
+  if (bg && !HEX.test(bg)) return { error: "the page colour is not a colour" };
+  const brand = await ctx.runMutation(internal.store.setBrand, { space: who.space, logo, accent: accent?.toLowerCase() ?? accent, bg: bg?.toLowerCase() ?? bg });
+  return { brand };
+});
+
+/** A workspace's name and look before its passphrase: the page asking for it wears them. */
+route("/api/brand/public", async (ctx, _req, b) => {
+  const space = String(b.space ?? "").trim().toLowerCase();
+  if (!SPACE_RE.test(space)) return { brand: null };
+  const ws = owners.includes(space) ? null : await ctx.runQuery(internal.store.workspaceOf, { slug: space });
+  if (!owners.includes(space) && !ws) return { brand: null };
+  return { name: ws?.name ?? spaceName(space), brand: await ctx.runQuery(internal.store.brandOf, { space }) };
 });
 
 /** One concept whole, by its brain/slug id, for the brain viewer. */

@@ -989,3 +989,42 @@ export const createWorkspace = internalMutation({
     return { ok: true, slug };
   },
 });
+
+/* ---------------- a workspace's look ---------------- */
+
+const brandRow = async (ctx: any, space: string) =>
+  await ctx.db.query("brands").withIndex("by_space", (q: any) => q.eq("space", space)).unique();
+const brandView = (b: any) => b && (b.logo || b.accent || b.bg)
+  ? { logo: b.logo ?? null, accent: b.accent ?? null, bg: b.bg ?? null } : null;
+
+/** A workspace's logo and colours, or null for the look it wears by default. */
+export const brandOf = internalQuery({
+  args: { space: v.string() },
+  handler: async (ctx, a) => brandView(await brandRow(ctx, a.space)),
+});
+
+/**
+ * Set a workspace's look. A field left out stays as it is, a null clears it,
+ * and reset clears all three.
+ */
+export const setBrand = internalMutation({
+  args: {
+    space: v.string(), reset: v.optional(v.boolean()),
+    logo: v.optional(v.union(v.string(), v.null())),
+    accent: v.optional(v.union(v.string(), v.null())),
+    bg: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, a) => {
+    const row = await brandRow(ctx, a.space);
+    if (a.reset) { if (row) await ctx.db.delete(row._id); return null; }
+    const next: any = { logo: row?.logo, accent: row?.accent, bg: row?.bg };
+    for (const k of ["logo", "accent", "bg"] as const) {
+      if (a[k] === undefined) continue;
+      next[k] = a[k] === null ? undefined : a[k];
+    }
+    const doc: any = { space: a.space, updated: Date.now() };
+    for (const k of ["logo", "accent", "bg"]) if (next[k]) doc[k] = next[k];
+    if (row) await ctx.db.replace(row._id, doc); else await ctx.db.insert("brands", doc);
+    return brandView(doc);
+  },
+});
