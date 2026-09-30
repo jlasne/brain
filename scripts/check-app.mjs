@@ -1740,7 +1740,8 @@ for (const space of ["octopus", "squidgy"]) {
   const l = await page.evaluate(() => ({ h1: document.querySelector(".hero h1").textContent,
     next: document.querySelector(".hero .sub").nextElementSibling.id,
     ws: [...document.querySelectorAll("#start > ul > li > .item .name, #start > ul > li > .fold > .item .name")].map(b => b.textContent).join("|"),
-    live: [...document.querySelectorAll("#wsLive .sub .name")].map(b => b.textContent).join("|"), liveOpen: document.getElementById("wsLive").open,
+    live: ["goOctopus", "goSquidgy"].map(id => document.querySelector(`#${id} .desc`).textContent + " " + document.querySelector(`#${id} .tag`).textContent).join("|"),
+    sub: document.querySelector(".hero .sub").textContent, folded: !!document.getElementById("wsLive"),
     doors: [document.getElementById("goOctopus")?.getAttribute("href"), document.getElementById("goSquidgy")?.getAttribute("href"), document.getElementById("openMine")?.getAttribute("href")],
     video: document.getElementById("video").hidden,
     code: document.getElementById("goCode").getAttribute("href"), codeDesc: document.querySelector("#goCode .desc").textContent,
@@ -1750,10 +1751,11 @@ for (const space of ["octopus", "squidgy"]) {
     font: getComputedStyle(document.body).fontFamily, bg: getComputedStyle(document.documentElement).backgroundColor,
     mark: !!document.querySelector(".hero .mark"), brand: document.querySelector(".bar .me").textContent.trim(), text: document.body.textContent }));
   check("the landing leads with the outcome, no logo over it", /^The knowledge you choose, organized\.$/.test(l.h1) && !l.mark, JSON.stringify(l.h1));
-  check("the list comes right after the line under it: demo, create, live workspaces, the code", l.next === "start"
-    && l.ws === "Demo|Create your workspace|Live workspaces|Explore the open source", `${l.next} ${l.ws}`);
-  check("live workspaces fold open onto Octopus, Squidgy and yours", !l.liveOpen && l.live === "Octopus|Squidgy|Yours"
-    && JSON.stringify(l.doors) === '["/chat?w=octopus","/chat?w=squidgy","/chat?w="]', JSON.stringify(l));
+  check("the line under it names the two moves", l.sub === "Drop the talks, PDFs and links you trust. Ask anything, and see who said it and when.", l.sub);
+  check("the list comes right after it: the demo, the live workspaces, then yours and the code", l.next === "start"
+    && l.ws === "Demo|Octopus|Squidgy|Create your workspace|Open yours|Explore the open source", `${l.next} ${l.ws}`);
+  check("the live workspaces sit open, each with its light", l.live === "The builder's workspace. Live|Someone's workspace. Live"
+    && JSON.stringify(l.doors) === '["/chat?w=octopus","/chat?w=squidgy","/chat?w="]' && !l.folded, JSON.stringify(l.live));
   check("the video section waits hidden until its link is set", l.video === true);
   check("the open source names no host", l.code === "https://github.com/jlasne/brain" && l.codeDesc === "Every line of the app and the server. Run your own."
     && !/Convex|Vercel/.test(l.codeDesc), l.codeDesc);
@@ -1767,9 +1769,10 @@ for (const space of ["octopus", "squidgy"]) {
     filed: getComputedStyle(document.querySelector("#drop .ln:last-child")).opacity, said: getComputedStyle(document.querySelector("#ask .rc")).opacity }));
   check("Drop and Ask fill their cards and play when seen", cards.drop > cards.tile - 4 && cards.ask > cards.tile - 4 && cards.filed === "1" && cards.said === "1",
     JSON.stringify(cards));
-  await page.click("#openYours"); await page.waitForTimeout(400);
-  check("Open your workspace, in the bar, opens the live list", await page.evaluate(() => document.getElementById("wsLive").open));
-  await page.evaluate(() => { document.getElementById("wsLive").open = false; window.scrollTo(0, 0); });
+  await page.click("#openYours"); await page.waitForTimeout(900);
+  const shown = await page.evaluate(() => { const r = document.getElementById("goOctopus").getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight; });
+  check("Open your workspace, in the bar, brings the workspaces into view", shown);
+  await page.evaluate(() => window.scrollTo(0, 0));
   check("it wears jeremylasne.com: the system font on the night navy", /^system-ui/.test(l.font) && l.bg === "rgb(5, 11, 22)", `${l.font} ${l.bg}`);
   check("the product is called Brain", l.brand === "Brain", l.brand);
   check("no example card, no builder's tally, no competition, no licence", !/cold email a reply|workspace today|Build Games|MIT licen|What it replaces/i.test(l.text));
@@ -1818,6 +1821,21 @@ for (const space of ["octopus", "squidgy"]) {
   await ph.goto(ORIGIN + "/", { waitUntil: "domcontentloaded" }); await ph.waitForTimeout(400);
   const wide = await ph.evaluate(() => document.documentElement.scrollWidth);
   check("the landing fits a phone", wide <= 390, String(wide));
+
+  /* The white paper: linked from the footer, eleven numbered sections, the
+     house rules kept, and its tables scroll in their frame on a phone. */
+  check("the footer links the white paper", await ph.evaluate(() => [...document.querySelectorAll("footer a")].some(a => a.getAttribute("href") === "/about")));
+  await ph.goto(ORIGIN + "/about", { waitUntil: "domcontentloaded" }); await ph.waitForTimeout(300);
+  const paper = await ph.evaluate(() => {
+    const text = document.querySelector("main").innerText;
+    const toc = [...document.querySelectorAll(".toc a")].map(a => a.getAttribute("href").slice(1));
+    return { title: document.title, sections: [...document.querySelectorAll("main section")].map(x => x.id), toc,
+      dash: /\u2014/.test(text), wide: document.documentElement.scrollWidth };
+  });
+  check("the white paper opens on its own address with eleven sections, each in the contents",
+    paper.title === "Brain: the white paper" && paper.sections.length === 11 && JSON.stringify(paper.sections) === JSON.stringify(paper.toc), JSON.stringify(paper.sections));
+  check("it keeps the house rules: no em-dash", !paper.dash);
+  check("and it fits a phone, its tables scrolling in their own frame", paper.wide <= 390, String(paper.wide));
   await ctx.close();
 }
 

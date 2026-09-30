@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brain: the white paper</title>
+<meta name="description" content="How Brain compiles the sources you trust into positions you can question: the model, Drop, Ask, clashes, the limits that keep it fast, and who holds your data.">
+<meta name="theme-color" content="#050b16">
+<meta property="og:title" content="Brain: the white paper">
+<meta property="og:description" content="The model, the two pipelines, and the limits that keep a brain fast at any size.">
+<meta property="og:image" content="https://brain.jeremylasne.com/og.jpg">
+<meta property="og:url" content="https://brain.jeremylasne.com/about">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/brand/brain.svg" type="image/svg+xml">
+<link rel="icon" href="/brand/brain-64.png" type="image/png" sizes="64x64">
+<link rel="apple-touch-icon" href="/brand/brain-180.png">
+
+<style>
+  /* ======================================================================
+     THE WHITE PAPER
+
+     The landing's night navy, ice text and one blue, set as a document: one
+     column, numbered sections, figures drawn in HTML, tables that scroll
+     inside their own frame on a phone.
+     ====================================================================== */
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  :root{
+    --ink:#050b16; --ink-2:#0a1424; --blue:#5fa8d3; --blue-2:#8cc4e6; --amber:#e0b35a; --green:#3ecf8e;
+    --ice:#eaf4fb; --ice-70:rgba(234,244,251,.74); --ice-45:rgba(234,244,251,.48); --ice-06:rgba(234,244,251,.06);
+    --line:rgba(95,168,211,.18); --line-2:rgba(95,168,211,.32);
+    --card:rgba(10,20,36,.72);
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  html{ background:var(--ink); color-scheme:dark; scroll-behavior:smooth; scroll-padding-top:24px; }
+  body{ font-family:var(--sans); color:var(--ice); -webkit-font-smoothing:antialiased; overflow-x:hidden; min-height:100dvh;
+    background:
+      radial-gradient(60vmax 40vmax at 70% -10%, rgba(95,168,211,.16), transparent 70%),
+      radial-gradient(50vmax 40vmax at -10% 40%, rgba(40,110,160,.12), transparent 70%),
+      var(--ink);
+    background-attachment:fixed; }
+  ::selection{ background:var(--blue); color:var(--ink); }
+  a{ color:var(--blue-2); text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px; }
+  @media (hover:hover){ a:hover{ text-decoration-color:var(--blue); } }
+  :focus-visible{ outline:2px solid var(--blue); outline-offset:2px; border-radius:6px; }
+
+  /* ---- the bar ---- */
+  .bar .in{ max-width:1080px; margin:0 auto; padding:max(16px, env(safe-area-inset-top)) 20px 0; display:flex; align-items:center; gap:10px; }
+  .bar a{ color:inherit; text-decoration:none; }
+  .bar .me{ display:flex; align-items:center; gap:9px; font-size:16px; font-weight:600; letter-spacing:-.01em; }
+  .bar .me img{ width:26px; height:26px; }
+  .bar nav{ margin-left:auto; display:flex; align-items:center; gap:4px; }
+  .bar nav a{ display:flex; align-items:center; gap:7px; font-size:14px; color:var(--ice-70); padding:9px 12px; border-radius:999px; transition:color .2s, background .2s; }
+  .bar nav svg{ width:18px; height:18px; fill:currentColor; }
+  @media (hover:hover){ .bar nav a:hover{ color:var(--ice); background:var(--ice-06); } }
+
+  /* ---- the paper ---- */
+  .paper{ max-width:760px; margin:0 auto; padding:56px 20px 40px; }
+  .kicker{ font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--blue); }
+  h1{ margin-top:14px; font-size:clamp(34px, 5.4vw, 54px); line-height:1.05; font-weight:700; letter-spacing:-.035em; text-wrap:balance; }
+  h1 em{ font-style:normal; background:linear-gradient(90deg, var(--ice), var(--blue) 70%); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .meta{ margin-top:16px; display:flex; flex-wrap:wrap; gap:6px 16px; font-size:14px; color:var(--ice-45); }
+  .meta span + span::before{ content:"·"; margin-right:16px; color:var(--line-2); }
+
+  .abstract{ margin-top:34px; padding:22px 24px; border-radius:18px; border:1px solid var(--line-2); background:var(--card); }
+  .abstract b{ display:block; font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--ice-45); }
+  .abstract p{ margin-top:10px; font-size:17px; line-height:1.65; color:var(--ice); }
+
+  .toc{ margin-top:28px; padding:18px 24px; border-radius:18px; border:1px solid var(--line); }
+  .toc b{ font-size:12px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--ice-45); }
+  .toc ol{ margin-top:10px; list-style:none; counter-reset:t; columns:2; column-gap:28px; }
+  .toc li{ counter-increment:t; break-inside:avoid; padding:4px 0; font-size:15px; }
+  .toc li::before{ content:counter(t, decimal-leading-zero); margin-right:10px; font-size:12px; font-weight:700; color:var(--blue); font-variant-numeric:tabular-nums; }
+  .toc a{ color:var(--ice-70); text-decoration:none; }
+  @media (hover:hover){ .toc a:hover{ color:var(--ice); } }
+
+  section{ margin-top:64px; counter-increment:s; }
+  main{ counter-reset:s; }
+  h2{ font-size:clamp(24px, 3.2vw, 30px); line-height:1.15; font-weight:680; letter-spacing:-.025em; }
+  h2::before{ content:counter(s, decimal-leading-zero); display:block; margin-bottom:8px; font-size:12px; font-weight:700; letter-spacing:.12em; color:var(--blue); }
+  h3{ margin-top:30px; font-size:18px; font-weight:650; letter-spacing:-.01em; }
+  p, li{ font-size:16.5px; line-height:1.7; color:var(--ice-70); }
+  section > p, section > ul, section > ol{ margin-top:14px; }
+  section ul, section ol{ padding-left:22px; }
+  section li + li{ margin-top:6px; }
+  p b, li b{ color:var(--ice); font-weight:600; }
+  code{ font-family:var(--mono); font-size:.88em; padding:1px 6px; border-radius:6px; background:var(--ice-06); color:var(--ice); }
+
+  /* ---- figures ---- */
+  figure{ margin-top:24px; }
+  figcaption{ margin-top:10px; font-size:13.5px; color:var(--ice-45); }
+  figcaption b{ color:var(--ice-70); font-weight:600; }
+
+  /* The model, one level inside the next. */
+  .tree{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:18px; border-radius:18px; border:1px solid var(--line); background:var(--card); }
+  .tree span{ padding:7px 12px; border-radius:10px; border:1px solid var(--line-2); font-size:14px; font-weight:600; color:var(--ice); background:rgba(95,168,211,.08); }
+  .tree i{ font-style:normal; color:var(--ice-45); }
+  .tree .src{ border-color:rgba(224,179,90,.45); background:rgba(224,179,90,.08); }
+
+  /* One concept, as stored. */
+  .concept{ border-radius:18px; border:1px solid var(--line-2); background:var(--card); overflow:hidden; }
+  .concept header{ display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; padding:16px 20px; border-bottom:1px solid var(--line); }
+  .concept header b{ font-size:18px; font-weight:650; }
+  .concept header span{ font-size:13px; color:var(--ice-45); }
+  .concept dl{ display:grid; grid-template-columns:110px 1fr; }
+  .concept dt, .concept dd{ padding:11px 20px; font-size:14.5px; line-height:1.55; border-bottom:1px solid var(--line); }
+  .concept dl > :nth-last-child(-n+2){ border-bottom:0; }
+  .concept dt{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--blue); padding-top:14px; }
+  .concept dd{ color:var(--ice-70); padding-left:0; }
+  .concept dd div + div{ margin-top:4px; }
+  .concept .d{ font-family:var(--mono); font-size:12.5px; color:var(--ice-45); margin-right:8px; }
+
+  /* A pipeline: numbered steps on a rail. */
+  .steps{ margin-top:20px !important; padding:0 !important; list-style:none; counter-reset:st; position:relative; }
+  .steps::before{ content:""; position:absolute; left:15px; top:10px; bottom:10px; width:1px; background:var(--line-2); }
+  .steps > li{ counter-increment:st; position:relative; padding:0 0 18px 50px; margin:0 !important; }
+  .steps > li::before{ content:counter(st); position:absolute; left:0; top:0; width:31px; height:31px; border-radius:50%; display:grid; place-items:center;
+    font-size:13px; font-weight:700; color:var(--ink); background:var(--blue); box-shadow:0 0 0 5px var(--ink); }
+  .steps > li > b{ display:block; font-size:17px; color:var(--ice); line-height:31px; }
+  .steps > li > p{ margin-top:2px; }
+  .tag{ display:inline-block; margin-top:8px; padding:2px 9px; border-radius:999px; font-size:11.5px; font-weight:600; letter-spacing:.02em;
+    border:1px solid var(--line-2); color:var(--blue-2); }
+  .tag.free{ border-color:rgba(62,207,142,.35); color:#7fe0b3; }
+  .tag.you{ border-color:rgba(224,179,90,.45); color:var(--amber); }
+
+  /* Tables scroll in their frame, never the page. */
+  .tw{ margin-top:18px; border-radius:16px; border:1px solid var(--line); overflow-x:auto; background:var(--card); }
+  table{ width:100%; border-collapse:collapse; font-size:14.5px; }
+  th, td{ padding:11px 14px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); line-height:1.5; }
+  tr:last-child td{ border-bottom:0; }
+  th{ font-size:11.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ice-45); white-space:nowrap; }
+  td{ color:var(--ice-70); }
+  td:first-child{ color:var(--ice); font-weight:600; white-space:nowrap; }
+
+  /* An answer, in the shape it is written. */
+  .answer{ padding:18px 20px; border-radius:16px; border:1px solid var(--line); background:var(--card); }
+  .answer p{ color:var(--ice); font-size:15.5px; }
+  .answer p + p{ margin-top:10px; }
+  .answer .srcs{ font-size:13px; color:var(--ice-45); }
+
+  .rules{ display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-top:18px !important; padding:0 !important; list-style:none; }
+  .rules li{ margin:0 !important; padding:12px 14px; border-radius:12px; border:1px solid var(--line); font-size:14.5px; line-height:1.5; }
+  .rules li b{ display:block; font-size:11px; letter-spacing:.1em; color:var(--blue); }
+
+  .end{ margin-top:64px; padding-top:22px; border-top:1px solid var(--line); font-size:14px; color:var(--ice-45); }
+
+  footer{ border-top:1px solid var(--line); margin-top:40px; }
+  footer .in{ max-width:1080px; margin:0 auto; padding:22px 20px max(22px, env(safe-area-inset-bottom)); display:flex; flex-wrap:wrap; gap:10px 20px;
+    align-items:center; font-size:13.5px; color:var(--ice-45); }
+  footer img{ width:20px; height:20px; }
+  footer .me{ display:flex; align-items:center; gap:8px; color:var(--ice-70); font-weight:600; }
+  footer a{ color:var(--ice-70); text-decoration:none; }
+  @media (hover:hover){ footer a:hover{ color:var(--blue); } }
+  footer .by{ margin-left:auto; }
+
+  @media (max-width:640px){
+    .paper{ padding-top:36px; }
+    .toc ol{ columns:1; }
+    .concept dl{ grid-template-columns:1fr; }
+    .concept dt{ padding-bottom:0; border-bottom:0; }
+    .concept dd{ padding:4px 20px 12px; }
+    .rules{ grid-template-columns:1fr 1fr; }
+    footer .by{ margin-left:0; }
+  }
+</style>
+</head>
+<body>
+
+<header class="bar"><div class="in">
+  <a class="me" href="/"><img src="/brand/brain.svg" alt="" width="26" height="26">Brain</a>
+  <nav>
+    <a href="/">Try the demo</a>
+    <a href="https://github.com/jlasne/brain" aria-label="The code on GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.4 11.4 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.9 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z"/></svg></a>
+  </nav>
+</div></header>
+
+<main class="paper">
+  <p class="kicker">White paper</p>
+  <h1>Brain: the knowledge you choose, <em>organized.</em></h1>
+  <p class="meta"><span>Jeremy Lasne</span><span>September 2026</span><span>Version 1.0</span></p>
+
+  <div class="abstract">
+    <b>Abstract</b>
+    <p>Brain turns the sources you trust into positions you can question. Each source is read once. Its ideas are filed under concepts, and every claim carries an author and a date.
+      A question reads those compiled concepts and names who said what. This paper describes the model, the two pipelines, how clashes get settled, and the limits that keep a brain fast at any size.</p>
+  </div>
+
+  <nav class="toc" aria-label="Contents">
+    <b>Contents</b>
+    <ol>
+      <li><a href="#why">Why a brain</a></li>
+      <li><a href="#model">The model</a></li>
+      <li><a href="#drop">Drop</a></li>
+      <li><a href="#ask">Ask</a></li>
+      <li><a href="#clashes">Clashes</a></li>
+      <li><a href="#fast">Why it stays fast</a></li>
+      <li><a href="#guarantees">Guarantees</a></li>
+      <li><a href="#trust">Workspaces, keys and privacy</a></li>
+      <li><a href="#out">What comes out</a></li>
+      <li><a href="#stack">Stack and tests</a></li>
+      <li><a href="#rules">How it writes</a></li>
+    </ol>
+  </nav>
+
+  <section id="why">
+    <h2>Why a brain</h2>
+    <p>You read and watch more than you can hold. A year later you keep the idea and lose the rest: who said it, when, and whether a later source changed it.</p>
+    <p>Three tools cover part of this today.</p>
+    <ul>
+      <li><b>A chat assistant</b> answers from its training data: an average of the internet, frozen at a date.</li>
+      <li><b>An AI-compiled wiki</b>, the idea Andrej Karpathy calls an LLM wiki, compiles your files once into pages. When two sources disagree, both stay on the page.</li>
+      <li><b>Notes</b> keep what you wrote down, in the order you wrote it.</li>
+    </ul>
+    <p>A brain compiles your sources into <b>positions</b>: one view per concept, rebuilt from every dated claim behind it. When a new source contradicts a position, the brain asks you before it changes anything.</p>
+    <p>Three choices follow from that, and the rest of this paper is how they hold:</p>
+    <ol>
+      <li><b>Compile once, read many.</b> A source is read at the door. Every question after that reads the compiled concepts.</li>
+      <li><b>Sign every claim.</b> Each piece of evidence carries its author, its date and its source.</li>
+      <li><b>You rule on clashes.</b> A contradiction waits for your call, and every view survives with its date.</li>
+    </ol>
+  </section>
+
+  <section id="model">
+    <h2>The model</h2>
+    <p>Five things make up a brain.</p>
+    <figure>
+      <div class="tree" aria-label="Workspace, then brain, then concept, then evidence, fed by sources">
+        <span>Workspace</span><i>›</i><span>Brain</span><i>›</i><span>Concept</span><i>›</i><span>Evidence</span><i>‹</i><span class="src">Source</span>
+      </div>
+      <figcaption><b>Figure 1.</b> Each level holds the next. Sources feed evidence into concepts, in any brain of the workspace.</figcaption>
+    </figure>
+    <ul>
+      <li><b>Workspace.</b> Holds brains and chats. It sees nothing of the other workspaces.</li>
+      <li><b>Brain.</b> A subject such as Health, a person whose views are dated so drift shows, or a personal brain that keeps your own words. Each brain has a one-line scope.</li>
+      <li><b>Concept.</b> One idea with one position. It holds a summary line, its evidence, its data points, its open clashes and its links.</li>
+      <li><b>Evidence.</b> One claim: its date, its author, the claim in a sentence, and the source it came from.</li>
+      <li><b>Source.</b> A link, a title, an author, a date and the brains it fed. Its note keeps the extraction: topics, figures and exact quotes. The raw text stays out.</li>
+    </ul>
+    <figure>
+      <article class="concept">
+        <header><b>Sleep timing</b><span>Health · 3 sources · updated 2026-09-21</span></header>
+        <dl>
+          <dt>Position</dt><dd>Aim for 7 to 8 hours on a fixed rhythm. The newest source puts 7 hours as enough when the rhythm is regular; 8 hours was the view on 2026-08-02.</dd>
+          <dt>Evidence</dt><dd><div><span class="d">2026-09-21</span>Podcast: 7 hours is enough for most adults with a regular rhythm.</div>
+            <div><span class="d">2026-08-02</span>Dr A: 8 hours, in a dark and cool room.</div><div><span class="d">2026-07-14</span>Dr B: the same wake time every day matters more than the total.</div></dd>
+          <dt>Data</dt><dd>7 to 8 hours · 10 minutes of morning light · 18 °C room</dd>
+          <dt>Clashes</dt><dd>None open</dd>
+          <dt>Links</dt><dd>Health / Morning light · Performance / Recovery</dd>
+        </dl>
+      </article>
+      <figcaption><b>Figure 2.</b> One concept as stored. The names and figures are placeholders.</figcaption>
+    </figure>
+    <p>Every concept also has a <b>card</b>: a 1 KB copy with its title, its summary line, the first 300 characters of its position, its counts and its links.
+      Searching, planning and linking read cards. A full concept runs 1.5 KB to 19 KB, and it opens only when a step needs it whole.</p>
+  </section>
+
+  <section id="drop">
+    <h2>Drop</h2>
+    <p>A drop takes a link, a PDF, a Word file, a text file, a video or a pasted transcript. Files are read in your browser, and only their text travels.</p>
+    <ol class="steps">
+      <li><b>Check</b><p>The link is reduced to its host and path, or to its video id for any YouTube format, and looked up in an index. A match stops the drop and offers to file it into another brain instead.</p>
+        <span class="tag free">Index lookup, no model</span></li>
+      <li><b>Fetch</b><p>A web page or a video transcript is fetched once. A page is fetched over https, with 5 redirects at most, in 25 seconds, up to 60,000 characters. What was fetched is discarded after reading.</p>
+        <span class="tag free">No model</span></li>
+      <li><b>Read</b><p>The text is cut into 18,000-character passes, 3 read at once. Each pass extracts every topic with its figures, names, dates, reasoning and exact quotes.</p>
+        <span class="tag">1 model call per pass</span></li>
+      <li><b>Plan</b><p>The extraction is compared against the brain's cards: up to 1,000 listed, within 60,000 characters. Each idea matches a concept or proposes a new one. Findings sort into new, echo and clash.</p>
+        <span class="tag">1 call per 25 topics, 3 at once</span></li>
+      <li><b>Your call</b><p>You see where it goes and every clash, flips first. Keep both, which is the default, new wins, mine wins, or reject the source. A drop needs a named author.</p>
+        <span class="tag you">You decide</span></li>
+      <li><b>Settle</b><p>Each touched position is rewritten from its whole evidence list, plus this source and your ruling. Evidence keeps the newest 12 entries and folds older ones into one dated line.</p>
+        <span class="tag">1 call per 8 concepts, 3 at once</span></li>
+      <li><b>Link</b><p>In the background, each concept the drop touched gets up to 4 links to related concepts, in any brain. A free shortlist comes first: rare shared words, one title naming another, a shared source.</p>
+        <span class="tag">1 call per 30 concepts</span></li>
+    </ol>
+    <p>The drop ends with a receipt: the source id, the brains it fed, and the counts of positions rewritten, new ideas, echoes, flips and clashes kept.</p>
+  </section>
+
+  <section id="ask">
+    <h2>Ask</h2>
+    <p>A question runs in two model calls: one picks the concepts, one writes the answer.</p>
+    <ol class="steps">
+      <li><b>Route</b><p>A model reads a numbered index of concept titles, up to 80,000 characters, which fits about 2,300 titles. It returns up to 30 picks and up to 12 English search terms. Past 2,300 titles, the ones sharing words with the question go in first.</p>
+        <span class="tag">1 model call</span></li>
+      <li><b>Rank</b><p>The picks come first, then up to 10 linked neighbours, then the concepts matching the question's words. A title hit weighs 3 and a body hit weighs 1.</p>
+        <span class="tag free">No model</span></li>
+      <li><b>Open</b><p>At most 30 concepts open in full, within 60,000 characters, each capped at 8,000. Up to 120 more are named by title, so the answer knows what else the brain holds.</p>
+        <span class="tag free">No model</span></li>
+      <li><b>Answer</b><p>At the level you pick. Normal gives the answer with its figures. Educational teaches it from zero. Learning gives the steps and lets you reach it yourself.</p>
+        <span class="tag">1 model call</span></li>
+    </ol>
+    <p>Every answer follows one shape:</p>
+    <ul>
+      <li>The first sentence answers the question. Figures and dates stay inside the answer.</li>
+      <li>Names go on one last line: <code>Sources: author, date · author, date</code>. A person brain names that person throughout.</li>
+      <li>Newer evidence wins on the same question, and better data overrides that. An open clash is stated when it changes what you would do.</li>
+      <li>A brain fed by fewer than 10 sources says so in its first sentence.</li>
+    </ul>
+    <figure>
+      <div class="answer">
+        <p>Aim for 7 to 8 hours on a fixed wake time. Your newest source puts 7 hours as enough when the rhythm stays regular, and 10 minutes of morning light helps hold that rhythm.</p>
+        <p class="srcs">Sources: Podcast, 2026-09-21 · Dr A, 2026-08-02 · Dr B, 2026-07-14</p>
+      </div>
+      <figcaption><b>Figure 3.</b> An answer in its shape. The names and figures are placeholders.</figcaption>
+    </figure>
+    <p>The brains are written in English, and answers come back in English. A question in another language still finds its concepts, because routing works on meaning and the search terms are translated.</p>
+  </section>
+
+  <section id="clashes">
+    <h2>Clashes</h2>
+    <p>A brain that swallows every claim contradicts itself. So a brain argues back, at two moments.</p>
+    <h3>At the drop</h3>
+    <p>The plan sorts each contradiction into one of three kinds. All three reach the card, flips first, and keep both is the default.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Kind</th><th>Means</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td>Flip</td><td>The claim would change the position</td><td>Listed first, marked "changes the position"</td></tr>
+        <tr><td>Caveat</td><td>The claim adds nuance</td><td>Marked "adds nuance, position holds"</td></tr>
+        <tr><td>Drift</td><td>A person changed their own earlier view</td><td>Marked "same person, later view", both dated</td></tr>
+      </tbody>
+    </table></div>
+    <h3>After the drop</h3>
+    <p>A clash found while rewriting is stored on its concept as two dated claims and the reason they clash. Before it is shown, a model checks it once, 40 clashes per call: it counts only when both claims cannot hold at once. The result is stored, so a clash is checked one time.</p>
+    <p>You settle them one card at a time. Swipe left and A holds, right and B holds, up and both hold, down to decide later, with 4 seconds to undo.
+      When one side holds, the position is rewritten with the other kept as one dated sentence. When both hold, only the flag clears.</p>
+  </section>
+
+  <section id="fast">
+    <h2>Why it stays fast</h2>
+    <p>Two rules cap the cost of a question as a brain grows. Search reads cards, and whole concepts open only when picked. Every read has a ceiling.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Step</th><th>Reads</th><th>Ceiling</th></tr></thead>
+      <tbody>
+        <tr><td>Duplicate check</td><td>One index lookup</td><td>Same cost at any size</td></tr>
+        <tr><td>Plan, per drop</td><td>Concept cards</td><td>1,000 cards, 60,000 characters</td></tr>
+        <tr><td>Route, per question</td><td>Concept titles</td><td>80,000 characters, about 2,300 titles</td></tr>
+        <tr><td>Open, per question</td><td>Whole concepts</td><td>30 concepts, 60,000 characters</td></tr>
+        <tr><td>Also held, per question</td><td>Titles only</td><td>120 titles, 12,000 characters</td></tr>
+        <tr><td>Evidence, per concept</td><td>Newest claims</td><td>12 entries and 1 dated rollup</td></tr>
+        <tr><td>Links, per concept</td><td>Related concepts</td><td>12</td></tr>
+      </tbody>
+    </table></div>
+    <p>The three reads of a question add up to <b>152,000 characters of your brain at most</b>, whatever its size. A test suite holds this: 11 brains and 1,000 concepts, and the answer is found inside that budget.</p>
+  </section>
+
+  <section id="guarantees">
+    <h2>Guarantees</h2>
+    <ul>
+      <li><b>A position is rebuilt, not appended to.</b> Each drop rewrites it from its whole evidence list, so a sixth source rewrites the view from all six.</li>
+      <li><b>Every source is checked twice.</b> By link at the door, then by idea in the plan.</li>
+      <li><b>Every view survives with its date.</b> A flip keeps the old view in the evidence.</li>
+      <li><b>Every claim is signed.</b> A drop with no named author stops before it files anything.</li>
+      <li><b>Raw text stays outside.</b> The note keeps the extraction and the exact quotes.</li>
+      <li><b>Every drop ends coherent.</b> The positions it touches are rewritten before the receipt prints.</li>
+    </ul>
+  </section>
+
+  <section id="trust">
+    <h2>Workspaces, keys and privacy</h2>
+    <div class="tw"><table>
+      <thead><tr><th></th><th>How it holds</th></tr></thead>
+      <tbody>
+        <tr><td>Isolation</td><td>Every read filters by workspace. A session opens exactly one.</td></tr>
+        <tr><td>Passphrase</td><td>Stored as a salted SHA-256 hash, 8 characters at least. 8 wrong tries close that door for 1 hour.</td></tr>
+        <tr><td>Session</td><td>12 hours, kept in the tab's session storage. Closing the tab ends it.</td></tr>
+        <tr><td>Your key</td><td>An OpenRouter key, checked once when the workspace is made, then kept in your browser and sent with each call that needs a model. The server keeps no copy and writes it to no log.</td></tr>
+        <tr><td>Who pays</td><td>A workspace on its own key runs on that key only. The owner's workspaces run on the deployment's key. The demo can run on a separate key, so its spend shows apart.</td></tr>
+        <tr><td>Demo</td><td>One click in. 30 drops and 300 questions per 30 days, shared by every visitor.</td></tr>
+        <tr><td>Personal brain</td><td>Read by its own chat only. The map, the scores, one-pagers, the digest, linking and the connector load the workspace without it.</td></tr>
+        <tr><td>Fetching</td><td>https only. Private and local addresses are refused, and each redirect is checked again.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="out">
+    <h2>What comes out</h2>
+    <ul>
+      <li><b>One-pagers.</b> A brain or a question becomes a summary, an 8-question quiz, a deep dive of 500 to 800 words, 3 to 5 use cases, or your own type. In English, French, Spanish, German, Italian, Portuguese, Dutch, Japanese or Chinese.</li>
+      <li><b>A health score out of 10.</b> Variety of authors weighs 3, depth weighs 3 (the share of concepts with 2 sources or more), freshness weighs 2 and open clashes weigh 2. Each brain is scored against your best one, with the one move that closes the gap.</li>
+      <li><b>The map.</b> An octopus: one arm per brain, one sucker per concept sized by its sources, an ink line per link between brains, a red dot per open clash.</li>
+      <li><b>A connector for Claude.</b> Through MCP, 7 tools read the brains and 6 more feed them on a signed address. The client's own model does the thinking. 120 calls per 10 minutes per address.</li>
+      <li><b>A weekly digest.</b> Mondays at 06:00 UTC: the sources read, new concepts, concepts fed again and open clashes.</li>
+      <li><b>An export.</b> One markdown file with every brain, concept, piece of evidence and source.</li>
+      <li><b>Chats that stay.</b> Saved on the server for 30 days after their last use, with 5 pins.</li>
+    </ul>
+  </section>
+
+  <section id="stack">
+    <h2>Stack and tests</h2>
+    <div class="tw"><table>
+      <tbody>
+        <tr><td>Server</td><td>Convex functions and database: 16 tables, every route behind one gate.</td></tr>
+        <tr><td>Pages</td><td>Plain HTML. The app is one file. PDF and Word files are parsed in the browser.</td></tr>
+        <tr><td>Models</td><td>Any model on OpenRouter, through one call wrapper. The owner picks one in the app.</td></tr>
+        <tr><td>Portable</td><td>The same brain runs as markdown files under 41 rules, as a Claude Code skill.</td></tr>
+        <tr><td>Tests</td><td>9 suites: the pages, the connector, the store, one-pagers, asking, linking, the health score, the personal brain, and the app driven in a real browser.</td></tr>
+        <tr><td>License</td><td>MIT. <a href="https://github.com/jlasne/brain">The code is on GitHub.</a></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="rules">
+    <h2>How it writes</h2>
+    <p>Everything a brain writes follows 9 rules. So does this paper.</p>
+    <ol class="rules">
+      <li><b>W1</b>No em-dashes.</li>
+      <li><b>W2</b>Under 30 words per sentence.</li>
+      <li><b>W3</b>Data replaces adjectives.</li>
+      <li><b>W4</b>Weasel words removed.</li>
+      <li><b>W5</b>Every line passes the "so what" test.</li>
+      <li><b>W6</b>Simple expression.</li>
+      <li><b>W7</b>Positive phrasing.</li>
+      <li><b>W8</b>Quotes stay exact.</li>
+      <li><b>W9</b>The brain writes in English. Quotes keep their language.</li>
+    </ol>
+  </section>
+
+  <p class="end">Built in September 2026 by <a href="https://www.jeremylasne.com">Jeremy Lasne</a>. <a href="/">Try the demo</a>, or read <a href="https://github.com/jlasne/brain">the code</a>.</p>
+</main>
+
+<footer><div class="in">
+  <span class="me"><img src="/brand/brain.svg" alt="" width="20" height="20">Brain</span>
+  <a href="/about">White paper</a>
+  <a href="https://github.com/jlasne/brain">Open source on GitHub</a>
+  <span class="by">Made by <a href="https://www.jeremylasne.com">Jeremy Lasne</a></span>
+</div></footer>
+
+</body>
+</html>

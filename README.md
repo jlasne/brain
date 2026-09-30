@@ -6,11 +6,11 @@
 
 **The knowledge you choose, organized.**
 
-Feed it the people and sources you trust. Ask anything, and see who said it.
+Drop the talks, PDFs and links you trust. Ask anything, and see who said it and when.
 
-[**Open the live demo**](https://brain.jeremylasne.com) &nbsp;·&nbsp; [How it works](#how-it-works) &nbsp;·&nbsp; [Run your own](#run-your-own)
+[**Open the live demo**](https://brain.jeremylasne.com) &nbsp;·&nbsp; [Read the white paper](https://brain.jeremylasne.com/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="679 checks passing" src="https://img.shields.io/badge/checks-679%20passing-5fa8d3?style=flat-square&labelColor=050b16">
+<img alt="685 checks passing" src="https://img.shields.io/badge/checks-685%20passing-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-5fa8d3?style=flat-square&labelColor=050b16">
@@ -23,7 +23,26 @@ Feed it the people and sources you trust. Ask anything, and see who said it.
 
 <br>
 
-## Why a brain
+## What it does
+
+<img src="docs/img/goods.jpg" alt="Drop and Ask, and why it holds up" width="100%">
+
+**Drop.** A link, a PDF, a Word file, a video or a transcript. It pulls out each idea with its numbers and files it under a concept, signed with author and date. A claim that clashes with what you hold waits for your call.
+
+**Ask.** Ask anything, at 3 levels: the answer, a lesson from zero, or guided steps. It answers from your sources only, and the last line names who said it and when.
+
+Drop compiles each source once. Ask reads what was compiled. The [white paper](https://brain.jeremylasne.com/about) walks through both, step by step.
+
+## Why it holds up
+
+- **Zero duplicates.** A source dropped twice is caught on arrival. A new idea joins the concept it belongs to.
+- **Zero hidden contradictions.** Every clash is caught at drop and waits for your call, one swipe each. Each concept keeps one clear position.
+- **Lightweight.** It keeps the claims and drops the raw transcript. Search reads a 1 KB card per concept.
+- **Fast search.** It scans up to 2,300 concept titles in one pass, then opens at most 30 in full.
+- **Scalable.** A question reads 152,000 characters of your brain at most, at any size.
+- **Your data.** In your own database or as markdown files, exported in one click. Open source, on your own key.
+
+## Compared
 
 A classic AI chat answers from its training data. Karpathy's LLM wiki compiles your files into pages. A brain compiles them into **positions**, each backed by dated evidence you can open, and asks you when two sources clash.
 
@@ -37,7 +56,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 | Setup | A chat box | Scripts, Obsidian, a coding agent | **A web page, on desktop and phone** |
 | What you get | A reply | Pages, slides, charts | **Answers at 3 levels, one-pagers in 9 languages, a health score, a map** |
 
-## What you get
+## Inside the app
 
 <table>
 <tr>
@@ -62,63 +81,33 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 </tr>
 </table>
 
-- **Three levels.** Normal answers with the numbers. Educational teaches from zero. Learning gives the steps and lets you reach the answer yourself.
-- **One page, any shape.** A brain or a question becomes a summary, a quiz, a deep dive or use cases, in English, French, Spanish, German, Italian, Portuguese, Dutch, Japanese or Chinese.
+- **One page, any shape.** A brain or a question becomes a summary, a quiz, a deep dive or use cases, in 9 languages.
 - **Chats that stay.** Reopen, rename, pin up to 5. Old ones clear after 30 days.
-- **Your data.** In your own database, or as plain markdown files on your machine. One click exports every brain.
 - **Your look.** Each workspace takes a logo, an accent and a page colour, previewed as you pick them.
 - **A memory for Claude.** The owner's workspaces connect to Claude through MCP: Claude reads and feeds the brains with its own model.
 
-## How it works
-
-<img src="docs/img/goods.jpg" alt="Drop and Ask, and why it holds up" width="100%">
-
-1. **Drop.** A link, a PDF, a Word file or a pasted transcript. Video captions are fetched for you. Files are read in the browser, never uploaded.
-2. **File.** Every topic is extracted once, with its numbers and quotes. Each idea joins a concept or starts one, with its author and date.
-3. **Settle.** A claim that contradicts a position waits for you. Additions go straight in.
-4. **Ask.** Answers, one-pagers and the map read the compiled positions, never the raw transcripts.
-
-A position is re-derived from its whole evidence list at each drop, so a sixth source rewrites the view from all six. It stays quick as it grows, because a question reads summaries and positions, not whole brains:
-
-| Brain | Read per drop | Read per question |
-|---|---|---|
-| 10 concepts, 30 sources | 1.0k words | 3.5k words |
-| 200 concepts, 1,000 sources | 2.6k words | 5.1k words |
-| 500 concepts, 5,000 sources | 5.0k words | 7.5k words |
-
-## Use cases
-
-| Who | What they feed it | What they ask |
-|---|---|---|
-| **Investors** | Letters and interviews from each analyst they follow, one expert brain each | *"Where do my two macro voices disagree on gold, and since when?"* |
-| **Founders and sales** | Outreach and pricing talks, guides, case studies | *"Write my first cold email from what the outreach brain holds."* |
-| **Creators** | Hook, format and scripting tutorials | *"Give me 5 hook formats with the numbers behind them."* |
-| **Health** | Studies, podcasts and protocols on sleep, training and food | *"What dose and timing do my sources give for creatine?"* |
-| **Students** | Course PDFs, articles, recorded lectures | *"Quiz me on depreciation, 8 questions, answers folded."* |
-| **You** | Your own words, in a personal brain's chat | *"What did I decide on pricing last month, and why?"* |
-
 ## The personal brain <sup>alpha</sup>
 
-A third kind of brain, next to subjects and experts. You talk to it; it keeps what you said.
+A third kind of brain, next to subjects and experts. You talk to it, and it keeps what you said.
 
-- **It files your words.** A plan, a decision, an idea, a view. Each message becomes up to 3 notes, each claim dated and signed "You". Its own replies, and any guess about you, are never filed.
+- **It files your words.** Each message becomes up to 3 notes, each claim dated and signed "You". Only your words get filed.
 - **A change of mind** rewrites the note: the new view, and the one it replaces with its date.
-- **Receipts.** One quiet line under each reply: "Filed: 1 new note, 1 note updated".
-- **Add memory.** Paste or drop what another assistant knows about you, a ChatGPT memory or a notes file.
-- **Private by design.** It can call your other brains; no other chat, one-pager, map, score, digest or connector reads it.
+- **Add memory.** Paste what another assistant knows about you, or a notes file.
+- **Private.** It can call your other brains. Its own chat is its only reader.
 
 ## Workspaces
 
 A workspace holds its own brains and chats, and sees nothing of the others.
 
-| | Octopus, Squidgy (the builder's) | The demo | Your own |
+| | Octopus, Squidgy | The demo | Your own |
 |---|---|---|---|
-| Enter | Its own page, passphrase on top | One click, no passphrase | Made on the landing |
+| Whose | The builder's, and someone's | Anyone's | Yours |
+| Enter | Its own page, passphrase on top | One click | Made on the landing |
 | Model calls paid by | The deployment's key | A separate demo key | **Your OpenRouter key** |
 | Limits | None | 30 drops and 300 questions a month, shared | Your key's own |
 | Create brains, personal brains | Yes | No | Yes |
 
-**Your key stays yours.** It is checked once with OpenRouter, then kept in your browser. It travels with each call that needs a model and is never written to the database or logs. A workspace on its own key never falls back to the owner's.
+**Your key stays yours.** It is checked once with OpenRouter, then kept in your browser, and travels only with the calls that need a model. The server keeps no copy. A workspace on its own key runs on that key only.
 
 ## Run your own
 
@@ -185,9 +174,9 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 <br>
 
 ```
-app/            the landing, the app (one file) and the connector page
+app/            the landing, the app (one file), the white paper and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        679 checks, the app driven in a real browser included
+scripts/        685 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -201,7 +190,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-679 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+685 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 <br>
 

@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Brain: the knowledge you choose, organized</title>
-<meta name="description" content="Feed it the people and sources you trust. Ask anything, and see who said it. Every claim filed with its author and date.">
+<meta name="description" content="Drop the talks, PDFs and links you trust. Ask anything, and see who said it and when. Every claim filed with its author and date.">
 <meta name="theme-color" content="#050b16">
 <meta property="og:title" content="Brain: the knowledge you choose, organized">
-<meta property="og:description" content="Feed it the people and sources you trust. Ask anything, and see who said it.">
+<meta property="og:description" content="Drop the talks, PDFs and links you trust. Ask anything, and see who said it and when.">
 <meta property="og:image" content="https://brain.jeremylasne.com/og.jpg">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
@@ -157,16 +157,11 @@
   .btn:disabled{ opacity:.55; cursor:default; transform:none; }
   .make .btn{ margin-top:16px; width:100%; }
 
-  /* Live workspaces: a green light, and the doors under it. */
-  .item .glow-on{ width:9px; height:9px; border-radius:50%; background:#3ecf8e; box-shadow:0 0 0 4px rgba(62,207,142,.15), 0 0 12px rgba(62,207,142,.7);
+  /* A live workspace: a green light in its tag. */
+  .item .tag.on{ display:inline-flex; align-items:center; gap:7px; color:#7fe0b3; border-color:rgba(62,207,142,.35); }
+  .item .glow-on{ width:7px; height:7px; border-radius:50%; background:#3ecf8e; box-shadow:0 0 0 4px rgba(62,207,142,.15), 0 0 12px rgba(62,207,142,.7);
     animation:alive 2.4s ease-in-out infinite; }
   @keyframes alive{ 0%,100%{ box-shadow:0 0 0 3px rgba(62,207,142,.12), 0 0 8px rgba(62,207,142,.5); } 50%{ box-shadow:0 0 0 6px rgba(62,207,142,.18), 0 0 16px rgba(62,207,142,.8); } }
-  .fold .sub{ padding:0 0 10px 24px; }
-  .fold .sub li + li > .item{ border-top:0; }
-  .fold .sub .item{ padding:10px 14px; }
-  .fold .sub .item .name{ font-size:15px; }
-  .fold .sub .item .desc{ font-size:14px; }
-  .fold[open] .sub{ animation:foldIn .25s ease both; }
 
   /* ---- the bands below ---- */
   .band{ padding:clamp(52px, 7vw, 84px) 20px; }
@@ -295,7 +290,7 @@
   <main>
     <section class="hero" id="top">
       <h1 class="reveal" style="--d:80"><span class="nw">The knowledge you choose,</span><br> <em>organized.</em></h1>
-      <p class="sub reveal" style="--d:160">Feed it the people and sources you trust. Ask anything, and see who said it.</p>
+      <p class="sub reveal" style="--d:160">Drop the talks, PDFs and links you trust. Ask anything, and see who said it and when.</p>
 
       <section class="spaces reveal" style="--d:260" id="start" aria-labelledby="spacesH">
         <h2 class="tiny" id="spacesH">Start here</h2>
@@ -304,11 +299,21 @@
             <button class="item" id="demoGo" type="button">
               <img class="logo" src="/brand/brain.svg" alt="" width="24" height="24">
               <span class="name">Demo</span>
-              <span class="desc">Try it now: health, content and social brains.</span>
+              <span class="desc">Try it now.</span>
               <span class="tag live">No sign-up</span>
               <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg>
             </button>
             <p class="row-msg" id="demoMsg" role="alert"></p>
+          </li>
+          <li>
+            <a class="item" href="/chat?w=octopus" id="goOctopus"><img class="logo" src="/brand/logo-mark.png" alt="" width="24" height="24">
+              <span class="name">Octopus</span><span class="desc">The builder's workspace.</span>
+              <span class="tag on"><i class="glow-on"></i>Live</span><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg></a>
+          </li>
+          <li>
+            <a class="item" href="/chat?w=squidgy" id="goSquidgy"><img class="logo" src="/brand/squidgy-icon.png" alt="" width="24" height="24">
+              <span class="name">Squidgy</span><span class="desc">Someone's workspace.</span>
+              <span class="tag on"><i class="glow-on"></i>Live</span><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg></a>
           </li>
           <li>
             <details class="fold" id="wsCreate">
@@ -330,22 +335,8 @@
             </details>
           </li>
           <li>
-            <details class="fold" id="wsLive">
-              <summary class="item">
-                <span class="ic" aria-hidden="true"><i class="glow-on"></i></span>
-                <span class="name">Live workspaces</span>
-                <span class="desc">Open one with its passphrase.</span>
-                <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"/></svg>
-              </summary>
-              <ul class="sub">
-                <li><a class="item" href="/chat?w=octopus" id="goOctopus"><img class="logo" src="/brand/logo-mark.png" alt="" width="24" height="24">
-                  <span class="name">Octopus</span><span class="desc">The builder's own brains.</span><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg></a></li>
-                <li><a class="item" href="/chat?w=squidgy" id="goSquidgy"><img class="logo" src="/brand/squidgy-icon.png" alt="" width="24" height="24">
-                  <span class="name">Squidgy</span><span class="desc">A second private workspace.</span><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg></a></li>
-                <li><a class="item" href="/chat?w=" id="openMine"><span class="ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M10.5 1.5a4 4 0 0 0-3.87 5.02L1.72 11.4a.75.75 0 0 0-.22.53v2.32c0 .41.34.75.75.75h2.25a.75.75 0 0 0 .75-.75V13.5h1.25a.75.75 0 0 0 .75-.75V11.5h1.25a.75.75 0 0 0 .53-.22l.37-.37A4 4 0 1 0 10.5 1.5Zm1 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg></span>
-                  <span class="name">Yours</span><span class="desc">Its name and passphrase.</span><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg></a></li>
-              </ul>
-            </details>
+            <a class="item" href="/chat?w=" id="openMine"><span class="ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M10.5 1.5a4 4 0 0 0-3.87 5.02L1.72 11.4a.75.75 0 0 0-.22.53v2.32c0 .41.34.75.75.75h2.25a.75.75 0 0 0 .75-.75V13.5h1.25a.75.75 0 0 0 .75-.75V11.5h1.25a.75.75 0 0 0 .53-.22l.37-.37A4 4 0 1 0 10.5 1.5Zm1 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg></span>
+              <span class="name">Open yours</span><span class="desc">Its name and passphrase.</span><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg></a>
           </li>
           <li>
             <a class="item" href="https://github.com/jlasne/brain" id="goCode">
@@ -397,9 +388,9 @@
       <div class="own">
         <div><b>Zero duplicates</b><p>A source dropped twice is caught on arrival. A new idea joins the concept it belongs to.</p></div>
         <div><b>Zero hidden contradictions</b><p>Every clash is caught at drop and waits for your call, one swipe each. Each concept keeps one clear position.</p></div>
-        <div><b>Lightweight</b><p>It keeps the claims and drops the raw transcript. A concept weighs about 1 KB.</p></div>
-        <div><b>Fast search</b><p>It reads up to 2,300 concept titles in one pass. A question opens only the concepts it needs.</p></div>
-        <div><b>Scalable</b><p>A brain 50 times bigger reads about 2 times more per question.</p></div>
+        <div><b>Lightweight</b><p>It keeps the claims and drops the raw transcript. Search reads a 1 KB card per concept.</p></div>
+        <div><b>Fast search</b><p>It scans up to 2,300 concept titles in one pass, then opens at most 30 in full.</p></div>
+        <div><b>Scalable</b><p>A question reads 152,000 characters of your brain at most, at any size.</p></div>
         <div><b>Your data</b><p>In your own database or as markdown files, exported in one click. Open source, on your own key.</p></div>
       </div>
     </div></section>
@@ -407,6 +398,7 @@
 
   <footer><div class="in">
     <span class="me"><img src="/brand/brain.svg" alt="" width="20" height="20">Brain</span>
+    <a href="/about">White paper</a>
     <a href="https://github.com/jlasne/brain">Open source on GitHub</a>
     <span class="by">Made by <a href="https://www.jeremylasne.com">Jeremy Lasne</a></span>
   </div></footer>
@@ -466,10 +458,9 @@
   }
   $("demoGo").onclick = () => openDemo($("demoGo"), $("demoMsg"));
 
-  /* Open your workspace, in the bar, opens the live list. */
+  /* Open your workspace, in the bar, brings the list of workspaces into view. */
   $("openYours").onclick = ev => {
     ev.preventDefault();
-    $("wsLive").open = true;
     $("start").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
   };
   /* The app's demo bar links here to make a workspace. */
