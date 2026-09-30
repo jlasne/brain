@@ -10,7 +10,7 @@ Feed it the people and sources you trust. Ask anything, and see who said it.
 
 [**Open the live demo**](https://brain.jeremylasne.com) &nbsp;·&nbsp; [How it works](#how-it-works) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="678 checks passing" src="https://img.shields.io/badge/checks-678%20passing-5fa8d3?style=flat-square&labelColor=050b16">
+<img alt="676 checks passing" src="https://img.shields.io/badge/checks-676%20passing-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-5fa8d3?style=flat-square&labelColor=050b16">
@@ -56,8 +56,8 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 <br><b>It draws itself.</b> Every brain an arm, every concept a sucker, every line a link between brains. Each arm carries its health score out of 10.
 </td>
 <td width="50%" valign="top">
-<img src="docs/img/uses.jpg" alt="Use cases">
-<br><b>One brain per subject, per expert, or for you.</b> Expert brains keep two analysts apart. A personal brain learns you as you talk to it.
+<img src="docs/img/personal.jpg" alt="A personal brain filing what you say">
+<br><b>It learns you.</b> A personal brain files what you tell it as dated notes, and says what it filed. Your other brains never read it.
 </td>
 </tr>
 </table>
@@ -65,12 +65,13 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 - **Three levels.** Normal answers with the numbers. Educational teaches from zero. Learning gives the steps and lets you reach the answer yourself.
 - **One page, any shape.** A brain or a question becomes a summary, a quiz, a deep dive or use cases, in English, French, Spanish, German, Italian, Portuguese, Dutch, Japanese or Chinese.
 - **Chats that stay.** Reopen, rename, pin up to 5. Old ones clear after 30 days.
+- **Your data.** In your own database, or as plain markdown files on your machine. One click exports every brain.
 - **Your look.** Each workspace takes a logo, an accent and a page colour, previewed as you pick them.
 - **A memory for Claude.** The owner's workspaces connect to Claude through MCP: Claude reads and feeds the brains with its own model.
 
 ## How it works
 
-<img src="docs/img/how.jpg" alt="How it works: drop, file, settle, ask" width="100%">
+<img src="docs/img/goods.jpg" alt="Sources, positions, your call, and what you own" width="100%">
 
 1. **Drop.** A link, a PDF, a Word file or a pasted transcript. Video captions are fetched for you. Files are read in the browser, never uploaded.
 2. **File.** Every topic is extracted once, with its numbers and quotes. Each idea joins a concept or starts one, with its author and date.
@@ -186,7 +187,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 ```
 app/            the landing, the app (one file) and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        678 checks, the app driven in a real browser included
+scripts/        676 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -200,7 +201,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-678 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+676 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 <br>
 

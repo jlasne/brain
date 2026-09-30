@@ -157,9 +157,16 @@
   .btn:disabled{ opacity:.55; cursor:default; transform:none; }
   .make .btn{ margin-top:16px; width:100%; }
 
-  .again{ margin:6px 0 4px; font-size:13.5px; color:var(--ice-45); }
-  .again a{ color:var(--ice-70); border-bottom:1px solid var(--line-2); }
-  @media (hover:hover){ .again a:hover{ color:var(--blue); border-color:var(--blue); } }
+  /* Live workspaces: a green light, and the doors under it. */
+  .item .glow-on{ width:9px; height:9px; border-radius:50%; background:#3ecf8e; box-shadow:0 0 0 4px rgba(62,207,142,.15), 0 0 12px rgba(62,207,142,.7);
+    animation:alive 2.4s ease-in-out infinite; }
+  @keyframes alive{ 0%,100%{ box-shadow:0 0 0 3px rgba(62,207,142,.12), 0 0 8px rgba(62,207,142,.5); } 50%{ box-shadow:0 0 0 6px rgba(62,207,142,.18), 0 0 16px rgba(62,207,142,.8); } }
+  .fold .sub{ padding:0 0 10px 24px; }
+  .fold .sub li + li > .item{ border-top:0; }
+  .fold .sub .item{ padding:10px 14px; }
+  .fold .sub .item .name{ font-size:15px; }
+  .fold .sub .item .desc{ font-size:14px; }
+  .fold[open] .sub{ animation:foldIn .25s ease both; }
 
   /* ---- the bands below ---- */
   .band{ padding:clamp(52px, 7vw, 84px) 20px; }
@@ -250,149 +257,26 @@
   .band .lede{ margin-top:16px; max-width:680px; font-size:18px; line-height:1.6; color:var(--ice-70); text-wrap:pretty; }
 
   /* The comparison: three columns, the brain's lit. */
-  .cmp{ margin-top:40px; border-radius:22px; border:1px solid var(--line); background:rgba(10,20,36,.55); overflow:hidden;
-    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); position:relative; }
-  .cmp-row{ display:grid; grid-template-columns:19% 1fr 1fr 1.15fr; }
-  .cmp-row + .cmp-row{ border-top:1px solid var(--line); }
-  .cmp-row > span{ padding:16px 18px; font-size:15px; line-height:1.5; color:var(--ice-45); min-width:0; }
-  .cmp-row > span:first-child{ color:var(--ice); font-weight:600; }
-  .cmp-row > span:nth-child(3){ color:var(--ice-70); }
-  .cmp-row > span.me{ color:var(--ice); background:rgba(95,168,211,.09); position:relative; padding-left:42px; }
-  .cmp-row > span.me::before{ content:""; position:absolute; left:18px; top:20px; width:14px; height:14px; border-radius:50%;
-    background:var(--blue) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3.5 7.2l2.3 2.3 4.7-4.9' fill='none' stroke='%23050b16' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/14px no-repeat; }
-  .cmp-head > span{ font-size:11px !important; font-weight:700 !important; letter-spacing:.1em; text-transform:uppercase; color:var(--ice-45) !important;
-    padding-top:18px; padding-bottom:14px; }
-  .cmp-head > span.me{ color:var(--blue) !important; padding-left:18px; }
-  .cmp-head > span.me::before{ content:none; }
+  /* The goods: three layers, four ideas moving, and four lines on who owns what. */
+  .tiles{ margin-top:22px; }
+  .own{ margin-top:16px; display:grid; grid-template-columns:repeat(4, 1fr); border-radius:22px; border:1px solid var(--line-2); overflow:hidden;
+    background:linear-gradient(180deg, rgba(95,168,211,.10), rgba(10,20,36,.62)); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+  .own > div{ padding:22px; }
+  .own > div + div{ border-left:1px solid var(--line); }
+  .own b{ display:block; font-size:17px; font-weight:650; letter-spacing:-.01em; color:var(--ice); }
+  .own b::before{ content:""; display:inline-block; width:8px; height:8px; margin-right:9px; border-radius:50%; background:var(--blue); box-shadow:0 0 10px var(--blue); vertical-align:2px; }
+  .own p{ margin-top:8px; font-size:14.5px; line-height:1.55; color:var(--ice-70); }
 
-  /* How it works: four outcomes, each with what you see. */
-  .steps{ margin-top:44px; display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; counter-reset:s; }
-  .step{ position:relative; padding:22px 20px 20px; border-radius:18px; border:1px solid var(--line); background:rgba(10,20,36,.55);
-    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); display:flex; flex-direction:column; }
-  .step::before{ counter-increment:s; content:"0" counter(s); font-size:12px; font-weight:700; letter-spacing:.1em; color:var(--blue); }
-  .step h3{ margin-top:10px; font-size:19px; line-height:1.25; font-weight:650; letter-spacing:-.02em; }
-  .step p{ margin-top:8px; font-size:14.5px; line-height:1.55; color:var(--ice-70); }
-  .step .see{ margin-top:18px; padding-top:16px; border-top:1px dashed var(--line); font-size:13px; line-height:1.5; color:var(--ice-70); }
-  .chips{ display:flex; flex-wrap:wrap; gap:6px; }
-  .chips span{ padding:4px 10px; border-radius:999px; border:1px solid var(--line-2); font-size:12.5px; color:var(--ice); }
-  .tree{ display:grid; gap:6px; }
-  .tree span{ display:block; padding:6px 10px; border-radius:9px; background:var(--ice-06); }
-  .tree span:nth-child(2){ margin-left:14px; }
-  .tree span:nth-child(3){ margin-left:28px; color:var(--ice); border-left:2px solid var(--blue); }
-  .swipe{ display:grid; gap:6px; }
-  .swipe .vs{ padding:6px 10px; border-radius:9px; background:var(--ice-06); }
-  .swipe .vs b{ color:var(--ice); font-weight:600; }
-  .swipe .acts{ display:flex; gap:6px; }
-  .swipe .acts span{ flex:1; text-align:center; padding:5px 0; border-radius:999px; border:1px solid var(--line-2); font-size:12px; color:var(--ice); }
-  .swipe .acts span:nth-child(2){ background:var(--blue); border-color:var(--blue); color:var(--ink); font-weight:600; }
-  .ans{ padding:8px 11px; border-radius:12px 12px 12px 4px; background:var(--ice-06); color:var(--ice); }
-  .ans small{ display:block; margin-top:6px; font-size:12px; color:var(--ice-45); }
-  .note{ margin-top:22px; max-width:760px; font-size:14.5px; line-height:1.6; color:var(--ice-45); }
-
-  /* The comparison rows arrive one by one. */
-  #why.seen .cmp-row{ animation:rowIn .6s var(--ease) both; }
-  #why.seen .cmp-row:nth-child(2){ animation-delay:.08s; } #why.seen .cmp-row:nth-child(3){ animation-delay:.16s; }
-  #why.seen .cmp-row:nth-child(4){ animation-delay:.24s; } #why.seen .cmp-row:nth-child(5){ animation-delay:.32s; }
-  #why.seen .cmp-row:nth-child(6){ animation-delay:.4s; } #why.seen .cmp-row:nth-child(7){ animation-delay:.48s; } #why.seen .cmp-row:nth-child(8){ animation-delay:.56s; }
-  @keyframes rowIn{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:none; } }
-  .cmp::before{ content:""; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg, transparent, var(--blue), transparent); opacity:.6; }
-
-  /* Use cases: pick one, and watch it asked and answered. */
-  .usebox{ margin-top:34px; }
-  .tabs{ display:flex; flex-wrap:wrap; gap:8px; }
-  .tab{ position:relative; overflow:hidden; display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:999px;
-    border:1px solid var(--line); background:rgba(10,20,36,.6); color:var(--ice-70); font-size:14.5px; font-weight:500; cursor:pointer;
-    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); transition:background .25s, color .25s, border-color .25s; }
-  .tab .em{ font-size:15px; line-height:1; }
-  @media (hover:hover){ .tab:hover{ border-color:var(--line-2); color:var(--ice); } }
-  .tab[aria-selected="true"]{ background:var(--blue); border-color:var(--blue); color:var(--ink); font-weight:600; }
-  /* While the cases turn on their own, the chosen one fills like a clock. */
-  .tabs.auto .tab[aria-selected="true"]::after{ content:""; position:absolute; left:0; bottom:0; height:2px; background:rgba(5,11,22,.45);
-    animation:fill var(--turn, 8s) linear forwards; }
-  @keyframes fill{ from{ width:0; } to{ width:100%; } }
-  .usepanel{ margin-top:16px; display:grid; grid-template-columns:.8fr 1.2fr; gap:16px; }
-  .feed, .chatwin{ border-radius:22px; border:1px solid var(--line); background:rgba(10,20,36,.62); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
-  .feed{ padding:22px; }
-  .feed h4{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ice-45); }
-  .feed ul{ margin-top:12px; display:grid; gap:8px; }
-  .feed li{ display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:12px; background:var(--ice-06); font-size:14.5px; color:var(--ice);
-    animation:rowIn .45s var(--ease) both; }
-  .feed li:nth-child(2){ animation-delay:.08s; } .feed li:nth-child(3){ animation-delay:.16s; }
-  .feed li i{ flex:none; font-style:normal; font-size:10px; font-weight:700; letter-spacing:.06em; color:var(--ink); background:var(--blue-2);
-    border-radius:6px; padding:3px 6px; min-width:38px; text-align:center; }
-  .feed li i.pdf{ background:#e0b35a; } .feed li i.vid{ background:#e5484d; color:#fff; } .feed li i.pod{ background:#b18cf0; }
-  .feed li i.you{ background:#f5c9d1; }
-  .kindline{ margin-top:16px; font-size:14px; line-height:1.55; color:var(--ice-70); }
-  .kindline b{ color:var(--blue); font-weight:600; }
-  .chatwin{ display:flex; flex-direction:column; overflow:hidden; min-height:300px; }
-  .cw-bar{ display:flex; align-items:center; gap:9px; padding:13px 18px; border-bottom:1px solid var(--line); font-size:13.5px; }
-  .cw-bar b{ font-weight:600; }
-  .cw-dot{ width:8px; height:8px; border-radius:50%; background:var(--blue); box-shadow:0 0 10px var(--blue); }
-  .cw-ex{ margin-left:auto; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ice-45);
-    border:1px solid var(--line); border-radius:999px; padding:2px 8px; }
-  .cw-body{ flex:1; padding:18px; display:flex; flex-direction:column; gap:10px; }
-  .cw-body .q{ align-self:flex-end; max-width:86%; padding:10px 14px; border-radius:16px 16px 4px 16px; background:var(--blue); color:var(--ink);
-    font-size:14.5px; line-height:1.45; animation:say .45s var(--ease) both; }
-  .cw-body .think{ align-self:flex-start; display:flex; gap:4px; padding:12px 14px; border-radius:16px; background:var(--ice-06); animation:say .3s var(--ease) both .5s, gone .2s linear forwards 1.5s; }
-  .cw-body .think span{ width:6px; height:6px; border-radius:50%; background:var(--ice-45); animation:blink 1s ease-in-out infinite; }
-  .cw-body .think span:nth-child(2){ animation-delay:.15s; } .cw-body .think span:nth-child(3){ animation-delay:.3s; }
-  @keyframes blink{ 0%,100%{ opacity:.3; } 50%{ opacity:1; } }
-  @keyframes gone{ to{ opacity:0; height:0; padding:0; margin:-5px 0; } }
-  .cw-body .a{ align-self:flex-start; max-width:92%; display:grid; gap:6px; }
-  .cw-body .a span{ font-size:14.5px; line-height:1.5; color:var(--ice); opacity:0; animation:say .45s var(--ease) forwards; }
-  .cw-body .a small{ margin-top:4px; font-size:12.5px; color:var(--ice-45); opacity:0; animation:say .45s var(--ease) forwards; }
-  .cw-body .chip{ align-self:flex-start; font-size:11.5px; font-weight:600; letter-spacing:.03em; color:#ff8a8d; border:1px solid rgba(229,72,77,.45);
-    border-radius:999px; padding:4px 10px; opacity:0; animation:say .45s var(--ease) forwards; }
-  .cw-body .chip.ok{ color:var(--blue-2); border-color:var(--line-2); }
-
-  /* How it works: each step plays its own small loop. */
-  .a-drop .url{ padding:8px 10px; border-radius:9px; background:var(--ice-06); overflow:hidden; white-space:nowrap; }
-  .a-drop .url span{ display:inline-block; overflow:hidden; vertical-align:bottom; border-right:1.5px solid var(--blue); width:0; animation:type 6s steps(30) infinite; }
-  @keyframes type{ 0%{ width:0; } 30%,100%{ width:100%; } }
-  .a-drop .prog{ margin-top:10px; height:5px; border-radius:999px; background:var(--ice-06); overflow:hidden; }
-  .a-drop .prog i{ display:block; height:100%; width:0; background:linear-gradient(90deg, var(--blue), var(--blue-2)); animation:load 6s var(--ease) infinite; }
-  @keyframes load{ 0%,32%{ width:0; } 85%,100%{ width:100%; } }
-  .a-drop small{ display:block; margin-top:6px; font-size:12px; color:var(--ice-45); }
-  .a-tree span{ opacity:0; animation:treeIn 6s var(--ease) infinite; }
-  .a-tree span:nth-child(2){ animation-delay:.5s; } .a-tree span:nth-child(3){ animation-delay:1s; }
-  @keyframes treeIn{ 0%{ opacity:0; transform:translateX(-8px); } 10%,85%{ opacity:1; transform:none; } 100%{ opacity:0; } }
-  .a-swipe .vs{ animation:nudge 5s var(--ease) infinite; }
-  @keyframes nudge{ 0%,30%{ transform:none; } 45%{ transform:translateX(10px) rotate(1.5deg); } 60%,100%{ transform:none; } }
-  .a-swipe .acts span{ white-space:nowrap; font-size:11.5px; }
-  .a-swipe .acts span:nth-child(2){ animation:press 5s var(--ease) infinite; }
-  @keyframes press{ 0%,40%{ transform:none; box-shadow:none; } 48%{ transform:scale(.94); box-shadow:0 0 0 4px rgba(95,168,211,.25); } 56%,100%{ transform:none; box-shadow:none; } }
-  .a-ans .ans span{ display:block; opacity:0; animation:ansIn 6s var(--ease) infinite; }
-  .a-ans .ans span:nth-child(2){ animation-delay:.6s; } .a-ans .ans small{ opacity:0; animation:ansIn 6s var(--ease) infinite 1.2s; }
-  @keyframes ansIn{ 0%{ opacity:0; transform:translateY(5px); } 10%,85%{ opacity:1; transform:none; } 100%{ opacity:0; } }
-
-  /* The scale: concepts held against what a question reads. */
-  .scale{ margin-top:18px; padding:22px 24px; border-radius:22px; border:1px solid var(--line); background:rgba(10,20,36,.62);
-    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
-  .sc-t, .sc-r{ display:grid; grid-template-columns:170px 1fr 1fr; gap:18px; align-items:center; }
-  .sc-t{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ice-45); padding-bottom:10px; }
-  .sc-t b{ color:var(--blue); font-weight:700; }
-  .sc-r{ padding:9px 0; border-top:1px solid var(--line); }
-  .sc-r > b{ font-size:14.5px; font-weight:600; }
-  .sc-b{ position:relative; height:26px; border-radius:8px; background:var(--ice-06); overflow:hidden; }
-  .sc-b i{ position:absolute; left:0; top:0; bottom:0; width:0; border-radius:8px; background:linear-gradient(90deg, rgba(95,168,211,.35), rgba(95,168,211,.8));
-    transition:width 1.4s var(--ease); }
-  .sc-b.rd i{ background:linear-gradient(90deg, rgba(140,196,230,.25), rgba(140,196,230,.6)); }
-  .scale.go .sc-b i{ width:var(--w); }
-  .sc-b em{ position:absolute; left:10px; top:0; line-height:26px; font-style:normal; font-size:13px; font-weight:600; color:var(--ice); }
-  .sc-n{ margin-top:12px; font-size:14px; line-height:1.55; color:var(--ice-45); }
-
-  /* The last word, and the way in again. */
-  .final{ position:relative; padding:clamp(40px, 7vw, 72px) 24px; border-radius:28px; border:1px solid var(--line-2); overflow:hidden;
-    background:radial-gradient(70% 120% at 50% 0%, rgba(95,168,211,.22), rgba(10,20,36,.7) 70%); }
-  .final::before{ content:""; position:absolute; inset:-40%; background:conic-gradient(from 0deg, transparent 0 70%, rgba(95,168,211,.22) 80%, transparent 90%);
-    animation:spin 14s linear infinite; pointer-events:none; }
-  @keyframes spin{ to{ transform:rotate(360deg); } }
-  .final > *{ position:relative; }
-  .final .lede{ margin-left:auto; margin-right:auto; }
-  .end{ text-align:center; }
-  .end h2{ margin-left:auto; margin-right:auto; margin-top:0; }
-  .end .ctas{ margin-top:30px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
-  .end .msg{ margin-top:12px; font-size:13.5px; color:var(--blue); min-height:1.5em; }
+  /* What makes a brain: three layers, left to right, a spark running along them. */
+  .layers{ margin-top:36px; list-style:none; display:grid; grid-template-columns:repeat(3, 1fr); position:relative; border-top:1px solid var(--line-2); }
+  .layers li{ padding:24px 24px 4px 0; }
+  .layers li + li{ padding-left:24px; border-left:1px solid var(--line); }
+  .layers .ln{ font-size:12px; font-weight:700; letter-spacing:.12em; color:var(--blue); }
+  .layers b{ display:block; margin-top:10px; font-size:24px; font-weight:650; letter-spacing:-.02em; }
+  .layers p{ margin-top:8px; font-size:16px; line-height:1.55; color:var(--ice-70); max-width:320px; }
+  .layers::before{ content:""; position:absolute; top:-4px; left:0; width:7px; height:7px; border-radius:50%; background:var(--ice);
+    box-shadow:0 0 14px 3px var(--blue); animation:travel 5s linear infinite; }
+  @keyframes travel{ 0%{ left:0; opacity:0; } 8%{ opacity:1; } 92%{ opacity:1; } 100%{ left:calc(100% - 7px); opacity:0; } }
 
   footer{ position:relative; z-index:2; border-top:1px solid var(--line); }
   footer .in{ max-width:1080px; margin:0 auto; padding:22px 20px max(22px, env(safe-area-inset-bottom)); display:flex; flex-wrap:wrap; gap:10px 20px;
@@ -405,24 +289,18 @@
 
   @media (max-width:960px){
     .tiles{ grid-template-columns:1fr; }
-    .usepanel{ grid-template-columns:1fr; }
-    .sc-t, .sc-r{ grid-template-columns:120px 1fr 1fr; gap:10px; }
-    .steps{ grid-template-columns:1fr 1fr; }
+    .own{ grid-template-columns:1fr 1fr; }
+    .own > div:nth-child(3){ border-left:0; }
+    .own > div:nth-child(n+3){ border-top:1px solid var(--line); }
     .cards{ grid-template-columns:1fr 1fr; }
   }
   @media (max-width:720px){
-    /* The comparison stacks: one card per row, each column named. */
-    .cmp-head{ display:none; }
-    .cmp-row{ grid-template-columns:1fr; padding:12px 0; }
-    .cmp-row > span{ padding:4px 18px; }
-    .cmp-row > span:first-child{ padding-bottom:6px; font-size:16px; }
-    .cmp-row > span[data-l]::before{ content:attr(data-l) ": "; color:var(--ice-45); font-weight:600; }
-    .cmp-row > span.me{ margin:6px 12px 0; padding:9px 12px 9px 36px; border-radius:12px; }
-    .cmp-row > span.me::before{ left:12px; top:13px; }
-    .cmp-row > span.me[data-l]::before{ content:""; }
+    .layers{ grid-template-columns:1fr; }
+    .layers li, .layers li + li{ padding:18px 0 4px; border-left:0; }
+    .layers li + li{ border-top:1px solid var(--line); }
+    .layers::before{ display:none; }
   }
   @media (max-width:640px){
-    .steps, .cards{ grid-template-columns:1fr; }
     .spaces{ padding:8px 16px 10px; border-radius:18px; }
   }
   @media (max-width:520px){
@@ -439,9 +317,7 @@
     .deck .stamp{ opacity:1; }
     .map .arm{ stroke-dashoffset:0; } .map .sk, .map .lk, .map .red{ opacity:1; }
     .talk .b, .talk .rc{ opacity:1; transform:none; }
-    .final::before, .a-drop .url span, .a-drop .prog i, .a-tree span, .a-swipe .vs, .a-swipe .acts span, .a-ans .ans span, .a-ans .ans small,
-    .cw-body *, .feed li, #why.seen .cmp-row{ animation:none !important; opacity:1 !important; }
-    .a-drop .url span{ width:auto; } .a-drop .prog i{ width:60%; } .cw-body .think{ display:none; }
+    .layers::before, .item .glow-on{ animation:none !important; }
     .later{ opacity:1; transform:none; transition:none; }
   }
 </style>
@@ -502,6 +378,24 @@
             </details>
           </li>
           <li>
+            <details class="fold" id="wsLive">
+              <summary class="item">
+                <span class="ic" aria-hidden="true"><i class="glow-on"></i></span>
+                <span class="name">Live workspaces</span>
+                <span class="desc">Open one with its passphrase.</span>
+                <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"/></svg>
+              </summary>
+              <ul class="sub">
+                <li><a class="item" href="/chat?w=octopus" id="goOctopus"><img class="logo" src="/brand/logo-mark.png" alt="" width="24" height="24">
+                  <span class="name">Octopus</span><span class="desc">The builder's own brains.</span><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg></a></li>
+                <li><a class="item" href="/chat?w=squidgy" id="goSquidgy"><img class="logo" src="/brand/squidgy-icon.png" alt="" width="24" height="24">
+                  <span class="name">Squidgy</span><span class="desc">A second private workspace.</span><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg></a></li>
+                <li><a class="item" href="/chat?w=" id="openMine"><span class="ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M10.5 1.5a4 4 0 0 0-3.87 5.02L1.72 11.4a.75.75 0 0 0-.22.53v2.32c0 .41.34.75.75.75h2.25a.75.75 0 0 0 .75-.75V13.5h1.25a.75.75 0 0 0 .75-.75V11.5h1.25a.75.75 0 0 0 .53-.22l.37-.37A4 4 0 1 0 10.5 1.5Zm1 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg></span>
+                  <span class="name">Yours</span><span class="desc">Its name and passphrase.</span><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg></a></li>
+              </ul>
+            </details>
+          </li>
+          <li>
             <a class="item" href="https://github.com/jlasne/brain" id="goCode">
               <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#gh"/></svg></span>
               <span class="name">Explore the open source</span>
@@ -510,7 +404,6 @@
             </a>
           </li>
         </ul>
-        <p class="again">Made a workspace already? <a href="/chat?w=" id="openMine">Open it with its name</a></p>
       </section>
 
     </section>
@@ -524,74 +417,16 @@
       </div>
     </div></section>
 
-    <section class="band later" id="why"><div class="wide">
-      <span class="eyebrow">What makes a brain</span>
-      <h2>"Isn't it just ChatGPT with my files?"</h2>
-      <p class="lede">A chat answers from its training. A wiki stacks your files into pages. A brain turns them into positions,
-        each with dated evidence, and asks you when sources clash.</p>
-
-      <div class="cmp" role="table" aria-label="A classic AI chat, Karpathy's LLM wiki and a brain, compared">
-        <div class="cmp-row cmp-head" role="row"><span role="columnheader"></span><span role="columnheader">Classic AI chat</span><span role="columnheader">Karpathy's LLM wiki</span><span role="columnheader" class="me">Brain</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">Answers from</span><span role="cell" data-l="Chat">Its training data</span><span role="cell" data-l="Wiki">Your files, as pages</span><span role="cell" class="me" data-l="Brain">Your sources, as positions with their evidence</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">Proof</span><span role="cell" data-l="Chat">None, or a link it made up</span><span role="cell" data-l="Wiki">A summary per page</span><span role="cell" class="me" data-l="Brain">Author and date on every claim</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">When sources disagree</span><span role="cell" data-l="Chat">Blended into one answer</span><span role="cell" data-l="Wiki">Left side by side in the pages</span><span role="cell" class="me" data-l="Brain">Flagged at each drop; you rule on each in a swipe</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">New information</span><span role="cell" data-l="Chat">Frozen at the training date</span><span role="cell" data-l="Wiki">Added when you run the agent</span><span role="cell" class="me" data-l="Brain">Filed the day you drop it</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">Whose view</span><span role="cell" data-l="Chat">An average of the internet</span><span role="cell" data-l="Wiki">Your topics</span><span role="cell" class="me" data-l="Brain">One brain per subject, per expert, or for you</span></div>
-      </div>
-
-    </div></section>
-
-    <section class="band later" id="uses"><div class="wide">
-      <span class="eyebrow">Use cases</span>
-      <h2>What will you build a brain for?</h2>
-      <p class="lede">One brain per subject, per expert, or for you. Pick one: what goes in, what comes out.</p>
-      <div class="usebox">
-        <div class="tabs" role="tablist" aria-label="Use cases" id="useTabs"></div>
-        <div class="usepanel" id="usePanel" role="tabpanel">
-          <div class="feed">
-            <h4>You feed it</h4>
-            <ul id="useFeed"></ul>
-            <p class="kindline" id="useKind"></p>
-          </div>
-          <div class="chatwin" aria-live="polite">
-            <div class="cw-bar"><span class="cw-dot"></span><b id="useBrain">Brain</b><span class="cw-ex">Example</span></div>
-            <div class="cw-body" id="useChat"></div>
-          </div>
-        </div>
-      </div>
-    </div></section>
-
-    <section class="band later" id="how"><div class="wide">
-      <span class="eyebrow">How it works</span>
-      <h2>From a link to an answer you can check.</h2>
-      <p class="lede">You drop, it files, you settle, you ask. A brain 50 times bigger reads only twice as much per question.</p>
-      <div class="steps">
-        <div class="step"><h3>Drop it, and it is read.</h3>
-          <p>A link, a PDF, a Word file or a pasted transcript. Video captions are fetched for you.</p>
-          <div class="see a-drop" aria-hidden="true"><div class="url"><span>youtube.com/watch?v=sleep-talk</span></div>
-            <div class="prog"><i></i></div><small>Reading part 3 of 8</small></div></div>
-        <div class="step"><h3>Every claim lands in its place.</h3>
-          <p>Each idea joins a concept or starts one, with its author, its date and its numbers.</p>
-          <div class="see tree a-tree" aria-hidden="true"><span>Brain: Health</span><span>Concept: Sleep</span><span>7 to 9 hours · Dr. A, 2026-09-21</span></div></div>
-        <div class="step"><h3>Clashes wait for your call.</h3>
-          <p>A source that contradicts a position waits for you. Then the position is rewritten from all its evidence.</p>
-          <div class="see swipe a-swipe" aria-hidden="true"><div class="vs"><b>You hold</b> 8 hours. <b>New source</b> says 7.</div>
-            <div class="acts"><span>Keep</span><span>Both hold</span><span>Replace</span></div></div></div>
-        <div class="step"><h3>Answers you can check.</h3>
-          <p>At 3 levels, or as a one-pager in 9 languages. Each answer names its sources.</p>
-          <div class="see a-ans" aria-hidden="true"><div class="ans"><span>Aim for 7 to 9 hours.</span><span>Keep the room dark and cool.</span><small>Sources: 2 podcasts, 1 study · newest 2026-09-21</small></div></div></div>
-      </div>
-      <div class="scale" id="scale">
-        <div class="sc-t"><b>As a brain grows</b><span>Concepts held</span><span>Words read per question</span></div>
-        <div class="sc-r"><b>30 sources</b><span class="sc-b"><i style="--w:2%"></i><em>10</em></span><span class="sc-b rd"><i style="--w:47%"></i><em>3.5k</em></span></div>
-        <div class="sc-r"><b>1,000 sources</b><span class="sc-b"><i style="--w:40%"></i><em>200</em></span><span class="sc-b rd"><i style="--w:68%"></i><em>5.1k</em></span></div>
-        <div class="sc-r"><b>5,000 sources</b><span class="sc-b"><i style="--w:100%"></i><em>500</em></span><span class="sc-b rd"><i style="--w:100%"></i><em>7.5k</em></span></div>
-      </div>
-    </div></section>
-
-    <section class="band later" id="inside"><div class="wide">
-      <span class="eyebrow">Inside a brain</span>
-      <h2>It argues back, keeps score, draws itself and learns you.</h2>
+    <section class="band later" id="goods"><div class="wide">
+      <span class="eyebrow">What you get</span>
+      <h2>A wiki that knows who said what. And it is yours.</h2>
+      <p class="lede">Karpathy's idea: an AI compiles your sources once, instead of rereading raw files for every question.
+        A brain adds who said it, when, and your call when they disagree.</p>
+      <ol class="layers">
+        <li><span class="ln">01</span><b>Sources</b><p>What you drop: articles, PDFs, videos. Each one is read once.</p></li>
+        <li><span class="ln">02</span><b>Positions</b><p>What it compiles: one position per concept, every claim signed with its author and date.</p></li>
+        <li><span class="ln">03</span><b>Your call</b><p>When two sources clash, you rule. The position is rewritten from all its evidence.</p></li>
+      </ol>
       <div class="tiles">
         <div class="tile">
           <div class="stage"><div class="deck" aria-hidden="true">
@@ -637,16 +472,11 @@
           <div class="txt"><h3>It learns you <small>Alpha</small></h3><p>A personal brain: tell it anything and it files your words as dated notes. It can call your other brains; they never read it.</p></div>
         </div>
       </div>
-    </div></section>
-
-    <section class="band end later" id="go"><div class="wide">
-      <div class="final">
-        <h2>Feed it what you read. Ask it what you know.</h2>
-        <div class="ctas">
-          <button class="btn main" id="demoGo2" type="button">Open the demo</button>
-          <a class="btn" href="#start" id="makeGo">Create your workspace</a>
-        </div>
-        <p class="msg" id="demoMsg2" role="alert"></p>
+      <div class="own">
+        <div><b>Your data</b><p>In your own database, or as plain markdown files on your machine. One click exports every brain.</p></div>
+        <div><b>Your key</b><p>Model calls run on your OpenRouter key. It stays in your browser.</p></div>
+        <div><b>Your code</b><p>Open source, MIT. Run your own copy in five commands.</p></div>
+        <div><b>Your AI</b><p>Claude reads and feeds your brains through MCP.</p></div>
       </div>
     </div></section>
   </main>
@@ -711,14 +541,12 @@
     catch (e) { btn.disabled = false; msg.textContent = e.message; }
   }
   $("demoGo").onclick = () => openDemo($("demoGo"), $("demoMsg"));
-  $("demoGo2").onclick = () => openDemo($("demoGo2"), $("demoMsg2"));
 
-  /* "Create your workspace" at the end scrolls back up and opens the form. */
-  $("makeGo").onclick = ev => {
+  /* Open your workspace, in the bar, opens the live list. */
+  $("openYours").onclick = ev => {
     ev.preventDefault();
-    $("wsCreate").open = true;
+    $("wsLive").open = true;
     $("start").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
-    setTimeout(() => $("cName").focus({ preventScroll: true }), 450);
   };
   /* The app's demo bar links here to make a workspace. */
   if (location.hash === "#create") { $("wsCreate").open = true; setTimeout(() => $("start").scrollIntoView({ block: "center" }), 60); }
@@ -739,7 +567,7 @@
   /* Whether the demo is open. */
   post("/api/status").then(st => {
     if (st.demo !== false) return;
-    for (const [b, m] of [["demoGo", "demoMsg"], ["demoGo2", "demoMsg2"]]) { $(b).disabled = true; $(m).textContent = "The demo opens soon."; }
+    $("demoGo").disabled = true; $("demoMsg").textContent = "The demo opens soon.";
   }).catch(() => {});
 
   /**
@@ -782,14 +610,13 @@
   /* Inside a brain: each tile plays when it comes into view. */
   (() => {
     const play = el => {
-      if (el.id === "scale") { el.classList.add("go"); return; }
       if (el.id === "rings") for (const r of el.querySelectorAll(".ring")) {
         r.querySelector(".val").style.strokeDashoffset = String(226 * (1 - Number(r.dataset.v) / 10));
       } else el.classList.add("play");
       /* The chat replays, so a reader who lingers sees it again. */
       if (el.id === "talk") setInterval(() => { el.classList.remove("play"); void el.offsetWidth; el.classList.add("play"); }, 9000);
     };
-    const els = ["rings", "map", "talk", "scale"].map($).filter(Boolean);
+    const els = ["rings", "map", "talk"].map($).filter(Boolean);
     if (!("IntersectionObserver" in window)) { els.forEach(play); return; }
     const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { play(e.target); io.unobserve(e.target); } }), { threshold: .35 });
     els.forEach(e => io.observe(e));
@@ -798,86 +625,6 @@
     window.addEventListener("scroll", () => v.classList.toggle("on", window.scrollY > window.innerHeight * .6), { passive: true });
   })();
 
-
-  /**
-   * Use cases.
-   *
-   * Six, one tab each. A tab shows what goes in and plays a question and its
-   * answer. They turn on their own every 8 seconds while the section is on
-   * screen, until the reader picks one.
-   */
-  (() => {
-    const CASES = [
-      { tab: "Investing", em: "📈", brain: "Gold · 2 expert brains", kind: "<b>Expert brains</b>, one per analyst, so two views never blur into one.",
-        feed: [["vid", "40 interviews with the macro analysts you follow"], ["pdf", "Their quarterly letters"], ["web", "Articles they wrote"]],
-        q: "Where do my two macro voices disagree on gold, and since when?",
-        a: ["They split on the next 12 months.", "One holds gold as the hedge while real rates fall.", "The other sold in March, on a strong dollar."],
-        src: "Sources: 3 letters, 2 interviews · newest 2026-09-14", chip: "1 open clash: gold target" },
-      { tab: "Sales and outreach", em: "✉️", brain: "Outreach", kind: "<b>A subject brain</b> that turns 20 talks into one playbook, each rule with who gave it.",
-        feed: [["vid", "20 talks on cold outreach and pricing"], ["web", "Guides and case studies"], ["pdf", "Your own sales scripts"]],
-        q: "Write my first cold email from what the outreach brain holds.",
-        a: ["Subject: 3 words, lowercase.", "Line 1: their problem, in their words.", "5 to 8 sentences, one ask, no attachment."],
-        src: "Sources: 4 videos, 1 guide · newest 2026-09-17" },
-      { tab: "Content", em: "🎬", brain: "Content", kind: "<b>A subject brain</b>: a swipe file of hooks and formats that files itself.",
-        feed: [["vid", "Hook and scripting tutorials"], ["pod", "Creator interviews"], ["web", "Channel teardowns"]],
-        q: "Give me 5 hook formats with the numbers behind them.",
-        a: ["1. A promise in the first 3 seconds.", "2. Text on screen, for silent viewers.", "3. The objection handle: \"I know you're thinking...\""],
-        src: "Sources: 3 videos, 1 podcast · newest 2026-09-30" },
-      { tab: "Health", em: "🌙", brain: "Health", kind: "<b>A subject brain</b> that lays the clashes out, so you pick the protocol that holds.",
-        feed: [["pod", "Sleep and training podcasts"], ["pdf", "Studies you saved"], ["web", "Protocols and guides"]],
-        q: "What dose and timing do my sources give for creatine?",
-        a: ["3 to 5 g a day.", "Timing matters less than taking it every day."],
-        src: "Sources: 2 podcasts, 1 study · newest 2026-09-21", chip: "1 open clash: loading phase" },
-      { tab: "Learning", em: "🎓", brain: "Accounting · Learning level", kind: "<b>A subject brain</b> that teaches from your own course: steps, quizzes, deep dives.",
-        feed: [["pdf", "Course PDFs"], ["vid", "Recorded lectures"], ["web", "Articles your teacher shared"]],
-        q: "Quiz me on depreciation, 8 questions, answers folded.",
-        a: ["Q1. What does straight-line depreciation spread evenly?", "Q2. Which cost is left once an asset is fully used?", "▸ Show the answers"],
-        src: "From 2 PDFs and 1 lecture" },
-      { tab: "You", em: "💬", brain: "Me · Personal, alpha", kind: "<b>A personal brain</b>: a chat that files your words as dated notes. Your other brains never read it.",
-        feed: [["you", "What you tell it in its chat"], ["txt", "The memory another assistant kept about you"]],
-        q: "What did I decide on pricing last month, and why?",
-        a: ["9 euros a month, decided on 12 September.", "Your reason: stay under the 10 euro line."],
-        src: "", chip: "Filed: 1 note updated", ok: true },
-    ];
-    const tabs = $("useTabs");
-    if (!tabs) return;
-    let at = 0, timer = null, auto = true;
-    const TURN = 8000;
-    const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-    CASES.forEach((c, i) => {
-      const b = document.createElement("button");
-      b.className = "tab"; b.type = "button"; b.setAttribute("role", "tab"); b.id = "useTab" + i;
-      b.innerHTML = `<span class="em" aria-hidden="true">${c.em}</span>${esc(c.tab)}`;
-      b.onclick = () => { auto = false; tabs.classList.remove("auto"); clearTimeout(timer); show(i); };
-      tabs.append(b);
-    });
-    function show(i){
-      at = i;
-      const c = CASES[i];
-      [...tabs.children].forEach((b, j) => b.setAttribute("aria-selected", j === i ? "true" : "false"));
-      $("useFeed").innerHTML = c.feed.map(([k, t]) => `<li><i class="${k}">${k.toUpperCase()}</i>${esc(t)}</li>`).join("");
-      $("useKind").innerHTML = c.kind;
-      $("useBrain").textContent = c.brain;
-      const step = 1700;
-      $("useChat").innerHTML = `<div class="q">${esc(c.q)}</div><div class="think"><span></span><span></span><span></span></div>` +
-        `<div class="a">${c.a.map((l, j) => `<span style="animation-delay:${step + j * 350}ms">${esc(l)}</span>`).join("")}` +
-        (c.src ? `<small style="animation-delay:${step + c.a.length * 350 + 200}ms">${esc(c.src)}</small>` : "") + `</div>` +
-        (c.chip ? `<span class="chip${c.ok ? " ok" : ""}" style="animation-delay:${step + c.a.length * 350 + 500}ms">${esc(c.chip)}</span>` : "");
-      clearTimeout(timer);
-      if (auto) { tabs.classList.remove("auto"); void tabs.offsetWidth; tabs.classList.add("auto"); timer = setTimeout(() => show((at + 1) % CASES.length), TURN); }
-    }
-    tabs.style.setProperty("--turn", TURN + "ms");
-    /* It starts turning when the section is on screen, and holds when it leaves. */
-    const box = $("uses");
-    if ("IntersectionObserver" in window) {
-      let on = false;
-      new IntersectionObserver(es => es.forEach(e => {
-        if (e.isIntersecting && !on) { on = true; show(at); }
-        else if (!e.isIntersecting && on) { on = false; clearTimeout(timer); tabs.classList.remove("auto"); }
-      }), { threshold: .3 }).observe(box);
-      show(0); clearTimeout(timer); tabs.classList.remove("auto");
-    } else { auto = false; show(0); }
-  })();
 
   /**
    * The sky.
@@ -1027,7 +774,7 @@
     document.addEventListener("pointerout", e => { if (!e.relatedTarget) p.x = p.y = -1e4; });
     /* A click on the sky, not on a control, fires a thought where it lands. */
     window.addEventListener("pointerdown", e => {
-      if (still || e.target.closest("a, button, input, summary, label, form, .tile, .cmp, .card, .step")) return;
+      if (still || e.target.closest("a, button, input, summary, label, form, .tile, .layers, .own")) return;
       rings.push({ x: e.clientX, y: e.clientY, r: 4, life: 1 });
       fire(nearest(e.clientX, e.clientY), performance.now());
     }, { passive: true });

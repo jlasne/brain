@@ -1717,34 +1717,32 @@ for (const space of ["octopus", "squidgy"]) {
   await page.waitForTimeout(200);
   const l = await page.evaluate(() => ({ h1: document.querySelector(".hero h1").textContent,
     next: document.querySelector(".hero .sub").nextElementSibling.id,
-    ws: [...document.querySelectorAll("#start .item .name")].map(b => b.textContent).join("|"),
-    doors: !!document.getElementById("goOctopus") || !!document.getElementById("goSquidgy"), video: document.getElementById("video").hidden,
+    ws: [...document.querySelectorAll("#start > ul > li > .item .name, #start > ul > li > .fold > .item .name")].map(b => b.textContent).join("|"),
+    live: [...document.querySelectorAll("#wsLive .sub .name")].map(b => b.textContent).join("|"), liveOpen: document.getElementById("wsLive").open,
+    doors: [document.getElementById("goOctopus")?.getAttribute("href"), document.getElementById("goSquidgy")?.getAttribute("href"), document.getElementById("openMine")?.getAttribute("href")],
+    video: document.getElementById("video").hidden,
     code: document.getElementById("goCode").getAttribute("href"), codeDesc: document.querySelector("#goCode .desc").textContent,
-    cols: [...document.querySelectorAll("#why .cmp-head span")].map(x => x.textContent).join("|"),
-    rows: document.querySelectorAll("#why .cmp-row:not(.cmp-head)").length, uses: document.querySelectorAll("#useTabs .tab").length,
-    steps: document.querySelectorAll("#how .step").length, sections: [...document.querySelectorAll("main > section")].map(x => x.id).join("|"),
+    layers: [...document.querySelectorAll("#goods .layers b")].map(x => x.textContent).join("|"),
+    tiles: [...document.querySelectorAll("#goods .tile h3")].map(h => h.firstChild.textContent.trim()).join("|"),
+    own: [...document.querySelectorAll("#goods .own b")].map(x => x.textContent).join("|"),
+    sections: [...document.querySelectorAll("main > section")].map(x => x.id).join("|"),
     font: getComputedStyle(document.body).fontFamily, bg: getComputedStyle(document.documentElement).backgroundColor,
-    brand: document.querySelector(".bar .me").textContent.trim(), text: document.body.textContent }));
-  check("the landing leads with the outcome", /^The knowledge you choose, organized\.$/.test(l.h1), JSON.stringify(l.h1));
-  const top = await page.evaluate(() => ({ mark: !!document.querySelector(".hero .mark"), cta: document.getElementById("openYours").getAttribute("href"),
-    again: document.getElementById("openMine").getAttribute("href"), tiles: [...document.querySelectorAll("#inside .tile h3")].map(h => h.firstChild.textContent.trim()).join("|") }));
-  check("no logo over the headline, and Open your workspace goes to the workspaces", !top.mark && top.cta === "#start" && top.again === "/chat?w=", JSON.stringify(top));
-  check("inside a brain: four ideas, each shown moving", top.tiles === "It argues back|It keeps score|It draws itself|It learns you", top.tiles);
-  check("the workspaces come right after the line under it", l.next === "start"
-    && l.ws === "Demo|Create your workspace|Explore the open source", `${l.next} ${l.ws}`);
-  check("the private workspaces stay off the landing; /octopus and /squidgy still open them", !l.doors);
+    mark: !!document.querySelector(".hero .mark"), brand: document.querySelector(".bar .me").textContent.trim(), text: document.body.textContent }));
+  check("the landing leads with the outcome, no logo over it", /^The knowledge you choose, organized\.$/.test(l.h1) && !l.mark, JSON.stringify(l.h1));
+  check("the list comes right after the line under it: demo, create, live workspaces, the code", l.next === "start"
+    && l.ws === "Demo|Create your workspace|Live workspaces|Explore the open source", `${l.next} ${l.ws}`);
+  check("live workspaces fold open onto Octopus, Squidgy and yours", !l.liveOpen && l.live === "Octopus|Squidgy|Yours"
+    && JSON.stringify(l.doors) === '["/chat?w=octopus","/chat?w=squidgy","/chat?w="]', JSON.stringify(l));
   check("the video section waits hidden until its link is set", l.video === true);
   check("the open source names no host", l.code === "https://github.com/jlasne/brain" && l.codeDesc === "Every line of the app and the server. Run your own."
     && !/Convex|Vercel/.test(l.codeDesc), l.codeDesc);
-  check("one section sets a brain against a classic chat and Karpathy's wiki, with who uses it", l.cols === "|Classic AI chat|Karpathy's LLM wiki|Brain"
-    && l.rows === 5 && l.uses === 6, JSON.stringify({ c: l.cols, r: l.rows, u: l.uses }));
-  check("how it works is 4 outcomes", l.steps === 4, String(l.steps));
-  check("the difference first, then use cases, how it works and inside a brain", l.sections === "top|video|why|uses|how|inside|go", l.sections);
-  await page.click("#useTab5"); await page.waitForTimeout(200);
-  const use = await page.evaluate(() => ({ q: document.querySelector("#useChat .q")?.textContent, feed: document.querySelectorAll("#useFeed li").length,
-    on: document.getElementById("useTab5").getAttribute("aria-selected"), auto: document.getElementById("useTabs").classList.contains("auto") }));
-  check("a use case shows what goes in and plays its question; a pick stops the turning", use.q === "What did I decide on pricing last month, and why?"
-    && use.feed === 2 && use.on === "true" && !use.auto, JSON.stringify(use));
+  check("one section shows the goods: three layers, four ideas moving, and what you own", l.layers === "Sources|Positions|Your call"
+    && l.tiles === "It argues back|It keeps score|It draws itself|It learns you" && l.own === "Your data|Your key|Your code|Your AI",
+    JSON.stringify({ a: l.layers, t: l.tiles, o: l.own }));
+  check("three blocks and nothing more: the hero, the video, the goods", l.sections === "top|video|goods", l.sections);
+  await page.click("#openYours"); await page.waitForTimeout(400);
+  check("Open your workspace, in the bar, opens the live list", await page.evaluate(() => document.getElementById("wsLive").open));
+  await page.evaluate(() => { document.getElementById("wsLive").open = false; window.scrollTo(0, 0); });
   check("it wears jeremylasne.com: the system font on the night navy", /^system-ui/.test(l.font) && l.bg === "rgb(5, 11, 22)", `${l.font} ${l.bg}`);
   check("the product is called Brain", l.brand === "Brain", l.brand);
   check("no example card, no builder's tally, no competition, no licence", !/cold email a reply|workspace today|Build Games|MIT licen|What it replaces/i.test(l.text));
