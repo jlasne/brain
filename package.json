@@ -2,7 +2,7 @@
   "name": "brain",
   "version": "1.0.0",
   "private": true,
-  "description": "Remember everything you read, watch and hear, and who said it.",
+  "description": "The knowledge you choose, organized.",
   "license": "MIT",
   "scripts": {
     "dev": "convex dev",

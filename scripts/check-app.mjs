@@ -1725,7 +1725,7 @@ for (const space of ["octopus", "squidgy"]) {
     steps: document.querySelectorAll("#how .step").length, sections: [...document.querySelectorAll("main > section")].map(x => x.id).join("|"),
     font: getComputedStyle(document.body).fontFamily, bg: getComputedStyle(document.documentElement).backgroundColor,
     brand: document.querySelector(".bar .me").textContent.trim(), text: document.body.textContent }));
-  check("the landing leads with the outcome", /^Remember everything you read, watch and hear, and who said it\.$/.test(l.h1), JSON.stringify(l.h1));
+  check("the landing leads with the outcome", /^The knowledge you choose, organized\.$/.test(l.h1), JSON.stringify(l.h1));
   const top = await page.evaluate(() => ({ mark: !!document.querySelector(".hero .mark"), cta: document.getElementById("openYours").getAttribute("href"),
     again: document.getElementById("openMine").getAttribute("href"), tiles: [...document.querySelectorAll("#inside .tile h3")].map(h => h.firstChild.textContent.trim()).join("|") }));
   check("no logo over the headline, and Open your workspace goes to the workspaces", !top.mark && top.cta === "#start" && top.again === "/chat?w=", JSON.stringify(top));

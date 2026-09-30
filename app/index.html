@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Brain: remember everything you read, and who said it</title>
-<meta name="description" content="Drop an article, a PDF, a video or a thought. Brain files every claim with its author and date, flags what contradicts what you know, and answers from your sources only.">
+<title>Brain: the knowledge you choose, organized</title>
+<meta name="description" content="Feed it the people and sources you trust. Ask anything, and see who said it. Every claim filed with its author and date.">
 <meta name="theme-color" content="#050b16">
-<meta property="og:title" content="Brain: remember everything you read, and who said it">
-<meta property="og:description" content="Every claim filed with its author and date. Contradictions settled by you. Answers in 9 languages.">
+<meta property="og:title" content="Brain: the knowledge you choose, organized">
+<meta property="og:description" content="Feed it the people and sources you trust. Ask anything, and see who said it.">
 <meta property="og:image" content="https://brain.jeremylasne.com/og.jpg">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
@@ -98,11 +98,12 @@
     border:1px solid var(--line-2); background:rgba(10,20,36,.55); font-size:13px; color:var(--ice-70); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
   .kicker b{ font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink); background:var(--blue);
     border-radius:999px; padding:3px 8px; }
-  .hero h1{ max-width:980px; font-size:clamp(34px, 5.6vw, 62px); line-height:1.05; font-weight:650; letter-spacing:-.04em; text-wrap:balance; }
+  .hero h1{ max-width:1120px; font-size:clamp(40px, 5.9vw, 76px); line-height:1.04; font-weight:650; letter-spacing:-.04em; }
+  @media (min-width:760px){ .hero h1 .nw{ white-space:nowrap; } }
   .hero h1 em{ font-style:normal;
     background:linear-gradient(100deg, var(--ice) 5%, var(--blue-2) 45%, var(--blue) 95%);
     -webkit-background-clip:text; background-clip:text; color:transparent; }
-  .hero .sub{ margin-top:22px; max-width:640px; font-size:clamp(17px, 2vw, 20px); line-height:1.55; color:var(--ice-70); text-wrap:pretty; }
+  .hero .sub{ margin-top:22px; max-width:560px; font-size:clamp(18px, 2.1vw, 22px); line-height:1.55; color:var(--ice-70); text-wrap:pretty; }
 
   /* The workspaces, in the list style of jeremylasne.com. */
   .spaces{ width:100%; max-width:740px; margin-top:40px; text-align:left; padding:10px 22px 12px; border-radius:22px;
@@ -460,9 +461,8 @@
   <main>
     <section class="hero" id="top">
       <a class="kicker reveal" href="#inside"><b>New</b>A personal brain that learns you</a>
-      <h1 class="reveal" style="--d:80">Remember everything you read, watch and hear, <em>and who said it.</em></h1>
-      <p class="sub reveal" style="--d:160">Drop an article, a PDF, a video or a thought. Your brain files each claim with its author and date,
-        asks you when two sources clash, and answers you with receipts.</p>
+      <h1 class="reveal" style="--d:80"><span class="nw">The knowledge you choose,</span><br> <em>organized.</em></h1>
+      <p class="sub reveal" style="--d:160">Feed it the people and sources you trust. Ask anything, and see who said it.</p>
 
       <section class="spaces reveal" style="--d:260" id="start" aria-labelledby="spacesH">
         <h2 class="tiny" id="spacesH">Workspaces</h2>

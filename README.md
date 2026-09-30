@@ -4,10 +4,9 @@
 
 # Brain
 
-**Remember everything you read, watch and hear, and who said it.**
+**The knowledge you choose, organized.**
 
-Drop an article, a PDF, a video or a thought. Your brain files each claim with its author and date,<br>
-asks you when two sources clash, and answers you with receipts.
+Feed it the people and sources you trust. Ask anything, and see who said it.
 
 [**Open the live demo**](https://brain.jeremylasne.com) &nbsp;·&nbsp; [How it works](#how-it-works) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
