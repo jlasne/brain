@@ -185,7 +185,7 @@
   @media (hover:hover){ .vid:hover img{ filter:brightness(.75); } .playbtn:hover{ transform:scale(1.06); box-shadow:0 0 0 18px rgba(95,168,211,.16), 0 20px 50px -10px rgba(95,168,211,.8); } }
   .vcap{ position:absolute; left:22px; bottom:18px; font-size:14px; font-weight:600; color:var(--ice); letter-spacing:-.01em; text-shadow:0 2px 12px rgba(0,0,0,.6); }
 
-  /* Inside a brain: four things it does, each shown moving. */
+  /* What it does: Drop and Ask, each shown moving. */
   .tiles{ margin-top:40px; display:grid; grid-template-columns:repeat(2, 1fr); gap:16px; }
   .tile{ position:relative; border-radius:22px; border:1px solid var(--line); background:rgba(10,20,36,.6); overflow:hidden;
     backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); transition:border-color .3s, transform .3s var(--ease); }
@@ -194,60 +194,33 @@
     background:radial-gradient(90% 120% at 50% 0%, rgba(95,168,211,.12), transparent 70%); }
   .tile .txt{ padding:18px 22px 22px; }
   .tile h3{ font-size:20px; font-weight:650; letter-spacing:-.02em; }
-  .tile h3 small{ margin-left:8px; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--blue);
-    border:1px solid var(--line-2); border-radius:999px; padding:2px 8px; vertical-align:3px; }
   .tile p{ margin-top:8px; font-size:15px; line-height:1.55; color:var(--ice-70); }
 
-  /* 1. The deck: a clash, swiped. */
-  .deck{ position:absolute; left:50%; top:50%; width:280px; height:136px; transform:translate(-50%,-50%); }
-  .deck .cd{ position:absolute; inset:0; border-radius:16px; border:1px solid var(--line-2); background:#0d1a2e; padding:14px 16px;
-    box-shadow:0 18px 40px -18px rgba(0,0,0,.8); font-size:13px; line-height:1.45; color:var(--ice-70); }
-  .deck .cd b{ color:var(--ice); font-weight:600; }
-  .deck .cd .who{ display:block; margin-top:2px; font-size:11.5px; color:var(--ice-45); }
-  .deck .cd .vs{ display:block; margin:8px 0 6px; height:1px; background:var(--line); }
-  .deck .back1{ transform:translateY(10px) scale(.95); opacity:.55; }
-  .deck .back2{ transform:translateY(20px) scale(.9); opacity:.3; }
-  .deck .top{ animation:swipe 5.5s var(--ease) infinite; }
-  .deck .stamp{ position:absolute; top:12px; right:12px; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
-    color:var(--ink); background:var(--blue); border-radius:6px; padding:3px 7px; opacity:0; animation:stamp 5.5s var(--ease) infinite; }
-  @keyframes swipe{ 0%,38%{ transform:none; opacity:1; } 58%{ transform:translateX(18px) rotate(3deg); opacity:1; }
-    76%{ transform:translateX(340px) rotate(16deg); opacity:0; } 77%{ transform:translateY(10px) scale(.95); opacity:0; } 100%{ transform:none; opacity:1; } }
-  @keyframes stamp{ 0%,44%{ opacity:0; transform:scale(1.3); } 52%,70%{ opacity:1; transform:scale(1); } 76%,100%{ opacity:0; } }
+  /* Drop: a source comes in, what it filed follows, line by line. */
+  .feed{ position:absolute; inset:0; padding:20px 26px; display:flex; flex-direction:column; justify-content:center; gap:8px; font-size:13.5px; }
+  .feed .src{ display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:14px; border:1px solid var(--line-2); background:#0d1a2e;
+    box-shadow:0 18px 40px -18px rgba(0,0,0,.8); opacity:0; transform:translateY(-10px); }
+  .feed .src .ic{ width:30px; height:30px; flex:none; display:grid; place-items:center; border-radius:9px; background:rgba(95,168,211,.16); }
+  .feed .src svg{ width:15px; height:15px; fill:var(--blue); margin-left:2px; }
+  .feed .src b{ display:block; color:var(--ice); font-weight:600; line-height:1.3; }
+  .feed .src .who{ display:block; font-size:11.5px; color:var(--ice-45); }
+  .feed .ln{ display:flex; align-items:center; gap:8px; padding-left:14px; color:var(--ice-70); opacity:0; transform:translateX(-8px); }
+  .feed .ln i{ width:7px; height:7px; border-radius:50%; flex:none; background:var(--blue); }
+  .feed .ln b{ color:var(--ice); font-weight:600; }
+  .feed .upd i{ background:#8cc4e6; } .feed .clash i{ background:#e0b35a; box-shadow:0 0 10px #e0b35a; }
+  .feed.play .src{ animation:say .5s var(--ease) forwards; }
+  .feed.play .ln{ animation:say .45s var(--ease) forwards; }
+  .feed.play .ln:nth-child(2){ animation-delay:.9s; } .feed.play .ln:nth-child(3){ animation-delay:1.3s; } .feed.play .ln:nth-child(4){ animation-delay:1.7s; }
 
-  /* 2. The rings: each brain against the best. */
-  .rings{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:30px; }
-  .ring{ text-align:center; font-size:12.5px; color:var(--ice-70); }
-  .ring .rw{ display:block; position:relative; width:84px; height:84px; margin:0 auto 8px; }
-  .ring svg{ display:block; width:84px; height:84px; transform:rotate(-90deg); }
-  .ring circle{ fill:none; stroke-width:7; }
-  .ring .bgc{ stroke:rgba(234,244,251,.08); }
-  .ring .val{ stroke:var(--blue); stroke-linecap:round; stroke-dasharray:226; stroke-dashoffset:226; transition:stroke-dashoffset 1.6s var(--ease); }
-  .ring.mid .val{ stroke:#8cc4e6; } .ring.low .val{ stroke:#e0b35a; }
-  .ring b{ position:absolute; inset:0; display:grid; place-items:center; font-size:20px; font-weight:650; color:var(--ice); letter-spacing:-.02em; }
-
-  /* 3. The map: arms, suckers, links between brains, a red dot to settle. */
-  .map svg{ position:absolute; inset:0; width:100%; height:100%; }
-  .map .arm{ fill:none; stroke:rgba(95,168,211,.55); stroke-width:2.2; stroke-linecap:round; stroke-dasharray:160; stroke-dashoffset:160; }
-  .map .sk{ fill:#0d1a2e; stroke:#8cc4e6; stroke-width:1.2; opacity:0; }
-  .map .lk{ fill:none; stroke:rgba(234,244,251,.28); stroke-width:1; stroke-dasharray:3 4; opacity:0; }
-  .map .hd{ fill:#0d1a2e; stroke:var(--blue); stroke-width:1.6; }
-  .map .red{ fill:#e5484d; opacity:0; filter:drop-shadow(0 0 6px rgba(229,72,77,.8)); }
-  .map.play .arm{ animation:draw 1.6s var(--ease) forwards; animation-delay:calc(var(--i) * 120ms); }
-  .map.play .sk{ animation:pop .4s var(--ease) forwards; animation-delay:calc(900ms + var(--i) * 60ms); }
-  .map.play .lk{ animation:pop .6s ease forwards 1.9s; }
-  .map.play .red{ animation:pop .3s ease forwards 2.3s; }
-  .map.play .sway{ animation:sway 7s ease-in-out infinite alternate; transform-origin:50% 50%; transform-box:view-box; }
-  @keyframes draw{ to{ stroke-dashoffset:0; } }
-  @keyframes pop{ to{ opacity:1; } }
-  @keyframes sway{ from{ transform:rotate(-2.5deg); } to{ transform:rotate(2.5deg); } }
-
+  /* Ask: a question, its answer, and the sources line. */
   /* 4. The personal chat: a change of mind, filed. */
   .talk{ position:absolute; inset:0; padding:22px 26px; display:flex; flex-direction:column; gap:9px; justify-content:center; }
   .talk .b{ max-width:82%; padding:9px 13px; border-radius:14px; font-size:13.5px; line-height:1.45; opacity:0; transform:translateY(8px); }
   .talk .me{ align-self:flex-end; background:var(--blue); color:var(--ink); border-bottom-right-radius:4px; }
   .talk .ai{ align-self:flex-start; background:rgba(234,244,251,.08); color:var(--ice); border-bottom-left-radius:4px; }
-  .talk .rc{ align-self:flex-start; font-size:12px; color:var(--ice-45); opacity:0; display:flex; align-items:center; gap:6px; }
-  .talk .rc::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--blue); }
+  .talk .rc{ align-self:flex-start; font-size:12px; line-height:1.5; color:var(--ice-45); opacity:0; }
+  .talk .rc::before{ content:""; display:inline-block; width:6px; height:6px; margin-right:6px; border-radius:50%; background:var(--blue); vertical-align:1px; }
+  .talk .rc span{ white-space:nowrap; }
   .talk.play .b, .talk.play .rc{ animation:say .5s var(--ease) forwards; }
   .talk.play .b:nth-child(2){ animation-delay:1.1s; } .talk.play .rc{ animation-delay:1.9s; }
   @keyframes say{ to{ opacity:1; transform:none; } }
@@ -256,7 +229,7 @@
   .band h2{ margin-top:14px; max-width:780px; font-size:clamp(30px, 4.4vw, 48px); line-height:1.08; font-weight:650; letter-spacing:-.035em; text-wrap:balance; }
   .band .lede{ margin-top:16px; max-width:680px; font-size:18px; line-height:1.6; color:var(--ice-70); text-wrap:pretty; }
 
-  /* The goods: why a brain, four ideas moving, and why it holds up. */
+  /* What it does: Drop and Ask, then why it holds up. */
   .part{ margin-top:48px; font-size:22px; font-weight:650; letter-spacing:-.02em; color:var(--ice); }
   .tiles{ margin-top:30px; }
   .own{ margin-top:16px; display:grid; grid-template-columns:repeat(3, 1fr); border-radius:22px; border:1px solid var(--line-2); overflow:hidden;
@@ -265,17 +238,6 @@
   .own b{ display:block; font-size:17px; font-weight:650; letter-spacing:-.01em; color:var(--ice); }
   .own b::before{ content:""; display:inline-block; width:8px; height:8px; margin-right:9px; border-radius:50%; background:var(--blue); box-shadow:0 0 10px var(--blue); vertical-align:2px; }
   .own p{ margin-top:8px; font-size:14.5px; line-height:1.55; color:var(--ice-70); }
-
-  /* Why a brain: four points, left to right, a spark running along them. */
-  .layers{ margin-top:16px; list-style:none; display:grid; grid-template-columns:repeat(4, 1fr); position:relative; border-top:1px solid var(--line-2); }
-  .layers li{ padding:24px 22px 4px 0; }
-  .layers li + li{ padding-left:22px; border-left:1px solid var(--line); }
-  .layers .ln{ font-size:12px; font-weight:700; letter-spacing:.12em; color:var(--blue); }
-  .layers b{ display:block; margin-top:10px; font-size:20px; line-height:1.25; font-weight:650; letter-spacing:-.02em; text-wrap:balance; }
-  .layers p{ margin-top:8px; font-size:15.5px; line-height:1.55; color:var(--ice-70); max-width:320px; }
-  .layers::before{ content:""; position:absolute; top:-4px; left:0; width:7px; height:7px; border-radius:50%; background:var(--ice);
-    box-shadow:0 0 14px 3px var(--blue); animation:travel 5s linear infinite; }
-  @keyframes travel{ 0%{ left:0; opacity:0; } 8%{ opacity:1; } 92%{ opacity:1; } 100%{ left:calc(100% - 7px); opacity:0; } }
 
   footer{ position:relative; z-index:2; border-top:1px solid var(--line); }
   footer .in{ max-width:1080px; margin:0 auto; padding:22px 20px max(22px, env(safe-area-inset-bottom)); display:flex; flex-wrap:wrap; gap:10px 20px;
@@ -287,19 +249,11 @@
   footer .by{ margin-left:auto; }
 
   @media (max-width:960px){
-    .tiles{ grid-template-columns:1fr; }
     .own{ grid-template-columns:1fr 1fr; }
-    .layers{ grid-template-columns:1fr 1fr; }
-    .layers li:nth-child(3){ padding-left:0; border-left:0; }
-    .layers li:nth-child(n+3){ border-top:1px solid var(--line); }
     .cards{ grid-template-columns:1fr 1fr; }
   }
   @media (max-width:720px){
-    .layers{ grid-template-columns:1fr; }
-    .layers li, .layers li + li{ padding:18px 0 4px; border-left:0; }
-    .layers li + li{ border-top:1px solid var(--line); }
-    .layers::before{ display:none; }
-    .own{ grid-template-columns:1fr; }
+    .tiles, .own{ grid-template-columns:1fr; }
   }
   @media (max-width:640px){
     .spaces{ padding:8px 16px 10px; border-radius:18px; }
@@ -314,11 +268,8 @@
     footer .by{ margin-left:0; }
   }
   @media (prefers-reduced-motion:reduce){
-    .reveal, .aurora i, .deck .top, .deck .stamp{ animation:none !important; }
-    .deck .stamp{ opacity:1; top:-11px; right:14px; }
-    .map .arm{ stroke-dashoffset:0; } .map .sk, .map .lk, .map .red{ opacity:1; }
-    .talk .b, .talk .rc{ opacity:1; transform:none; }
-    .layers::before, .item .glow-on{ animation:none !important; }
+    .reveal, .aurora i, .item .glow-on{ animation:none !important; }
+    .talk .b, .talk .rc, .feed .src, .feed .ln{ opacity:1; transform:none; }
     .later{ opacity:1; transform:none; transition:none; }
   }
 </style>
@@ -419,59 +370,27 @@
     </div></section>
 
     <section class="band later" id="goods"><div class="wide">
-      <span class="eyebrow">What you get</span>
-      <h2>Be the expert on anything you feed it.</h2>
-      <p class="lede">Feed it 20 talks on a subject. Ask anything, and see who said it and when.</p>
-      <h3 class="part">Why a brain</h3>
-      <ol class="layers">
-        <li><span class="ln">01</span><b>Expertise in any subject you choose</b><p>It learns from your sources only. 20 talks on a subject give you a specialist to question.</p></li>
-        <li><span class="ln">02</span><b>Knowledge that compounds</b><p>Your sixth source rewrites the view from all six. A talk you saw last year answers today's question.</p></li>
-        <li><span class="ln">03</span><b>One mind per expert</b><p>Each person you follow gets their own brain. Ask two together and see where they split, and since when.</p></li>
-        <li><span class="ln">04</span><b>Answers with receipts</b><p>Every claim carries who said it and when. You check an answer in one look.</p></li>
-      </ol>
+      <span class="eyebrow">What it does</span>
+      <h2>Drop what you trust. Ask what you need.</h2>
+      <p class="lede">Drop compiles each source once into concepts, every claim signed with its author and date. Ask reads those concepts to answer you.</p>
       <div class="tiles">
         <div class="tile">
-          <div class="stage"><div class="deck" aria-hidden="true">
-            <div class="cd back2"></div><div class="cd back1"></div>
-            <div class="cd top"><span class="stamp">Both hold</span>
-              <b>You hold:</b> 8 hours of sleep a night.<span class="who">2 sources, newest 2026-08-02</span><span class="vs"></span>
-              <b>New source:</b> 7 hours is enough for most adults.<span class="who">Podcast, 2026-09-21</span></div>
+          <div class="stage"><div class="feed" id="drop" aria-hidden="true">
+            <div class="src"><span class="ic"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+              <span><b>Sleep, with a sleep scientist</b><span class="who">Podcast, 2026-09-21</span></span></div>
+            <div class="ln add"><i></i><b>New</b> Morning light, 10 minutes</div>
+            <div class="ln upd"><i></i><b>Updated</b> Sleep timing, 3 sources now</div>
+            <div class="ln clash"><i></i><b>Clash</b> 7 or 8 hours? Waits for you</div>
           </div></div>
-          <div class="txt"><h3>It argues back</h3><p>A source that contradicts what you hold waits for your call. Swipe: keep it, replace it, or both hold. The position is rewritten from all the evidence.</p></div>
+          <div class="txt"><h3>Drop</h3><p>A link, a PDF, a video or a transcript. It pulls out each idea with its numbers and files it under a concept, signed with author and date. A clash waits for your call.</p></div>
         </div>
         <div class="tile">
-          <div class="stage"><div class="rings" id="rings" aria-hidden="true">
-            <div class="ring" data-v="10"><span class="rw"><svg viewBox="0 0 84 84"><circle class="bgc" cx="42" cy="42" r="36"/><circle class="val" cx="42" cy="42" r="36"/></svg><b>10</b></span>Content</div>
-            <div class="ring mid" data-v="7.4"><span class="rw"><svg viewBox="0 0 84 84"><circle class="bgc" cx="42" cy="42" r="36"/><circle class="val" cx="42" cy="42" r="36"/></svg><b>7.4</b></span>Health</div>
-            <div class="ring low" data-v="4.8"><span class="rw"><svg viewBox="0 0 84 84"><circle class="bgc" cx="42" cy="42" r="36"/><circle class="val" cx="42" cy="42" r="36"/></svg><b>4.8</b></span>Social</div>
+          <div class="stage"><div class="talk" id="ask" aria-hidden="true">
+            <div class="b me">How much sleep do I need?</div>
+            <div class="b ai">7 to 8 hours. Your newest source says 7 is enough when the rhythm is regular.</div>
+            <div class="rc">Sources: <span>Podcast, 2026-09-21</span> · <span>Dr A, 2026-08-02</span></div>
           </div></div>
-          <div class="txt"><h3>It keeps score</h3><p>Each brain scores out of 10 against your best one: variety of authors, depth, freshness, open conflicts. With the one move that closes the gap.</p></div>
-        </div>
-        <div class="tile">
-          <div class="stage map" id="map" aria-hidden="true">
-            <svg viewBox="0 0 400 210"><g class="sway">
-              <path class="lk" d="M88 64 Q200 20 318 70"/><path class="lk" d="M110 170 Q210 120 300 160"/>
-              <path class="arm" style="--i:0" d="M200 105 Q150 80 88 64"/><path class="arm" style="--i:1" d="M200 105 Q150 130 110 170"/>
-              <path class="arm" style="--i:2" d="M200 105 Q205 60 176 26"/><path class="arm" style="--i:3" d="M200 105 Q255 80 318 70"/>
-              <path class="arm" style="--i:4" d="M200 105 Q250 140 300 160"/><path class="arm" style="--i:5" d="M200 105 Q205 150 226 190"/>
-              <circle class="sk" style="--i:0" cx="88" cy="64" r="6"/><circle class="sk" style="--i:1" cx="124" cy="75" r="4"/>
-              <circle class="sk" style="--i:2" cx="110" cy="170" r="7"/><circle class="sk" style="--i:3" cx="140" cy="146" r="4"/>
-              <circle class="sk" style="--i:4" cx="176" cy="26" r="5"/><circle class="sk" style="--i:5" cx="318" cy="70" r="8"/>
-              <circle class="sk" style="--i:6" cx="268" cy="76" r="4"/><circle class="sk" style="--i:7" cx="300" cy="160" r="6"/>
-              <circle class="sk" style="--i:8" cx="226" cy="190" r="5"/><circle class="sk" style="--i:9" cx="258" cy="146" r="3.5"/>
-              <circle class="hd" cx="200" cy="105" r="15"/>
-              <circle class="red" cx="318" cy="70" r="4"><animate attributeName="r" values="4;7;4" dur="1.6s" repeatCount="indefinite"/></circle>
-            </g></svg>
-          </div>
-          <div class="txt"><h3>It draws itself</h3><p>The map: every brain an arm, every concept a sucker, every line a link between brains. A red dot is a clash to settle.</p></div>
-        </div>
-        <div class="tile">
-          <div class="stage"><div class="talk" id="talk" aria-hidden="true">
-            <div class="b me">Actually Porto, not Lisbon. Budget stays at 2,000 a month.</div>
-            <div class="b ai">Noted. Porto replaces Lisbon, which you chose on 12 September.</div>
-            <div class="rc">Filed: 1 note updated, 1 new</div>
-          </div></div>
-          <div class="txt"><h3>It learns you <small>Alpha</small></h3><p>A personal brain: tell it anything and it files your words as dated notes. It can call your other brains; they never read it.</p></div>
+          <div class="txt"><h3>Ask</h3><p>Ask anything, at 3 levels: the answer, a lesson from zero, or guided steps. It answers from your sources only, with who said it and when. Or turn a brain into a one-pager in 9 languages.</p></div>
         </div>
       </div>
       <h3 class="part">Why it holds up</h3>
@@ -612,16 +531,13 @@
     later.forEach(s => io.observe(s));
   })();
 
-  /* Inside a brain: each tile plays when it comes into view. */
+  /* Drop and Ask: each tile plays when it comes into view, then replays, so a reader who lingers sees it again. */
   (() => {
     const play = el => {
-      if (el.id === "rings") for (const r of el.querySelectorAll(".ring")) {
-        r.querySelector(".val").style.strokeDashoffset = String(226 * (1 - Number(r.dataset.v) / 10));
-      } else el.classList.add("play");
-      /* The chat replays, so a reader who lingers sees it again. */
-      if (el.id === "talk") setInterval(() => { el.classList.remove("play"); void el.offsetWidth; el.classList.add("play"); }, 9000);
+      el.classList.add("play");
+      window.setInterval(() => { el.classList.remove("play"); void el.offsetWidth; el.classList.add("play"); }, 9000);
     };
-    const els = ["rings", "map", "talk"].map($).filter(Boolean);
+    const els = ["drop", "ask"].map($).filter(Boolean);
     if (!("IntersectionObserver" in window)) { els.forEach(play); return; }
     const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { play(e.target); io.unobserve(e.target); } }), { threshold: .35 });
     els.forEach(e => io.observe(e));
@@ -779,7 +695,7 @@
     document.addEventListener("pointerout", e => { if (!e.relatedTarget) p.x = p.y = -1e4; });
     /* A click on the sky, not on a control, fires a thought where it lands. */
     window.addEventListener("pointerdown", e => {
-      if (still || e.target.closest("a, button, input, summary, label, form, .tile, .layers, .own")) return;
+      if (still || e.target.closest("a, button, input, summary, label, form, .tile, .own")) return;
       rings.push({ x: e.clientX, y: e.clientY, r: 4, life: 1 });
       fire(nearest(e.clientX, e.clientY), performance.now());
     }, { passive: true });

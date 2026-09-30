@@ -1744,7 +1744,6 @@ for (const space of ["octopus", "squidgy"]) {
     doors: [document.getElementById("goOctopus")?.getAttribute("href"), document.getElementById("goSquidgy")?.getAttribute("href"), document.getElementById("openMine")?.getAttribute("href")],
     video: document.getElementById("video").hidden,
     code: document.getElementById("goCode").getAttribute("href"), codeDesc: document.querySelector("#goCode .desc").textContent,
-    layers: [...document.querySelectorAll("#goods .layers b")].map(x => x.textContent).join("|"),
     tiles: [...document.querySelectorAll("#goods .tile h3")].map(h => h.firstChild.textContent.trim()).join("|"),
     own: [...document.querySelectorAll("#goods .own b")].map(x => x.textContent).join("|"),
     sections: [...document.querySelectorAll("main > section")].map(x => x.id).join("|"),
@@ -1758,17 +1757,15 @@ for (const space of ["octopus", "squidgy"]) {
   check("the video section waits hidden until its link is set", l.video === true);
   check("the open source names no host", l.code === "https://github.com/jlasne/brain" && l.codeDesc === "Every line of the app and the server. Run your own."
     && !/Convex|Vercel/.test(l.codeDesc), l.codeDesc);
-  check("one section shows the goods: why a brain, four ideas moving, and why it holds up",
-    l.layers === "Expertise in any subject you choose|Knowledge that compounds|One mind per expert|Answers with receipts"
-    && l.tiles === "It argues back|It keeps score|It draws itself|It learns you"
-    && l.own === "Zero duplicates|Zero hidden contradictions|Lightweight|Fast search|Scalable|Your data",
-    JSON.stringify({ a: l.layers, t: l.tiles, o: l.own }));
+  check("one section says what it does: Drop and Ask, then why it holds up", l.tiles === "Drop|Ask"
+    && l.own === "Zero duplicates|Zero hidden contradictions|Lightweight|Fast search|Scalable|Your data", JSON.stringify({ t: l.tiles, o: l.own }));
   check("three blocks and nothing more: the hero, the video, the goods", l.sections === "top|video|goods", l.sections);
-  await page.evaluate(() => document.getElementById("map").scrollIntoView({ block: "center", behavior: "instant" })); await page.waitForTimeout(2800);
-  const cards = await page.evaluate(() => ({ map: document.getElementById("map").getBoundingClientRect().width, talk: document.getElementById("talk").getBoundingClientRect().width,
-    tile: document.getElementById("map").closest(".tile").getBoundingClientRect().width,
-    arm: parseFloat(getComputedStyle(document.querySelector("#map .arm")).strokeDashoffset), said: getComputedStyle(document.querySelector("#talk .b")).opacity }));
-  check("the map and the chat fill their cards and play when seen", cards.map > cards.tile - 4 && cards.talk > cards.tile - 60 && cards.arm < 1 && cards.said === "1",
+  await page.evaluate(() => document.getElementById("drop").scrollIntoView({ block: "center", behavior: "instant" }));
+  await page.waitForFunction(() => getComputedStyle(document.querySelector("#ask .rc")).opacity === "1", null, { timeout: 6000 }).catch(() => {});
+  const cards = await page.evaluate(() => ({ drop: document.getElementById("drop").getBoundingClientRect().width, ask: document.getElementById("ask").getBoundingClientRect().width,
+    tile: document.getElementById("drop").closest(".tile").getBoundingClientRect().width,
+    filed: getComputedStyle(document.querySelector("#drop .ln:last-child")).opacity, said: getComputedStyle(document.querySelector("#ask .rc")).opacity }));
+  check("Drop and Ask fill their cards and play when seen", cards.drop > cards.tile - 4 && cards.ask > cards.tile - 4 && cards.filed === "1" && cards.said === "1",
     JSON.stringify(cards));
   await page.click("#openYours"); await page.waitForTimeout(400);
   check("Open your workspace, in the bar, opens the live list", await page.evaluate(() => document.getElementById("wsLive").open));
