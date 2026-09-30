@@ -94,10 +94,6 @@
   /* ---- the hero: the headline, the line under it, and the workspaces ---- */
   .hero{ min-height:100dvh; display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding:96px 20px 64px; text-align:center; }
-  .kicker{ display:inline-flex; align-items:center; gap:8px; margin-bottom:22px; padding:6px 13px 6px 8px; border-radius:999px;
-    border:1px solid var(--line-2); background:rgba(10,20,36,.55); font-size:13px; color:var(--ice-70); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
-  .kicker b{ font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink); background:var(--blue);
-    border-radius:999px; padding:3px 8px; }
   .hero h1{ max-width:1120px; font-size:clamp(40px, 5.9vw, 76px); line-height:1.04; font-weight:650; letter-spacing:-.04em; }
   @media (min-width:760px){ .hero h1 .nw{ white-space:nowrap; } }
   .hero h1 em{ font-style:normal;
@@ -164,13 +160,23 @@
   .again{ margin:6px 0 4px; font-size:13.5px; color:var(--ice-45); }
   .again a{ color:var(--ice-70); border-bottom:1px solid var(--line-2); }
   @media (hover:hover){ .again a:hover{ color:var(--blue); border-color:var(--blue); } }
-  .scroll{ margin-top:34px; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12px; letter-spacing:.08em;
-    text-transform:uppercase; color:var(--ice-45); }
-  .scroll i{ display:block; width:1px; height:34px; background:linear-gradient(var(--blue), transparent); animation:drip 2.4s var(--ease) infinite; transform-origin:top; }
-  @keyframes drip{ 0%{ transform:scaleY(0); opacity:0; } 30%{ opacity:1; } 100%{ transform:scaleY(1); opacity:0; } }
 
   /* ---- the bands below ---- */
   .band{ padding:clamp(52px, 7vw, 84px) 20px; }
+
+  /* The demo video: the poster until it plays. */
+  .video-band{ padding-top:0; margin-top:-24px; }
+  .vid{ position:relative; aspect-ratio:16/9; border-radius:22px; overflow:hidden; border:1px solid var(--line-2); background:#0a1424;
+    box-shadow:0 40px 120px -40px rgba(95,168,211,.45), 0 0 0 1px rgba(234,244,251,.03); }
+  .vid img{ width:100%; height:100%; object-fit:cover; display:block; filter:brightness(.62) saturate(.9); transition:filter .4s var(--ease); }
+  .vid .shade{ position:absolute; inset:0; background:radial-gradient(60% 60% at 50% 50%, rgba(5,11,22,.15), rgba(5,11,22,.7)); pointer-events:none; }
+  .vid iframe, .vid video{ position:absolute; inset:0; width:100%; height:100%; border:0; background:#000; }
+  .play{ position:absolute; left:50%; top:50%; width:84px; height:84px; margin:-42px 0 0 -42px; border-radius:50%; border:0; cursor:pointer;
+    background:var(--blue); color:var(--ink); display:grid; place-items:center; box-shadow:0 0 0 12px rgba(95,168,211,.18), 0 20px 50px -10px rgba(95,168,211,.7);
+    transition:transform .25s var(--ease), box-shadow .25s; }
+  .play svg{ width:34px; height:34px; fill:currentColor; margin-left:4px; }
+  @media (hover:hover){ .vid:hover img{ filter:brightness(.75); } .play:hover{ transform:scale(1.06); box-shadow:0 0 0 18px rgba(95,168,211,.16), 0 20px 50px -10px rgba(95,168,211,.8); } }
+  .vcap{ position:absolute; left:22px; bottom:18px; font-size:14px; font-weight:600; color:var(--ice); letter-spacing:-.01em; text-shadow:0 2px 12px rgba(0,0,0,.6); }
 
   /* Inside a brain: four things it does, each shown moving. */
   .tiles{ margin-top:40px; display:grid; grid-template-columns:repeat(2, 1fr); gap:16px; }
@@ -429,7 +435,7 @@
     footer .by{ margin-left:0; }
   }
   @media (prefers-reduced-motion:reduce){
-    .reveal, .scroll i, .aurora i, .deck .top, .deck .stamp{ animation:none !important; }
+    .reveal, .aurora i, .deck .top, .deck .stamp{ animation:none !important; }
     .deck .stamp{ opacity:1; }
     .map .arm{ stroke-dashoffset:0; } .map .sk, .map .lk, .map .red{ opacity:1; }
     .talk .b, .talk .rc{ opacity:1; transform:none; }
@@ -460,12 +466,11 @@
 
   <main>
     <section class="hero" id="top">
-      <a class="kicker reveal" href="#inside"><b>New</b>A personal brain that learns you</a>
       <h1 class="reveal" style="--d:80"><span class="nw">The knowledge you choose,</span><br> <em>organized.</em></h1>
       <p class="sub reveal" style="--d:160">Feed it the people and sources you trust. Ask anything, and see who said it.</p>
 
       <section class="spaces reveal" style="--d:260" id="start" aria-labelledby="spacesH">
-        <h2 class="tiny" id="spacesH">Workspaces</h2>
+        <h2 class="tiny" id="spacesH">Start here</h2>
         <ul>
           <li>
             <button class="item" id="demoGo" type="button">
@@ -476,24 +481,6 @@
               <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg>
             </button>
             <p class="row-msg" id="demoMsg" role="alert"></p>
-          </li>
-          <li>
-            <a class="item" href="/chat?w=octopus" id="goOctopus">
-              <img class="logo" src="/brand/logo-mark.png" alt="" width="24" height="24">
-              <span class="name">Octopus</span>
-              <span class="desc">The builder's own brains.</span>
-              <span class="tag">Private</span>
-              <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg>
-            </a>
-          </li>
-          <li>
-            <a class="item" href="/chat?w=squidgy" id="goSquidgy">
-              <img class="logo" src="/brand/squidgy-icon.png" alt="" width="24" height="24">
-              <span class="name">Squidgy</span>
-              <span class="desc">A second private workspace.</span>
-              <span class="tag">Private</span>
-              <svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg>
-            </a>
           </li>
           <li>
             <details class="fold" id="wsCreate">
@@ -526,14 +513,22 @@
         <p class="again">Made a workspace already? <a href="/chat?w=" id="openMine">Open it with its name</a></p>
       </section>
 
-      <a class="scroll reveal" style="--d:420" href="#why">Why a brain<i></i></a>
     </section>
+
+    <section class="band video-band" id="video" hidden><div class="wide">
+      <div class="vid" id="vid">
+        <img src="/brand/video-poster.jpg" alt="" loading="lazy"><span class="shade"></span>
+        <button class="play" id="play" type="button" aria-label="Play the demo video">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg></button>
+        <span class="vcap">Brain in 2 minutes</span>
+      </div>
+    </div></section>
 
     <section class="band later" id="why"><div class="wide">
       <span class="eyebrow">What makes a brain</span>
       <h2>"Isn't it just ChatGPT with my files?"</h2>
-      <p class="lede">A classic AI chat answers from its training data. Karpathy's LLM wiki compiles your files into pages.
-        A brain compiles them into positions, each backed by dated evidence you can open, and asks you when two sources clash.</p>
+      <p class="lede">A chat answers from its training. A wiki stacks your files into pages. A brain turns them into positions,
+        each with dated evidence, and asks you when sources clash.</p>
 
       <div class="cmp" role="table" aria-label="A classic AI chat, Karpathy's LLM wiki and a brain, compared">
         <div class="cmp-row cmp-head" role="row"><span role="columnheader"></span><span role="columnheader">Classic AI chat</span><span role="columnheader">Karpathy's LLM wiki</span><span role="columnheader" class="me">Brain</span></div>
@@ -542,8 +537,6 @@
         <div class="cmp-row" role="row"><span role="rowheader">When sources disagree</span><span role="cell" data-l="Chat">Blended into one answer</span><span role="cell" data-l="Wiki">Left side by side in the pages</span><span role="cell" class="me" data-l="Brain">Flagged at each drop; you rule on each in a swipe</span></div>
         <div class="cmp-row" role="row"><span role="rowheader">New information</span><span role="cell" data-l="Chat">Frozen at the training date</span><span role="cell" data-l="Wiki">Added when you run the agent</span><span role="cell" class="me" data-l="Brain">Filed the day you drop it</span></div>
         <div class="cmp-row" role="row"><span role="rowheader">Whose view</span><span role="cell" data-l="Chat">An average of the internet</span><span role="cell" data-l="Wiki">Your topics</span><span role="cell" class="me" data-l="Brain">One brain per subject, per expert, or for you</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">Setup</span><span role="cell" data-l="Chat">A chat box</span><span role="cell" data-l="Wiki">Scripts, Obsidian and a coding agent</span><span role="cell" class="me" data-l="Brain">A web page, on desktop and phone</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">What you get</span><span role="cell" data-l="Chat">A reply</span><span role="cell" data-l="Wiki">Pages, slides and charts</span><span role="cell" class="me" data-l="Brain">Answers at 3 levels, one-pagers in 9 languages, a health score, a map</span></div>
       </div>
 
     </div></section>
@@ -551,7 +544,7 @@
     <section class="band later" id="uses"><div class="wide">
       <span class="eyebrow">Use cases</span>
       <h2>What will you build a brain for?</h2>
-      <p class="lede">One brain per subject, one per expert you follow, or one for you. Pick a use case: see what goes in, and what comes out.</p>
+      <p class="lede">One brain per subject, per expert, or for you. Pick one: what goes in, what comes out.</p>
       <div class="usebox">
         <div class="tabs" role="tablist" aria-label="Use cases" id="useTabs"></div>
         <div class="usepanel" id="usePanel" role="tabpanel">
@@ -571,8 +564,7 @@
     <section class="band later" id="how"><div class="wide">
       <span class="eyebrow">How it works</span>
       <h2>From a link to an answer you can check.</h2>
-      <p class="lede">You drop, it files, you settle, you ask. It stays quick as it grows: a question reads summaries and positions,
-        never whole brains, so a brain 50 times bigger reads about twice as much.</p>
+      <p class="lede">You drop, it files, you settle, you ask. A brain 50 times bigger reads only twice as much per question.</p>
       <div class="steps">
         <div class="step"><h3>Drop it, and it is read.</h3>
           <p>A link, a PDF, a Word file or a pasted transcript. Video captions are fetched for you.</p>
@@ -594,7 +586,6 @@
         <div class="sc-r"><b>30 sources</b><span class="sc-b"><i style="--w:2%"></i><em>10</em></span><span class="sc-b rd"><i style="--w:47%"></i><em>3.5k</em></span></div>
         <div class="sc-r"><b>1,000 sources</b><span class="sc-b"><i style="--w:40%"></i><em>200</em></span><span class="sc-b rd"><i style="--w:68%"></i><em>5.1k</em></span></div>
         <div class="sc-r"><b>5,000 sources</b><span class="sc-b"><i style="--w:100%"></i><em>500</em></span><span class="sc-b rd"><i style="--w:100%"></i><em>7.5k</em></span></div>
-        <p class="sc-n">Every concept title is read in one pass, up to about 2,300 concepts. A sixth source on a topic rewrites the view from all six.</p>
       </div>
     </div></section>
 
@@ -651,7 +642,6 @@
     <section class="band end later" id="go"><div class="wide">
       <div class="final">
         <h2>Feed it what you read. Ask it what you know.</h2>
-        <p class="lede">Open the demo, no sign-up. Or make your own workspace on your own key, in a minute.</p>
         <div class="ctas">
           <button class="btn main" id="demoGo2" type="button">Open the demo</button>
           <a class="btn" href="#start" id="makeGo">Create your workspace</a>
@@ -751,6 +741,33 @@
     if (st.demo !== false) return;
     for (const [b, m] of [["demoGo", "demoMsg"], ["demoGo2", "demoMsg2"]]) { $(b).disabled = true; $(m).textContent = "The demo opens soon."; }
   }).catch(() => {});
+
+  /**
+   * The demo video. Paste its link here: YouTube, Loom, Vimeo, or an .mp4
+   * under app/. While it is empty, the section stays hidden.
+   */
+  const VIDEO = "";
+  (() => {
+    if (!VIDEO) return;
+    $("video").hidden = false;
+    $("play").onclick = () => {
+      const yt = VIDEO.match(/(?:youtu\.be\/|[?&]v=|shorts\/|embed\/)([\w-]{11})/);
+      const loom = VIDEO.match(/loom\.com\/(?:share|embed)\/(\w+)/);
+      const vimeo = VIDEO.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+      let el;
+      if (/\.(mp4|webm)(\?|$)/i.test(VIDEO)) {
+        el = document.createElement("video");
+        Object.assign(el, { src: VIDEO, controls: true, autoplay: true, playsInline: true });
+      } else {
+        el = document.createElement("iframe");
+        el.allow = "autoplay; fullscreen; picture-in-picture"; el.allowFullscreen = true; el.title = "Brain, the demo video";
+        el.src = yt ? `https://www.youtube-nocookie.com/embed/${yt[1]}?autoplay=1&rel=0`
+          : loom ? `https://www.loom.com/embed/${loom[1]}?autoplay=1`
+          : vimeo ? `https://player.vimeo.com/video/${vimeo[1]}?autoplay=1` : VIDEO;
+      }
+      $("vid").replaceChildren(el);
+    };
+  })();
 
   /* The sections below rise as they come into view. */
   (() => {
