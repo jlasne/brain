@@ -1721,11 +1721,11 @@ for (const space of ["octopus", "squidgy"]) {
     octo: document.getElementById("goOctopus").getAttribute("href"), squid: document.getElementById("goSquidgy").getAttribute("href"),
     code: document.getElementById("goCode").getAttribute("href"), codeDesc: document.querySelector("#goCode .desc").textContent,
     cols: [...document.querySelectorAll("#why .cmp-head span")].map(x => x.textContent).join("|"),
-    rows: document.querySelectorAll("#why .cmp-row:not(.cmp-head)").length, uses: document.querySelectorAll("#uses .card").length,
+    rows: document.querySelectorAll("#why .cmp-row:not(.cmp-head)").length, uses: document.querySelectorAll("#useTabs .tab").length,
     steps: document.querySelectorAll("#how .step").length, sections: [...document.querySelectorAll("main > section")].map(x => x.id).join("|"),
     font: getComputedStyle(document.body).fontFamily, bg: getComputedStyle(document.documentElement).backgroundColor,
     brand: document.querySelector(".bar .me").textContent.trim(), text: document.body.textContent }));
-  check("the landing leads with the outcome", /^Your AI brain remembers who said what, and catches every contradiction\.$/.test(l.h1), JSON.stringify(l.h1));
+  check("the landing leads with the outcome", /^Remember everything you read, watch and hear, and who said it\.$/.test(l.h1), JSON.stringify(l.h1));
   const top = await page.evaluate(() => ({ mark: !!document.querySelector(".hero .mark"), cta: document.getElementById("openYours").getAttribute("href"),
     again: document.getElementById("openMine").getAttribute("href"), tiles: [...document.querySelectorAll("#inside .tile h3")].map(h => h.firstChild.textContent.trim()).join("|") }));
   check("no logo over the headline, and Open your workspace goes to the workspaces", !top.mark && top.cta === "#start" && top.again === "/chat?w=", JSON.stringify(top));
@@ -1738,7 +1738,12 @@ for (const space of ["octopus", "squidgy"]) {
   check("one section sets a brain against a classic chat and Karpathy's wiki, with who uses it", l.cols === "|Classic AI chat|Karpathy's LLM wiki|Brain"
     && l.rows === 7 && l.uses === 6, JSON.stringify({ c: l.cols, r: l.rows, u: l.uses }));
   check("how it works is 4 outcomes", l.steps === 4, String(l.steps));
-  check("four sections below the fold, no separate use cases or wiki section", l.sections === "top|inside|why|how|go", l.sections);
+  check("the difference first, then use cases, how it works and inside a brain", l.sections === "top|why|uses|how|inside|go", l.sections);
+  await page.click("#useTab5"); await page.waitForTimeout(200);
+  const use = await page.evaluate(() => ({ q: document.querySelector("#useChat .q")?.textContent, feed: document.querySelectorAll("#useFeed li").length,
+    on: document.getElementById("useTab5").getAttribute("aria-selected"), auto: document.getElementById("useTabs").classList.contains("auto") }));
+  check("a use case shows what goes in and plays its question; a pick stops the turning", use.q === "What did I decide on pricing last month, and why?"
+    && use.feed === 2 && use.on === "true" && !use.auto, JSON.stringify(use));
   check("it wears jeremylasne.com: the system font on the night navy", /^system-ui/.test(l.font) && l.bg === "rgb(5, 11, 22)", `${l.font} ${l.bg}`);
   check("the product is called Brain", l.brand === "Brain", l.brand);
   check("no example card, no builder's tally, no competition, no licence", !/cold email a reply|workspace today|Build Games|MIT licen|What it replaces/i.test(l.text));

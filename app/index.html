@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Brain: your AI brain, with receipts</title>
+<title>Brain: remember everything you read, and who said it</title>
 <meta name="description" content="Drop an article, a PDF, a video or a thought. Brain files every claim with its author and date, flags what contradicts what you know, and answers from your sources only.">
 <meta name="theme-color" content="#050b16">
-<meta property="og:title" content="Brain: your AI brain, with receipts">
+<meta property="og:title" content="Brain: remember everything you read, and who said it">
 <meta property="og:description" content="Every claim filed with its author and date. Contradictions settled by you. Answers in 9 languages.">
 <link rel="icon" href="/brand/brain.svg" type="image/svg+xml">
 <link rel="icon" href="/brand/brain-64.png" type="image/png" sizes="64x64">
@@ -163,7 +163,7 @@
   @keyframes drip{ 0%{ transform:scaleY(0); opacity:0; } 30%{ opacity:1; } 100%{ transform:scaleY(1); opacity:0; } }
 
   /* ---- the bands below ---- */
-  .band{ padding:clamp(64px, 9vw, 104px) 20px; }
+  .band{ padding:clamp(52px, 7vw, 84px) 20px; }
 
   /* Inside a brain: four things it does, each shown moving. */
   .tiles{ margin-top:40px; display:grid; grid-template-columns:repeat(2, 1fr); gap:16px; }
@@ -252,24 +252,6 @@
   .cmp-head > span.me{ color:var(--blue) !important; padding-left:18px; }
   .cmp-head > span.me::before{ content:none; }
 
-  /* Who feeds a brain what, and what they ask it. */
-  .who{ margin-top:56px; }
-  .who h3{ font-size:22px; font-weight:650; letter-spacing:-.02em; }
-  .who .lede{ margin-top:8px; font-size:16px; }
-  .cards{ margin-top:22px; display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; }
-  .card{ padding:20px; border-radius:18px; border:1px solid var(--line); background:rgba(10,20,36,.55);
-    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); display:flex; flex-direction:column; gap:10px;
-    transition:border-color .25s, transform .25s var(--ease); }
-  @media (hover:hover){ .card:hover{ border-color:var(--line-2); transform:translateY(-2px); } }
-  .card .top{ display:flex; align-items:center; gap:8px; }
-  .card b{ font-size:16px; font-weight:600; letter-spacing:-.01em; }
-  .card .kind{ margin-left:auto; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ice-45);
-    border:1px solid var(--line); border-radius:999px; padding:2px 8px; }
-  .card .kind.new{ color:var(--blue); border-color:var(--line-2); }
-  .card p{ font-size:14.5px; line-height:1.55; color:var(--ice-70); }
-  .card q{ quotes:"\201C" "\201D"; margin-top:auto; display:block; padding:10px 13px; border-radius:14px 14px 14px 4px;
-    background:rgba(95,168,211,.12); border:1px solid var(--line-2); font-size:14.5px; line-height:1.5; color:var(--ice); }
-
   /* How it works: four outcomes, each with what you see. */
   .steps{ margin-top:44px; display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; counter-reset:s; }
   .step{ position:relative; padding:22px 20px 20px; border-radius:18px; border:1px solid var(--line); background:rgba(10,20,36,.55);
@@ -294,9 +276,108 @@
   .ans small{ display:block; margin-top:6px; font-size:12px; color:var(--ice-45); }
   .note{ margin-top:22px; max-width:760px; font-size:14.5px; line-height:1.6; color:var(--ice-45); }
 
+  /* The comparison rows arrive one by one. */
+  #why.seen .cmp-row{ animation:rowIn .6s var(--ease) both; }
+  #why.seen .cmp-row:nth-child(2){ animation-delay:.08s; } #why.seen .cmp-row:nth-child(3){ animation-delay:.16s; }
+  #why.seen .cmp-row:nth-child(4){ animation-delay:.24s; } #why.seen .cmp-row:nth-child(5){ animation-delay:.32s; }
+  #why.seen .cmp-row:nth-child(6){ animation-delay:.4s; } #why.seen .cmp-row:nth-child(7){ animation-delay:.48s; } #why.seen .cmp-row:nth-child(8){ animation-delay:.56s; }
+  @keyframes rowIn{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:none; } }
+  .cmp::before{ content:""; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg, transparent, var(--blue), transparent); opacity:.6; }
+
+  /* Use cases: pick one, and watch it asked and answered. */
+  .usebox{ margin-top:34px; }
+  .tabs{ display:flex; flex-wrap:wrap; gap:8px; }
+  .tab{ position:relative; overflow:hidden; display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:999px;
+    border:1px solid var(--line); background:rgba(10,20,36,.6); color:var(--ice-70); font-size:14.5px; font-weight:500; cursor:pointer;
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); transition:background .25s, color .25s, border-color .25s; }
+  .tab .em{ font-size:15px; line-height:1; }
+  @media (hover:hover){ .tab:hover{ border-color:var(--line-2); color:var(--ice); } }
+  .tab[aria-selected="true"]{ background:var(--blue); border-color:var(--blue); color:var(--ink); font-weight:600; }
+  /* While the cases turn on their own, the chosen one fills like a clock. */
+  .tabs.auto .tab[aria-selected="true"]::after{ content:""; position:absolute; left:0; bottom:0; height:2px; background:rgba(5,11,22,.45);
+    animation:fill var(--turn, 8s) linear forwards; }
+  @keyframes fill{ from{ width:0; } to{ width:100%; } }
+  .usepanel{ margin-top:16px; display:grid; grid-template-columns:.8fr 1.2fr; gap:16px; }
+  .feed, .chatwin{ border-radius:22px; border:1px solid var(--line); background:rgba(10,20,36,.62); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+  .feed{ padding:22px; }
+  .feed h4{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ice-45); }
+  .feed ul{ margin-top:12px; display:grid; gap:8px; }
+  .feed li{ display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:12px; background:var(--ice-06); font-size:14.5px; color:var(--ice);
+    animation:rowIn .45s var(--ease) both; }
+  .feed li:nth-child(2){ animation-delay:.08s; } .feed li:nth-child(3){ animation-delay:.16s; }
+  .feed li i{ flex:none; font-style:normal; font-size:10px; font-weight:700; letter-spacing:.06em; color:var(--ink); background:var(--blue-2);
+    border-radius:6px; padding:3px 6px; min-width:38px; text-align:center; }
+  .feed li i.pdf{ background:#e0b35a; } .feed li i.vid{ background:#e5484d; color:#fff; } .feed li i.pod{ background:#b18cf0; }
+  .feed li i.you{ background:#f5c9d1; }
+  .kindline{ margin-top:16px; font-size:14px; line-height:1.55; color:var(--ice-70); }
+  .kindline b{ color:var(--blue); font-weight:600; }
+  .chatwin{ display:flex; flex-direction:column; overflow:hidden; min-height:300px; }
+  .cw-bar{ display:flex; align-items:center; gap:9px; padding:13px 18px; border-bottom:1px solid var(--line); font-size:13.5px; }
+  .cw-bar b{ font-weight:600; }
+  .cw-dot{ width:8px; height:8px; border-radius:50%; background:var(--blue); box-shadow:0 0 10px var(--blue); }
+  .cw-ex{ margin-left:auto; font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ice-45);
+    border:1px solid var(--line); border-radius:999px; padding:2px 8px; }
+  .cw-body{ flex:1; padding:18px; display:flex; flex-direction:column; gap:10px; }
+  .cw-body .q{ align-self:flex-end; max-width:86%; padding:10px 14px; border-radius:16px 16px 4px 16px; background:var(--blue); color:var(--ink);
+    font-size:14.5px; line-height:1.45; animation:say .45s var(--ease) both; }
+  .cw-body .think{ align-self:flex-start; display:flex; gap:4px; padding:12px 14px; border-radius:16px; background:var(--ice-06); animation:say .3s var(--ease) both .5s, gone .2s linear forwards 1.5s; }
+  .cw-body .think span{ width:6px; height:6px; border-radius:50%; background:var(--ice-45); animation:blink 1s ease-in-out infinite; }
+  .cw-body .think span:nth-child(2){ animation-delay:.15s; } .cw-body .think span:nth-child(3){ animation-delay:.3s; }
+  @keyframes blink{ 0%,100%{ opacity:.3; } 50%{ opacity:1; } }
+  @keyframes gone{ to{ opacity:0; height:0; padding:0; margin:-5px 0; } }
+  .cw-body .a{ align-self:flex-start; max-width:92%; display:grid; gap:6px; }
+  .cw-body .a span{ font-size:14.5px; line-height:1.5; color:var(--ice); opacity:0; animation:say .45s var(--ease) forwards; }
+  .cw-body .a small{ margin-top:4px; font-size:12.5px; color:var(--ice-45); opacity:0; animation:say .45s var(--ease) forwards; }
+  .cw-body .chip{ align-self:flex-start; font-size:11.5px; font-weight:600; letter-spacing:.03em; color:#ff8a8d; border:1px solid rgba(229,72,77,.45);
+    border-radius:999px; padding:4px 10px; opacity:0; animation:say .45s var(--ease) forwards; }
+  .cw-body .chip.ok{ color:var(--blue-2); border-color:var(--line-2); }
+
+  /* How it works: each step plays its own small loop. */
+  .a-drop .url{ padding:8px 10px; border-radius:9px; background:var(--ice-06); overflow:hidden; white-space:nowrap; }
+  .a-drop .url span{ display:inline-block; overflow:hidden; vertical-align:bottom; border-right:1.5px solid var(--blue); width:0; animation:type 6s steps(30) infinite; }
+  @keyframes type{ 0%{ width:0; } 30%,100%{ width:100%; } }
+  .a-drop .prog{ margin-top:10px; height:5px; border-radius:999px; background:var(--ice-06); overflow:hidden; }
+  .a-drop .prog i{ display:block; height:100%; width:0; background:linear-gradient(90deg, var(--blue), var(--blue-2)); animation:load 6s var(--ease) infinite; }
+  @keyframes load{ 0%,32%{ width:0; } 85%,100%{ width:100%; } }
+  .a-drop small{ display:block; margin-top:6px; font-size:12px; color:var(--ice-45); }
+  .a-tree span{ opacity:0; animation:treeIn 6s var(--ease) infinite; }
+  .a-tree span:nth-child(2){ animation-delay:.5s; } .a-tree span:nth-child(3){ animation-delay:1s; }
+  @keyframes treeIn{ 0%{ opacity:0; transform:translateX(-8px); } 10%,85%{ opacity:1; transform:none; } 100%{ opacity:0; } }
+  .a-swipe .vs{ animation:nudge 5s var(--ease) infinite; }
+  @keyframes nudge{ 0%,30%{ transform:none; } 45%{ transform:translateX(10px) rotate(1.5deg); } 60%,100%{ transform:none; } }
+  .a-swipe .acts span{ white-space:nowrap; font-size:11.5px; }
+  .a-swipe .acts span:nth-child(2){ animation:press 5s var(--ease) infinite; }
+  @keyframes press{ 0%,40%{ transform:none; box-shadow:none; } 48%{ transform:scale(.94); box-shadow:0 0 0 4px rgba(95,168,211,.25); } 56%,100%{ transform:none; box-shadow:none; } }
+  .a-ans .ans span{ display:block; opacity:0; animation:ansIn 6s var(--ease) infinite; }
+  .a-ans .ans span:nth-child(2){ animation-delay:.6s; } .a-ans .ans small{ opacity:0; animation:ansIn 6s var(--ease) infinite 1.2s; }
+  @keyframes ansIn{ 0%{ opacity:0; transform:translateY(5px); } 10%,85%{ opacity:1; transform:none; } 100%{ opacity:0; } }
+
+  /* The scale: concepts held against what a question reads. */
+  .scale{ margin-top:18px; padding:22px 24px; border-radius:22px; border:1px solid var(--line); background:rgba(10,20,36,.62);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+  .sc-t, .sc-r{ display:grid; grid-template-columns:170px 1fr 1fr; gap:18px; align-items:center; }
+  .sc-t{ font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ice-45); padding-bottom:10px; }
+  .sc-t b{ color:var(--blue); font-weight:700; }
+  .sc-r{ padding:9px 0; border-top:1px solid var(--line); }
+  .sc-r > b{ font-size:14.5px; font-weight:600; }
+  .sc-b{ position:relative; height:26px; border-radius:8px; background:var(--ice-06); overflow:hidden; }
+  .sc-b i{ position:absolute; left:0; top:0; bottom:0; width:0; border-radius:8px; background:linear-gradient(90deg, rgba(95,168,211,.35), rgba(95,168,211,.8));
+    transition:width 1.4s var(--ease); }
+  .sc-b.rd i{ background:linear-gradient(90deg, rgba(140,196,230,.25), rgba(140,196,230,.6)); }
+  .scale.go .sc-b i{ width:var(--w); }
+  .sc-b em{ position:absolute; left:10px; top:0; line-height:26px; font-style:normal; font-size:13px; font-weight:600; color:var(--ice); }
+  .sc-n{ margin-top:12px; font-size:14px; line-height:1.55; color:var(--ice-45); }
+
   /* The last word, and the way in again. */
+  .final{ position:relative; padding:clamp(40px, 7vw, 72px) 24px; border-radius:28px; border:1px solid var(--line-2); overflow:hidden;
+    background:radial-gradient(70% 120% at 50% 0%, rgba(95,168,211,.22), rgba(10,20,36,.7) 70%); }
+  .final::before{ content:""; position:absolute; inset:-40%; background:conic-gradient(from 0deg, transparent 0 70%, rgba(95,168,211,.22) 80%, transparent 90%);
+    animation:spin 14s linear infinite; pointer-events:none; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .final > *{ position:relative; }
+  .final .lede{ margin-left:auto; margin-right:auto; }
   .end{ text-align:center; }
-  .end h2{ margin-left:auto; margin-right:auto; }
+  .end h2{ margin-left:auto; margin-right:auto; margin-top:0; }
   .end .ctas{ margin-top:30px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
   .end .msg{ margin-top:12px; font-size:13.5px; color:var(--blue); min-height:1.5em; }
 
@@ -311,6 +392,8 @@
 
   @media (max-width:960px){
     .tiles{ grid-template-columns:1fr; }
+    .usepanel{ grid-template-columns:1fr; }
+    .sc-t, .sc-r{ grid-template-columns:120px 1fr 1fr; gap:10px; }
     .steps{ grid-template-columns:1fr 1fr; }
     .cards{ grid-template-columns:1fr 1fr; }
   }
@@ -343,6 +426,9 @@
     .deck .stamp{ opacity:1; }
     .map .arm{ stroke-dashoffset:0; } .map .sk, .map .lk, .map .red{ opacity:1; }
     .talk .b, .talk .rc{ opacity:1; transform:none; }
+    .final::before, .a-drop .url span, .a-drop .prog i, .a-tree span, .a-swipe .vs, .a-swipe .acts span, .a-ans .ans span, .a-ans .ans small,
+    .cw-body *, .feed li, #why.seen .cmp-row{ animation:none !important; opacity:1 !important; }
+    .a-drop .url span{ width:auto; } .a-drop .prog i{ width:60%; } .cw-body .think{ display:none; }
     .later{ opacity:1; transform:none; transition:none; }
   }
 </style>
@@ -368,9 +454,9 @@
   <main>
     <section class="hero" id="top">
       <a class="kicker reveal" href="#inside"><b>New</b>A personal brain that learns you</a>
-      <h1 class="reveal" style="--d:80">Your AI brain remembers who said what, and <em>catches every contradiction.</em></h1>
-      <p class="sub reveal" style="--d:160">Drop an article, a PDF, a video or a thought. Brain files each claim with its author and date,
-        asks you to settle each clash, then answers with receipts.</p>
+      <h1 class="reveal" style="--d:80">Remember everything you read, watch and hear, <em>and who said it.</em></h1>
+      <p class="sub reveal" style="--d:160">Drop an article, a PDF, a video or a thought. Your brain files each claim with its author and date,
+        asks you when two sources clash, and answers you with receipts.</p>
 
       <section class="spaces reveal" style="--d:260" id="start" aria-labelledby="spacesH">
         <h2 class="tiny" id="spacesH">Workspaces</h2>
@@ -434,8 +520,77 @@
         <p class="again">Made a workspace already? <a href="/chat?w=" id="openMine">Open it with its name</a></p>
       </section>
 
-      <a class="scroll reveal" style="--d:420" href="#inside">See inside<i></i></a>
+      <a class="scroll reveal" style="--d:420" href="#why">Why a brain<i></i></a>
     </section>
+
+    <section class="band later" id="why"><div class="wide">
+      <span class="eyebrow">What makes a brain</span>
+      <h2>"Isn't it just ChatGPT with my files?"</h2>
+      <p class="lede">A classic AI chat answers from its training data. Karpathy's LLM wiki compiles your files into pages.
+        A brain compiles them into positions, each backed by dated evidence you can open, and asks you when two sources clash.</p>
+
+      <div class="cmp" role="table" aria-label="A classic AI chat, Karpathy's LLM wiki and a brain, compared">
+        <div class="cmp-row cmp-head" role="row"><span role="columnheader"></span><span role="columnheader">Classic AI chat</span><span role="columnheader">Karpathy's LLM wiki</span><span role="columnheader" class="me">Brain</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">Answers from</span><span role="cell" data-l="Chat">Its training data</span><span role="cell" data-l="Wiki">Your files, as pages</span><span role="cell" class="me" data-l="Brain">Your sources, as positions with their evidence</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">Proof</span><span role="cell" data-l="Chat">None, or a link it made up</span><span role="cell" data-l="Wiki">A summary per page</span><span role="cell" class="me" data-l="Brain">Author and date on every claim</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">When sources disagree</span><span role="cell" data-l="Chat">Blended into one answer</span><span role="cell" data-l="Wiki">Left side by side in the pages</span><span role="cell" class="me" data-l="Brain">Flagged at each drop; you rule on each in a swipe</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">New information</span><span role="cell" data-l="Chat">Frozen at the training date</span><span role="cell" data-l="Wiki">Added when you run the agent</span><span role="cell" class="me" data-l="Brain">Filed the day you drop it</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">Whose view</span><span role="cell" data-l="Chat">An average of the internet</span><span role="cell" data-l="Wiki">Your topics</span><span role="cell" class="me" data-l="Brain">One brain per subject, per expert, or for you</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">Setup</span><span role="cell" data-l="Chat">A chat box</span><span role="cell" data-l="Wiki">Scripts, Obsidian and a coding agent</span><span role="cell" class="me" data-l="Brain">A web page, on desktop and phone</span></div>
+        <div class="cmp-row" role="row"><span role="rowheader">What you get</span><span role="cell" data-l="Chat">A reply</span><span role="cell" data-l="Wiki">Pages, slides and charts</span><span role="cell" class="me" data-l="Brain">Answers at 3 levels, one-pagers in 9 languages, a health score, a map</span></div>
+      </div>
+
+    </div></section>
+
+    <section class="band later" id="uses"><div class="wide">
+      <span class="eyebrow">Use cases</span>
+      <h2>What will you build a brain for?</h2>
+      <p class="lede">One brain per subject, one per expert you follow, or one for you. Pick a use case: see what goes in, and what comes out.</p>
+      <div class="usebox">
+        <div class="tabs" role="tablist" aria-label="Use cases" id="useTabs"></div>
+        <div class="usepanel" id="usePanel" role="tabpanel">
+          <div class="feed">
+            <h4>You feed it</h4>
+            <ul id="useFeed"></ul>
+            <p class="kindline" id="useKind"></p>
+          </div>
+          <div class="chatwin" aria-live="polite">
+            <div class="cw-bar"><span class="cw-dot"></span><b id="useBrain">Brain</b><span class="cw-ex">Example</span></div>
+            <div class="cw-body" id="useChat"></div>
+          </div>
+        </div>
+      </div>
+    </div></section>
+
+    <section class="band later" id="how"><div class="wide">
+      <span class="eyebrow">How it works</span>
+      <h2>From a link to an answer you can check.</h2>
+      <p class="lede">You drop, it files, you settle, you ask. It stays quick as it grows: a question reads summaries and positions,
+        never whole brains, so a brain 50 times bigger reads about twice as much.</p>
+      <div class="steps">
+        <div class="step"><h3>Drop it, and it is read.</h3>
+          <p>A link, a PDF, a Word file or a pasted transcript. Video captions are fetched for you.</p>
+          <div class="see a-drop" aria-hidden="true"><div class="url"><span>youtube.com/watch?v=sleep-talk</span></div>
+            <div class="prog"><i></i></div><small>Reading part 3 of 8</small></div></div>
+        <div class="step"><h3>Every claim lands in its place.</h3>
+          <p>Each idea joins a concept or starts one, with its author, its date and its numbers.</p>
+          <div class="see tree a-tree" aria-hidden="true"><span>Brain: Health</span><span>Concept: Sleep</span><span>7 to 9 hours · Dr. A, 2026-09-21</span></div></div>
+        <div class="step"><h3>Clashes wait for your call.</h3>
+          <p>A source that contradicts a position waits for you. Then the position is rewritten from all its evidence.</p>
+          <div class="see swipe a-swipe" aria-hidden="true"><div class="vs"><b>You hold</b> 8 hours. <b>New source</b> says 7.</div>
+            <div class="acts"><span>Keep</span><span>Both hold</span><span>Replace</span></div></div></div>
+        <div class="step"><h3>Answers you can check.</h3>
+          <p>At 3 levels, or as a one-pager in 9 languages. Each answer names its sources.</p>
+          <div class="see a-ans" aria-hidden="true"><div class="ans"><span>Aim for 7 to 9 hours.</span><span>Keep the room dark and cool.</span><small>Sources: 2 podcasts, 1 study · newest 2026-09-21</small></div></div></div>
+      </div>
+      <div class="scale" id="scale">
+        <div class="sc-t"><b>As a brain grows</b><span>Concepts held</span><span>Words read per question</span></div>
+        <div class="sc-r"><b>30 sources</b><span class="sc-b"><i style="--w:2%"></i><em>10</em></span><span class="sc-b rd"><i style="--w:47%"></i><em>3.5k</em></span></div>
+        <div class="sc-r"><b>1,000 sources</b><span class="sc-b"><i style="--w:40%"></i><em>200</em></span><span class="sc-b rd"><i style="--w:68%"></i><em>5.1k</em></span></div>
+        <div class="sc-r"><b>5,000 sources</b><span class="sc-b"><i style="--w:100%"></i><em>500</em></span><span class="sc-b rd"><i style="--w:100%"></i><em>7.5k</em></span></div>
+        <p class="sc-n">Every concept title is read in one pass, up to about 2,300 concepts. A sixth source on a topic rewrites the view from all six.</p>
+      </div>
+    </div></section>
 
     <section class="band later" id="inside"><div class="wide">
       <span class="eyebrow">Inside a brain</span>
@@ -487,77 +642,16 @@
       </div>
     </div></section>
 
-    <section class="band later" id="why"><div class="wide">
-      <span class="eyebrow">What makes a brain</span>
-      <h2>"Isn't it just ChatGPT with my files?"</h2>
-      <p class="lede">A classic AI chat answers from its training data. Karpathy's LLM wiki compiles your files into pages.
-        A brain compiles them into positions, each backed by dated evidence you can open, and asks you when two sources clash.</p>
-
-      <div class="cmp" role="table" aria-label="A classic AI chat, Karpathy's LLM wiki and a brain, compared">
-        <div class="cmp-row cmp-head" role="row"><span role="columnheader"></span><span role="columnheader">Classic AI chat</span><span role="columnheader">Karpathy's LLM wiki</span><span role="columnheader" class="me">Brain</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">Answers from</span><span role="cell" data-l="Chat">Its training data</span><span role="cell" data-l="Wiki">Your files, as pages</span><span role="cell" class="me" data-l="Brain">Your sources, as positions with their evidence</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">Proof</span><span role="cell" data-l="Chat">None, or a link it made up</span><span role="cell" data-l="Wiki">A summary per page</span><span role="cell" class="me" data-l="Brain">Author and date on every claim</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">When sources disagree</span><span role="cell" data-l="Chat">Blended into one answer</span><span role="cell" data-l="Wiki">Left side by side in the pages</span><span role="cell" class="me" data-l="Brain">Flagged at each drop; you rule on each in a swipe</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">New information</span><span role="cell" data-l="Chat">Frozen at the training date</span><span role="cell" data-l="Wiki">Added when you run the agent</span><span role="cell" class="me" data-l="Brain">Filed the day you drop it</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">Whose view</span><span role="cell" data-l="Chat">An average of the internet</span><span role="cell" data-l="Wiki">Your topics</span><span role="cell" class="me" data-l="Brain">One brain per subject, per expert, or for you</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">Setup</span><span role="cell" data-l="Chat">A chat box</span><span role="cell" data-l="Wiki">Scripts, Obsidian and a coding agent</span><span role="cell" class="me" data-l="Brain">A web page, on desktop and phone</span></div>
-        <div class="cmp-row" role="row"><span role="rowheader">What you get</span><span role="cell" data-l="Chat">A reply</span><span role="cell" data-l="Wiki">Pages, slides and charts</span><span role="cell" class="me" data-l="Brain">Answers at 3 levels, one-pagers in 9 languages, a health score, a map</span></div>
-      </div>
-
-      <div class="who">
-        <h3>One brain per subject, per expert, or for you</h3>
-        <p class="lede">What people feed a brain, and what they ask it.</p>
-        <div class="cards" id="uses">
-          <div class="card"><div class="top"><b>Investors</b><span class="kind">Expert</span></div>
-            <p>Letters and interviews from each analyst they follow, one brain each.</p>
-            <q>Where do my two macro voices disagree on gold, and since when?</q></div>
-          <div class="card"><div class="top"><b>Founders and sales</b><span class="kind">Subject</span></div>
-            <p>Outreach and pricing talks, guides and case studies.</p>
-            <q>Write my first cold email from what the outreach brain holds.</q></div>
-          <div class="card"><div class="top"><b>Creators</b><span class="kind">Subject</span></div>
-            <p>Hook, format and scripting tutorials.</p>
-            <q>Give me 5 hook formats with the numbers behind them.</q></div>
-          <div class="card"><div class="top"><b>Health</b><span class="kind">Subject</span></div>
-            <p>Studies, podcasts and protocols on sleep, training and food.</p>
-            <q>What dose and timing do my sources give for creatine?</q></div>
-          <div class="card"><div class="top"><b>Students</b><span class="kind">Subject</span></div>
-            <p>Course PDFs, articles and recorded lectures.</p>
-            <q>Quiz me on depreciation, 8 questions, answers folded.</q></div>
-          <div class="card"><div class="top"><b>You</b><span class="kind new">Personal, alpha</span></div>
-            <p>Your own words, as you chat: goals, decisions, what you learned. Each note is dated.</p>
-            <q>What did I decide on pricing last month, and why?</q></div>
-        </div>
-      </div>
-    </div></section>
-
-    <section class="band later" id="how"><div class="wide">
-      <span class="eyebrow">How it works</span>
-      <h2>From a link to an answer you can check, in 4 steps.</h2>
-      <div class="steps">
-        <div class="step"><h3>Drop it, and it is read.</h3>
-          <p>A link, a PDF, a Word file or a pasted transcript. Video captions are fetched for you.</p>
-          <div class="see chips"><span>Article</span><span>PDF</span><span>Video</span><span>Word</span><span>Podcast</span></div></div>
-        <div class="step"><h3>Every claim lands in its place.</h3>
-          <p>Each idea joins a concept or starts one, with its author, its date and its numbers.</p>
-          <div class="see tree"><span>Brain: Health</span><span>Concept: Sleep</span><span>Claim, its author, its date</span></div></div>
-        <div class="step"><h3>Clashes wait for your call.</h3>
-          <p>A source that contradicts a position waits for you. The position is then rewritten.</p>
-          <div class="see swipe"><div class="vs"><b>You hold</b> one view. <b>A new source</b> says the opposite.</div>
-            <div class="acts"><span>Keep</span><span>Both hold</span><span>Replace</span></div></div></div>
-        <div class="step"><h3>Answers you can check.</h3>
-          <p>At 3 levels, or as a one-pager in 9 languages. Each answer names its sources.</p>
-          <div class="see"><div class="ans">The answer, in a few lines.<small>Sources: 2 videos, 1 PDF. Newest: last week.</small></div></div></div>
-      </div>
-      <p class="note">A position is re-derived from its whole evidence list at each drop, so a sixth source rewrites the view from all six.</p>
-    </div></section>
-
     <section class="band end later" id="go"><div class="wide">
-      <h2>Feed it what you read. Ask it what you know.</h2>
-      <div class="ctas">
-        <button class="btn main" id="demoGo2" type="button">Open the demo</button>
-        <a class="btn" href="#start" id="makeGo">Create your workspace</a>
+      <div class="final">
+        <h2>Feed it what you read. Ask it what you know.</h2>
+        <p class="lede">Open the demo, no sign-up. Or make your own workspace on your own key, in a minute.</p>
+        <div class="ctas">
+          <button class="btn main" id="demoGo2" type="button">Open the demo</button>
+          <a class="btn" href="#start" id="makeGo">Create your workspace</a>
+        </div>
+        <p class="msg" id="demoMsg2" role="alert"></p>
       </div>
-      <p class="msg" id="demoMsg2" role="alert"></p>
     </div></section>
   </main>
 
@@ -665,19 +759,101 @@
   /* Inside a brain: each tile plays when it comes into view. */
   (() => {
     const play = el => {
+      if (el.id === "scale") { el.classList.add("go"); return; }
       if (el.id === "rings") for (const r of el.querySelectorAll(".ring")) {
         r.querySelector(".val").style.strokeDashoffset = String(226 * (1 - Number(r.dataset.v) / 10));
       } else el.classList.add("play");
       /* The chat replays, so a reader who lingers sees it again. */
       if (el.id === "talk") setInterval(() => { el.classList.remove("play"); void el.offsetWidth; el.classList.add("play"); }, 9000);
     };
-    const els = ["rings", "map", "talk"].map($).filter(Boolean);
+    const els = ["rings", "map", "talk", "scale"].map($).filter(Boolean);
     if (!("IntersectionObserver" in window)) { els.forEach(play); return; }
     const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { play(e.target); io.unobserve(e.target); } }), { threshold: .35 });
     els.forEach(e => io.observe(e));
     /* Past the first screen the sky dims a little, so reading comes first. */
     const v = $("veilLower");
     window.addEventListener("scroll", () => v.classList.toggle("on", window.scrollY > window.innerHeight * .6), { passive: true });
+  })();
+
+
+  /**
+   * Use cases.
+   *
+   * Six, one tab each. A tab shows what goes in and plays a question and its
+   * answer. They turn on their own every 8 seconds while the section is on
+   * screen, until the reader picks one.
+   */
+  (() => {
+    const CASES = [
+      { tab: "Investing", em: "📈", brain: "Gold · 2 expert brains", kind: "<b>Expert brains</b>, one per analyst, so two views never blur into one.",
+        feed: [["vid", "40 interviews with the macro analysts you follow"], ["pdf", "Their quarterly letters"], ["web", "Articles they wrote"]],
+        q: "Where do my two macro voices disagree on gold, and since when?",
+        a: ["They split on the next 12 months.", "One holds gold as the hedge while real rates fall.", "The other sold in March, on a strong dollar."],
+        src: "Sources: 3 letters, 2 interviews · newest 2026-09-14", chip: "1 open clash: gold target" },
+      { tab: "Sales and outreach", em: "✉️", brain: "Outreach", kind: "<b>A subject brain</b> that turns 20 talks into one playbook, each rule with who gave it.",
+        feed: [["vid", "20 talks on cold outreach and pricing"], ["web", "Guides and case studies"], ["pdf", "Your own sales scripts"]],
+        q: "Write my first cold email from what the outreach brain holds.",
+        a: ["Subject: 3 words, lowercase.", "Line 1: their problem, in their words.", "5 to 8 sentences, one ask, no attachment."],
+        src: "Sources: 4 videos, 1 guide · newest 2026-09-17" },
+      { tab: "Content", em: "🎬", brain: "Content", kind: "<b>A subject brain</b>: a swipe file of hooks and formats that files itself.",
+        feed: [["vid", "Hook and scripting tutorials"], ["pod", "Creator interviews"], ["web", "Channel teardowns"]],
+        q: "Give me 5 hook formats with the numbers behind them.",
+        a: ["1. A promise in the first 3 seconds.", "2. Text on screen, for silent viewers.", "3. The objection handle: \"I know you're thinking...\""],
+        src: "Sources: 3 videos, 1 podcast · newest 2026-09-30" },
+      { tab: "Health", em: "🌙", brain: "Health", kind: "<b>A subject brain</b> that lays the clashes out, so you pick the protocol that holds.",
+        feed: [["pod", "Sleep and training podcasts"], ["pdf", "Studies you saved"], ["web", "Protocols and guides"]],
+        q: "What dose and timing do my sources give for creatine?",
+        a: ["3 to 5 g a day.", "Timing matters less than taking it every day."],
+        src: "Sources: 2 podcasts, 1 study · newest 2026-09-21", chip: "1 open clash: loading phase" },
+      { tab: "Learning", em: "🎓", brain: "Accounting · Learning level", kind: "<b>A subject brain</b> that teaches from your own course: steps, quizzes, deep dives.",
+        feed: [["pdf", "Course PDFs"], ["vid", "Recorded lectures"], ["web", "Articles your teacher shared"]],
+        q: "Quiz me on depreciation, 8 questions, answers folded.",
+        a: ["Q1. What does straight-line depreciation spread evenly?", "Q2. Which cost is left once an asset is fully used?", "▸ Show the answers"],
+        src: "From 2 PDFs and 1 lecture" },
+      { tab: "You", em: "💬", brain: "Me · Personal, alpha", kind: "<b>A personal brain</b>: a chat that files your words as dated notes. Your other brains never read it.",
+        feed: [["you", "What you tell it in its chat"], ["txt", "The memory another assistant kept about you"]],
+        q: "What did I decide on pricing last month, and why?",
+        a: ["9 euros a month, decided on 12 September.", "Your reason: stay under the 10 euro line."],
+        src: "", chip: "Filed: 1 note updated", ok: true },
+    ];
+    const tabs = $("useTabs");
+    if (!tabs) return;
+    let at = 0, timer = null, auto = true;
+    const TURN = 8000;
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    CASES.forEach((c, i) => {
+      const b = document.createElement("button");
+      b.className = "tab"; b.type = "button"; b.setAttribute("role", "tab"); b.id = "useTab" + i;
+      b.innerHTML = `<span class="em" aria-hidden="true">${c.em}</span>${esc(c.tab)}`;
+      b.onclick = () => { auto = false; tabs.classList.remove("auto"); clearTimeout(timer); show(i); };
+      tabs.append(b);
+    });
+    function show(i){
+      at = i;
+      const c = CASES[i];
+      [...tabs.children].forEach((b, j) => b.setAttribute("aria-selected", j === i ? "true" : "false"));
+      $("useFeed").innerHTML = c.feed.map(([k, t]) => `<li><i class="${k}">${k.toUpperCase()}</i>${esc(t)}</li>`).join("");
+      $("useKind").innerHTML = c.kind;
+      $("useBrain").textContent = c.brain;
+      const step = 1700;
+      $("useChat").innerHTML = `<div class="q">${esc(c.q)}</div><div class="think"><span></span><span></span><span></span></div>` +
+        `<div class="a">${c.a.map((l, j) => `<span style="animation-delay:${step + j * 350}ms">${esc(l)}</span>`).join("")}` +
+        (c.src ? `<small style="animation-delay:${step + c.a.length * 350 + 200}ms">${esc(c.src)}</small>` : "") + `</div>` +
+        (c.chip ? `<span class="chip${c.ok ? " ok" : ""}" style="animation-delay:${step + c.a.length * 350 + 500}ms">${esc(c.chip)}</span>` : "");
+      clearTimeout(timer);
+      if (auto) { tabs.classList.remove("auto"); void tabs.offsetWidth; tabs.classList.add("auto"); timer = setTimeout(() => show((at + 1) % CASES.length), TURN); }
+    }
+    tabs.style.setProperty("--turn", TURN + "ms");
+    /* It starts turning when the section is on screen, and holds when it leaves. */
+    const box = $("uses");
+    if ("IntersectionObserver" in window) {
+      let on = false;
+      new IntersectionObserver(es => es.forEach(e => {
+        if (e.isIntersecting && !on) { on = true; show(at); }
+        else if (!e.isIntersecting && on) { on = false; clearTimeout(timer); tabs.classList.remove("auto"); }
+      }), { threshold: .3 }).observe(box);
+      show(0); clearTimeout(timer); tabs.classList.remove("auto");
+    } else { auto = false; show(0); }
   })();
 
   /**
