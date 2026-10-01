@@ -1379,6 +1379,51 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await ctx.close();
 }
 
+/* ---- talk instead of typing: the browser's own speech service ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    /* A stand-in for the speech service Safari and Chrome carry: it hears one
+       phrase in two steps, a partial then a final, and ends when stopped. */
+    window.__voice = [];
+    window.SpeechRecognition = window.webkitSpeechRecognition = class {
+      start(){ window.__voice.push({ lang: this.lang, live: this.interimResults }); window.__rec = this;
+        setTimeout(() => this.onresult?.({ results: [[{ transcript: "what do my" }]] }), 30);
+        setTimeout(() => this.onresult?.({ results: [[{ transcript: "what do my brains say on sleep" }]] }), 60); }
+      stop(){ setTimeout(() => this.onend?.(), 10); }
+    };
+    window.fetch = async u => String(u).includes("/api/state") ? Response.json(state) : Response.json({ chats: [] });
+  }, STATE);
+  await page.fill("#input", "Quick one:");
+  await page.click("#micBtn"); await page.waitForTimeout(150);
+  const on = await page.evaluate(() => ({ value: document.getElementById("input").value, on: document.getElementById("micBtn").classList.contains("on"),
+    pressed: document.getElementById("micBtn").getAttribute("aria-pressed"), hint: document.getElementById("tHint").textContent, lang: window.__voice[0]?.lang }));
+  check("the mic listens in the browser's language and writes after what was typed", on.value === "Quick one: what do my brains say on sleep"
+    && on.on && on.pressed === "true" && on.hint === "Listening. Tap the mic to stop." && !!on.lang, JSON.stringify(on));
+  await page.click("#micBtn"); await page.waitForTimeout(80);
+  const off = await page.evaluate(() => ({ on: document.getElementById("micBtn").classList.contains("on"), send: document.getElementById("send").disabled,
+    hint: document.getElementById("tHint").textContent }));
+  check("a second tap stops it, and the words wait to be sent", !off.on && !off.send && off.hint === "", JSON.stringify(off));
+  await page.click('#mode button[data-m="drop"]'); await page.waitForTimeout(60);
+  check("a drop takes a source, so the mic steps aside", await page.evaluate(() => document.getElementById("micBtn").hidden));
+  check("no page error with the mic", bad.length === 0, bad.join(" | "));
+  await page.close();
+}
+{
+  const { page } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    delete window.webkitSpeechRecognition; delete window.SpeechRecognition;
+    Object.defineProperty(navigator, "userAgent", { get: () => "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) Gecko/20100101 Firefox/131.0" });
+    window.fetch = async u => String(u).includes("/api/state") ? Response.json(state) : Response.json({ chats: [] });
+  }, STATE);
+  await page.click("#micBtn"); await page.waitForTimeout(60);
+  const h = await page.evaluate(() => document.getElementById("tHint").textContent);
+  check("a browser with no voice input points to the free dictation the computer carries", /Press Fn twice to dictate/.test(h), h);
+  await page.fill("#input", "typed"); await page.waitForTimeout(30);
+  check("and the hint goes once you type", await page.evaluate(() => document.getElementById("tHint").textContent === ""));
+  await page.close();
+}
+
 /* ---- a personal brain: a chat that files what you say ---- */
 {
   const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "What I say", owner: null }],

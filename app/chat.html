@@ -947,6 +947,17 @@
   }
   .send:hover{ filter:brightness(1.12); }
   .send[disabled]{ opacity:.3; cursor:default; filter:none; }
+  /* Talk instead of typing: the mic, and a soft ring while it listens. */
+  .mic{
+    width:34px; height:34px; border-radius:50%; flex-shrink:0; display:grid; place-items:center;
+    border:1px solid var(--line); color:var(--ink-3); transition:color .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease);
+  }
+  .mic:hover{ color:var(--ink); border-color:var(--accent); }
+  .mic svg{ width:16px; height:16px; display:block; }
+  .mic.on{ color:var(--accent-on); background:var(--accent-solid); border-color:var(--accent-solid); animation:listen 1.6s ease-in-out infinite; }
+  @keyframes listen{ 0%,100%{ box-shadow:0 0 0 0 color-mix(in srgb, var(--accent-solid) 45%, transparent); }
+    50%{ box-shadow:0 0 0 7px color-mix(in srgb, var(--accent-solid) 0%, transparent); } }
+  @media (prefers-reduced-motion:reduce){ .mic.on{ animation:none; } }
   .send svg{ width:15px; height:15px; display:block; }
 
   .foot-note{
@@ -1115,7 +1126,8 @@
     .tools{ flex:1 1 0; min-width:0; overflow-x:auto; scrollbar-width:none; }
     .tools::-webkit-scrollbar{ display:none; }
     .paste{ min-height:40px; padding:0 13px; font-size:12px; flex-shrink:0; }
-    .send{ width:44px; height:44px; margin-left:auto; }
+    .send{ width:44px; height:44px; }
+    .mic{ width:44px; height:44px; margin-left:auto; }
     .box textarea{ font-size:16px; }
     .dropsrc{ padding:4px 14px; }
     .dropsrc input{ font-size:16px; min-height:40px; }
@@ -1306,6 +1318,9 @@
             <div class="tools">
               <button class="paste" id="fileBtn" hidden title="Read a PDF, a Word file or a text file into the content">+ document</button>
             </div>
+            <button class="mic" id="micBtn" type="button" aria-label="Talk" aria-pressed="false" title="Talk instead of typing">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="1.75" width="5" height="8" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/></svg>
+            </button>
             <button class="send" id="send" disabled aria-label="Send">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M8 3L4 7M8 3l4 4"/></svg>
             </button>
@@ -2234,6 +2249,9 @@ function renderComposer(){
     x.classList.toggle("on", on); x.setAttribute("aria-checked", on ? "true" : "false");
   }
   $("fileBtn").hidden = !drop;
+  /* The mic is for asking and talking. A drop takes a source, not a voice. */
+  $("micBtn").hidden = drop;
+  if (drop && S.listening) stopVoice();
   $("footNote").textContent = mine
     ? "Personal, alpha: your words are filed as dated notes. It calls your other brains when they help, and only this chat reads it."
     : drop
@@ -2249,7 +2267,8 @@ function renderComposer(){
      else, so the button stays off and the hint says what is missing. */
   const ready = hasContent(src, t);
   $("send").disabled = S.busy || (drop ? !ready : !t);
-  $("tHint").textContent = S.busy ? "working" : drop ? dropHint(src, t) : "";
+  $("tHint").textContent = S.busy ? "working" : drop ? dropHint(src, t)
+    : S.listening ? "Listening. Tap the mic to stop." : (S.voiceHint || "");
 }
 
 /* Declarations, not consts: renderComposer runs once before this line is
@@ -2445,7 +2464,7 @@ function fail(body, msg){
 
 /* ============ input ============ */
 function sizeBox(){ const t=$("input"); t.style.height="auto"; t.style.height=Math.min(t.scrollHeight,210)+"px"; }
-$("input").addEventListener("input", () => { sizeBox(); renderComposer(); });
+$("input").addEventListener("input", () => { S.voiceHint = ""; sizeBox(); renderComposer(); });
 $("srcInput").addEventListener("input", renderComposer);
 $("srcInput").addEventListener("keydown", e => {
   if (e.key === "Enter"){ e.preventDefault(); if (!$("send").disabled) go(); }
@@ -2454,6 +2473,58 @@ $("input").addEventListener("keydown", e => {
   if (e.key==="Enter" && !e.shiftKey){ e.preventDefault(); if(!$("send").disabled) go(); }
 });
 $("send").onclick = go;
+
+/* ============ voice ============ */
+/* Talk instead of typing. The browser's own speech service listens: Safari
+   on iPhone, iPad and Mac, Chrome and Edge. It is free and needs no key.
+   Where a browser has none, the mic says how to dictate with the system's
+   own, which every phone and computer carries. */
+const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, voiceBase = "";
+function systemDictation(){
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod|Android/.test(ua)) return "Tap the mic on your keyboard to talk.";
+  if (/Mac/.test(ua)) return "No voice input in this browser. Press Fn twice to dictate, or open it in Safari or Chrome.";
+  if (/Windows/.test(ua)) return "No voice input in this browser. Press Windows + H to dictate, or open it in Chrome or Edge.";
+  return "No voice input in this browser. Open it in Chrome or Safari.";
+}
+function renderMic(){
+  const m = $("micBtn");
+  m.classList.toggle("on", !!S.listening);
+  m.setAttribute("aria-pressed", S.listening ? "true" : "false");
+  m.setAttribute("aria-label", S.listening ? "Stop talking" : "Talk");
+}
+function startVoice(){
+  if (!Speech){ S.voiceHint = systemDictation(); renderComposer(); $("input").focus(); return; }
+  const r = new Speech();
+  r.lang = navigator.language || "en-US";
+  r.interimResults = true;
+  r.continuous = true;
+  /* What was typed stays; the words spoken follow it. */
+  const typed = $("input").value.replace(/\s+$/, "");
+  voiceBase = typed ? typed + " " : "";
+  r.onresult = e => {
+    if (!S.listening) return;
+    let said = "";
+    for (const x of e.results) said += x[0].transcript;
+    $("input").value = voiceBase + said.replace(/^\s+/, "");
+    sizeBox(); renderComposer();
+  };
+  r.onerror = e => {
+    const why = e.error;
+    S.voiceHint = why === "not-allowed" || why === "service-not-allowed" ? "Allow the microphone for this site, then tap the mic again."
+      : why === "network" ? "Voice input needs a connection."
+      : why === "no-speech" || why === "aborted" ? "" : "Voice input stopped. Tap the mic to try again.";
+  };
+  r.onend = () => {
+    if (rec === r) rec = null;
+    if (S.listening){ S.listening = false; renderMic(); renderComposer(); $("input").focus(); }
+  };
+  try { r.start(); } catch { return; }
+  rec = r; S.listening = true; S.voiceHint = ""; renderMic(); renderComposer();
+}
+function stopVoice(){ try { rec?.stop(); } catch { /* it had stopped already */ } }
+$("micBtn").onclick = () => S.listening ? stopVoice() : startVoice();
 $("mode").onclick = e => {
   const b = e.target.closest("button[data-m]"); if(!b) return;
   S.mode = b.dataset.m;
@@ -4085,6 +4156,8 @@ async function takeDocument(file){
 /* ============ go ============ */
 async function go(){
   if (S.busy) return;
+  /* Late words from the mic would land in the box after it was cleared. */
+  if (S.listening){ S.listening = false; stopVoice(); renderMic(); }
   const text = $("input").value.trim();
   const src = $("srcInput").value.trim();
   if (S.mode === "drop" ? !hasContent(src, text) : !text) return;
