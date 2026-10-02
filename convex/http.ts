@@ -226,8 +226,9 @@ route("/api/passphrase", async (ctx, _req, b) => {
 
 /**
  * Share a brain: one brain, seen from two workspaces, so a drop in either one
- * fills both. Setup, for the owner of the brain's own workspace. A workspace
- * the brain was shared into can leave it.
+ * fills both. Setup, for the owner of the brain's own workspace, one workspace
+ * and one on or off at a time. The demo, open to anyone, only reads it. A
+ * workspace the brain was shared into can leave it.
  */
 route("/api/share", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
@@ -235,7 +236,7 @@ route("/api/share", async (ctx, _req, b) => {
   const slug = String(b.brain ?? "");
   if (slug && b.leave === true) await ctx.runMutation(internal.store.leaveBrain, { slug, space: who.space });
   else if (slug) await ctx.runMutation(internal.store.shareBrain,
-    { slug, space: who.space, with: (Array.isArray(b.with) ? b.with : []).map(String) });
+    { slug, space: who.space, to: String(b.to ?? ""), on: b.on === true });
   return await ctx.runQuery(internal.store.shareState, { space: who.space });
 });
 

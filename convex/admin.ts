@@ -140,7 +140,7 @@ export const moveBrain = internalMutation({
     const from = readSpace(b.space);
     if (from === space) return { slug: a.slug, from, to: space, moved: false, why: "already there" };
     /* A brain that moves leaves the workspaces it was shared with. */
-    if (!a.dry) await ctx.db.patch(b._id, { space, shared: [] });
+    if (!a.dry) await ctx.db.patch(b._id, { space, shared: [], viewers: [] });
     return { slug: a.slug, name: b.name, from, to: space, moved: !a.dry };
   },
 });

@@ -4,7 +4,7 @@ import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap, cardOf } from "./words";
 import { sha256, randomHex, today, slug, gateKey, readSpace, HOME, SPACE_RE, SPACES,
-         SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, inSpace, SPACE_NAME } from "./lib";
+         SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, inSpace, isViewer, SPACE_NAME } from "./lib";
 
 /* ---------------- the gate ---------------- */
 
@@ -115,10 +115,19 @@ export const endOtherSessions = internalMutation({
 
 /* ---------------- shared brains ---------------- */
 
+/** The demo workspace, when there is one: the one place a brain is shared to be read only. */
+async function demoSlug(ctx: any): Promise<string | null> {
+  for (const w of await ctx.db.query("workspaces").collect()) if (w.kind === "demo") return w.slug;
+  return null;
+}
+
 /**
- * What a workspace's owner sees under Share brain: the brains that live here
- * and which other workspaces they are shared with, the workspaces a brain can
- * go to, and the brains other workspaces shared into this one.
+ * What a workspace's owner sees under Share brain: the workspaces a brain can
+ * go to, the brains that live here and which of those it already goes to, and
+ * the brains other workspaces shared into this one.
+ *
+ * A target is the owner's other workspace, which can feed the brain too, or
+ * the demo, which can only read it.
  */
 export const shareState = internalQuery({
   args: { space: v.string() },
@@ -126,34 +135,46 @@ export const shareState = internalQuery({
     const space = readSpace(a.space);
     const all = await ctx.db.query("brains").collect();
     const name = (s: string) => SPACE_NAME[s] ?? s;
+    const demo = await demoSlug(ctx);
+    const targets = [
+      ...(SPACES as readonly string[]).filter(s => s !== space).map(s => ({ slug: s, name: name(s), mode: "edit" })),
+      ...(demo && demo !== space ? [{ slug: demo, name: name(demo), mode: "read" }] : []),
+    ];
     return {
-      targets: (SPACES as readonly string[]).filter(s => s !== space).map(s => ({ slug: s, name: name(s) })),
+      targets,
       brains: all.filter(b => readSpace(b.space) === space && b.type !== "personal")
-        .map(b => ({ slug: b.slug, name: b.name, type: b.type, shared: b.shared ?? [] })),
+        .map(b => ({ slug: b.slug, name: b.name, type: b.type, to: [...(b.shared ?? []), ...(b.viewers ?? [])] })),
       joined: all.filter(b => readSpace(b.space) !== space && inSpace(b, space))
-        .map(b => ({ slug: b.slug, name: b.name, type: b.type, from: readSpace(b.space), fromName: name(readSpace(b.space)) })),
+        .map(b => ({ slug: b.slug, name: b.name, type: b.type, from: readSpace(b.space), fromName: name(readSpace(b.space)),
+                     readOnly: isViewer(b, space) })),
     };
   },
 });
 
 /**
- * Choose which workspaces also see one brain. Only the owner of the brain's
- * own workspace does this, only to the owner's workspaces, and never for a
- * personal brain: what you told it stays in its chat.
+ * Put one brain in one more workspace, or take it out. Only the owner of the
+ * brain's own workspace does this, and never for a personal brain: what you
+ * told it stays in its chat.
+ *
+ * The owner's other workspace gets the brain whole, so a drop in either fills
+ * both. The demo is open to anyone, so it only reads the brain.
  */
 export const shareBrain = internalMutation({
-  args: { slug: v.string(), space: v.string(), with: v.array(v.string()) },
+  args: { slug: v.string(), space: v.string(), to: v.string(), on: v.boolean() },
   handler: async (ctx, a) => {
     const home = readSpace(a.space);
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
     if (!b || readSpace(b.space) !== home) throw new Error("that brain does not live in this workspace");
     if (b.type === "personal") throw new Error("a personal brain is never shared");
-    const to = [...new Set<string>(a.with.map(s => String(s).trim().toLowerCase()))];
-    for (const s of to) {
-      if (!(SPACES as readonly string[]).includes(s) || s === home) throw new Error(`a brain cannot be shared with "${s}"`);
-    }
-    await ctx.db.patch(b._id, { shared: to });
-    return { slug: b.slug, shared: to };
+    const to = String(a.to).trim().toLowerCase();
+    const editor = (SPACES as readonly string[]).includes(to) && to !== home;
+    const viewer = !editor && to !== home && to === (await demoSlug(ctx));
+    if (!editor && !viewer) throw new Error(`a brain cannot be shared with "${to}"`);
+    const without = (list: string[] | undefined) => (list ?? []).filter(s => s !== to);
+    const shared = editor ? (a.on ? [...without(b.shared), to] : without(b.shared)) : (b.shared ?? []);
+    const viewers = viewer ? (a.on ? [...without(b.viewers), to] : without(b.viewers)) : (b.viewers ?? []);
+    await ctx.db.patch(b._id, { shared, viewers });
+    return { slug: b.slug, shared, viewers };
   },
 });
 
@@ -163,8 +184,8 @@ export const leaveBrain = internalMutation({
   handler: async (ctx, a) => {
     const space = readSpace(a.space);
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
-    if (!b || readSpace(b.space) === space || !(b.shared ?? []).includes(space)) throw new Error("that brain is not shared with this workspace");
-    await ctx.db.patch(b._id, { shared: (b.shared ?? []).filter((s: string) => s !== space) });
+    if (!b || readSpace(b.space) === space || !inSpace(b, space)) throw new Error("that brain is not shared with this workspace");
+    await ctx.db.patch(b._id, { shared: (b.shared ?? []).filter((s: string) => s !== space), viewers: (b.viewers ?? []).filter((s: string) => s !== space) });
     return { slug: b.slug };
   },
 });
@@ -463,7 +484,7 @@ export const renameBrain = internalMutation({
       /* Links name a concept as brain/slug, so every link into this brain
          follows it too, or it would point at nothing and hold a slot. */
       /* Every workspace that sees this brain holds links into it. */
-      const seenIn = [readSpace(b.space), ...(b.shared ?? [])];
+      const seenIn = [readSpace(b.space), ...(b.shared ?? []), ...(b.viewers ?? [])];
       const pool = (await ctx.db.query("brains").collect()).filter(x => seenIn.some((sp: string) => inSpace(x, sp)));
       for (const br of pool) {
         const slugNow = br.slug === a.slug ? to : br.slug;
@@ -778,7 +799,7 @@ export const conflictsPage = internalQuery({
   args: { space: v.optional(v.string()), brain: v.string(), cursor: v.union(v.string(), v.null()) },
   handler: async (ctx, a) => {
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.brain)).unique();
-    if (!b || !inSpace(b, readSpace(a.space))) return { items: [], next: null };
+    if (!b || !inSpace(b, readSpace(a.space)) || isViewer(b, readSpace(a.space))) return { items: [], next: null };
     const p = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain))
       .paginate({ numItems: 100, cursor: a.cursor });
     return {
@@ -821,6 +842,8 @@ export const settleConflict = internalMutation({
   handler: async (ctx, a) => {
     const c = await conceptIn(ctx, a.space, a.id);
     if (!c) return { ok: false, why: "that concept is not in this space" };
+    const home = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", c.brain)).unique();
+    if (isViewer(home, readSpace(a.space))) return { ok: false, why: "this brain is read only here" };
     const had = (c.conflicts ?? []).length;
     const conflicts = (c.conflicts ?? []).filter((x: any) => !sameClash(x, a.a, a.b));
     if (conflicts.length === had) return { ok: false, why: "that conflict is already settled" };

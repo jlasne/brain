@@ -484,13 +484,21 @@
   .sh-name{ flex:1 1 130px; min-width:0; font:500 14px/1.35 var(--sans); color:var(--ink); }
   .sh-from{ font:400 12px/1.4 var(--mono); color:var(--ink-3); }
   .sh-sub{ margin:14px 0 4px; font:500 12px/1 var(--sans); color:var(--ink-3); letter-spacing:.04em; text-transform:uppercase; }
-  .sh-to{ display:flex; flex-wrap:wrap; gap:8px; }
   .sh-chip{ min-height:32px; padding:0 12px; border:1px solid var(--line-2); border-radius:999px; background:transparent;
     font:500 12.5px/1 var(--sans); color:var(--ink-2); cursor:pointer; transition:all .15s var(--ease); }
   .sh-chip:hover{ border-color:var(--accent-line); color:var(--accent); }
   .sh-chip.on{ border-color:var(--accent-line); background:var(--accent-soft); color:var(--accent); }
   .sh-chip[disabled]{ opacity:.55; cursor:default; }
   @media (max-width:520px){ .sh-chip{ min-height:40px; } }
+  .sh-fold > summary{ display:flex; align-items:center; gap:9px; cursor:pointer; list-style:none; font:500 13px/1 var(--sans); color:var(--ink); padding:2px 0 4px; }
+  .sh-fold > summary::-webkit-details-marker{ display:none; }
+  .sh-fold > summary::after{ content:""; margin-left:auto; width:7px; height:7px; border-right:1.6px solid var(--ink-3); border-bottom:1.6px solid var(--ink-3);
+    transform:rotate(45deg) translate(-2px,-2px); transition:transform .2s var(--ease); }
+  .sh-fold[open] > summary::after{ transform:rotate(-135deg) translate(-2px,-2px); }
+  .sh-count{ font:400 11.5px/1 var(--mono); color:var(--ink-3); }
+  .sh-count:empty{ display:none; }
+  .sh-fold > summary:focus-visible{ outline:2px solid var(--accent-line); outline-offset:3px; border-radius:6px; }
+  .sh-fold label{ margin-top:2px; }
   .brain-row.shared .nm::after{ content:"\21C4"; margin-left:7px; font-size:11px; color:var(--ink-4); }
 
   .urlbox{
@@ -1786,6 +1794,8 @@ const BRAIN_ICON = {
 const brainIcon = b => { const w = el("span","b-ico"); w.innerHTML = BRAIN_ICON[b.type === "person" || b.type === "personal" ? b.type : "subject"]; return w.firstChild; };
 /* A personal brain: a chat that files what its owner says. Only its own chat reads it. */
 function isPersonal(slug){ return S.brains.find(b => b.slug === slug)?.type === "personal"; }
+/** A brain shared into this workspace to be read, never fed: the demo's view of one. */
+function readOnly(b){ return !!b && (b.viewers || []).includes(S.space); }
 /* Into a personal chat or out of one, the thread starts fresh: the two never share a chat. */
 function crossing(to){ if (S.chatId && isPersonal(to) !== isPersonal(S.scope)) newChat(); }
 const shared = () => S.brains.filter(b => b.type !== "personal");
@@ -1795,7 +1805,7 @@ const shared = () => S.brains.filter(b => b.type !== "personal");
 function brainRow(b){
   const on = S.scope === b.slug;
   const home = b.space || "octopus", label = x => x.charAt(0).toUpperCase() + x.slice(1);
-  const out = (b.shared || []).map(label), from = home !== S.space ? label(home) : "";
+  const out = [...(b.shared || []), ...(b.viewers || [])].map(label), from = home !== S.space ? label(home) : "";
   const row = el("button","brain-row" + (on ? " on" : "") + (out.length || from ? " shared" : ""));
   const ideas = conceptsOf(b.slug).length, read = sourcesOf(b.slug).length;
   /* The concept count on the row; the sources behind it on hover. */
@@ -1806,7 +1816,7 @@ function brainRow(b){
   if (h) row.append(healthRing(h, b));
   row.title = b.type === "personal" ? `Personal, alpha: it files what you say in its chat, dated. Only that chat reads it.\n${ideas} notes`
     : `${b.scope || "no scope line"}\n${ideas} concepts, ${read} sources` +
-      (from ? `\nShared with this workspace from ${from}` : out.length ? `\nShared with ${out.join(", ")}` : "");
+      (from ? `\nShared with this workspace from ${from}${readOnly(b) ? ". Read only here" : ""}` : out.length ? `\nShared with ${out.join(", ")}` : "");
   /* On a phone the drawer covers the thread, so a pick closes it. */
   row.onclick = () => { crossing(on ? "all" : b.slug); S.scope = on ? "all" : b.slug; S.into = on ? [] : [b.slug]; closeSide(); render(); };
   {
@@ -2164,7 +2174,7 @@ function openBrainSheet(b){
 /** The picker's face: the space's mark, where it goes, and to which brain. */
 function renderScope(){
   if (!S.brains.some(b => b.slug === S.scope)) S.scope = "all";
-  S.into = S.into.filter(x => S.brains.some(b => b.slug === x) && !isPersonal(x));
+  S.into = S.into.filter(x => S.brains.some(b => b.slug === x) && !isPersonal(x) && !readOnly(S.brains.find(b => b.slug === x)));
   if (isPersonal(S.scope) && S.mode === "drop") S.mode = "ask";
   const drop = S.mode === "drop";
   const nameOf = x => S.brains.find(b => b.slug === x)?.name || x;
@@ -2218,7 +2228,7 @@ function fillPick(){
     drop ? "The AI picks where it belongs" : `${S.brains.length} brain${S.brains.length===1?"":"s"}, ${ideas} concept${ideas===1?"":"s"}`));
   if (drop) m.append(el("div","pk-h","Or tick the brains to feed"));
   if (!drop) m.append(el("div","pk-h","Or one brain"));
-  for (const b of ordered()) if (!drop || b.type !== "personal") m.append(row(b.slug, b.name, b.type === "personal" ? "your chat" : "", String(conceptsOf(b.slug).length), b));
+  for (const b of ordered()) if (!drop || (b.type !== "personal" && !readOnly(b))) m.append(row(b.slug, b.name, b.type === "personal" ? "your chat" : "", String(conceptsOf(b.slug).length), b));
   if (drop){
     const done = el("button","pk-done", S.into.length > 1 ? `Feed ${S.into.length} brains` : "Done");
     done.onclick = e => { e.stopPropagation(); closePick(); $("input").focus(); };
@@ -3060,12 +3070,15 @@ async function openSetupSheet(){
         <div class="hint" id="passMsg" role="status"></div>
       </div>
 
-      <div class="f" id="shareBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${ownerWs() ? "" : "hidden"}>
-        <label>Share brain</label>
-        <div class="hint" style="margin:0 0 8px">One brain, seen from two workspaces: a drop in either one fills both. Pick which brain goes to which workspace. A personal brain is never shared.</div>
+      <details class="f sh-fold" id="shareBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${ownerWs() ? "" : "hidden"}>
+        <summary><span>Share brain</span><b id="shareCount" class="sh-count"></b></summary>
+        <div class="hint" style="margin:8px 0 10px">Pick a workspace, then which brains go to it. It stays one brain, not a copy. A personal brain is never shared.</div>
+        <label for="shareTo">Workspace</label>
+        <select class="pick" id="shareTo" aria-label="The workspace to share with"></select>
+        <div class="hint" id="shareNote" style="margin:7px 0 4px"></div>
         <div id="shareSlot"><div class="hint">Loading</div></div>
         <div class="hint" id="shareMsg" role="status"></div>
-      </div>
+      </details>
 
       <div class="f" id="keyBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${S.byok ? "" : "hidden"}>
         <label for="ownKey">Your OpenRouter key</label>
@@ -3156,37 +3169,52 @@ async function openSetupSheet(){
     passGo.disabled = false;
   };
 
-  /* ---- Share brain: which brain goes to which workspace ---- */
+  /* ---- Share brain: pick a workspace, then which brains go to it ---- */
   const shareSlot = veil.querySelector("#shareSlot"), shareMsg = veil.querySelector("#shareMsg");
+  const shareTo = veil.querySelector("#shareTo"), shareNote = veil.querySelector("#shareNote"), shareCount = veil.querySelector("#shareCount");
+  let shareData = null;
   const paintShare = r => {
+    shareData = r;
+    const was = shareTo.value;
+    shareTo.innerHTML = "";
+    for (const t of r.targets){
+      const o = el("option", null, t.mode === "read" ? `${t.name} (read only)` : t.name); o.value = t.slug; shareTo.append(o);
+    }
+    if (r.targets.some(t => t.slug === was)) shareTo.value = was;
+    const n = r.brains.filter(b => b.to.length).length;
+    shareCount.textContent = n ? `${n} shared` : "";
+    paintRows();
+  };
+  const paintRows = () => {
+    const r = shareData, t = r.targets.find(x => x.slug === shareTo.value);
     shareSlot.innerHTML = "";
-    if (!r.brains.length && !r.joined.length) shareSlot.append(el("div","hint","No brain here to share yet."));
-    for (const b of r.brains){
+    shareNote.textContent = !t ? "There is no other workspace to share with." : t.mode === "read"
+      ? `Everyone who opens ${t.name} can read the brains you share there. Nobody there can change them.`
+      : `${t.name} can read these brains and feed them. A drop there fills them here too.`;
+    if (t && !r.brains.length) shareSlot.append(el("div","hint","No brain here to share yet."));
+    for (const b of t ? r.brains : []){
+      const on = b.to.includes(t.slug);
       const row = el("div","sh-row");
       row.append(el("span","sh-name",b.name));
-      const to = el("div","sh-to");
-      for (const t of r.targets){
-        const on = b.shared.includes(t.slug);
-        const chip = el("button","sh-chip" + (on ? " on" : ""), (on ? "Shared with " : "Share with ") + t.name);
-        chip.type = "button"; chip.setAttribute("aria-pressed", on ? "true" : "false");
-        chip.onclick = async () => {
-          const next = on ? b.shared.filter(x => x !== t.slug) : [...b.shared, t.slug];
-          chip.disabled = true; shareMsg.textContent = "Saving";
-          try {
-            paintShare(await api("/api/share", { brain: b.slug, with: next }));
-            shareMsg.textContent = on ? `${b.name} is no longer shared with ${t.name}.` : `${b.name} is now in ${t.name} too. A drop in either fills both.`;
-            refresh().catch(() => {});
-          } catch (e) { chip.disabled = false; shareMsg.textContent = e.message; }
-        };
-        to.append(chip);
-      }
-      row.append(to); shareSlot.append(row);
+      const chip = el("button","sh-chip" + (on ? " on" : ""), on ? "Shared" : "Share");
+      chip.type = "button"; chip.setAttribute("aria-pressed", on ? "true" : "false");
+      chip.setAttribute("aria-label", `${on ? "Stop sharing" : "Share"} ${b.name} with ${t.name}`);
+      chip.onclick = async () => {
+        chip.disabled = true; shareMsg.textContent = "Saving";
+        try {
+          paintShare(await api("/api/share", { brain: b.slug, to: t.slug, on: !on }));
+          shareMsg.textContent = on ? `${b.name} is no longer in ${t.name}.`
+            : t.mode === "read" ? `${b.name} is now readable in ${t.name}.` : `${b.name} is now in ${t.name} too. A drop in either fills both.`;
+          refresh().catch(() => {});
+        } catch (e) { chip.disabled = false; shareMsg.textContent = e.message; }
+      };
+      row.append(chip); shareSlot.append(row);
     }
     if (r.joined.length){
       shareSlot.append(el("div","sh-sub","Shared with this workspace"));
       for (const b of r.joined){
         const row = el("div","sh-row");
-        row.append(el("span","sh-name",`${b.name}`), el("span","sh-from",`from ${b.fromName}`));
+        row.append(el("span","sh-name",b.name), el("span","sh-from",`from ${b.fromName}${b.readOnly ? ", read only" : ""}`));
         const leave = el("button","mini","Leave it");
         leave.type = "button";
         leave.onclick = async () => {
@@ -3202,6 +3230,7 @@ async function openSetupSheet(){
       }
     }
   };
+  shareTo.onchange = () => { shareMsg.textContent = ""; paintRows(); };
   if (ownerWs()) api("/api/share", {}).then(paintShare).catch(e => { shareSlot.innerHTML = ""; shareMsg.textContent = e.message; });
 
   /* ---- the model and the export ---- */

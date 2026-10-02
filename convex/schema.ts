@@ -98,6 +98,9 @@ export default defineSchema({
        the owner of its home workspace sets this, and never for a personal
        brain. Absent means the brain is its home's alone. */
     shared: v.optional(v.array(v.string())),
+    /* Workspaces that may read this brain and never change it: the demo, which
+       any visitor opens. */
+    viewers: v.optional(v.array(v.string())),
   }).index("by_slug", ["slug"]),
 
   concepts: defineTable({

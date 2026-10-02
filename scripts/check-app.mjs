@@ -1326,8 +1326,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
 
 /* ---- Setup: change the passphrase, and share a brain with another workspace ---- */
 {
-  const shareState = { targets: [{ slug: "squidgy", name: "Squidgy" }],
-    brains: [{ slug: "wealth", name: "Wealth", type: "subject", shared: [] }, { slug: "content", name: "Content", type: "subject", shared: ["squidgy"] }],
+  const shareState = { targets: [{ slug: "squidgy", name: "Squidgy", mode: "edit" }, { slug: "demo", name: "Demo", mode: "read" }],
+    brains: [{ slug: "wealth", name: "Wealth", type: "subject", to: [] }, { slug: "content", name: "Content", type: "subject", to: ["squidgy"] }],
     joined: [] };
   const owner = { ...STATE, space: "octopus", spaceName: "Octopus", brains: [
     { slug: "wealth", name: "Wealth", type: "subject", scope: "s", owner: null },
@@ -1342,7 +1342,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       if (s.includes("/api/passphrase")) return body.current === "right one" ? Response.json({ ok: true, ended: 2 }) : Response.json({ error: "that is not your current passphrase" });
       if (s.includes("/api/share")) {
         const b = window.__share.brains.find(x => x.slug === body.brain);
-        if (b && body.leave !== true) b.shared = body.with;
+        if (b && body.leave !== true) b.to = body.on ? [...b.to.filter(x => x !== body.to), body.to] : b.to.filter(x => x !== body.to);
         return Response.json(window.__share);
       }
       return Response.json({ chats: [], conflicts: [], others: 0, health: [] });
@@ -1353,16 +1353,33 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("a brain shared with another workspace wears a mark in the list", /Content:true/.test(mark) && /Wealth:false/.test(mark), mark);
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(300);
   const ui = await page.evaluate(() => ({ pass: !document.getElementById("passBlock").hidden, share: !document.getElementById("shareBlock").hidden,
-    rows: [...document.querySelectorAll("#shareSlot .sh-row")].map(r => r.querySelector(".sh-name").textContent + ":" + r.querySelector(".sh-chip").textContent).join("|") }));
-  check("Setup offers a passphrase to change and Share brain, personal brains left to the server to refuse", ui.pass && ui.share && ui.rows === "Wealth:Share with Squidgy|Content:Shared with Squidgy", JSON.stringify(ui));
+    open: document.getElementById("shareBlock").open, count: document.getElementById("shareCount").textContent,
+    opts: [...document.querySelectorAll("#shareTo option")].map(o => o.textContent).join("|") }));
+  check("Setup offers a passphrase to change, and Share brain folded shut with how many are shared", ui.pass && ui.share && !ui.open && ui.count === "1 shared"
+    && ui.opts === "Squidgy|Demo (read only)", JSON.stringify(ui));
+  await page.click("#shareBlock > summary"); await page.waitForTimeout(80);
+  const rows = () => page.evaluate(() => [...document.querySelectorAll("#shareSlot .sh-row")].map(r => r.querySelector(".sh-name").textContent + ":" + r.querySelector(".sh-chip").textContent).join("|"));
+  check("it opens on a tap, and lists the brains here for the first workspace, the personal one left out", await page.evaluate(() => document.getElementById("shareBlock").open)
+    && (await rows()) === "Wealth:Share|Content:Shared", await rows());
 
   /* Share a brain: one tap, saved at once. */
   await page.click("#shareSlot .sh-row:first-child .sh-chip"); await page.waitForTimeout(250);
-  const sent = await page.evaluate(() => ({ call: window.__calls.filter(c => c.s.includes("/api/share")).pop()?.body, said: document.getElementById("shareMsg").textContent }));
-  check("a tap shares that brain with that workspace", sent.call?.brain === "wealth" && JSON.stringify(sent.call?.with) === '["squidgy"]' && /Wealth is now in Squidgy too/.test(sent.said), JSON.stringify(sent));
+  const sent = await page.evaluate(() => ({ call: window.__calls.filter(c => c.s.includes("/api/share")).pop()?.body, said: document.getElementById("shareMsg").textContent, count: document.getElementById("shareCount").textContent }));
+  check("a tap shares that brain with the chosen workspace", sent.call?.brain === "wealth" && sent.call?.to === "squidgy" && sent.call?.on === true
+    && /Wealth is now in Squidgy too/.test(sent.said) && sent.count === "2 shared", JSON.stringify(sent));
   await page.click("#shareSlot .sh-row:last-child .sh-chip"); await page.waitForTimeout(250);
   const off = await page.evaluate(() => ({ call: window.__calls.filter(c => c.s.includes("/api/share")).pop()?.body, chip: document.querySelector("#shareSlot .sh-row:last-child .sh-chip").textContent }));
-  check("and a second tap on a shared one stops sharing it", off.call?.brain === "content" && off.call?.with.length === 0 && off.chip === "Share with Squidgy", JSON.stringify(off));
+  check("and a second tap on a shared one stops sharing it", off.call?.brain === "content" && off.call?.to === "squidgy" && off.call?.on === false && off.chip === "Share", JSON.stringify(off));
+
+  /* The select changes the workspace, and the demo says it is read only. */
+  await page.selectOption("#shareTo", "demo"); await page.waitForTimeout(80);
+  const demoSide = await page.evaluate(() => ({ note: document.getElementById("shareNote").textContent, rows: [...document.querySelectorAll("#shareSlot .sh-chip")].map(c => c.textContent).join("|") }));
+  check("choosing the demo says everyone there can read it and nobody can change it, and shows what is shared there", /Everyone who opens Demo can read/.test(demoSide.note)
+    && /Nobody there can change them/.test(demoSide.note) && demoSide.rows === "Share|Share", JSON.stringify(demoSide));
+  await page.click("#shareSlot .sh-row:first-child .sh-chip"); await page.waitForTimeout(250);
+  const toDemo = await page.evaluate(() => ({ call: window.__calls.filter(c => c.s.includes("/api/share")).pop()?.body, said: document.getElementById("shareMsg").textContent }));
+  check("a tap with the demo chosen shares it with the demo", toDemo.call?.to === "demo" && toDemo.call?.on === true && /readable in Demo/.test(toDemo.said), JSON.stringify(toDemo));
+  check("and the choice stays on the demo after the list repaints", await page.inputValue("#shareTo") === "demo");
 
   /* The passphrase. */
   await page.click("#passGo"); await page.waitForTimeout(60);
@@ -1384,7 +1401,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
 }
 {
   /* A workspace that was given a brain can leave it. */
-  const given = { targets: [{ slug: "octopus", name: "Octopus" }], brains: [], joined: [{ slug: "wealth", name: "Wealth", type: "subject", from: "octopus", fromName: "Octopus" }] };
+  const given = { targets: [{ slug: "octopus", name: "Octopus", mode: "edit" }], brains: [], joined: [{ slug: "wealth", name: "Wealth", type: "subject", from: "octopus", fromName: "Octopus", readOnly: false }] };
   const sq = { ...STATE, space: "squidgy", spaceName: "Squidgy", brains: [{ slug: "wealth", name: "Wealth", type: "subject", scope: "s", space: "octopus", shared: ["squidgy"] }] };
   const { page } = await boot("/chat.html", ([state, share]) => {
     sessionStorage.setItem("octopus.token.v1", "test"); window.__calls = [];
@@ -1396,10 +1413,31 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.waitForTimeout(250);
   check("a brain given by another workspace says where it comes from", await page.evaluate(() => document.querySelector("#brains .brain-row").title.includes("Shared with this workspace from Octopus")));
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(300);
+  await page.click("#shareBlock > summary"); await page.waitForTimeout(60);
   const row = await page.evaluate(() => [...document.querySelectorAll("#shareSlot .sh-row > *")].map(x => x.textContent).join("|"));
   check("Share brain lists what this workspace was given, with a way to leave it", row === "Wealth|from Octopus|Leave it", row);
   await page.click("#shareSlot .sh-row .mini"); await page.waitForTimeout(200);
   check("leaving sends only that brain", await page.evaluate(() => { const c = window.__calls.filter(x => x.s.includes("/api/share")).pop()?.body; return c?.brain === "wealth" && c?.leave === true; }));
+  await page.close();
+}
+{
+  /* In the demo a shared brain is there to ask, and never offered to feed. */
+  const demo = { ...STATE, space: "demo", spaceName: "Demo", demo: true, brains: [
+    { slug: "health", name: "Health", type: "subject", scope: "s" },
+    { slug: "wealth", name: "Wealth", type: "subject", scope: "s", space: "octopus", viewers: ["demo"] }] };
+  const { page } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.fetch = async u => String(u).includes("/api/state") ? Response.json(state) : Response.json({ chats: [] });
+  }, demo);
+  await page.waitForTimeout(250);
+  await page.click("#scopeBtn"); await page.waitForTimeout(80);
+  const ask = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-nm")].map(x => x.firstChild.textContent).join("|"));
+  await page.keyboard.press("Escape");
+  await page.click('#mode button[data-m="drop"]'); await page.waitForTimeout(80);
+  await page.click("#scopeBtn"); await page.waitForTimeout(80);
+  const feed = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-nm")].map(x => x.firstChild.textContent).join("|"));
+  check("the demo asks across a shared brain and only offers its own to feed", /Wealth/.test(ask) && /Health/.test(ask) && /Health/.test(feed) && !/Wealth/.test(feed), JSON.stringify({ ask, feed }));
+  check("and its row says it is read only here", await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].some(r => /Read only here/.test(r.title))));
   await page.close();
 }
 

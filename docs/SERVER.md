@@ -131,7 +131,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/conflicts` | The open conflicts that are real contradictions. Each clash is checked once and marked | Yes |
 | `/api/conflicts/settle` | Settles one: the side that holds rewrites the position, or both hold and it only leaves the list | Yes |
 | `/api/passphrase` | Changes the workspace's passphrase: the current one is checked against the same 8 tries an hour, the others are signed out | Owner |
-| `/api/share` | Share brain: the owner of a brain's workspace puts it in the other owner workspace too, or takes it back; the other workspace can leave it. Never a personal brain | Owner |
+| `/api/share` | Share brain: the owner of a brain's workspace puts it in one more workspace, or takes it back, one workspace at a time. The owner's other workspace can feed it; the demo only reads it. A workspace can leave a brain it was given. Never a personal brain | Owner |
 | `/api/brain` | Creates one | Yes |
 | `/api/drop/check` | The duplicate check, an index lookup. No model call, so the test button is free | Yes |
 | `/api/drop/read` | One extraction pass over one chunk | Yes |
