@@ -550,6 +550,33 @@ function seed() {
   check("reset takes the workspace back to the default", (await run(store.brandOf, ctx, { space: "acme" })) === null && T.brands.length === 0);
 }
 
+/* ---- a passphrase guess is counted before it is checked ---- */
+{
+  const { T, ctx } = seed();
+  await run(admin.makeWorkspace, ctx, { name: "Lockbox", pass: "ABC12345" });
+  const takes = [];
+  for (let i = 0; i < 9; i++) takes.push(await run(store.takeAttempt, ctx, { space: "lockbox" }));
+  check("a door hands out 8 guesses an hour, counted as they are taken", takes.slice(0, 8).every(t => !t.locked && t.salt) && takes[8].locked && !takes[8].salt,
+    JSON.stringify(takes.map(t => t.locked)));
+  const row = T.config.find(r => r.key && r.hash && r.attempts >= 8);
+  row.attemptWindow = Date.now() - 2 * 60 * 60 * 1000;
+  const later = await run(store.takeAttempt, ctx, { space: "lockbox" });
+  check("an hour on, the door opens to guesses again", !later.locked && later.salt && row.attempts === 1, JSON.stringify({ later: later.locked, n: row.attempts }));
+  await run(store.noteAttempt, ctx, { ok: true, space: "lockbox" });
+  check("and a right passphrase clears the count", row.attempts === 0);
+  check("a door with no passphrase gives nothing to guess at", (await run(store.takeAttempt, ctx, { space: "nobody" })).set === false);
+}
+
+/* ---- old sealed member keys are forgotten ---- */
+{
+  const { T, ctx } = seed();
+  T.accounts = [{ _id: "a1", name: "Old", slug: "old", salt: "s", keyCipher: "c", keyIv: "i", keyHash: "h", keyHint: "sk-or-…abcd", keySavedAt: "2026-09-20", created: "x", lastSeen: "x" },
+                { _id: "a2", name: "Clean", slug: "clean", salt: "s", created: "x", lastSeen: "x" }];
+  const r = await run(admin.forgetOldKeys, ctx, {});
+  check("forgetOldKeys clears every sealed key field, and touches no clean account", r.cleared === 1
+    && !["keyCipher", "keyIv", "keyHash", "keyHint", "keySavedAt"].some(k => T.accounts[0][k] !== undefined) && T.accounts[0].name === "Old", JSON.stringify(T.accounts[0]));
+}
+
 /* ---- a workspace's side panel: limited until switched ---- */
 {
   const { T, ctx } = seed();

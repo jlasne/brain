@@ -1757,8 +1757,13 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click("#kDone");
   await page.fill("#input", "What is a hook?"); await page.click("#send"); await page.waitForTimeout(200);
   const sent = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/ask")).pop()?.body);
-  check("each call carries the workspace's own key", sent?.key === "sk-or-v1-0123456789abcdef0123456789abcdef", JSON.stringify(sent));
+  check("a call that spends a model carries the workspace's own key", sent?.key === "sk-or-v1-0123456789abcdef0123456789abcdef", JSON.stringify(sent));
+  const quiet = await page.evaluate(() => window.__calls.filter(c => /\/api\/(state|chats|health|lock|usage)/.test(c.s) && c.body && "key" in c.body).map(c => c.s));
+  check("and a call that spends none leaves it out", quiet.length === 0, JSON.stringify(quiet));
   check("nothing threw in a workspace on its own key", !bad.length, bad.join(" | "));
+  await page.click("#lockBtn").catch(async () => { await page.click("#burger"); await page.click("#lockBtn"); });
+  await page.waitForTimeout(400);
+  check("Sign out forgets the workspace's own key in this browser", await page.evaluate(() => localStorage.getItem("octopus.key.acme")) === null);
   await page.close();
 }
 

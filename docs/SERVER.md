@@ -49,6 +49,13 @@ and opens from the landing by its name. It has no connector, mail or Share
 brain of its own, and 20 transcript fetches a day. The owner's Share brain lists
 it, so a brain can be given to it.
 
+Forget the model keys an earlier sign-in scheme kept, sealed, on member
+accounts. Nothing reads them now. Run it once, then remove `KEY_SECRET`:
+
+```bash
+npx convex run admin:forgetOldKeys --prod
+```
+
 Every workspace starts limited: its side panel shows Chats and Projects. Full
 adds the folder list, and whoever opens the workspace switches it in Settings.
 The demo's visitors cannot reach that switch, so it is set here:

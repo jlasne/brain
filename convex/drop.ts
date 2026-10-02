@@ -859,7 +859,10 @@ ${excerptFor(ext.topics ?? [], touched)}`;
   /* The app stores a long source in parts and asks for linking once, at the
      end, for everything it wrote. A single store links here. */
   const written = touched.map(({ c }: any) => `${c.brain}/${c.slug}`);
-  if (written.length && ctx.scheduler && !b.linkLater) {
+  /* Linking runs on the deployment's key, so a workspace on its own key and
+     the demo never start it, whatever the call asks. */
+  const own = (who as any).byok || (who as any).demo;
+  if (written.length && ctx.scheduler && !b.linkLater && !own) {
     await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: who.space, ids: written });
   }
 

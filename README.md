@@ -10,7 +10,7 @@ Drop the talks, PDFs and links you trust. Ask anything, and see who said it and 
 
 [**Open the live demo**](https://brain.jeremylasne.com) &nbsp;·&nbsp; [Read the white paper](https://brain.jeremylasne.com/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="797 checks passing" src="https://img.shields.io/badge/checks-797%20passing-5fa8d3?style=flat-square&labelColor=050b16">
+<img alt="804 checks passing" src="https://img.shields.io/badge/checks-804%20passing-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-5fa8d3?style=flat-square&labelColor=050b16">
@@ -120,7 +120,7 @@ A workspace holds its own brains and chats, and sees nothing of the others.
 
 **Change the passphrase.** Settings asks for the current one, sets the new one, and signs everyone else out.
 
-**Your key stays yours.** It is checked once with OpenRouter, then kept in your browser, and travels only with the calls that need a model. The server keeps no copy. A workspace on its own key runs on that key only.
+**Your key stays yours.** It is checked once with OpenRouter, then kept in your browser, and travels only with the calls that need a model. The server keeps no copy. A workspace on its own key runs on that key only. Sign out forgets it.
 
 ## Run your own
 
@@ -148,8 +148,10 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 | `DEMO_OPENROUTER_API_KEY` | A separate key for the demo, so its spend shows apart. Falls back to the one above. |
 | `DEMO_MONTHLY_DROPS` | Drops the demo takes in 30 days, all visitors together. Default 30. |
 | `DEMO_MONTHLY_ASKS` | Questions the demo answers in 30 days. Default 300. |
+| `DEMO_MONTHLY_STEPS` | Reads, plans and stores the demo makes in 30 days. Default 20 a drop. |
 | `SUPADATA_API_KEY` | Fetches YouTube captions from a bare link. Without it, a video link asks for the transcript. |
 | `SUPADATA_MODE` | `auto` transcribes videos that have no captions, at 2 credits a minute. |
+| `OTHERS_FETCH_DAY` | Pages and transcripts fetched for every other workspace together, a day. Default 100, on top of 20 each. |
 | `RESEND_API_KEY`, `MAIL_FROM` | Mail one-pagers from the owner's workspaces. |
 | `DIGEST_TO` | Where the Monday digest goes: the week's sources, new concepts and open conflicts. |
 
@@ -173,11 +175,13 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 
 <br>
 
-- Passphrases are stored as salted SHA-256 hashes, one per workspace: 8 wrong guesses close that door for an hour.
+- Passphrases are stored as salted SHA-256 hashes, one per workspace: 8 wrong guesses close that door for an hour. Each guess is counted before it is checked, so guesses sent all at once get no more.
 - Every route checks the session before it reads a brain or calls a model.
 - The demo runs on the default model within its monthly limits, and cannot create, rename or connect brains.
 - A personal brain is read by its own chat only. Every other reader loads the workspace without it.
-- A visitor's OpenRouter key is never stored on the server. Raw transcripts are never stored either: only what was extracted.
+- A visitor's OpenRouter key is never stored on the server. It travels only with the calls that spend a model, and Sign out forgets it. Raw transcripts are never stored either: only what was extracted.
+- Linking runs later on the deployment's key, so the demo and a workspace on its own key never start it.
+- The Word reader loads from cdnjs only if its bytes match the published hash.
 
 </details>
 
@@ -189,7 +193,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 ```
 app/            the landing, the app (one file), the white paper and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        797 checks, the app driven in a real browser included
+scripts/        804 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -203,7 +207,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-797 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+804 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 <br>
 

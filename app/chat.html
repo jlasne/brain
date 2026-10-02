@@ -1441,9 +1441,12 @@
 
 const API = window.OCTOPUS_API;
 const TOKEN_KEY = "octopus.token.v1";
-/* A member's own model key. It lives in this tab and travels with the requests
-   that spend a model call. The server hashes it once to know who you are and
-   stores nothing else. */
+/* A workspace's own model key, in a workspace made on the visitor's key. It
+   is kept in this browser, one per workspace, until Sign out forgets it. It
+   travels only with the calls that spend a model, and the server keeps no
+   copy of it. */
+const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
+  "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -1526,7 +1529,8 @@ async function api(path, body = {}) {
     r = await fetch(API + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: S.token, ...(S.pick && !S.demo ? { model: S.pick } : {}), ...(S.byok && myKey() ? { key: myKey() } : {}), ...body }),
+      body: JSON.stringify({ token: S.token, ...(S.pick && !S.demo ? { model: S.pick } : {}),
+        ...(S.byok && MODEL_CALLS.has(path) && myKey() ? { key: myKey() } : {}), ...body }),
       signal: ctl.signal,
     });
   } catch (e) {
@@ -2780,6 +2784,8 @@ window.octopusExport = exportAll;
 $("lockBtn").onclick = async () => {
   try { await api("/api/lock"); } catch(_){}
   sessionStorage.removeItem(TOKEN_KEY);
+  /* Sign out forgets the workspace's own key too, as its button says. */
+  try { localStorage.removeItem("octopus.key." + S.space); } catch {}
   location.reload();
 };
 
@@ -4434,6 +4440,7 @@ function printPager(page){
  */
 const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.3.289/";
 const MAMMOTH = "https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.12.3/mammoth.browser.min.js";
+const MAMMOTH_SRI = "sha512-qTj3l2ESCbkowLBjKi71BxzAnyTRiVjSRpmOuCrwFu07hPPKmBLm4d3N0hYxTNep5bP1sqTbt0FhNVWlJZ1vBA==";
 
 /**
  * A PDF, as text with its lines kept.
@@ -4461,6 +4468,8 @@ async function docxText(file){
   if (!window.mammoth){
     await new Promise((ok, no) => {
       const t = document.createElement("script");
+      /* The file cdnjs published, byte for byte, or nothing runs. */
+      t.integrity = MAMMOTH_SRI; t.crossOrigin = "anonymous";
       t.src = MAMMOTH; t.onload = ok;
       t.onerror = () => no(new Error("the Word reader did not load. Check the connection."));
       document.head.append(t);

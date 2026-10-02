@@ -10,7 +10,7 @@ import { internal } from "./_generated/api";
 import {
   ask, json, cors, sha256, slug, randomHex, isOpen,
   readSpace, SPACE_NAME, HOME, spaceName, slugOfName, SPACE_RE, SPACES,
-  MODEL, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, CHUNK,
+  MODEL, CHUNK,
   canDrop,
 } from "./lib";
 import type { Who } from "./lib";
@@ -55,6 +55,8 @@ async function gate(ctx: any, body: any, opts: { ownerOnly?: boolean } = {}): Pr
   const demo = who.kind === "demo";
   if (demo && opts.ownerOnly) throw new Error("the demo lets you ask, drop and explore. Make your own workspace to do this.");
   const ws = owners.includes(who.space) ? null : await ctx.runQuery(internal.store.workspaceOf, { slug: who.space });
+  /* A workspace that is gone opens nothing: read as the owner's, it would run on the owner's key. */
+  if (!owners.includes(who.space) && !ws) throw new Response("locked", { status: 401 });
   const byok = ws?.kind === "byok";
   const k = String(body?.key ?? "").trim();
   return { ...who, kind: "owner", demo, byok, visitor: demo ? who.visitor : null, wsName: ws?.name ?? spaceName(who.space),
@@ -80,9 +82,14 @@ const modelFor = (who: Caller, b: any) => who.demo ? undefined : modelName(b);
 const MONTH = 30 * 24 * 60 * 60 * 1000;
 const DEMO_DROPS = Number(process.env.DEMO_MONTHLY_DROPS || 30);
 const DEMO_ASKS = Number(process.env.DEMO_MONTHLY_ASKS || 300);
+/* Pages and transcripts fetched for every workspace but the owner's, together, a day. */
+const OTHERS_FETCH_DAY = Number(process.env.OTHERS_FETCH_DAY || 100);
+/* Each read, plan, merge and settle is a step. A long source takes a dozen or
+   so; the month's total stays near 20 a drop. */
+const DEMO_STEPS = Number(process.env.DEMO_MONTHLY_STEPS || DEMO_DROPS * 20);
 async function demoCount(ctx: any, who: Caller, what: "drop" | "ask" | "step") {
   if (!who.demo) return;
-  const max = what === "drop" ? DEMO_DROPS : what === "ask" ? DEMO_ASKS : DEMO_DROPS * 60;
+  const max = what === "drop" ? DEMO_DROPS : what === "ask" ? DEMO_ASKS : DEMO_STEPS;
   const r = await ctx.runMutation(internal.store.mcpRate, { who: `demo:${what}s`, max, windowMs: MONTH });
   if (r.allowed) return;
   const back = Math.max(1, Math.ceil((r.retryAfter ?? 0) / 86400));
@@ -145,14 +152,12 @@ route("/api/unlock", async (ctx, _req, b) => {
       : `this door has no passphrase yet. Its owner sets one with: npx convex run admin:setPass "{space:'${space}',pass:'...'}" --prod` };
   }
 
-  /* The count only holds inside its window. Checked alone, eight wrong
-     guesses shut the door for good. */
-  if ((g.attempts ?? 0) >= MAX_ATTEMPTS && Date.now() - (g.attemptWindow ?? 0) < ATTEMPT_WINDOW_MS) {
-    return { error: "too many attempts, wait an hour" };
-  }
-
-  const good = await sha256(g.salt!, pass) === g.hash;
-  await ctx.runMutation(internal.store.noteAttempt, { ok: good, space });
+  /* Each guess is counted before it is checked, so a burst sent at once
+     still gets 8 an hour. A right one clears the count. */
+  const t = await ctx.runMutation(internal.store.takeAttempt, { space });
+  if (t.locked || !t.salt) return { error: "too many attempts, wait an hour" };
+  const good = await sha256(t.salt, pass) === t.hash;
+  if (good) await ctx.runMutation(internal.store.noteAttempt, { ok: true, space });
   if (!good) return { error: b.name ? "no workspace has that name and passphrase" : "that is not it" };
   return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space }), space };
 });
@@ -210,13 +215,11 @@ route("/api/passphrase", async (ctx, _req, b) => {
   const cur = String(b.current ?? ""), next = String(b.next ?? "");
   if (next.length < 8) return { error: "use a new passphrase of at least 8 characters" };
   if (next === cur) return { error: "that is the passphrase you have now" };
-  const g = await ctx.runQuery(internal.store.gateState, { space: who.space });
-  if (!g?.set) return { error: "this workspace has no passphrase to change" };
-  if ((g.attempts ?? 0) >= MAX_ATTEMPTS && Date.now() - (g.attemptWindow ?? 0) < ATTEMPT_WINDOW_MS) {
-    return { error: "too many attempts, wait an hour" };
-  }
-  const good = await sha256(g.salt!, cur) === g.hash;
-  await ctx.runMutation(internal.store.noteAttempt, { ok: good, space: who.space });
+  const t = await ctx.runMutation(internal.store.takeAttempt, { space: who.space });
+  if (!t.set) return { error: "this workspace has no passphrase to change" };
+  if (t.locked || !t.salt) return { error: "too many attempts, wait an hour" };
+  const good = await sha256(t.salt, cur) === t.hash;
+  if (good) await ctx.runMutation(internal.store.noteAttempt, { ok: true, space: who.space });
   if (!good) return { error: "that is not your current passphrase" };
   const salt = randomHex(16);
   await ctx.runMutation(internal.store.setGate, { salt, hash: await sha256(salt, next), space: who.space, replace: true });
@@ -456,11 +459,14 @@ route("/api/brain/rename", async (ctx, _req, b) => {
  */
 route("/api/fetch", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  /* The transcript service is the owner's, so other workspaces get a few a day. */
+  /* The transcript service is the owner's, so other workspaces get a few a
+     day each, and one allowance among them all, however many there are. */
   if (!owners.includes(who.space)) {
-    const r = await ctx.runMutation(internal.store.mcpRate, who.demo
+    const day = 24 * 60 * 60 * 1000;
+    let r = await ctx.runMutation(internal.store.mcpRate, who.demo
       ? { who: "fetch:demo", max: DEMO_DROPS + 10, windowMs: MONTH }
-      : { who: "fetch:" + who.space, max: 20, windowMs: 24 * 60 * 60 * 1000 });
+      : { who: "fetch:" + who.space, max: 20, windowMs: day });
+    if (r.allowed && !who.demo) r = await ctx.runMutation(internal.store.mcpRate, { who: "fetch:others", max: OTHERS_FETCH_DAY, windowMs: day });
     if (!r.allowed) return { error: "today's allowance of fetched pages and transcripts is used. Paste the text instead." };
   }
   return await fetchPage(ctx, String(b.url ?? ""));
@@ -534,8 +540,8 @@ route("/api/drop/link", async (ctx, _req, b) => {
   const ids = [...new Set<string>((Array.isArray(b.ids) ? b.ids : []).map(String))]
     .filter(x => /^[a-z0-9-]+\/[a-z0-9-]+$/.test(x) && mine.has(x.split("/")[0])).slice(0, 5000);
   /* Linking runs later, on the deployment's key, so a workspace on its own
-     key skips it rather than spend the owner's. */
-  if (who.byok) return { linking: 0 };
+     key and the demo skip it rather than spend the owner's. */
+  if (who.byok || who.demo) return { linking: 0 };
   if (ids.length) await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: who.space, ids, sid });
   return { linking: ids.length };
 });
@@ -920,7 +926,8 @@ route("/api/onepager", async (ctx, _req, b) => {
 
 /**
  * Same exposure as the MCP server, in one JSON document, so a static page can
- * render the brains without a passphrase. Private brains never appear.
+ * render the brains without a passphrase. Every Octopus brain is published
+ * here; a personal brain never is.
  */
 router.route({
   path: "/api/public/brains", method: "GET",

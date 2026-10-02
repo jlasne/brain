@@ -57,6 +57,25 @@ export const setGate = internalMutation({
   },
 });
 
+/**
+ * One guess at a passphrase, counted before it is checked. Guesses sent all at
+ * once each take their turn here, so 8 an hour is the most any burst gets.
+ * It hands back the salt and hash only while the door is open to guesses.
+ */
+export const takeAttempt = internalMutation({
+  args: { space: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const row = await gateRow(ctx, a.space);
+    if (!row?.hash) return { set: false, locked: false };
+    const now = Date.now();
+    const fresh = now - (row.attemptWindow ?? 0) > ATTEMPT_WINDOW_MS;
+    const attempts = fresh ? 0 : (row.attempts ?? 0);
+    if (attempts >= MAX_ATTEMPTS) return { set: true, locked: true };
+    await ctx.db.patch(row._id, { attempts: attempts + 1, attemptWindow: fresh ? now : (row.attemptWindow ?? now) });
+    return { set: true, locked: false, salt: row.salt as string, hash: row.hash as string };
+  },
+});
+
 export const noteAttempt = internalMutation({
   args: { ok: v.boolean(), space: v.optional(v.string()) },
   handler: async (ctx, a) => {

@@ -123,6 +123,27 @@ export const setPass = internalMutation({
 });
 
 /**
+ * Forget the model keys an earlier sign-in scheme kept, sealed, on member
+ * accounts (13 to 27 September). Nothing reads them now. Run it once, then
+ * remove KEY_SECRET from the deployment and rotate any key that was saved:
+ *
+ *     npx convex run admin:forgetOldKeys --prod
+ */
+export const forgetOldKeys = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let cleared = 0;
+    for (const a of await ctx.db.query("accounts").collect()) {
+      const r = a as any;
+      if (r.keyCipher === undefined && r.keyIv === undefined && r.keyHash === undefined && r.keyHint === undefined && r.keySavedAt === undefined) continue;
+      await ctx.db.patch(a._id, { keyCipher: undefined, keyIv: undefined, keyHash: undefined, keyHint: undefined, keySavedAt: undefined } as any);
+      cleared++;
+    }
+    return { cleared };
+  },
+});
+
+/**
  * A workspace's side panel from the command line, for the demo above all,
  * whose visitors cannot reach the switch in Settings:
  *
