@@ -182,7 +182,7 @@ async function boot(path, init, arg) {
   check("the drop keeps one tool: + document", simple.gone);
   check("a brain row leaves the concept count to its score", simple.count === undefined, String(simple.count));
 
-  await page.click('#mode button[data-m="drop"]');
+  await page.evaluate(() => document.getElementById("dropBtn").click());
   const ph = await page.getAttribute("#input", "placeholder");
   check("the content box says a transcript is pasted there", /transcript/.test(ph || ""), ph);
   const read = async (src, content) => {
@@ -208,7 +208,7 @@ async function boot(path, init, arg) {
   check("content with no source can send", pasted.off === false, `hint: ${pasted.hint}`);
   check("and it asks for the source", /name the source/.test(pasted.hint), pasted.hint);
 
-  await page.click('#mode button[data-m="ask"]');
+  await page.click("#dropClose");
   const asking = await page.evaluate(() => ({
     src: document.getElementById("srcLine").hidden,
     file: document.getElementById("fileBtn").hidden,
@@ -250,10 +250,13 @@ async function boot(path, init, arg) {
     && /keeps one page up to date/.test(document.getElementById("projectsBox").textContent)));
   await page.click("#projectsFold");
   await page.click("#dropBtn"); await page.waitForTimeout(60);
-  const dropping = await page.evaluate(() => ({ on: document.querySelector('#mode button.on')?.dataset.m, src: !document.getElementById("srcLine").hidden,
-    focus: document.activeElement?.id }));
-  check("Drop turns the box into a drop, on the source line", dropping.on === "drop" && dropping.src && dropping.focus === "srcInput", JSON.stringify(dropping));
-  await page.click('#mode button[data-m="ask"]');
+  const dropping = await page.evaluate(() => ({ on: document.querySelector("main").dataset.view, src: !document.getElementById("srcLine").hidden,
+    focus: document.activeElement?.id, chat: document.getElementById("thread").hidden, log: !document.getElementById("dropThread").hidden,
+    lit: document.getElementById("dropBtn").classList.contains("on") }));
+  check("Drop opens a screen of its own, on the source line, the chat set aside", dropping.on === "drop" && dropping.src && dropping.focus === "srcInput"
+    && dropping.chat && dropping.log && dropping.lit, JSON.stringify(dropping));
+  check("the chat has no Ask or Drop switch: it only asks", !(await page.$("#mode")));
+  await page.click("#dropClose");
 
   /* ---- a new folder: a folder or a personal one, and one switch for a person ---- */
   await page.click("#newBrain"); await page.waitForTimeout(80);
@@ -466,12 +469,15 @@ async function boot(path, init, arg) {
   /* ---- inside a brain ---- */
   await page.hover(".brain-row"); await page.click(".brain-row .ed >> text=open");
   await page.waitForTimeout(120);
-  const vw = await page.evaluate(() => ({ title: document.querySelector(".viewer h3")?.textContent,
-    rows: document.querySelectorAll(".viewer .vw-row").length, count: document.querySelector(".viewer .vw-count")?.textContent }));
-  check("open shows the brain with its concepts listed", vw.title === "Content" && /concept/.test(vw.count || ""), JSON.stringify(vw));
+  const vw = await page.evaluate(() => ({ title: document.querySelector("#folderView h2")?.textContent,
+    shown: !document.getElementById("folderView").hidden, chat: !document.getElementById("thread").hidden,
+    count: document.querySelector("#folderView .fv-n")?.textContent, view: document.querySelector("main").dataset.view }));
+  check("open shows the folder in the main area, the chat set aside", vw.title === "Content" && vw.shown && !vw.chat && vw.view === "folder" && /concept/.test(vw.count || ""), JSON.stringify(vw));
   check("the row carries open alone, and the folder's name and scope are edited from inside it",
-    await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row .ed")].map(x => x.textContent).join(",")) === "open" && !!(await page.$("#vwEdit")));
-  await page.click("#vwEdit"); await page.waitForTimeout(100);
+    await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row .ed")].map(x => x.textContent).join(",")) === "open" && !!(await page.$("#fvEdit")));
+  check("the open folder carries Chat in it and Drop into it", !!(await page.$("#fvChat")) && !!(await page.$("#fvDrop")));
+  check("and the bar below asks that folder", /^Ask Content/.test(await page.getAttribute("#input", "placeholder") || ""), await page.getAttribute("#input", "placeholder"));
+  await page.click("#fvEdit"); await page.waitForTimeout(100);
   check("Edit opens the name and the scope line", await page.evaluate(() => document.getElementById("rName")?.value === "Content" && !!document.getElementById("rScope")));
   await page.close();
 }
@@ -492,24 +498,36 @@ async function boot(path, init, arg) {
     };
   }, withOne);
   await page.hover(".brain-row"); await page.click(".brain-row .ed >> text=open");
-  await page.waitForTimeout(100);
-  const list = await page.evaluate(() => [...document.querySelectorAll(".viewer .vw-row b")].map(b => b.textContent));
-  check("the viewer lists each concept by name", list.join(",") === "Offer first", list.join(","));
-  await page.fill(".viewer .vw-filter", "zzz");
-  check("its filter narrows the list", (await page.$$(".viewer .vw-row")).length === 0);
-  await page.fill(".viewer .vw-filter", "");
-  await page.click(".viewer .vw-row");
   await page.waitForTimeout(150);
-  const one = await page.evaluate(() => ({ title: document.querySelector(".viewer h3")?.textContent,
-    text: document.querySelector(".viewer .vw-body")?.textContent || "", links: document.querySelectorAll(".viewer .vw-link").length }));
+  const list = await page.evaluate(() => [...document.querySelectorAll("#folderView .fv-row b")].map(b => b.textContent));
+  check("the open folder lists each concept by name", list.join(",") === "Offer first", list.join(","));
+  const first = await page.evaluate(() => ({ title: document.querySelector("#folderView .fv-in h1")?.textContent, on: !!document.querySelector("#folderView .fv-row.on") }));
+  check("on a wide screen, the newest concept opens beside the list", first.title === "Offer first" && first.on, JSON.stringify(first));
+  await page.fill("#fvFilter", "zzz");
+  check("its filter narrows the list", (await page.$$("#folderView .fv-row")).length === 0);
+  await page.fill("#fvFilter", "");
+  await page.click("#folderView .fv-row");
+  await page.waitForTimeout(150);
+  const one = await page.evaluate(() => ({ title: document.querySelector("#folderView .fv-in h1")?.textContent,
+    text: document.querySelector("#folderView .fv-doc")?.textContent || "", links: document.querySelectorAll("#folderView .vw-link").length }));
   check("a concept opens with its position, evidence and figures",
     one.title === "Offer first" && /bigger audience/.test(one.text) && /sold out twice/.test(one.text) && /31 percent/.test(one.text), one.text.slice(0, 160));
   check("and its links, each one clickable", one.links === 1);
-  await page.click(".viewer .vw-back");
-  check("back returns to the list", !!(await page.$(".viewer .vw-row")));
-  await page.keyboard.press("Escape");
-  check("Escape closes the viewer", !(await page.$(".viewer")));
-  check("nothing threw in the viewer", !bad.length, bad.join(" | "));
+  await page.click("#fvAsk");
+  check("Ask about it fills the bar, scoped to the folder", /Offer first/.test(await page.inputValue("#input")) && /^Ask Content/.test(await page.getAttribute("#input", "placeholder") || ""));
+  await page.fill("#input", "");
+  await page.click("#fvClose");
+  check("the close button returns to the chat", await page.evaluate(() => document.getElementById("folderView").hidden && !document.getElementById("thread").hidden));
+  await page.hover(".brain-row"); await page.click(".brain-row .ed >> text=open"); await page.waitForTimeout(100);
+  await page.click("#fvDrop"); await page.waitForTimeout(80);
+  const into = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, val: document.getElementById("scopeVal").textContent }));
+  check("Drop into it opens Drop on that folder", into.view === "drop" && into.val === "Content", JSON.stringify(into));
+  await page.click("#dropClose");
+  await page.hover(".brain-row"); await page.click(".brain-row .ed >> text=open"); await page.waitForTimeout(100);
+  await page.click("#fvChat"); await page.waitForTimeout(80);
+  const chatIn = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, ph: document.getElementById("input").placeholder, focus: document.activeElement?.id }));
+  check("Chat in it opens a new chat on that folder", chatIn.view === "chat" && /^Ask Content/.test(chatIn.ph) && chatIn.focus === "input", JSON.stringify(chatIn));
+  check("nothing threw in the open folder", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -564,7 +582,7 @@ for (const kind of ["study", "argument"]) {
       return Response.json({});
     };
   }, [STATE, kind]);
-  await page.click('#mode button[data-m="drop"]');
+  await page.evaluate(() => document.getElementById("dropBtn").click());
   await page.fill("#srcInput", "Accounting basics.pdf");
   await page.fill("#input", "Five rules, each explained.");
   await page.click("#send"); await page.waitForTimeout(500);
@@ -622,7 +640,7 @@ for (const kind of ["study", "argument"]) {
       return Response.json({});
     };
   }, STATE);
-  await page.click('#mode button[data-m="drop"]');
+  await page.evaluate(() => document.getElementById("dropBtn").click());
   await page.fill("#srcInput", "Long manual.pdf");
   await page.fill("#input", "Sixty rules, each explained.");
   await page.evaluate(() => { window.__titles = []; new MutationObserver(() => window.__titles.push(document.title))
@@ -700,7 +718,7 @@ for (const kind of ["study", "argument"]) {
       return Response.json({});
     };
   }, STATE);
-  await page.click('#mode button[data-m="drop"]');
+  await page.evaluate(() => document.getElementById("dropBtn").click());
   await page.fill("#srcInput", "Accounting basics.pdf");
   await page.fill("#input", "Accruals explained.");
   await page.click("#send"); await page.waitForTimeout(300);
@@ -737,7 +755,7 @@ for (const kind of ["study", "argument"]) {
       return Response.json({});
     };
   }, STATE);
-  await page.click('#mode button[data-m="drop"]');
+  await page.evaluate(() => document.getElementById("dropBtn").click());
   await page.fill("#srcInput", "Ziggy case.pdf");
   await page.fill("#input", "A hedging case study.");
   await page.click("#send"); await page.waitForTimeout(700);
@@ -773,7 +791,7 @@ for (const kind of ["study", "argument"]) {
       return Response.json({});
     };
   }, held);
-  await page.click('#mode button[data-m="drop"]');
+  await page.evaluate(() => document.getElementById("dropBtn").click());
   await page.fill("#srcInput", "Guide.pdf");
   await page.fill("#input", "Chapter one. The licence is at https://creativecommons.org/licenses/by/4.0/ and applies.");
   await page.click("#send"); await page.waitForTimeout(6000);
@@ -835,7 +853,7 @@ for (const kind of ["study", "argument"]) {
       return Response.json({});
     };
   }, STATE);
-  await page.click('#mode button[data-m="drop"]');
+  await page.evaluate(() => document.getElementById("dropBtn").click());
   await page.fill("#srcInput", "Big manual.pdf");
   await page.fill("#input", "Two hundred fifty rules.");
   await page.click("#send"); await page.waitForTimeout(1500);
@@ -883,7 +901,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       return Response.json({});
     };
   }, [held, found]);
-  await page.click('#mode button[data-m="drop"]');
+  await page.evaluate(() => document.getElementById("dropBtn").click());
   await page.fill("#srcInput", found === "youtube" ? "https://youtu.be/goldTalk42" : "Offers talk");
   await page.fill("#input", "Stack the offer until saying no feels stupid.");
   /* The tab is looked away from while it works. */
@@ -1174,15 +1192,20 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const gone = await page.evaluate(() => ({ removed: window.__edits.filter(e => e.remove).map(e => e.id), rows: document.querySelectorAll("#chats .chat-row").length }));
   check("the second tap deletes it", JSON.stringify(gone.removed) === '["k2"]' && gone.rows === 2, JSON.stringify(gone));
 
-  /* A drop is not a question: it leaves the chat on show for a clean screen. */
+  /* A drop is not a question: it runs on its own screen, and the chat waits as it was. */
   await page.click("#chats .chat-row >> nth=1 >> .nm"); await page.waitForTimeout(200);
   const asksBefore = await page.evaluate(() => window.__asks.length);
-  await page.click('#mode button[data-m="drop"]');
+  await page.evaluate(() => document.getElementById("dropBtn").click());
   await page.fill("#srcInput", "https://example.com/a-post");
   await page.click("#send"); await page.waitForTimeout(300);
-  const dropped = await page.evaluate(() => ({ on: !!document.querySelector("#chats .chat-row.on"),
-    old: [...document.querySelectorAll(".msg.me .body")].some(b => b.textContent === "Is gold a hedge?"), asks: window.__asks.length }));
-  check("a drop leaves the chat and is never saved as one", !dropped.on && !dropped.old && dropped.asks === asksBefore, JSON.stringify(dropped));
+  const dropped = await page.evaluate(() => ({ chat: document.getElementById("thread").hidden,
+    here: [...document.querySelectorAll("#dropThread .msg.me .body")].some(b => /a-post/.test(b.textContent)),
+    mixed: [...document.querySelectorAll("#thread .msg.me .body")].some(b => /a-post/.test(b.textContent)), asks: window.__asks.length }));
+  check("a drop lands on the Drop screen and is never saved as a chat", dropped.chat && dropped.here && !dropped.mixed && dropped.asks === asksBefore, JSON.stringify(dropped));
+  await page.click("#dropClose"); await page.waitForTimeout(80);
+  const back = await page.evaluate(() => ({ on: !!document.querySelector("#chats .chat-row.on"), shown: !document.getElementById("thread").hidden,
+    old: [...document.querySelectorAll("#thread .msg.me .body")].some(b => b.textContent === "Is gold a hedge?") }));
+  check("Back to the chat finds the chat as it was", back.on && back.shown && back.old, JSON.stringify(back));
   check("nothing threw in chats", !bad.length, bad.join(" | "));
   await page.close();
 }
@@ -1490,7 +1513,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click("#scopeBtn"); await page.waitForTimeout(80);
   const ask = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-nm")].map(x => x.firstChild.textContent).join("|"));
   await page.keyboard.press("Escape");
-  await page.click('#mode button[data-m="drop"]'); await page.waitForTimeout(80);
+  await page.evaluate(() => document.getElementById("dropBtn").click()); await page.waitForTimeout(80);
   await page.click("#scopeBtn"); await page.waitForTimeout(80);
   const feed = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-nm")].map(x => x.firstChild.textContent).join("|"));
   check("the demo asks across a shared brain and only offers its own to feed", /Wealth/.test(ask) && /Health/.test(ask) && /Health/.test(feed) && !/Wealth/.test(feed), JSON.stringify({ ask, feed }));
@@ -1581,7 +1604,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const off = await page.evaluate(() => ({ on: document.getElementById("micBtn").classList.contains("on"), send: document.getElementById("send").disabled,
     hint: document.getElementById("tHint").textContent }));
   check("a second tap stops it, and the words wait to be sent", !off.on && !off.send && off.hint === "", JSON.stringify(off));
-  await page.click('#mode button[data-m="drop"]'); await page.waitForTimeout(60);
+  await page.evaluate(() => document.getElementById("dropBtn").click()); await page.waitForTimeout(60);
   check("a drop takes a source, so the mic steps aside", await page.evaluate(() => document.getElementById("micBtn").hidden));
   check("no page error with the mic", bad.length === 0, bad.join(" | "));
   await page.close();
@@ -1674,7 +1697,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("a personal brain leads the list", first === "Me", first);
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent)).click());
   await page.waitForTimeout(100);
-  const c = await page.evaluate(() => ({ mode: document.getElementById("mode").hidden, mem: !document.getElementById("memBtn").hidden,
+  const c = await page.evaluate(() => ({ mode: !document.getElementById("mode"), mem: !document.getElementById("memBtn").hidden,
     level: document.getElementById("levelWrap").hidden, ph: document.getElementById("input").placeholder, foot: document.getElementById("footNote").textContent }));
   check("its chat has no Drop and no levels, and offers Add memory", c.mode && c.mem && c.level && /Tell it anything/.test(c.ph) && /only this chat reads it/.test(c.foot),
     JSON.stringify(c));
@@ -1699,8 +1722,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   /* It is never fed by a drop. */
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent)).click());
   await page.waitForTimeout(80);
-  check("leaving the personal chat brings Drop back", !(await page.evaluate(() => document.getElementById("mode").hidden)));
-  await page.click('#mode [data-m="drop"]'); await page.click("#scopeBtn"); await page.waitForTimeout(80);
+  check("leaving the personal chat brings the levels back", await page.evaluate(() => !document.getElementById("levelWrap").hidden && document.getElementById("memBtn").hidden));
+  await page.evaluate(() => document.getElementById("dropBtn").click()); await page.click("#scopeBtn"); await page.waitForTimeout(80);
   const rows = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-nm")].map(x => x.textContent));
   check("a drop never offers the personal brain", !rows.some(r => /^Me/.test(r)) && rows.some(r => /Content/.test(r)), JSON.stringify(rows));
   await page.keyboard.press("Escape"); await page.evaluate(() => document.body.click());
@@ -1818,7 +1841,7 @@ for (const space of ["octopus", "squidgy"]) {
       return Response.json({});
     };
   }, STATE);
-  await page.click('#mode button[data-m="drop"]');
+  await page.evaluate(() => document.getElementById("dropBtn").click());
   await page.fill("#srcInput", "Big course.pdf");
   /* 20,000 characters in paragraphs: an 18,000 pass that must split, and a 2,000 one. */
   await page.fill("#input", Array.from({ length: 100 }, (_, i) => `Paragraph ${i} ` + "word ".repeat(38)).join("\n\n"));
@@ -1854,7 +1877,7 @@ for (const space of ["octopus", "squidgy"]) {
       return Response.json({});
     };
   }, three);
-  await page.click('#mode button[data-m="drop"]');
+  await page.evaluate(() => document.getElementById("dropBtn").click());
   await page.click("#scopeBtn");
   const first = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-box")].length);
   check("dropping, each brain can be ticked", first === 3, String(first));
@@ -1874,7 +1897,7 @@ for (const space of ["octopus", "squidgy"]) {
     JSON.stringify(sent && { brains: sent.brains, brain: sent.brain }));
   const note = await page.evaluate(() => [...document.querySelectorAll(".msg.ai")].pop()?.textContent || "");
   check("one idea filed in two brains is two concepts", !/filed into 1 concept\b/.test(note));
-  await page.click('#mode button[data-m="ask"]');
+  await page.click("#dropClose");
   const askFace = await page.evaluate(() => document.getElementById("scopeVal").textContent);
   check("asking after the drop keeps the two folders ticked", /^(Wealth|Charles Gave) \+1$/.test(askFace), askFace);
   check("nothing threw ticking brains", !bad.length, bad.join(" | "));
@@ -1892,10 +1915,10 @@ for (const space of ["octopus", "squidgy"]) {
   await page.addInitScript(state => {
     sessionStorage.setItem("octopus.token.v1", "test");
     window.fetch = async u => Response.json(String(u).includes("/api/state") ? state : {});
-  }, STATE);
+  }, { ...STATE, concepts: [{ brain: "content", slug: "offer", n: 1, title: "Offer first", summaryLine: "Offer beats audience.", ev: 1, src: 1 }] });
   await page.goto(ORIGIN + "/chat.html", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(500);
-  await page.click('#mode button[data-m="drop"]');
+  await page.evaluate(() => document.getElementById("dropBtn").click());
   const r = await page.evaluate(() => {
     const W = document.documentElement.clientWidth;
     const shown = e => e.offsetParent !== null;
@@ -1915,11 +1938,11 @@ for (const space of ["octopus", "squidgy"]) {
   check("the send button stays on screen in Drop", r.sendIn);
 
   /* Ask: the levels sit on a row of their own, every button on screen. */
-  await page.click('#mode button[data-m="ask"]'); await page.waitForTimeout(100);
+  await page.click("#dropClose"); await page.waitForTimeout(100);
   const lv = await page.evaluate(() => {
     const W = document.documentElement.clientWidth, c = document.querySelector(".ctrls");
-    const mode = document.getElementById("mode").getBoundingClientRect(), wrap = document.getElementById("levelWrap").getBoundingClientRect();
-    return { W, off: [...document.querySelectorAll("#level button, #mode button, #scopeBtn")].filter(b => {
+    const mode = document.getElementById("scopeBtn").getBoundingClientRect(), wrap = document.getElementById("levelWrap").getBoundingClientRect();
+    return { W, off: [...document.querySelectorAll("#level button, #scopeBtn")].filter(b => {
         const r = b.getBoundingClientRect(); return r.left < 0 || r.right > W; }).map(b => b.dataset.v || b.id || b.textContent.trim()),
       scrolls: c.scrollWidth > c.clientWidth + 1, below: wrap.top >= mode.bottom, wide: Math.round(wrap.width),
       tall: [...document.querySelectorAll("#level button")].every(b => b.getBoundingClientRect().height >= 40) };
@@ -1932,6 +1955,19 @@ for (const space of ["octopus", "squidgy"]) {
   await page.mouse.click(370, 400); await page.waitForTimeout(300);
   const closed = await page.evaluate(() => !document.getElementById("side").classList.contains("open"));
   check("the drawer opens, and a tap beside it closes it", open && closed);
+
+  /* A folder on a phone: its list first, then one concept, and back. */
+  await page.evaluate(() => document.querySelector("#brains .brain-row .ed.op").click()); await page.waitForTimeout(120);
+  const fl = await page.evaluate(() => ({ list: document.querySelector(".fv-list")?.offsetParent !== null, doc: document.querySelector(".fv-doc")?.offsetParent !== null,
+    drawer: document.getElementById("side").classList.contains("open"), side: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+  check("on a phone a folder opens on its list, the drawer shut, nothing off screen", fl.list && !fl.doc && !fl.drawer && fl.side === 0, JSON.stringify(fl));
+  if (await page.$(".fv-row")){
+    await page.click(".fv-row"); await page.waitForTimeout(120);
+    const rd = await page.evaluate(() => ({ list: document.querySelector(".fv-list").offsetParent !== null, doc: document.querySelector(".fv-doc").offsetParent !== null }));
+    await page.click(".fv-back"); await page.waitForTimeout(80);
+    const bk = await page.evaluate(() => document.querySelector(".fv-list").offsetParent !== null);
+    check("a concept takes the screen, and All concepts goes back", !rd.list && rd.doc && bk, JSON.stringify(rd));
+  }
   check("and nothing threw on a phone", !bad.length, bad.join(" | "));
   await ctx.close();
 }

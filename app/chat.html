@@ -389,25 +389,109 @@
   .viewer .vw-ev li, .viewer .vw-data li{ padding:6px 0; font-size:13.5px; line-height:1.5; color:var(--ink-2); display:flex; gap:10px; }
   .viewer .vw-date{ flex:none; width:84px; font:400 11.5px/1.7 var(--mono); color:var(--ink-4); }
   .viewer .vw-links{ display:flex; flex-wrap:wrap; gap:6px; padding-bottom:8px; }
-  .viewer .vw-link{ padding:6px 10px; border:1px solid var(--line-2); border-radius:999px; background:var(--surface);
+  .viewer .vw-link, .fv-links .vw-link{ padding:6px 10px; border:1px solid var(--line-2); border-radius:999px; background:var(--surface);
                     font:500 12.5px/1.2 var(--sans); color:var(--accent); }
-  .viewer .vw-link:hover{ border-color:var(--accent-fill); }
+  .viewer .vw-link:hover, .fv-links .vw-link:hover{ border-color:var(--accent-fill); }
   .viewer .vw-acts{ display:flex; align-items:center; gap:12px; padding-top:14px; }
   .viewer .vw-upd{ margin-left:auto; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
 
   /* The side panel: three things to do, then Chats, Folders and Projects,
      each a card of its own that folds. */
-  .side-acts{ display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin:0 0 10px; }
+  .side-acts{ display:grid; gap:4px; margin:0 0 10px; }
   .side-acts .sa{
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-height:54px; padding:8px 4px;
-    border:1px solid var(--line); border-radius:12px; background:var(--surface);
-    font:500 12px/1 var(--sans); color:var(--ink-2);
+    display:flex; align-items:center; gap:10px; width:100%; min-height:38px; padding:0 12px; text-align:left;
+    border:1px solid var(--line); border-radius:10px; background:var(--surface);
+    font:500 14px/1 var(--sans); color:var(--ink-2);
     transition:border-color .15s var(--ease), color .15s var(--ease);
   }
   .side-acts .sa:hover{ border-color:var(--accent-fill); color:var(--accent); }
   .side-acts .sa.go{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
   .side-acts .sa.go:hover{ color:var(--accent-on); filter:brightness(1.06); }
-  .side-acts svg{ width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .side-acts svg{ width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .side-acts .sa.on{ border-color:var(--accent-line); color:var(--accent); }
+
+  /* Drop has a screen of its own: the chat only asks. */
+  .drop-head[hidden]{ display:none; }
+  .drop-head .col{ display:flex; align-items:flex-start; gap:14px; padding-top:22px; padding-bottom:4px; }
+  .drop-head h2{ font:600 20px/1.2 var(--sans); color:var(--ink); letter-spacing:-.01em; }
+  .drop-head p{ margin-top:5px; font:400 14px/1.55 var(--sans); color:var(--ink-3); max-width:56ch; }
+  .drop-head .mini{ margin-left:auto; flex:none; }
+  .side-acts .sa.go.on{ box-shadow:0 0 0 2px var(--bg), 0 0 0 4px var(--accent-line); }
+
+  /* A folder, open in the main area: its head and health, then its concepts
+     on the left and the one open on the right. The bar below asks it. */
+  .folder-view{ flex:1; min-height:0; display:flex; flex-direction:column; }
+  .folder-view[hidden]{ display:none; }
+  .fv-h{ display:flex; align-items:flex-start; flex-wrap:wrap; gap:14px 18px; padding:20px 24px 16px; border-bottom:1px solid var(--line); }
+  .fv-t{ flex:1 1 280px; min-width:0; }
+  .fv-t h2{ font:700 24px/1.15 var(--sans); letter-spacing:-.02em; color:var(--ink); text-wrap:balance; }
+  .fv-t p{ margin-top:5px; font:400 14px/1.45 var(--sans); color:var(--ink-3); max-width:62ch; }
+  .fv-t .fv-n{ margin-top:3px; font-variant-numeric:tabular-nums; }
+  .fv-hl{ display:flex; align-items:center; gap:11px; padding:8px 14px 8px 9px; text-align:left; max-width:330px;
+    border:1px solid var(--line); border-radius:12px; background:var(--surface); cursor:pointer; }
+  .fv-hl:hover{ border-color:var(--accent-line); }
+  .fv-hl .hring{ width:40px; height:40px; margin:0; }
+  .fv-hl .hring svg{ width:40px; height:40px; }
+  .fv-hl b{ display:block; font:600 14px/1.25 var(--sans); color:var(--ink); }
+  .fv-hl span.say{ display:block; margin-top:2px; font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
+  .fv-acts{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding-top:4px; }
+  .fv-b{ display:inline-flex; align-items:center; gap:7px; min-height:36px; padding:0 13px; border:1px solid var(--line-2);
+    border-radius:9px; background:var(--surface); font:500 13.5px/1 var(--sans); color:var(--ink-2); cursor:pointer; }
+  .fv-b:hover{ border-color:var(--accent-fill); color:var(--accent); }
+  .fv-b svg{ width:15px; height:15px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .fv-x{ width:36px; padding:0; justify-content:center; font-size:18px; }
+  .fv-cols{ flex:1; min-height:0; display:flex; }
+  .fv-list{ width:340px; flex:none; display:flex; flex-direction:column; min-height:0; border-right:1px solid var(--line); }
+  .fv-filter{ margin:12px 16px 8px; padding:9px 12px; border:1px solid var(--line-2); border-radius:9px; background:var(--surface);
+    font:400 14px/1.2 var(--sans); color:var(--ink); }
+  .fv-rows{ flex:1; overflow-y:auto; min-height:0; }
+  .fv-row{ display:block; width:100%; text-align:left; padding:11px 20px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .fv-row:hover{ background:var(--surface); }
+  .fv-row.on{ background:var(--surface); box-shadow:inset 3px 0 0 var(--accent-fill); }
+  .fv-row b{ display:block; font:600 14.5px/1.3 var(--sans); color:var(--ink); }
+  .fv-row span{ display:block; margin-top:2px; font:400 13px/1.45 var(--sans); color:var(--ink-3);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fv-row small{ display:block; margin-top:4px; font:400 11px/1 var(--mono); color:var(--ink-4); font-variant-numeric:tabular-nums; }
+  .fv-none{ padding:18px 20px; font:400 14px/1.5 var(--sans); color:var(--ink-3); }
+  .fv-doc{ flex:1; min-width:0; overflow-y:auto; background:var(--surface); }
+  .fv-in{ max-width:700px; margin:0 auto; padding:24px 36px 40px; }
+  .fv-back{ display:none; margin-bottom:10px; font:500 13px/1 var(--sans); color:var(--accent); }
+  .fv-eye{ font:500 11px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--ink-4); }
+  .fv-in h1{ margin-top:8px; font:700 27px/1.15 var(--sans); letter-spacing:-.02em; color:var(--ink); text-wrap:balance; }
+  .fv-pos{ margin-top:14px; font:400 15.5px/1.65 var(--sans); color:var(--ink-2); }
+  .fv-in h4{ margin:22px 0 8px; font:600 13px/1 var(--sans); color:var(--ink-3); }
+  .fv-ev{ display:grid; grid-template-columns:96px minmax(0,1fr); gap:4px 14px; padding:9px 0; border-top:1px solid var(--line); }
+  .fv-ev time{ font:400 12px/1.6 var(--mono); color:var(--ink-4); font-variant-numeric:tabular-nums; }
+  .fv-ev div{ font:400 14px/1.5 var(--sans); color:var(--ink-2); }
+  .fv-ev div b{ color:var(--ink); font-weight:600; }
+  .fv-li{ padding:7px 0; border-top:1px solid var(--line); font:400 14px/1.5 var(--sans); color:var(--ink-2); }
+  .fv-links{ display:flex; flex-wrap:wrap; gap:6px; }
+  .fv-acts2{ display:flex; align-items:center; gap:12px; margin-top:22px; }
+  .fv-upd{ margin-left:auto; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
+  main[data-view="folder"] .composer-wrap{ border-top:1px solid var(--line); }
+  /* On a phone the folder keeps the screen: the levels wait for the chat. */
+  @media (max-width:520px){ main[data-view="folder"] #levelWrap{ display:none; } }
+  @media (max-width:860px){
+    .fv-h{ position:relative; padding:14px 16px 12px; gap:10px; }
+    .fv-t{ padding-right:48px; }
+    .fv-t p{ font-size:13.5px; }
+    .fv-x{ position:absolute; top:10px; right:12px; }
+    .fv-hl{ padding:6px 12px 6px 7px; }
+    .fv-hl .hring, .fv-hl .hring svg{ width:34px; height:34px; }
+    .fv-acts{ padding-top:0; }
+    .fv-acts .fv-b:not(.fv-x){ min-height:40px; }
+    .fv-t h2{ font-size:21px; }
+    .fv-hl{ max-width:none; flex:1 1 100%; }
+    .fv-list{ width:auto; flex:1; border-right:0; }
+    .fv-doc{ display:none; }
+    .fv-cols.reading .fv-list{ display:none; }
+    .fv-cols.reading .fv-doc{ display:block; }
+    .fv-back{ display:inline-block; }
+    .fv-in{ padding:16px 16px 28px; }
+    .fv-row{ padding:12px 16px; }
+    .fv-x{ width:44px; height:44px; }
+    .fv-filter{ font-size:16px; min-height:44px; margin:10px 16px 6px; }
+  }
   .panel{ background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); }
   .panel + .panel{ margin-top:8px; }
   .panel-h{ display:flex; align-items:center; gap:6px; min-height:44px; padding:0 8px 0 9px; }
@@ -1261,12 +1345,11 @@
     /* On a phone, two rows: Ask or Drop and the brains, then the levels with
        New thread beside them. */
     .ctrls{ display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:8px; }
-    #mode{ grid-area:1 / 1; }
-    #scopeBtn{ grid-area:1 / 2 / 2 / 4; max-width:none; min-width:0; }
-    #levelWrap{ grid-area:2 / 1 / 3 / 3; display:flex; }
-    #levelWrap:has(~ #freshBtn[hidden]){ grid-column:1 / 4; }
+    #scopeBtn{ grid-area:1 / 1 / 2 / 3; max-width:none; min-width:0; }
+    #scopeBtn:only-child, .ctrls:has(#freshBtn[hidden]) #scopeBtn{ grid-column:1 / 4; }
+    #levelWrap{ grid-area:2 / 1 / 3 / 4; display:flex; }
     #levelWrap[hidden]{ display:none; }
-    #freshBtn{ grid-area:2 / 3; }
+    #freshBtn{ grid-area:1 / 3; }
     #levelWrap .seg.lv{ flex:1; }
     #levelWrap .seg.lv button{ flex:1; justify-content:center; }
     /* The level picked shows its name; the others show their icon. */
@@ -1288,9 +1371,8 @@
     .demo-bar .db-b{ padding:7px 10px; font-size:12px; white-space:nowrap; }
     /* A personal chat: Add memory, the brain and New chat, on one row. */
     #memBtn{ grid-area:1 / 1; }
-    .ctrls:has(#mode[hidden]) #scopeBtn{ grid-area:1 / 2; }
-    .ctrls:has(#mode[hidden]) #freshBtn{ grid-area:1 / 3; }
-    .ctrls:has(#mode[hidden]) .pk-lbl{ display:none; }
+    .ctrls:has(#memBtn:not([hidden])) #scopeBtn{ grid-area:1 / 2; }
+    .pk-lbl{ display:none; }
     /* A brain's open and edit become icons, so its name has room. */
     .brain-row .nm{ flex:1 1 auto; min-width:0; }
     .brain-row .ed{ font-size:0; width:30px; height:30px; padding:0; place-items:center; }
@@ -1377,15 +1459,16 @@
       <span class="db-t"><b>Live demo.</b> Every visitor shares 30 drops and 300 questions a month.<span class="db-more"> Your chats stay yours.</span></span>
       <span class="db-acts"><button class="db-b" id="demoMap" type="button">Open the map</button><button class="db-b" id="demoSettle" type="button">Settle a clash</button><a class="db-b main" href="/#create">Make your own</a></span>
     </div>
+    <div class="drop-head" id="dropHead" hidden><div class="col">
+      <div><h2>Drop</h2><p>A link, a PDF, a Word file, a video or a transcript. It is read once, filed under the right folders, and each clash waits for your call.</p></div>
+      <button class="mini" id="dropClose" type="button">Back to the chat</button></div></div>
+    <section class="folder-view" id="folderView" hidden></section>
     <div class="thread" id="thread"></div>
+    <div class="thread" id="dropThread" hidden></div>
 
     <div class="composer-wrap">
       <div class="composer">
         <div class="ctrls">
-          <div class="seg" id="mode">
-            <button data-m="ask" class="on">Ask</button>
-            <button data-m="drop">Drop</button>
-          </div>
           <button class="pick-btn" id="scopeBtn" aria-haspopup="listbox" aria-expanded="false" title="Which folders to ask, or to feed">
             <img class="pk-mark" id="scopeMark" src="/brand/brain.svg" alt="" width="18" height="18">
             <span class="pk-lbl" id="scopeLabel">Across</span>
@@ -1453,6 +1536,8 @@ const S = {
   mode: "ask", scope: "all", into: [], busy: false, pendingCard: null, chunk: 18000,
   /* The folders ticked in the side panel to chat in. None asks them all. */
   picks: [],
+  /* The folder open in the main area, or null for the chat. */
+  folder: null,
   /* Full lists every folder in the side panel; limited, the default, shows
      Chats and Projects only. The workspace's choice, from Settings. */
   full: false,
@@ -1753,7 +1838,26 @@ async function loadChats(){
 const conceptsOf = b => S.concepts.filter(c => c.brain === b).sort((x,y)=>(x.n||0)-(y.n||0));
 const sourcesOf  = b => S.sources.filter(s => (s.brains||[]).includes(b));
 
-function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); }
+function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); renderView(); }
+
+/**
+ * One screen at a time in the main area: the chat, a folder open, or Drop.
+ * Each keeps what it showed, so going back finds it as it was.
+ */
+function renderView(){
+  if (S.folder && !S.brains.some(b => b.slug === S.folder)) S.folder = null;
+  const drop = S.mode === "drop", folder = !drop && !!S.folder;
+  $("dropHead").hidden = !drop; $("dropThread").hidden = !drop;
+  $("folderView").hidden = !folder; $("thread").hidden = drop || folder;
+  $("dropBtn").classList.toggle("on", drop);
+  document.querySelector("main").dataset.view = drop ? "drop" : folder ? "folder" : "chat";
+}
+/** Drop, on the folders ticked. A personal folder takes no drop. */
+function openDrop(){
+  if (isPersonal(S.scope)){ crossing("all"); setPicks([]); }
+  S.mode = "drop";
+  render(); $("srcInput").focus();
+}
 
 /**
  * Which space this is, said once and shown everywhere.
@@ -1941,13 +2045,15 @@ function brainRow(b){
       crossing("all");
       setPicks(on ? S.picks.filter(x => x !== b.slug) : [...S.picks, b.slug]);
     }
+    /* A tick is for chatting, so an open folder gives way to the chat. */
+    S.folder = null;
     render();
   };
   /* One control on the row, so a click anywhere else ticks it. Its name and
      scope are edited from the folder it opens. */
   const op = el("span","ed op","open");
   op.title = "See what this folder holds";
-  op.onclick = e => { e.stopPropagation(); openBrainView(b); };
+  op.onclick = e => { e.stopPropagation(); openFolder(b); };
   row.append(op);
   return row;
 }
@@ -2092,7 +2198,7 @@ function renderChats(){
 
 /** A clean screen, and the next question starts a new chat. */
 function newChat(){
-  S.thread = []; S.chatId = null;
+  S.thread = []; S.chatId = null; S.mode = "ask"; S.folder = null;
   $("thread").innerHTML = "";
   render(); renderChats();
 }
@@ -2108,7 +2214,7 @@ async function openChat(id){
   const asked = String(c.brain || "").split(",").filter(x => S.brains.some(b => b.slug === x));
   if (asked.length === 1 && isPersonal(asked[0])){ S.picks = []; S.scope = asked[0]; S.into = []; }
   else setPicks(asked);
-  if (S.mode !== "ask"){ S.mode = "ask"; [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m === "ask")); }
+  S.mode = "ask"; S.folder = null;
   $("thread").innerHTML = "";
   for (const t of c.turns || []){
     says(t.q);
@@ -2179,7 +2285,7 @@ function openHealthSheet(b){
                    : `Measured against the best brain${leadName ? `, ${esc(leadName)},` : ""} which reads 10.`}</p></header>
       <div class="f" id="hbParts"></div>
       <div class="f"><div class="hb-best"><b>Best move</b>${esc(h.best)}</div></div>
-      <footer>${h.open ? `<button class="ghost" id="hbSettle">Settle conflicts</button>` : ""}<button class="ghost" id="hbOpen">Open the brain</button><button class="go" id="hbDone">Done</button></footer>
+      <footer>${h.open ? `<button class="ghost" id="hbSettle">Settle conflicts</button>` : ""}<button class="ghost" id="hbOpen">Open the folder</button><button class="go" id="hbDone">Done</button></footer>
     </div>`;
   document.body.append(veil);
   const parts = veil.querySelector("#hbParts");
@@ -2198,7 +2304,7 @@ function openHealthSheet(b){
   document.addEventListener("keydown", onKey);
   veil.querySelector("#hbDone").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
-  veil.querySelector("#hbOpen").onclick = () => { shut(); openBrainView(b); };
+  veil.querySelector("#hbOpen").onclick = () => { shut(); openFolder(b); };
   const st = veil.querySelector("#hbSettle");
   if (st) st.onclick = () => { shut(); settleFrom(null, b.slug); };
 }
@@ -2418,14 +2524,12 @@ function closePick(){
 }
 
 function renderComposer(){
-  [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m === S.mode));
   /* A personal brain is a chat: no Drop, no levels, and a way to bring in
      what another assistant already knows about you. */
   const mine = S.mode === "ask" && isPersonal(S.scope);
-  $("mode").hidden = mine;
   $("memBtn").hidden = !mine || S.demo;
   /* It appears once there is something to forget. */
-  $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length;
+  $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length || !!S.folder;
   const drop = S.mode==="drop";
   $("srcLine").hidden = !drop;
   $("input").placeholder = drop
@@ -2539,10 +2643,12 @@ function examples(){
 
 /* ============ thread ============ */
 const clearZero = () => $("thread").querySelector(".zero")?.remove();
-const bottom = () => { const t=$("thread"); t.scrollTop = t.scrollHeight; };
+const bottom = (t = $("thread")) => { t.scrollTop = t.scrollHeight; };
 
-function push(kind, build){
-  clearZero();
+/* A message lands in the chat, or, from a drop, on the Drop screen: the chat
+   only asks. */
+function push(kind, build, where = $("thread")){
+  if (where === $("thread")) clearZero(); else where.querySelector(".zero")?.remove();
   const wrap = el("div","msg "+(kind==="me"?"me":"ai"));
   const col = el("div","col");
   if (kind !== "me"){
@@ -2553,13 +2659,18 @@ function push(kind, build){
     col.append(who);
   }
   const body = el("div","body");
-  col.append(body); wrap.append(col); $("thread").append(wrap);
-  build(body); bottom();
+  col.append(body); wrap.append(col); where.append(wrap);
+  build(body); bottom(where);
   return body;
 }
-function says(text, attach){
-  push("me", b => { b.textContent = text; if (attach) b.append(el("span","attach",attach)); });
+function says(text, attach, where){
+  push("me", b => { b.textContent = text; if (attach) b.append(el("span","attach",attach)); }, where);
 }
+/* The same three, on the Drop screen. */
+const dpush = (kind, build) => push(kind, build, $("dropThread"));
+const dsays = (text, attach) => says(text, attach, $("dropThread"));
+const dthinking = label => thinking(label, $("dropThread"));
+const dbottom = () => bottom($("dropThread"));
 /* What the space's mascot is up to while an answer is on its way, with the
    step it stands for in brackets. The lines follow an answer's order, one
    every 2.4 seconds: the titles are searched, matched, the concepts read,
@@ -2615,7 +2726,7 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden && /^(Card ready|Stored) /.test(document.title)) tabTitle("");
 });
 
-function thinking(label){
+function thinking(label, where){
   tabStep(label);
   return push("ai", b => {
     const t = el("div","thinking"), mark = el("span","spinner");
@@ -2636,7 +2747,7 @@ function thinking(label){
         show(i);
       }, 2400);
     }
-  });
+  }, where);
 }
 function setThinking(body, label){
   tabStep(label);
@@ -2716,12 +2827,6 @@ function startVoice(){
 }
 function stopVoice(){ try { rec?.stop(); } catch { /* it had stopped already */ } }
 $("micBtn").onclick = () => S.listening ? stopVoice() : startVoice();
-$("mode").onclick = e => {
-  const b = e.target.closest("button[data-m]"); if(!b) return;
-  S.mode = b.dataset.m;
-  [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m===S.mode));
-  renderScope(); renderComposer(); $("input").focus();
-};
 $("scopeBtn").onclick = e => { e.stopPropagation(); openPick(); };
 document.addEventListener("click", e => { if (pickMenu && !pickMenu.contains(e.target)) closePick(); });
 document.addEventListener("keydown", e => {
@@ -2749,15 +2854,11 @@ $("newChat").onclick = () => { closeSide(); newChat(); $("input").focus(); };
 
 $("keyBtn").onclick = openSetupSheet;
 $("pagerBtn").onclick = () => { closeSide(); openPagerSheet(); };
-/* Drop turns the box below into a drop, on the folders ticked. A personal
-   chat takes no drop, so Drop leaves it first. */
-$("dropBtn").onclick = () => {
-  closeSide();
-  if (isPersonal(S.scope)){ crossing("all"); setPicks([]); }
-  S.mode = "drop";
-  [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m === "drop"));
-  render(); $("srcInput").focus();
-};
+/* Drop is a screen of its own, with its own log, on the folders ticked. The
+   chat stays as it was, and Back to the chat returns to it. A personal folder
+   takes no drop, so Drop leaves it first. */
+$("dropBtn").onclick = () => { closeSide(); openDrop(); };
+$("dropClose").onclick = () => { S.mode = "ask"; render(); $("input").focus(); };
 $("sideGo").onclick = () => { closeSide(); $("input").focus(); };
 $("navToggle").onclick = () => { navOpen = false; paintNav(); };
 $("navOpen").onclick  = () => { navOpen = true;  paintNav(); };
@@ -2775,7 +2876,7 @@ $("input").addEventListener("drop", e => {
   const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
   if (!f) return;
   e.preventDefault();
-  if (S.mode !== "drop"){ S.mode = "drop"; [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="drop")); renderScope(); }
+  if (S.mode !== "drop") openDrop();
   takeDocument(f);
 });
 /* The portable form of the brains: one markdown file, downloaded. */
@@ -3812,8 +3913,7 @@ function openSheet(name, scope, type){
       busy = false; shut(); await refresh();
       if (mine){
         if (S.chatId) newChat();
-        S.picks = []; S.scope = r.slug; S.into = []; S.mode = "ask";
-        [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="ask"));
+        S.picks = []; S.scope = r.slug; S.into = []; S.mode = "ask"; S.folder = null;
         render();
         push("ai", b => { b.innerHTML = rich(`**${esc(nm)}** is ready. Talk to it: it files what you say as dated notes, and answers from them and from your other folders. ` +
           (made || updated ? `It starts with what you pasted: ${filedLine({ new: made, updated }).replace(/^Filed: /, "")}.`
@@ -3821,11 +3921,8 @@ function openSheet(name, scope, type){
         $("input").focus();
         return;
       }
-      setPicks([r.slug]); S.mode = "drop";
-      [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="drop"));
-      render();
-      push("ai", b => { b.innerHTML = rich(`**${esc(nm)}** is ready, scoped to "${esc(sc)}". Drop a source to feed it.`); });
-      $("input").focus();
+      setPicks([r.slug]); openDrop();
+      dpush("ai", b => { b.innerHTML = rich(`**${esc(nm)}** is ready, scoped to "${esc(sc)}". Drop a source to feed it.`); });
     } catch(e){
       busy = false; btn.disabled = false; btn.textContent = label();
       const slot = veil.querySelector("#closestSlot");
@@ -4076,14 +4173,158 @@ function openBrainView(b, openId){
   veil.focus();
 }
 
+/* ============ a folder, open ============ */
+const IC_CHAT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg>`;
+const IC_DROP = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>`;
+const IC_EDIT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 4.3a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L9 19.5 4 20l.5-5Z"/></svg>`;
+const dayOf = d => { const t = Date.parse(d); return isNaN(t) ? String(d || "") : new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
+
+/**
+ * A folder in the main area: its name, scope and counts, its health and the
+ * next move, then every concept, newest first, and the one open beside them.
+ * The bar below asks this folder, and the answer lands in a new chat.
+ */
+function openFolder(b, openId){
+  closeSide();
+  if (!b) return;
+  if (S.mode === "drop") S.mode = "ask";
+  if (isPersonal(b.slug)){ crossing(b.slug); S.picks = []; S.scope = b.slug; S.into = []; }
+  else { crossing("all"); setPicks([b.slug]); }
+  S.folder = b.slug;
+  const fv = $("folderView"); fv.innerHTML = "";
+  const self = isPersonal(b.slug), ro = readOnly(b);
+  const cs = conceptsOf(b.slug).slice().sort((x, y) => String(y.updated || "").localeCompare(String(x.updated || "")) || (y.src || 0) - (x.src || 0));
+  const reads = sourcesOf(b.slug).length, h = S.health[b.slug];
+  const clashes = h ? (h.open || 0) : [...(S.conflicted || [])].filter(id => id.split("/")[0] === b.slug).length;
+
+  const head = el("header","fv-h");
+  const t = el("div","fv-t");
+  t.append(el("h2",null,b.name));
+  if (b.scope && !self) t.append(el("p",null,b.scope));
+  t.append(el("p","fv-n", self ? `${cs.length} note${cs.length===1?"":"s"} · only its own chat reads it`
+    : `${cs.length} concept${cs.length===1?"":"s"} · ${reads} source${reads===1?"":"s"} · ${clashes} clash${clashes===1?"":"es"}`));
+  head.append(t);
+  if (h && !self){
+    const hl = el("button","fv-hl"); hl.type = "button"; hl.id = "fvHealth";
+    const ring = healthRing(h, b); ring.removeAttribute("role");
+    const txt = el("div"); txt.append(el("b",null,`Health ${fmtScore(h.score)} / 10`), el("span","say",`Next: ${h.best}`));
+    hl.append(ring, txt);
+    hl.onclick = () => openHealthSheet(b);
+    head.append(hl);
+  }
+  const acts = el("div","fv-acts");
+  const btn = (id, label, icon, fn, title) => {
+    const x = el("button","fv-b"); x.type = "button"; x.id = id; x.innerHTML = icon || ""; x.append(label);
+    if (title) x.title = title; x.onclick = fn; acts.append(x); return x;
+  };
+  btn("fvChat", "Chat in it", IC_CHAT, () => { S.folder = null; newChat(); $("input").focus(); });
+  if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
+  if (!S.demo && !ro && !self) btn("fvEdit", "Edit", IC_EDIT, () => openBrainSheet(b), "Its name and the line that decides what goes in");
+  const x = btn("fvClose", "×", "", () => { S.folder = null; render(); $("input").focus(); }, "Back to the chat");
+  x.classList.add("fv-x"); x.setAttribute("aria-label","Back to the chat");
+  head.append(acts);
+
+  const cols = el("div","fv-cols");
+  const list = el("div","fv-list");
+  const f = el("input","fv-filter"); f.placeholder = self ? "Filter notes" : "Filter concepts"; f.id = "fvFilter";
+  const rows = el("div","fv-rows");
+  list.append(f, rows);
+  const doc = el("div","fv-doc");
+  cols.append(list, doc);
+  fv.append(head, cols);
+
+  let openNow = null;
+  const paint = () => {
+    rows.innerHTML = "";
+    const q = f.value.trim().toLowerCase();
+    const shown = q ? cs.filter(c => (c.title + " " + (c.summaryLine || "")).toLowerCase().includes(q)) : cs;
+    if (!shown.length){ rows.append(el("div","fv-none", cs.length ? "No concept matches that." : self ? "Nothing yet. Talk to it and it files what you say." : "Nothing yet. Drop a source to feed it.")); return; }
+    for (const c of shown){
+      const id = `${c.brain}/${c.slug}`;
+      const r = el("button","fv-row" + (id === openNow ? " on" : "")); r.type = "button"; r.dataset.id = id;
+      r.append(el("b",null,c.title));
+      if (c.summaryLine) r.append(el("span",null,c.summaryLine));
+      r.append(el("small",null,`${c.src || 0} source${c.src === 1 ? "" : "s"}${c.updated ? " · " + dayOf(c.updated) : ""}`));
+      r.onclick = () => show(id);
+      rows.append(r);
+    }
+  };
+  f.oninput = paint;
+
+  const nameOf = slug => S.brains.find(x => x.slug === slug)?.name || slug;
+  const show = async id => {
+    openNow = id;
+    for (const r of rows.children) r.classList?.toggle("on", r.dataset?.id === id);
+    cols.classList.add("reading");
+    doc.innerHTML = ""; doc.scrollTop = 0;
+    const inner = el("div","fv-in"); doc.append(inner);
+    const back = el("button","fv-back","← All concepts"); back.type = "button";
+    back.onclick = () => { cols.classList.remove("reading"); openNow = null; paint(); };
+    inner.append(back, el("div","fv-none","Opening"));
+    let c;
+    try { c = (await api("/api/concept", { id })).concept; }
+    catch (e) { inner.lastChild.textContent = e.message; return; }
+    if (openNow !== id || S.folder !== b.slug) return;
+    if (!c){ inner.lastChild.textContent = "This concept is no longer here."; return; }
+    inner.lastChild.remove();
+    inner.append(el("div","fv-eye",`${self ? "Note" : "Concept"} · ${b.name}`), el("h1",null,c.title));
+    inner.append(el("p","fv-pos", c.position || c.summaryLine || "No position yet."));
+    const ev = (c.evidence || []).slice().sort((x, y) => (x.rollup ? 1 : 0) - (y.rollup ? 1 : 0) || String(y.date || y.to || "").localeCompare(String(x.date || x.to || "")));
+    inner.append(el("h4",null, ev.length ? `Evidence, newest first (${ev.length})` : "Evidence"));
+    if (!ev.length) inner.append(el("div","fv-li","None yet."));
+    for (const e of ev){
+      const row = el("div","fv-ev");
+      row.append(el("time",null, e.rollup ? `${e.from || ""}${e.to && e.to !== e.from ? " to " + e.to : ""}` : (e.date || "")));
+      const d = el("div");
+      if (!e.rollup && e.author){ d.append(el("b",null,e.author + ". ")); }
+      d.append(e.claim || "");
+      row.append(d); inner.append(row);
+    }
+    if ((c.data || []).length){
+      inner.append(el("h4",null,"Figures"));
+      for (const x of c.data) inner.append(el("div","fv-li",x));
+    }
+    if ((c.conflicts || []).length){
+      inner.append(el("h4",null,"Open clashes"));
+      for (const x of c.conflicts) inner.append(el("div","fv-li",`${x.a || ""} (${x.aDate || "?"}) against ${x.b || ""} (${x.bDate || "?"})${x.why ? ". " + x.why : ""}`));
+    }
+    if ((c.related || []).length){
+      inner.append(el("h4",null,"Linked to"));
+      const d = el("div","fv-links");
+      for (const r of c.related){
+        const rb = r.split("/")[0], rs = r.split("/").slice(1).join("/");
+        const card = S.concepts.find(x => x.brain === rb && x.slug === rs);
+        const chip = el("button","vw-link", (card ? card.title : rs) + (rb !== c.brain ? ` · ${nameOf(rb)}` : ""));
+        chip.type = "button";
+        chip.onclick = () => rb === b.slug ? show(r) : openFolder(S.brains.find(x => x.slug === rb), r);
+        d.append(chip);
+      }
+      inner.append(d);
+    }
+    const srcs = (c.sources || []).map(sid => S.sources.find(x => x.sid === sid)).filter(Boolean);
+    if (srcs.length){
+      inner.append(el("h4",null,`Sources (${(c.sources || []).length})`));
+      for (const x of srcs.slice(-12).reverse()) inner.append(el("div","fv-li",`${x.date || ""} · ${x.title || x.sid}${x.author ? " · " + x.author : ""}`));
+    }
+    const a2 = el("div","fv-acts2");
+    const askIt = el("button","fresh","Ask about it"); askIt.type = "button"; askIt.id = "fvAsk";
+    askIt.onclick = () => { $("input").value = `What does ${c.title} say, and why?`; sizeBox(); renderComposer(); $("input").focus(); };
+    a2.append(askIt, el("span","fv-upd", c.updated ? `Updated ${c.updated}` : ""));
+    inner.append(a2);
+  };
+
+  paint();
+  const wide = window.matchMedia("(min-width:861px)").matches;
+  if (openId) show(openId);
+  else if (wide && cs.length) show(`${cs[0].brain}/${cs[0].slug}`);
+  else { const p = el("div","fv-in"); p.append(el("div","fv-none", cs.length ? "Pick a concept to read it." : "")); doc.append(p); }
+  render();
+}
+
 /* The source line keeps its link, and the box below takes the pasted text or
    transcript: one box for everything a source says. */
 function pasteHere(){
-  if (S.mode !== "drop"){
-    S.mode = "drop";
-    [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m === "drop"));
-    render();
-  }
+  if (S.mode !== "drop") openDrop();
   $("input").focus();
 }
 
@@ -4513,21 +4754,21 @@ async function takeDocument(file){
   let got;
   try { got = await readDocument(file); }
   catch (e) {
-    push("ai", b => { b.innerHTML = rich("**That document did not open.** " + esc(e.message)); });
-    bottom(); return;
+    dpush("ai", b => { b.innerHTML = rich("**That document did not open.** " + esc(e.message)); });
+    dbottom(); return;
   }
   if (!got.text){
-    push("ai", b => { b.innerHTML = rich(
+    dpush("ai", b => { b.innerHTML = rich(
       `**${esc(got.name)} gave no text.** A scanned PDF holds pictures of words, so it needs the text pasted instead.`); });
-    bottom(); return;
+    dbottom(); return;
   }
   $("input").value = got.text;
   if (!$("srcInput").value.trim()) $("srcInput").value = got.name;
   sizeBox(); renderComposer();
   const n = (got.text.match(/\S+/g)||[]).length.toLocaleString();
-  push("ai", b => { b.innerHTML = rich(
+  dpush("ai", b => { b.innerHTML = rich(
     `**${esc(got.name)}** read, ${n} words. It sits in the content box. Send it when the source line is right.`); });
-  bottom();
+  dbottom();
 }
 
 
@@ -4541,6 +4782,8 @@ async function go(){
   if (S.mode === "drop" ? !hasContent(src, text) : !text) return;
   $("input").value = ""; sizeBox();
   if (S.mode === "drop") $("srcInput").value = "";
+  /* A question asked from an open folder starts a chat on that folder. */
+  if (S.mode !== "drop" && S.folder){ S.folder = null; if (S.chatId) newChat(); else renderView(); }
   S.busy = true; renderComposer();
   try { S.mode==="drop" ? await doDrop(src, text) : await doAsk(text); }
   finally {
@@ -4648,18 +4891,15 @@ async function doDrop(src, content, again){
   let bodyTxt = content || null;
   const said = src || link || content.slice(0, 120);
   const words = t => (t.match(/\S+/g)||[]).length.toLocaleString();
-  /* Chats hold questions only, so a drop starts on a clean screen rather
-     than inside the chat on show. */
-  if (!again && S.chatId) newChat();
-  if (!again) says(said, content ? `${words(content)} words` : null);
+  if (!again) dsays(said, content ? `${words(content)} words` : null);
 
   if (!S.brains.length){
-    push("ai", b => { b.innerHTML = rich("Create a brain first. A source needs a scope to be filed against."); });
+    dpush("ai", b => { b.innerHTML = rich("Create a brain first. A source needs a scope to be filed against."); });
     return;
   }
 
   let chk;
-  const body = thinking("Checking for a repeat");
+  const body = dthinking("Checking for a repeat");
   /* With no link, the source is its name and a fingerprint of its text: the
      same document dropped twice is caught, two documents named alike are not. */
   const fp = bodyTxt ? "#" + fnv(bodyTxt) : "";
@@ -4681,11 +4921,11 @@ async function doDrop(src, content, again){
     const no = el("button","ghost","Stop");
     no.onclick = () => {
       row.remove();
-      push("ai", b => { b.innerHTML = rich("Stopped. Nothing was read and no position moved."); });
+      dpush("ai", b => { b.innerHTML = rich("Stopped. Nothing was read and no position moved."); });
     };
     go.onclick = async () => {
       go.disabled = no.disabled = true; row.remove();
-      const b2 = thinking("Reading back what it already gave up");
+      const b2 = dthinking("Reading back what it already gave up");
       let got;
       try { got = await api("/api/drop/again", { sid: chk.sid }); }
       catch(e){ fail(b2, e.message); return; }
@@ -5125,7 +5365,7 @@ async function planAndCard(body, sid, link, ext, len, held){
     body.append(el("div","coverage",
       `${how}${how ? " " : ""}${topics} passage${topics === 1 ? "" : "s"} read, filed into ${filed} concept${filed === 1 ? "" : "s"}.`));
   }
-  bottom();
+  dbottom();
 }
 
 /* A source is stored under a named author. The same test the server holds:
@@ -5263,7 +5503,7 @@ function buildCard(pc, decide){
   const skip = el("button","ghost","Reject source");
   const ok   = el("button","go","Store it");
   skip.onclick = () => { card.remove(); S.pendingCard=null;
-    push("ai", b => { b.innerHTML = rich("Rejected. Nothing was stored and no position moved."); }); };
+    dpush("ai", b => { b.innerHTML = rich("Rejected. Nothing was stored and no position moved."); }); };
   ok.onclick = async () => {
     const author = whoIn.value.trim();
     if (!knownAuthor(author)){
@@ -5278,17 +5518,17 @@ function buildCard(pc, decide){
     ok.disabled = skip.disabled = true; ok.textContent = "Storing";
     if (Object.values(pc.choices).includes("skip")){
       card.remove(); S.pendingCard=null;
-      push("ai", b => { b.innerHTML = rich("Rejected on a conflict. Nothing was stored and no position moved."); });
+      dpush("ai", b => { b.innerHTML = rich("Rejected on a conflict. Nothing was stored and no position moved."); });
       return;
     }
-    const b2 = thinking("Rewriting the positions it touched");
+    const b2 = dthinking("Rewriting the positions it touched");
     try {
       const r = await storeAll(pc, (i, n) => { if (n > 1) setThinking(b2, `Rewriting the positions it touched, part ${i} of ${n}`); });
       card.remove(); await refresh();
       tabTitle(document.hidden ? "Stored" : "");
       b2.innerHTML = "";
       b2.append(receipt(r, pc));
-      bottom();
+      dbottom();
       S.pendingCard = null;
     } catch(e){
       ok.disabled = skip.disabled = false; ok.textContent = "Store it";

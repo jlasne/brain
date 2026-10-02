@@ -10,7 +10,7 @@ Drop the talks, PDFs and links you trust. Ask anything, and see who said it and 
 
 [**Open the live demo**](https://brain.jeremylasne.com) &nbsp;·&nbsp; [Read the white paper](https://brain.jeremylasne.com/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="804 checks passing" src="https://img.shields.io/badge/checks-804%20passing-5fa8d3?style=flat-square&labelColor=050b16">
+<img alt="813 checks passing" src="https://img.shields.io/badge/checks-813%20passing-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-5fa8d3?style=flat-square&labelColor=050b16">
@@ -83,7 +83,9 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 
 - **A side panel in three parts.** Drop, One-pager and Settings sit on top. Chats, Folders and Projects follow, each a panel that folds. Every folder is listed: yours first, then the ones another workspace lets you ask and drop into, then the ones you may only ask.
 - **Limited or full.** A workspace starts limited: the side panel shows its chats and projects, and a personal folder leads the chats. Full, switched in Settings for the whole workspace, adds the folder list. The demo's visitors cannot reach the switch: `npx convex run admin:setMode '{"space":"demo","full":true}' --prod` sets it.
-- **Chat in several folders.** Click a folder to tick it, and tick as many as you like: the question reads those alone. Open shows what a folder holds, and edits its name and scope.
+- **Chat in several folders.** Click a folder to tick it, and tick as many as you like: the question reads those alone. The chat only asks.
+- **A folder, open.** Open fills the main area: its scope, its counts, its health and the next move, then every concept, newest first, with the one open beside them. Chat in it, Drop into it, or edit its name and scope from there. The bar below asks that folder.
+- **Drop on its own screen.** Drop sits in the side panel and opens a screen with its own log. The chat waits as it was, one click away.
 - **New folder.** A folder is fed by Drop, and one switch says it holds one person's view. A personal folder is fed by what you say.
 - **Talk instead of typing.** Tap the mic and speak. It uses the free speech service in Safari on iPhone and Mac, Chrome and Edge. Elsewhere it points to the dictation your device already has.
 - **One page, any shape.** A brain or a question becomes a summary, a quiz, a deep dive or use cases, in 9 languages.
