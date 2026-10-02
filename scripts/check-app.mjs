@@ -648,6 +648,60 @@ async function boot(path, init, arg) {
   await page.close();
 }
 
+/* ---- every one-pager is kept, and listed under Projects by its title ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    const PAGE = { title: "Deep dive: Content", line: "From Content.", sections: [{ head: "The short answer", bullets: [], blocks: [{ p: "An offer people buy beats reach." }] }], foot: "1 of 2 positions" };
+    let kept = [{ id: "g0", title: "Quiz: Content", at: Date.now() - 864e5 }];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.endsWith("/api/projects")) return Response.json({ projects: [{ id: "p1", name: "Gold thesis", brains: ["content"], updated: Date.now() - 2 * 864e5, version: 3 }], pagers: kept });
+      if (s.includes("/api/onepager") && !s.includes("/api/onepagers")) {
+        if (body.keep !== false) kept = [{ id: "g1", title: PAGE.title, at: Date.now() }, ...kept];
+        return Response.json({ page: PAGE, text: "Deep dive", lang: "English", ...(body.keep !== false ? { saved: "g1" } : {}) });
+      }
+      if (s.includes("/api/onepagers/get")) return Response.json({ pager: { id: body.id, title: PAGE.title, page: PAGE, text: "Deep dive", at: Date.now(),
+        ask: { pick: "content", q: "", kind: "custom", doc: "deepdive" } } });
+      if (s.includes("/api/onepagers/remove")) { kept = kept.filter(p => p.id !== body.id); return Response.json({ ok: true }); }
+      if (s.includes("/api/projects/remove")) return Response.json({ ok: true });
+      return Response.json({});
+    };
+  }, STATE);
+  await page.waitForTimeout(150);
+  const list0 = await page.evaluate(() => [...document.querySelectorAll("#projects .proj-row .nm")].map(r => r.textContent));
+  check("Projects is a list of titles: projects and one-pagers, newest first", JSON.stringify(list0) === '["Quiz: Content","Gold thesis"]', JSON.stringify(list0));
+  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await page.click("#pGo"); await page.waitForTimeout(300);
+  const list1 = await page.evaluate(() => [...document.querySelectorAll("#projects .proj-row .nm")].map(r => r.textContent));
+  check("a one-pager just built lands at the top of Projects", list1[0] === "Deep dive: Content", JSON.stringify(list1));
+  await page.click('#projects .proj-row[data-id="g1"]'); await page.waitForTimeout(200);
+  const open = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, title: document.querySelector("#pagerView h2")?.textContent,
+    card: document.querySelector("#pgThread .pager h3")?.textContent, chips: [...document.querySelectorAll("#pagerView .pv-chip")].map(x => x.textContent),
+    lit: !!document.querySelector('#projects .proj-row.on[data-id="g1"]') }));
+  check("it opens again in the main area, with Copy and Print", open.view === "pager" && open.title === "Deep dive: Content" && open.card === "Deep dive: Content"
+    && open.chips.includes("Content") && open.lit, JSON.stringify(open));
+  await page.click('#projects .proj-row[data-id="g1"] .more'); await page.waitForTimeout(80);
+  const menu = await page.evaluate(() => [...document.querySelectorAll(".chat-menu .cm-it")].map(b => b.textContent));
+  check("a one-pager's row offers Delete", JSON.stringify(menu) === '["Delete"]', JSON.stringify(menu));
+  await page.click(".chat-menu .cm-it"); await page.waitForTimeout(50);
+  check("which asks once more", await page.textContent(".chat-menu .cm-it") === "Sure? Delete");
+  await page.click(".chat-menu .cm-it"); await page.waitForTimeout(200);
+  const gone = await page.evaluate(() => ({ sent: window.__calls.filter(c => c.s.includes("/api/onepagers/remove")).pop()?.body?.id,
+    view: document.querySelector("main").dataset.view, rows: [...document.querySelectorAll("#projects .proj-row .nm")].map(r => r.textContent) }));
+  check("then deletes it, and closes it if it was open", gone.sent === "g1" && gone.view === "chat" && !gone.rows.includes("Deep dive: Content"), JSON.stringify(gone));
+  await page.click('#projects .proj-row[data-id="p1"] .more'); await page.waitForTimeout(80);
+  const pm = await page.evaluate(() => [...document.querySelectorAll(".chat-menu .cm-it")].map(b => b.textContent));
+  check("a project's row offers Settings and Delete", JSON.stringify(pm) === '["Settings","Delete"]', JSON.stringify(pm));
+  await page.click(".chat-menu .cm-it.del"); await page.click(".chat-menu .cm-it.del"); await page.waitForTimeout(200);
+  check("and deletes the project", await page.evaluate(() => window.__calls.some(c => c.s.includes("/api/projects/remove") && c.body.id === "p1")));
+  check("nothing threw with kept one-pagers", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- a concept opens whole, with its evidence and its links ---- */
 {
   const withOne = { ...STATE, concepts: [{ brain: "content", slug: "offer", n: 1, title: "Offer first", summaryLine: "Offer beats audience.", ev: 1, src: 1 }] };
@@ -1503,8 +1557,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const d = await page.evaluate(() => ({ bar: !document.getElementById("demoBar").hidden && /Live demo/.test(document.getElementById("demoBar").textContent),
     make: document.getElementById("newBrain").hidden, edit: [...document.querySelectorAll("#brains .brain-row .ed")].map(x => x.textContent) }));
   check("the demo says what it is, and offers no folder to create or edit", d.bar && d.make && !d.edit.includes("edit"), JSON.stringify(d));
-  check("nor a project: projects live in your own workspace", await page.evaluate(() => document.getElementById("newProject").hidden
-    && /your own workspace/.test(document.getElementById("projects").textContent)));
+  check("nor a project: Projects holds only the one-pagers a visitor builds", await page.evaluate(() => document.getElementById("newProject").hidden
+    && /one-pager you build/.test(document.getElementById("projects").textContent)));
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(250);
   const set = await page.evaluate(() => ({ model: document.getElementById("setModel").hidden && document.getElementById("setProjModel").hidden, mcp: document.getElementById("mcpBlock").hidden,
     use: document.getElementById("useBlock").hidden, key: document.getElementById("keyBlock").hidden,
@@ -1792,7 +1846,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
-/* ---- limited, the default: Chats and Projects, and a personal folder leads the chats ---- */
+/* ---- limited, the default: Chats and Folders; full adds Projects ---- */
 {
   const lim = { ...STATE, full: undefined, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "What I say", owner: null },
     { slug: "health", name: "Health", type: "subject", scope: "h", owner: null }] };
@@ -1808,25 +1862,24 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.waitForTimeout(200);
   const seen = await page.evaluate(() => ({
     panels: [...document.querySelectorAll("aside .panel")].filter(p => !p.hidden).map(p => p.id).join(","),
-    self: [...document.querySelectorAll("#selfRows .brain-row .nm")].map(x => x.textContent).join(","),
+    folders: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent).join(","),
     acts: [...document.querySelectorAll("aside .side-acts button")].map(b => b.textContent.trim()).join(",") }));
-  check("a workspace starts limited: Chats and Projects, no folder list", seen.panels === "chatsPanel,projectsPanel", seen.panels);
+  check("a workspace starts limited: Chats and Folders, no Projects", seen.panels === "chatsPanel,brainsPanel", seen.panels);
   check("with Drop, One-pager and Settings still on top", seen.acts === "Drop,One-pager,Settings", seen.acts);
-  check("and its personal folder leads the chats", seen.self === "Me", seen.self);
-  await page.click("#selfRows .brain-row"); await page.waitForTimeout(80);
+  check("and every folder listed, the personal one first", seen.folders === "Me,Content,Health", seen.folders);
+  await page.click('#brains .brain-row:has(.nm:text-is("Me"))'); await page.waitForTimeout(80);
   check("which opens its chat", await page.evaluate(() => /Tell it anything/.test(document.getElementById("input").placeholder)));
-  await page.click("#selfRows .brain-row"); await page.waitForTimeout(80);
+  await page.click('#brains .brain-row:has(.nm:text-is("Me"))'); await page.waitForTimeout(80);
   await page.click("#keyBtn"); await page.waitForTimeout(150);
   const set = await page.evaluate(() => ({ on: document.querySelector("#modeSeg button.on")?.textContent, shown: !document.getElementById("modeBlock").hidden }));
   check("Settings shows the side panel limited, with Full to unlock", set.shown && set.on === "Limited", JSON.stringify(set));
   await page.click('#modeSeg button[data-full="1"]'); await page.waitForTimeout(150);
   const after = await page.evaluate(() => ({ sent: window.__calls.filter(c => c.s.includes("/api/mode")).pop()?.body,
     on: document.querySelector("#modeSeg button.on")?.textContent, folders: !document.getElementById("brainsPanel").hidden,
-    self: document.querySelectorAll("#selfRows .brain-row").length, mine: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent).join(",") }));
-  check("Full is saved for the workspace and lists every folder", after.sent?.full === true && after.on === "Full" && after.folders
-    && after.self === 0 && after.mine === "Me,Content,Health", JSON.stringify(after));
+    projects: !document.getElementById("projectsPanel").hidden }));
+  check("Full is saved for the workspace and adds Projects", after.sent?.full === true && after.on === "Full" && after.folders && after.projects, JSON.stringify(after));
   await page.click('#modeSeg button[data-full="0"]'); await page.waitForTimeout(150);
-  check("and Limited takes it back", await page.evaluate(() => document.getElementById("brainsPanel").hidden
+  check("and Limited takes it back", await page.evaluate(() => document.getElementById("projectsPanel").hidden && !document.getElementById("brainsPanel").hidden
     && window.__calls.filter(c => c.s.includes("/api/mode")).pop()?.body.full === false));
   check("nothing threw in limited mode", !bad.length, bad.join(" | "));
   await page.close();
@@ -1839,7 +1892,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   }, { ...STATE, full: undefined, space: "demo", spaceName: "Demo", demo: true });
   await page.waitForTimeout(200);
   await page.click("#keyBtn"); await page.waitForTimeout(150);
-  check("a demo visitor gets no side panel switch", await page.evaluate(() => document.getElementById("modeBlock").hidden && document.getElementById("brainsPanel").hidden));
+  check("a demo visitor gets no side panel switch", await page.evaluate(() => document.getElementById("modeBlock").hidden && document.getElementById("projectsPanel").hidden));
   await page.close();
 }
 

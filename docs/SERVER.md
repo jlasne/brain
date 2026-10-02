@@ -56,8 +56,8 @@ accounts. Nothing reads them now. Run it once, then remove `KEY_SECRET`:
 npx convex run admin:forgetOldKeys --prod
 ```
 
-Every workspace starts limited: its side panel shows Chats and Projects. Full
-adds the folder list, and whoever opens the workspace switches it in Settings.
+Every workspace starts limited: its side panel shows Chats and Folders. Full
+adds Projects, and whoever opens the workspace switches it in Settings.
 The demo's visitors cannot reach that switch, so it is set here:
 
 ```bash
@@ -176,7 +176,8 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
 | `/api/drop/merge` | Groups titles that name one idea twice after parts were planned in parallel | Yes |
 | `/api/ask` | The answer. With `project`, it reads that project's folders and follows its instructions, and the turn joins the project's chat | Yes |
-| `/api/projects` | The workspace's projects, newest first. The demo has none | Yes |
+| `/api/projects` | The workspace's projects and its kept one-pagers, newest first. The demo has no projects; each visitor sees their own one-pagers | Yes |
+| `/api/onepagers/get`, `/api/onepagers/remove` | A kept one-pager, opened again or deleted | Yes |
 | `/api/projects/get` | One project whole: settings, chat, versions, newest page | Owner |
 | `/api/projects/page` | One version of a project's page | Owner |
 | `/api/projects/save` | Creates a project or changes its settings. Its folders must be ones the workspace reads, never a personal one. A template holds 60 KB at most | Owner |
@@ -184,7 +185,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/projects/build` | Build: the next version of the page, from the folders and the answers that wait. The only way the app changes a page. The newest 10 versions are kept | Owner |
 | `/api/models` | The workspace's chat model and project model. `null` goes back to the default | Owner |
 | `/api/projects/clear`, `/api/projects/remove` | Clears a project's chat, or deletes the project and its pages | Owner |
-| `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Sends it too, when given an address | Yes |
+| `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Kept, and listed under Projects. Sends it too, when given an address | Yes |
 | `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |
 | `/api/usage` | What transcripts have cost, from both sides | Yes |
 | `/api/doc` | The connector page's words, served rather than published | Yes |
@@ -239,6 +240,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `projects` | name, folders, instructions, template, rebuild switch, out-of-date mark, its chat | space |
 | `pages` | each build of a project's page, the newest 10 | project, then version |
 | `models` | the chat model and the project model a workspace picked | space |
+| `onepagers` | every one-pager built, its page, text and what built it, the newest 50 per owner | space, then time |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.
 

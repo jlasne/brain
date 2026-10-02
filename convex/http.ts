@@ -401,7 +401,7 @@ route("/api/models", async (ctx, _req, b) => {
 });
 
 /**
- * The side panel: limited shows Chats and Projects, full adds every folder.
+ * The side panel: limited shows Chats and Folders, full adds Projects.
  * A workspace starts limited, and whoever opens it switches it in Settings.
  */
 route("/api/mode", async (ctx, _req, b) => {
@@ -848,11 +848,28 @@ route("/api/chats/edit", async (ctx, _req, b) => {
 
 /* ---------- projects ---------- */
 
-/** The projects, newest first. The demo has none. */
+/**
+ * What Projects lists: the projects, newest first, and every one-pager kept.
+ * The demo has no projects; each visitor sees the one-pagers they built.
+ */
 route("/api/projects", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  if (who.demo) return { projects: [], demo: true };
-  return { projects: await ctx.runQuery(internal.projects.list, { space: who.space }) };
+  const pagers = await ctx.runQuery(internal.store.pagerList, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}) });
+  if (who.demo) return { projects: [], pagers, demo: true };
+  return { projects: await ctx.runQuery(internal.projects.list, { space: who.space }), pagers };
+});
+
+/** A kept one-pager, to open again. */
+route("/api/onepagers/get", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const p = await ctx.runQuery(internal.store.pagerGet, { space: who.space, id: String(b.id ?? ""), ...(who.visitor ? { owner: who.visitor } : {}) });
+  return p ? { pager: p } : { error: "that one-pager is gone" };
+});
+
+/** A kept one-pager, deleted. */
+route("/api/onepagers/remove", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return await ctx.runMutation(internal.store.pagerRemove, { space: who.space, id: String(b.id ?? ""), ...(who.visitor ? { owner: who.visitor } : {}) });
 });
 
 /** One project whole: settings, chat, versions, and its newest page. */
@@ -1036,26 +1053,38 @@ route("/api/onepager", async (ctx, _req, b) => {
   if (!hasBody(page)) {
     return { error: "those brains hold no positions yet, so the page would be empty" };
   }
+  /* Every page built is kept, and listed under Projects by its title. A page
+     built again only to be mailed is the one kept already. A failed save is
+     only a page the list does not show. */
+  let saved: string | undefined;
+  if (b.keep !== false) {
+    try {
+      const ask = { pick, q, kind, ...(kind === "custom" ? { doc } : {}), ...(note ? { note } : {}), ...(lang !== "English" ? { lang } : {}) };
+      saved = (await ctx.runMutation(internal.store.pagerSave, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
+        page, text: asText(page), ask })).id;
+    } catch { /* the page still goes out */ }
+  }
+  const keptAs = saved ? { saved } : {};
 
   /* The language the page came back in, and why it is English when another
      one was asked for, so the app never shows the wrong one without saying so. */
   const said = { lang: page.untranslated ? "English" : lang,
     ...(page.untranslated ? { warning: `The ${lang} translation did not come back after two tries, so this page is in English. Build it again to retry.` } : {}) };
-  if (!to) return { page, text: asText(page), ...said };
+  if (!to) return { page, text: asText(page), ...said, ...keptAs };
   /* A page that built and failed to send is still a page. It comes back with the
      reason, so a question already paid for is not thrown away with the mail. */
   /* Thirty mails a day per space, so this address cannot be used to spam. */
   const quota = await ctx.runMutation(internal.store.mcpRate,
     { who: "mail:" + who.space, max: 30, windowMs: 24 * 60 * 60 * 1000 });
   if (!quota.allowed) {
-    return { page, text: asText(page), sent: false, to, ...said,
+    return { page, text: asText(page), sent: false, to, ...said, ...keptAs,
              mailError: `30 pages were mailed today. Mail opens again in ${Math.ceil(quota.retryAfter / 3600)} hours.` };
   }
   try {
     const sent = await mail(to, page, who.space);
-    return { page, text: asText(page), sent: true, to, id: sent.id, ...said };
+    return { page, text: asText(page), sent: true, to, id: sent.id, ...said, ...keptAs };
   } catch (e: any) {
-    return { page, text: asText(page), sent: false, to, ...said, mailError: String(e?.message ?? e).slice(0, 300) };
+    return { page, text: asText(page), sent: false, to, ...said, ...keptAs, mailError: String(e?.message ?? e).slice(0, 300) };
   }
 });
 

@@ -788,6 +788,26 @@ function seed() {
   check("null goes back to the default", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":null}');
 }
 
+/* ---- every one-pager is kept, by owner, the newest 50 ---- */
+{
+  const { T, ctx } = seed();
+  const page = { title: "Deep dive: Wealth", sections: [] };
+  const one = await run(store.pagerSave, ctx, { space: "octopus", page, text: "x", ask: { pick: "wealth" } });
+  check("a one-pager built is kept by its title", one.title === "Deep dive: Wealth" && T.onepagers.length === 1);
+  check("it opens again whole", (await run(store.pagerGet, ctx, { space: "octopus", id: one.id }))?.page?.title === "Deep dive: Wealth");
+  check("never from another workspace", (await run(store.pagerGet, ctx, { space: "squidgy", id: one.id })) === null
+    && /gone/.test((await run(store.pagerRemove, ctx, { space: "squidgy", id: one.id })).error || ""));
+  await run(store.pagerSave, ctx, { space: "demo", owner: "v1", page: { title: "Mine" }, text: "x", ask: {} });
+  await run(store.pagerSave, ctx, { space: "demo", owner: "v2", page: { title: "Theirs" }, text: "x", ask: {} });
+  const v1 = await run(store.pagerList, ctx, { space: "demo", owner: "v1" });
+  check("a demo visitor lists only their own", v1.map(x => x.title).join(",") === "Mine", JSON.stringify(v1));
+  for (let i = 0; i < 52; i++) await run(store.pagerSave, ctx, { space: "octopus", page: { title: "P" + i }, text: "x", ask: {} });
+  const kept = await run(store.pagerList, ctx, { space: "octopus" });
+  check("the newest 50 stay", kept.length === 50 && kept[0].title === "P51" && !kept.some(x => x.title === "Deep dive: Wealth"), String(kept.length));
+  await run(store.pagerRemove, ctx, { space: "octopus", id: kept[0].id });
+  check("and one can be deleted", (await run(store.pagerList, ctx, { space: "octopus" })).length === 49);
+}
+
 /* ---- a rebuild runs on the deployment's key only ---- */
 {
   const landed = async (who, ws) => {

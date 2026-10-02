@@ -474,6 +474,9 @@
      the chat asks the project's folders, with its instructions. */
   .project-view{ flex:1; min-height:0; display:flex; flex-direction:column; }
   .project-view[hidden]{ display:none; }
+  .pager-view{ flex:1; min-height:0; display:flex; flex-direction:column; }
+  .pager-view[hidden]{ display:none; }
+  .fv-b.sure{ border-color:var(--bad); color:var(--bad); }
   .pv-h{ display:flex; align-items:flex-start; gap:12px; padding:16px 24px 14px; border-bottom:1px solid var(--line); }
   .pv-t{ flex:1; min-width:0; }
   .pv-t h2{ font:700 22px/1.15 var(--sans); letter-spacing:-.02em; color:var(--ink); text-wrap:balance; }
@@ -1502,7 +1505,7 @@
           <button class="fold-t" id="chatsFold" aria-expanded="true" aria-controls="chatsBox"><span class="p-ic p-chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg></span>Chats <b id="ccount"></b><span class="chev"></span></button>
           <button class="side-plus" id="newChat" type="button" title="Start a new chat" aria-label="New chat"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
         </div>
-        <div class="panel-b" id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="selfRows"></div><div id="chats"></div></div>
+        <div class="panel-b" id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="chats"></div></div>
       </section>
       <section class="panel" id="brainsPanel">
         <div class="panel-h" id="brainsH">
@@ -1548,6 +1551,7 @@
       <button class="mini" id="dropClose" type="button">Back to the chat</button></div></div>
     <section class="folder-view" id="folderView" hidden></section>
     <section class="project-view" id="projectView" hidden></section>
+    <section class="pager-view" id="pagerView" hidden></section>
     <div class="thread" id="thread"></div>
     <div class="thread" id="dropThread" hidden></div>
 
@@ -1625,6 +1629,8 @@ const S = {
   folder: null,
   /* The projects, the one open (its id, then the whole of it), and its last turns. */
   projects: [], project: null, proj: null, projThread: [],
+  /* The one-pagers kept, listed under Projects, and the one open. */
+  pagers: [], pagerId: null,
   /* Full lists every folder in the side panel; limited, the default, shows
      Chats and Projects only. The workspace's choice, from Settings. */
   full: false,
@@ -1898,8 +1904,6 @@ async function refresh(){
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
   S.demo = !!d.demo; S.byok = !!d.byok;
   S.full = d.full === true;
-  /* Limited has no folder list to tick, so a question reads all of them or the one picked below. */
-  if (!S.full && S.picks.length > 1) setPicks([]);
   applyLook(d.brand || null);
   paintWorkspace();
   render();
@@ -1935,13 +1939,16 @@ function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); 
  */
 function renderView(){
   if (S.folder && !S.brains.some(b => b.slug === S.folder)) S.folder = null;
-  const drop = S.mode === "drop", proj = !drop && !!S.project, folder = !drop && !proj && !!S.folder;
+  /* Projects live in the full side panel; limited closes one left open. */
+  if (!S.full){ S.project = null; S.pagerId = null; }
+  const drop = S.mode === "drop", proj = !drop && !!S.project, pager = !drop && !proj && !!S.pagerId,
+        folder = !drop && !proj && !pager && !!S.folder;
   $("dropHead").hidden = !drop; $("dropThread").hidden = !drop;
-  $("folderView").hidden = !folder; $("projectView").hidden = !proj;
-  $("thread").hidden = drop || folder || proj;
+  $("folderView").hidden = !folder; $("projectView").hidden = !proj; $("pagerView").hidden = !pager;
+  $("thread").hidden = drop || folder || proj || pager;
   $("dropBtn").classList.toggle("on", drop);
   const main = document.querySelector("main");
-  main.dataset.view = drop ? "drop" : proj ? "project" : folder ? "folder" : "chat";
+  main.dataset.view = drop ? "drop" : proj ? "project" : pager ? "pager" : folder ? "folder" : "chat";
   /* A project's bar sits under its chat, beside its page. */
   const bar = document.querySelector(".composer-wrap"), slot = proj ? $("projectView").querySelector(".pv-chat") : null;
   if (slot && bar.parentNode !== slot) slot.append(bar);
@@ -2142,7 +2149,7 @@ function brainRow(b){
       setPicks(on ? S.picks.filter(x => x !== b.slug) : [...S.picks, b.slug]);
     }
     /* A tick is for chatting, so an open folder or project gives way to the chat. */
-    S.folder = null; S.project = null;
+    S.folder = null; S.project = null; S.pagerId = null;
     render();
   };
   /* One control on the row, so a click anywhere else ticks it. Its name and
@@ -2242,6 +2249,39 @@ function closeChatMenu(){
   document.removeEventListener("keydown", chatMenu.key, true);
   chatMenu.box.remove(); chatMenu = null;
 }
+/**
+ * A row's menu: each item a label and what it does. A dangerous one asks
+ * once more in the menu itself, then goes.
+ */
+function openRowMenu(anchor, items){
+  closeChatMenu();
+  const box = el("div","chat-menu"); box.setAttribute("role","menu");
+  for (const it of items){
+    const b = el("button","cm-it" + (it.danger ? " del" : ""), it.label);
+    b.setAttribute("role","menuitem");
+    b.onclick = e => {
+      e.stopPropagation();
+      if (it.danger && !b.classList.contains("sure")){ b.classList.add("sure"); b.textContent = "Sure? " + it.label; return; }
+      closeChatMenu(); it.fn();
+    };
+    box.append(b);
+  }
+  placeMenu(box, anchor);
+}
+/** A menu under its button, kept on screen, closed by a click outside or Escape. */
+function placeMenu(box, anchor){
+  document.body.append(box);
+  const r = anchor.getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
+  box.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + "px";
+  box.style.top = (r.bottom + 4 + h > innerHeight - 8 ? Math.max(8, r.top - h - 4) : r.bottom + 4) + "px";
+  const outside = e => { if (!box.contains(e.target) && e.target !== anchor) closeChatMenu(); };
+  const key = e => { if (e.key === "Escape"){ e.stopPropagation(); closeChatMenu(); anchor.focus(); } };
+  document.addEventListener("pointerdown", outside, true);
+  document.addEventListener("keydown", key, true);
+  anchor.setAttribute("aria-expanded","true");
+  chatMenu = { box, anchor, outside, key };
+  box.querySelector(".cm-it").focus();
+}
 function openChatMenu(c, anchor){
   closeChatMenu();
   const box = el("div","chat-menu"); box.setAttribute("role","menu");
@@ -2270,18 +2310,7 @@ function openChatMenu(c, anchor){
       loadChats();
     } catch (e) { chatMsg(e.message); }
   });
-  document.body.append(box);
-  /* Under the button, kept on screen. */
-  const r = anchor.getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
-  box.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + "px";
-  box.style.top = (r.bottom + 4 + h > innerHeight - 8 ? Math.max(8, r.top - h - 4) : r.bottom + 4) + "px";
-  const outside = e => { if (!box.contains(e.target) && e.target !== anchor) closeChatMenu(); };
-  const key = e => { if (e.key === "Escape"){ e.stopPropagation(); closeChatMenu(); anchor.focus(); } };
-  document.addEventListener("pointerdown", outside, true);
-  document.addEventListener("keydown", key, true);
-  anchor.setAttribute("aria-expanded","true");
-  chatMenu = { box, anchor, outside, key };
-  box.querySelector(".cm-it").focus();
+  placeMenu(box, anchor);
 }
 
 function renderChats(){
@@ -2294,7 +2323,7 @@ function renderChats(){
 
 /** A clean screen, and the next question starts a new chat. */
 function newChat(){
-  S.thread = []; S.chatId = null; S.mode = "ask"; S.folder = null; S.project = null;
+  S.thread = []; S.chatId = null; S.mode = "ask"; S.folder = null; S.project = null; S.pagerId = null;
   $("thread").innerHTML = "";
   render(); renderChats();
 }
@@ -2310,7 +2339,7 @@ async function openChat(id){
   const asked = String(c.brain || "").split(",").filter(x => S.brains.some(b => b.slug === x));
   if (asked.length === 1 && isPersonal(asked[0])){ S.picks = []; S.scope = asked[0]; S.into = []; }
   else setPicks(asked);
-  S.mode = "ask"; S.folder = null; S.project = null;
+  S.mode = "ask"; S.folder = null; S.project = null; S.pagerId = null;
   $("thread").innerHTML = "";
   for (const t of c.turns || []){
     says(t.q);
@@ -2426,12 +2455,8 @@ async function settleFrom(id, brain){
  */
 function renderSide(){
   paintFolds();
-  /* Limited: Chats and Projects only. A personal folder is a chat of its own,
-     so it leads the chats instead. */
-  $("brainsPanel").hidden = !S.full;
-  const selves = $("selfRows"); selves.innerHTML = "";
-  /* Read straight from the list: the first paint runs before ordered() is defined. */
-  if (!S.full) for (const b of S.brains.filter(x => x.type === "personal")) selves.append(brainRow(b));
+  /* Limited: Chats and Folders. Full adds Projects. */
+  $("projectsPanel").hidden = !S.full;
   const box = $("brains"); box.innerHTML = "";
   $("bcount").textContent = S.brains.length || "";
   if (!S.brains.length){
@@ -2450,7 +2475,7 @@ function renderSide(){
   }
   /* On a phone, one button closes the drawer on the ticked folders. */
   const go = $("sideGo");
-  go.hidden = !S.full || !S.picks.length;
+  go.hidden = !S.picks.length;
   go.textContent = S.picks.length ? `Chat in ${S.picks.length === 1 ? picksName() : S.picks.length + " folders"}` : "";
 }
 
@@ -3420,7 +3445,7 @@ async function openSetupSheet(){
 
       <div class="f" id="modeBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${S.demo ? "hidden" : ""}>
         <label>Side panel</label>
-        <div class="hint" style="margin:0 0 10px">Limited shows your chats and projects. Full adds every folder, to open them and to tick the ones a question reads.</div>
+        <div class="hint" style="margin:0 0 10px">Limited shows your chats and folders. Full adds Projects: each project, and every one-pager you built.</div>
         <div class="seg" id="modeSeg" role="radiogroup" aria-label="Side panel">
           <button type="button" role="radio" data-full="0">Limited</button><button type="button" role="radio" data-full="1">Full</button></div>
         <div class="hint" id="modeMsg" role="status"></div>
@@ -3639,9 +3664,8 @@ async function openSetupSheet(){
       const r = await api("/api/mode", { full });
       if (r.error) throw new Error(r.error);
       S.full = !!r.full;
-      if (!S.full && S.picks.length > 1) setPicks([]);
       paintMode(); render();
-      modeMsg.textContent = S.full ? "Full: every folder is in the side panel." : "Limited: the side panel shows chats and projects.";
+      modeMsg.textContent = S.full ? "Full: Projects joins Chats and Folders in the side panel." : "Limited: the side panel shows chats and folders.";
     } catch (err) { modeMsg.textContent = err.message; }
   };
   const exp = veil.querySelector("#setExport");
@@ -4312,39 +4336,106 @@ const pvThread = () => $("projectView").querySelector("#pvThread");
 const pvFrame = () => $("projectView").querySelector("#pvFrame");
 
 async function loadProjects(){
-  try { S.projects = (await api("/api/projects")).projects || []; } catch { return; }
+  let d;
+  try { d = await api("/api/projects"); } catch { return; }
+  S.projects = d.projects || []; S.pagers = d.pagers || [];
   renderProjects();
 }
+/**
+ * Projects, as a list of titles: each project, and every one-pager built,
+ * newest first. A row's one button deletes it.
+ */
 function renderProjects(){
+  closeChatMenu();
   const box = $("projects"); box.innerHTML = "";
-  $("pcount").textContent = S.projects.length || "";
+  const items = [
+    ...S.projects.map(p => ({ kind: "project", id: p.id, title: p.name, at: p.updated || 0, stale: p.stale, p })),
+    ...(S.pagers || []).map(p => ({ kind: "pager", id: p.id, title: p.title, at: p.at || 0 })),
+  ].sort((x, y) => y.at - x.at);
+  $("pcount").textContent = items.length || "";
   $("newProject").hidden = S.demo;
-  if (S.demo){ box.append(el("div","empty-side","Projects live in your own workspace: make one from the home page.")); return; }
-  if (!S.projects.length){
-    box.append(el("div","empty-side","A project reads the folders you pick and keeps one page up to date. The + makes one."));
+  if (!items.length){
+    box.append(el("div","empty-side", S.demo ? "Every one-pager you build lands here, by its title."
+      : "A project reads the folders you pick and keeps one page up to date. Every one-pager you build lands here too."));
     return;
   }
-  for (const p of S.projects){
-    const row = el("div","chat-row proj-row" + (S.project === p.id ? " on" : ""));
-    row.tabIndex = 0; row.setAttribute("role","button"); row.dataset.id = p.id;
+  for (const it of items){
+    const on = it.kind === "project" ? S.project === it.id : S.pagerId === it.id;
+    const row = el("div","chat-row proj-row" + (on ? " on" : ""));
+    row.tabIndex = 0; row.setAttribute("role","button"); row.dataset.id = it.id; row.dataset.kind = it.kind;
     const main = el("span","cm"), nm = el("span","nm");
-    nm.append(el("span",null,p.name));
-    if (p.stale){ const d = el("span","dot"); d.title = "A source landed since the last build"; nm.append(d); }
-    const n = p.brains.length;
-    main.append(nm, el("span","cb",`${n} folder${n === 1 ? "" : "s"} · ${p.version ? "page v" + p.version : "no page yet"}${p.waiting ? ` · ${p.waiting} to add` : ""}`));
+    nm.append(el("span",null,it.title));
+    if (it.stale){ const d = el("span","dot"); d.title = "A source landed since the last build"; nm.append(d); }
+    main.append(nm);
     row.append(main);
-    row.title = p.name;
-    const open = () => openProject(p.id);
+    row.title = it.kind === "pager" ? `${it.title}\nOne-pager, ${new Date(it.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : it.title;
+    const open = () => it.kind === "project" ? openProject(it.id) : openSavedPager(it.id);
     row.onclick = open;
     row.onkeydown = e => { if (e.key === "Enter" && e.target === row) open(); };
+    const more = el("button","more","⋯");
+    more.title = it.kind === "project" ? "Settings or delete" : "Delete";
+    more.setAttribute("aria-label", `${more.title}: "${it.title}"`);
+    more.setAttribute("aria-haspopup","menu"); more.setAttribute("aria-expanded","false");
+    more.onclick = e => { e.stopPropagation(); chatMenu ? closeChatMenu() : openRowMenu(more, [
+      ...(it.kind === "project" ? [{ label: "Settings", fn: async () => {
+        const p = (await api("/api/projects/get", { id: it.id }).catch(e => ({ error: e.message }))).project;
+        if (p) openProjectSheet(p); else chatMsg("That project is gone.");
+      } }] : []),
+      { label: "Delete", danger: true, fn: () => deleteItem(it) },
+    ]); };
+    row.append(more);
     box.append(row);
   }
+}
+/** A project or a kept one-pager, deleted, and its screen closed if it was open. */
+async function deleteItem(it){
+  try {
+    const r = await api(it.kind === "project" ? "/api/projects/remove" : "/api/onepagers/remove", { id: it.id });
+    if (r.error) throw new Error(r.error);
+  } catch (e) { chatMsg(e.message); return; }
+  if (it.kind === "project" && S.project === it.id){ S.project = null; S.proj = null; }
+  if (it.kind === "pager" && S.pagerId === it.id) S.pagerId = null;
+  render(); loadProjects();
+}
+
+/** A kept one-pager on screen again, with Copy, Print and Mail. */
+async function openSavedPager(id){
+  closeSide();
+  S.mode = "ask"; S.folder = null; S.project = null; S.pagerId = id;
+  const pv = $("pagerView"); pv.innerHTML = "";
+  const head = el("header","pv-h"), t = el("div","pv-t");
+  t.append(el("h2",null,(S.pagers || []).find(p => p.id === id)?.title || "One-pager"));
+  const meta = el("div","pv-meta"); meta.append(el("span","pv-chip","Opening")); t.append(meta);
+  const acts = el("div","pv-acts");
+  const del = el("button","fv-b","Delete"); del.type = "button"; del.id = "pgDelete";
+  del.onclick = () => {
+    if (!del.classList.contains("sure")){ del.classList.add("sure"); del.textContent = "Sure? Delete"; return; }
+    deleteItem({ kind: "pager", id });
+  };
+  const x = el("button","fv-b fv-x","×"); x.type = "button"; x.id = "pgClose"; x.title = "Back to the chat"; x.setAttribute("aria-label","Back to the chat");
+  x.onclick = () => { S.pagerId = null; render(); renderProjects(); $("input").focus(); };
+  acts.append(del, x); head.append(t, acts);
+  const th = el("div","thread"); th.id = "pgThread";
+  pv.append(head, th);
+  render(); renderProjects();
+  let r;
+  try { r = (await api("/api/onepagers/get", { id })).pager; }
+  catch (e) { meta.innerHTML = ""; meta.append(el("span","pv-chip warn",e.message)); return; }
+  if (S.pagerId !== id) return;
+  t.querySelector("h2").textContent = r.title;
+  meta.innerHTML = "";
+  meta.append(el("span","pv-chip", `One-pager · ${new Date(r.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`));
+  const picked = String(r.ask?.pick || "all"), b = S.brains.find(x => x.slug === picked);
+  meta.append(el("span","pv-chip acc", b ? b.name : picked === "all" ? "All folders" : picked === "person" ? "People" : picked === "subject" ? "Subjects" : picked));
+  if (r.ask?.q) meta.append(el("span","pv-chip", r.ask.q.length > 60 ? r.ask.q.slice(0, 57) + "..." : r.ask.q));
+  showPager(r.page, r.text, r.ask || {}, null, null, th);
+  th.scrollTop = 0;
 }
 
 /** A project on screen: its head, its chat and its page. */
 async function openProject(id){
   closeSide();
-  S.mode = "ask"; S.folder = null; S.project = id; S.proj = null; S.projThread = []; S.pageV = null;
+  S.mode = "ask"; S.folder = null; S.pagerId = null; S.project = id; S.proj = null; S.projThread = []; S.pageV = null;
   if (isPersonal(S.scope)){ S.scope = "all"; S.picks = []; }
   paintProject();
   render(); renderProjects();
@@ -4693,7 +4784,7 @@ function openFolder(b, openId){
   if (S.mode === "drop") S.mode = "ask";
   if (isPersonal(b.slug)){ crossing(b.slug); S.picks = []; S.scope = b.slug; S.into = []; }
   else { crossing("all"); setPicks([b.slug]); }
-  S.folder = b.slug; S.project = null;
+  S.folder = b.slug; S.project = null; S.pagerId = null;
   const fv = $("folderView"); fv.innerHTML = "";
   const self = isPersonal(b.slug), ro = readOnly(b);
   const cs = conceptsOf(b.slug).slice().sort((x, y) => String(y.updated || "").localeCompare(String(x.updated || "")) || (y.src || 0) - (x.src || 0));
@@ -4993,6 +5084,8 @@ function openPagerSheet(pre = {}){
     if (r.sent) { try { localStorage.setItem(MAIL_KEY, to); } catch {} }
     showPager(r.page, r.text, ask,
       r.sent ? { to, ok: true } : to ? { to, ok: false, why: r.mailError || "the mail service refused it" } : null, r);
+    /* It is kept, and listed under Projects by its title. */
+    if (r.saved) loadProjects();
   };
 }
 
@@ -5018,7 +5111,7 @@ function langNote(r, lang){
  * on screen is always what was sent. A page built from a question is asked
  * again to do that, and the button says so.
  */
-function showPager(page, text, built, mailed, r){
+function showPager(page, text, built, mailed, r, where = $("thread")){
   push("ai", body => {
     const card = el("div","pager");
     const slot = el("div");
@@ -5098,9 +5191,10 @@ function showPager(page, text, built, mailed, r){
       if (!addr){ to.focus(); return; }
       send.disabled = true; send.textContent = "Sending"; tell(true, "");
       try {
-        const r = await api("/api/onepager", { ...built, mail: addr });
+        /* The page is kept already: this build is only for the mail. */
+        const r = await api("/api/onepager", { ...built, mail: addr, keep: false });
         now = { page: r.page, text: r.text };
-        paint(); flagLang(r); bottom();
+        paint(); flagLang(r); bottom(where);
         if (r.sent === false) throw new Error(r.mailError || "the mail service refused it");
         try { localStorage.setItem(MAIL_KEY, addr); } catch {}
         tell(true, `Sent to ${addr}. Not in the inbox within 5 minutes? Look in spam.`);
@@ -5124,8 +5218,8 @@ function showPager(page, text, built, mailed, r){
 
     /* Mail goes from the owner's domain, so other workspaces copy or print. */
     acts.append(copy, print, ...(ownerWs() ? [to, send] : []));
-  });
-  bottom();
+  }, where);
+  bottom(where);
 }
 
 /** **bold** in a document's text, with everything else escaped. */

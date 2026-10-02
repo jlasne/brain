@@ -185,8 +185,8 @@ export default defineSchema({
   }).index("by_space", ["space"]),
 
   /**
-   * A workspace's side panel. Limited shows Chats and Projects, full adds
-   * every folder. A workspace with no row is limited.
+   * A workspace's side panel. Limited shows Chats and Folders, full adds
+   * Projects. A workspace with no row is limited.
    */
   modes: defineTable({
     space: v.string(),
@@ -221,6 +221,21 @@ export default defineSchema({
     created: v.number(),
     updated: v.number(),
   }).index("by_space", ["space"]),
+
+  /**
+   * Every one-pager built, kept so it can be opened again from Projects. The
+   * newest 50 of each owner stay. In the demo, each visitor keeps their own.
+   */
+  onepagers: defineTable({
+    space: v.string(),
+    owner: v.optional(v.string()),
+    title: v.string(),
+    /* The page as the app draws it, its text for Copy, and what built it, so Mail can build it again. */
+    page: v.any(),
+    text: v.string(),
+    ask: v.any(),
+    at: v.number(),
+  }).index("by_space_at", ["space", "at"]),
 
   /* Each build of a project's page. The newest 10 are kept. */
   pages: defineTable({

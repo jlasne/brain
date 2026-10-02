@@ -1127,6 +1127,57 @@ const brandRow = async (ctx: any, space: string) =>
 const brandView = (b: any) => b && (b.logo || b.accent || b.bg)
   ? { logo: b.logo ?? null, accent: b.accent ?? null, bg: b.bg ?? null } : null;
 
+/* ---------------- saved one-pagers ---------------- */
+
+export const PAGERS_KEPT = 50;
+const pagersOf = async (ctx: any, space: string, owner: string) =>
+  (await ctx.db.query("onepagers").withIndex("by_space_at", (q: any) => q.eq("space", space)).order("desc").collect())
+    .filter((p: any) => (p.owner ?? "") === owner);
+async function pagerIn(ctx: any, space: string, id: string, owner: string) {
+  const nid = typeof id === "string" ? ctx.db.normalizeId("onepagers", id) : null;
+  const p = nid ? await ctx.db.get(nid) : null;
+  return p && p.space === space && (p.owner ?? "") === owner ? p : null;
+}
+
+/** A one-pager just built, kept. Past the newest 50 of its owner, the oldest go. */
+export const pagerSave = internalMutation({
+  args: { space: v.string(), owner: v.optional(v.string()), page: v.any(), text: v.string(), ask: v.any() },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space), owner = a.owner ?? "";
+    const title = String(a.page?.title ?? "").replace(/\s+/g, " ").trim().slice(0, 120) || "One-pager";
+    const id = await ctx.db.insert("onepagers", { space, ...(owner ? { owner } : {}), title, page: a.page, text: a.text.slice(0, 200_000), ask: a.ask, at: Date.now() });
+    for (const old of (await pagersOf(ctx, space, owner)).slice(PAGERS_KEPT)) await ctx.db.delete(old._id);
+    return { id: String(id), title };
+  },
+});
+
+/** The saved one-pagers of this owner, newest first: titles only. */
+export const pagerList = internalQuery({
+  args: { space: v.string(), owner: v.optional(v.string()) },
+  handler: async (ctx, a) => (await pagersOf(ctx, readSpace(a.space), a.owner ?? ""))
+    .map((p: any) => ({ id: String(p._id), title: p.title, at: p.at })),
+});
+
+/** One saved one-pager whole. */
+export const pagerGet = internalQuery({
+  args: { space: v.string(), id: v.string(), owner: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const p = await pagerIn(ctx, readSpace(a.space), a.id, a.owner ?? "");
+    return p ? { id: String(p._id), title: p.title, page: p.page, text: p.text, ask: p.ask, at: p.at } : null;
+  },
+});
+
+/** A saved one-pager, deleted. */
+export const pagerRemove = internalMutation({
+  args: { space: v.string(), id: v.string(), owner: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const p = await pagerIn(ctx, readSpace(a.space), a.id, a.owner ?? "");
+    if (!p) return { error: "that one-pager is gone" };
+    await ctx.db.delete(p._id);
+    return { ok: true };
+  },
+});
+
 /* ---------------- the models a workspace picked ---------------- */
 
 const modelsRow = async (ctx: any, space: string) =>
@@ -1160,7 +1211,7 @@ export const setModels = internalMutation({
 const modeRow = async (ctx: any, space: string) =>
   await ctx.db.query("modes").withIndex("by_space", (q: any) => q.eq("space", space)).unique();
 
-/** Show every folder, or Chats and Projects only. Settings and admin:setMode both write here. */
+/** Show Projects too, or Chats and Folders only. Settings and admin:setMode both write here. */
 export async function writeMode(ctx: any, space: string, full: boolean) {
   const row = await modeRow(ctx, space), at = Date.now();
   if (row) await ctx.db.patch(row._id, { full, updated: at });
