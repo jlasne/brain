@@ -125,7 +125,7 @@ export const setPass = internalMutation({
 /**
  * Forget the model keys an earlier sign-in scheme kept, sealed, on member
  * accounts (13 to 27 September). Nothing reads them now. Run it once, then
- * remove KEY_SECRET from the deployment and rotate any key that was saved:
+ * remove KEY_SECRET from the deployment. The keys themselves stay valid:
  *
  *     npx convex run admin:forgetOldKeys --prod
  */
