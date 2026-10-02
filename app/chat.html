@@ -415,6 +415,7 @@
   .pick-btn[aria-expanded="true"]{ box-shadow:0 0 0 3px var(--accent-soft); }
   .pick-btn .pk-mark{ width:18px; height:18px; border-radius:5px; object-fit:contain; flex:none; }
   .pick-btn .pk-lbl{ color:var(--ink-3); font-weight:400; }
+  .pick-btn .pk-lbl:empty{ display:none; }
   .pick-btn .pk-val{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
   .pick-btn .pk-chev{ width:11px; height:11px; flex:none; fill:none; stroke:var(--ink-3); stroke-width:1.6;
                       stroke-linecap:round; stroke-linejoin:round; transition:transform .15s var(--ease); }
@@ -2149,7 +2150,8 @@ function renderScope(){
   if (isPersonal(S.scope) && S.mode === "drop") S.mode = "ask";
   const drop = S.mode === "drop";
   const nameOf = x => S.brains.find(b => b.slug === x)?.name || x;
-  $("scopeLabel").textContent = drop ? "Into" : isPersonal(S.scope) ? "Chat with" : "Across";
+  /* Asking across every brain needs no label: the name says it. */
+  $("scopeLabel").textContent = drop ? "Into" : isPersonal(S.scope) ? "Chat with" : "";
   /* A drop can feed several brains: the first by name, then how many more. */
   $("scopeVal").textContent = drop
     ? (!S.into.length ? "Suggest for me" : S.into.length === 1 ? nameOf(S.into[0]) : `${nameOf(S.into[0])} +${S.into.length - 1}`)

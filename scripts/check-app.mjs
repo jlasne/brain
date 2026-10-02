@@ -215,7 +215,7 @@ async function boot(path, init, arg) {
 
   /* ---- the brain picker ---- */
   const face = await page.evaluate(() => document.getElementById("scopeBtn").textContent.replace(/\s+/g, " ").trim());
-  check("the picker says where a question goes", /Across All brains/.test(face), face);
+  check("the picker names where a question goes, with no label in front", face === "All brains", face);
   await page.click("#scopeBtn");
   const menu = await page.evaluate(() => ({
     rows: [...document.querySelectorAll(".pick-menu .pk-row .pk-nm")].map(x => x.firstChild.textContent),
