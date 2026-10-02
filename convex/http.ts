@@ -10,7 +10,7 @@ import { internal } from "./_generated/api";
 import {
   ask, json, cors, sha256, slug, randomHex, isOpen,
   readSpace, SPACE_NAME, HOME, spaceName, slugOfName, SPACE_RE, SPACES,
-  MODEL, CHUNK,
+  MODEL, PROJECT_MODEL, CHUNK,
   canDrop,
 } from "./lib";
 import type { Who } from "./lib";
@@ -42,7 +42,9 @@ const router = httpRouter();
  *           their browser sends with it. It is used for that call and never
  *           written, logged or passed to a query or mutation.
  */
-type Caller = Who & { demo: boolean; byok: boolean; key?: string; visitor: string | null; wsName: string };
+type Caller = Who & { demo: boolean; byok: boolean; key?: string; visitor: string | null; wsName: string;
+  /* The models this workspace picked in Settings, or null for the defaults. */
+  models: { chat: string | null; project: string | null } };
 const KEY_RE = /^sk-or-[A-Za-z0-9_-]{20,200}$/;
 const owners = SPACES as readonly string[];
 
@@ -60,7 +62,9 @@ async function gate(ctx: any, body: any, opts: { ownerOnly?: boolean } = {}): Pr
   if (!owners.includes(who.space) && !ws) throw new Response("locked", { status: 401 });
   const byok = ws?.kind === "byok";
   const k = String(body?.key ?? "").trim();
-  return { ...who, kind: "owner", demo, byok, visitor: demo ? who.visitor : null, wsName: ws?.name ?? spaceName(who.space),
+  /* The demo always runs on the defaults. */
+  const models = demo ? { chat: null, project: null } : await ctx.runQuery(internal.store.modelsOf, { space: who.space });
+  return { ...who, kind: "owner", demo, byok, models, visitor: demo ? who.visitor : null, wsName: ws?.name ?? spaceName(who.space),
     key: byok ? (KEY_RE.test(k) ? k : undefined) : ws?.kind === "demo" ? (process.env.DEMO_OPENROUTER_API_KEY || undefined) : undefined };
 }
 
@@ -70,8 +74,17 @@ function keyFor(who: Caller): string | undefined {
   return who.key;
 }
 
-/** The model: the default for a demo visitor, the one picked otherwise. */
-const modelFor = (who: Caller, b: any) => who.demo ? undefined : modelName(b);
+/**
+ * The model: the default for a demo visitor. Otherwise the one the workspace
+ * picked in Settings, for the chat or for projects. A chat call that still
+ * names a model, from an app open since before, keeps it.
+ */
+const modelFor = (who: Caller, b: any, use: "chat" | "project" = "chat") => {
+  if (who.demo) return use === "project" ? PROJECT_MODEL : undefined;
+  if (use === "project") return who.models?.project || PROJECT_MODEL;
+  const chat = who.models?.chat;
+  return modelName(b) ?? (chat && chat !== MODEL ? chat : undefined);
+};
 
 /**
  * What the demo may spend, shared by every visitor, over 30 days: 30 drops
@@ -104,10 +117,11 @@ async function demoCount(ctx: any, who: Caller, what: "drop" | "ask" | "step") {
  * may pick another model in the app; the default is the one this deployment
  * runs.
  */
+const MODEL_ID = /^[a-z0-9~][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i;
 function modelName(body: any): string | undefined {
   const m = String(body?.model ?? "").trim();
   if (!m || m === MODEL) return undefined;
-  if (m.length > 80 || !/^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i.test(m)) {
+  if (m.length > 80 || !MODEL_ID.test(m)) {
     throw new Error(`"${m.slice(0, 40)}" is not a model id. They read vendor/model, like ${MODEL}.`);
   }
   return m;
@@ -359,8 +373,31 @@ route("/api/state", async (ctx, _req, b) => {
     ev: c.ev ?? 0, src: c.src ?? 0, links: (c.related ?? []).length })) };
   const brand = await ctx.runQuery(internal.store.brandOf, { space: who.space });
   const full = await ctx.runQuery(internal.store.modeOf, { space: who.space });
-  return { ...s, model: MODEL, chunk: CHUNK,
+  /* The models in use, and the defaults Settings offers to go back to. */
+  const models = { chat: who.models.chat || MODEL, project: who.models.project || PROJECT_MODEL, chatDefault: MODEL, projectDefault: PROJECT_MODEL };
+  return { ...s, model: models.chat, models, chunk: CHUNK,
            space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand, full };
+});
+
+/**
+ * The models, picked in Settings for the whole workspace: one for the chat,
+ * Drop and one-pagers, one for projects. null goes back to the default.
+ */
+route("/api/models", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const one = (k: "chat" | "project") => {
+    if (!(k in b)) return undefined;
+    const m = String(b[k] ?? "").trim();
+    if (!m) return null;
+    if (m.length > 80 || !MODEL_ID.test(m)) throw new Error(`"${m.slice(0, 40)}" is not a model id. They read vendor/model, like ${MODEL}.`);
+    return m;
+  };
+  const chat = one("chat"), project = one("project");
+  if (chat === undefined && project === undefined) return { error: "say which model to change" };
+  const r = await ctx.runMutation(internal.store.setModels, { space: who.space,
+    ...(chat !== undefined ? { chat: chat === MODEL ? null : chat } : {}),
+    ...(project !== undefined ? { project: project === PROJECT_MODEL ? null : project } : {}) });
+  return { chat: r.chat || MODEL, project: r.project || PROJECT_MODEL };
 });
 
 /**
@@ -584,7 +621,7 @@ route("/api/ask", async (ctx, _req, b) => {
    * budget, and the next ones are named by title so the answer knows what else
    * is held. A follow-up borrows the words of the question before it.
    */
-  const mKey = keyFor(who), mName = modelFor(who, b);
+  const mKey = keyFor(who), mName = modelFor(who, b, proj ? "project" : "chat");
   await demoCount(ctx, who, "ask");
   const t0 = Date.now();
   const route = await routeQuestion(pool, concepts, String(b.q ?? ""), b.history, mKey, mName);
@@ -849,7 +886,7 @@ route("/api/projects/save", async (ctx, _req, b) => {
     template = b.template;
   }
   return await ctx.runMutation(internal.projects.save, { space: who.space, ...(b.id ? { id: String(b.id) } : {}),
-    name: String(b.name ?? ""), brains: picked, instructions: String(b.instructions ?? ""), auto: b.auto !== false,
+    name: String(b.name ?? ""), brains: picked, instructions: String(b.instructions ?? ""), auto: b.auto === true,
     ...(template !== undefined ? { template } : {}),
     ...(typeof b.templateName === "string" ? { templateName: b.templateName.replace(/[^\w .()-]/g, "").slice(0, 80) } : {}) });
 });
@@ -866,13 +903,27 @@ route("/api/projects/clear", async (ctx, _req, b) => {
   return await ctx.runMutation(internal.projects.clear, { space: who.space, id: String(b.id ?? "") });
 });
 
-/** A new version of the page: rebuilt, or with a note from the chat added. */
+/** An answer from the chat, held for the next Build, or taken back. Nothing is built here. */
+route("/api/projects/queue", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const q = String(b.q ?? "").trim(), a = String(b.a ?? "").trim();
+  if (!q || !a) return { error: "an answer to add needs its question and its answer" };
+  return await ctx.runMutation(internal.projects.queue, { space: who.space, id: String(b.id ?? ""), q, a, remove: b.remove === true });
+});
+
+/**
+ * Build: the next version of the page, from the folders as they stand and
+ * the answers that wait for it. The only way a page changes from the app.
+ */
 route("/api/projects/build", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  const note = String(b.note ?? "").trim().slice(0, 4000);
-  const r = await buildPage(ctx, who.space, String(b.id ?? ""), { note: note || undefined,
-    why: note ? (String(b.why ?? "").trim().slice(0, 120) || "Added from the chat") : "Rebuilt",
-    key: keyFor(who), model: modelFor(who, b) });
+  const id = String(b.id ?? "");
+  const p = await ctx.runQuery(internal.projects.get, { space: who.space, id });
+  if (!p) return { error: "that project is gone" };
+  const n = (p.pending ?? []).length;
+  const r = await buildPage(ctx, who.space, id, {
+    why: n ? `Built with ${n} answer${n === 1 ? "" : "s"} added` : "Built",
+    key: keyFor(who), model: modelFor(who, b, "project") });
   return { v: r.v, at: r.at, html: r.html };
 });
 

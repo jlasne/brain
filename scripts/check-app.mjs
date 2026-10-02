@@ -449,7 +449,7 @@ async function boot(path, init, arg) {
   await page.waitForTimeout(150);
   const setup = await page.evaluate(() => ({ model: document.querySelector("#setModel .val")?.textContent,
     exp: !!document.getElementById("setExport"), order: [...document.querySelectorAll(".sheet .set-row button")].map(b => b.id).join(",") }));
-  check("Setup holds the model, the export, then the map", setup.order === "setModel,setExport,setMap" && setup.model === "model", JSON.stringify(setup));
+  check("Settings holds the chat model, the project model, the export, then the map", setup.order === "setModel,setProjModel,setExport,setMap" && setup.model === "model", JSON.stringify(setup));
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#setExport")]);
   const { readFileSync } = await import("node:fs");
   const exported = readFileSync(await dl.path(), "utf8");
@@ -489,8 +489,8 @@ async function boot(path, init, arg) {
     if (window !== window.top) return;
     sessionStorage.setItem("octopus.token.v1", "test");
     window.__calls = [];
-    const P = { id: "p1", name: "Gold thesis", brains: ["content"], instructions: "Where my sources stand.", auto: true, stale: true,
-      templateName: "gold.html", version: 0, turns: [], versions: [], page: null };
+    const P = { id: "p1", name: "Gold thesis", brains: ["content"], instructions: "Where my sources stand.", auto: false, stale: true,
+      templateName: "gold.html", version: 0, turns: [], versions: [], page: null, pending: [] };
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}");
       window.__calls.push({ s, body });
@@ -498,10 +498,16 @@ async function boot(path, init, arg) {
       if (s.endsWith("/api/projects")) return Response.json({ projects: window.__made ? [{ ...P, version: P.versions[0]?.v || 0 }] : [] });
       if (s.includes("/api/projects/save")) { window.__made = true; return Response.json({ id: "p1" }); }
       if (s.includes("/api/projects/get")) return Response.json({ project: P });
+      if (s.includes("/api/projects/queue")) {
+        P.pending = body.remove ? P.pending.filter(x => x.q !== body.q) : [...P.pending, { q: body.q, a: body.a }];
+        return Response.json({ waiting: P.pending.length });
+      }
       if (s.includes("/api/projects/build")) {
         await new Promise(ok => setTimeout(ok, 300));
         const v = (P.versions[0]?.v || 0) + 1;
-        P.versions.unshift({ v, why: body.note ? body.why : "Rebuilt", at: Date.now() });
+        window.__built = (window.__built || []).concat([P.pending.map(x => x.q)]);
+        P.versions.unshift({ v, why: P.pending.length ? "Built with answers added" : "Built", at: Date.now() });
+        P.pending = [];
         P.page = `<!doctype html><html><head><title>p</title><meta http-equiv="refresh" content="0;url=https://example.com"></head><body><h1>Gold v${v}</h1><script>parent.postMessage("ran","*")</script></body></html>`;
         return Response.json({ v, at: Date.now(), html: P.page });
       }
@@ -515,7 +521,8 @@ async function boot(path, init, arg) {
     folders: [...document.querySelectorAll("#pjPick label span")].map(x => x.textContent),
     groups: [...document.querySelectorAll("#pjPick .g")].map(x => x.textContent), auto: document.getElementById("pjAuto").checked }));
   check("New project offers every folder by group, never a personal one", sheet.title === "New project" && sheet.folders.join(",") === "Content,Charles Gave"
-    && sheet.groups.join(",") === "Mine,Ask only" && sheet.auto, JSON.stringify(sheet));
+    && sheet.groups.join(",") === "Mine,Ask only", JSON.stringify(sheet));
+  check("and building when a source lands starts off", sheet.auto === false);
   await page.click("#pjSave");
   check("it asks for a name first", /name/.test(await page.textContent("#pjMsg")));
   await page.fill("#pjName", "Gold thesis");
@@ -529,7 +536,8 @@ async function boot(path, init, arg) {
   await page.click("#pjSave"); await page.waitForTimeout(250);
   const saved = await page.evaluate(() => window.__calls.find(c => c.s.includes("/api/projects/save"))?.body);
   check("Create sends the name, the folder, the instructions and the template", saved?.name === "Gold thesis" && JSON.stringify(saved.brains) === '["content"]'
-    && saved.instructions === "Where my sources stand." && /\{\{title\}\}/.test(saved.template) && saved.templateName === "gold.html" && saved.auto === true, JSON.stringify(saved));
+    && saved.instructions === "Where my sources stand." && /\{\{title\}\}/.test(saved.template) && saved.templateName === "gold.html" && saved.auto === false, JSON.stringify(saved));
+  check("creating a project builds nothing until Build is pressed", await page.evaluate(() => !window.__calls.some(c => c.s.includes("/api/projects/build"))));
   const view = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, name: document.querySelector("#projectView h2")?.textContent,
     chips: [...document.querySelectorAll("#projectView .pv-chip")].map(x => x.textContent),
     barIn: !!document.querySelector("#projectView .pv-chat .composer-wrap"), picker: document.getElementById("scopeBtn").hidden,
@@ -561,11 +569,19 @@ async function boot(path, init, arg) {
   check("a question in the project asks the project, with its own thread", asked.body?.project === "p1" && !asked.body.brains && !asked.body.chat, JSON.stringify(asked.body));
   check("its answer offers Copy and Add to the page, not a one-pager", asked.acts.join(",") === "Copy,Add to the page", asked.acts.join(","));
   check("and never lands in the main chat", !/sell gold/.test(asked.main));
-  await page.click('#pvThread .ans-acts .mini:has-text("Add to the page")'); await page.waitForTimeout(500);
-  const added = await page.evaluate(() => ({ body: window.__calls.filter(c => c.s.includes("/api/projects/build")).pop()?.body,
-    said: [...document.querySelectorAll("#pvThread .msg.ai")].pop()?.textContent, vs: document.querySelectorAll("#pvVersions option").length }));
-  check("Add to the page builds the next version from that answer", /sell gold/.test(added.body?.note || "") && /Real rates/.test(added.body?.note || "")
-    && /version 2/.test(added.said || "") && added.vs === 2, JSON.stringify(added));
+  const builds = () => page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/projects/build")).length);
+  check("talking in the project never rebuilds the page", await builds() === 1);
+  await page.click('#pvThread .ans-acts .pv-add'); await page.waitForTimeout(150);
+  const held = await page.evaluate(() => ({ q: window.__calls.filter(c => c.s.includes("/api/projects/queue")).pop()?.body,
+    btn: document.querySelector("#pvThread .pv-add")?.textContent, bar: document.getElementById("pvRebuild")?.textContent }));
+  check("Add to the page puts the answer aside for the next Build, and builds nothing", held.q?.q === "What would make me sell gold?" && /Real rates/.test(held.q?.a || "")
+    && held.btn === "Waits for Build" && /Build · 1 to add/.test(held.bar || "") && await builds() === 1, JSON.stringify(held));
+  await page.click("#pvRebuild"); await page.waitForTimeout(500);
+  const added = await page.evaluate(() => ({ took: window.__built?.pop(), btn: document.querySelector("#pvThread .pv-add")?.textContent,
+    said: [...document.querySelectorAll("#pvThread .msg.ai")].pop()?.textContent, vs: document.querySelectorAll("#pvVersions option").length,
+    bar: document.getElementById("pvRebuild")?.textContent }));
+  check("Build makes the next version with the answer that waited", JSON.stringify(added.took) === '["What would make me sell gold?"]'
+    && /Version 2 holds the 1 answer/.test(added.said || "") && added.vs === 2 && added.btn === "Add to the page" && added.bar === "Build", JSON.stringify(added));
   await page.selectOption("#pvVersions", "1"); await page.waitForTimeout(150);
   check("an older version opens from the list", /version 1 of 2/.test(await page.textContent("#pvFrame .pv-bar")));
   await page.click("#pvFull"); await page.waitForTimeout(80);
@@ -581,6 +597,54 @@ async function boot(path, init, arg) {
     picker: !document.getElementById("scopeBtn").hidden }));
   check("closing returns to the chat, the bar and its picker back in place", back.view === "chat" && back.bar && back.picker, JSON.stringify(back));
   check("nothing threw in a project", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- the models: one for the chat, one for projects, saved for the workspace ---- */
+{
+  const withModels = { ...STATE, model: "deepseek/deepseek-v4-flash-0731",
+    models: { chat: "deepseek/deepseek-v4-flash-0731", project: "z-ai/glm-5.3-flash", chatDefault: "deepseek/deepseek-v4-flash-0731", projectDefault: "z-ai/glm-5.3-flash" } };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    localStorage.setItem("octopus.model", "openai/gpt-5");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      window.__calls.push({ s, body });
+      if (s.includes("openrouter.ai/api/v1/models")) return Response.json({ data: [
+        { id: "deepseek/deepseek-v4-flash-0731", name: "DeepSeek V4 Flash", pricing: { prompt: "0.0000000077", completion: "0.00000128" }, context_length: 1048576, supported_parameters: ["response_format"] },
+        { id: "z-ai/glm-5.3-flash", name: "Z.ai: GLM 5.3 Flash", pricing: { prompt: "0.00000015", completion: "0.0000005" }, context_length: 1048576, supported_parameters: ["response_format"] },
+        { id: "z-ai/glm-5.3", name: "Z.ai: GLM 5.3", pricing: { prompt: "0.0000014", completion: "0.0000044" }, context_length: 1048576, supported_parameters: ["response_format"] }] });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/models")) return Response.json({ chat: body.chat === undefined ? state.models.chat : body.chat || state.models.chatDefault,
+        project: body.project === undefined ? state.models.project : body.project || state.models.projectDefault });
+      if (s.includes("/api/ask")) return Response.json({ answer: "One line.", sources: 3, level: "normal" });
+      return Response.json({});
+    };
+  }, withModels);
+  check("a model picked in this browser before is dropped: the workspace's pick rules", await page.evaluate(() => localStorage.getItem("octopus.model")) === null);
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(150);
+  const rows = await page.evaluate(() => ({ chat: document.querySelector("#setModel .val")?.textContent, proj: document.querySelector("#setProjModel .val")?.textContent }));
+  check("Settings shows DeepSeek for the chat and GLM 5.3 Flash for projects by default", rows.chat === "deepseek-v4-flash-0731" && rows.proj === "glm-5.3-flash", JSON.stringify(rows));
+  await page.click("#setProjModel"); await page.waitForTimeout(200);
+  const sheet = await page.evaluate(() => ({ title: document.querySelector(".sheet h3")?.textContent, first: document.querySelector("#mList .mrow span")?.textContent,
+    on: document.querySelector("#mList .mrow.on b")?.textContent }));
+  check("Project model opens the list on its default, marked", sheet.title === "Project model" && /z-ai\/glm-5\.3-flash/.test(sheet.first || "") && /default/.test(sheet.first || "")
+    && sheet.on === "Z.ai: GLM 5.3 Flash", JSON.stringify(sheet));
+  await page.click('#mList .mrow:has(b:text-is("Z.ai: GLM 5.3"))'); await page.click("#mSave"); await page.waitForTimeout(150);
+  const saved = await page.evaluate(() => ({ body: window.__calls.filter(c => c.s.includes("/api/models")).pop()?.body,
+    proj: document.querySelector("#setProjModel .val")?.textContent, pick: document.getElementById("setProjModel")?.classList.contains("pick") }));
+  check("a pick is saved for the workspace, and Settings shows it", saved.body?.project === "z-ai/glm-5.3" && !("chat" in saved.body) && saved.proj === "glm-5.3" && saved.pick, JSON.stringify(saved));
+  await page.click("#setModel"); await page.waitForTimeout(150);
+  check("Chat model opens its own list", await page.textContent(".sheet h3") === "Chat model");
+  await page.click("#mReset"); await page.waitForTimeout(150);
+  const reset = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/models")).pop()?.body);
+  check("Use the default sends no model for the chat", reset && reset.chat === null && !("project" in reset), JSON.stringify(reset));
+  await page.evaluate(() => document.querySelectorAll(".veil").forEach(v => v.remove()));
+  await page.fill("#input", "Is gold a hedge?"); await page.click("#send"); await page.waitForTimeout(150);
+  const asked = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/ask")).pop()?.body);
+  check("a question carries no model: the server uses the workspace's pick", asked && !("model" in asked), JSON.stringify(asked));
+  check("nothing threw picking models", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -1442,7 +1506,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("nor a project: projects live in your own workspace", await page.evaluate(() => document.getElementById("newProject").hidden
     && /your own workspace/.test(document.getElementById("projects").textContent)));
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(250);
-  const set = await page.evaluate(() => ({ model: document.getElementById("setModel").hidden, mcp: document.getElementById("mcpBlock").hidden,
+  const set = await page.evaluate(() => ({ model: document.getElementById("setModel").hidden && document.getElementById("setProjModel").hidden, mcp: document.getElementById("mcpBlock").hidden,
     use: document.getElementById("useBlock").hidden, key: document.getElementById("keyBlock").hidden,
     asked: window.__calls.filter(c => /\/api\/(account\/mcp|usage)/.test(c.s)).length }));
   check("Setup in the demo keeps the default model, and leaves out the connector and transcripts", set.model && set.mcp && set.use && set.key && set.asked === 0,

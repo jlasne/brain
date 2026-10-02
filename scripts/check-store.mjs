@@ -758,6 +758,36 @@ function seed() {
   void other;
 }
 
+/* ---- answers wait for Build; models are picked per workspace ---- */
+{
+  const { T, ctx } = seed();
+  const made = await run(projects.save, ctx, { space: "octopus", name: "Gold", brains: ["wealth"], instructions: "", auto: false });
+  check("a project's page builds only on demand unless its owner turns that on", T.projects[0].auto === false);
+  await run(projects.queue, ctx, { space: "octopus", id: made.id, q: "Sell?", a: "Two signals." });
+  await run(projects.queue, ctx, { space: "octopus", id: made.id, q: "Sell?", a: "Two signals." });
+  await run(projects.queue, ctx, { space: "octopus", id: made.id, q: "Hold?", a: "Yes." });
+  check("an added answer waits once, however often it is added", T.projects[0].pending.map(x => x.q).join(",") === "Sell?,Hold?" && !T.pages?.length);
+  check("another workspace cannot add to it", /gone/.test((await run(projects.queue, ctx, { space: "squidgy", id: made.id, q: "x", a: "y" })).error || ""));
+  await run(projects.queue, ctx, { space: "octopus", id: made.id, q: "Hold?", a: "Yes.", remove: true });
+  check("and it can be taken back", T.projects[0].pending.map(x => x.q).join(",") === "Sell?");
+  for (let i = 0; i < 9; i++) await run(projects.queue, ctx, { space: "octopus", id: made.id, q: "q" + i, a: "a" });
+  check("10 answers wait at most", /10 answers/.test((await run(projects.queue, ctx, { space: "octopus", id: made.id, q: "one more", a: "a" })).error || ""));
+  const got = await run(projects.get, ctx, { space: "octopus", id: made.id });
+  check("the project says what waits", got.waiting === 10 && got.pending.length === 10);
+  await run(projects.addVersion, ctx, { space: "octopus", id: made.id, html: "<html>v1</html>", why: "Built", took: 8 });
+  check("a build clears what it read, and keeps an answer added while it ran", T.projects[0].pending.map(x => x.q).join(",") === "q7,q8", JSON.stringify(T.projects[0].pending.map(x => x.q)));
+
+  check("a workspace starts on the default models", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"project":null}');
+  await run(store.setModels, ctx, { space: "octopus", project: "z-ai/glm-5.3" });
+  const one = await run(store.modelsOf, ctx, { space: "octopus" });
+  check("a project model picked leaves the chat model alone", one.project === "z-ai/glm-5.3" && one.chat === null, JSON.stringify(one));
+  await run(store.setModels, ctx, { space: "octopus", chat: "openai/gpt-5" });
+  check("and the other way round", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":"z-ai/glm-5.3"}');
+  check("another workspace keeps its own", JSON.stringify(await run(store.modelsOf, ctx, { space: "squidgy" })) === '{"chat":null,"project":null}');
+  await run(store.setModels, ctx, { space: "octopus", project: null });
+  check("null goes back to the default", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":null}');
+}
+
 /* ---- a rebuild runs on the deployment's key only ---- */
 {
   const landed = async (who, ws) => {

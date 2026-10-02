@@ -208,8 +208,10 @@ export default defineSchema({
     /* An HTML file, 60 KB at most, whose layout every build keeps. */
     template: v.optional(v.string()),
     templateName: v.optional(v.string()),
-    /* Rebuild the page when a source lands in one of its folders. */
+    /* Rebuild the page when a source lands in one of its folders. Off unless the owner turns it on. */
     auto: v.boolean(),
+    /* Answers from its chat waiting for the next Build, which puts them on the page. */
+    pending: v.optional(v.array(v.any())),
     /* A source landed since the last build. */
     stale: v.optional(v.boolean()),
     /* When a background rebuild started, so the next drop does not start another. */
@@ -228,6 +230,17 @@ export default defineSchema({
     why: v.string(),
     at: v.number(),
   }).index("by_project_v", ["project", "v"]),
+
+  /**
+   * The models a workspace picked in Settings: one for the chat, Drop and
+   * one-pagers, one for projects. Absent reads as the deployment's defaults.
+   */
+  models: defineTable({
+    space: v.string(),
+    chat: v.optional(v.string()),
+    project: v.optional(v.string()),
+    updated: v.number(),
+  }).index("by_space", ["space"]),
 
   gaps: defineTable({
     space: v.string(),

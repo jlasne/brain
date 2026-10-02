@@ -4,9 +4,11 @@
  *
  * A project names its folders, carries instructions in its owner's words,
  * and may hold an HTML template. Its page is built by the model from those
- * folders, in the template's layout when there is one, and each build is a
- * version: the newest 10 are kept. When a source lands in one of its folders
- * the page is marked out of date, and a project set to rebuild does so on the
+ * folders, in the template's layout when there is one, and only when its
+ * owner presses Build: talking in its chat never rebuilds it. An answer added
+ * to the page waits for the next Build. Each build is a version: the newest
+ * 10 are kept. When a source lands in one of its folders the page is marked
+ * out of date, and a project its owner set to rebuild does so on the
  * deployment's key. A workspace on its own key never rebuilds in the
  * background, since its key never reaches the server between calls.
  *
@@ -16,7 +18,7 @@
 import { v } from "convex/values";
 import { internalQuery, internalMutation, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { ask, readSpace, SPACES } from "./lib";
+import { ask, readSpace, SPACES, PROJECT_MODEL } from "./lib";
 import { loadSpace } from "./space";
 import { planDossier, writeDossier, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
@@ -28,6 +30,8 @@ export const INSTR_MAX = 2000;
 export const TEMPLATE_MAX = 60_000;
 export const VERSIONS_KEPT = 10;
 const TURNS_KEPT = 40;
+/* Answers waiting for the next Build. */
+const PENDING_MAX = 10;
 /* A rebuild started less than this ago is not started again by the next drop. */
 const BUILD_GAP = 5 * 60 * 1000;
 
@@ -42,7 +46,7 @@ async function versionsOf(ctx: any, project: any) {
   return await ctx.db.query("pages").withIndex("by_project_v", (q: any) => q.eq("project", project)).order("desc").collect();
 }
 const head = (p: any, top?: any) => ({
-  id: String(p._id), name: p.name, brains: p.brains, auto: p.auto, stale: !!p.stale,
+  id: String(p._id), name: p.name, brains: p.brains, auto: p.auto, stale: !!p.stale, waiting: (p.pending ?? []).length,
   templateName: p.template ? (p.templateName || "template.html") : null,
   version: top?.v ?? 0, updated: p.updated, turns: (p.turns ?? []).length,
 });
@@ -69,7 +73,7 @@ export const get = internalQuery({
     const p = await projectIn(ctx, readSpace(a.space), a.id);
     if (!p) return null;
     const vs = await versionsOf(ctx, p._id);
-    return { ...head(p, vs[0]), instructions: p.instructions, template: p.template ?? null, turns: p.turns ?? [],
+    return { ...head(p, vs[0]), instructions: p.instructions, template: p.template ?? null, turns: p.turns ?? [], pending: p.pending ?? [],
       versions: vs.map((x: any) => ({ v: x.v, why: x.why, at: x.at })), page: vs[0]?.html ?? null };
   },
 });
@@ -137,6 +141,25 @@ export const turn = internalMutation({
   },
 });
 
+/**
+ * An answer from the chat, put aside for the next Build, or taken back. Ten
+ * wait at most; the page changes only when Build is pressed.
+ */
+export const queue = internalMutation({
+  args: { space: v.string(), id: v.string(), q: v.string(), a: v.string(), remove: v.optional(v.boolean()) },
+  handler: async (ctx, a) => {
+    const p = await projectIn(ctx, readSpace(a.space), a.id);
+    if (!p) return { error: "that project is gone" };
+    const item = { q: a.q.slice(0, 2000), a: a.a.slice(0, 6000) };
+    const rest = (p.pending ?? []).filter((x: any) => !(x.q === item.q && x.a === item.a));
+    if (a.remove) { await ctx.db.patch(p._id, { pending: rest }); return { waiting: rest.length }; }
+    if (rest.length >= PENDING_MAX) return { error: `${PENDING_MAX} answers already wait for the next Build. Build first.` };
+    const next = [...rest, { ...item, at: Date.now() }];
+    await ctx.db.patch(p._id, { pending: next });
+    return { waiting: next.length };
+  },
+});
+
 /** The project's chat, cleared. Its page stays. */
 export const clear = internalMutation({
   args: { space: v.string(), id: v.string() },
@@ -150,7 +173,7 @@ export const clear = internalMutation({
 
 /** A new version of the page. Past the newest 10, the oldest go. */
 export const addVersion = internalMutation({
-  args: { space: v.string(), id: v.string(), html: v.string(), why: v.string() },
+  args: { space: v.string(), id: v.string(), html: v.string(), why: v.string(), took: v.optional(v.number()) },
   handler: async (ctx, a) => {
     const p = await projectIn(ctx, readSpace(a.space), a.id);
     if (!p) return { error: "that project is gone" };
@@ -158,7 +181,8 @@ export const addVersion = internalMutation({
     const n = (vs[0]?.v ?? 0) + 1, at = Date.now();
     await ctx.db.insert("pages", { project: p._id, v: n, html: a.html, why: a.why.slice(0, 200), at });
     for (const old of vs.slice(VERSIONS_KEPT - 1)) await ctx.db.delete(old._id);
-    await ctx.db.patch(p._id, { stale: false, building: undefined, updated: at });
+    /* The answers this build read are on the page now. One added while it ran waits for the next. */
+    await ctx.db.patch(p._id, { stale: false, building: undefined, pending: (p.pending ?? []).slice(a.took ?? 0), updated: at });
     return { v: n, at };
   },
 });
@@ -231,7 +255,10 @@ export async function buildPage(ctx: any, space: string, id: string,
   const cards = every.cards.filter((c: any) => pool.some((b: any) => b.slug === c.brain));
   if (!cards.length) throw new Error("its folders hold nothing yet. Drop a source into one of them first.");
 
-  const q = `${p.name}. ${p.instructions}${opts.note ? ` ${opts.note}` : ""}`.slice(0, 3000);
+  /* What waits for this Build: answers added from the chat, and any note. */
+  const waiting = (p.pending ?? []).map((x: any, i: number) => `${i + 1}. The owner asked: ${x.q}\nThe answer, from the same folders: ${x.a}`).join("\n\n");
+  const note = [waiting && `ADD THESE ANSWERS FROM THE CHAT, each where it fits, under a clear heading:\n${waiting}`, opts.note].filter(Boolean).join("\n\n");
+  const q = `${p.name}. ${p.instructions}${note ? ` ${note}` : ""}`.slice(0, 3000);
   const t0 = Date.now(), limit = opts.timeout ?? 170000;
   const routed = await routeQuestion(pool, cards, q, [], opts.key, opts.model);
   const plan = planDossier(pool, cards, q, [], routed);
@@ -263,8 +290,8 @@ ${p.template}
 ${before ? `THE PAGE AS IT STANDS (keep what it holds unless newer evidence or the note changes it; add what is new)
 ${before}
 ` : ""}
-${opts.note ? `WHAT TO ADD OR CHANGE NOW
-${opts.note.slice(0, 4000)}
+${note ? `WHAT TO ADD OR CHANGE NOW
+${note.slice(0, 40000)}
 ` : ""}
 ${PAGE_RULES}
 
@@ -275,7 +302,7 @@ ${dossier}` },
   const html = cleanHtml(text);
   if (!/<html[\s>]/i.test(html) || html.length < 200) throw new Error("the page did not come back whole. Build it again.");
   if (html.length > 400_000) throw new Error("the page came back over 400 KB. Ask for a shorter one in the instructions.");
-  const r = await ctx.runMutation(internal.projects.addVersion, { space, id, html, why: opts.why });
+  const r = await ctx.runMutation(internal.projects.addVersion, { space, id, html, why: opts.why, took: (p.pending ?? []).length });
   if (r.error) throw new Error(r.error);
   return { v: r.v, at: r.at, html };
 }
@@ -284,7 +311,11 @@ ${dossier}` },
 export const rebuild = internalAction({
   args: { space: v.string(), id: v.string() },
   handler: async (ctx, a) => {
-    try { await buildPage(ctx, a.space, a.id, { why: "A source landed", timeout: 300000 }); }
+    try {
+      /* The project model the workspace picked in Settings, or the default. */
+      const picked = await ctx.runQuery(internal.store.modelsOf, { space: a.space });
+      await buildPage(ctx, a.space, a.id, { why: "A source landed", timeout: 300000, model: picked?.project || PROJECT_MODEL });
+    }
     catch (e: any) {
       console.log(`project rebuild failed: ${String(e?.message ?? e).slice(0, 200)}`);
       await ctx.runMutation(internal.projects.buildFailed, { space: a.space, id: a.id });

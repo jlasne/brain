@@ -509,6 +509,8 @@
   .pv-busy{ position:absolute; inset:46px 0 0; display:grid; place-content:center; justify-items:center; gap:10px;
     background:color-mix(in srgb, var(--surface) 84%, transparent); font:500 14px/1.4 var(--sans); color:var(--ink-2); text-align:center; padding:20px; }
   .pv-busy small{ display:block; font:400 12.5px/1.45 var(--sans); color:var(--ink-3); max-width:36ch; }
+  .pv-bar .pv-build.due{ border-color:var(--accent-solid); background:var(--accent-solid); color:var(--accent-on); }
+  .ans-acts .pv-add.on{ border-color:var(--accent-line); background:var(--accent-soft); color:var(--accent); }
   .proj-row .cm .nm{ display:flex; align-items:center; gap:6px; }
   .proj-row .dot{ flex:none; width:7px; height:7px; border-radius:50%; background:var(--warn); }
   /* The page, full size, over everything. */
@@ -748,7 +750,7 @@
     margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     font:400 11.5px/1.3 var(--mono); color:var(--ink-3);
   }
-  #setModel.pick .val{ color:var(--accent); }
+  #setModel.pick .val, #setProjModel.pick .val{ color:var(--accent); }
   .sheet .set-row{ display:grid; gap:7px; }
   /* An open conflict: its two sides, each with the button that makes it hold. */
   .cf-count{ font:500 11px/1 var(--mono); color:var(--accent); margin-left:6px; }
@@ -1652,9 +1654,9 @@ const saveLevel = () => { try { localStorage.setItem("octopus.level", S.level); 
 
 /* The model this browser asks for. Empty means the one the server runs. Your
    key pays for it, so the choice sits with whoever holds the key. */
-const PICK_KEY = "octopus.model";
-try { S.pick = localStorage.getItem(PICK_KEY) || ""; } catch {}
-const savePick = () => { try { S.pick ? localStorage.setItem(PICK_KEY, S.pick) : localStorage.removeItem(PICK_KEY); } catch {} };
+/* The models are picked in Settings for the whole workspace, on the server.
+   A pick an older version kept in this browser is dropped. */
+try { localStorage.removeItem("octopus.model"); } catch {}
 
 /* Folded nav, remembered. A blocked store just leaves it open. */
 let navOpen = true;
@@ -1699,7 +1701,7 @@ async function api(path, body = {}) {
     r = await fetch(API + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: S.token, ...(S.pick && !S.demo ? { model: S.pick } : {}),
+      body: JSON.stringify({ token: S.token,
         ...(S.byok && MODEL_CALLS.has(path) && myKey() ? { key: myKey() } : {}), ...body }),
       signal: ctl.signal,
     });
@@ -1891,6 +1893,8 @@ async function refresh(){
   const d = await api("/api/state");
   S.brains = d.brains || []; S.concepts = d.concepts || []; S.sources = d.sources || [];
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
+  /* The chat model and the project model in use, and their defaults. */
+  S.models = d.models || { chat: S.model, project: "", chatDefault: S.model, projectDefault: "" };
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
   S.demo = !!d.demo; S.byok = !!d.byok;
   S.full = d.full === true;
@@ -2450,14 +2454,13 @@ function renderSide(){
   go.textContent = S.picks.length ? `Chat in ${S.picks.length === 1 ? picksName() : S.picks.length + " folders"}` : "";
 }
 
-/** The model in use, as Setup names it: short on the button, whole in its title. */
-function modelLabel(){
-  const live = S.pick || S.model;
+/** A model in use, as Settings names it: short on the button, whole in its title. */
+function modelLabel(which = "chat"){
+  const m = S.models || {}, live = m[which] || (which === "chat" ? S.model : ""), def = m[which + "Default"] || "";
+  const picked = !!live && !!def && live !== def;
   return {
-    val: live ? live.split("/").pop() : "default",
-    title: S.pick
-      ? `${S.pick}, your choice. Click to change it. Build ${window.OCTOPUS_BUILD}.`
-      : `${S.model || "the server default"}. Click to pick another. Build ${window.OCTOPUS_BUILD}.`,
+    val: live ? live.split("/").pop() : "default", picked,
+    title: `${live || "the server default"}${picked ? ", picked for this workspace" : ", the default"}. Click to change it. Build ${window.OCTOPUS_BUILD}.`,
   };
 }
 
@@ -2629,7 +2632,7 @@ function renderComposer(){
   $("input").placeholder = drop
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
     : mine ? "Tell it anything: a plan, a decision, an idea. Or ask what you said."
-    : S.project ? `Ask ${S.proj?.name || "this project"}. An answer goes on its page with one click.`
+    : S.project ? `Ask ${S.proj?.name || "this project"}. Its page changes only when you press Build.`
     : S.picks.length > 1 ? `Ask ${picksName()}.`
     : S.scope==="all" ? "Ask anything your folders have read."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this folder") + ".";
@@ -3401,12 +3404,14 @@ async function openSetupSheet(){
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Settings</h3>
       <p>${S.demo ? `The demo runs on the default model. Export its brains, open the map, and settle open conflicts.`
-        : `The model that answers in this app, the export of every ${esc(S.spaceName)} brain, the map of
+        : `The models that answer, the export of every ${esc(S.spaceName)} brain, the map of
         them all, the open conflicts to settle${ownerWs() ? ", and the MCP address for Claude" : ""}.`}</p></header>
 
       <div class="f set-row">
-        <button class="foot-btn${S.pick ? " pick" : ""}" id="setModel" title="${esc(modelLabel().title)}">
-          <span class="lbl">Model</span><span class="val">${esc(modelLabel().val)}</span></button>
+        <button class="foot-btn${modelLabel("chat").picked ? " pick" : ""}" id="setModel" title="${esc(modelLabel("chat").title)}">
+          <span class="lbl">Chat model</span><span class="val">${esc(modelLabel("chat").val)}</span></button>
+        <button class="foot-btn${modelLabel("project").picked ? " pick" : ""}" id="setProjModel" title="${esc(modelLabel("project").title)}">
+          <span class="lbl">Project model</span><span class="val">${esc(modelLabel("project").val)}</span></button>
         <button class="foot-btn" id="setExport" title="Every brain of this workspace, as one markdown file">
           <span class="lbl">Export</span><span class="val">markdown</span></button>
         <button class="foot-btn" id="setMap" title="Every brain as an arm of the octopus: its concepts, the links between brains and the open conflicts">
@@ -3614,7 +3619,9 @@ async function openSetupSheet(){
 
   /* ---- the model and the export ---- */
   veil.querySelector("#setModel").hidden = S.demo;
-  veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet(); };
+  veil.querySelector("#setProjModel").hidden = S.demo;
+  veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet("chat"); };
+  veil.querySelector("#setProjModel").onclick = () => { shut(); openModelSheet("project"); };
   veil.querySelector("#setMap").onclick = () => { shut(); openMap(); };
   /* Limited or full: saved for the workspace, so every device opening it follows. */
   const modeSeg = veil.querySelector("#modeSeg"), modeMsg = veil.querySelector("#modeMsg");
@@ -3845,16 +3852,22 @@ const money = n => n === 0 ? "free" : n < 1 ? "$" + n.toFixed(3).replace(/0+$/,"
 const ctxOf = n => n >= 1000000 ? Math.round(n/1000000) + "M" : n >= 1000 ? Math.round(n/1000) + "k" : String(n);
 
 /**
- * Pick the model that answers. Your key pays for the call, so the choice is
- * yours. Picking nothing leaves the one this deployment runs.
+ * Pick a model for the whole workspace: the chat's, which also reads Drop and
+ * writes one-pagers, or the projects'. Use the default goes back to the one
+ * this deployment runs for it.
  */
-function openModelSheet(){
+function openModelSheet(which = "chat"){
   closeSide();
+  const proj = which === "project";
+  const def = S.models?.[which + "Default"] || (proj ? "" : S.model);
   const veil = el("div","veil");
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
-      <header><h3>Model</h3>
-      <p>The model that reads, plans and answers. This deployment's key pays for every call. Prices are per million tokens, read from OpenRouter.</p></header>
+      <header><h3>${proj ? "Project model" : "Chat model"}</h3>
+      <p>${proj ? "The model that answers in a project's chat and builds its page, the rebuilds after a drop included."
+                : "The model that answers in the chat, reads and files what you drop, and writes one-pagers."}
+      It applies to everyone in this workspace. ${S.byok ? "Your own key pays for every call." : "This deployment's key pays for every call."}
+      Prices are per million tokens, read from OpenRouter.</p></header>
       <div class="f"><label for="mQ">Search</label><input id="mQ" autocomplete="off" spellcheck="false" placeholder="claude, gemini, free, ...">
         <div class="mlist" id="mList"><div class="mnone">Loading the list</div></div>
       </div>
@@ -3872,7 +3885,7 @@ function openModelSheet(){
   veil.querySelector("#mCancel").onclick = shut;
   veil.onclick = e => { if(e.target===veil) shut(); };
 
-  let chosen = S.pick || S.model || "";
+  let chosen = S.models?.[which] || def || "";
   let all = [];
 
   const paint = () => {
@@ -3881,7 +3894,7 @@ function openModelSheet(){
        the list opens on the model you are already paying for. */
     const hits = (t ? all.filter(m => m.id.toLowerCase().includes(t) || m.name.toLowerCase().includes(t)
                                       || (t === "free" && m.inp === 0 && m.out === 0))
-                    : [...all.filter(m => m.id === S.model), ...all.filter(m => m.id !== S.model)]).slice(0, 120);
+                    : [...all.filter(m => m.id === def), ...all.filter(m => m.id !== def)]).slice(0, 120);
     list.innerHTML = "";
     if (!hits.length){ list.append(el("div","mnone", all.length ? "No model matches that." : "The list did not load. Nothing to pick from.")); return; }
     for (const m of hits){
@@ -3889,7 +3902,7 @@ function openModelSheet(){
       row.append(el("b",null,m.name));
       row.append(el("span",null,
         `${m.id}  ·  ${money(m.inp)} in / ${money(m.out)} out per M  ·  ${ctxOf(m.ctx)} ctx` +
-        (m.id === S.model ? "  ·  default" : "")));
+        (m.id === def ? "  ·  default" : "")));
       row.onclick = () => { chosen = m.id; paint(); };
       list.append(row);
     }
@@ -3899,19 +3912,20 @@ function openModelSheet(){
   models().then(ms => { all = ms; paint(); setTimeout(()=>q.focus(),30); })
     .catch(e => { msg.className="bad"; msg.textContent = e.message; list.innerHTML = ""; list.append(el("div","mnone","The list did not load.")); });
 
-  veil.querySelector("#mReset").onclick = () => {
-    S.pick = ""; savePick(); shut(); render();
-    push("ai", b => { b.innerHTML = rich(`Back to the default, **${esc(S.model || "the server model")}**.`); });
+  /* Saved for the workspace, then Settings opens again on the new pick. */
+  const keep = async model => {
+    save.disabled = true; msg.textContent = "";
+    let r;
+    try { r = await api("/api/models", { [which]: model }); }
+    catch (e) { save.disabled = false; msg.className = "bad"; msg.textContent = e.message; return; }
+    S.models = { ...(S.models || {}), chat: r.chat, project: r.project };
+    S.model = r.chat;
+    shut(); render(); openSetupSheet();
   };
-
+  veil.querySelector("#mReset").onclick = () => keep(null);
   save.onclick = () => {
     if (!chosen){ msg.className="bad"; msg.textContent="pick one from the list"; return; }
-    const m = all.find(x => x.id === chosen);
-    S.pick = chosen === S.model ? "" : chosen;
-    savePick(); shut(); render();
-    push("ai", b => { b.innerHTML = rich(
-      `Now asking **${esc(chosen)}**.` +
-      (m ? ` ${money(m.inp)} in, ${money(m.out)} out per million tokens, ${ctxOf(m.ctx)} of context.` : "")); });
+    keep(chosen === def ? null : chosen);
   };
 }
 
@@ -4317,7 +4331,7 @@ function renderProjects(){
     nm.append(el("span",null,p.name));
     if (p.stale){ const d = el("span","dot"); d.title = "A source landed since the last build"; nm.append(d); }
     const n = p.brains.length;
-    main.append(nm, el("span","cb",`${n} folder${n === 1 ? "" : "s"} · ${p.version ? "page v" + p.version : "no page yet"}`));
+    main.append(nm, el("span","cb",`${n} folder${n === 1 ? "" : "s"} · ${p.version ? "page v" + p.version : "no page yet"}${p.waiting ? ` · ${p.waiting} to add` : ""}`));
     row.append(main);
     row.title = p.name;
     const open = () => openProject(p.id);
@@ -4392,7 +4406,7 @@ function paintProject(){
   if (!(p.turns || []).length){
     const z = el("div","pv-hint");
     const n = p.brains.length;
-    z.innerHTML = `<b>Ask ${esc(p.name)}</b>It reads its ${n} folder${n === 1 ? "" : "s"} and follows its instructions. Add an answer to the page with one click, or rebuild the page whole.`;
+    z.innerHTML = `<b>Ask ${esc(p.name)}</b>It reads its ${n} folder${n === 1 ? "" : "s"} and follows its instructions. Talking here never changes the page: Add to the page puts an answer aside, and Build makes the next version.`;
     const col = el("div","col zero"); col.append(z); th.append(col);
   }
   for (const turn of p.turns || []){
@@ -4402,7 +4416,7 @@ function paintProject(){
   paintPage();
 }
 
-/** The page side: the version on show, the versions, Rebuild, and the page itself. */
+/** The page side: the version on show, the versions, Build, and the page itself. */
 async function paintPage(){
   const p = S.proj, frame = pvFrame();
   if (!p || !frame) return;
@@ -4410,7 +4424,8 @@ async function paintPage(){
   const top = p.versions?.[0]?.v || 0, v = S.pageV || top;
   if (!top){
     const e = el("div","pv-empty");
-    e.append(el("p",null, S.building ? "" : `No page yet. It is built from ${p.brains.length} folder${p.brains.length === 1 ? "" : "s"}${p.templateName ? `, in the layout of ${p.templateName}` : ""}.`));
+    const w = (p.pending || []).length;
+    e.append(el("p",null, S.building ? "" : `No page yet. Build makes it from ${p.brains.length} folder${p.brains.length === 1 ? "" : "s"}${p.templateName ? `, in the layout of ${p.templateName}` : ""}${w ? `, with the ${w} answer${w === 1 ? "" : "s"} you added` : ""}.`));
     const go = el("button","go","Build the page"); go.type = "button"; go.id = "pvBuild";
     go.onclick = () => buildProject();
     if (!S.building) e.append(go);
@@ -4426,8 +4441,10 @@ async function paintPage(){
       sel.append(o);
     }
     sel.onchange = () => { S.pageV = Number(sel.value); paintPage(); };
-    const rb = el("button","mini","Rebuild"); rb.type = "button"; rb.id = "pvRebuild"; rb.disabled = !!S.building;
-    rb.title = "Build a new version from the folders as they stand";
+    const waiting = (p.pending || []).length;
+    const rb = el("button","mini pv-build" + (waiting ? " due" : ""), waiting ? `Build · ${waiting} to add` : "Build");
+    rb.type = "button"; rb.id = "pvRebuild"; rb.disabled = !!S.building;
+    rb.title = waiting ? `The next version, with the ${waiting} answer${waiting === 1 ? "" : "s"} you added` : "The next version, from the folders as they stand";
     rb.onclick = () => buildProject();
     const full = el("button","mini","Open full page"); full.type = "button"; full.id = "pvFull";
     bar.append(sel, rb, full);
@@ -4479,10 +4496,35 @@ function projectAnswer(body, r, q){
   const acts = body.querySelector(".ans-acts");
   if (!acts) return;
   [...acts.querySelectorAll(".mini")].filter(b => /One-pager/.test(b.textContent)).forEach(b => b.remove());
-  const add = el("button","mini","Add to the page"); add.type = "button";
-  add.onclick = () => buildProject(`The owner asked: ${q}\nThe answer, from the same folders: ${String(r.answer ?? r.a ?? "")}\nAdd this to the page where it fits, under a clear heading.`,
-    `Added: ${String(q).slice(0, 60)}`);
+  /* Put aside for the next Build, or taken back. Nothing is built here. */
+  const a = String(r.answer ?? r.a ?? "").trim(), qq = String(q).trim();
+  const add = el("button","mini pv-add"); add.type = "button";
+  add.dataset.q = qq; add.dataset.a = a;
+  const paint = () => {
+    const on = (S.proj?.pending || []).some(x => x.q === qq && x.a === a);
+    add.textContent = on ? "Waits for Build" : "Add to the page";
+    add.classList.toggle("on", on);
+    add.title = on ? "It goes on the page at the next Build. Click to take it back." : "Put it aside for the next Build";
+  };
+  add.onclick = async () => {
+    const p = S.proj; if (!p) return;
+    const on = add.classList.contains("on");
+    add.disabled = true;
+    try { await api("/api/projects/queue", { id: p.id, q: qq, a, ...(on ? { remove: true } : {}) }); }
+    catch (e) { add.disabled = false; add.textContent = e.message.slice(0, 60); setTimeout(paint, 2400); return; }
+    add.disabled = false;
+    p.pending = on ? (p.pending || []).filter(x => !(x.q === qq && x.a === a)) : [...(p.pending || []), { q: qq, a, at: Date.now() }];
+    paint(); paintPage();
+  };
+  paint();
   acts.append(add);
+}
+/** Each Add to the page button shows whether its answer still waits. */
+function syncAdds(){
+  for (const b of pvThread()?.querySelectorAll(".pv-add") || []){
+    const on = (S.proj?.pending || []).some(x => x.q === b.dataset.q && x.a === b.dataset.a);
+    b.classList.toggle("on", on); b.textContent = on ? "Waits for Build" : "Add to the page";
+  }
 }
 
 async function doProjectAsk(q){
@@ -4501,17 +4543,23 @@ async function doProjectAsk(q){
   } catch (e) { fail(body, e.message); }
 }
 
-/** A new version of the page: rebuilt, or with an answer added. */
-async function buildProject(note, why){
+/** Build: the next version of the page, with the answers that wait for it. The only way the page changes. */
+async function buildProject(){
   const p = S.proj;
   if (!p || S.building) return;
+  const took = (p.pending || []).length;
   S.building = true; S.pageV = null;
   paintPage();
   try {
-    const r = await api("/api/projects/build", { id: p.id, ...(note ? { note, why } : {}) });
-    p.versions = [{ v: r.v, why: note ? why : "Rebuilt", at: r.at }, ...(p.versions || [])].slice(0, 10);
+    const r = await api("/api/projects/build", { id: p.id });
+    p.versions = [{ v: r.v, why: took ? `Built with ${took} answer${took === 1 ? "" : "s"} added` : "Built", at: r.at }, ...(p.versions || [])].slice(0, 10);
     p.page = r.html; p.version = r.v; p.stale = false;
-    if (note && S.proj === p) push("ai", b => { b.innerHTML = rich(`Done. The page is at version ${r.v}.`); }, pvThread());
+    /* What it read is on the page; an answer added while it ran waits for the next. */
+    p.pending = (p.pending || []).slice(took);
+    if (S.proj === p){
+      syncAdds();
+      push("ai", b => { b.innerHTML = rich(took ? `Built. Version ${r.v} holds the ${took} answer${took === 1 ? "" : "s"} you added.` : `Built. The page is at version ${r.v}.`); }, pvThread());
+    }
     loadProjects();
   } catch (e) {
     if (S.proj === p) push("ai", b => { b.innerHTML = rich("**The page did not build.** " + esc(e.message)); }, pvThread());
@@ -4540,7 +4588,7 @@ function openProjectSheet(p){
         <input type="file" id="pjFile" accept=".html,.htm,text/html" hidden>
         <div class="hint">An HTML file, 60 KB at most. Each build keeps its layout and fills it from the folders. Its scripts stay off.</div></div>
       <label class="switch-row" id="pjAutoF"><input type="checkbox" id="pjAuto" role="switch"><span class="sw" aria-hidden="true"></span>
-        <span><b>Rebuild when a source lands</b><small>${S.byok ? "On your own key, the page is marked out of date when a source lands in one of its folders, and Rebuild makes the new version." : "A source dropped into one of its folders builds the next version of the page on its own."}</small></span></label>
+        <span><b>Also build when a source lands</b><small>${S.byok ? "Off: the page changes only when you press Build. On your own key it stays that way, and a source landing marks the page out of date." : "Off: the page changes only when you press Build, and a source landing marks it out of date. On: a source dropped into one of its folders also builds the next version."}</small></span></label>
       <div class="f"><div id="pjMsg" class="bad" role="alert"></div></div>
       <footer>${editing ? `<button class="ghost" id="pjDel" style="margin-right:auto">Delete</button>` : ""}<button class="ghost" id="pjCancel">Cancel</button><button class="go" id="pjSave">${editing ? "Save" : "Create project"}</button></footer>
     </div>`;
@@ -4548,7 +4596,8 @@ function openProjectSheet(p){
   const q = sel => veil.querySelector(sel);
   q("#pjName").value = p?.name || "";
   q("#pjInstr").value = p?.instructions || "";
-  q("#pjAuto").checked = p ? !!p.auto : true;
+  /* Off unless turned on: the page changes when you press Build. */
+  q("#pjAuto").checked = p ? !!p.auto : false;
   const syncSwitch = () => q("#pjAutoF").classList.toggle("on", q("#pjAuto").checked);
   q("#pjAuto").onchange = syncSwitch; syncSwitch();
 
@@ -4624,8 +4673,6 @@ function openProjectSheet(p){
     busy = false; veil.remove();
     await loadProjects();
     await openProject(r.id);
-    /* A new project starts with its first page, when its folders hold anything. */
-    if (!editing && brains.some(x => conceptsOf(x).length)) buildProject();
   };
 }
 

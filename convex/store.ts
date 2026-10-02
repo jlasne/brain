@@ -1127,6 +1127,34 @@ const brandRow = async (ctx: any, space: string) =>
 const brandView = (b: any) => b && (b.logo || b.accent || b.bg)
   ? { logo: b.logo ?? null, accent: b.accent ?? null, bg: b.bg ?? null } : null;
 
+/* ---------------- the models a workspace picked ---------------- */
+
+const modelsRow = async (ctx: any, space: string) =>
+  await ctx.db.query("models").withIndex("by_space", (q: any) => q.eq("space", space)).unique();
+
+/** The chat model and the project model a workspace picked, or null for the defaults. */
+export const modelsOf = internalQuery({
+  args: { space: v.string() },
+  handler: async (ctx, a) => {
+    const r = await modelsRow(ctx, readSpace(a.space));
+    return { chat: r?.chat ?? null, project: r?.project ?? null };
+  },
+});
+
+/** A new pick for either one. null goes back to the default; absent leaves it. */
+export const setModels = internalMutation({
+  args: { space: v.string(), chat: v.optional(v.union(v.string(), v.null())), project: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space), row = await modelsRow(ctx, space), at = Date.now();
+    const next: any = { chat: row?.chat, project: row?.project };
+    if (a.chat !== undefined) next.chat = a.chat ?? undefined;
+    if (a.project !== undefined) next.project = a.project ?? undefined;
+    if (row) await ctx.db.patch(row._id, { ...next, updated: at });
+    else await ctx.db.insert("models", { space, ...next, updated: at });
+    return { chat: next.chat ?? null, project: next.project ?? null };
+  },
+});
+
 /* ---------------- the side panel's mode ---------------- */
 
 const modeRow = async (ctx: any, space: string) =>

@@ -64,8 +64,10 @@ The demo's visitors cannot reach that switch, so it is set here:
 npx convex run admin:setMode '{"space":"demo","full":true}' --prod
 ```
 
-A project is out of date once a source lands in one of its folders. One set
-to rebuild builds its next version in the background, on the deployment's key,
+A project's page changes when its owner presses Build. Talking in its chat
+never changes it. A project is out of date once a source lands in one of its
+folders. One its owner set to build then, which starts off, builds its next
+version in the background, on the deployment's key and its project model,
 at most once every 5 minutes. A workspace on its own key never rebuilds in the
 background: its key never reaches the server between calls, so the page is
 marked out of date and Rebuild in the app makes the new version. The page is
@@ -178,7 +180,9 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/projects/get` | One project whole: settings, chat, versions, newest page | Owner |
 | `/api/projects/page` | One version of a project's page | Owner |
 | `/api/projects/save` | Creates a project or changes its settings. Its folders must be ones the workspace reads, never a personal one. A template holds 60 KB at most | Owner |
-| `/api/projects/build` | Builds the next version of the page, rebuilt or with a note from the chat added. The newest 10 versions are kept | Owner |
+| `/api/projects/queue` | Puts an answer from the project's chat aside for the next Build, or takes it back. 10 wait at most. Builds nothing | Owner |
+| `/api/projects/build` | Build: the next version of the page, from the folders and the answers that wait. The only way the app changes a page. The newest 10 versions are kept | Owner |
+| `/api/models` | The workspace's chat model and project model. `null` goes back to the default | Owner |
 | `/api/projects/clear`, `/api/projects/remove` | Clears a project's chat, or deletes the project and its pages | Owner |
 | `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Sends it too, when given an address | Yes |
 | `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |
@@ -201,7 +205,12 @@ In the artifact build a stranger who opens the page spends their own credits, so
 
 ## Model choice
 
-One function wraps the call, so the model is a single line to change.
+One function wraps the call, so the model is a single line to change. Each
+workspace picks two in Settings, saved on the server: the chat model, which
+answers, reads drops and writes one-pagers, and the project model, which
+answers in projects and builds their pages. The defaults are
+`deepseek/deepseek-v4-flash-0731` and `z-ai/glm-5.3-flash`. The demo always
+runs on the defaults.
 
 | Model | Input /1M | Output /1M | Per source | 100 sources |
 |---|---|---|---|---|
@@ -229,6 +238,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `fetches` | one row per transcript fetch, so the pace is visible | time |
 | `projects` | name, folders, instructions, template, rebuild switch, out-of-date mark, its chat | space |
 | `pages` | each build of a project's page, the newest 10 | project, then version |
+| `models` | the chat model and the project model a workspace picked | space |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.
 
