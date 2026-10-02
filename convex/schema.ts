@@ -157,7 +157,7 @@ export default defineSchema({
   chats: defineTable({
     space: v.string(),
     title: v.string(),
-    /* The brain it asked, or "all". */
+    /* The brain it asked, the ticked ones joined by commas, or "all". */
     brain: v.string(),
     pinned: v.boolean(),
     /* In the demo, the visitor whose chat it is. Absent: the workspace's. */

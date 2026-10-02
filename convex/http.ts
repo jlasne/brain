@@ -63,7 +63,7 @@ async function gate(ctx: any, body: any, opts: { ownerOnly?: boolean } = {}): Pr
 
 /** The key a model call runs on. A workspace on its own key never falls back to the owner's. */
 function keyFor(who: Caller): string | undefined {
-  if (who.byok && !who.key) throw new Error("this workspace runs on your own OpenRouter key. Add it in Setup, then try again.");
+  if (who.byok && !who.key) throw new Error("this workspace runs on your own OpenRouter key. Add it in Settings, then try again.");
   return who.key;
 }
 
@@ -540,7 +540,13 @@ route("/api/ask", async (ctx, _req, b) => {
   const mine = only ? every.brains.find((x: any) => x.slug === only && x.type === "personal") : null;
   if (mine) return await personalChat(ctx, who, b, mine, every);
   const { brains, cards: concepts, sources } = withoutPersonal(every);
-  const pool = only ? brains.filter((x: any) => x.slug === only) : brains;
+  /* Folders ticked in the side panel: two or more travel as a list, and the
+     question reads those alone. A personal brain never joins it. */
+  const ticked = Array.isArray(b.brains) ? [...new Set(b.brains.map(String))].slice(0, 60) : [];
+  const many = ticked.length > 1;
+  const pool = many ? brains.filter((x: any) => ticked.includes(x.slug))
+    : only ? brains.filter((x: any) => x.slug === only) : brains;
+  if (many && !pool.length) return { answer: "None of the ticked folders is here any more. Tick others, or ask them all." };
   if (!pool.length) return { answer: "No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
 
   /**
@@ -660,7 +666,7 @@ QUESTION: ${String(b.q ?? "")}` },
   if ("chat" in b) {
     try {
       const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
-        id: typeof b.chat === "string" ? b.chat : null, brain: only ?? "all",
+        id: typeof b.chat === "string" ? b.chat : null, brain: many ? pool.map((x: any) => x.slug).join(",") : only ?? "all",
         turn: { q: String(b.q ?? "").slice(0, 2000), a: text, level, sources: nSources, at: Date.now() } });
       chat = r.id;
     } catch { /* the answer still goes out */ }

@@ -219,7 +219,7 @@
      row here stays a row. */
   .brain-row{
     display:flex; align-items:baseline; gap:8px; width:100%; text-align:left;
-    padding:8px 10px; border-radius:8px; border:1px solid transparent;
+    padding:5px 8px; border-radius:8px; border:1px solid transparent;
     transition:background .15s var(--ease), border-color .15s var(--ease);
   }
   .brain-row + .brain-row{ margin-top:2px; }
@@ -228,6 +228,7 @@
          stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; color:var(--ink-4); }
   .brain-row.on .b-ic, .pk-row.on .b-ic{ color:var(--accent); }
   .brain-row .nm{
+    flex:1; min-width:0;
     font:500 13.5px/1.35 var(--sans); color:var(--ink-2);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
@@ -311,7 +312,7 @@
   .hring svg{ width:24px; height:24px; display:block; }
   .hring .tr{ fill:none; stroke:var(--line-2); stroke-width:2.6; }
   .hring .ar{ fill:none; stroke-width:2.6; stroke-linecap:round; transform:rotate(-90deg); transform-origin:12px 12px; }
-  .hring text{ font:600 7.6px var(--mono); fill:var(--ink-2); text-anchor:middle; dominant-baseline:central; }
+  .hring text{ font:600 6.8px var(--mono); letter-spacing:-.03em; fill:var(--ink-2); text-anchor:middle; dominant-baseline:central; }
   .h-hi{ stroke:var(--good); } .h-mid{ stroke:var(--warn); } .h-lo{ stroke:var(--bad); }
   .hb-row{ padding:10px 0; border-top:1px solid var(--line); }
   .hb-row:first-child{ border-top:none; padding-top:0; }
@@ -394,14 +395,57 @@
   .viewer .vw-acts{ display:flex; align-items:center; gap:12px; padding-top:14px; }
   .viewer .vw-upd{ margin-left:auto; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
 
-  .side-act{
-    display:flex; align-items:center; gap:8px; margin:0 0 8px; padding:10px 11px; width:100%; text-align:left;
-    border:1px solid var(--line-2); border-radius:9px; background:var(--surface);
-    font:500 13px/1 var(--sans); color:var(--ink-2);
+  /* The side panel: three things to do, then Chats, Folders and Projects,
+     each a card of its own that folds. */
+  .side-acts{ display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin:0 0 10px; }
+  .side-acts .sa{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-height:54px; padding:8px 4px;
+    border:1px solid var(--line); border-radius:12px; background:var(--surface);
+    font:500 12px/1 var(--sans); color:var(--ink-2);
     transition:border-color .15s var(--ease), color .15s var(--ease);
   }
-  .side-act:hover{ border-color:var(--accent-fill); color:var(--accent); }
-  .side-act svg{ width:15px; height:15px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .side-acts .sa:hover{ border-color:var(--accent-fill); color:var(--accent); }
+  .side-acts .sa.go{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
+  .side-acts .sa.go:hover{ color:var(--accent-on); filter:brightness(1.06); }
+  .side-acts svg{ width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .panel{ background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); }
+  .panel + .panel{ margin-top:8px; }
+  .panel-h{ display:flex; align-items:center; gap:6px; min-height:44px; padding:0 8px 0 9px; }
+  .panel .fold-t{ gap:9px; padding:9px 0; font:600 14px/1 var(--sans); letter-spacing:0; text-transform:none; color:var(--ink); }
+  .panel .fold-t:hover{ color:var(--ink); }
+  .panel .fold-t b{ margin-left:0; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
+  .panel .chev{ margin-left:auto; color:var(--ink-4); }
+  .p-ic{ width:24px; height:24px; flex:none; display:grid; place-items:center; border-radius:7px; }
+  .p-ic svg{ width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .p-chat{ background:rgba(63,125,92,.12); color:var(--good); }
+  .p-fold{ background:var(--accent-soft); color:var(--accent); }
+  .p-proj{ background:rgba(148,101,15,.12); color:var(--warn); }
+  .panel .side-plus{ width:26px; height:26px; padding:0; display:grid; place-items:center; border-radius:7px; background:var(--surface-2); color:var(--ink-3); }
+  .panel .side-plus:hover{ background:var(--accent-soft); color:var(--accent); }
+  .panel .side-plus svg{ width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; }
+  .panel-b{ border-top:1px solid var(--line); padding:6px; }
+  .panel .soon{ font:500 10.5px/1 var(--mono); color:var(--warn); background:rgba(148,101,15,.10); padding:4px 6px; border-radius:6px; }
+  .panel .empty-side{ padding:6px 6px 4px; }
+  .panel .group-h{ margin:8px 4px 3px; }
+  .panel .group-h:first-child{ margin-top:2px; }
+  /* A folder row: tick it to chat in it, several at once. On the row you point
+     at, the mark turns into the box. */
+  .brain-row .tick{ position:relative; width:16px; height:16px; flex:none; align-self:center; display:grid; place-items:center; }
+  .brain-row .tick .b-ic{ width:15px; height:15px; }
+  .brain-row .tbox{ display:none; width:16px; height:16px; border-radius:5px; border:1.5px solid var(--line-2); background:var(--surface); place-items:center; }
+  .brain-row .tbox svg{ width:10px; height:10px; fill:none; stroke:var(--accent-on); stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; opacity:0; }
+  .brain-row:not(.self):hover .tick .b-ic, .brain-row:not(.self).on .tick .b-ic{ display:none; }
+  .brain-row:not(.self):hover .tbox, .brain-row:not(.self).on .tbox{ display:grid; }
+  .brain-row.on .tbox{ background:var(--accent-solid); border-color:var(--accent-solid); }
+  .brain-row.on .tbox svg{ opacity:1; }
+  @media (hover:none){ .brain-row:not(.self) .tick .b-ic{ display:none; } .brain-row:not(.self) .tbox{ display:grid; } }
+  /* On a phone the drawer covers the thread: one button closes it on the ticked folders. */
+  .side-go{ display:none; }
+  @media (max-width:860px){
+    .side-go{ display:block; width:100%; min-height:44px; margin-bottom:8px; border-radius:11px;
+      background:var(--accent-solid); color:var(--accent-on); font:600 14px/1 var(--sans); }
+    .side-go[hidden]{ display:none; }
+  }
 
   /* The brain picker: the space's mark, where the question goes, and a menu
      that opens upward from the box. */
@@ -457,13 +501,6 @@
   .pick-menu .pk-sub{ display:block; margin-top:3px; font-size:11.5px; font-weight:400; color:var(--ink-3); white-space:normal; }
   .pick-menu .pk-ct{ flex:none; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
 
-  .new-brain{
-    margin:0 0 12px; padding:10px 11px; width:100%; text-align:left;
-    border:1px dashed var(--line-2); border-radius:9px;
-    font:500 13px/1 var(--sans); color:var(--accent);
-    transition:background .15s var(--ease), border-color .15s var(--ease);
-  }
-  .new-brain:hover{ background:var(--surface); border-color:var(--accent-fill); }
 
   .connect-row{
     display:flex; align-items:center; gap:8px; width:100%; text-align:left;
@@ -526,9 +563,11 @@
   }
 
   /* Controls that look like controls. Underlined words read as footnotes,
-     and a person hunting for the model picker never found one. Setup holds
-     the model and the export; the sidebar keeps Setup and Sign out. */
-  .side-foot{ border-top:1px solid var(--line); padding:12px; display:grid; gap:7px; }
+     and a person hunting for the model picker never found one. Settings holds
+     the model and the export; the foot of the side panel keeps Sign out. */
+  .side-foot{ border-top:1px solid var(--line); padding:8px 12px; display:grid; gap:7px; }
+  .foot-link{ justify-self:start; padding:6px 4px; font:500 12.5px/1 var(--sans); color:var(--ink-3); }
+  .foot-link:hover{ color:var(--accent); }
   .foot-btn{
     display:flex; align-items:center; gap:9px; width:100%; min-width:0;
     border:1px solid var(--line-2); border-radius:8px; background:var(--surface);
@@ -1032,6 +1071,33 @@
     font-size:13.5px; line-height:1.55;
   }
   .closest b{ display:block; font:600 12.5px/1 var(--sans); color:var(--accent); margin-bottom:6px; }
+  /* New folder: a folder fed by Drop, or a personal one fed by what you say. */
+  .kind{ display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:5px; border:1px solid var(--line); border-radius:13px; background:var(--bg); }
+  .kind button{ display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px; text-align:left; }
+  .kind button b{ display:block; font:600 14px/1.2 var(--sans); color:var(--ink-2); }
+  .kind button small{ display:block; margin-top:2px; font:400 12px/1.35 var(--sans); color:var(--ink-4); }
+  .kind button.on{ background:var(--surface); box-shadow:var(--shadow); }
+  .kind button.on b{ color:var(--ink); }
+  .kind .k-ic{ width:30px; height:30px; flex:none; display:grid; place-items:center; border-radius:9px; background:var(--accent-soft); color:var(--accent); }
+  .kind .k-ic.me{ background:var(--ink); color:var(--bg); }
+  .kind .k-ic svg{ width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .sheet .switch-row{ position:relative; display:flex; gap:12px; align-items:flex-start; margin:14px 20px 4px; padding:13px 14px;
+    border:1px solid var(--line); border-radius:12px; cursor:pointer; font:inherit; }
+  .sheet .switch-row.on{ border-color:var(--accent-line); background:var(--accent-soft); }
+  .sheet .switch-row[hidden]{ display:none; }
+  .sheet .switch-row input{ position:absolute; width:1px; height:1px; opacity:0; padding:0; border:0; }
+  .switch-row .sw{ position:relative; width:38px; height:22px; flex:none; margin-top:1px; border-radius:11px; background:var(--line-2); transition:background .15s var(--ease); }
+  .switch-row .sw::after{ content:""; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff;
+    box-shadow:0 1px 2px rgba(0,0,0,.2); transition:transform .15s var(--ease); }
+  .switch-row input:checked + .sw{ background:var(--accent-solid); }
+  .switch-row input:checked + .sw::after{ transform:translateX(16px); }
+  .switch-row input:focus-visible + .sw{ outline:2px solid var(--accent-fill); outline-offset:2px; }
+  .switch-row b{ display:block; font:600 14px/1.3 var(--sans); color:var(--ink); }
+  .switch-row small{ display:block; margin-top:3px; font:400 12.5px/1.5 var(--sans); color:var(--ink-3); }
+  .mine-note{ padding:11px 13px; border-radius:11px; background:var(--bg); border:1px solid var(--line); font:400 13px/1.5 var(--sans); color:var(--ink-3); }
+  .mine-note b{ color:var(--ink); font-weight:600; }
+  .sheet label .optl{ font-weight:400; color:var(--ink-4); }
+  .sheet.roomy .f + .f{ padding-top:12px; }
 
   /* ============ gate ============ */
   .app.locked{ filter:blur(2.5px); pointer-events:none; user-select:none; }
@@ -1163,7 +1229,8 @@
     .brain-row{ min-height:44px; align-items:center; }
     .brain-row .ct, .brain-row .ed{ font-size:12px; }
     .brain-row .ed{ padding:8px 9px; }
-    .new-brain, .foot-btn{ min-height:44px; }
+    .foot-btn, .side-acts .sa{ min-height:44px; }
+    .panel .side-plus{ width:36px; height:36px; }
     .side-h, .group-h, .foot-btn .lbl{ font-size:12px; }
     .foot-btn .val{ font-size:12.5px; }
 
@@ -1253,40 +1320,53 @@
     <div class="brand">
       <span class="mark"><img id="spaceMark" src="/brand/brain.svg" alt="" width="48" height="48"></span>
       <h1><a href="/" id="spaceName" title="All workspaces">Brain</a></h1>
-      <button class="navtoggle" id="navToggle" aria-label="Hide the brains" title="Hide the brains">&#171;</button>
+      <button class="navtoggle" id="navToggle" aria-label="Hide the side panel" title="Hide the side panel">&#171;</button>
     </div>
     <div class="side-scroll">
-      <button class="side-act" id="pagerBtn" title="A brain, a group, or a question, as bullets on one page">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>One-pager</button>
-      <div class="side-h fold" id="chatsH" title="Unpinned chats go 30 days after their last question, or past the newest 20. Up to 5 pinned chats stay.">
-        <button class="fold-t" id="chatsFold" aria-expanded="true" aria-controls="chatsBox"><span class="chev"></span>Chats <b id="ccount"></b></button>
-        <button class="side-plus" id="newChat" title="Start a new chat">+ New</button>
+      <!-- Three things to do, above the three lists. -->
+      <div class="side-acts">
+        <button class="sa go" id="dropBtn" type="button" title="Feed a folder: a link, a PDF, a Word file, a video or a transcript">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>Drop</button>
+        <button class="sa" id="pagerBtn" type="button" title="A folder, a group, or a question, as bullets on one page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>One-pager</button>
+        <button class="sa" id="keyBtn" type="button" title="The model, the export, the map, open conflicts, the MCP address and the transcript service">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>Settings</button>
       </div>
-      <div id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="chats"></div></div>
-      <div class="side-h fold" id="brainsH">
-        <button class="fold-t" id="brainsFold" aria-expanded="true" aria-controls="brainsBox"><span class="chev"></span>Brains <b id="bcount"></b></button>
-      </div>
-      <div id="brainsBox">
-        <button class="new-brain" id="newBrain">+ Create a brain</button>
-        <div id="brains"></div>
-      </div>
+      <section class="panel" id="chatsPanel">
+        <div class="panel-h" id="chatsH" title="Unpinned chats go 30 days after their last question, or past the newest 20. Up to 5 pinned chats stay.">
+          <button class="fold-t" id="chatsFold" aria-expanded="true" aria-controls="chatsBox"><span class="p-ic p-chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg></span>Chats <b id="ccount"></b><span class="chev"></span></button>
+          <button class="side-plus" id="newChat" type="button" title="Start a new chat" aria-label="New chat"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+        </div>
+        <div class="panel-b" id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="chats"></div></div>
+      </section>
+      <section class="panel" id="brainsPanel">
+        <div class="panel-h" id="brainsH">
+          <button class="fold-t" id="brainsFold" aria-expanded="true" aria-controls="brainsBox"><span class="p-ic p-fold"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></span>Folders <b id="bcount"></b><span class="chev"></span></button>
+          <button class="side-plus" id="newBrain" type="button" title="New folder" aria-label="New folder"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+        </div>
+        <div class="panel-b" id="brainsBox"><div id="brains"></div></div>
+      </section>
+      <section class="panel" id="projectsPanel">
+        <div class="panel-h">
+          <button class="fold-t" id="projectsFold" aria-expanded="false" aria-controls="projectsBox"><span class="p-ic p-proj"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"/></svg></span>Projects <span class="soon">next</span><span class="chev"></span></button>
+        </div>
+        <div class="panel-b" id="projectsBox" hidden><div class="empty-side">A project is a chat that reads the folders you pick and keeps one page up to date. It is the next part to be built.</div></div>
+      </section>
     </div>
     <div class="side-foot">
-      <div class="foot-row">
-        <button class="foot-btn" id="keyBtn" title="The model, the export, the map, open conflicts, the MCP address and the transcript service">Setup</button>
-        <button class="foot-btn" id="lockBtn" title="Sign out and forget your key">Sign out</button>
-      </div>
+      <button class="side-go" id="sideGo" type="button" hidden></button>
+      <button class="foot-link" id="lockBtn" type="button" title="Sign out and forget your key">Sign out</button>
     </div>
   </aside>
   <!-- Behind the drawer on a phone. A tap on it closes the drawer. -->
   <div class="scrim" id="scrim"></div>
 
   <main>
-    <button class="navopen" id="navOpen" aria-label="Show the brains">
+    <button class="navopen" id="navOpen" aria-label="Show the side panel">
       <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
     </button>
     <div class="topbar">
-      <button class="burger" id="burger" aria-label="Brains">
+      <button class="burger" id="burger" aria-label="Menu">
         <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
       </button>
       <img id="spaceMarkBar" class="barmark" src="/brand/brain.svg" alt="" width="24" height="24">
@@ -1306,10 +1386,10 @@
             <button data-m="ask" class="on">Ask</button>
             <button data-m="drop">Drop</button>
           </div>
-          <button class="pick-btn" id="scopeBtn" aria-haspopup="listbox" aria-expanded="false" title="Which brains to ask, or to feed">
+          <button class="pick-btn" id="scopeBtn" aria-haspopup="listbox" aria-expanded="false" title="Which folders to ask, or to feed">
             <img class="pk-mark" id="scopeMark" src="/brand/brain.svg" alt="" width="18" height="18">
             <span class="pk-lbl" id="scopeLabel">Across</span>
-            <span class="pk-val" id="scopeVal">All brains</span>
+            <span class="pk-val" id="scopeVal">All folders</span>
             <svg class="pk-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 7.5 6 4.5l3 3"/></svg>
           </button>
           <div id="levelWrap">
@@ -1334,7 +1414,7 @@
             <input id="srcInput" type="text" autocomplete="off" spellcheck="false"
                    placeholder="The link, or where it comes from">
           </div>
-          <textarea id="input" rows="1" placeholder="Ask anything your brains have read."></textarea>
+          <textarea id="input" rows="1" placeholder="Ask anything your folders have read."></textarea>
           <input type="file" id="fileIn" hidden
                  accept=".pdf,.txt,.md,.markdown,.text,.docx,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
           <div class="tbar">
@@ -1368,6 +1448,8 @@ const TOKEN_KEY = "octopus.token.v1";
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
   mode: "ask", scope: "all", into: [], busy: false, pendingCard: null, chunk: 18000,
+  /* The folders ticked in the side panel to chat in. None asks them all. */
+  picks: [],
   /* The last few turns of the current thread. It travels with each question so
      a follow-up means something, and it is never written down: closing the tab
      ends it. */
@@ -1798,39 +1880,65 @@ function isPersonal(slug){ return S.brains.find(b => b.slug === slug)?.type === 
 function readOnly(b){ return !!b && (b.viewers || []).includes(S.space); }
 /* Into a personal chat or out of one, the thread starts fresh: the two never share a chat. */
 function crossing(to){ if (S.chatId && isPersonal(to) !== isPersonal(S.scope)) newChat(); }
+/**
+ * The folders ticked to chat in. None asks them all, one reads as that
+ * folder, and two or more travel as a list. A drop feeds the ones it may.
+ */
+function setPicks(list){
+  const ok = new Set(S.brains.filter(b => b.type !== "personal").map(b => b.slug));
+  S.picks = [...new Set(list)].filter(x => ok.has(x));
+  S.scope = S.picks.length === 1 ? S.picks[0] : "all";
+  S.into = S.picks.filter(x => !readOnly(S.brains.find(b => b.slug === x)));
+}
+/** The ticked folders by name: "Wealth and Charles Gave", or "4 folders" past three. */
+function picksName(){
+  const n = S.picks.map(x => S.brains.find(b => b.slug === x)?.name || x);
+  return n.length > 3 ? `${n.length} folders` : n.length > 1 ? `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}` : n[0] || "";
+}
 const shared = () => S.brains.filter(b => b.type !== "personal");
 
-/* Clicking a row picks that brain to ask or to feed. A second click goes back
-   to every brain. Edit is the one control a row carries. */
+/* Clicking a row ticks that folder to chat in, and several can be ticked: the
+   question reads those alone. A second click unticks it. A personal folder is
+   a chat of its own, so its row opens that chat. Open and edit sit on the row
+   you point at. */
+const TICK_SVG = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.6l4.5-5"/></svg>`;
 function brainRow(b){
-  const on = S.scope === b.slug;
+  const self = b.type === "personal";
+  const on = self ? S.scope === b.slug : S.picks.includes(b.slug);
   const home = b.space || "octopus", label = x => x.charAt(0).toUpperCase() + x.slice(1);
   const out = [...(b.shared || []), ...(b.viewers || [])].map(label), from = home !== S.space ? label(home) : "";
-  const row = el("button","brain-row" + (on ? " on" : "") + (out.length || from ? " shared" : ""));
+  const row = el("button","brain-row" + (on ? " on" : "") + (self ? " self" : "") + (out.length || from ? " shared" : ""));
+  if (!self) row.setAttribute("aria-pressed", String(on));
   const ideas = conceptsOf(b.slug).length, read = sourcesOf(b.slug).length;
-  /* The concept count on the row; the sources behind it on hover. */
   /* The score stands for what the brain holds, so the row shows the ring and
      leaves the counts to its title. */
-  row.append(brainIcon(b), el("span","nm",b.name));
+  const tick = el("span","tick");
+  tick.append(brainIcon(b));
+  if (!self){ const box = el("span","tbox"); box.innerHTML = TICK_SVG; tick.append(box); }
+  row.append(tick, el("span","nm",b.name));
   const h = S.health[b.slug];
   if (h) row.append(healthRing(h, b));
   row.title = b.type === "personal" ? `Personal, alpha: it files what you say in its chat, dated. Only that chat reads it.\n${ideas} notes`
     : `${b.scope || "no scope line"}\n${ideas} concepts, ${read} sources` +
       (from ? `\nShared with this workspace from ${from}${readOnly(b) ? ". Read only here" : ""}` : out.length ? `\nShared with ${out.join(", ")}` : "");
-  /* On a phone the drawer covers the thread, so a pick closes it. */
-  row.onclick = () => { crossing(on ? "all" : b.slug); S.scope = on ? "all" : b.slug; S.into = on ? [] : [b.slug]; closeSide(); render(); };
-  {
-    const op = el("span","ed op","open");
-    op.title = "See what this brain holds";
-    op.onclick = e => { e.stopPropagation(); openBrainView(b); };
-    row.append(op);
-    if (!S.demo){
-      const ed = el("span","ed edt","edit");
-      ed.title = "Name and scope";
-      ed.onclick = e => { e.stopPropagation(); openBrainSheet(b); };
-      row.append(ed);
+  row.onclick = () => {
+    if (self){
+      crossing(on ? "all" : b.slug);
+      if (on) setPicks([]); else { S.picks = []; S.scope = b.slug; S.into = []; }
+      /* A personal chat is one folder, so on a phone the drawer closes on it. */
+      if (!on) closeSide();
+    } else {
+      crossing("all");
+      setPicks(on ? S.picks.filter(x => x !== b.slug) : [...S.picks, b.slug]);
     }
-  }
+    render();
+  };
+  /* One control on the row, so a click anywhere else ticks it. Its name and
+     scope are edited from the folder it opens. */
+  const op = el("span","ed op","open");
+  op.title = "See what this folder holds";
+  op.onclick = e => { e.stopPropagation(); openBrainView(b); };
+  row.append(op);
   return row;
 }
 
@@ -1860,21 +1968,26 @@ function folds(){
   if (!folds.v){ try { folds.v = JSON.parse(localStorage.getItem("octopus.fold") || "{}") || {}; } catch { folds.v = {}; } }
   return folds.v;
 }
+/* Projects come next, so their panel starts shut until it is opened once. */
 function paintFolds(){
-  for (const k of ["chats","brains"]){
-    const shut = !!folds()[k];
+  for (const k of ["chats","brains","projects"]){
+    const shut = k === "projects" ? folds()[k] !== false : !!folds()[k];
     $(k + "Fold").setAttribute("aria-expanded", String(!shut));
     $(k + "Box").hidden = shut;
   }
 }
-for (const k of ["chats","brains"]) $(k + "Fold").onclick = () => {
-  folds()[k] = !folds()[k];
+for (const k of ["chats","brains","projects"]) $(k + "Fold").onclick = () => {
+  folds()[k] = !$(k + "Box").hidden;
   try { localStorage.setItem("octopus.fold", JSON.stringify(folds())); } catch {}
   paintFolds();
 };
 
 /* ---- chats ---- */
-function brainLabel(slug){ return !slug || slug === "all" ? "All brains" : S.brains.find(b => b.slug === slug)?.name || slug; }
+/* A chat asked one folder, several joined by commas, or all of them. */
+function brainLabel(slug){
+  if (!slug || slug === "all") return "All folders";
+  return String(slug).split(",").map(x => S.brains.find(b => b.slug === x)?.name || x).join(", ");
+}
 var chatMsgTimer = 0;
 function chatMsg(t){
   const m = $("chatMsg"); m.textContent = t; m.hidden = !t;
@@ -1982,8 +2095,9 @@ async function openChat(id){
   catch (e) { chatMsg(e.message); loadChats(); return; }
   if (!c) return;
   S.chatId = c.id;
-  S.scope = S.brains.some(b => b.slug === c.brain) ? c.brain : "all";
-  S.into = S.scope === "all" ? [] : [S.scope];
+  const asked = String(c.brain || "").split(",").filter(x => S.brains.some(b => b.slug === x));
+  if (asked.length === 1 && isPersonal(asked[0])){ S.picks = []; S.scope = asked[0]; S.into = []; }
+  else setPicks(asked);
   if (S.mode !== "ask"){ S.mode = "ask"; [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m === "ask")); }
   $("thread").innerHTML = "";
   for (const t of c.turns || []){
@@ -2093,17 +2207,33 @@ async function settleFrom(id, brain){
   openConflictDeck(list, r.others || 0);
 }
 
+/**
+ * Every folder, in three groups: this workspace's own, then the ones another
+ * workspace lets you ask and drop into, then the ones you may only ask. A
+ * group shows when it holds a folder, and the fullest folder leads each.
+ */
 function renderSide(){
   paintFolds();
   const box = $("brains"); box.innerHTML = "";
   $("bcount").textContent = S.brains.length || "";
   if (!S.brains.length){
-    box.append(el("div","empty-side","None yet. A brain is a subject or a person, with a one line scope."));
+    box.append(el("div","empty-side","None yet. A folder holds one subject or one person's view, with a one line scope."));
   } else {
-    /* One list, no groups: the icon on each row says person or subject. */
-    for (const b of ordered()) box.append(brainRow(b));
+    const home = b => b.space || S.space;
+    const groups = [
+      { head: S.demo ? "In the demo" : "Mine", rows: ordered().filter(b => home(b) === S.space && !readOnly(b)) },
+      { head: "Ask and drop", rows: ordered().filter(b => home(b) !== S.space && !readOnly(b)) },
+      { head: "Ask only", rows: ordered().filter(b => readOnly(b)) },
+    ].filter(g => g.rows.length);
+    for (const g of groups){
+      box.append(el("div","group-h",g.head));
+      for (const b of g.rows) box.append(brainRow(b));
+    }
   }
-
+  /* On a phone, one button closes the drawer on the ticked folders. */
+  const go = $("sideGo");
+  go.hidden = !S.picks.length;
+  go.textContent = S.picks.length ? `Chat in ${S.picks.length === 1 ? picksName() : S.picks.length + " folders"}` : "";
 }
 
 /** The model in use, as Setup names it: short on the button, whole in its title. */
@@ -2174,6 +2304,12 @@ function openBrainSheet(b){
 /** The picker's face: the space's mark, where it goes, and to which brain. */
 function renderScope(){
   if (!S.brains.some(b => b.slug === S.scope)) S.scope = "all";
+  /* The ticks follow a folder picked anywhere else: a reopened chat, a new
+     folder, Ask about it. Two or more ticked ask with the scope at "all". */
+  S.picks = S.picks.filter(x => S.brains.some(b => b.slug === x && b.type !== "personal"));
+  if (isPersonal(S.scope)) S.picks = [];
+  else if (S.scope !== "all") S.picks = [S.scope];
+  else if (S.picks.length === 1) S.picks = [];
   S.into = S.into.filter(x => S.brains.some(b => b.slug === x) && !isPersonal(x) && !readOnly(S.brains.find(b => b.slug === x)));
   if (isPersonal(S.scope) && S.mode === "drop") S.mode = "ask";
   const drop = S.mode === "drop";
@@ -2183,7 +2319,8 @@ function renderScope(){
   /* A drop can feed several brains: the first by name, then how many more. */
   $("scopeVal").textContent = drop
     ? (!S.into.length ? "Suggest for me" : S.into.length === 1 ? nameOf(S.into[0]) : `${nameOf(S.into[0])} +${S.into.length - 1}`)
-    : S.scope === "all" ? "All brains" : nameOf(S.scope);
+    : S.picks.length > 1 ? `${nameOf(S.picks[0])} +${S.picks.length - 1}`
+    : S.scope === "all" ? "All folders" : nameOf(S.scope);
   const mark = $("spaceMark")?.getAttribute("src");
   if (mark && $("scopeMark").getAttribute("src") !== mark) $("scopeMark").src = mark;
   if (pickMenu) fillPick();
@@ -2198,9 +2335,11 @@ function fillPick(){
   m.innerHTML = "";
   m.classList.toggle("multi", drop);
   m.setAttribute("aria-multiselectable", drop ? "true" : "false");
-  /* Asking reads one brain or all of them. Dropping ticks as many as the
-     source belongs in, and the menu stays open while they are ticked. */
-  const isOn = slug => drop ? (slug === "all" ? !S.into.length : S.into.includes(slug)) : S.scope === slug;
+  /* Asking reads one folder, the ones ticked in the side panel, or all of
+     them. Dropping ticks as many as the source belongs in, and the menu stays
+     open while they are ticked. */
+  const isOn = slug => drop ? (slug === "all" ? !S.into.length : S.into.includes(slug))
+    : S.picks.length > 1 ? S.picks.includes(slug) : S.scope === slug;
   const row = (slug, name, sub, count, b) => {
     const on = isOn(slug);
     const r = el("button","pk-row" + (on ? " on" : ""));
@@ -2215,22 +2354,27 @@ function fillPick(){
     if (count != null) r.append(el("span","pk-ct", count));
     r.onclick = e => {
       e.stopPropagation();
-      if (!drop){ crossing(slug); S.scope = slug; S.into = slug === "all" ? [] : [slug]; closePick(); render(); $("input").focus(); return; }
+      if (!drop){
+        crossing(slug);
+        if (isPersonal(slug)){ S.picks = []; S.scope = slug; S.into = []; } else setPicks(slug === "all" ? [] : [slug]);
+        closePick(); render(); $("input").focus(); return;
+      }
       if (slug === "all") S.into = [];
       else S.into = S.into.includes(slug) ? S.into.filter(x => x !== slug) : [...S.into, slug];
       S.scope = S.into.length === 1 ? S.into[0] : "all";
+      S.picks = S.into.slice();
       render();
     };
     return r;
   };
   const ideas = S.concepts.length;
-  m.append(row("all", drop ? "Suggest for me" : "All brains",
-    drop ? "The AI picks where it belongs" : `${S.brains.length} brain${S.brains.length===1?"":"s"}, ${ideas} concept${ideas===1?"":"s"}`));
-  if (drop) m.append(el("div","pk-h","Or tick the brains to feed"));
-  if (!drop) m.append(el("div","pk-h","Or one brain"));
+  m.append(row("all", drop ? "Suggest for me" : "All folders",
+    drop ? "The AI picks where it belongs" : `${S.brains.length} folder${S.brains.length===1?"":"s"}, ${ideas} concept${ideas===1?"":"s"}`));
+  if (drop) m.append(el("div","pk-h","Or tick the folders to feed"));
+  if (!drop) m.append(el("div","pk-h","Or one folder"));
   for (const b of ordered()) if (!drop || (b.type !== "personal" && !readOnly(b))) m.append(row(b.slug, b.name, b.type === "personal" ? "your chat" : "", String(conceptsOf(b.slug).length), b));
   if (drop){
-    const done = el("button","pk-done", S.into.length > 1 ? `Feed ${S.into.length} brains` : "Done");
+    const done = el("button","pk-done", S.into.length > 1 ? `Feed ${S.into.length} folders` : "Done");
     done.onclick = e => { e.stopPropagation(); closePick(); $("input").focus(); };
     m.append(done);
   }
@@ -2271,8 +2415,9 @@ function renderComposer(){
   $("input").placeholder = drop
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
     : mine ? "Tell it anything: a plan, a decision, an idea. Or ask what you said."
-    : S.scope==="all" ? "Ask anything your brains have read."
-                      : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this brain") + ".";
+    : S.picks.length > 1 ? `Ask ${picksName()}.`
+    : S.scope==="all" ? "Ask anything your folders have read."
+                      : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this folder") + ".";
   $("levelWrap").hidden = drop || mine;
   for (const x of $("level").children){
     const on = x.dataset.v === S.level;
@@ -2283,7 +2428,7 @@ function renderComposer(){
   $("micBtn").hidden = drop;
   if (drop && S.listening) stopVoice();
   $("footNote").textContent = mine
-    ? "Personal, alpha: your words are filed as dated notes. It calls your other brains when they help, and only this chat reads it."
+    ? "Personal, alpha: your words are filed as dated notes. It calls your other folders when they help, and only this chat reads it."
     : drop
     ? "The source gets read once, then you reply to one card."
     : S.level==="educational" ? "Educational: terms defined, mechanism built, one worked example."
@@ -2588,6 +2733,16 @@ $("newChat").onclick = () => { closeSide(); newChat(); $("input").focus(); };
 
 $("keyBtn").onclick = openSetupSheet;
 $("pagerBtn").onclick = () => { closeSide(); openPagerSheet(); };
+/* Drop turns the box below into a drop, on the folders ticked. A personal
+   chat takes no drop, so Drop leaves it first. */
+$("dropBtn").onclick = () => {
+  closeSide();
+  if (isPersonal(S.scope)){ crossing("all"); setPicks([]); }
+  S.mode = "drop";
+  [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m === "drop"));
+  render(); $("srcInput").focus();
+};
+$("sideGo").onclick = () => { closeSide(); $("input").focus(); };
 $("navToggle").onclick = () => { navOpen = false; paintNav(); };
 $("navOpen").onclick  = () => { navOpen = true;  paintNav(); };
 paintNav();
@@ -3028,7 +3183,7 @@ async function openSetupSheet(){
   const veil = el("div","veil");
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
-      <header><h3>Setup</h3>
+      <header><h3>Settings</h3>
       <p>${S.demo ? `The demo runs on the default model. Export its brains, open the map, and settle open conflicts.`
         : `The model that answers in this app, the export of every ${esc(S.spaceName)} brain, the map of
         them all, the open conflicts to settle${ownerWs() ? ", and the MCP address for Claude" : ""}.`}</p></header>
@@ -3515,80 +3670,117 @@ function openModelSheet(){
   };
 }
 
+/**
+ * A new folder. A folder is fed by Drop from sources, and one switch says it
+ * holds one person's view: answers then name that person, and a change of
+ * mind is logged as a later view instead of a clash. A personal folder is fed
+ * by what you say in its chat, and only that chat reads it.
+ */
+const KIND_ICON = {
+  folder: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>`,
+  personal: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>`,
+};
 function openSheet(name, scope, type){
   closeSide();
   const veil = el("div","veil");
   veil.innerHTML = `
-    <div class="sheet" role="dialog" aria-modal="true">
-      <header><h3>Create a brain</h3>
-      <p>A brain is a subject or a person. Its scope line is the only test of what belongs inside, so make it specific.</p></header>
-      <div class="f"><label>Kind</label><div class="seg" id="bType">
-        <button data-t="subject">Subject</button><button data-t="person">Person</button><button data-t="personal">Personal</button></div>
-        <div class="hint" id="bKindHint"></div></div>
+    <div class="sheet roomy" role="dialog" aria-modal="true" aria-labelledby="bTitle">
+      <header><h3 id="bTitle">New folder</h3></header>
+      <div class="f"><div class="kind" id="bType" role="radiogroup" aria-label="Kind of folder">
+        <button type="button" role="radio" data-t="folder"><span class="k-ic">${KIND_ICON.folder}</span><span><b>Folder</b><small>Fed by Drop, from sources</small></span></button>
+        <button type="button" role="radio" data-t="personal"><span class="k-ic me">${KIND_ICON.personal}</span><span><b>Personal</b><small>Fed by what you say</small></span></button>
+      </div></div>
       <div class="f"><label for="bName">Name</label><input id="bName" autocomplete="off"></div>
-      <div class="f" id="bScopeF"><label for="bScope">Scope, in one line</label><textarea id="bScope"></textarea></div>
+      <div class="f" id="bScopeF"><label for="bScope">What it covers, in one line</label><textarea id="bScope"></textarea>
+        <div class="hint">Drop reads this line to decide what goes in, so make it specific.</div></div>
+      <label class="switch-row" id="bPersonF"><input type="checkbox" id="bPerson" role="switch"><span class="sw" aria-hidden="true"></span>
+        <span><b>One person's view</b><small>Answers name this person all the way through. When they change their mind, it is logged as a later view, with nothing for you to rule.</small></span></label>
+      <div class="f" id="bMineF" hidden>
+        <div class="mine-note">You talk to it, and it files what you say as dated notes, in your words. It can call your other folders.
+          <b>Only its own chat reads it.</b></div>
+        <label for="bMem" style="margin-top:14px">What it should know about you <span class="optl">(optional)</span></label>
+        <textarea id="bMem" placeholder="Paste what another assistant knows about you, or your notes."></textarea></div>
       <div id="closestSlot"></div>
-      <footer><button class="ghost" id="bCancel">Cancel</button><button class="go" id="bMake">Check and create</button></footer>
+      <footer><button class="ghost" id="bCancel">Cancel</button><button class="go" id="bMake">Create folder</button></footer>
     </div>`;
   document.body.append(veil);
-  const nameI = veil.querySelector("#bName"), scopeI = veil.querySelector("#bScope");
+  const nameI = veil.querySelector("#bName"), scopeI = veil.querySelector("#bScope"),
+        personI = veil.querySelector("#bPerson"), memI = veil.querySelector("#bMem"), btn = veil.querySelector("#bMake");
   nameI.value = name||""; scopeI.value = scope||"";
-  /* Who may feed a brain is not asked: the passphrase feeds every brain, and
-     a brain is made closed to other accounts, which is the server's default. */
-  let kind = type||"subject";
+  /* Who may feed a folder is not asked: the passphrase feeds every folder, and
+     a folder is made closed to other accounts, which is the server's default. */
+  let kind = type === "personal" ? "personal" : "folder";
+  personI.checked = type === "person";
+  const label = () => kind === "personal" ? "Create personal folder" : "Create folder";
   const paint = () => {
-    [...veil.querySelectorAll("#bType button")].forEach(b => b.classList.toggle("on", b.dataset.t===kind));
+    [...veil.querySelectorAll("#bType button")].forEach(b => { const on = b.dataset.t === kind; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); });
     veil.querySelector("#bScopeF").hidden = kind === "personal";
-    veil.querySelector("#bKindHint").textContent = kind === "personal"
-      ? "Alpha. A chat that files what you say, dated, in your words. It can call on your other brains; they never read it."
-      : kind === "person" ? "One expert's views, kept apart from the rest." : "A subject, fed from any source that fits its scope.";
+    veil.querySelector("#bPersonF").hidden = kind === "personal";
+    veil.querySelector("#bPersonF").classList.toggle("on", personI.checked);
+    veil.querySelector("#bMineF").hidden = kind !== "personal";
     if (kind === "personal" && !nameI.value.trim()) nameI.value = "Me";
+    if (!btn.disabled) btn.textContent = label();
   };
   paint();
-  veil.querySelector("#bType").onclick = e => { const b=e.target.closest("button"); if(b){ kind=b.dataset.t; paint(); } };
-  const shut = () => veil.remove();
+  veil.querySelector("#bType").onclick = e => { const b=e.target.closest("button"); if(b){ kind=b.dataset.t; confirmed = false; veil.querySelector("#closestSlot").innerHTML = ""; paint(); } };
+  personI.onchange = paint;
+  const shut = () => { if (!busy) veil.remove(); };
   veil.querySelector("#bCancel").onclick = shut;
   veil.onclick = e => { if(e.target===veil) shut(); };
   setTimeout(()=>nameI.focus(),30);
 
-  let confirmed = false;
-  veil.querySelector("#bMake").onclick = async () => {
-    const nm = nameI.value.trim(), sc = kind === "personal" ? "" : scopeI.value.trim();
-    if (!nm || (!sc && kind !== "personal")){ (nm?scopeI:nameI).focus(); return; }
-    if (!confirmed && S.brains.length && kind !== "personal"){
+  let confirmed = false, busy = false;
+  btn.onclick = async () => {
+    const mine = kind === "personal";
+    const nm = nameI.value.trim(), sc = mine ? "" : scopeI.value.trim();
+    const t = mine ? "personal" : personI.checked ? "person" : "subject";
+    if (!nm || (!sc && !mine)){ (nm?scopeI:nameI).focus(); return; }
+    if (!confirmed && S.brains.length && !mine){
       const near = nearest(sc);
       if (near){
         const slot = veil.querySelector("#closestSlot"); slot.innerHTML = "";
         const c = el("div","closest");
-        c.append(el("b",null,"Closest brain you already have"), el("div",null,`${near.name}: ${near.scope}`));
-        const p = el("div",null,"Create a new one anyway, or cancel and feed that brain instead.");
+        c.append(el("b",null,"Closest folder you already have"), el("div",null,`${near.name}: ${near.scope}`));
+        const p = el("div",null,"Create a new one anyway, or cancel and feed that folder instead.");
         p.style.cssText = "margin-top:7px;color:var(--ink-3)"; c.append(p);
         slot.append(c);
-        veil.querySelector("#bMake").textContent = "Create anyway";
+        btn.textContent = "Create anyway";
         confirmed = true; return;
       }
     }
-    const btn = veil.querySelector("#bMake"); btn.disabled = true; btn.textContent = "Creating";
+    busy = true; btn.disabled = true; btn.textContent = "Creating";
     try {
-      const r = await api("/api/brain", { name:nm, scope:sc, type:kind });
-      shut(); await refresh();
-      if (kind === "personal"){
+      const r = await api("/api/brain", { name:nm, scope:sc, type:t });
+      /* What it should know about you, filed the way Add memory files it. */
+      const mem = mine ? memI.value.trim().slice(0, 200000) : "";
+      let made = 0, updated = 0;
+      if (mem){
+        const pieces = memPieces(mem);
+        for (const [i, piece] of pieces.entries()){
+          btn.textContent = pieces.length > 1 ? `Filing ${i + 1} of ${pieces.length}` : "Filing";
+          const f = await apiRetry("/api/personal/remember", { brain: r.slug, text: piece });
+          made += f.filed?.new || 0; updated += f.filed?.updated || 0;
+        }
+      }
+      busy = false; shut(); await refresh();
+      if (mine){
         if (S.chatId) newChat();
-        S.scope = r.slug; S.into = []; S.mode = "ask";
+        S.picks = []; S.scope = r.slug; S.into = []; S.mode = "ask";
         [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="ask"));
         render();
-        push("ai", b => { b.innerHTML = rich(`**${esc(nm)}** is ready. Talk to it: it files what you say as dated notes, and answers from them and from your other brains. ` +
-          `**Add memory** brings in what another assistant already knows about you.`); });
+        push("ai", b => { b.innerHTML = rich(`**${esc(nm)}** is ready. Talk to it: it files what you say as dated notes, and answers from them and from your other folders. ` +
+          (made || updated ? `It starts with what you pasted: ${filedLine({ new: made, updated }).replace(/^Filed: /, "")}.`
+            : `**Add memory** brings in what another assistant already knows about you.`)); });
         $("input").focus();
         return;
       }
-      S.scope = r.slug; S.into = [r.slug]; S.mode = "drop";
+      setPicks([r.slug]); S.mode = "drop";
       [...$("mode").children].forEach(x => x.classList.toggle("on", x.dataset.m==="drop"));
       render();
       push("ai", b => { b.innerHTML = rich(`**${esc(nm)}** is ready, scoped to "${esc(sc)}". Drop a source to feed it.`); });
       $("input").focus();
     } catch(e){
-      btn.disabled = false; btn.textContent = "Check and create";
+      busy = false; btn.disabled = false; btn.textContent = label();
       const slot = veil.querySelector("#closestSlot");
       slot.innerHTML = ""; const c = el("div","closest");
       c.append(el("b",null,"That did not work"), el("div",null,String(e.message)));
@@ -3744,6 +3936,13 @@ function openBrainView(b, openId){
     bar.append(el("span","vw-count",`${cs.length} concept${cs.length===1?"":"s"} \u00b7 ${reads} source${reads===1?"":"s"}`));
     const f = el("input","vw-filter"); f.placeholder = "Filter concepts"; f.value = filter;
     bar.append(f);
+    /* Its name and scope line, for a folder this workspace may change. */
+    if (!S.demo && !readOnly(brain)){
+      const ed = el("button","mini","Edit");
+      ed.id = "vwEdit"; ed.type = "button"; ed.title = "Its name and the line that decides what goes in";
+      ed.onclick = () => { shut(); openBrainSheet(brain); };
+      bar.append(ed);
+    }
     sheet.append(bar);
     const box = el("div","vw-list");
     const paint = () => {
@@ -4312,7 +4511,8 @@ async function doAsk(q){
   try {
     /* "chat" files the turn in the chat on screen, or starts one. */
     const r = await api("/api/ask",
-      { q, brain: S.scope, level: S.level, history: S.thread.slice(-4), chat: S.chatId });
+      { q, brain: S.scope, ...(S.picks.length > 1 ? { brains: S.picks.slice() } : {}),
+        level: S.level, history: S.thread.slice(-4), chat: S.chatId });
     body.innerHTML = "";
     showAnswer(body, r, q, S.scope);
     if (r.chat){ S.chatId = r.chat; loadChats(); }

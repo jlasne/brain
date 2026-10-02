@@ -499,7 +499,7 @@ function cardText(plan: any, brains: any[], concepts: any[], draft: string, auth
 
 async function runWriteTool(ctx: any, caller: Caller, name: string, args: any) {
   if (!caller) {
-    return text("This address reads only. Feeding needs the private address from Setup, inside the project.");
+    return text("This address reads only. Feeding needs the private address from Settings, inside the project.");
   }
   /* The address is the owner's, so it feeds every brain of its own project. */
   const space = spaceOf(caller);

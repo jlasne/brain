@@ -19,7 +19,7 @@ blue, `#5fa8d3`, the tokens of jeremylasne.com, set once at the top of
 
 Inside the app, `:root` is Octopus's beige and terracotta,
 `:root[data-space="squidgy"]` is Squidgy's pink and brown, and every other
-workspace gets Brain's blue on ice. A workspace's own look, set in Setup,
+workspace gets Brain's blue on ice. A workspace's own look, set in Settings,
 overrides the accent, the page and the mark with inline variables, and this
 browser remembers them so the next visit paints in them from the first frame.
 
@@ -56,12 +56,15 @@ against your summaries, and you reply to one card.
 page. The first two read stored positions and call no model. Copy it, print it,
 or mail it through Resend.
 
-**Ask.** Across every brain or inside one, at two depths. Normal answers in
-three to six lines. Educational defines the terms and works an example.
+**Ask.** Across every folder, inside one, or inside the ones ticked in the side
+panel, at three levels. Normal answers in three to six lines. Educational
+defines the terms and works an example. Learning gives steps and hints instead
+of the answer.
 
-**Create a brain.** A name, a one-line scope, subject or person, and whether
-anyone may feed it. The closest existing scope gets shown first, so you can
-decide whether a new brain is worth it.
+**New folder.** A folder, fed by Drop: a name, a one-line scope, and one switch
+for one person's view. Or a personal folder, fed by what you say in its chat.
+The closest existing scope gets shown first, so you can decide whether a new
+folder is worth it.
 
 ## Two ways into /chat
 
@@ -72,7 +75,7 @@ decide whether a new brain is worth it.
 
 A remembered key is encrypted on the server under a secret in its environment.
 Unticked, the key never leaves the tab. Read access asks questions and feeds
-nothing, so the Drop side and Create a brain are hidden for it.
+nothing, so the Drop side and New folder are hidden for it.
 
 The passphrase door is gone from the screen. `/api/unlock` still answers, so a
 deployment that loses every account password has a way back in through the API.

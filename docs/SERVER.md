@@ -38,7 +38,7 @@ npx convex run admin:moveBrain '{"slug":"content","space":"squidgy","dry":true}'
 ```
 
 A workspace for someone, on this deployment's key, empty, behind a passphrase
-its owner changes from Setup. The passphrase takes 8 characters at least:
+its owner changes from Settings. The passphrase takes 8 characters at least:
 
 ```bash
 npx convex run admin:makeWorkspace "{name:'PandAAAHH',pass:'ABC12345'}" --prod
@@ -215,7 +215,7 @@ Reading brains and rendering the card can stay client side, because that data is
 
 ## The MCP server
 
-Each project has its own address, made in Setup inside that project. It
+Each project has its own address, made in Settings inside that project. It
 carries a key, `?k=...`, and reads and feeds that project and no other: the
 Octopus address never sees Squidgy, and the reverse. Add both to a client to
 reach both. The key belongs to the project's holder account, `owner` for
@@ -247,7 +247,7 @@ One kind of session opens the app: a passphrase, one per door. The owner feeds
 every brain of that door's space, and this deployment's key pays for every
 model call. Member accounts, guest keys and saved personal keys were removed.
 One account record per project remains, without a password, only to hold that
-project's connector address; it is made the first time Setup asks for one.
+project's connector address; it is made the first time Settings asks for one.
 
 
 ### Who may do what

@@ -215,13 +215,13 @@ async function boot(path, init, arg) {
 
   /* ---- the brain picker ---- */
   const face = await page.evaluate(() => document.getElementById("scopeBtn").textContent.replace(/\s+/g, " ").trim());
-  check("the picker names where a question goes, with no label in front", face === "All brains", face);
+  check("the picker names where a question goes, with no label in front", face === "All folders", face);
   await page.click("#scopeBtn");
   const menu = await page.evaluate(() => ({
     rows: [...document.querySelectorAll(".pick-menu .pk-row .pk-nm")].map(x => x.firstChild.textContent),
     heads: [...document.querySelectorAll(".pick-menu .pk-h")].map(x => x.textContent),
   }));
-  check("its menu offers every brain in one list", menu.rows.join(",") === "All brains,Content" && menu.heads.join(",") === "Or one brain",
+  check("its menu offers every folder in one list", menu.rows.join(",") === "All folders,Content" && menu.heads.join(",") === "Or one folder",
     JSON.stringify(menu));
   check("each with its person or subject mark", await page.evaluate(() =>
     document.querySelector(".pick-menu .pk-row:nth-of-type(2) .b-ic")?.getAttribute("aria-label")) === "Subject");
@@ -231,15 +231,37 @@ async function boot(path, init, arg) {
   await page.click("#scopeBtn"); await page.keyboard.press("Escape");
   check("Escape closes the menu", !(await page.$(".pick-menu")));
   await page.click("#scopeBtn"); await page.click(".pick-menu .pk-row >> nth=0");
-  check("the one-pager leads the side panel, then Chats, then Brains with Create a brain",
-    await page.evaluate(() => { const p = document.getElementById("pagerBtn");
-      return !!p.closest("aside") && p.nextElementSibling.id === "chatsH" && !document.getElementById("gapsBtn") && !document.getElementById("mapBtn")
-        && document.getElementById("brainsBox").firstElementChild.id === "newBrain"; }));
+  const top = await page.evaluate(() => {
+    const acts = [...document.querySelectorAll("aside .side-acts button")].map(b => b.id + ":" + b.textContent.trim()).join(",");
+    const panels = [...document.querySelectorAll("aside .panel")].map(p => p.id + ":" + p.querySelector(".fold-t").textContent.replace(/\s+/g, " ").trim().split(" ")[0]).join(",");
+    return { acts, panels, plus: [...document.querySelectorAll("aside .panel .side-plus")].map(b => b.id).join(","),
+      gone: !document.getElementById("gapsBtn") && !document.getElementById("mapBtn") };
+  });
+  check("the side panel opens on Drop, One-pager and Settings", top.acts === "dropBtn:Drop,pagerBtn:One-pager,keyBtn:Settings", top.acts);
+  check("then Chats, Folders and Projects, each a panel of its own", top.panels === "chatsPanel:Chats,brainsPanel:Folders,projectsPanel:Projects" && top.gone, top.panels);
+  check("a new chat and a new folder are the + of their panel", top.plus === "newChat,newBrain", top.plus);
+  check("Projects starts folded, and says it comes next", await page.evaluate(() =>
+    document.getElementById("projectsBox").hidden && document.getElementById("projectsFold").getAttribute("aria-expanded") === "false"
+    && /next/.test(document.getElementById("projectsFold").textContent)));
+  await page.click("#projectsFold");
+  check("and opens to say what a project will be", await page.evaluate(() => !document.getElementById("projectsBox").hidden
+    && /keeps one page up to date/.test(document.getElementById("projectsBox").textContent)));
+  await page.click("#projectsFold");
+  await page.click("#dropBtn"); await page.waitForTimeout(60);
+  const dropping = await page.evaluate(() => ({ on: document.querySelector('#mode button.on')?.dataset.m, src: !document.getElementById("srcLine").hidden,
+    focus: document.activeElement?.id }));
+  check("Drop turns the box into a drop, on the source line", dropping.on === "drop" && dropping.src && dropping.focus === "srcInput", JSON.stringify(dropping));
+  await page.click('#mode button[data-m="ask"]');
 
-  /* ---- a new brain asks for a name, a scope and a kind, nothing more ---- */
+  /* ---- a new folder: a folder or a personal one, and one switch for a person ---- */
   await page.click("#newBrain"); await page.waitForTimeout(80);
-  const sheetText = await page.evaluate(() => document.querySelector(".sheet")?.textContent || "");
-  check("creating a brain no longer asks who can feed it", /Scope/.test(sheetText) && !/Who can feed/.test(sheetText), sheetText.slice(0, 120));
+  const sheet0 = await page.evaluate(() => ({ text: document.querySelector(".sheet")?.textContent || "",
+    kinds: [...document.querySelectorAll("#bType button")].map(b => `${b.dataset.t}:${b.getAttribute("aria-checked")}`).join(","),
+    scope: !document.getElementById("bScopeF").hidden, person: !document.getElementById("bPersonF").hidden && !document.getElementById("bPerson").checked,
+    mine: document.getElementById("bMineF").hidden, go: document.getElementById("bMake").textContent }));
+  check("New folder offers a folder or a personal one, the folder picked", sheet0.kinds === "folder:true,personal:false" && /^New folder/.test(sheet0.text.trim()), sheet0.kinds);
+  check("a folder asks what it covers, with the person switch off", sheet0.scope && sheet0.person && sheet0.mine && sheet0.go === "Create folder", JSON.stringify(sheet0));
+  check("and never who can feed it", !/Who can feed/.test(sheet0.text));
   await page.click("#bCancel");
 
   /* ---- the one-pager ---- */
@@ -417,8 +439,8 @@ async function boot(path, init, arg) {
 
   /* ---- the export reads whole concepts only when asked ---- */
   const side = await page.evaluate(() => ({ gone: !document.getElementById("exportBtn") && !document.getElementById("stat"),
-    foot: [...document.querySelectorAll(".side-foot button")].map(b => b.textContent.trim()).join(",") }));
-  check("the sidebar keeps Setup and Sign out only", side.gone && side.foot === "Setup,Sign out", side.foot);
+    foot: [...document.querySelectorAll(".side-foot button:not([hidden])")].map(b => b.textContent.trim()).join(",") }));
+  check("the foot of the side panel keeps Sign out only", side.gone && side.foot === "Sign out", side.foot);
   await page.click("#burger").catch(() => {});
   await page.evaluate(() => document.getElementById("keyBtn").click());
   await page.waitForTimeout(150);
@@ -445,6 +467,10 @@ async function boot(path, init, arg) {
   const vw = await page.evaluate(() => ({ title: document.querySelector(".viewer h3")?.textContent,
     rows: document.querySelectorAll(".viewer .vw-row").length, count: document.querySelector(".viewer .vw-count")?.textContent }));
   check("open shows the brain with its concepts listed", vw.title === "Content" && /concept/.test(vw.count || ""), JSON.stringify(vw));
+  check("the row carries open alone, and the folder's name and scope are edited from inside it",
+    await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row .ed")].map(x => x.textContent).join(",")) === "open" && !!(await page.$("#vwEdit")));
+  await page.click("#vwEdit"); await page.waitForTimeout(100);
+  check("Edit opens the name and the scope line", await page.evaluate(() => document.getElementById("rName")?.value === "Content" && !!document.getElementById("rScope")));
   await page.close();
 }
 
@@ -906,13 +932,41 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       .concat([{ brain: "health", slug: "h0", n: 1, title: "H0" }]) };
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test");
-    window.fetch = async u => Response.json(String(u).includes("/api/state") ? state : {});
+    window.__calls = [];
+    window.fetch = async (u, o) => {
+      const s = String(u);
+      window.__calls.push({ s, body: o && o.body ? JSON.parse(o.body) : null });
+      if (s.includes("/api/ask")) return Response.json({ answer: "From two folders.", sources: 2 });
+      return Response.json(s.includes("/api/state") ? state : {});
+    };
   }, mixed);
   const side = await page.evaluate(() => ({
     rows: [...document.querySelectorAll("#brains .brain-row")].map(r => `${r.querySelector(".nm").textContent}:${r.querySelector(".b-ic")?.getAttribute("aria-label")}`),
-    heads: document.querySelectorAll("#brains .group-h").length }));
-  check("the sidebar is one list, the fullest first, no People or Subjects heading",
-    side.rows.join(",") === "Richard Detente:Person,Content:Subject,Health:Subject" && side.heads === 0, JSON.stringify(side));
+    heads: [...document.querySelectorAll("#brains .group-h")].map(h => h.textContent).join(",") }));
+  check("the folders are one list under Mine, the fullest first, no People or Subjects heading",
+    side.rows.join(",") === "Richard Detente:Person,Content:Subject,Health:Subject" && side.heads === "Mine", JSON.stringify(side));
+
+  /* Ticking: one row is that folder, two ask both, and the question carries the list. */
+  const rowOf = n => `#brains .brain-row:has(.nm:text-is("${n}"))`;
+  await page.click(rowOf("Content"));
+  const one = await page.evaluate(() => ({ on: [...document.querySelectorAll("#brains .brain-row.on .nm")].map(x => x.textContent).join(","),
+    val: document.getElementById("scopeVal").textContent, ph: document.getElementById("input").placeholder }));
+  check("a click ticks a folder, and the box asks it", one.on === "Content" && one.val === "Content" && one.ph === "Ask Content.", JSON.stringify(one));
+  await page.click(rowOf("Health"));
+  const two = await page.evaluate(() => ({ on: [...document.querySelectorAll("#brains .brain-row.on")].map(r => r.querySelector(".nm").textContent + ":" + r.getAttribute("aria-pressed")).join(","),
+    val: document.getElementById("scopeVal").textContent, ph: document.getElementById("input").placeholder,
+    box: getComputedStyle(document.querySelector("#brains .brain-row.on .tbox")).display, go: document.getElementById("sideGo").textContent }));
+  check("a second click ticks a second folder, and both are asked", two.on === "Content:true,Health:true" && two.val === "Content +1"
+    && two.ph === "Ask Content and Health.", JSON.stringify(two));
+  check("a ticked row shows its box, and the phone button counts them", two.box !== "none" && two.go === "Chat in 2 folders", JSON.stringify(two));
+  await page.fill("#input", "What holds across both?"); await page.click("#send"); await page.waitForTimeout(200);
+  const asked = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/ask")).map(c => c.body).pop());
+  check("the question travels with the two folders ticked", asked && asked.brain === "all" && (asked.brains || []).join(",") === "content,health", JSON.stringify(asked));
+  await page.click(rowOf("Health"));
+  const back = await page.evaluate(() => ({ on: [...document.querySelectorAll("#brains .brain-row.on .nm")].map(x => x.textContent).join(","), val: document.getElementById("scopeVal").textContent }));
+  check("a click on a ticked folder unticks it", back.on === "Content" && back.val === "Content", JSON.stringify(back));
+  await page.click(rowOf("Content"));
+  check("and with none ticked, the box asks every folder", await page.evaluate(() => document.getElementById("scopeVal").textContent) === "All folders");
   await page.mouse.move(900, 400);
   const room = await page.evaluate(() => getComputedStyle(document.querySelector("#brains .brain-row:not(.on) .ed")).display);
   check("a row's open and edit take no room until it is pointed at", room === "none", room);
@@ -1061,7 +1115,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     t: r.querySelector(".nm").textContent, b: r.querySelector(".cb").textContent, pin: !!r.querySelector(".pin") })),
     count: document.getElementById("ccount").textContent }));
   check("the chats are listed, pinned first, each with the brain it asked", listed.count === "2" && listed.rows[0].t === "Is gold a hedge?"
-    && listed.rows[0].pin && /^Content · 2 questions$/.test(listed.rows[0].b) && /^All brains · 1 question$/.test(listed.rows[1].b), JSON.stringify(listed));
+    && listed.rows[0].pin && /^Content · 2 questions$/.test(listed.rows[0].b) && /^All folders · 1 question$/.test(listed.rows[1].b), JSON.stringify(listed));
 
   await page.click("#chatsFold");
   const folded = await page.evaluate(() => ({ hidden: document.getElementById("chatsBox").hidden, exp: document.getElementById("chatsFold").getAttribute("aria-expanded"),
@@ -1257,7 +1311,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.waitForTimeout(200);
   const d = await page.evaluate(() => ({ bar: !document.getElementById("demoBar").hidden && /Live demo/.test(document.getElementById("demoBar").textContent),
     make: document.getElementById("newBrain").hidden, edit: [...document.querySelectorAll("#brains .brain-row .ed")].map(x => x.textContent) }));
-  check("the demo says what it is, and offers no brain to create or edit", d.bar && d.make && !d.edit.includes("edit"), JSON.stringify(d));
+  check("the demo says what it is, and offers no folder to create or edit", d.bar && d.make && !d.edit.includes("edit"), JSON.stringify(d));
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(250);
   const set = await page.evaluate(() => ({ model: document.getElementById("setModel").hidden, mcp: document.getElementById("mcpBlock").hidden,
     use: document.getElementById("useBlock").hidden, key: document.getElementById("keyBlock").hidden,
@@ -1412,6 +1466,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   }, [sq, given]);
   await page.waitForTimeout(250);
   check("a brain given by another workspace says where it comes from", await page.evaluate(() => document.querySelector("#brains .brain-row").title.includes("Shared with this workspace from Octopus")));
+  check("and it sits under Ask and drop", await page.evaluate(() => [...document.querySelectorAll("#brains .group-h")].map(h => h.textContent).join(",")) === "Ask and drop");
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(300);
   await page.click("#shareBlock > summary"); await page.waitForTimeout(60);
   const row = await page.evaluate(() => [...document.querySelectorAll("#shareSlot .sh-row > *")].map(x => x.textContent).join("|"));
@@ -1438,6 +1493,9 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const feed = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-nm")].map(x => x.firstChild.textContent).join("|"));
   check("the demo asks across a shared brain and only offers its own to feed", /Wealth/.test(ask) && /Health/.test(ask) && /Health/.test(feed) && !/Wealth/.test(feed), JSON.stringify({ ask, feed }));
   check("and its row says it is read only here", await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].some(r => /Read only here/.test(r.title))));
+  const groups = await page.evaluate(() => [...document.querySelectorAll("#brains .group-h, #brains .brain-row .nm")].map(x => x.textContent).join(","));
+  check("the demo lists its own folders first, then the ones it may only ask", groups === "In the demo,Health,Ask only,Wealth", groups);
+  check("and a visitor makes no folder", await page.evaluate(() => document.getElementById("newBrain").hidden));
   await page.close();
 }
 
@@ -1594,15 +1652,28 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("a drop never offers the personal brain", !rows.some(r => /^Me/.test(r)) && rows.some(r => /Content/.test(r)), JSON.stringify(rows));
   await page.keyboard.press("Escape"); await page.evaluate(() => document.body.click());
 
-  /* Making one: the third kind, with no scope line to write. */
+  /* Making one: New folder, then Personal, with no scope line to write. */
   await page.click("#newBrain"); await page.waitForTimeout(100);
   await page.click('#bType [data-t="personal"]');
-  const sheet = await page.evaluate(() => ({ scope: document.getElementById("bScopeF").hidden, name: document.getElementById("bName").value,
-    hint: document.getElementById("bKindHint").textContent }));
-  check("a personal brain needs no scope line, and says what it is", sheet.scope && sheet.name === "Me" && /they never read it/.test(sheet.hint), JSON.stringify(sheet));
-  await page.fill("#bName", "Me too"); await page.click("#bMake"); await page.waitForTimeout(250);
-  const made = await page.evaluate(() => window.__calls.filter(x => x.s.endsWith("/api/brain")).pop()?.body);
-  check("and it is made as one", made?.type === "personal" && made?.name === "Me too" && made?.scope === "", JSON.stringify(made));
+  const sheet = await page.evaluate(() => ({ scope: document.getElementById("bScopeF").hidden, person: document.getElementById("bPersonF").hidden,
+    name: document.getElementById("bName").value, note: document.getElementById("bMineF").textContent, go: document.getElementById("bMake").textContent }));
+  check("a personal folder needs no scope line and no person switch, and says only its chat reads it",
+    sheet.scope && sheet.person && sheet.name === "Me" && /Only its own chat reads it/.test(sheet.note) && sheet.go === "Create personal folder", JSON.stringify(sheet));
+  await page.fill("#bName", "Me too"); await page.fill("#bMem", "I plan my week on Sundays."); await page.click("#bMake"); await page.waitForTimeout(300);
+  const made = await page.evaluate(() => ({ brain: window.__calls.filter(x => x.s.endsWith("/api/brain")).pop()?.body,
+    mem: window.__calls.filter(x => x.s.includes("/api/personal/remember")).pop()?.body }));
+  check("and it is made as one", made.brain?.type === "personal" && made.brain?.name === "Me too" && made.brain?.scope === "", JSON.stringify(made.brain));
+  check("what you paste is filed into it at once", made.mem?.brain === "me-2" && made.mem?.text === "I plan my week on Sundays.", JSON.stringify(made.mem));
+
+  /* A folder with the person switch on is made as one person's view. */
+  await page.click("#newBrain"); await page.waitForTimeout(100);
+  await page.fill("#bName", "Ray Dalio"); await page.fill("#bScope", "Ray Dalio's views on debt cycles and the changing world order");
+  await page.click("#bPersonF"); await page.waitForTimeout(40);
+  check("the switch turns on, and its row shows it", await page.evaluate(() => document.getElementById("bPerson").checked && document.getElementById("bPersonF").classList.contains("on")));
+  await page.click("#bMake"); await page.waitForTimeout(150);
+  if (await page.$("#bMake")) { await page.click("#bMake"); await page.waitForTimeout(200); }
+  const person = await page.evaluate(() => window.__calls.filter(x => x.s.endsWith("/api/brain")).pop()?.body);
+  check("the switch on makes a folder of one person's view", person?.type === "person" && person?.name === "Ray Dalio", JSON.stringify(person));
   check("nothing threw around the personal brain", !bad.length, bad.join(" | "));
   await page.close();
 }
@@ -1734,7 +1805,7 @@ for (const space of ["octopus", "squidgy"]) {
   const face = await page.evaluate(() => ({ val: document.getElementById("scopeVal").textContent,
     open: !!document.querySelector(".pick-menu"), done: document.querySelector(".pick-menu .pk-done")?.textContent }));
   check("two ticked brains show on the picker, and the menu stays open", /^(Wealth|Charles Gave) \+1$/.test(face.val) && face.open, JSON.stringify(face));
-  check("its button says how many will be fed", face.done === "Feed 2 brains", face.done);
+  check("its button says how many will be fed", face.done === "Feed 2 folders", face.done);
   await page.click(".pick-menu .pk-done");
   check("Done closes the menu", !(await page.$(".pick-menu")));
   await page.fill("#srcInput", "Gold note");
@@ -1747,7 +1818,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("one idea filed in two brains is two concepts", !/filed into 1 concept\b/.test(note));
   await page.click('#mode button[data-m="ask"]');
   const askFace = await page.evaluate(() => document.getElementById("scopeVal").textContent);
-  check("asking reads one brain or all of them", askFace === "All brains", askFace);
+  check("asking after the drop keeps the two folders ticked", /^(Wealth|Charles Gave) \+1$/.test(askFace), askFace);
   check("nothing threw ticking brains", !bad.length, bad.join(" | "));
   await page.close();
 }

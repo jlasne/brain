@@ -67,8 +67,8 @@ export const DOC_BODY = `
     It reads Octopus only.</p>
 
   <h3 style="margin-top:22px">Read and feed one project</h3>
-  <p class="muted" style="margin-top:8px">Enter the project with its passphrase, click <b>Setup</b> in the
-    sidebar, then <b>Make the address</b>. The address made in Octopus serves Octopus; the one made in
+  <p class="muted" style="margin-top:8px">Enter the project with its passphrase, click <b>Settings</b> in the
+    side panel, then <b>Make the address</b>. The address made in Octopus serves Octopus; the one made in
     Squidgy serves Squidgy. Add both to your client to reach both. A client holding one can feed every
     brain of that project, so keep it private.</p>
 
