@@ -1108,6 +1108,30 @@ const brandRow = async (ctx: any, space: string) =>
 const brandView = (b: any) => b && (b.logo || b.accent || b.bg)
   ? { logo: b.logo ?? null, accent: b.accent ?? null, bg: b.bg ?? null } : null;
 
+/* ---------------- the side panel's mode ---------------- */
+
+const modeRow = async (ctx: any, space: string) =>
+  await ctx.db.query("modes").withIndex("by_space", (q: any) => q.eq("space", space)).unique();
+
+/** Show every folder, or Chats and Projects only. Settings and admin:setMode both write here. */
+export async function writeMode(ctx: any, space: string, full: boolean) {
+  const row = await modeRow(ctx, space), at = Date.now();
+  if (row) await ctx.db.patch(row._id, { full, updated: at });
+  else await ctx.db.insert("modes", { space, full, updated: at });
+  return { full };
+}
+
+/** Whether a workspace shows every folder. With no row it is limited. */
+export const modeOf = internalQuery({
+  args: { space: v.string() },
+  handler: async (ctx, a) => !!(await modeRow(ctx, a.space))?.full,
+});
+
+export const setMode = internalMutation({
+  args: { space: v.string(), full: v.boolean() },
+  handler: async (ctx, a) => await writeMode(ctx, a.space, a.full),
+});
+
 /** A workspace's logo and colours, or null for the look it wears by default. */
 export const brandOf = internalQuery({
   args: { space: v.string() },

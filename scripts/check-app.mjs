@@ -76,6 +76,8 @@ const STATE = {
   concepts: [], sources: [], model: "test/model", chunk: 18000, mentions: 1,
   account: null, kind: "owner", owner: true, space: "octopus", spaceName: "Octopus",
   hasKey: false, keyHint: "",
+  /* Most checks below look at the folder list, so they run in full mode. */
+  full: true,
 };
 
 let failures = 0;
@@ -1596,6 +1598,57 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("a browser with no voice input points to the free dictation the computer carries", /Press Fn twice to dictate/.test(h), h);
   await page.fill("#input", "typed"); await page.waitForTimeout(30);
   check("and the hint goes once you type", await page.evaluate(() => document.getElementById("tHint").textContent === ""));
+  await page.close();
+}
+
+/* ---- limited, the default: Chats and Projects, and a personal folder leads the chats ---- */
+{
+  const lim = { ...STATE, full: undefined, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "What I say", owner: null },
+    { slug: "health", name: "Health", type: "subject", scope: "h", owner: null }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test"); window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/mode")) return Response.json({ full: body.full });
+      return Response.json({ chats: [], conflicts: [], others: 0, health: [] });
+    };
+  }, lim);
+  await page.waitForTimeout(200);
+  const seen = await page.evaluate(() => ({
+    panels: [...document.querySelectorAll("aside .panel")].filter(p => !p.hidden).map(p => p.id).join(","),
+    self: [...document.querySelectorAll("#selfRows .brain-row .nm")].map(x => x.textContent).join(","),
+    acts: [...document.querySelectorAll("aside .side-acts button")].map(b => b.textContent.trim()).join(",") }));
+  check("a workspace starts limited: Chats and Projects, no folder list", seen.panels === "chatsPanel,projectsPanel", seen.panels);
+  check("with Drop, One-pager and Settings still on top", seen.acts === "Drop,One-pager,Settings", seen.acts);
+  check("and its personal folder leads the chats", seen.self === "Me", seen.self);
+  await page.click("#selfRows .brain-row"); await page.waitForTimeout(80);
+  check("which opens its chat", await page.evaluate(() => /Tell it anything/.test(document.getElementById("input").placeholder)));
+  await page.click("#selfRows .brain-row"); await page.waitForTimeout(80);
+  await page.click("#keyBtn"); await page.waitForTimeout(150);
+  const set = await page.evaluate(() => ({ on: document.querySelector("#modeSeg button.on")?.textContent, shown: !document.getElementById("modeBlock").hidden }));
+  check("Settings shows the side panel limited, with Full to unlock", set.shown && set.on === "Limited", JSON.stringify(set));
+  await page.click('#modeSeg button[data-full="1"]'); await page.waitForTimeout(150);
+  const after = await page.evaluate(() => ({ sent: window.__calls.filter(c => c.s.includes("/api/mode")).pop()?.body,
+    on: document.querySelector("#modeSeg button.on")?.textContent, folders: !document.getElementById("brainsPanel").hidden,
+    self: document.querySelectorAll("#selfRows .brain-row").length, mine: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent).join(",") }));
+  check("Full is saved for the workspace and lists every folder", after.sent?.full === true && after.on === "Full" && after.folders
+    && after.self === 0 && after.mine === "Me,Content,Health", JSON.stringify(after));
+  await page.click('#modeSeg button[data-full="0"]'); await page.waitForTimeout(150);
+  check("and Limited takes it back", await page.evaluate(() => document.getElementById("brainsPanel").hidden
+    && window.__calls.filter(c => c.s.includes("/api/mode")).pop()?.body.full === false));
+  check("nothing threw in limited mode", !bad.length, bad.join(" | "));
+  await page.close();
+}
+{
+  /* The demo cannot reach the switch: its mode is set from the command line. */
+  const { page } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.fetch = async u => Response.json(String(u).includes("/api/state") ? state : { chats: [], conflicts: [], others: 0, health: [] });
+  }, { ...STATE, full: undefined, space: "demo", spaceName: "Demo", demo: true });
+  await page.waitForTimeout(200);
+  await page.click("#keyBtn"); await page.waitForTimeout(150);
+  check("a demo visitor gets no side panel switch", await page.evaluate(() => document.getElementById("modeBlock").hidden && document.getElementById("brainsPanel").hidden));
   await page.close();
 }
 

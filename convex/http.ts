@@ -354,8 +354,19 @@ route("/api/state", async (ctx, _req, b) => {
     brain: c.brain, slug: c.slug, n: c.n, title: c.title, summaryLine: c.summaryLine, updated: c.updated,
     ev: c.ev ?? 0, src: c.src ?? 0, links: (c.related ?? []).length })) };
   const brand = await ctx.runQuery(internal.store.brandOf, { space: who.space });
+  const full = await ctx.runQuery(internal.store.modeOf, { space: who.space });
   return { ...s, model: MODEL, chunk: CHUNK,
-           space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand };
+           space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand, full };
+});
+
+/**
+ * The side panel: limited shows Chats and Projects, full adds every folder.
+ * A workspace starts limited, and whoever opens it switches it in Settings.
+ */
+route("/api/mode", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  if (typeof b.full !== "boolean") return { error: "say full or limited" };
+  return await ctx.runMutation(internal.store.setMode, { space: who.space, full: b.full });
 });
 
 /**

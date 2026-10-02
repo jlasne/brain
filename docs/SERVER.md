@@ -49,6 +49,14 @@ and opens from the landing by its name. It has no connector, mail or Share
 brain of its own, and 20 transcript fetches a day. The owner's Share brain lists
 it, so a brain can be given to it.
 
+Every workspace starts limited: its side panel shows Chats and Projects. Full
+adds the folder list, and whoever opens the workspace switches it in Settings.
+The demo's visitors cannot reach that switch, so it is set here:
+
+```bash
+npx convex run admin:setMode '{"space":"demo","full":true}' --prod
+```
+
 Link what is already stored. A drop links the concepts it writes, and these
 fill in the rest, in the background, both spaces:
 

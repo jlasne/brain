@@ -550,6 +550,17 @@ function seed() {
   check("reset takes the workspace back to the default", (await run(store.brandOf, ctx, { space: "acme" })) === null && T.brands.length === 0);
 }
 
+/* ---- a workspace's side panel: limited until switched ---- */
+{
+  const { T, ctx } = seed();
+  check("a workspace starts limited", (await run(store.modeOf, ctx, { space: "acme" })) === false);
+  await run(store.setMode, ctx, { space: "acme", full: true });
+  check("full is kept, for that workspace alone", (await run(store.modeOf, ctx, { space: "acme" })) === true
+    && (await run(store.modeOf, ctx, { space: "octopus" })) === false);
+  await run(store.setMode, ctx, { space: "acme", full: false });
+  check("and limited again, on the same row", (await run(store.modeOf, ctx, { space: "acme" })) === false && T.modes.length === 1);
+}
+
 /* ---- a shared brain: one brain, seen from two workspaces ---- */
 {
   const { T, ctx } = seed();

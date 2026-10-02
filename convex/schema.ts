@@ -184,6 +184,16 @@ export default defineSchema({
     updated: v.number(),
   }).index("by_space", ["space"]),
 
+  /**
+   * A workspace's side panel. Limited shows Chats and Projects, full adds
+   * every folder. A workspace with no row is limited.
+   */
+  modes: defineTable({
+    space: v.string(),
+    full: v.boolean(),
+    updated: v.number(),
+  }).index("by_space", ["space"]),
+
   gaps: defineTable({
     space: v.string(),
     q: v.string(),

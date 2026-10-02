@@ -14,7 +14,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { today, sha256, randomHex, gateKey, readSpace, slugOfName, SPACE_RE, SPACES, ask, parseJson } from "./lib";
 import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle } from "./words";
-import { syncCard } from "./store";
+import { syncCard, writeMode } from "./store";
 import { loadSpace } from "./space";
 
 /**
@@ -119,6 +119,21 @@ export const setPass = internalMutation({
     if (row) { await ctx.db.patch(row._id, doc); return { space, replaced: true }; }
     await ctx.db.insert("config", doc);
     return { space, replaced: false };
+  },
+});
+
+/**
+ * A workspace's side panel from the command line, for the demo above all,
+ * whose visitors cannot reach the switch in Settings:
+ *
+ *     npx convex run admin:setMode '{"space":"demo","full":true}' --prod
+ */
+export const setMode = internalMutation({
+  args: { space: v.string(), full: v.boolean() },
+  handler: async (ctx, a) => {
+    const space = a.space.trim().toLowerCase();
+    if (!SPACE_RE.test(space)) throw new Error("that is not a workspace name");
+    return await writeMode(ctx, space, a.full);
   },
 });
 

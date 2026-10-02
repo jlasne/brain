@@ -1337,7 +1337,7 @@
           <button class="fold-t" id="chatsFold" aria-expanded="true" aria-controls="chatsBox"><span class="p-ic p-chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg></span>Chats <b id="ccount"></b><span class="chev"></span></button>
           <button class="side-plus" id="newChat" type="button" title="Start a new chat" aria-label="New chat"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
         </div>
-        <div class="panel-b" id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="chats"></div></div>
+        <div class="panel-b" id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="selfRows"></div><div id="chats"></div></div>
       </section>
       <section class="panel" id="brainsPanel">
         <div class="panel-h" id="brainsH">
@@ -1450,6 +1450,9 @@ const S = {
   mode: "ask", scope: "all", into: [], busy: false, pendingCard: null, chunk: 18000,
   /* The folders ticked in the side panel to chat in. None asks them all. */
   picks: [],
+  /* Full lists every folder in the side panel; limited, the default, shows
+     Chats and Projects only. The workspace's choice, from Settings. */
+  full: false,
   /* The last few turns of the current thread. It travels with each question so
      a follow-up means something, and it is never written down: closing the tab
      ends it. */
@@ -1716,6 +1719,9 @@ async function refresh(){
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
   S.demo = !!d.demo; S.byok = !!d.byok;
+  S.full = d.full === true;
+  /* Limited has no folder list to tick, so a question reads all of them or the one picked below. */
+  if (!S.full && S.picks.length > 1) setPicks([]);
   applyLook(d.brand || null);
   paintWorkspace();
   render();
@@ -2214,6 +2220,12 @@ async function settleFrom(id, brain){
  */
 function renderSide(){
   paintFolds();
+  /* Limited: Chats and Projects only. A personal folder is a chat of its own,
+     so it leads the chats instead. */
+  $("brainsPanel").hidden = !S.full;
+  const selves = $("selfRows"); selves.innerHTML = "";
+  /* Read straight from the list: the first paint runs before ordered() is defined. */
+  if (!S.full) for (const b of S.brains.filter(x => x.type === "personal")) selves.append(brainRow(b));
   const box = $("brains"); box.innerHTML = "";
   $("bcount").textContent = S.brains.length || "";
   if (!S.brains.length){
@@ -2232,7 +2244,7 @@ function renderSide(){
   }
   /* On a phone, one button closes the drawer on the ticked folders. */
   const go = $("sideGo");
-  go.hidden = !S.picks.length;
+  go.hidden = !S.full || !S.picks.length;
   go.textContent = S.picks.length ? `Chat in ${S.picks.length === 1 ? picksName() : S.picks.length + " folders"}` : "";
 }
 
@@ -3197,6 +3209,14 @@ async function openSetupSheet(){
           <span class="lbl">Map</span><span class="val">open</span></button>
       </div>
 
+      <div class="f" id="modeBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${S.demo ? "hidden" : ""}>
+        <label>Side panel</label>
+        <div class="hint" style="margin:0 0 10px">Limited shows your chats and projects. Full adds every folder, to open them and to tick the ones a question reads.</div>
+        <div class="seg" id="modeSeg" role="radiogroup" aria-label="Side panel">
+          <button type="button" role="radio" data-full="0">Limited</button><button type="button" role="radio" data-full="1">Full</button></div>
+        <div class="hint" id="modeMsg" role="status"></div>
+      </div>
+
       <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
         <label>Open conflicts <b id="cfCount" class="cf-count"></b></label>
         <div class="hint" style="margin:0 0 8px">Contradictions a drop left on "keep both". Rule on each one here.</div>
@@ -3392,6 +3412,27 @@ async function openSetupSheet(){
   veil.querySelector("#setModel").hidden = S.demo;
   veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet(); };
   veil.querySelector("#setMap").onclick = () => { shut(); openMap(); };
+  /* Limited or full: saved for the workspace, so every device opening it follows. */
+  const modeSeg = veil.querySelector("#modeSeg"), modeMsg = veil.querySelector("#modeMsg");
+  const paintMode = () => [...modeSeg.children].forEach(x => {
+    const on = (x.dataset.full === "1") === S.full;
+    x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on));
+  });
+  paintMode();
+  modeSeg.onclick = async e => {
+    const x = e.target.closest("button[data-full]");
+    if (!x || (x.dataset.full === "1") === S.full) return;
+    const full = x.dataset.full === "1";
+    modeMsg.textContent = "Saving";
+    try {
+      const r = await api("/api/mode", { full });
+      if (r.error) throw new Error(r.error);
+      S.full = !!r.full;
+      if (!S.full && S.picks.length > 1) setPicks([]);
+      paintMode(); render();
+      modeMsg.textContent = S.full ? "Full: every folder is in the side panel." : "Limited: the side panel shows chats and projects.";
+    } catch (err) { modeMsg.textContent = err.message; }
+  };
   const exp = veil.querySelector("#setExport");
   exp.onclick = async () => {
     const v = exp.querySelector(".val");
