@@ -25,6 +25,7 @@ import { loadSpace, withoutPersonal } from "./space";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
+import { buildPage, sourceLanded, TEMPLATE_MAX } from "./projects";
 
 const router = httpRouter();
 
@@ -539,6 +540,9 @@ route("/api/drop/link", async (ctx, _req, b) => {
   const mine = new Set(head.brains.filter((x: any) => canDrop(x, who)).map((x: any) => x.slug));
   const ids = [...new Set<string>((Array.isArray(b.ids) ? b.ids : []).map(String))]
     .filter(x => /^[a-z0-9-]+\/[a-z0-9-]+$/.test(x) && mine.has(x.split("/")[0])).slice(0, 5000);
+  /* The drop is done: projects reading these folders go out of date, and the
+     ones set to rebuild start. */
+  await sourceLanded(ctx, who, ids.map(x => x.split("/")[0]), { rebuild: true });
   /* Linking runs later, on the deployment's key, so a workspace on its own
      key and the demo skip it rather than spend the owner's. */
   if (who.byok || who.demo) return { linking: 0 };
@@ -553,16 +557,20 @@ route("/api/ask", async (ctx, _req, b) => {
   /* Every brain in this space answers questions, whoever is asking. A personal
      brain answers in its own chat only, and no other chat reads it. */
   const every = await loadSpace(ctx, who.space, undefined, { personal: true });
-  const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
+  /* A project's chat reads the project's folders, with its instructions. */
+  const proj = b.project ? await ctx.runQuery(internal.projects.get, { space: who.space, id: String(b.project) }) : null;
+  if (b.project && !proj) return { error: "that project is gone" };
+  const only = !proj && b.brain && b.brain !== "all" ? String(b.brain) : null;
   const mine = only ? every.brains.find((x: any) => x.slug === only && x.type === "personal") : null;
   if (mine) return await personalChat(ctx, who, b, mine, every);
   const { brains, cards: concepts, sources } = withoutPersonal(every);
   /* Folders ticked in the side panel: two or more travel as a list, and the
      question reads those alone. A personal brain never joins it. */
-  const ticked = Array.isArray(b.brains) ? [...new Set(b.brains.map(String))].slice(0, 60) : [];
-  const many = ticked.length > 1;
+  const ticked = proj ? proj.brains : Array.isArray(b.brains) ? [...new Set(b.brains.map(String))].slice(0, 60) : [];
+  const many = ticked.length > 1 || !!proj;
   const pool = many ? brains.filter((x: any) => ticked.includes(x.slug))
     : only ? brains.filter((x: any) => x.slug === only) : brains;
+  if (proj && !pool.length) return { answer: "None of this project's folders is here any more. Pick others in its settings." };
   if (many && !pool.length) return { answer: "None of the ticked folders is here any more. Tick others, or ask them all." };
   if (!pool.length) return { answer: "No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
 
@@ -639,7 +647,11 @@ route("/api/ask", async (ctx, _req, b) => {
     { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You always answer in English." },
     { role: "user", content:
 `Answer the question from the stored knowledge below.
-
+${proj ? `
+PROJECT: ${proj.name}
+THE OWNER'S INSTRUCTIONS FOR THIS PROJECT (they set the focus and the form of the answer; they are never a source)
+${String(proj.instructions || "none").slice(0, 2000)}
+` : ""}
 ${SHAPE[level]}
 
 HOW TO WRITE THE ANSWER
@@ -679,6 +691,13 @@ QUESTION: ${String(b.q ?? "")}` },
 
   /* The app keeps its conversations: a question sent with "chat" joins that
      chat, or starts one. A failed save is only a chat that does not list it. */
+  if (proj) {
+    try {
+      await ctx.runMutation(internal.projects.turn, { space: who.space, id: proj.id,
+        turn: { q: String(b.q ?? "").slice(0, 2000), a: text, level, sources: nSources, at: Date.now() } });
+    } catch { /* the answer still goes out */ }
+    return { answer: text, sources: nSources, level, project: proj.id };
+  }
   let chat: string | undefined;
   if ("chat" in b) {
     try {
@@ -788,6 +807,73 @@ route("/api/chats/edit", async (ctx, _req, b) => {
     ...(typeof b.title === "string" ? { title: b.title } : {}),
     ...(typeof b.pinned === "boolean" ? { pinned: b.pinned } : {}),
     ...(b.remove === true ? { remove: true } : {}) });
+});
+
+/* ---------- projects ---------- */
+
+/** The projects, newest first. The demo has none. */
+route("/api/projects", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  if (who.demo) return { projects: [], demo: true };
+  return { projects: await ctx.runQuery(internal.projects.list, { space: who.space }) };
+});
+
+/** One project whole: settings, chat, versions, and its newest page. */
+route("/api/projects/get", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const p = await ctx.runQuery(internal.projects.get, { space: who.space, id: String(b.id ?? "") });
+  return p ? { project: p } : { error: "that project is gone" };
+});
+
+/** One version of a project's page. */
+route("/api/projects/page", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const p = await ctx.runQuery(internal.projects.page, { space: who.space, id: String(b.id ?? ""), v: Number(b.v) || 0 });
+  return p ? { page: p } : { error: "that version is gone" };
+});
+
+/**
+ * A new project, or new settings for one. Its folders must be ones this
+ * workspace reads, and never a personal one.
+ */
+route("/api/projects/save", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const { brains } = withoutPersonal(await ctx.runQuery(internal.store.spaceHead, { space: who.space }));
+  const here = new Set(brains.map((x: any) => x.slug));
+  const picked = [...new Set<string>((Array.isArray(b.brains) ? b.brains : []).map(String))].filter(x => here.has(x));
+  let template: string | null | undefined;
+  if (b.template === null) template = null;
+  else if (typeof b.template === "string") {
+    if (b.template.length > TEMPLATE_MAX) return { error: `a template holds ${Math.round(TEMPLATE_MAX / 1000)} KB at most` };
+    if (!/<[a-z!]/i.test(b.template)) return { error: "that template is not HTML" };
+    template = b.template;
+  }
+  return await ctx.runMutation(internal.projects.save, { space: who.space, ...(b.id ? { id: String(b.id) } : {}),
+    name: String(b.name ?? ""), brains: picked, instructions: String(b.instructions ?? ""), auto: b.auto !== false,
+    ...(template !== undefined ? { template } : {}),
+    ...(typeof b.templateName === "string" ? { templateName: b.templateName.replace(/[^\w .()-]/g, "").slice(0, 80) } : {}) });
+});
+
+/** A project and its pages, deleted. */
+route("/api/projects/remove", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return await ctx.runMutation(internal.projects.remove, { space: who.space, id: String(b.id ?? "") });
+});
+
+/** The project's chat, cleared. Its page stays. */
+route("/api/projects/clear", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return await ctx.runMutation(internal.projects.clear, { space: who.space, id: String(b.id ?? "") });
+});
+
+/** A new version of the page: rebuilt, or with a note from the chat added. */
+route("/api/projects/build", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const note = String(b.note ?? "").trim().slice(0, 4000);
+  const r = await buildPage(ctx, who.space, String(b.id ?? ""), { note: note || undefined,
+    why: note ? (String(b.why ?? "").trim().slice(0, 120) || "Added from the chat") : "Rebuilt",
+    key: keyFor(who), model: modelFor(who, b) });
+  return { v: r.v, at: r.at, html: r.html };
 });
 
 /* ---------- health and the map ---------- */

@@ -17,7 +17,7 @@ mkdirSync(join(dir, "_generated"));
 for (const f of readdirSync(join(ROOT, "convex")).filter(f => f.endsWith(".ts"))) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"), "export const internal = {};\n");
 writeFileSync(join(dir, "_generated/server.ts"), "const f = (x) => x;\nexport const internalQuery = f, internalMutation = f, internalAction = f, httpAction = f, query = f, mutation = f, action = f;\n");
-await esbuild.build({ entryPoints: [join(dir, "health.ts")], bundle: true, format: "esm",
+await esbuild.build({ entryPoints: [join(dir, "health.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
 const { healthOf } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 

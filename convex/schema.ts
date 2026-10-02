@@ -194,6 +194,41 @@ export default defineSchema({
     updated: v.number(),
   }).index("by_space", ["space"]),
 
+  /**
+   * A project: a chat that reads the folders it names, and one page it keeps
+   * up to date, in the owner's HTML template when it has one. A personal
+   * folder never joins one, and the demo has none.
+   */
+  projects: defineTable({
+    space: v.string(),
+    name: v.string(),
+    brains: v.array(v.string()),
+    /* In the owner's words: what the page keeps up to date, and how the chat answers. */
+    instructions: v.string(),
+    /* An HTML file, 60 KB at most, whose layout every build keeps. */
+    template: v.optional(v.string()),
+    templateName: v.optional(v.string()),
+    /* Rebuild the page when a source lands in one of its folders. */
+    auto: v.boolean(),
+    /* A source landed since the last build. */
+    stale: v.optional(v.boolean()),
+    /* When a background rebuild started, so the next drop does not start another. */
+    building: v.optional(v.number()),
+    /* Its chat: the last 40 questions and answers. */
+    turns: v.array(v.any()),
+    created: v.number(),
+    updated: v.number(),
+  }).index("by_space", ["space"]),
+
+  /* Each build of a project's page. The newest 10 are kept. */
+  pages: defineTable({
+    project: v.id("projects"),
+    v: v.number(),
+    html: v.string(),
+    why: v.string(),
+    at: v.number(),
+  }).index("by_project_v", ["project", "v"]),
+
   gaps: defineTable({
     space: v.string(),
     q: v.string(),

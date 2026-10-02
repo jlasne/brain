@@ -21,19 +21,22 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-mcp-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["mcp.ts", "drop.ts", "lib.ts", "words.ts", "space.ts", "onepager.ts", "route.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["mcp.ts", "drop.ts", "lib.ts", "words.ts", "space.ts", "onepager.ts", "route.ts", "projects.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => " +
   "new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
-await esbuild.build({ entryPoints: [join(dir, "mcp.ts")], bundle: true, format: "esm",
+/* drop.ts marks projects out of date, and projects.ts defines Convex functions. */
+writeFileSync(join(dir, "_generated/server.ts"),
+  "export const internalQuery = (d: any) => d;\nexport const internalMutation = (d: any) => d;\nexport const internalAction = (d: any) => d;\n");
+await esbuild.build({ entryPoints: [join(dir, "mcp.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
 const { handleRpc, versionOk } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 /* Every candidate becomes a concept on the drop that argues for it. */
 const MENTIONS = 1;
-await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm",
+await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle-drop.mjs"), logLevel: "silent" });
 const { dropSettle, fetchPage, planContext, dropMerge, dropPlan, youtubeChannel, plainClaim, PLAN_RULES: RULES_P, REWRITE_RULES } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
-await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm",
+await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle-words.mjs"), logLevel: "silent" });
 const { findByTitle, cardOf } = await import(pathToFileURL(join(dir, "bundle-words.mjs")).href);
 

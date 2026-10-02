@@ -19,7 +19,7 @@ const dir = mkdtempSync(join(tmpdir(), "octo-pager-"));
 mkdirSync(join(dir, "_generated"));
 for (const f of ["onepager.ts", "lib.ts", "words.ts", "route.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"), "export const internal = {};\n");
-await esbuild.build({ entryPoints: [join(dir, "onepager.ts")], bundle: true, format: "esm",
+await esbuild.build({ entryPoints: [join(dir, "onepager.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
 const { assemble, fromQuestion, fromModel, asText, asHtml, looksLikeMail, bulletText, addedLine, parseDoc, translatePage, langOf } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 

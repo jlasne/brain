@@ -469,6 +469,87 @@
   .fv-acts2{ display:flex; align-items:center; gap:12px; margin-top:22px; }
   .fv-upd{ margin-left:auto; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
   main[data-view="folder"] .composer-wrap{ border-top:1px solid var(--line); }
+
+  /* A project: its chat on the left, its page on the right. The bar below
+     the chat asks the project's folders, with its instructions. */
+  .project-view{ flex:1; min-height:0; display:flex; flex-direction:column; }
+  .project-view[hidden]{ display:none; }
+  .pv-h{ display:flex; align-items:flex-start; gap:12px; padding:16px 24px 14px; border-bottom:1px solid var(--line); }
+  .pv-t{ flex:1; min-width:0; }
+  .pv-t h2{ font:700 22px/1.15 var(--sans); letter-spacing:-.02em; color:var(--ink); text-wrap:balance; }
+  .pv-meta{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:8px; }
+  .pv-chip{ display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; border:1px solid var(--line-2);
+    background:var(--surface); font:500 12.5px/1.2 var(--sans); color:var(--ink-2); }
+  .pv-chip.acc{ border-color:var(--accent-line); background:var(--accent-soft); color:var(--accent); }
+  .pv-chip.warn{ border-color:var(--warn); color:var(--warn); }
+  .pv-chip svg{ width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.7; }
+  .pv-acts{ display:flex; gap:8px; flex:none; }
+  .project-view .pv-tabs{ display:none; }
+  .pv-cols{ flex:1; min-height:0; display:flex; }
+  .pv-chat{ width:min(520px, 44%); flex:none; display:flex; flex-direction:column; min-height:0; border-right:1px solid var(--line); }
+  .pv-chat .thread{ padding-top:20px; }
+  .pv-chat .col{ padding:0 22px; }
+  .pv-chat .composer{ padding:12px 16px 0; max-width:none; }
+  .pv-chat .composer-wrap{ padding-bottom:12px; }
+  .pv-chat .foot-note{ display:none; }
+  .pv-chat .zero{ max-width:none; padding:0 22px; }
+  .pv-hint{ padding:6px 0 0; font:400 14.5px/1.55 var(--sans); color:var(--ink-3); }
+  .pv-hint b{ display:block; margin-bottom:4px; font:600 15px/1.3 var(--sans); color:var(--ink); }
+  .pv-page{ flex:1; min-width:0; display:flex; flex-direction:column; min-height:0; padding:14px 18px; }
+  .pv-frame{ position:relative; flex:1; min-height:0; display:flex; flex-direction:column; border:1px solid var(--line);
+    border-radius:12px; background:var(--surface); overflow:hidden; box-shadow:var(--shadow); }
+  .pv-bar{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:8px 12px; border-bottom:1px solid var(--line);
+    font:400 12px/1.3 var(--mono); color:var(--ink-3); font-variant-numeric:tabular-nums; }
+  .pv-bar .grow{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pv-bar select{ min-height:30px; padding:0 6px; border:1px solid var(--line-2); border-radius:6px; background:var(--surface);
+    font:500 12px/1 var(--sans); color:var(--ink-2); }
+  .pv-frame iframe{ flex:1; width:100%; min-height:0; border:0; background:#fff; }
+  .pv-empty{ flex:1; display:grid; place-content:center; justify-items:center; gap:14px; text-align:center; padding:24px; }
+  .pv-empty p{ max-width:42ch; font:400 14.5px/1.55 var(--sans); color:var(--ink-3); }
+  .pv-busy{ position:absolute; inset:46px 0 0; display:grid; place-content:center; justify-items:center; gap:10px;
+    background:color-mix(in srgb, var(--surface) 84%, transparent); font:500 14px/1.4 var(--sans); color:var(--ink-2); text-align:center; padding:20px; }
+  .pv-busy small{ display:block; font:400 12.5px/1.45 var(--sans); color:var(--ink-3); max-width:36ch; }
+  .proj-row .cm .nm{ display:flex; align-items:center; gap:6px; }
+  .proj-row .dot{ flex:none; width:7px; height:7px; border-radius:50%; background:var(--warn); }
+  /* The page, full size, over everything. */
+  .page-full{ position:fixed; inset:0; z-index:60; display:flex; flex-direction:column; background:var(--bg); }
+  .page-full .pf-bar{ display:flex; align-items:center; gap:8px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--surface-2); }
+  .page-full .pf-bar b{ flex:1; min-width:0; font:600 14px/1.3 var(--sans); color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .page-full iframe{ flex:1; width:100%; border:0; background:#fff; }
+  /* The folders a project reads, ticked in its sheet. */
+  .pj-pick{ display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:4px 10px; max-height:190px; overflow-y:auto;
+    padding:8px 10px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface); }
+  .pj-pick .g{ grid-column:1 / -1; margin-top:6px; font:500 10.5px/1 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ink-4); }
+  .pj-pick .g:first-child{ margin-top:0; }
+  .sheet .pj-pick label{ display:flex; align-items:center; gap:8px; min-height:32px; margin:0; font:400 14px/1.3 var(--sans); color:var(--ink-2);
+    cursor:pointer; min-width:0; text-transform:none; letter-spacing:0; }
+  .sheet .pj-pick label span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sheet .pj-pick input{ width:16px; height:16px; min-height:0; flex:none; margin:0; padding:0; accent-color:var(--accent-fill); }
+  .sheet .f:has(> #pjMsg:empty){ display:none; }
+  .pj-tpl{ display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px dashed var(--line-2); border-radius:10px; background:var(--surface); }
+  .pj-tpl .ft{ flex:none; padding:4px 7px; border-radius:6px; background:var(--accent-soft); font:600 11px/1 var(--mono); color:var(--accent); }
+  .pj-tpl .tn{ flex:1; min-width:0; font:500 14px/1.35 var(--sans); color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pj-tpl .tn small{ display:block; font:400 12px/1.4 var(--sans); color:var(--ink-4); }
+  @media (max-width:860px){
+    .pv-h{ padding:12px 16px; }
+    .pv-t h2{ font-size:20px; }
+    .pv-acts .fv-x{ position:static; }
+    .pv-meta{ flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
+    .pv-meta::-webkit-scrollbar{ display:none; }
+    .pv-chip{ flex:none; }
+    .pv-bar .grow{ display:none; }
+    .project-view .pv-tabs{ display:flex; margin:10px 16px 0; }
+    .project-view .pv-tabs button{ flex:1; }
+    .pv-cols{ flex-direction:column; }
+    .pv-chat{ width:auto; flex:1; border-right:0; }
+    .pv-chat .col{ padding:0 16px; }
+    .pv-page{ display:none; padding:10px 12px 12px; }
+    .pv-cols.page .pv-chat{ display:none; }
+    .pv-cols.page .pv-page{ display:flex; flex:1; }
+    .pv-bar select, .pv-bar .mini{ min-height:40px; }
+    .sheet .pj-pick label{ min-height:40px; }
+  }
+
   /* On a phone the folder keeps the screen: the levels wait for the chat. */
   @media (max-width:520px){ main[data-view="folder"] #levelWrap{ display:none; } }
   @media (max-width:860px){
@@ -1430,9 +1511,10 @@
       </section>
       <section class="panel" id="projectsPanel">
         <div class="panel-h">
-          <button class="fold-t" id="projectsFold" aria-expanded="false" aria-controls="projectsBox"><span class="p-ic p-proj"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"/></svg></span>Projects <span class="soon">next</span><span class="chev"></span></button>
+          <button class="fold-t" id="projectsFold" aria-expanded="true" aria-controls="projectsBox"><span class="p-ic p-proj"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"/></svg></span>Projects <b id="pcount"></b><span class="chev"></span></button>
+          <button class="side-plus" id="newProject" type="button" title="New project" aria-label="New project"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
         </div>
-        <div class="panel-b" id="projectsBox" hidden><div class="empty-side">A project is a chat that reads the folders you pick and keeps one page up to date. It is the next part to be built.</div></div>
+        <div class="panel-b" id="projectsBox"><div id="projects"></div></div>
       </section>
     </div>
     <div class="side-foot">
@@ -1463,6 +1545,7 @@
       <div><h2>Drop</h2><p>A link, a PDF, a Word file, a video or a transcript. It is read once, filed under the right folders, and each clash waits for your call.</p></div>
       <button class="mini" id="dropClose" type="button">Back to the chat</button></div></div>
     <section class="folder-view" id="folderView" hidden></section>
+    <section class="project-view" id="projectView" hidden></section>
     <div class="thread" id="thread"></div>
     <div class="thread" id="dropThread" hidden></div>
 
@@ -1529,7 +1612,7 @@ const TOKEN_KEY = "octopus.token.v1";
    travels only with the calls that spend a model, and the server keeps no
    copy of it. */
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
-  "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle"]);
+  "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle", "/api/projects/build"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -1538,6 +1621,8 @@ const S = {
   picks: [],
   /* The folder open in the main area, or null for the chat. */
   folder: null,
+  /* The projects, the one open (its id, then the whole of it), and its last turns. */
+  projects: [], project: null, proj: null, projThread: [],
   /* Full lists every folder in the side panel; limited, the default, shows
      Chats and Projects only. The workspace's choice, from Settings. */
   full: false,
@@ -1814,8 +1899,8 @@ async function refresh(){
   applyLook(d.brand || null);
   paintWorkspace();
   render();
-  /* The rings and the chat list follow, so the brains never wait on them. */
-  loadHealth(); loadChats();
+  /* The rings, the chats and the projects follow, so the brains never wait on them. */
+  loadHealth(); loadChats(); loadProjects();
 }
 
 /** Each brain's health, then the rings repaint, and an open map with them. */
@@ -1846,15 +1931,22 @@ function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); 
  */
 function renderView(){
   if (S.folder && !S.brains.some(b => b.slug === S.folder)) S.folder = null;
-  const drop = S.mode === "drop", folder = !drop && !!S.folder;
+  const drop = S.mode === "drop", proj = !drop && !!S.project, folder = !drop && !proj && !!S.folder;
   $("dropHead").hidden = !drop; $("dropThread").hidden = !drop;
-  $("folderView").hidden = !folder; $("thread").hidden = drop || folder;
+  $("folderView").hidden = !folder; $("projectView").hidden = !proj;
+  $("thread").hidden = drop || folder || proj;
   $("dropBtn").classList.toggle("on", drop);
-  document.querySelector("main").dataset.view = drop ? "drop" : folder ? "folder" : "chat";
+  const main = document.querySelector("main");
+  main.dataset.view = drop ? "drop" : proj ? "project" : folder ? "folder" : "chat";
+  /* A project's bar sits under its chat, beside its page. */
+  const bar = document.querySelector(".composer-wrap"), slot = proj ? $("projectView").querySelector(".pv-chat") : null;
+  if (slot && bar.parentNode !== slot) slot.append(bar);
+  if (!slot && bar.parentNode !== main) main.append(bar);
 }
 /** Drop, on the folders ticked. A personal folder takes no drop. */
 function openDrop(){
   if (isPersonal(S.scope)){ crossing("all"); setPicks([]); }
+  S.folder = null;
   S.mode = "drop";
   render(); $("srcInput").focus();
 }
@@ -2045,8 +2137,8 @@ function brainRow(b){
       crossing("all");
       setPicks(on ? S.picks.filter(x => x !== b.slug) : [...S.picks, b.slug]);
     }
-    /* A tick is for chatting, so an open folder gives way to the chat. */
-    S.folder = null;
+    /* A tick is for chatting, so an open folder or project gives way to the chat. */
+    S.folder = null; S.project = null;
     render();
   };
   /* One control on the row, so a click anywhere else ticks it. Its name and
@@ -2087,7 +2179,7 @@ function folds(){
 /* Projects come next, so their panel starts shut until it is opened once. */
 function paintFolds(){
   for (const k of ["chats","brains","projects"]){
-    const shut = k === "projects" ? folds()[k] !== false : !!folds()[k];
+    const shut = !!folds()[k];
     $(k + "Fold").setAttribute("aria-expanded", String(!shut));
     $(k + "Box").hidden = shut;
   }
@@ -2198,7 +2290,7 @@ function renderChats(){
 
 /** A clean screen, and the next question starts a new chat. */
 function newChat(){
-  S.thread = []; S.chatId = null; S.mode = "ask"; S.folder = null;
+  S.thread = []; S.chatId = null; S.mode = "ask"; S.folder = null; S.project = null;
   $("thread").innerHTML = "";
   render(); renderChats();
 }
@@ -2214,7 +2306,7 @@ async function openChat(id){
   const asked = String(c.brain || "").split(",").filter(x => S.brains.some(b => b.slug === x));
   if (asked.length === 1 && isPersonal(asked[0])){ S.picks = []; S.scope = asked[0]; S.into = []; }
   else setPicks(asked);
-  S.mode = "ask"; S.folder = null;
+  S.mode = "ask"; S.folder = null; S.project = null;
   $("thread").innerHTML = "";
   for (const t of c.turns || []){
     says(t.q);
@@ -2529,12 +2621,15 @@ function renderComposer(){
   const mine = S.mode === "ask" && isPersonal(S.scope);
   $("memBtn").hidden = !mine || S.demo;
   /* It appears once there is something to forget. */
-  $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length || !!S.folder;
+  $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length || !!S.folder || !!S.project;
+  /* A project reads its own folders, so its bar has no picker. */
+  $("scopeBtn").hidden = S.mode !== "drop" && !!S.project;
   const drop = S.mode==="drop";
   $("srcLine").hidden = !drop;
   $("input").placeholder = drop
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
     : mine ? "Tell it anything: a plan, a decision, an idea. Or ask what you said."
+    : S.project ? `Ask ${S.proj?.name || "this project"}. An answer goes on its page with one click.`
     : S.picks.length > 1 ? `Ask ${picksName()}.`
     : S.scope==="all" ? "Ask anything your folders have read."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this folder") + ".";
@@ -2654,7 +2749,8 @@ function push(kind, build, where = $("thread")){
   if (kind !== "me"){
     const who = el("div","who");
     who.append(el("span",null,S.spaceName));
-    const b = S.brains.find(x=>x.slug===S.scope);
+    /* A project's answers carry the project's name; others, the folder asked. */
+    const b = where.id === "pvThread" ? S.proj : S.brains.find(x=>x.slug===S.scope);
     if (b) who.append(el("span","sc","· "+b.name));
     col.append(who);
   }
@@ -2848,6 +2944,7 @@ $("burger").onclick = () => $("side").classList.toggle("open");
 $("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
+$("newProject").onclick = () => openProjectSheet(null);
 
 $("freshBtn").onclick = () => { newChat(); $("input").focus(); };
 $("newChat").onclick = () => { closeSide(); newChat(); $("input").focus(); };
@@ -4173,6 +4270,365 @@ function openBrainView(b, openId){
   veil.focus();
 }
 
+/* ============ projects ============ */
+/**
+ * A project reads the folders it names and keeps one page up to date. Its
+ * chat sits on the left, its page on the right. The page is shown in a frame
+ * that runs no script, reaches no server and opens no window, whatever the
+ * page holds.
+ */
+const IC_FILE = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>`;
+const PAGE_CSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src data:; base-uri 'none'; form-action 'none'">`;
+/** A page made safe to show: the policy goes first in its head, an auto-redirect goes. */
+function framed(html){
+  const t = String(html || "").replace(/<meta[^>]+http-equiv\s*=\s*["']?refresh[^>]*>/gi, "");
+  return /<head[^>]*>/i.test(t) ? t.replace(/<head[^>]*>/i, m => m + PAGE_CSP) : PAGE_CSP + t;
+}
+function pageFrame(html, title){
+  const f = document.createElement("iframe");
+  f.setAttribute("sandbox", "");
+  f.setAttribute("referrerpolicy", "no-referrer");
+  f.title = title || "The project's page";
+  f.srcdoc = framed(html);
+  return f;
+}
+const projName = id => S.projects.find(p => p.id === id)?.name || "";
+/* The project view is drawn at run time, so its parts are found inside it. */
+const pvThread = () => $("projectView").querySelector("#pvThread");
+const pvFrame = () => $("projectView").querySelector("#pvFrame");
+
+async function loadProjects(){
+  try { S.projects = (await api("/api/projects")).projects || []; } catch { return; }
+  renderProjects();
+}
+function renderProjects(){
+  const box = $("projects"); box.innerHTML = "";
+  $("pcount").textContent = S.projects.length || "";
+  $("newProject").hidden = S.demo;
+  if (S.demo){ box.append(el("div","empty-side","Projects live in your own workspace: make one from the home page.")); return; }
+  if (!S.projects.length){
+    box.append(el("div","empty-side","A project reads the folders you pick and keeps one page up to date. The + makes one."));
+    return;
+  }
+  for (const p of S.projects){
+    const row = el("div","chat-row proj-row" + (S.project === p.id ? " on" : ""));
+    row.tabIndex = 0; row.setAttribute("role","button"); row.dataset.id = p.id;
+    const main = el("span","cm"), nm = el("span","nm");
+    nm.append(el("span",null,p.name));
+    if (p.stale){ const d = el("span","dot"); d.title = "A source landed since the last build"; nm.append(d); }
+    const n = p.brains.length;
+    main.append(nm, el("span","cb",`${n} folder${n === 1 ? "" : "s"} · ${p.version ? "page v" + p.version : "no page yet"}`));
+    row.append(main);
+    row.title = p.name;
+    const open = () => openProject(p.id);
+    row.onclick = open;
+    row.onkeydown = e => { if (e.key === "Enter" && e.target === row) open(); };
+    box.append(row);
+  }
+}
+
+/** A project on screen: its head, its chat and its page. */
+async function openProject(id){
+  closeSide();
+  S.mode = "ask"; S.folder = null; S.project = id; S.proj = null; S.projThread = []; S.pageV = null;
+  if (isPersonal(S.scope)){ S.scope = "all"; S.picks = []; }
+  paintProject();
+  render(); renderProjects();
+  let p;
+  try { p = (await api("/api/projects/get", { id })).project; }
+  catch (e) { if (S.project === id){ $("projectView").querySelector(".pv-t p")?.replaceWith(el("p","fv-none",e.message)); } return; }
+  if (S.project !== id) return;
+  S.proj = p; S.projThread = (p.turns || []).slice(-6).map(t => ({ q: t.q, a: String(t.a ?? "") }));
+  paintProject();
+  render();
+  bottom(pvThread());
+}
+
+function paintProject(){
+  const pv = $("projectView"), p = S.proj, id = S.project;
+  /* The bar is moved out first, so repainting the view never deletes it. */
+  const bar = document.querySelector(".composer-wrap");
+  if (pv.contains(bar)) document.querySelector("main").append(bar);
+  pv.innerHTML = "";
+  const head = el("header","pv-h"), t = el("div","pv-t");
+  t.append(el("h2",null, p?.name || projName(id) || "Project"));
+  const meta = el("div","pv-meta");
+  if (!p) meta.append(el("span","pv-chip","Opening"));
+  else {
+    for (const slug of p.brains){
+      const b = S.brains.find(x => x.slug === slug);
+      meta.append(el("span","pv-chip acc", b ? b.name : slug + " (gone)"));
+    }
+    if (p.templateName){ const c = el("span","pv-chip"); c.innerHTML = IC_FILE; c.append(p.templateName); meta.append(c); }
+    if (p.stale) meta.append(el("span","pv-chip warn","A source landed since this page"));
+  }
+  t.append(meta);
+  const acts = el("div","pv-acts");
+  const set = el("button","fv-b","Settings"); set.type = "button"; set.id = "pvSettings";
+  set.disabled = !p; set.onclick = () => openProjectSheet(S.proj);
+  const x = el("button","fv-b fv-x","×"); x.type = "button"; x.id = "pvClose"; x.title = "Back to the chat"; x.setAttribute("aria-label","Back to the chat");
+  x.onclick = () => { S.project = null; render(); renderProjects(); $("input").focus(); };
+  acts.append(set, x);
+  head.append(t, acts);
+
+  const tabs = el("div","seg pv-tabs");
+  const tc = el("button","on","Chat"), tp = el("button",null,"Page");
+  tc.type = tp.type = "button"; tc.id = "pvTabChat"; tp.id = "pvTabPage";
+  tabs.append(tc, tp);
+  const cols = el("div","pv-cols");
+  tc.onclick = () => { cols.classList.remove("page"); tc.classList.add("on"); tp.classList.remove("on"); };
+  tp.onclick = () => { cols.classList.add("page"); tp.classList.add("on"); tc.classList.remove("on"); };
+
+  const chat = el("div","pv-chat");
+  const th = el("div","thread"); th.id = "pvThread";
+  chat.append(th);
+  const page = el("div","pv-page");
+  const frame = el("div","pv-frame"); frame.id = "pvFrame";
+  page.append(frame);
+  cols.append(chat, page);
+  pv.append(head, tabs, cols);
+
+  if (!p) return;
+  if (!(p.turns || []).length){
+    const z = el("div","pv-hint");
+    const n = p.brains.length;
+    z.innerHTML = `<b>Ask ${esc(p.name)}</b>It reads its ${n} folder${n === 1 ? "" : "s"} and follows its instructions. Add an answer to the page with one click, or rebuild the page whole.`;
+    const col = el("div","col zero"); col.append(z); th.append(col);
+  }
+  for (const turn of p.turns || []){
+    says(turn.q, null, th);
+    push("ai", body => projectAnswer(body, turn, turn.q), th);
+  }
+  paintPage();
+}
+
+/** The page side: the version on show, the versions, Rebuild, and the page itself. */
+async function paintPage(){
+  const p = S.proj, frame = pvFrame();
+  if (!p || !frame) return;
+  frame.innerHTML = "";
+  const top = p.versions?.[0]?.v || 0, v = S.pageV || top;
+  if (!top){
+    const e = el("div","pv-empty");
+    e.append(el("p",null, S.building ? "" : `No page yet. It is built from ${p.brains.length} folder${p.brains.length === 1 ? "" : "s"}${p.templateName ? `, in the layout of ${p.templateName}` : ""}.`));
+    const go = el("button","go","Build the page"); go.type = "button"; go.id = "pvBuild";
+    go.onclick = () => buildProject();
+    if (!S.building) e.append(go);
+    frame.append(e);
+  } else {
+    const bar = el("div","pv-bar");
+    bar.append(el("span","grow", `${p.templateName || "page.html"} · version ${v}${v !== top ? ` of ${top}` : ""}`));
+    const sel = document.createElement("select"); sel.id = "pvVersions"; sel.setAttribute("aria-label","Versions");
+    for (const x of p.versions){
+      const o = document.createElement("option"); o.value = String(x.v);
+      o.textContent = `v${x.v} · ${x.why} · ${new Date(x.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+      if (x.v === v) o.selected = true;
+      sel.append(o);
+    }
+    sel.onchange = () => { S.pageV = Number(sel.value); paintPage(); };
+    const rb = el("button","mini","Rebuild"); rb.type = "button"; rb.id = "pvRebuild"; rb.disabled = !!S.building;
+    rb.title = "Build a new version from the folders as they stand";
+    rb.onclick = () => buildProject();
+    const full = el("button","mini","Open full page"); full.type = "button"; full.id = "pvFull";
+    bar.append(sel, rb, full);
+    frame.append(bar);
+    let html = p.page;
+    if (v !== top){
+      const slot = el("div","pv-empty", "Opening version " + v); frame.append(slot);
+      try { html = (await api("/api/projects/page", { id: p.id, v })).page?.html || ""; }
+      catch (e) { slot.textContent = e.message; return; }
+      if (S.proj !== p || (S.pageV || top) !== v) return;
+      slot.remove();
+    }
+    frame.append(pageFrame(html, `${p.name}, version ${v}`));
+    full.onclick = () => openPageFull(html, `${p.name} · version ${v}`, p.name);
+  }
+  if (S.building){
+    const b = el("div","pv-busy"); b.id = "pvBusy";
+    b.innerHTML = `<span class="spinner"></span><div>Building version ${top + 1}<small>It reads the folders and writes the page. That takes a minute or two.</small></div>`;
+    frame.append(b);
+  }
+}
+
+/** The page over everything, with Copy and Download. It still runs no script. */
+function openPageFull(html, title, name){
+  const box = el("div","page-full");
+  box.setAttribute("role","dialog"); box.setAttribute("aria-modal","true");
+  const bar = el("div","pf-bar"); bar.append(el("b",null,title));
+  const cp = el("button","mini","Copy the HTML"); cp.type = "button";
+  cp.onclick = async () => { try { await navigator.clipboard.writeText(html); cp.textContent = "Copied"; } catch { cp.textContent = "Blocked"; } setTimeout(() => { cp.textContent = "Copy the HTML"; }, 1600); };
+  const dl = el("button","mini","Download"); dl.type = "button";
+  dl.onclick = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    a.download = (String(name || "page").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "page") + ".html";
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+  const x = el("button","mini","Close"); x.type = "button";
+  const onKey = e => { if (e.key === "Escape") shut(); };
+  const shut = () => { document.removeEventListener("keydown", onKey); box.remove(); };
+  x.onclick = shut; document.addEventListener("keydown", onKey);
+  bar.append(cp, dl, x);
+  box.append(bar, pageFrame(html, title));
+  document.body.append(box);
+}
+
+/** An answer in a project's chat: Copy, and Add to the page. */
+function projectAnswer(body, r, q){
+  showAnswer(body, r, q, "all");
+  const acts = body.querySelector(".ans-acts");
+  if (!acts) return;
+  [...acts.querySelectorAll(".mini")].filter(b => /One-pager/.test(b.textContent)).forEach(b => b.remove());
+  const add = el("button","mini","Add to the page"); add.type = "button";
+  add.onclick = () => buildProject(`The owner asked: ${q}\nThe answer, from the same folders: ${String(r.answer ?? r.a ?? "")}\nAdd this to the page where it fits, under a clear heading.`,
+    `Added: ${String(q).slice(0, 60)}`);
+  acts.append(add);
+}
+
+async function doProjectAsk(q){
+  const p = S.proj, where = pvThread();
+  if (!p || !where) return;
+  says(q, null, where);
+  const body = thinking(undefined, where);
+  try {
+    const r = await api("/api/ask", { q, project: p.id, level: S.level, history: S.projThread.slice(-4) });
+    body.innerHTML = "";
+    projectAnswer(body, r, q);
+    S.projThread.push({ q, a: String(r.answer ?? "") });
+    if (S.projThread.length > 6) S.projThread = S.projThread.slice(-6);
+    p.turns = [...(p.turns || []), { q, a: String(r.answer ?? ""), sources: r.sources, level: r.level }];
+    bottom(where);
+  } catch (e) { fail(body, e.message); }
+}
+
+/** A new version of the page: rebuilt, or with an answer added. */
+async function buildProject(note, why){
+  const p = S.proj;
+  if (!p || S.building) return;
+  S.building = true; S.pageV = null;
+  paintPage();
+  try {
+    const r = await api("/api/projects/build", { id: p.id, ...(note ? { note, why } : {}) });
+    p.versions = [{ v: r.v, why: note ? why : "Rebuilt", at: r.at }, ...(p.versions || [])].slice(0, 10);
+    p.page = r.html; p.version = r.v; p.stale = false;
+    if (note && S.proj === p) push("ai", b => { b.innerHTML = rich(`Done. The page is at version ${r.v}.`); }, pvThread());
+    loadProjects();
+  } catch (e) {
+    if (S.proj === p) push("ai", b => { b.innerHTML = rich("**The page did not build.** " + esc(e.message)); }, pvThread());
+  } finally {
+    S.building = false;
+    if (S.proj === p){ paintPage(); const m = $("projectView").querySelector(".pv-chip.warn"); if (m && !p.stale) m.remove(); }
+  }
+}
+
+/** New project, or a project's settings: its name, folders, instructions, template, and when it rebuilds. */
+function openProjectSheet(p){
+  closeSide();
+  const editing = !!p;
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet roomy" role="dialog" aria-modal="true" aria-labelledby="pjTitle">
+      <header><h3 id="pjTitle">${editing ? "Project settings" : "New project"}</h3>
+        <p>A chat that reads the folders you pick, and one page it keeps up to date.</p></header>
+      <div class="f"><label for="pjName">Name</label><input id="pjName" autocomplete="off" maxlength="60" placeholder="Gold thesis"></div>
+      <div class="f"><label>Folders it reads</label><div class="pj-pick" id="pjPick"></div></div>
+      <div class="f"><label for="pjInstr">Instructions</label>
+        <textarea id="pjInstr" maxlength="2000" placeholder="Keep one page on where my sources stand on gold: the views held, who holds them, and what changed this week. Answer in short lines."></textarea>
+        <div class="hint">What the page keeps up to date, and how the chat answers.</div></div>
+      <div class="f"><label>Page template <span class="optl">(optional)</span></label>
+        <div class="pj-tpl" id="pjTpl"></div>
+        <input type="file" id="pjFile" accept=".html,.htm,text/html" hidden>
+        <div class="hint">An HTML file, 60 KB at most. Each build keeps its layout and fills it from the folders. Its scripts stay off.</div></div>
+      <label class="switch-row" id="pjAutoF"><input type="checkbox" id="pjAuto" role="switch"><span class="sw" aria-hidden="true"></span>
+        <span><b>Rebuild when a source lands</b><small>${S.byok ? "On your own key, the page is marked out of date when a source lands in one of its folders, and Rebuild makes the new version." : "A source dropped into one of its folders builds the next version of the page on its own."}</small></span></label>
+      <div class="f"><div id="pjMsg" class="bad" role="alert"></div></div>
+      <footer>${editing ? `<button class="ghost" id="pjDel" style="margin-right:auto">Delete</button>` : ""}<button class="ghost" id="pjCancel">Cancel</button><button class="go" id="pjSave">${editing ? "Save" : "Create project"}</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const q = sel => veil.querySelector(sel);
+  q("#pjName").value = p?.name || "";
+  q("#pjInstr").value = p?.instructions || "";
+  q("#pjAuto").checked = p ? !!p.auto : true;
+  const syncSwitch = () => q("#pjAutoF").classList.toggle("on", q("#pjAuto").checked);
+  q("#pjAuto").onchange = syncSwitch; syncSwitch();
+
+  /* Every folder this workspace reads, by group. A personal one never joins. */
+  const chosen = new Set(p?.brains || S.picks.filter(x => !isPersonal(x)));
+  const pick = q("#pjPick");
+  const groups = [["Mine", b => (b.space || "octopus") === S.space], ["Ask and drop", b => (b.space || "octopus") !== S.space && !readOnly(b)], ["Ask only", b => readOnly(b)]];
+  const seen = new Set();
+  for (const g of groups){
+    const label = g[0];
+    const fits = g[1];
+    const list = S.brains.filter(b => b.type !== "personal" && !seen.has(b.slug) && fits(b))
+      .sort((a, b) => conceptsOf(b.slug).length - conceptsOf(a.slug).length);
+    if (!list.length) continue;
+    pick.append(el("div","g",label));
+    for (const b of list){
+      seen.add(b.slug);
+      const l = el("label"); const c = document.createElement("input"); c.type = "checkbox"; c.value = b.slug; c.checked = chosen.has(b.slug);
+      c.onchange = () => { c.checked ? chosen.add(b.slug) : chosen.delete(b.slug); };
+      l.append(c, el("span",null,b.name)); pick.append(l);
+    }
+  }
+  if (!seen.size) pick.append(el("div","g","No folder yet. Make one first."));
+
+  /* The template: kept, replaced, or removed. */
+  let tpl, tplName = p?.templateName || "";   // undefined keeps what the server holds
+  const paintTpl = () => {
+    const box = q("#pjTpl"); box.innerHTML = "";
+    const has = tpl === undefined ? !!p?.templateName : !!tpl;
+    box.append(el("span","ft","HTML"));
+    const tn = el("span","tn", has ? tplName : "No template: a clean page is designed for it");
+    if (has && tpl) tn.append(el("small",null,`${Math.max(1, Math.round(tpl.length / 1000))} KB, its layout filled from the folders`));
+    box.append(tn);
+    const add = el("button","mini", has ? "Replace" : "Add a template"); add.type = "button"; add.id = "pjAdd";
+    add.onclick = () => q("#pjFile").click();
+    box.append(add);
+    if (has){ const rm = el("button","mini","Remove"); rm.type = "button"; rm.onclick = () => { tpl = null; tplName = ""; paintTpl(); }; box.append(rm); }
+  };
+  paintTpl();
+  q("#pjFile").onchange = async e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    if (f.size > 60000){ q("#pjMsg").textContent = `${f.name} is ${Math.round(f.size / 1000)} KB. A template holds 60 KB at most.`; return; }
+    const text = await f.text();
+    if (!/<[a-z!]/i.test(text)){ q("#pjMsg").textContent = `${f.name} holds no HTML.`; return; }
+    tpl = text; tplName = f.name; q("#pjMsg").textContent = ""; paintTpl();
+  };
+
+  const shut = () => { if (!busy) veil.remove(); };
+  q("#pjCancel").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  setTimeout(() => q("#pjName").focus(), 30);
+  let busy = false, sure = false;
+  if (editing) q("#pjDel").onclick = async () => {
+    if (!sure){ sure = true; q("#pjDel").textContent = "Sure? Delete"; return; }
+    busy = true;
+    try { await api("/api/projects/remove", { id: p.id }); }
+    catch (e) { busy = false; q("#pjMsg").textContent = e.message; return; }
+    busy = false; veil.remove();
+    if (S.project === p.id){ S.project = null; S.proj = null; render(); }
+    loadProjects();
+  };
+  q("#pjSave").onclick = async () => {
+    const name = q("#pjName").value.trim(), brains = [...chosen].filter(x => S.brains.some(b => b.slug === x && b.type !== "personal"));
+    if (!name){ q("#pjName").focus(); q("#pjMsg").textContent = "Give it a name."; return; }
+    if (!brains.length){ q("#pjMsg").textContent = "Tick at least one folder for it to read."; return; }
+    busy = true; const btn = q("#pjSave"); btn.disabled = true; btn.textContent = editing ? "Saving" : "Creating";
+    let r;
+    try {
+      r = await api("/api/projects/save", { ...(editing ? { id: p.id } : {}), name, brains, instructions: q("#pjInstr").value.trim(),
+        auto: q("#pjAuto").checked, ...(tpl !== undefined ? { template: tpl, templateName: tplName } : {}) });
+    } catch (e) { busy = false; btn.disabled = false; btn.textContent = editing ? "Save" : "Create project"; q("#pjMsg").textContent = e.message; return; }
+    busy = false; veil.remove();
+    await loadProjects();
+    await openProject(r.id);
+    /* A new project starts with its first page, when its folders hold anything. */
+    if (!editing && brains.some(x => conceptsOf(x).length)) buildProject();
+  };
+}
+
 /* ============ a folder, open ============ */
 const IC_CHAT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg>`;
 const IC_DROP = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>`;
@@ -4190,7 +4646,7 @@ function openFolder(b, openId){
   if (S.mode === "drop") S.mode = "ask";
   if (isPersonal(b.slug)){ crossing(b.slug); S.picks = []; S.scope = b.slug; S.into = []; }
   else { crossing("all"); setPicks([b.slug]); }
-  S.folder = b.slug;
+  S.folder = b.slug; S.project = null;
   const fv = $("folderView"); fv.innerHTML = "";
   const self = isPersonal(b.slug), ro = readOnly(b);
   const cs = conceptsOf(b.slug).slice().sort((x, y) => String(y.updated || "").localeCompare(String(x.updated || "")) || (y.src || 0) - (x.src || 0));
@@ -4782,6 +5238,12 @@ async function go(){
   if (S.mode === "drop" ? !hasContent(src, text) : !text) return;
   $("input").value = ""; sizeBox();
   if (S.mode === "drop") $("srcInput").value = "";
+  /* A project's bar asks the project. */
+  if (S.mode !== "drop" && S.project){
+    S.busy = true; renderComposer();
+    try { await doProjectAsk(text); } finally { S.busy = false; renderComposer(); }
+    return;
+  }
   /* A question asked from an open folder starts a chat on that folder. */
   if (S.mode !== "drop" && S.folder){ S.folder = null; if (S.chatId) newChat(); else renderView(); }
   S.busy = true; renderComposer();

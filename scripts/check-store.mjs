@@ -17,7 +17,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-store-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "projects.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 /* A query or mutation is its definition, so a test can call its handler. */
@@ -35,6 +35,10 @@ const digest = await import(pathToFileURL(join(dir, "digest.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "conflicts.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "conflicts.mjs"), logLevel: "silent" });
 const conflicts = await import(pathToFileURL(join(dir, "conflicts.mjs")).href);
+
+await esbuild.build({ entryPoints: [join(dir, "projects.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
+  platform: "node", outfile: join(dir, "projects.mjs"), logLevel: "silent" });
+const projects = await import(pathToFileURL(join(dir, "projects.mjs")).href);
 
 await esbuild.build({ entryPoints: [join(dir, "lib.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "lib.mjs"), logLevel: "silent" });
@@ -706,6 +710,75 @@ function seed() {
   await run(store.setGate, ctx, { salt: "s2", hash: "h2", space: "squidgy", replace: true });
   const g = await run(store.gateState, ctx, { space: "squidgy" });
   check("the new one holds, with the attempt count back to zero", g.hash === "h2" && g.salt === "s2" && g.attempts === 0, JSON.stringify(g));
+}
+
+/* ---- projects: kept to their workspace, ten versions, out of date when a source lands ---- */
+{
+  const { T, ctx } = seed();
+  const base = { space: "octopus", name: "Gold thesis", brains: ["wealth"], instructions: "Where my sources stand on gold.", auto: true };
+  check("a project needs a name and a folder", /needs a name/.test((await run(projects.save, ctx, { ...base, name: "  " })).error || "")
+    && /at least one folder/.test((await run(projects.save, ctx, { ...base, brains: [] })).error || ""));
+  check("a template past 60 KB is refused", /60 KB/.test((await run(projects.save, ctx, { ...base, template: "<p>" + "x".repeat(61000) })).error || ""));
+  const made = await run(projects.save, ctx, { ...base, template: "<html><body><h1>{{title}}</h1></body></html>", templateName: "gold.html" });
+  check("a project is made with its template", !!made.id && T.projects[0].templateName === "gold.html" && T.projects[0].turns.length === 0, JSON.stringify(made));
+  check("another workspace never reads it", (await run(projects.get, ctx, { space: "squidgy", id: made.id })) === null);
+  check("nor deletes it", /gone/.test((await run(projects.remove, ctx, { space: "squidgy", id: made.id })).error || "") && T.projects.length === 1);
+  await run(projects.save, ctx, { ...base, id: made.id, name: "Gold" });
+  check("new settings keep the template when none is sent", T.projects[0].name === "Gold" && /title/.test(T.projects[0].template));
+  await run(projects.save, ctx, { ...base, id: made.id, template: null });
+  check("and drop it when asked", T.projects[0].template === undefined);
+
+  for (let i = 0; i < 12; i++) await run(projects.addVersion, ctx, { space: "octopus", id: made.id, html: `<html>v${i + 1}</html>`, why: "Rebuilt" });
+  const one = await run(projects.get, ctx, { space: "octopus", id: made.id });
+  check("the newest 10 versions are kept, the newest on top", one.versions.length === 10 && one.version === 12 && one.versions[0].v === 12
+    && one.versions[9].v === 3 && one.page === "<html>v12</html>", JSON.stringify(one.versions.map(x => x.v)));
+  check("an old version opens by its number", (await run(projects.page, ctx, { space: "octopus", id: made.id, v: 5 }))?.html === "<html>v5</html>");
+
+  for (let i = 0; i < 45; i++) await run(projects.turn, ctx, { space: "octopus", id: made.id, turn: { q: "q" + i, a: "a" } });
+  check("its chat keeps the last 40 turns", T.projects[0].turns.length === 40 && T.projects[0].turns[0].q === "q5");
+  await run(projects.clear, ctx, { space: "octopus", id: made.id });
+  check("and clears, leaving the page", T.projects[0].turns.length === 0 && T.pages.length === 10);
+
+  const other = await run(projects.save, ctx, { ...base, name: "Dogs", brains: ["dogs"], auto: false });
+  const quiet = await run(projects.markStale, ctx, { space: "octopus", brains: ["wealth"], claim: false });
+  check("a source landing marks the projects reading that folder out of date", T.projects[0].stale === true && !T.projects[1].stale && !quiet.length
+    && T.projects[0].building === undefined, JSON.stringify(quiet));
+  const due = await run(projects.markStale, ctx, { space: "octopus", brains: ["wealth", "dogs"], claim: true });
+  check("the ones set to rebuild are started once", JSON.stringify(due) === JSON.stringify([made.id]) && !!T.projects[0].building && T.projects[1].stale === true);
+  check("and a second drop minutes later does not start another", (await run(projects.markStale, ctx, { space: "octopus", brains: ["wealth"], claim: true })).length === 0);
+  check("a source in another workspace marks none of these", (await run(projects.markStale, ctx, { space: "squidgy", brains: ["wealth"], claim: true })).length === 0);
+  await run(projects.addVersion, ctx, { space: "octopus", id: made.id, html: "<html>v13</html>", why: "A source landed" });
+  check("a new version clears the mark", T.projects[0].stale === false && T.projects[0].building === undefined);
+
+  for (let i = 0; i < 18; i++) await run(projects.save, ctx, { ...base, name: "P" + i });
+  check("20 projects is the most a workspace holds", /20 projects/.test((await run(projects.save, ctx, { ...base, name: "One more" })).error || ""));
+  await run(projects.remove, ctx, { space: "octopus", id: made.id });
+  check("deleting a project deletes its pages", !T.projects.some(p => p._id === made.id) && !T.pages.some(p => p.project === made.id));
+  check("the page comes back as the document alone", projects.cleanHtml("Here it is:\n```html\n<!doctype html><html><body>x</body></html>\n```") === "<!doctype html><html><body>x</body></html>");
+  void other;
+}
+
+/* ---- a rebuild runs on the deployment's key only ---- */
+{
+  const landed = async (who, ws) => {
+    const { T, ctx } = seed();
+    const sched = [];
+    const actx = { ...ctx, scheduler: { runAfter: async (_ms, fn, args) => { sched.push([fn, args]); } },
+      runMutation: (fn, args) => run(projects[String(fn).split(".")[1]], ctx, args),
+      runQuery: async () => ws };
+    const space = who.space;
+    await run(projects.save, ctx, { space, name: "Gold", brains: ["wealth"], instructions: "", auto: true });
+    await projects.sourceLanded(actx, who, ["wealth"], { rebuild: true });
+    return { sched, stale: !!T.projects[0].stale, building: !!T.projects[0].building };
+  };
+  const own = await landed({ space: "octopus" }, null);
+  check("in the owner's workspace a landed source starts the rebuild", own.sched.length === 1 && own.sched[0][0] === "projects.rebuild" && own.stale, JSON.stringify(own));
+  const byok = await landed({ space: "acme", byok: true }, { kind: "byok" });
+  check("on a visitor's own key it only marks the page out of date", !byok.sched.length && byok.stale && !byok.building, JSON.stringify(byok));
+  const sneaky = await landed({ space: "acme" }, { kind: "byok" });
+  check("even when the caller does not say whose key it runs on", !sneaky.sched.length && sneaky.stale, JSON.stringify(sneaky));
+  const demo = await landed({ space: "demo", demo: true }, { kind: "demo" });
+  check("and the demo, which has no projects, marks nothing", !demo.sched.length && !demo.stale, JSON.stringify(demo));
 }
 
 rmSync(dir, { recursive: true, force: true });

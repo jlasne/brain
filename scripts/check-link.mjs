@@ -24,11 +24,11 @@ writeFileSync(join(dir, "_generated/server.ts"),
   "export const internalQuery = (x: any) => x; export const internalMutation = (x: any) => x; export const internalAction = (x: any) => x;\n");
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
-await esbuild.build({ entryPoints: [join(dir, "admin.ts")], bundle: true, format: "esm", platform: "node",
+await esbuild.build({ entryPoints: [join(dir, "admin.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")], platform: "node",
   outfile: join(dir, "bundle.mjs"), logLevel: "silent", nodePaths: [join(ROOT, "node_modules")] });
 process.env.OPENROUTER_API_KEY = "test";
 const admin = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
-await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm", platform: "node",
+await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")], platform: "node",
   outfile: join(dir, "words.mjs"), logLevel: "silent" });
 const { cardOf } = await import(pathToFileURL(join(dir, "words.mjs")).href);
 

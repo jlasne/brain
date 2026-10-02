@@ -64,6 +64,13 @@ The demo's visitors cannot reach that switch, so it is set here:
 npx convex run admin:setMode '{"space":"demo","full":true}' --prod
 ```
 
+A project is out of date once a source lands in one of its folders. One set
+to rebuild builds its next version in the background, on the deployment's key,
+at most once every 5 minutes. A workspace on its own key never rebuilds in the
+background: its key never reaches the server between calls, so the page is
+marked out of date and Rebuild in the app makes the new version. The page is
+shown in a frame that runs no script, reaches no server and opens no window.
+
 Link what is already stored. A drop links the concepts it writes, and these
 fill in the rest, in the background, both spaces:
 
@@ -166,7 +173,13 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
 | `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
 | `/api/drop/merge` | Groups titles that name one idea twice after parts were planned in parallel | Yes |
-| `/api/ask` | The answer | Yes |
+| `/api/ask` | The answer. With `project`, it reads that project's folders and follows its instructions, and the turn joins the project's chat | Yes |
+| `/api/projects` | The workspace's projects, newest first. The demo has none | Yes |
+| `/api/projects/get` | One project whole: settings, chat, versions, newest page | Owner |
+| `/api/projects/page` | One version of a project's page | Owner |
+| `/api/projects/save` | Creates a project or changes its settings. Its folders must be ones the workspace reads, never a personal one. A template holds 60 KB at most | Owner |
+| `/api/projects/build` | Builds the next version of the page, rebuilt or with a note from the chat added. The newest 10 versions are kept | Owner |
+| `/api/projects/clear`, `/api/projects/remove` | Clears a project's chat, or deletes the project and its pages | Owner |
 | `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Sends it too, when given an address | Yes |
 | `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |
 | `/api/usage` | What transcripts have cost, from both sides | Yes |
@@ -214,6 +227,8 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `sessions` | the token, when it expires, its kind and its space | token |
 | `drafts` | a connector drop in progress | token |
 | `fetches` | one row per transcript fetch, so the pace is visible | time |
+| `projects` | name, folders, instructions, template, rebuild switch, out-of-date mark, its chat | space |
+| `pages` | each build of a project's page, the newest 10 | project, then version |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.
 

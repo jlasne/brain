@@ -241,13 +241,11 @@ async function boot(path, init, arg) {
   });
   check("the side panel opens on Drop, One-pager and Settings", top.acts === "dropBtn:Drop,pagerBtn:One-pager,keyBtn:Settings", top.acts);
   check("then Chats, Folders and Projects, each a panel of its own", top.panels === "chatsPanel:Chats,brainsPanel:Folders,projectsPanel:Projects" && top.gone, top.panels);
-  check("a new chat and a new folder are the + of their panel", top.plus === "newChat,newBrain", top.plus);
-  check("Projects starts folded, and says it comes next", await page.evaluate(() =>
-    document.getElementById("projectsBox").hidden && document.getElementById("projectsFold").getAttribute("aria-expanded") === "false"
-    && /next/.test(document.getElementById("projectsFold").textContent)));
-  await page.click("#projectsFold");
-  check("and opens to say what a project will be", await page.evaluate(() => !document.getElementById("projectsBox").hidden
+  check("a new chat, a new folder and a new project are the + of their panel", top.plus === "newChat,newBrain,newProject", top.plus);
+  check("Projects is open, and says what a project is when there is none", await page.evaluate(() => !document.getElementById("projectsBox").hidden
     && /keeps one page up to date/.test(document.getElementById("projectsBox").textContent)));
+  await page.click("#projectsFold");
+  check("and folds like the others", await page.evaluate(() => document.getElementById("projectsBox").hidden));
   await page.click("#projectsFold");
   await page.click("#dropBtn"); await page.waitForTimeout(60);
   const dropping = await page.evaluate(() => ({ on: document.querySelector("main").dataset.view, src: !document.getElementById("srcLine").hidden,
@@ -479,6 +477,110 @@ async function boot(path, init, arg) {
   check("and the bar below asks that folder", /^Ask Content/.test(await page.getAttribute("#input", "placeholder") || ""), await page.getAttribute("#input", "placeholder"));
   await page.click("#fvEdit"); await page.waitForTimeout(100);
   check("Edit opens the name and the scope line", await page.evaluate(() => document.getElementById("rName")?.value === "Content" && !!document.getElementById("rScope")));
+  await page.close();
+}
+
+/* ---- a project: its folders, its chat, its page ---- */
+{
+  const withOne = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "", owner: null },
+    { slug: "gave", name: "Charles Gave", type: "person", scope: "his views", space: "squidgy", viewers: ["octopus"] }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    /* The test's own script reaches every frame; the page's frame is left alone. */
+    if (window !== window.top) return;
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    const P = { id: "p1", name: "Gold thesis", brains: ["content"], instructions: "Where my sources stand.", auto: true, stale: true,
+      templateName: "gold.html", version: 0, turns: [], versions: [], page: null };
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.endsWith("/api/projects")) return Response.json({ projects: window.__made ? [{ ...P, version: P.versions[0]?.v || 0 }] : [] });
+      if (s.includes("/api/projects/save")) { window.__made = true; return Response.json({ id: "p1" }); }
+      if (s.includes("/api/projects/get")) return Response.json({ project: P });
+      if (s.includes("/api/projects/build")) {
+        await new Promise(ok => setTimeout(ok, 300));
+        const v = (P.versions[0]?.v || 0) + 1;
+        P.versions.unshift({ v, why: body.note ? body.why : "Rebuilt", at: Date.now() });
+        P.page = `<!doctype html><html><head><title>p</title><meta http-equiv="refresh" content="0;url=https://example.com"></head><body><h1>Gold v${v}</h1><script>parent.postMessage("ran","*")</script></body></html>`;
+        return Response.json({ v, at: Date.now(), html: P.page });
+      }
+      if (s.includes("/api/ask")) return Response.json({ answer: "Real rates up two quarters.", sources: 2, level: "normal", project: "p1" });
+      return Response.json({});
+    };
+    window.addEventListener("message", e => { if (e.data === "ran") window.__ran = true; });
+  }, withOne);
+  await page.click("#newProject"); await page.waitForTimeout(100);
+  const sheet = await page.evaluate(() => ({ title: document.getElementById("pjTitle")?.textContent,
+    folders: [...document.querySelectorAll("#pjPick label span")].map(x => x.textContent),
+    groups: [...document.querySelectorAll("#pjPick .g")].map(x => x.textContent), auto: document.getElementById("pjAuto").checked }));
+  check("New project offers every folder by group, never a personal one", sheet.title === "New project" && sheet.folders.join(",") === "Content,Charles Gave"
+    && sheet.groups.join(",") === "Mine,Ask only" && sheet.auto, JSON.stringify(sheet));
+  await page.click("#pjSave");
+  check("it asks for a name first", /name/.test(await page.textContent("#pjMsg")));
+  await page.fill("#pjName", "Gold thesis");
+  await page.click("#pjSave");
+  check("then for a folder", /folder/.test(await page.textContent("#pjMsg")));
+  await page.click('#pjPick label:has-text("Content")');
+  await page.fill("#pjInstr", "Where my sources stand.");
+  await page.setInputFiles("#pjFile", { name: "gold.html", mimeType: "text/html", buffer: Buffer.from("<html><body><h1>{{title}}</h1></body></html>") });
+  await page.waitForTimeout(80);
+  check("a template reads in, by name", /gold\.html/.test(await page.textContent("#pjTpl")));
+  await page.click("#pjSave"); await page.waitForTimeout(250);
+  const saved = await page.evaluate(() => window.__calls.find(c => c.s.includes("/api/projects/save"))?.body);
+  check("Create sends the name, the folder, the instructions and the template", saved?.name === "Gold thesis" && JSON.stringify(saved.brains) === '["content"]'
+    && saved.instructions === "Where my sources stand." && /\{\{title\}\}/.test(saved.template) && saved.templateName === "gold.html" && saved.auto === true, JSON.stringify(saved));
+  const view = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, name: document.querySelector("#projectView h2")?.textContent,
+    chips: [...document.querySelectorAll("#projectView .pv-chip")].map(x => x.textContent),
+    barIn: !!document.querySelector("#projectView .pv-chat .composer-wrap"), picker: document.getElementById("scopeBtn").hidden,
+    ph: document.getElementById("input").placeholder, row: !!document.querySelector("#projects .proj-row.on"),
+    dot: !!document.querySelector("#projects .proj-row .dot"), empty: !!document.getElementById("pvBuild") }));
+  check("it opens the project: its name, its folders and its template on top", view.view === "project" && view.name === "Gold thesis"
+    && view.chips.includes("Content") && view.chips.includes("gold.html") && view.chips.some(c => /source landed/.test(c)), JSON.stringify(view));
+  check("the bar sits under its chat, with no folder picker, and asks the project", view.barIn && view.picker && /^Ask Gold thesis/.test(view.ph), view.ph);
+  check("the project is listed and lit, marked out of date", view.row && view.dot);
+  check("with no page yet, it offers to build one", view.empty);
+
+  await page.click("#pvBuild"); await page.waitForTimeout(60);
+  check("building shows on the page side", !!(await page.$("#pvBusy")));
+  await page.waitForTimeout(450);
+  const built = await page.evaluate(() => {
+    const f = document.querySelector("#pvFrame iframe");
+    return { sandbox: f?.getAttribute("sandbox"), csp: /Content-Security-Policy/.test(f?.srcdoc || ""), refresh: /http-equiv="refresh"/.test(f?.srcdoc || ""),
+      bar: document.querySelector("#pvFrame .pv-bar")?.textContent || "", stale: !!document.querySelector("#projectView .pv-chip.warn") };
+  });
+  check("the page shows in a frame that runs no script and reaches no server", built.sandbox === "" && built.csp && !built.refresh, JSON.stringify(built));
+  await page.waitForTimeout(150);
+  check("its script never ran", !(await page.evaluate(() => window.__ran)));
+  check("the bar names the template and the version, and the out-of-date mark goes", /gold\.html/.test(built.bar) && /version 1/.test(built.bar) && !built.stale, built.bar);
+
+  await page.fill("#input", "What would make me sell gold?");
+  await page.click("#send"); await page.waitForTimeout(200);
+  const asked = await page.evaluate(() => ({ body: window.__calls.filter(c => c.s.includes("/api/ask")).pop()?.body,
+    acts: [...document.querySelectorAll("#pvThread .ans-acts .mini")].map(b => b.textContent), main: document.getElementById("thread").textContent }));
+  check("a question in the project asks the project, with its own thread", asked.body?.project === "p1" && !asked.body.brains && !asked.body.chat, JSON.stringify(asked.body));
+  check("its answer offers Copy and Add to the page, not a one-pager", asked.acts.join(",") === "Copy,Add to the page", asked.acts.join(","));
+  check("and never lands in the main chat", !/sell gold/.test(asked.main));
+  await page.click('#pvThread .ans-acts .mini:has-text("Add to the page")'); await page.waitForTimeout(500);
+  const added = await page.evaluate(() => ({ body: window.__calls.filter(c => c.s.includes("/api/projects/build")).pop()?.body,
+    said: [...document.querySelectorAll("#pvThread .msg.ai")].pop()?.textContent, vs: document.querySelectorAll("#pvVersions option").length }));
+  check("Add to the page builds the next version from that answer", /sell gold/.test(added.body?.note || "") && /Real rates/.test(added.body?.note || "")
+    && /version 2/.test(added.said || "") && added.vs === 2, JSON.stringify(added));
+  await page.selectOption("#pvVersions", "1"); await page.waitForTimeout(150);
+  check("an older version opens from the list", /version 1 of 2/.test(await page.textContent("#pvFrame .pv-bar")));
+  await page.click("#pvFull"); await page.waitForTimeout(80);
+  check("Open full page shows it over everything, still without scripts", await page.evaluate(() => document.querySelector(".page-full iframe")?.getAttribute("sandbox") === ""));
+  await page.keyboard.press("Escape");
+  await page.click("#pvSettings"); await page.waitForTimeout(80);
+  const set = await page.evaluate(() => ({ title: document.getElementById("pjTitle")?.textContent, name: document.getElementById("pjName").value,
+    ticked: [...document.querySelectorAll("#pjPick input:checked")].map(x => x.value), del: !!document.getElementById("pjDel") }));
+  check("Settings opens the project as it is, with Delete", set.title === "Project settings" && set.name === "Gold thesis" && set.ticked.join(",") === "content" && set.del, JSON.stringify(set));
+  await page.click("#pjCancel");
+  await page.click("#pvClose"); await page.waitForTimeout(80);
+  const back = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, bar: document.querySelector("main > .composer-wrap") !== null,
+    picker: !document.getElementById("scopeBtn").hidden }));
+  check("closing returns to the chat, the bar and its picker back in place", back.view === "chat" && back.bar && back.picker, JSON.stringify(back));
+  check("nothing threw in a project", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -1337,6 +1439,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const d = await page.evaluate(() => ({ bar: !document.getElementById("demoBar").hidden && /Live demo/.test(document.getElementById("demoBar").textContent),
     make: document.getElementById("newBrain").hidden, edit: [...document.querySelectorAll("#brains .brain-row .ed")].map(x => x.textContent) }));
   check("the demo says what it is, and offers no folder to create or edit", d.bar && d.make && !d.edit.includes("edit"), JSON.stringify(d));
+  check("nor a project: projects live in your own workspace", await page.evaluate(() => document.getElementById("newProject").hidden
+    && /your own workspace/.test(document.getElementById("projects").textContent)));
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(250);
   const set = await page.evaluate(() => ({ model: document.getElementById("setModel").hidden, mcp: document.getElementById("mcpBlock").hidden,
     use: document.getElementById("useBlock").hidden, key: document.getElementById("keyBlock").hidden,
