@@ -198,6 +198,47 @@ route("/api/workspace/create", async (ctx, _req, b) => {
   return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space: slugged }), space: slugged, name };
 });
 
+/**
+ * Change this workspace's passphrase, from Setup.
+ *
+ * The current one is asked for and counts against the same eight tries an
+ * hour as the door does. Everyone else signed in here is signed out; the
+ * session that changed it stays.
+ */
+route("/api/passphrase", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const cur = String(b.current ?? ""), next = String(b.next ?? "");
+  if (next.length < 8) return { error: "use a new passphrase of at least 8 characters" };
+  if (next === cur) return { error: "that is the passphrase you have now" };
+  const g = await ctx.runQuery(internal.store.gateState, { space: who.space });
+  if (!g?.set) return { error: "this workspace has no passphrase to change" };
+  if ((g.attempts ?? 0) >= MAX_ATTEMPTS && Date.now() - (g.attemptWindow ?? 0) < ATTEMPT_WINDOW_MS) {
+    return { error: "too many attempts, wait an hour" };
+  }
+  const good = await sha256(g.salt!, cur) === g.hash;
+  await ctx.runMutation(internal.store.noteAttempt, { ok: good, space: who.space });
+  if (!good) return { error: "that is not your current passphrase" };
+  const salt = randomHex(16);
+  await ctx.runMutation(internal.store.setGate, { salt, hash: await sha256(salt, next), space: who.space, replace: true });
+  const ended = await ctx.runMutation(internal.store.endOtherSessions, { space: who.space, keep: String(b.token) });
+  return { ok: true, ended };
+});
+
+/**
+ * Share a brain: one brain, seen from two workspaces, so a drop in either one
+ * fills both. Setup, for the owner of the brain's own workspace. A workspace
+ * the brain was shared into can leave it.
+ */
+route("/api/share", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  if (!owners.includes(who.space)) return { error: "sharing brains is not open for this workspace" };
+  const slug = String(b.brain ?? "");
+  if (slug && b.leave === true) await ctx.runMutation(internal.store.leaveBrain, { slug, space: who.space });
+  else if (slug) await ctx.runMutation(internal.store.shareBrain,
+    { slug, space: who.space, with: (Array.isArray(b.with) ? b.with : []).map(String) });
+  return await ctx.runQuery(internal.store.shareState, { space: who.space });
+});
+
 route("/api/status", async (ctx) => {
   /* Which doors have a passphrase, and whether this deployment is personal. It
      names no account and no brain, so a visitor learns only what the landing

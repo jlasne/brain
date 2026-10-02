@@ -27,7 +27,7 @@ export default defineSchema({
     space: v.optional(v.string()),
     /* A demo visitor, so each one keeps their own chats. */
     visitor: v.optional(v.string()),
-  }).index("by_token", ["token"]),
+  }).index("by_token", ["token"]).index("by_space", ["space"]),
 
   /**
    * A workspace beyond the owner's two. "demo" opens to anyone, with no
@@ -94,6 +94,10 @@ export default defineSchema({
        both spaces, so a source, a concept or a candidate needs no space of its
        own: the brain it names carries one. */
     space: v.optional(v.string()),
+    /* The other workspaces that see this brain too: one brain, two doors. Only
+       the owner of its home workspace sets this, and never for a personal
+       brain. Absent means the brain is its home's alone. */
+    shared: v.optional(v.array(v.string())),
   }).index("by_slug", ["slug"]),
 
   concepts: defineTable({

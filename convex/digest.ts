@@ -16,7 +16,7 @@
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { SPACES, spaceName, HOME } from "./lib";
+import { SPACES, spaceName, HOME, readSpace } from "./lib";
 import type { Space } from "./lib";
 import { loadSpace } from "./space";
 import { mail, asText, looksLikeMail } from "./onepager";
@@ -113,7 +113,13 @@ export const send = internalAction({
 
     const weeks: SpaceWeek[] = [];
     for (const space of SPACES) {
-      const { brains, cards, sources } = await loadSpace(ctx, space);
+      /* A shared brain is told once, under the workspace it lives in. */
+      const seen = await loadSpace(ctx, space);
+      const home = new Set(seen.brains.filter((b: any) => readSpace(b.space) === space).map((b: any) => b.slug));
+      const brains = seen.brains.filter((b: any) => home.has(b.slug));
+      const cards = seen.cards.filter((c: any) => home.has(c.brain));
+      const sources = seen.sources.map((s: any) => ({ ...s, brains: (s.brains ?? []).filter((x: string) => home.has(x)) }))
+        .filter((s: any) => s.brains.length);
       const touched = cards.filter((c: any) => String(c.updated ?? "") >= since)
         .sort((x: any, y: any) => String(y.updated).localeCompare(String(x.updated)));
       const open = touched.slice(0, OPEN_MAX);

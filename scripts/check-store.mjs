@@ -546,6 +546,77 @@ function seed() {
   check("reset takes the workspace back to the default", (await run(store.brandOf, ctx, { space: "acme" })) === null && T.brands.length === 0);
 }
 
+/* ---- a shared brain: one brain, seen from two workspaces ---- */
+{
+  const { T, ctx } = seed();
+  T.brains.push({ _id: "b3", slug: "me", name: "Me", type: "personal", scope: "s", space: undefined });
+  const names = async sp => (await run(store.spaceHead, ctx, { space: sp })).brains.map(b => b.slug).sort().join(",");
+  check("before sharing, each workspace sees only its own brains", (await names("octopus")) === "me,wealth" && (await names("squidgy")) === "dogs");
+
+  const shared = await run(store.shareBrain, ctx, { slug: "wealth", space: "octopus", with: ["squidgy"] });
+  check("the owner shares a brain with the other workspace", JSON.stringify(shared.shared) === '["squidgy"]');
+  check("both workspaces now list it, and the other brains stay apart", (await names("octopus")) === "me,wealth" && (await names("squidgy")) === "dogs,wealth");
+
+  const there = await run(store.conceptsByIds, ctx, { space: "squidgy", ids: ["wealth/gold", "me/anything"] });
+  check("Squidgy reads its concepts whole, and never the personal brain's", there.length === 1 && there[0].slug === "gold", JSON.stringify(there.map(c => c.slug)));
+  check("a source filed in it is found from both, so a repeat is caught in either",
+    (await run(store.findSource, ctx, { linkKey: "yt:abc", sid: "yt-abc", space: "squidgy" }))?.sid === "yt-abc"
+    && (await run(store.findSource, ctx, { linkKey: "yt:abc", sid: "yt-abc", space: "octopus" }))?.sid === "yt-abc");
+  check("and Octopus still never sees what Squidgy keeps to itself", (await run(store.findSource, ctx, { linkKey: "yt:xyz", sid: "yt-xyz", space: "octopus" })) === null);
+
+  /* A drop in Squidgy lands in the one brain, so Octopus has it at once. */
+  await run(store.writeSource, ctx, { space: "squidgy",
+    doc: { sid: "squidgy-yt-new", link: "https://youtu.be/new", linkKey: "yt:new", title: "From Squidgy", author: "C", date: "2026-02-01", location: "", brains: ["wealth"] } });
+  await run(store.upsertConcept, ctx, { brain: "wealth", title: "Oil", doc: { position: "Oil.", summaryLine: "Oil", sources: ["squidgy-yt-new"],
+    evidence: [{ date: "2026-02-01", author: "C", claim: "oil", source: "squidgy-yt-new" }] } });
+  const fromOcto = await run(store.spaceHead, ctx, { space: "octopus" });
+  check("a source dropped in Squidgy into a shared brain shows in Octopus", fromOcto.sources.some(x => x.sid === "squidgy-yt-new"));
+  check("and its concept is there to read", (await run(store.conceptsByIds, ctx, { space: "octopus", ids: ["wealth/oil"] })).length === 1);
+
+  /* Who may change what. */
+  check("only the workspace a brain lives in shares it", /does not live in this workspace/.test(await throws(run(store.shareBrain, ctx, { slug: "wealth", space: "squidgy", with: ["octopus"] }))));
+  check("a personal brain is never shared", /never shared/.test(await throws(run(store.shareBrain, ctx, { slug: "me", space: "octopus", with: ["squidgy"] }))));
+  check("only the owner's workspaces take a brain, never the demo or a visitor's", /cannot be shared/.test(await throws(run(store.shareBrain, ctx, { slug: "wealth", space: "octopus", with: ["demo"] })))
+    && /cannot be shared/.test(await throws(run(store.shareBrain, ctx, { slug: "wealth", space: "octopus", with: ["octopus"] }))));
+  check("a workspace that was given a brain cannot rename it", /no such brain/.test(await throws(run(store.renameBrain, ctx, { slug: "wealth", name: "Money", account: null, space: "squidgy" }))));
+  check("a brain with that name in view cannot be made again", /exists/.test(await throws(run(store.createBrain, ctx, { name: "Wealth", type: "subject", scope: "s", space: "squidgy" }))));
+
+  const st = await run(store.shareState, ctx, { space: "octopus" });
+  check("Share brain lists the brains that live here, the personal one left out", st.brains.map(b => b.slug).join(",") === "wealth" && JSON.stringify(st.brains[0].shared) === '["squidgy"]'
+    && st.targets.map(t => t.slug).join(",") === "squidgy", JSON.stringify(st));
+  const sq = await run(store.shareState, ctx, { space: "squidgy" });
+  check("and the other side lists what it was given, and where from", sq.joined.length === 1 && sq.joined[0].slug === "wealth" && sq.joined[0].fromName === "Octopus", JSON.stringify(sq.joined));
+
+  /* Leaving, and unsharing. */
+  check("a workspace cannot leave a brain of its own", /not shared with this workspace/.test(await throws(run(store.leaveBrain, ctx, { slug: "dogs", space: "squidgy" }))));
+  await run(store.leaveBrain, ctx, { slug: "wealth", space: "squidgy" });
+  check("a workspace can leave a brain it was given, and the brain stays where it lives", (await names("squidgy")) === "dogs" && (await names("octopus")) === "me,wealth");
+  await run(store.shareBrain, ctx, { slug: "wealth", space: "octopus", with: ["squidgy"] });
+  await run(store.shareBrain, ctx, { slug: "wealth", space: "octopus", with: [] });
+  check("the owner can stop sharing", (await names("squidgy")) === "dogs");
+  await run(store.shareBrain, ctx, { slug: "wealth", space: "octopus", with: ["squidgy"] });
+  await run(admin.moveBrain, ctx, { slug: "wealth", space: "squidgy" });
+  check("a brain moved to another workspace leaves the ones it was shared with", T.brains.find(b => b.slug === "wealth").shared.length === 0);
+}
+
+/* ---- the passphrase changes, and the other sessions end ---- */
+{
+  const { T, ctx } = seed();
+  const mine = await run(store.newSession, ctx, { kind: "owner", space: "squidgy" });
+  const other = await run(store.newSession, ctx, { kind: "owner", space: "squidgy" });
+  const elsewhere = await run(store.newSession, ctx, { kind: "owner", space: "octopus" });
+  const ended = await run(store.endOtherSessions, ctx, { space: "squidgy", keep: mine });
+  check("changing the passphrase signs the others out of that workspace and keeps the one who changed it",
+    ended === 1 && !!(await run(store.checkSession, ctx, { token: mine })) && (await run(store.checkSession, ctx, { token: other })) === null,
+    String(ended));
+  check("and leaves the other workspace alone", !!(await run(store.checkSession, ctx, { token: elsewhere })));
+  await run(store.setGate, ctx, { salt: "s1", hash: "h1", space: "squidgy" });
+  check("a passphrase is replaced only when asked to", /already set/.test(await throws(run(store.setGate, ctx, { salt: "s2", hash: "h2", space: "squidgy" }))));
+  await run(store.setGate, ctx, { salt: "s2", hash: "h2", space: "squidgy", replace: true });
+  const g = await run(store.gateState, ctx, { space: "squidgy" });
+  check("the new one holds, with the attempt count back to zero", g.hash === "h2" && g.salt === "s2" && g.attempts === 0, JSON.stringify(g));
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe store holds");
 process.exit(failures ? 1 : 0);

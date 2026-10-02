@@ -4,7 +4,7 @@ import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap, cardOf } from "./words";
 import { sha256, randomHex, today, slug, gateKey, readSpace, HOME, SPACE_RE, SPACES,
-         SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS } from "./lib";
+         SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, inSpace, SPACE_NAME } from "./lib";
 
 /* ---------------- the gate ---------------- */
 
@@ -20,7 +20,7 @@ const gateRow = async (ctx: any, space?: string) =>
 async function sourceIn(ctx: any, row: any, space: string): Promise<boolean> {
   for (const b of row?.brains ?? []) {
     const brain = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", b)).unique();
-    if (brain && readSpace(brain.space) === space) return true;
+    if (brain && inSpace(brain, space)) return true;
   }
   return false;
 }
@@ -99,6 +99,76 @@ export const checkSession = internalQuery({
   },
 });
 
+/**
+ * End every session of a workspace but one: the passphrase changed, so
+ * whoever held the old one is signed out, and the person who changed it is not.
+ */
+export const endOtherSessions = internalMutation({
+  args: { space: v.string(), keep: v.string() },
+  handler: async (ctx, a) => {
+    const rows = await ctx.db.query("sessions").withIndex("by_space", q => q.eq("space", readSpace(a.space))).collect();
+    let ended = 0;
+    for (const s of rows) if (s.token !== a.keep) { await ctx.db.delete(s._id); ended++; }
+    return ended;
+  },
+});
+
+/* ---------------- shared brains ---------------- */
+
+/**
+ * What a workspace's owner sees under Share brain: the brains that live here
+ * and which other workspaces they are shared with, the workspaces a brain can
+ * go to, and the brains other workspaces shared into this one.
+ */
+export const shareState = internalQuery({
+  args: { space: v.string() },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const all = await ctx.db.query("brains").collect();
+    const name = (s: string) => SPACE_NAME[s] ?? s;
+    return {
+      targets: (SPACES as readonly string[]).filter(s => s !== space).map(s => ({ slug: s, name: name(s) })),
+      brains: all.filter(b => readSpace(b.space) === space && b.type !== "personal")
+        .map(b => ({ slug: b.slug, name: b.name, type: b.type, shared: b.shared ?? [] })),
+      joined: all.filter(b => readSpace(b.space) !== space && inSpace(b, space))
+        .map(b => ({ slug: b.slug, name: b.name, type: b.type, from: readSpace(b.space), fromName: name(readSpace(b.space)) })),
+    };
+  },
+});
+
+/**
+ * Choose which workspaces also see one brain. Only the owner of the brain's
+ * own workspace does this, only to the owner's workspaces, and never for a
+ * personal brain: what you told it stays in its chat.
+ */
+export const shareBrain = internalMutation({
+  args: { slug: v.string(), space: v.string(), with: v.array(v.string()) },
+  handler: async (ctx, a) => {
+    const home = readSpace(a.space);
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    if (!b || readSpace(b.space) !== home) throw new Error("that brain does not live in this workspace");
+    if (b.type === "personal") throw new Error("a personal brain is never shared");
+    const to = [...new Set<string>(a.with.map(s => String(s).trim().toLowerCase()))];
+    for (const s of to) {
+      if (!(SPACES as readonly string[]).includes(s) || s === home) throw new Error(`a brain cannot be shared with "${s}"`);
+    }
+    await ctx.db.patch(b._id, { shared: to });
+    return { slug: b.slug, shared: to };
+  },
+});
+
+/** A workspace stops seeing a brain that was shared with it. The brain stays where it lives. */
+export const leaveBrain = internalMutation({
+  args: { slug: v.string(), space: v.string() },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    if (!b || readSpace(b.space) === space || !(b.shared ?? []).includes(space)) throw new Error("that brain is not shared with this workspace");
+    await ctx.db.patch(b._id, { shared: (b.shared ?? []).filter((s: string) => s !== space) });
+    return { slug: b.slug };
+  },
+});
+
 /* ---------------- accounts ---------------- */
 
 export const findAccount = internalQuery({
@@ -158,7 +228,7 @@ export const everything = internalQuery({
   handler: async (ctx, a) => {
     const space = readSpace(a.space);
     const all = await ctx.db.query("brains").collect();
-    const brains = all.filter(b => readSpace(b.space) === space);
+    const brains = all.filter(b => inSpace(b, space));
     const mine = new Set(brains.map(b => b.slug));
     /* Read brain by brain through the index, so the other space's concepts
        are never read and never count toward this call's read limit. */
@@ -211,7 +281,7 @@ export const createBrain = internalMutation({
     for (let n = 1; ; n++) {
       const seen = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", s)).unique();
       if (!seen) break;
-      if (readSpace(seen.space) === space && s === base) throw new Error("a brain with that name exists");
+      if (inSpace(seen, space) && s === base) throw new Error("a brain with that name exists");
       s = n === 1 ? `${base}-${space}` : `${base}-${space}-${n}`;
       if (n > 50) throw new Error("pick another name");
     }
@@ -392,8 +462,9 @@ export const renameBrain = internalMutation({
       }
       /* Links name a concept as brain/slug, so every link into this brain
          follows it too, or it would point at nothing and hold a slot. */
-      const space = readSpace(b.space);
-      const pool = (await ctx.db.query("brains").collect()).filter(x => readSpace(x.space) === space);
+      /* Every workspace that sees this brain holds links into it. */
+      const seenIn = [readSpace(b.space), ...(b.shared ?? [])];
+      const pool = (await ctx.db.query("brains").collect()).filter(x => seenIn.some((sp: string) => inSpace(x, sp)));
       for (const br of pool) {
         const slugNow = br.slug === a.slug ? to : br.slug;
         for (const c of await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", slugNow)).collect()) {
@@ -633,7 +704,7 @@ export const spaceHead = internalQuery({
   args: { space: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const space = readSpace(a.space);
-    const brains = (await ctx.db.query("brains").collect()).filter(b => readSpace(b.space) === space);
+    const brains = (await ctx.db.query("brains").collect()).filter(b => inSpace(b, space));
     const mine = new Set(brains.map(b => b.slug));
     const ready = !!(await ctx.db.query("config").withIndex("by_key", q => q.eq("key", CARDS_READY)).unique());
     /* A source filed in two workspaces lists only this one's brains here. */
@@ -675,7 +746,7 @@ export const conceptsByIds = internalQuery({
       const brain = id.slice(0, cut), slug = id.slice(cut + 1);
       if (!ok.has(brain)) {
         const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", brain)).unique();
-        ok.set(brain, !!b && readSpace(b.space) === space);
+        ok.set(brain, !!b && inSpace(b, space));
       }
       if (!ok.get(brain)) continue;
       const c = await ctx.db.query("concepts").withIndex("by_brain_slug", q => q.eq("brain", brain).eq("slug", slug)).unique();
@@ -691,7 +762,7 @@ export const conceptsOfBrain = internalQuery({
   args: { space: v.optional(v.string()), brain: v.string(), cursor: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, a) => {
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.brain)).unique();
-    if (!b || readSpace(b.space) !== readSpace(a.space)) return { concepts: [], next: null };
+    if (!b || !inSpace(b, readSpace(a.space))) return { concepts: [], next: null };
     const page = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain))
       .paginate({ numItems: 100, cursor: a.cursor ?? null });
     return { concepts: page.page, next: page.isDone ? null : page.continueCursor };
@@ -707,7 +778,7 @@ export const conflictsPage = internalQuery({
   args: { space: v.optional(v.string()), brain: v.string(), cursor: v.union(v.string(), v.null()) },
   handler: async (ctx, a) => {
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.brain)).unique();
-    if (!b || readSpace(b.space) !== readSpace(a.space)) return { items: [], next: null };
+    if (!b || !inSpace(b, readSpace(a.space))) return { items: [], next: null };
     const p = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain))
       .paginate({ numItems: 100, cursor: a.cursor });
     return {
@@ -769,7 +840,7 @@ async function conceptIn(ctx: any, space: string | undefined, id: string) {
   if (cut < 1) return null;
   const brain = id.slice(0, cut), slugged = id.slice(cut + 1);
   const b = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", brain)).unique();
-  if (!b || readSpace(b.space) !== readSpace(space)) return null;
+  if (!b || !inSpace(b, readSpace(space))) return null;
   return await ctx.db.query("concepts").withIndex("by_brain_slug", (q: any) => q.eq("brain", brain).eq("slug", slugged)).unique();
 }
 
@@ -828,7 +899,7 @@ export const settleReads = internalQuery({
           titles: v.array(v.object({ brain: v.string(), title: v.string() })) },
   handler: async (ctx, a) => {
     const space = readSpace(a.space);
-    const brains = (await ctx.db.query("brains").collect()).filter(b => readSpace(b.space) === space);
+    const brains = (await ctx.db.query("brains").collect()).filter(b => inSpace(b, space));
     const mine = new Set(brains.map(b => b.slug));
     const byId: Record<string, any> = {};
     for (const id of [...new Set<string>(a.ids as string[])].slice(0, 400)) {
