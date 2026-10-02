@@ -335,10 +335,6 @@
             </details>
           </li>
           <li>
-            <a class="item" href="/chat?w=" id="openMine"><span class="ic" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M10.5 1.5a4 4 0 0 0-3.87 5.02L1.72 11.4a.75.75 0 0 0-.22.53v2.32c0 .41.34.75.75.75h2.25a.75.75 0 0 0 .75-.75V13.5h1.25a.75.75 0 0 0 .75-.75V11.5h1.25a.75.75 0 0 0 .53-.22l.37-.37A4 4 0 1 0 10.5 1.5Zm1 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/></svg></span>
-              <span class="name">Open yours</span><span class="desc">Its name and passphrase.</span><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg></a>
-          </li>
-          <li>
             <a class="item" href="https://github.com/jlasne/brain" id="goCode">
               <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#gh"/></svg></span>
               <span class="name">Explore the open source</span>
@@ -482,6 +478,12 @@
   /* Whether the demo is open. */
   post("/api/status").then(st => {
     /* The workspaces made for someone, listed after Squidgy. */
+    const logos = st.logos && typeof st.logos === "object" ? st.logos : {};
+    const mark = (img, slug) => {
+      const src = String(logos[slug] ?? "");
+      if (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(src)) img.src = src;
+    };
+    mark($("goOctopus").querySelector("img"), "octopus"); mark($("goSquidgy").querySelector("img"), "squidgy");
     let after = $("goSquidgy").closest("li");
     for (const w of Array.isArray(st.hosted) ? st.hosted : []) {
       if (!/^[a-z0-9][a-z0-9-]{1,31}$/.test(String(w.slug))) continue;
@@ -490,6 +492,7 @@
         `<span class="name"></span><span class="desc">Someone's workspace.</span>` +
         `<span class="tag on"><i class="glow-on"></i>Live</span><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg></a>`;
       li.querySelector(".name").textContent = String(w.name ?? w.slug);
+      mark(li.querySelector("img"), w.slug);
       after.after(li); after = li;
     }
     if (st.demo !== false) return;

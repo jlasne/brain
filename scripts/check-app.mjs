@@ -1905,7 +1905,7 @@ for (const space of ["octopus", "squidgy"]) {
     ws: [...document.querySelectorAll("#start > ul > li > .item .name, #start > ul > li > .fold > .item .name")].map(b => b.textContent).join("|"),
     live: ["goOctopus", "goSquidgy"].map(id => document.querySelector(`#${id} .desc`).textContent + " " + document.querySelector(`#${id} .tag`).textContent).join("|"),
     sub: document.querySelector(".hero .sub").textContent, folded: !!document.getElementById("wsLive"),
-    doors: [document.getElementById("goOctopus")?.getAttribute("href"), document.getElementById("goSquidgy")?.getAttribute("href"), document.getElementById("openMine")?.getAttribute("href")],
+    doors: [document.getElementById("goOctopus")?.getAttribute("href"), document.getElementById("goSquidgy")?.getAttribute("href")], openMine: !!document.getElementById("openMine"),
     video: document.getElementById("video").hidden,
     code: document.getElementById("goCode").getAttribute("href"), codeDesc: document.querySelector("#goCode .desc").textContent,
     tiles: [...document.querySelectorAll("#goods .tile h3")].map(h => h.firstChild.textContent.trim()).join("|"),
@@ -1915,10 +1915,10 @@ for (const space of ["octopus", "squidgy"]) {
     mark: !!document.querySelector(".hero .mark"), brand: document.querySelector(".bar .me").textContent.trim(), text: document.body.textContent }));
   check("the landing leads with the outcome, no logo over it", /^The knowledge you choose, organized\.$/.test(l.h1) && !l.mark, JSON.stringify(l.h1));
   check("the line under it names the two moves", l.sub === "Drop the talks, PDFs and links you trust. Ask anything, and see who said it and when.", l.sub);
-  check("the list comes right after it: the demo, the live workspaces, then yours and the code", l.next === "start"
-    && l.ws === "Demo|Octopus|Squidgy|Create your workspace|Open yours|Explore the open source", `${l.next} ${l.ws}`);
+  check("the list comes right after it: the demo, the live workspaces, create, then the code", l.next === "start"
+    && l.ws === "Demo|Octopus|Squidgy|Create your workspace|Explore the open source" && !l.openMine, `${l.next} ${l.ws}`);
   check("the live workspaces sit open, each with its light", l.live === "The builder's workspace. Live|Someone's workspace. Live"
-    && JSON.stringify(l.doors) === '["/chat?w=octopus","/chat?w=squidgy","/chat?w="]' && !l.folded, JSON.stringify(l.live));
+    && JSON.stringify(l.doors) === '["/chat?w=octopus","/chat?w=squidgy"]' && !l.folded, JSON.stringify(l.live));
   check("the video section waits hidden until its link is set", l.video === true);
   check("the open source names no host", l.code === "https://github.com/jlasne/brain" && l.codeDesc === "Every line of the app and the server. Run your own."
     && !/Convex|Vercel/.test(l.codeDesc), l.codeDesc);
@@ -1961,9 +1961,16 @@ for (const space of ["octopus", "squidgy"]) {
 
   /* A workspace made for someone is listed after Squidgy, by its name. */
   const hostedPage = await boot("/", () => {
-    window.fetch = async u => String(u).includes("/api/status") ? Response.json({ demo: true, hosted: [{ slug: "pandaaahh", name: "PandAAAHH" }, { slug: "bad slug<", name: "x" }] }) : Response.json({});
+    const px = "data:image/png;base64,iVBORw0KGgo=";
+    window.fetch = async u => String(u).includes("/api/status") ? Response.json({ demo: true, hosted: [{ slug: "pandaaahh", name: "PandAAAHH" }, { slug: "bad slug<", name: "x" }],
+      logos: { pandaaahh: px, octopus: "javascript:alert(1)", squidgy: px } }) : Response.json({});
   });
   await hostedPage.page.waitForTimeout(200);
+  const marks = await hostedPage.page.evaluate(() => ({
+    panda: document.querySelector('#start a[href="/chat?w=pandaaahh"] img').getAttribute("src"),
+    squidgy: document.querySelector("#goSquidgy img").getAttribute("src"), octopus: document.querySelector("#goOctopus img").getAttribute("src") }));
+  check("a workspace wears the logo its owner set, on the landing", marks.panda.startsWith("data:image/png") && marks.squidgy.startsWith("data:image/png"), JSON.stringify(marks));
+  check("a logo that is not an image is never used, the default mark stays", marks.octopus === "/brand/logo-mark.png", marks.octopus);
   const listed = await hostedPage.page.evaluate(() => [...document.querySelectorAll("#start > ul > li > a.item")].map(a => `${a.querySelector(".name").textContent}:${a.getAttribute("href")}`).join("|"));
   check("a workspace made on the deployment's key is listed after Squidgy and opens by its name", /Octopus:\/chat\?w=octopus\|Squidgy:\/chat\?w=squidgy\|PandAAAHH:\/chat\?w=pandaaahh/.test(listed) && !/bad/.test(listed), listed);
   await hostedPage.page.close();

@@ -249,7 +249,14 @@ route("/api/status", async (ctx) => {
   /* The workspaces made for someone on this key are listed by name. A visitor's
      own workspace never is. */
   const hosted = await ctx.runQuery(internal.store.hostedList, {});
-  return { gates, gateSet: !!gates.octopus, demo, hosted };
+  /* Each listed workspace's logo, when its owner set one in Setup: a small
+     image, so the row wears the workspace's own mark. */
+  const logos: Record<string, string> = {};
+  for (const s of [...owners, ...hosted.map((h: any) => h.slug)]) {
+    const look = await ctx.runQuery(internal.store.brandOf, { space: s });
+    if (look?.logo && String(look.logo).length <= 60000) logos[s] = look.logo;
+  }
+  return { gates, gateSet: !!gates.octopus, demo, hosted, logos };
 });
 
 route("/api/lock", async (ctx, _req, b) => {
