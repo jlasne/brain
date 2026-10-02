@@ -246,7 +246,10 @@ route("/api/status", async (ctx) => {
      needs to draw two doors. */
   const gates = await ctx.runQuery(internal.store.gatesSet, {});
   const demo = !!(await ctx.runQuery(internal.store.demoWorkspace, {}));
-  return { gates, gateSet: !!gates.octopus, demo };
+  /* The workspaces made for someone on this key are listed by name. A visitor's
+     own workspace never is. */
+  const hosted = await ctx.runQuery(internal.store.hostedList, {});
+  return { gates, gateSet: !!gates.octopus, demo, hosted };
 });
 
 route("/api/lock", async (ctx, _req, b) => {

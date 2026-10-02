@@ -1959,6 +1959,15 @@ for (const space of ["octopus", "squidgy"]) {
   check("nothing threw on the landing", !bad.length, bad.join(" | "));
   await page.close();
 
+  /* A workspace made for someone is listed after Squidgy, by its name. */
+  const hostedPage = await boot("/", () => {
+    window.fetch = async u => String(u).includes("/api/status") ? Response.json({ demo: true, hosted: [{ slug: "pandaaahh", name: "PandAAAHH" }, { slug: "bad slug<", name: "x" }] }) : Response.json({});
+  });
+  await hostedPage.page.waitForTimeout(200);
+  const listed = await hostedPage.page.evaluate(() => [...document.querySelectorAll("#start > ul > li > a.item")].map(a => `${a.querySelector(".name").textContent}:${a.getAttribute("href")}`).join("|"));
+  check("a workspace made on the deployment's key is listed after Squidgy and opens by its name", /Octopus:\/chat\?w=octopus\|Squidgy:\/chat\?w=squidgy\|PandAAAHH:\/chat\?w=pandaaahh/.test(listed) && !/bad/.test(listed), listed);
+  await hostedPage.page.close();
+
   const d = await boot("/", () => {
     window.fetch = async u => { const s = String(u);
       if (s.includes("/api/status")) return Response.json({ demo: true });

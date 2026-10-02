@@ -481,6 +481,17 @@
 
   /* Whether the demo is open. */
   post("/api/status").then(st => {
+    /* The workspaces made for someone, listed after Squidgy. */
+    let after = $("goSquidgy").closest("li");
+    for (const w of Array.isArray(st.hosted) ? st.hosted : []) {
+      if (!/^[a-z0-9][a-z0-9-]{1,31}$/.test(String(w.slug))) continue;
+      const li = document.createElement("li");
+      li.innerHTML = `<a class="item" href="/chat?w=${w.slug}"><img class="logo" src="/brand/brain.svg" alt="" width="24" height="24">` +
+        `<span class="name"></span><span class="desc">Someone's workspace.</span>` +
+        `<span class="tag on"><i class="glow-on"></i>Live</span><svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><use href="#ar"/></svg></a>`;
+      li.querySelector(".name").textContent = String(w.name ?? w.slug);
+      after.after(li); after = li;
+    }
     if (st.demo !== false) return;
     $("demoGo").disabled = true; $("demoMsg").textContent = "The demo opens soon.";
   }).catch(() => {});

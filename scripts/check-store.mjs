@@ -636,6 +636,9 @@ function seed() {
   const g = await run(store.gateState, ctx, { space: "pandaaahh" });
   check("its door holds the passphrase, hashed with its own salt, and nothing readable", g.set && g.hash === await lib.sha256(g.salt, "ABC12345") && !JSON.stringify(T.config).includes("ABC12345"));
   check("it starts empty", (await run(store.spaceHead, ctx, { space: "pandaaahh" })).brains.length === 0);
+  await run(store.createWorkspace, ctx, { slug: "visitor-co", name: "Visitor Co", kind: "byok" });
+  const listedHosted = await run(store.hostedList, ctx, {});
+  check("the landing lists it by name, and never a workspace a visitor made", JSON.stringify(listedHosted) === '[{"slug":"pandaaahh","name":"PandAAAHH"}]', JSON.stringify(listedHosted));
   check("a passphrase under 8 characters is refused", /at least 8/.test(await throws(run(admin.makeWorkspace, ctx, { name: "Short", pass: "ABC123" }))));
   check("so is a name already taken, or one of the owner's two", /taken/.test(await throws(run(admin.makeWorkspace, ctx, { name: "pandaaahh", pass: "ABC12345" })))
     && /taken/.test(await throws(run(admin.makeWorkspace, ctx, { name: "Squidgy", pass: "ABC12345" }))));

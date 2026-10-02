@@ -1066,6 +1066,16 @@ export const workspaceOf = internalQuery({
   handler: async (ctx, a) => await ctx.db.query("workspaces").withIndex("by_slug", q => q.eq("slug", a.slug)).unique(),
 });
 
+/**
+ * The workspaces made for someone on this deployment's key, for the landing to
+ * list. A workspace a visitor made on their own key is never listed.
+ */
+export const hostedList = internalQuery({
+  args: {},
+  handler: async (ctx) => (await ctx.db.query("workspaces").collect())
+    .filter(w => w.kind === "hosted").map(w => ({ slug: w.slug, name: w.name })),
+});
+
 /** The demo workspace, when there is one. */
 export const demoWorkspace = internalQuery({
   args: {},
