@@ -10,7 +10,7 @@ Drop the talks, PDFs and links you trust. Ask anything, and see who said it and 
 
 [**Open the live demo**](https://brain.jeremylasne.com) &nbsp;·&nbsp; [Read the white paper](https://brain.jeremylasne.com/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="750 checks passing" src="https://img.shields.io/badge/checks-750%20passing-5fa8d3?style=flat-square&labelColor=050b16">
+<img alt="760 checks passing" src="https://img.shields.io/badge/checks-760%20passing-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-5fa8d3?style=flat-square&labelColor=050b16">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-5fa8d3?style=flat-square&labelColor=050b16">
@@ -110,6 +110,8 @@ A workspace holds its own brains and chats, and sees nothing of the others.
 | Limits | None | 30 drops and 300 questions a month, shared | Your key's own |
 | Create brains, personal brains | Yes | No | Yes |
 
+**A workspace for someone, on your key.** `npx convex run admin:makeWorkspace "{name:'PandAAAHH',pass:'ABC12345'}" --prod` makes an empty workspace behind that passphrase, which its owner changes from Setup. It runs on the deployment's key, like Octopus and Squidgy, and opens from the landing by its name. You can share a brain with it.
+
 **Share a brain.** In the owner's Setup, a fold called Share brain has a workspace select and a button per brain. It is one brain, not a copy. Shared with Squidgy, a drop in either workspace fills both, and a clash ruled in one is ruled in both. Shared with the demo, visitors can ask it and nobody can change it. Each workspace keeps its own passphrase, chats and other brains. A personal brain is never shared, and a workspace can leave a brain it was given.
 
 **Change the passphrase.** Setup asks for the current one, sets the new one, and signs everyone else out.
@@ -183,7 +185,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 ```
 app/            the landing, the app (one file), the white paper and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        750 checks, the app driven in a real browser included
+scripts/        760 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -197,7 +199,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-750 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+760 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 <br>
 

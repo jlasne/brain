@@ -627,6 +627,28 @@ function seed() {
   check("a brain moved to another workspace leaves the ones it was shared with", moved.shared.length === 0 && moved.viewers.length === 0);
 }
 
+/* ---- a workspace for someone, on the deployment's own key ---- */
+{
+  const { T, ctx } = seed();
+  const made = await run(admin.makeWorkspace, ctx, { name: "PandAAAHH", pass: "ABC12345" });
+  check("a workspace is made by its name, and opens from the landing by that name", made.slug === "pandaaahh" && made.name === "PandAAAHH" && made.opens === "/chat?w=pandaaahh", JSON.stringify(made));
+  check("it is hosted: not a visitor's own key, not the demo, so the deployment's key pays", T.workspaces.some(w => w.slug === "pandaaahh" && w.kind === "hosted"));
+  const g = await run(store.gateState, ctx, { space: "pandaaahh" });
+  check("its door holds the passphrase, hashed with its own salt, and nothing readable", g.set && g.hash === await lib.sha256(g.salt, "ABC12345") && !JSON.stringify(T.config).includes("ABC12345"));
+  check("it starts empty", (await run(store.spaceHead, ctx, { space: "pandaaahh" })).brains.length === 0);
+  check("a passphrase under 8 characters is refused", /at least 8/.test(await throws(run(admin.makeWorkspace, ctx, { name: "Short", pass: "ABC123" }))));
+  check("so is a name already taken, or one of the owner's two", /taken/.test(await throws(run(admin.makeWorkspace, ctx, { name: "pandaaahh", pass: "ABC12345" })))
+    && /taken/.test(await throws(run(admin.makeWorkspace, ctx, { name: "Squidgy", pass: "ABC12345" }))));
+  check("and a name with no letters is refused", /2 letters/.test(await throws(run(admin.makeWorkspace, ctx, { name: "!", pass: "ABC12345" }))));
+
+  /* The owner can give it a brain to feed, from Share brain. */
+  const targets = (await run(store.shareState, ctx, { space: "octopus" })).targets.map(t => `${t.slug}:${t.mode}:${t.name}`);
+  check("Share brain offers it, to edit, by its name", targets.includes("pandaaahh:edit:PandAAAHH"), JSON.stringify(targets));
+  const shared = await run(store.shareBrain, ctx, { slug: "wealth", space: "octopus", to: "pandaaahh", on: true });
+  check("a brain shared with it can be fed from there", JSON.stringify(shared.shared) === '["pandaaahh"]' && lib.canDrop(T.brains[0], { kind: "owner", account: null, space: "pandaaahh" }));
+  check("a workspace a visitor made is still never offered a brain", /cannot be shared/.test(await throws(run(store.shareBrain, ctx, { slug: "wealth", space: "octopus", to: "acme", on: true }))));
+}
+
 /* ---- the passphrase changes, and the other sessions end ---- */
 {
   const { T, ctx } = seed();

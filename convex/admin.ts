@@ -12,7 +12,7 @@
 import { internalMutation, internalQuery, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { today, sha256, randomHex, gateKey, readSpace, SPACES, ask, parseJson } from "./lib";
+import { today, sha256, randomHex, gateKey, readSpace, slugOfName, SPACE_RE, SPACES, ask, parseJson } from "./lib";
 import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle } from "./words";
 import { syncCard } from "./store";
 import { loadSpace } from "./space";
@@ -119,6 +119,31 @@ export const setPass = internalMutation({
     if (row) { await ctx.db.patch(row._id, doc); return { space, replaced: true }; }
     await ctx.db.insert("config", doc);
     return { space, replaced: false };
+  },
+});
+
+/**
+ * A workspace for someone, on this deployment's own key: the same key that
+ * pays for Octopus and Squidgy, with no monthly cap. It starts empty, behind
+ * the passphrase given here, which its owner changes from Setup. It opens from
+ * the landing by its name, like any workspace.
+ *
+ *     npx convex run admin:makeWorkspace "{name:'PandAAAHH',pass:'ABC12345'}" --prod
+ */
+export const makeWorkspace = internalMutation({
+  args: { name: v.string(), pass: v.string() },
+  handler: async (ctx, a) => {
+    const name = a.name.replace(/\s+/g, " ").trim().slice(0, 60), slug = slugOfName(name);
+    if (!name || slug.length < 2) throw new Error("give the workspace a name of 2 letters or more");
+    if (a.pass.length < 8) throw new Error("use a passphrase of at least 8 characters");
+    const taken = !SPACE_RE.test(slug) || (SPACES as readonly string[]).includes(slug)
+      || !!(await ctx.db.query("workspaces").withIndex("by_slug", q => q.eq("slug", slug)).unique())
+      || !!(await ctx.db.query("config").withIndex("by_key", q => q.eq("key", gateKey(slug))).unique());
+    if (taken) throw new Error(`"${name}" is taken. Pick another name.`);
+    const salt = randomHex(16);
+    await ctx.db.insert("workspaces", { slug, name, kind: "hosted", created: today() });
+    await ctx.db.insert("config", { key: gateKey(slug), salt, hash: await sha256(salt, a.pass), attempts: 0, attemptWindow: Date.now(), setAt: today() });
+    return { slug, name, opens: `/chat?w=${slug}` };
   },
 });
 

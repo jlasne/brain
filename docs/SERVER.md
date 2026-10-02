@@ -37,6 +37,18 @@ npx convex run admin:setPass '{"space":"squidgy","pass":"at least 8 characters"}
 npx convex run admin:moveBrain '{"slug":"content","space":"squidgy","dry":true}' --prod
 ```
 
+A workspace for someone, on this deployment's key, empty, behind a passphrase
+its owner changes from Setup. The passphrase takes 8 characters at least:
+
+```bash
+npx convex run admin:makeWorkspace "{name:'PandAAAHH',pass:'ABC12345'}" --prod
+```
+
+It runs on `OPENROUTER_API_KEY` like Octopus and Squidgy, with no monthly cap,
+and opens from the landing by its name. It has no connector, mail or Share
+brain of its own, and 20 transcript fetches a day. The owner's Share brain lists
+it, so a brain can be given to it.
+
 Link what is already stored. A drop links the concepts it writes, and these
 fill in the rest, in the background, both spaces:
 

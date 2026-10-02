@@ -121,6 +121,11 @@ async function demoSlug(ctx: any): Promise<string | null> {
   return null;
 }
 
+/** The workspaces made for someone on this deployment's key: they may be given a brain to feed. */
+async function hostedSpaces(ctx: any): Promise<{ slug: string; name: string }[]> {
+  return (await ctx.db.query("workspaces").collect()).filter((w: any) => w.kind === "hosted").map((w: any) => ({ slug: w.slug, name: w.name }));
+}
+
 /**
  * What a workspace's owner sees under Share brain: the workspaces a brain can
  * go to, the brains that live here and which of those it already goes to, and
@@ -134,10 +139,12 @@ export const shareState = internalQuery({
   handler: async (ctx, a) => {
     const space = readSpace(a.space);
     const all = await ctx.db.query("brains").collect();
-    const name = (s: string) => SPACE_NAME[s] ?? s;
+    const hosted = await hostedSpaces(ctx);
     const demo = await demoSlug(ctx);
+    const name = (s: string) => SPACE_NAME[s] ?? hosted.find(h => h.slug === s)?.name ?? s;
     const targets = [
       ...(SPACES as readonly string[]).filter(s => s !== space).map(s => ({ slug: s, name: name(s), mode: "edit" })),
+      ...hosted.filter(h => h.slug !== space).map(h => ({ slug: h.slug, name: h.name, mode: "edit" })),
       ...(demo && demo !== space ? [{ slug: demo, name: name(demo), mode: "read" }] : []),
     ];
     return {
@@ -167,7 +174,7 @@ export const shareBrain = internalMutation({
     if (!b || readSpace(b.space) !== home) throw new Error("that brain does not live in this workspace");
     if (b.type === "personal") throw new Error("a personal brain is never shared");
     const to = String(a.to).trim().toLowerCase();
-    const editor = (SPACES as readonly string[]).includes(to) && to !== home;
+    const editor = to !== home && ((SPACES as readonly string[]).includes(to) || (await hostedSpaces(ctx)).some(h => h.slug === to));
     const viewer = !editor && to !== home && to === (await demoSlug(ctx));
     if (!editor && !viewer) throw new Error(`a brain cannot be shared with "${to}"`);
     const without = (list: string[] | undefined) => (list ?? []).filter(s => s !== to);
