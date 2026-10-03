@@ -55,6 +55,10 @@ npx convex run admin:repairPositions --prod                # write them
 
 A folder's Tidy button does the rest by hand: concepts filed twice, merged on
 a click, titles not in English, renamed on a click, and the same positions.
+Settings, Tidy all folders, does it for every folder with no click per
+finding: twins merge into the clearest title, titles go into English, and
+empty positions are written. About $0.003 a folder on GLM 5.3 Flash, plus
+$0.001 a merge.
 
 A workspace for someone, on this deployment's key, empty, behind a passphrase
 its owner changes from Settings. The passphrase takes 8 characters at least:

@@ -450,7 +450,7 @@ async function boot(path, init, arg) {
   await page.waitForTimeout(150);
   const setup = await page.evaluate(() => ({ model: document.querySelector("#setModel .val")?.textContent,
     exp: !!document.getElementById("setExport"), order: [...document.querySelectorAll(".sheet .set-row button")].map(b => b.id).join(",") }));
-  check("Settings holds the model, the export, then the map", setup.order === "setModel,setExport,setMap" && setup.model === "model", JSON.stringify(setup));
+  check("Settings holds the model, the export, the map, then Tidy all folders", setup.order === "setModel,setExport,setMap,setTidy" && setup.model === "model", JSON.stringify(setup));
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#setExport")]);
   const { readFileSync } = await import("node:fs");
   const exported = readFileSync(await dl.path(), "utf8");
@@ -1735,18 +1735,22 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
       if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/brain/tidy") && body.brain === "health") return Response.json({ brain: "health", total: 2, read: 2, same: [], english: [], blank: [] });
       if (s.includes("/api/brain/tidy")) return Response.json({ brain: "content", total: 2, read: 2,
         same: [[{ id: "content/offer-creation", title: "Offer creation", line: "Offer first.", ev: 2 },
                 { id: "content/personal-brand", title: "Offre", line: "Face beats logo.", ev: 1 }]],
-        english: [{ id: "content/personal-brand", title: "Marque personnelle", line: "", ev: 1, to: "Personal brand" }],
-        blank: [{ id: "content/offer-creation", title: "Offer creation", line: "", ev: 2 }] });
+        english: [{ id: "content/offer-creation", title: "Création d'offre", line: "", ev: 2, to: "Offer creation" }],
+        blank: [{ id: "content/offer-creation", title: "Offer creation", line: "", ev: 2 }, { id: "content/personal-brand", title: "Offre", line: "", ev: 1 }] });
       if (s.includes("/api/concept/merge")) return Response.json({ into: body.into, joined: 1, links: 0, rewritten: true });
       if (s.includes("/api/concept/rename")) return Response.json({ id: body.id, title: body.title });
       if (s.includes("/api/concept/rederive")) return Response.json({ written: body.ids });
       return Response.json({ chats: [], conflicts: [], others: 0, health: [] });
     };
-  }, { ...STATE, concepts: [{ brain: "content", slug: "offer-creation", n: 1, title: "Offer creation", summaryLine: "" },
-                             { brain: "content", slug: "personal-brand", n: 2, title: "Offre", summaryLine: "Face beats logo." }] });
+  }, { ...STATE, brains: [...STATE.brains, { slug: "health", name: "Health", type: "subject", scope: "h" }, { slug: "me", name: "Me", type: "personal", scope: "" }],
+       concepts: [{ brain: "content", slug: "offer-creation", n: 1, title: "Offer creation", summaryLine: "" },
+                  { brain: "content", slug: "personal-brand", n: 2, title: "Offre", summaryLine: "Face beats logo." },
+                  { brain: "health", slug: "sleep", n: 1, title: "Sleep", summaryLine: "s" }, { brain: "health", slug: "sauna", n: 2, title: "Sauna", summaryLine: "s" },
+                  { brain: "me", slug: "n1", n: 1, title: "N1", summaryLine: "" }, { brain: "me", slug: "n2", n: 2, title: "N2", summaryLine: "" }] });
   await page.waitForTimeout(200);
   await page.evaluate(() => document.activeElement?.blur()); await page.waitForTimeout(250);
   const bar = () => page.evaluate(() => ({ c: document.querySelector(".composer-wrap").classList.contains("compact"),
@@ -1773,7 +1777,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     opts: [...document.querySelectorAll("#tidyPane .td-opt b")].map(b => b.textContent).join(","),
     ren: document.querySelector("#tidyPane .td-ren .td-in")?.value }));
   check("Tidy lists what is filed twice, what is not in English, and what has no position",
-    pane.heads === "Filed twice · 1|Not in English · 1|No position · 1" && pane.opts === "Offer creation,Offre" && pane.ren === "Personal brand", JSON.stringify(pane));
+    pane.heads === "Filed twice · 1|Not in English · 1|No position · 2" && pane.opts === "Offer creation,Offre" && pane.ren === "Offer creation", JSON.stringify(pane));
   await page.click("#tidyPane .td-opt:nth-child(1) input");
   await page.click("#tidyPane .td-card .td-go"); await page.waitForTimeout(250);
   const merged = await page.evaluate(() => window.__calls.find(c => c.s.includes("/api/concept/merge"))?.body);
@@ -1782,10 +1786,26 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.fill("#tidyPane .td-ren .td-in", "Personal branding");
   await page.click("#tidyPane .td-ren .td-go"); await page.waitForTimeout(200);
   const renamed = await page.evaluate(() => window.__calls.find(c => c.s.includes("/api/concept/rename"))?.body);
-  check("Rename sends the title as edited", renamed?.id === "content/personal-brand" && renamed?.title === "Personal branding", JSON.stringify(renamed));
+  check("Rename sends the title as edited", renamed?.id === "content/offer-creation" && renamed?.title === "Personal branding", JSON.stringify(renamed));
   await page.click("#tidyPane .td-card:last-of-type .td-go"); await page.waitForTimeout(250);
   const wrote = await page.evaluate(() => window.__calls.find(c => c.s.includes("/api/concept/rederive"))?.body);
-  check("and the empty ones get their position from what they hold", JSON.stringify(wrote?.ids) === '["content/offer-creation"]', JSON.stringify(wrote));
+  check("and the empty ones get their position from what they hold, never one a merge folded away", JSON.stringify(wrote?.ids) === '["content/offer-creation"]', JSON.stringify(wrote));
+
+  /* Tidy all folders, from Settings: every folder read and tidied, no click per finding. */
+  await page.evaluate(() => { window.__calls.length = 0; document.querySelector("#fvClose")?.click(); document.getElementById("keyBtn").click(); });
+  await page.waitForTimeout(250);
+  await page.click("#setTidy"); await page.waitForTimeout(800);
+  const all = await page.evaluate(() => ({ asked: window.__calls.filter(c => c.s.includes("/api/brain/tidy")).map(c => c.body.brain).sort().join(","),
+    secs: [...document.querySelectorAll("#taBody .ta-sec")].map(x => `${x.querySelector(".ta-h b").textContent}:${x.querySelector(".ta-n").textContent}`).join("|"),
+    merge: window.__calls.find(c => c.s.includes("/api/concept/merge"))?.body,
+    rename: window.__calls.find(c => c.s.includes("/api/concept/rename"))?.body,
+    write: window.__calls.find(c => c.s.includes("/api/concept/rederive"))?.body,
+    say: document.getElementById("taSay").textContent, close: document.getElementById("taClose").textContent }));
+  check("Tidy all folders reads every folder but the personal one", all.asked === "content,health", JSON.stringify(all));
+  check("and tidies each on its own: merges into the first title, renames, writes positions", all.merge?.into === "content/offer-creation"
+    && all.rename?.title === "Offer creation" && JSON.stringify(all.write?.ids) === '["content/offer-creation"]', JSON.stringify(all));
+  check("each folder says what it did, and the line counts it all", all.secs === "Content:Tidied|Health:Already tidy"
+    && all.say === "2 of 2 folders tidied: 1 merged, 1 renamed, 1 position written." && all.close === "Close", JSON.stringify(all));
   check("nothing threw folding the bar or tidying", !bad.length, bad.join(" | "));
   await page.close();
 }

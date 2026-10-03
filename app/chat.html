@@ -456,6 +456,24 @@
   .td-all{ justify-self:start; margin:2px 10px 4px; }
   .td-say{ font:400 13px/1.4 var(--sans); color:var(--ink-3); }
   .cf-err{ margin-top:8px; font:400 13px/1.45 var(--sans); color:var(--bad); }
+  /* Tidy all folders: one section per folder, the findings under its name. */
+  .tidy-all{ max-width:820px; }
+  .tidy-all header{ position:sticky; top:0; z-index:1; background:var(--surface); }
+  .ta-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:12px; }
+  .ta-bar .ghost{ margin-left:auto; }
+  .ta-body{ overflow-y:auto; padding:4px 20px 12px; }
+  /* The sheet's own label and field rules stretch a radio across the card. */
+  .sheet .td-opt{ display:flex; margin:0; font:inherit; }
+  .sheet .td-opt input{ width:auto; flex:none; padding:0; margin-top:3px; border:0; background:none; }
+  .sheet .td-ren .td-in{ width:auto; padding:0 10px; }
+  .sheet .ta-sec h4{ margin:14px 0 6px; font:600 13px/1 var(--sans); color:var(--ink-3); }
+  .ta-sec{ padding:14px 0 6px; border-top:1px solid var(--line); animation:tdIn .35s ease both; }
+  .ta-sec:first-child{ border-top:0; }
+  .ta-h{ display:flex; align-items:baseline; gap:10px; margin-bottom:4px; }
+  .ta-h b{ font:400 21px/1.2 var(--serif); letter-spacing:-.01em; color:var(--ink); }
+  .ta-n{ font:500 11.5px/1 var(--mono); color:var(--ink-4); }
+  .ta-sec.clean .ta-n{ color:var(--good); }
+  .ta-sec .td-wait{ margin-top:8px; }
   .td-say.ok{ color:var(--good); }
   .td-say.bad, .tidy .bad{ color:var(--bad); }
   .td-ren{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto; gap:8px; align-items:center; padding:6px 10px; }
@@ -3564,6 +3582,8 @@ async function openSetupSheet(){
           <span class="lbl">Export</span><span class="val">markdown</span></button>
         <button class="foot-btn" id="setMap" title="Every brain as an arm of the octopus: its concepts, the links between brains and the open conflicts">
           <span class="lbl">Map</span><span class="val">open</span></button>
+        <button class="foot-btn" id="setTidy" title="Every folder read for concepts filed twice, titles not in English and concepts with no position">
+          <span class="lbl">Tidy all folders</span><span class="val">run</span></button>
       </div>
 
       <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
@@ -3761,6 +3781,8 @@ async function openSetupSheet(){
   veil.querySelector("#setModel").hidden = S.demo;
   veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet("chat"); };
   veil.querySelector("#setMap").onclick = () => { shut(); openMap(); };
+  veil.querySelector("#setTidy").hidden = S.demo;
+  veil.querySelector("#setTidy").onclick = () => { shut(); openTidyAll(); };
   const exp = veil.querySelector("#setExport");
   exp.onclick = async () => {
     const v = exp.querySelector(".val");
@@ -4584,90 +4606,7 @@ function openFolder(b, openId){
       inner.append(el("div","td-clean","Nothing to tidy. Each concept holds one idea, in English, with a position."));
       return;
     }
-    const sec = (title, sub) => { const h = el("h4",null,title); inner.append(h); if (sub) inner.append(el("p","td-sub",sub)); };
-
-    if (r.same.length){
-      sec(`Filed twice · ${r.same.length}`, "The same idea under two titles. Merge keeps the title you pick, joins the evidence, and writes the position again.");
-      for (const g of r.same){
-        const card = el("div","td-card");
-        const name = `keep-${Math.random().toString(36).slice(2)}`;
-        g.forEach((c, i) => {
-          const row = el("label","td-opt");
-          const rb = el("input"); rb.type = "radio"; rb.name = name; rb.value = c.id; rb.checked = i === 0;
-          const t = el("div"); t.append(el("b",null,c.title), el("span",null,c.line || "No position yet."), el("small",null,`${c.ev} evidence`));
-          row.append(rb, t); card.append(row);
-        });
-        const acts = el("div","td-acts");
-        const go = el("button","td-go","Merge"); go.type = "button";
-        const no = el("button","td-no","Keep apart"); no.type = "button";
-        const say = el("span","td-say");
-        acts.append(go, no, say); card.append(acts);
-        no.onclick = () => card.classList.add("gone");
-        go.onclick = async () => {
-          const keep = card.querySelector("input:checked")?.value || g[0].id;
-          go.disabled = no.disabled = true; say.className = "td-say spin"; say.textContent = "Merging";
-          try {
-            const m = await api("/api/concept/merge", { into: keep, from: g.map(c => c.id).filter(id => id !== keep) });
-            say.className = "td-say ok";
-            say.textContent = `Merged into ${g.find(c => c.id === keep)?.title || keep}${m.rewritten ? ", position written again" : ""}.`;
-            card.classList.add("done");
-            reload();
-          } catch (e) { go.disabled = no.disabled = false; say.className = "td-say bad"; say.textContent = e.message; }
-        };
-        inner.append(card);
-      }
-    }
-
-    if (r.english.length){
-      sec(`Not in English · ${r.english.length}`, "The title changes; the concept, its evidence and its links stay.");
-      const card = el("div","td-card");
-      const rows2 = r.english.map(c => {
-        const row = el("div","td-ren");
-        const old = el("s",null,c.title);
-        const inp = el("input","td-in"); inp.value = c.to; inp.setAttribute("aria-label",`New title for ${c.title}`);
-        const go = el("button","td-go","Rename"); go.type = "button";
-        const say = el("span","td-say");
-        row.append(old, inp, go, say); card.append(row);
-        const run = async () => {
-          const title = inp.value.trim();
-          if (title.length < 3 || row.classList.contains("done")) return true;
-          go.disabled = true; say.className = "td-say spin"; say.textContent = "";
-          try { await api("/api/concept/rename", { id: c.id, title }); row.classList.add("done"); say.className = "td-say ok"; say.textContent = "Renamed"; return true; }
-          catch (e) { go.disabled = false; say.className = "td-say bad"; say.textContent = e.message; return false; }
-        };
-        go.onclick = async () => { if (await run()) reload(); };
-        return run;
-      });
-      if (rows2.length > 1){
-        const all = el("button","td-go td-all",`Rename all ${rows2.length}`); all.type = "button";
-        all.onclick = async () => { all.disabled = true; for (const run of rows2) await run(); reload(); };
-        card.append(all);
-      }
-      inner.append(card);
-    }
-
-    if (r.blank.length){
-      sec(`No position · ${r.blank.length}`, "Each holds evidence but no view. The position is written from the evidence it already has.");
-      const card = el("div","td-card");
-      for (const c of r.blank) card.append(el("div","td-li",c.title));
-      const go = el("button","td-go",`Write ${r.blank.length} position${r.blank.length === 1 ? "" : "s"}`); go.type = "button";
-      const say = el("span","td-say");
-      const acts = el("div","td-acts"); acts.append(go, say); card.append(acts);
-      go.onclick = async () => {
-        go.disabled = true;
-        const ids = r.blank.map(c => c.id);
-        let done = 0;
-        for (let i = 0; i < ids.length; i += 8){
-          say.className = "td-say spin"; say.textContent = `${done} of ${ids.length}`;
-          try { done += ((await api("/api/concept/rederive", { ids: ids.slice(i, i + 8) })).written || []).length; }
-          catch (e) { say.className = "td-say bad"; say.textContent = e.message; go.disabled = false; return; }
-        }
-        say.className = "td-say ok"; say.textContent = `${done} of ${ids.length} written.`;
-        card.classList.add("done");
-        reload();
-      };
-      inner.append(card);
-    }
+    tidyCards(inner, r, reload);
   };
 
   paint();
@@ -4676,6 +4615,191 @@ function openFolder(b, openId){
   else if (wide && cs.length) show(`${cs[0].brain}/${cs[0].slug}`);
   else { const p = el("div","fv-in"); p.append(el("div","fv-none", cs.length ? "Pick a concept to read it." : "")); doc.append(p); }
   render();
+}
+
+/**
+ * One folder's tidy findings, as cards that each wait for their own click:
+ * concepts filed twice, titles not in English, concepts with no position.
+ * Returns what Apply all runs: each merge into the title ticked, each rename
+ * as written, and the positions, every one skipped once done.
+ */
+function tidyCards(inner, r, onChange, tally = {}){
+  const runs = [];
+  const add = (k, n = 1) => { tally[k] = (tally[k] || 0) + n; };
+  /* Concepts folded into another by a merge here: a rename or a position
+     asked for one of them has nothing left to change. */
+  const gone = new Set();
+  const sec = (title, sub) => { inner.append(el("h4",null,title)); if (sub) inner.append(el("p","td-sub",sub)); };
+
+  if (r.same.length){
+    sec(`Filed twice · ${r.same.length}`, "The same idea under two titles. Merge keeps the title you pick, joins the evidence, and writes the position again.");
+    for (const g of r.same){
+      const card = el("div","td-card");
+      const name = `keep-${Math.random().toString(36).slice(2)}`;
+      g.forEach((c, i) => {
+        const row = el("label","td-opt");
+        const rb = el("input"); rb.type = "radio"; rb.name = name; rb.value = c.id; rb.checked = i === 0;
+        const t = el("div"); t.append(el("b",null,c.title), el("span",null,c.line || "No position yet."), el("small",null,`${c.ev} evidence`));
+        row.append(rb, t); card.append(row);
+      });
+      const acts = el("div","td-acts");
+      const go = el("button","td-go","Merge"); go.type = "button";
+      const no = el("button","td-no","Keep apart"); no.type = "button";
+      const say = el("span","td-say");
+      acts.append(go, no, say); card.append(acts);
+      no.onclick = () => card.classList.add("gone");
+      const merge = async () => {
+        if (card.classList.contains("done") || card.classList.contains("gone")) return true;
+        const keep = card.querySelector("input:checked")?.value || g[0].id;
+        go.disabled = no.disabled = true; say.className = "td-say spin"; say.textContent = "Merging";
+        try {
+          const from = g.map(c => c.id).filter(id => id !== keep);
+          const m = await api("/api/concept/merge", { into: keep, from });
+          from.forEach(id => gone.add(id)); add("merged");
+          say.className = "td-say ok";
+          say.textContent = `Merged into ${g.find(c => c.id === keep)?.title || keep}${m.rewritten ? ", position written again" : ""}.`;
+          card.classList.add("done");
+          return true;
+        } catch (e) { go.disabled = no.disabled = false; say.className = "td-say bad"; say.textContent = e.message; return false; }
+      };
+      go.onclick = async () => { if (await merge()) onChange(); };
+      runs.push(merge);
+      inner.append(card);
+    }
+  }
+
+  if (r.english.length){
+    sec(`Not in English · ${r.english.length}`, "The title changes; the concept, its evidence and its links stay.");
+    const card = el("div","td-card");
+    const rows2 = r.english.map(c => {
+      const row = el("div","td-ren");
+      const old = el("s",null,c.title);
+      const inp = el("input","td-in"); inp.value = c.to; inp.setAttribute("aria-label",`New title for ${c.title}`);
+      const go = el("button","td-go","Rename"); go.type = "button";
+      const say = el("span","td-say");
+      row.append(old, inp, go, say); card.append(row);
+      const run = async () => {
+        const title = inp.value.trim();
+        if (title.length < 3 || row.classList.contains("done")) return true;
+        if (gone.has(c.id)){ row.classList.add("done"); say.className = "td-say ok"; say.textContent = "Merged into another"; return true; }
+        go.disabled = true; say.className = "td-say spin"; say.textContent = "";
+        try { await api("/api/concept/rename", { id: c.id, title }); row.classList.add("done"); say.className = "td-say ok"; say.textContent = "Renamed"; add("renamed"); return true; }
+        catch (e) { go.disabled = false; say.className = "td-say bad"; say.textContent = e.message; return false; }
+      };
+      go.onclick = async () => { if (await run()) onChange(); };
+      return run;
+    });
+    if (rows2.length > 1){
+      const all = el("button","td-go td-all",`Rename all ${rows2.length}`); all.type = "button";
+      all.onclick = async () => { all.disabled = true; for (const run of rows2) await run(); onChange(); };
+      card.append(all);
+    }
+    runs.push(...rows2);
+    inner.append(card);
+  }
+
+  if (r.blank.length){
+    sec(`No position · ${r.blank.length}`, "Each holds evidence but no view. The position is written from the evidence it already has.");
+    const card = el("div","td-card");
+    for (const c of r.blank) card.append(el("div","td-li",c.title));
+    const go = el("button","td-go",`Write ${r.blank.length} position${r.blank.length === 1 ? "" : "s"}`); go.type = "button";
+    const say = el("span","td-say");
+    const acts = el("div","td-acts"); acts.append(go, say); card.append(acts);
+    const write = async () => {
+      if (card.classList.contains("done")) return true;
+      go.disabled = true;
+      const ids = r.blank.map(c => c.id).filter(id => !gone.has(id));
+      let done = 0;
+      for (let i = 0; i < ids.length; i += 8){
+        say.className = "td-say spin"; say.textContent = `${done} of ${ids.length}`;
+        try { done += ((await api("/api/concept/rederive", { ids: ids.slice(i, i + 8) })).written || []).length; }
+        catch (e) { say.className = "td-say bad"; say.textContent = e.message; go.disabled = false; return false; }
+      }
+      say.className = "td-say ok"; say.textContent = `${done} of ${ids.length} written.`;
+      card.classList.add("done"); add("written", done);
+      return true;
+    };
+    go.onclick = async () => { if (await write()) onChange(); };
+    runs.push(write);
+    inner.append(card);
+  }
+  return runs;
+}
+
+/** How many findings a tidy read holds. */
+const tidyCount = r => r.same.length + r.english.length + r.blank.length;
+
+/**
+ * Tidy every folder at once, from Settings, with no click per finding: each
+ * folder is read, then its twins merge into the clearest title, its titles
+ * go into English and its empty positions are written from the evidence held.
+ * Three folders at a time, each one's steps in order. Every step shows what
+ * it did, and one that fails says why and keeps its button.
+ */
+function openTidyAll(){
+  const folders = S.brains.filter(b => b.type !== "personal" && !readOnly(b) && conceptsOf(b.slug).length > 1)
+    .sort((x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length);
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet viewer tidy-all" role="dialog" aria-modal="true" aria-label="Tidy all folders">
+      <header><h3>Tidy all folders</h3>
+      <p>Each folder is read, then tidied: twins merged into the clearest title, titles put in English, empty positions written from their evidence.</p>
+      <div class="ta-bar"><span class="td-say spin" id="taSay"></span>
+        <button class="ghost" id="taClose" type="button">Stop</button></div></header>
+      <div class="ta-body tidy" id="taBody"></div>
+    </div>`;
+  document.body.append(veil);
+  const body = veil.querySelector("#taBody"), say = veil.querySelector("#taSay"), close = veil.querySelector("#taClose");
+  let open = true, changed = false;
+  const shut = () => { open = false; veil.remove(); if (changed) refresh().catch(() => {}); };
+  close.onclick = shut;
+  const onChange = () => { changed = true; };
+  if (!folders.length){ say.className = "td-say"; say.textContent = "No folder to tidy yet."; close.textContent = "Close"; return; }
+
+  const tally = {};
+  let done = 0, failed = 0;
+  const paint = () => {
+    const did = [tally.merged ? `${tally.merged} merged` : "", tally.renamed ? `${tally.renamed} renamed` : "",
+                 tally.written ? `${tally.written} position${tally.written === 1 ? "" : "s"} written` : ""].filter(Boolean).join(", ");
+    say.textContent = `${done} of ${folders.length} folders tidied${did ? `: ${did}` : ""}${failed ? `. ${failed} step${failed === 1 ? "" : "s"} failed, each says why` : ""}.`;
+  };
+  paint();
+
+  /* A section per folder, in place from the start, so the list never jumps. */
+  const parts = folders.map(b => {
+    const sec = el("section","ta-sec");
+    const h = el("div","ta-h"); h.append(el("b",null,b.name), el("span","ta-n","Waiting"));
+    sec.append(h); body.append(sec);
+    return { b, sec, n: h.lastChild };
+  });
+  const tidyOne = async p => {
+    p.n.textContent = "Reading";
+    const wait = el("div","td-wait"); wait.append(el("i"), el("i"), el("i")); p.sec.append(wait);
+    let r;
+    try { r = await api("/api/brain/tidy", { brain: p.b.slug }); if (r.error) throw new Error(r.error); }
+    catch (e) { wait.remove(); p.n.textContent = "Not read"; p.sec.append(el("div","td-say bad",e.message)); failed++; return; }
+    wait.remove();
+    if (!open) return;
+    if (!tidyCount(r)){ p.n.textContent = "Already tidy"; p.sec.classList.add("clean"); return; }
+    p.n.textContent = "Tidying";
+    for (const run of tidyCards(p.sec, r, onChange, tally)){
+      if (!open) return;
+      if (!(await run())) failed++;
+      paint();
+    }
+    changed = true;
+    p.n.textContent = "Tidied"; p.sec.classList.add("clean");
+  };
+  (async () => {
+    const queue = parts.slice();
+    await Promise.all(Array.from({ length: Math.min(3, queue.length) }, async () => {
+      while (queue.length && open){ await tidyOne(queue.shift()); done++; paint(); }
+    }));
+    if (!open) return;
+    say.className = failed ? "td-say bad" : "td-say ok";
+    paint();
+    close.textContent = "Close";
+  })();
 }
 
 /* The source line keeps its link, and the box below takes the pasted text or
