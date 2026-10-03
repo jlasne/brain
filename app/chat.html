@@ -455,6 +455,7 @@
   .td-go:disabled, .td-no:disabled{ opacity:.5; cursor:default; }
   .td-all{ justify-self:start; margin:2px 10px 4px; }
   .td-say{ font:400 13px/1.4 var(--sans); color:var(--ink-3); }
+  .cf-err{ margin-top:8px; font:400 13px/1.45 var(--sans); color:var(--bad); }
   .td-say.ok{ color:var(--good); }
   .td-say.bad, .tidy .bad{ color:var(--bad); }
   .td-ren{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto; gap:8px; align-items:center; padding:6px 10px; }
@@ -3803,7 +3804,11 @@ async function openSetupSheet(){
         openList.push(c);
         box.querySelectorAll("button").forEach(x => x.disabled = false);
         btn.textContent = pick === "both" ? "Both hold" : "This holds";
-        msg.className = "bad"; msg.textContent = e.message;
+        /* On the card itself: the sheet's own line sits out of sight, and the
+           button only went back to what it said, so a failure looked like nothing. */
+        let err = box.querySelector(".cf-err");
+        if (!err){ err = el("div","cf-err bad"); err.setAttribute("role","alert"); box.append(err); }
+        err.textContent = `Not settled: ${e.message}`;
       }
     };
     for (const [pick, claim, date] of [["a", c.a, c.aDate], ["b", c.b, c.bDate]]){

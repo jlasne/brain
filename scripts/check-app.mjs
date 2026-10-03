@@ -1101,6 +1101,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       const s = String(u), body = JSON.parse(opt?.body || "{}");
       if (s.includes("/api/state")) return Response.json(state);
       if (s.includes("/api/conflicts/settle")) { window.__settles.push(body);
+        if (body.id === "content/paywall" && body.pick === "a") return Response.json({ error: "the model host refused it" });
         return Response.json(body.pick === "both" ? { ok: true } : { ok: true, position: "Rates fell around AI releases.", summaryLine: "Long rates fell around AI releases." }); }
       if (s.includes("/api/conflicts")) return Response.json({ others: 8, conflicts: [
         { id: "content/ai-rates", brain: "content", title: "Financing AI", a: "AI pushes rates up", aDate: "", b: "Rates fell around AI releases", bDate: "2026-09-01", why: "Crowding out implies higher rates" },
@@ -1123,8 +1124,13 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     count: document.getElementById("cfCount").textContent }));
   check("This holds settles on that side and shows the new position", one.sent?.pick === "b" && one.sent?.id === "content/ai-rates"
     && /Settled\. The position now reads: Long rates fell/.test(one.text || "") && one.count === "1", JSON.stringify(one));
+  await page.click(".cf-item:not(.done) .cf-go >> nth=0"); await page.waitForTimeout(200);
+  const failed = await page.evaluate(() => ({ err: document.querySelector(".cf-item:not(.done) .cf-err")?.textContent,
+    btn: document.querySelector(".cf-item:not(.done) .cf-go")?.textContent, count: document.getElementById("cfCount").textContent }));
+  check("a ruling that fails says why on its own card, and stays to be settled", failed.err === "Not settled: the model host refused it"
+    && failed.btn === "This holds" && failed.count === "1", JSON.stringify(failed));
   await page.click(".cf-item:not(.done) .mini"); await page.waitForTimeout(200);
-  const two = await page.evaluate(() => ({ sent: window.__settles[1], count: document.getElementById("cfCount").textContent,
+  const two = await page.evaluate(() => ({ sent: window.__settles[2], count: document.getElementById("cfCount").textContent,
     none: /None to settle\. 8 recorded clashes add detail/.test(document.getElementById("cfSlot").textContent) }));
   check("Both hold clears the last one, and the list says none are left", two.sent?.pick === "both" && two.count === "" && two.none, JSON.stringify(two));
   check("nothing threw settling conflicts", !bad.length, bad.join(" | "));

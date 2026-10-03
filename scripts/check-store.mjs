@@ -910,6 +910,30 @@ function seed() {
   check("and the demo, which has no projects, marks nothing", !demo.sched.length && !demo.stale, JSON.stringify(demo));
 }
 
+/* ---- a model that cannot answer without thinking is asked again, with a little ---- */
+{
+  const real = globalThis.fetch;
+  process.env.OPENROUTER_API_KEY = "sk-test";
+  const sent = [];
+  globalThis.fetch = async (_u, opt) => {
+    const b = JSON.parse(opt.body); sent.push(b);
+    if (b.model === "z-ai/glm-5.3-flash" && b.reasoning?.effort === "none")
+      return new Response(JSON.stringify({ error: { message: "Reasoning is mandatory for this endpoint and cannot be disabled." } }), { status: 400 });
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"ok":true}' }, finish_reason: "stop" }] }), { status: 200 });
+  };
+  const r = await lib.ask([{ role: "user", content: "x" }], { json: true, maxTokens: 1200, model: "z-ai/glm-5.3-flash" });
+  check("a model that refuses to think none answers on the second ask", r.text === '{"ok":true}' && sent.length === 2, JSON.stringify(sent.map(b => b.reasoning)));
+  check("with a little thinking, kept out of the reply, and room for it", sent[1].reasoning.effort === "low" && sent[1].reasoning.exclude === true
+    && sent[1].max_tokens === 1200 + lib.THINK_ROOM, JSON.stringify(sent[1]));
+  await lib.ask([{ role: "user", content: "y" }], { model: "z-ai/glm-5.3-flash" });
+  check("and the next call asks it right the first time", sent.length === 3 && sent[2].reasoning.effort === "low");
+  await lib.ask([{ role: "user", content: "z" }], { model: "deepseek/deepseek-v4-flash-0731" });
+  check("a model that can skip thinking still skips it", sent[3].reasoning.effort === "none");
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: "Provider returned error" } }), { status: 400 });
+  check("any other refusal is reported, not retried", /./.test(await throws(lib.ask([{ role: "user", content: "w" }], { model: "openai/gpt-x" }))));
+  globalThis.fetch = real; delete process.env.OPENROUTER_API_KEY;
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe store holds");
 process.exit(failures ? 1 : 0);

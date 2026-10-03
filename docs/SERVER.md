@@ -228,6 +228,11 @@ answers, reads drops and writes one-pagers, and the project model, which
 answers in projects and builds their pages. Both default to
 `z-ai/glm-5.3-flash`, in every workspace. The demo always runs on the defaults.
 
+Every call asks the model to skip thinking, which is cheaper and quicker. GLM
+5.3 Flash cannot skip it and refuses such a call, so it is asked again with
+low thinking, kept out of the reply, and 4,000 more tokens of room. The model
+is remembered, so later calls ask it right the first time.
+
 | Model | Input /1M | Output /1M | Per source | 100 sources |
 |---|---|---|---|---|
 | Claude Opus 5 | $5.00 | $25.00 | $0.46 | $46 |
