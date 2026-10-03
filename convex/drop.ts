@@ -18,7 +18,6 @@ import {
 import type { Who } from "./lib";
 import { keywords, rankConcepts, linkId, conceptSlug, compress, unionCap } from "./words";
 import { loadSpace } from "./space";
-import { sourceLanded } from "./projects";
 export { compress } from "./words";
 
 /* ---------- the rules, named so two thinkers can share them ---------- */
@@ -866,9 +865,6 @@ ${excerptFor(ext.topics ?? [], touched)}`;
   if (written.length && ctx.scheduler && !b.linkLater && !own) {
     await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: who.space, ids: written });
   }
-  /* Projects reading these folders go out of date. A store in parts asks for
-     the rebuild once, at its end, with the link step. */
-  await sourceLanded(ctx, who, written.map((id: string) => id.split("/")[0]), { rebuild: !b.linkLater });
 
   /* How many passages the note kept, so the app knows whether later parts
      can read the text back from it or must send it again. */

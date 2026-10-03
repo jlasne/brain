@@ -1,15 +1,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Octopus</title>
+<title>Tasu</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="icon" href="/brand/brain.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="icon" href="/brand/tasu.svg" type="image/svg+xml">
+<link rel="icon" href="/brand/tasu-64.png" type="image/png" sizes="64x64">
+<link rel="apple-touch-icon" href="/brand/tasu-180.png">
 
 <script>
   /* The workspace's colours before anything paints: the one the address asks
      for, or else the one this tab last opened. An address with an empty w asks
-     for a workspace by name, in Brain's own colours. */
+     for a workspace by name, in Tasu's own greys. */
   try {
     const q = new URLSearchParams(location.search);
     const s = (q.has("w") ? q.get("w") : sessionStorage.getItem("octopus.space") || "").toLowerCase();
@@ -32,83 +34,48 @@
 <style>
   *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
+  /* ======================================================================
+     TASU
+
+     Greys, white and near-black, the way the landing reads. A workspace
+     keeps its own accent: Octopus its orange, Squidgy its brown, and any
+     workspace the colours it sets in Settings.
+
+       --side          the side panel, a step off white
+       --accent-solid  the one filled button: near-black, or the workspace's
+       --serif         titles; --sans for everything read
+     ====================================================================== */
   :root{
     /* The mark the loader turns. */
-    --mark:url("/brand/logo-mark.png");
-    /* Octopus: the orange #d97757 on beige #F5F5DC, the sidebar a shade deeper.
-       Cards stay white. The lighter labels and the orange text run one step
-       darker than before so they hold 4.5:1 on the beige. There is no dark
-       variant: the brand colours are the look, whatever the system setting. */
-    --bg:#F5F5DC; --surface:#ffffff; --surface-2:#EAEACB; --surface-3:#dfdfbc;
-    --ink:#141413; --ink-2:#3d3d3a; --ink-3:#5c5b52; --ink-4:#67665a;
-    --line:#e2e2c4; --line-2:#cfcfab;
-    --accent:#a54b2f; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#ffffff;
-    --accent-soft:rgba(217,119,87,.10); --accent-line:rgba(217,119,87,.34);
+    --mark:url("/brand/tasu.svg");
+    --bg:#ffffff; --side:#f7f7f8; --surface:#ffffff; --surface-2:#f4f4f5; --surface-3:#e9e9ec;
+    --ink:#09090b; --ink-2:#27272a; --ink-3:#52525b; --ink-4:#6b6b74;
+    --line:#ececef; --line-2:#e1e1e5;
+    --accent:#18181b; --accent-fill:#3f3f46; --accent-solid:#18181b; --accent-on:#ffffff;
+    --accent-soft:rgba(24,24,27,.05); --accent-line:rgba(24,24,27,.16);
     --good:#3f7d5c; --warn:#94650f; --bad:#b3372a;
-    --shadow:0 1px 2px rgba(20,20,19,.05), 0 1px 8px rgba(20,20,19,.04);
-    --shadow-lift:0 2px 6px rgba(20,20,19,.07), 0 12px 32px rgba(20,20,19,.10);
+    --shadow:0 1px 2px rgba(0,0,0,.04), 0 1px 6px rgba(0,0,0,.03);
+    --shadow-lift:0 8px 30px -4px rgba(0,0,0,.09), 0 4px 10px rgba(0,0,0,.03);
 
-    --sans:'Hanken Grotesk',ui-sans-serif,system-ui,'Helvetica Neue',Arial,sans-serif;
-    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-    --ease:cubic-bezier(.22,.61,.36,1);
+    --sans:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+    --serif:"Frank Ruhl Libre","Iowan Old Style","Apple Garamond",Georgia,serif;
+    --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --ease:cubic-bezier(.22,1,.36,1);
     color-scheme:light;
   }
-
-
-  /* ======================================================================
-     THE SQUIDGY SPACE
-
-     Brown #A8704E and pink #F5C9D1, on every surface rather than the accent
-     alone. The sidebar is an 80% wash of the pink, the page a 40% one, cards stay
-     white so what you read keeps its contrast, and the text runs in browns
-     instead of greys.
-
-       --accent-fill   the brand brown: borders, focus rings, dots, bars
-       --accent-solid  a fill that carries a label, 7% darker than the brand
-                       brown because white on #A8704E reads at 4.12:1
-       --accent        accent text, dark enough to hold 4.5:1 on the pink
-
-     Every text colour here clears 4.5:1 on the pink, the page and white.
-     ====================================================================== */
-  :root[data-space="squidgy"]{
-    --mark:url("/brand/squidgy-mark.png");
-    --bg:#fbe9ed; --surface:#ffffff; --surface-2:#f7d4da; --surface-3:#efc0c9;
-    --ink:#2a1810; --ink-2:#4b3024; --ink-3:#6b4234; --ink-4:#7c5243;
-    --line:#f1cfd6; --line-2:#dfa9b4;
-    --accent:#7a4e36; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
-    --accent-soft:rgba(168,112,78,.12); --accent-line:rgba(168,112,78,.40);
-    --shadow:0 1px 2px rgba(122,78,54,.08), 0 1px 8px rgba(122,78,54,.06);
-    --shadow-lift:0 2px 6px rgba(122,78,54,.10), 0 12px 32px rgba(122,78,54,.14);
+  /* Octopus keeps its orange, as its accent only. */
+  :root[data-space="octopus"]{
+    --mark:url("/brand/logo-mark.png");
+    --accent:#a54b2f; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#ffffff;
+    --accent-soft:rgba(217,119,87,.09); --accent-line:rgba(217,119,87,.34);
   }
 
-  /* What you say sits in the brand colour, so the thread reads as two voices at
-     a glance: yours in brown, the brain's on the page. */
-  :root[data-space="squidgy"] .msg.me .body{ background:var(--accent-solid); color:var(--accent-on); border-color:transparent; }
-  :root[data-space="squidgy"] .msg.me .body .attach{ color:var(--accent-on); opacity:.8; }
 
-  /* ======================================================================
-     EVERY OTHER WORKSPACE: BRAIN
-
-     The demo and every workspace made on the landing wear Brain's colours,
-     the ones of jeremylasne.com: the night navy #050b16 for text and the blue
-     #5fa8d3 on a pale ice page. Octopus and Squidgy keep their own, and a
-     workspace that sets a logo and a colour in Setup wears those instead.
-
-       --accent-fill   #5fa8d3, the brand blue: borders, rings, dots, bars
-       --accent-solid  #2b6f99, a fill under a white label, 5.5:1
-       --accent        #245f84, accent text, 6.3:1 on the page
-     ====================================================================== */
-  :root:not([data-space="octopus"]):not([data-space="squidgy"]){
-    --mark:url("/brand/brain.svg");
-    /* The type of the landing and of jeremylasne.com. */
-    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    --bg:#eef5fa; --surface:#ffffff; --surface-2:#e0ecf5; --surface-3:#d0e2ef;
-    --ink:#050b16; --ink-2:#1d2a3b; --ink-3:#3e4f63; --ink-4:#4d5e72;
-    --line:#d5e4ef; --line-2:#b5cde0;
-    --accent:#245f84; --accent-fill:#5fa8d3; --accent-solid:#2b6f99; --accent-on:#ffffff;
-    --accent-soft:rgba(95,168,211,.13); --accent-line:rgba(95,168,211,.45);
-    --shadow:0 1px 2px rgba(5,11,22,.05), 0 1px 8px rgba(5,11,22,.05);
-    --shadow-lift:0 2px 6px rgba(5,11,22,.08), 0 12px 32px rgba(5,11,22,.12);
+  /* Squidgy keeps its brown, as its accent only. */
+  :root[data-space="squidgy"]{
+    --mark:url("/brand/squidgy-mark.png");
+    --accent:#7a4e36; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
+    --accent-soft:rgba(168,112,78,.09); --accent-line:rgba(168,112,78,.36);
   }
 
   /* The dog greets an empty thread. */
@@ -470,90 +437,6 @@
   .fv-upd{ margin-left:auto; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
   main[data-view="folder"] .composer-wrap{ border-top:1px solid var(--line); }
 
-  /* A project: its chat on the left, its page on the right. The bar below
-     the chat asks the project's folders, with its instructions. */
-  .project-view{ flex:1; min-height:0; display:flex; flex-direction:column; }
-  .project-view[hidden]{ display:none; }
-  .pager-view{ flex:1; min-height:0; display:flex; flex-direction:column; }
-  .pager-view[hidden]{ display:none; }
-  .fv-b.sure{ border-color:var(--bad); color:var(--bad); }
-  .pv-h{ display:flex; align-items:flex-start; gap:12px; padding:16px 24px 14px; border-bottom:1px solid var(--line); }
-  .pv-t{ flex:1; min-width:0; }
-  .pv-t h2{ font:700 22px/1.15 var(--sans); letter-spacing:-.02em; color:var(--ink); text-wrap:balance; }
-  .pv-meta{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:8px; }
-  .pv-chip{ display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; border:1px solid var(--line-2);
-    background:var(--surface); font:500 12.5px/1.2 var(--sans); color:var(--ink-2); }
-  .pv-chip.acc{ border-color:var(--accent-line); background:var(--accent-soft); color:var(--accent); }
-  .pv-chip.warn{ border-color:var(--warn); color:var(--warn); }
-  .pv-chip svg{ width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.7; }
-  .pv-acts{ display:flex; gap:8px; flex:none; }
-  .project-view .pv-tabs{ display:none; }
-  .pv-cols{ flex:1; min-height:0; display:flex; }
-  .pv-chat{ width:min(520px, 44%); flex:none; display:flex; flex-direction:column; min-height:0; border-right:1px solid var(--line); }
-  .pv-chat .thread{ padding-top:20px; }
-  .pv-chat .col{ padding:0 22px; }
-  .pv-chat .composer{ padding:12px 16px 0; max-width:none; }
-  .pv-chat .composer-wrap{ padding-bottom:12px; }
-  .pv-chat .foot-note{ display:none; }
-  .pv-chat .zero{ max-width:none; padding:0 22px; }
-  .pv-hint{ padding:6px 0 0; font:400 14.5px/1.55 var(--sans); color:var(--ink-3); }
-  .pv-hint b{ display:block; margin-bottom:4px; font:600 15px/1.3 var(--sans); color:var(--ink); }
-  .pv-page{ flex:1; min-width:0; display:flex; flex-direction:column; min-height:0; padding:14px 18px; }
-  .pv-frame{ position:relative; flex:1; min-height:0; display:flex; flex-direction:column; border:1px solid var(--line);
-    border-radius:12px; background:var(--surface); overflow:hidden; box-shadow:var(--shadow); }
-  .pv-bar{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:8px 12px; border-bottom:1px solid var(--line);
-    font:400 12px/1.3 var(--mono); color:var(--ink-3); font-variant-numeric:tabular-nums; }
-  .pv-bar .grow{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pv-bar select{ min-height:30px; padding:0 6px; border:1px solid var(--line-2); border-radius:6px; background:var(--surface);
-    font:500 12px/1 var(--sans); color:var(--ink-2); }
-  .pv-frame iframe{ flex:1; width:100%; min-height:0; border:0; background:#fff; }
-  .pv-empty{ flex:1; display:grid; place-content:center; justify-items:center; gap:14px; text-align:center; padding:24px; }
-  .pv-empty p{ max-width:42ch; font:400 14.5px/1.55 var(--sans); color:var(--ink-3); }
-  .pv-busy{ position:absolute; inset:46px 0 0; display:grid; place-content:center; justify-items:center; gap:10px;
-    background:color-mix(in srgb, var(--surface) 84%, transparent); font:500 14px/1.4 var(--sans); color:var(--ink-2); text-align:center; padding:20px; }
-  .pv-busy small{ display:block; font:400 12.5px/1.45 var(--sans); color:var(--ink-3); max-width:36ch; }
-  .pv-bar .pv-build.due{ border-color:var(--accent-solid); background:var(--accent-solid); color:var(--accent-on); }
-  .ans-acts .pv-add.on{ border-color:var(--accent-line); background:var(--accent-soft); color:var(--accent); }
-  .proj-row .cm .nm{ display:flex; align-items:center; gap:6px; }
-  .proj-row .dot{ flex:none; width:7px; height:7px; border-radius:50%; background:var(--warn); }
-  /* The page, full size, over everything. */
-  .page-full{ position:fixed; inset:0; z-index:60; display:flex; flex-direction:column; background:var(--bg); }
-  .page-full .pf-bar{ display:flex; align-items:center; gap:8px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--surface-2); }
-  .page-full .pf-bar b{ flex:1; min-width:0; font:600 14px/1.3 var(--sans); color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .page-full iframe{ flex:1; width:100%; border:0; background:#fff; }
-  /* The folders a project reads, ticked in its sheet. */
-  .pj-pick{ display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:4px 10px; max-height:190px; overflow-y:auto;
-    padding:8px 10px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface); }
-  .pj-pick .g{ grid-column:1 / -1; margin-top:6px; font:500 10.5px/1 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ink-4); }
-  .pj-pick .g:first-child{ margin-top:0; }
-  .sheet .pj-pick label{ display:flex; align-items:center; gap:8px; min-height:32px; margin:0; font:400 14px/1.3 var(--sans); color:var(--ink-2);
-    cursor:pointer; min-width:0; text-transform:none; letter-spacing:0; }
-  .sheet .pj-pick label span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .sheet .pj-pick input{ width:16px; height:16px; min-height:0; flex:none; margin:0; padding:0; accent-color:var(--accent-fill); }
-  .sheet .f:has(> #pjMsg:empty){ display:none; }
-  .pj-tpl{ display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px dashed var(--line-2); border-radius:10px; background:var(--surface); }
-  .pj-tpl .ft{ flex:none; padding:4px 7px; border-radius:6px; background:var(--accent-soft); font:600 11px/1 var(--mono); color:var(--accent); }
-  .pj-tpl .tn{ flex:1; min-width:0; font:500 14px/1.35 var(--sans); color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pj-tpl .tn small{ display:block; font:400 12px/1.4 var(--sans); color:var(--ink-4); }
-  @media (max-width:860px){
-    .pv-h{ padding:12px 16px; }
-    .pv-t h2{ font-size:20px; }
-    .pv-acts .fv-x{ position:static; }
-    .pv-meta{ flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
-    .pv-meta::-webkit-scrollbar{ display:none; }
-    .pv-chip{ flex:none; }
-    .pv-bar .grow{ display:none; }
-    .project-view .pv-tabs{ display:flex; margin:10px 16px 0; }
-    .project-view .pv-tabs button{ flex:1; }
-    .pv-cols{ flex-direction:column; }
-    .pv-chat{ width:auto; flex:1; border-right:0; }
-    .pv-chat .col{ padding:0 16px; }
-    .pv-page{ display:none; padding:10px 12px 12px; }
-    .pv-cols.page .pv-chat{ display:none; }
-    .pv-cols.page .pv-page{ display:flex; flex:1; }
-    .pv-bar select, .pv-bar .mini{ min-height:40px; }
-    .sheet .pj-pick label{ min-height:40px; }
-  }
 
   /* On a phone the folder keeps the screen: the levels wait for the chat. */
   @media (max-width:520px){ main[data-view="folder"] #levelWrap{ display:none; } }
@@ -753,7 +636,7 @@
     margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     font:400 11.5px/1.3 var(--mono); color:var(--ink-3);
   }
-  #setModel.pick .val, #setProjModel.pick .val{ color:var(--accent); }
+  #setModel.pick .val{ color:var(--accent); }
   .sheet .set-row{ display:grid; gap:7px; }
   /* An open conflict: its two sides, each with the button that makes it hold. */
   .cf-count{ font:500 11px/1 var(--mono); color:var(--accent); margin-left:6px; }
@@ -1479,6 +1362,128 @@
     /* A loop is motion too: the still mark stands in for it. */
     :root[data-space="octopus"] .spinner{ background-image:var(--mark); }
   }
+
+  /* ======================================================================
+     THE TASU SHELL
+
+     A flat side panel a step off white, rows that light grey under the
+     pointer, and the chat bar floating over the thread. Last in the sheet,
+     so it settles what came before it.
+     ====================================================================== */
+  aside{ background:var(--side); border-right:1px solid var(--line); }
+  .brand{ padding:16px 16px 12px; gap:10px; }
+  .brand .mark{ width:22px; height:22px; }
+  .brand h1{ font:600 15px/1 var(--sans); letter-spacing:-.01em; }
+  .side-scroll{ padding:4px 10px 14px; }
+
+  .side-acts{ gap:1px; margin:0 0 16px; }
+  .side-acts .sa{ min-height:34px; padding:0 10px; border:0; border-radius:8px; background:transparent;
+    font:500 14px/1 var(--sans); color:var(--ink-2); }
+  .side-acts .sa:hover{ background:rgba(0,0,0,.045); color:var(--ink); }
+  .side-acts .sa.go{ min-height:38px; margin-bottom:8px; justify-content:center; border-radius:10px;
+    background:var(--accent-solid); color:var(--accent-on); box-shadow:0 1px 2px rgba(0,0,0,.10), inset 0 1px 0 rgba(255,255,255,.08); }
+  .side-acts .sa.go:hover{ background:var(--accent-solid); color:var(--accent-on); filter:brightness(1.12); }
+  .side-acts .sa.go.on{ box-shadow:0 0 0 2px var(--side), 0 0 0 4px var(--accent-line); }
+  .side-acts .sa.on{ background:rgba(0,0,0,.055); color:var(--ink); }
+
+  .panel{ background:transparent; border:0; border-radius:0; box-shadow:none; }
+  .panel + .panel{ margin-top:16px; }
+  .panel-h{ min-height:28px; padding:0 2px 0 10px; }
+  .panel .fold-t{ flex:none; gap:6px; padding:4px 0; font:500 11.5px/1 var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-4); }
+  .panel .fold-t:hover{ color:var(--ink-2); }
+  .panel .fold-t b{ font:500 11px/1 var(--sans); letter-spacing:0; color:var(--ink-4); }
+  .panel .chev{ margin-left:2px; }
+  .p-ic{ display:none; }
+  .panel .side-plus{ margin-left:auto; width:24px; height:24px; background:transparent; color:var(--ink-4); }
+  .panel .side-plus:hover{ background:rgba(0,0,0,.05); color:var(--ink); }
+  .panel-b{ border-top:0; padding:2px 0 0; }
+  .panel .group-h{ margin:12px 10px 4px; font:500 10.5px/1.6 var(--sans); letter-spacing:.06em; color:var(--ink-4); }
+  .panel .group-h:first-child{ margin-top:4px; }
+  .panel .empty-side{ padding:4px 10px; }
+
+  .chat-row, .brain-row{ border:0; border-radius:8px; padding:6px 10px; }
+  .chat-row + .chat-row, .brain-row + .brain-row{ margin-top:1px; }
+  .chat-row:hover, .brain-row:hover{ background:rgba(0,0,0,.045); }
+  .chat-row.on, .brain-row.on{ background:rgba(0,0,0,.06); border:0; }
+  .chat-row .nm, .brain-row .nm{ font:400 13.5px/1.35 var(--sans); color:var(--ink-2); }
+  .chat-row .cb{ display:none; }
+  .chat-row.on .nm, .brain-row.on .nm, .brain-row.on .ct, .brain-row:hover .nm{ color:var(--ink); }
+  .brain-row.on .b-ic, .brain-row .b-ic{ color:var(--ink-4); }
+  .side-foot{ border-top:0; padding:8px 14px 12px; }
+  .foot-link{ color:var(--ink-4); }
+  .foot-link:hover{ color:var(--ink); }
+  .side-go{ background:var(--accent-solid); color:var(--accent-on); }
+
+  /* The page, white, and the chat bar floating over it. */
+  main{ position:relative; background:var(--bg); }
+  .thread{ padding-bottom:calc(var(--bar-h, 150px) + 24px); scroll-padding-bottom:calc(var(--bar-h, 150px) + 24px); }
+  .fv-rows, .fv-doc{ padding-bottom:calc(var(--bar-h, 150px) + 16px); }
+  .composer-wrap{ position:absolute; left:0; right:0; bottom:0; z-index:5; border-top:0; padding:0 0 14px; pointer-events:none;
+    background:linear-gradient(to bottom, rgba(255,255,255,0), var(--bg) 42%); }
+  main[data-view="folder"] .composer-wrap{ border-top:0; left:340px; }
+  .composer{ pointer-events:auto; max-width:780px; padding:22px 24px 0; }
+  .box{ border:1px solid var(--line-2); border-radius:18px; background:var(--surface);
+    box-shadow:0 8px 30px -6px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.04); }
+  .box:focus-within{ border-color:#d4d4d8; box-shadow:0 12px 36px -6px rgba(0,0,0,.13), 0 3px 8px rgba(0,0,0,.05); }
+  .box textarea{ padding-top:15px; }
+  .box .tbar{ gap:8px; padding:4px 10px 10px 12px; }
+  .box .tbar .ctrls{ margin:0; gap:6px; flex-wrap:nowrap; }
+  .box .tbar .pick-btn{ height:32px; border-radius:9px; border-color:var(--line-2); background:var(--surface); }
+  .box .tbar .seg{ border-color:var(--line-2); border-radius:9px; }
+  .box .tbar .seg button{ padding:6px 10px; }
+  .box .tbar .seg button.on{ background:var(--surface-2); color:var(--ink); }
+  .box .tbar .fresh{ height:32px; }
+  .send{ border-radius:10px; background:var(--accent-solid); color:var(--accent-on); }
+  .mic{ border-radius:10px; }
+  .foot-note{ pointer-events:auto; margin-top:8px; text-align:center; font:400 11.5px/1.4 var(--sans); color:var(--ink-4); }
+  .dropsrc{ padding:11px 16px 10px; }
+
+  /* Titles in the serif, the way the landing sets them. */
+  .zero h2{ font:400 40px/1.06 var(--serif); letter-spacing:-.025em; }
+  .zero .lede{ color:var(--ink-3); }
+  .fv-t h2{ font:400 32px/1.08 var(--serif); letter-spacing:-.02em; }
+  .fv-in h1{ font:400 32px/1.1 var(--serif); letter-spacing:-.02em; }
+  .drop-head h2{ font:400 30px/1.1 var(--serif); letter-spacing:-.02em; }
+  .sheet header h3{ font:400 24px/1.15 var(--serif); letter-spacing:-.01em; }
+
+  /* The thread: your words in a grey bubble, the answer on the page. */
+  .msg.me .body{ background:var(--surface-2); border:0; border-radius:18px 18px 6px 18px; color:var(--ink); }
+  .msg.ai .who{ color:var(--ink-3); font-weight:500; }
+  .smallbrain{ color:var(--ink-3); border-color:var(--line-2); }
+  .fv-h, .fv-list{ border-color:var(--line); }
+  .fv-doc{ background:var(--bg); }
+  .fv-row:hover, .fv-row.on{ background:var(--surface-2); }
+  .fv-row.on{ box-shadow:inset 3px 0 0 var(--accent-solid); }
+  .demo-bar{ border-color:var(--line-2); background:var(--surface-2); }
+
+  @media (max-width:860px){
+    .topbar{ background:var(--side); }
+    .composer{ padding:16px 12px 0; }
+    .composer-wrap{ padding-bottom:10px; }
+    main[data-view="folder"] .composer-wrap{ left:0; }
+    .box .tbar{ flex-wrap:wrap; row-gap:8px; }
+    .box .tbar .ctrls{ flex:1 0 100%; order:-1; flex-wrap:wrap; }
+    .box .tbar .pick-btn, .box .tbar .fresh{ height:44px; }
+    .zero h2{ font-size:30px; }
+    .fv-t h2{ font-size:26px; }
+  }
+
+  /* Health in grey shades: the fuller the ring, the darker. */
+  .h-hi{ stroke:#27272a; } .h-mid{ stroke:#8a8a93; } .h-lo{ stroke:#c4c4cb; }
+  .hb-bar .h-hi{ background:#27272a; } .hb-bar .h-mid{ background:#8a8a93; } .hb-bar .h-lo{ background:#c4c4cb; }
+
+  /* On a phone the bar keeps two rows: the folder and the level, then the mic and send. */
+  @media (max-width:520px){
+    .box .tbar .ctrls{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
+    .box .tbar #scopeBtn{ grid-area:1 / 1; max-width:none; }
+    .box .tbar #levelWrap{ grid-area:1 / 2; display:flex; }
+    .box .tbar #levelWrap[hidden]{ display:none; }
+    .box .tbar #memBtn{ grid-area:1 / 2; }
+    .box .tbar #freshBtn{ display:none; }
+    .box .tbar .seg.lv button{ min-height:44px; padding:0 12px; }
+    .box .tbar .seg.lv button span{ display:none; }
+    .box .tbar .mic{ margin-left:auto; }
+  }
 </style>
 
 
@@ -1486,8 +1491,8 @@
 
   <aside id="side">
     <div class="brand">
-      <span class="mark"><img id="spaceMark" src="/brand/brain.svg" alt="" width="48" height="48"></span>
-      <h1><a href="/" id="spaceName" title="All workspaces">Brain</a></h1>
+      <span class="mark"><img id="spaceMark" src="/brand/tasu.svg" alt="" width="48" height="48"></span>
+      <h1><a href="/" id="spaceName" title="All workspaces">Tasu</a></h1>
       <button class="navtoggle" id="navToggle" aria-label="Hide the side panel" title="Hide the side panel">&#171;</button>
     </div>
     <div class="side-scroll">
@@ -1514,13 +1519,6 @@
         </div>
         <div class="panel-b" id="brainsBox"><div id="brains"></div></div>
       </section>
-      <section class="panel" id="projectsPanel">
-        <div class="panel-h">
-          <button class="fold-t" id="projectsFold" aria-expanded="true" aria-controls="projectsBox"><span class="p-ic p-proj"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"/></svg></span>Projects <b id="pcount"></b><span class="chev"></span></button>
-          <button class="side-plus" id="newProject" type="button" title="New project" aria-label="New project"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
-        </div>
-        <div class="panel-b" id="projectsBox"><div id="projects"></div></div>
-      </section>
     </div>
     <div class="side-foot">
       <button class="side-go" id="sideGo" type="button" hidden></button>
@@ -1538,8 +1536,8 @@
       <button class="burger" id="burger" aria-label="Menu">
         <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
       </button>
-      <img id="spaceMarkBar" class="barmark" src="/brand/brain.svg" alt="" width="24" height="24">
-      <h1><a href="/" id="spaceNameBar" title="All workspaces">Brain</a></h1>
+      <img id="spaceMarkBar" class="barmark" src="/brand/tasu.svg" alt="" width="24" height="24">
+      <h1><a href="/" id="spaceNameBar" title="All workspaces">Tasu</a></h1>
     </div>
 
     <div class="demo-bar" id="demoBar" hidden>
@@ -1550,33 +1548,11 @@
       <div><h2>Drop</h2><p>A link, a PDF, a Word file, a video or a transcript. It is read once, filed under the right folders, and each clash waits for your call.</p></div>
       <button class="mini" id="dropClose" type="button">Back to the chat</button></div></div>
     <section class="folder-view" id="folderView" hidden></section>
-    <section class="project-view" id="projectView" hidden></section>
-    <section class="pager-view" id="pagerView" hidden></section>
     <div class="thread" id="thread"></div>
     <div class="thread" id="dropThread" hidden></div>
 
     <div class="composer-wrap">
       <div class="composer">
-        <div class="ctrls">
-          <button class="pick-btn" id="scopeBtn" aria-haspopup="listbox" aria-expanded="false" title="Which folders to ask, or to feed">
-            <img class="pk-mark" id="scopeMark" src="/brand/brain.svg" alt="" width="18" height="18">
-            <span class="pk-lbl" id="scopeLabel">Across</span>
-            <span class="pk-val" id="scopeVal">All folders</span>
-            <svg class="pk-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 7.5 6 4.5l3 3"/></svg>
-          </button>
-          <div id="levelWrap">
-            <div class="seg lv" id="level" role="radiogroup" aria-label="Level of the answer">
-              <button data-v="normal" role="radio" title="Normal: the answer, with its numbers" aria-label="Normal">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg><span>Normal</span></button>
-              <button data-v="educational" role="radio" title="Educational: terms defined, mechanism built, one worked example" aria-label="Educational">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5C5.5 4 8.5 4 12 6c3.5-2 6.5-2 9-.5V19c-2.5-1.5-5.5-1.5-9 .5-3.5-2-6.5-2-9-.5z"/><path d="M12 6v13.5"/></svg><span>Educational</span></button>
-              <button data-v="learning" role="radio" title="Learning: no answer given, steps and hints to reach it yourself" aria-label="Learning">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z"/></svg><span>Learning</span></button>
-            </div>
-          </div>
-          <button class="fresh" id="memBtn" hidden title="Paste or drop what another assistant knows about you">Add memory</button>
-          <button class="fresh" id="freshBtn" hidden title="Keep this chat in the list and start a new one">New chat</button>
-        </div>
         <div class="box">
           <!-- A drop is two things: where it comes from, and what it says. They
                were one box, and a link pasted alone read as a source with no
@@ -1590,6 +1566,26 @@
           <input type="file" id="fileIn" hidden
                  accept=".pdf,.txt,.md,.markdown,.text,.docx,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
           <div class="tbar">
+            <div class="ctrls">
+              <button class="pick-btn" id="scopeBtn" aria-haspopup="listbox" aria-expanded="false" title="Which folders to ask, or to feed">
+                <img class="pk-mark" id="scopeMark" src="/brand/tasu.svg" alt="" width="18" height="18">
+                <span class="pk-lbl" id="scopeLabel">Across</span>
+                <span class="pk-val" id="scopeVal">All folders</span>
+                <svg class="pk-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 7.5 6 4.5l3 3"/></svg>
+              </button>
+              <div id="levelWrap">
+                <div class="seg lv" id="level" role="radiogroup" aria-label="Level of the answer">
+                  <button data-v="normal" role="radio" title="Normal: the answer, with its numbers" aria-label="Normal">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg><span>Normal</span></button>
+                  <button data-v="educational" role="radio" title="Educational: terms defined, mechanism built, one worked example" aria-label="Educational">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5C5.5 4 8.5 4 12 6c3.5-2 6.5-2 9-.5V19c-2.5-1.5-5.5-1.5-9 .5-3.5-2-6.5-2-9-.5z"/><path d="M12 6v13.5"/></svg><span>Educational</span></button>
+                  <button data-v="learning" role="radio" title="Learning: no answer given, steps and hints to reach it yourself" aria-label="Learning">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z"/></svg><span>Learning</span></button>
+                </div>
+              </div>
+              <button class="fresh" id="memBtn" hidden title="Paste or drop what another assistant knows about you">Add memory</button>
+              <button class="fresh" id="freshBtn" hidden title="Keep this chat in the list and start a new one">New chat</button>
+            </div>
             <span class="t" id="tHint"></span>
             <div class="tools">
               <button class="paste" id="fileBtn" hidden title="Read a PDF, a Word file or a text file into the content">+ document</button>
@@ -1618,7 +1614,7 @@ const TOKEN_KEY = "octopus.token.v1";
    travels only with the calls that spend a model, and the server keeps no
    copy of it. */
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
-  "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle", "/api/projects/build"]);
+  "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -1628,12 +1624,6 @@ const S = {
   /* The folder open in the main area, or null for the chat. */
   folder: null,
   /* The projects, the one open (its id, then the whole of it), and its last turns. */
-  projects: [], project: null, proj: null, projThread: [],
-  /* The one-pagers kept, listed under Projects, and the one open. */
-  pagers: [], pagerId: null,
-  /* Full lists every folder in the side panel; limited, the default, shows
-     Chats and Projects only. The workspace's choice, from Settings. */
-  full: false,
   /* The last few turns of the current thread. It travels with each question so
      a follow-up means something, and it is never written down: closing the tab
      ends it. */
@@ -1649,7 +1639,7 @@ const S = {
   level: "normal",
   /* Which space this session reads, and what it calls itself. The passphrase at
      the door decided it, and the app only reports it. */
-  space: document.documentElement.dataset.space || "", spaceName: "Brain",
+  space: document.documentElement.dataset.space || "", spaceName: "Tasu",
 };
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
@@ -1903,12 +1893,11 @@ async function refresh(){
   S.models = d.models || { chat: S.model, project: "", chatDefault: S.model, projectDefault: "" };
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
   S.demo = !!d.demo; S.byok = !!d.byok;
-  S.full = d.full === true;
   applyLook(d.brand || null);
   paintWorkspace();
   render();
-  /* The rings, the chats and the projects follow, so the brains never wait on them. */
-  loadHealth(); loadChats(); loadProjects();
+  /* The rings and the chats follow, so the brains never wait on them. */
+  loadHealth(); loadChats();
 }
 
 /** Each brain's health, then the rings repaint, and an open map with them. */
@@ -1939,20 +1928,12 @@ function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); 
  */
 function renderView(){
   if (S.folder && !S.brains.some(b => b.slug === S.folder)) S.folder = null;
-  /* Projects live in the full side panel; limited closes one left open. */
-  if (!S.full){ S.project = null; S.pagerId = null; }
-  const drop = S.mode === "drop", proj = !drop && !!S.project, pager = !drop && !proj && !!S.pagerId,
-        folder = !drop && !proj && !pager && !!S.folder;
+  const drop = S.mode === "drop", folder = !drop && !!S.folder;
   $("dropHead").hidden = !drop; $("dropThread").hidden = !drop;
-  $("folderView").hidden = !folder; $("projectView").hidden = !proj; $("pagerView").hidden = !pager;
-  $("thread").hidden = drop || folder || proj || pager;
+  $("folderView").hidden = !folder;
+  $("thread").hidden = drop || folder;
   $("dropBtn").classList.toggle("on", drop);
-  const main = document.querySelector("main");
-  main.dataset.view = drop ? "drop" : proj ? "project" : pager ? "pager" : folder ? "folder" : "chat";
-  /* A project's bar sits under its chat, beside its page. */
-  const bar = document.querySelector(".composer-wrap"), slot = proj ? $("projectView").querySelector(".pv-chat") : null;
-  if (slot && bar.parentNode !== slot) slot.append(bar);
-  if (!slot && bar.parentNode !== main) main.append(bar);
+  document.querySelector("main").dataset.view = drop ? "drop" : folder ? "folder" : "chat";
 }
 /** Drop, on the folders ticked. A personal folder takes no drop. */
 function openDrop(){
@@ -2043,10 +2024,10 @@ async function toLogo(file){
   } finally { URL.revokeObjectURL(url); }
 }
 
-/** The workspace's mark: its own logo, the octopus, the dog's head, or Brain's. */
+/** The workspace's mark: its own logo, the octopus, the dog's head, or Tasu's folder. */
 function markOf(){
   if (S.logo) return S.logo;
-  return S.space === "octopus" ? "/brand/logo-mark.png" : S.space === "squidgy" ? "/brand/squidgy-icon.png" : "/brand/brain.svg";
+  return S.space === "octopus" ? "/brand/logo-mark.png" : S.space === "squidgy" ? "/brand/squidgy-icon.png" : "/brand/tasu.svg";
 }
 
 function paintSpace(){
@@ -2148,8 +2129,8 @@ function brainRow(b){
       crossing("all");
       setPicks(on ? S.picks.filter(x => x !== b.slug) : [...S.picks, b.slug]);
     }
-    /* A tick is for chatting, so an open folder or project gives way to the chat. */
-    S.folder = null; S.project = null; S.pagerId = null;
+    /* A tick is for chatting, so an open folder gives way to the chat. */
+    S.folder = null;
     render();
   };
   /* One control on the row, so a click anywhere else ticks it. Its name and
@@ -2189,13 +2170,13 @@ function folds(){
 }
 /* Projects come next, so their panel starts shut until it is opened once. */
 function paintFolds(){
-  for (const k of ["chats","brains","projects"]){
+  for (const k of ["chats","brains"]){
     const shut = !!folds()[k];
     $(k + "Fold").setAttribute("aria-expanded", String(!shut));
     $(k + "Box").hidden = shut;
   }
 }
-for (const k of ["chats","brains","projects"]) $(k + "Fold").onclick = () => {
+for (const k of ["chats","brains"]) $(k + "Fold").onclick = () => {
   folds()[k] = !$(k + "Box").hidden;
   try { localStorage.setItem("octopus.fold", JSON.stringify(folds())); } catch {}
   paintFolds();
@@ -2248,25 +2229,6 @@ function closeChatMenu(){
   document.removeEventListener("pointerdown", chatMenu.outside, true);
   document.removeEventListener("keydown", chatMenu.key, true);
   chatMenu.box.remove(); chatMenu = null;
-}
-/**
- * A row's menu: each item a label and what it does. A dangerous one asks
- * once more in the menu itself, then goes.
- */
-function openRowMenu(anchor, items){
-  closeChatMenu();
-  const box = el("div","chat-menu"); box.setAttribute("role","menu");
-  for (const it of items){
-    const b = el("button","cm-it" + (it.danger ? " del" : ""), it.label);
-    b.setAttribute("role","menuitem");
-    b.onclick = e => {
-      e.stopPropagation();
-      if (it.danger && !b.classList.contains("sure")){ b.classList.add("sure"); b.textContent = "Sure? " + it.label; return; }
-      closeChatMenu(); it.fn();
-    };
-    box.append(b);
-  }
-  placeMenu(box, anchor);
 }
 /** A menu under its button, kept on screen, closed by a click outside or Escape. */
 function placeMenu(box, anchor){
@@ -2323,7 +2285,7 @@ function renderChats(){
 
 /** A clean screen, and the next question starts a new chat. */
 function newChat(){
-  S.thread = []; S.chatId = null; S.mode = "ask"; S.folder = null; S.project = null; S.pagerId = null;
+  S.thread = []; S.chatId = null; S.mode = "ask"; S.folder = null;
   $("thread").innerHTML = "";
   render(); renderChats();
 }
@@ -2339,7 +2301,7 @@ async function openChat(id){
   const asked = String(c.brain || "").split(",").filter(x => S.brains.some(b => b.slug === x));
   if (asked.length === 1 && isPersonal(asked[0])){ S.picks = []; S.scope = asked[0]; S.into = []; }
   else setPicks(asked);
-  S.mode = "ask"; S.folder = null; S.project = null; S.pagerId = null;
+  S.mode = "ask"; S.folder = null;
   $("thread").innerHTML = "";
   for (const t of c.turns || []){
     says(t.q);
@@ -2455,8 +2417,6 @@ async function settleFrom(id, brain){
  */
 function renderSide(){
   paintFolds();
-  /* Limited: Chats and Folders. Full adds Projects. */
-  $("projectsPanel").hidden = !S.full;
   const box = $("brains"); box.innerHTML = "";
   $("bcount").textContent = S.brains.length || "";
   if (!S.brains.length){
@@ -2649,15 +2609,12 @@ function renderComposer(){
   const mine = S.mode === "ask" && isPersonal(S.scope);
   $("memBtn").hidden = !mine || S.demo;
   /* It appears once there is something to forget. */
-  $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length || !!S.folder || !!S.project;
-  /* A project reads its own folders, so its bar has no picker. */
-  $("scopeBtn").hidden = S.mode !== "drop" && !!S.project;
+  $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length || !!S.folder;
   const drop = S.mode==="drop";
   $("srcLine").hidden = !drop;
   $("input").placeholder = drop
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
     : mine ? "Tell it anything: a plan, a decision, an idea. Or ask what you said."
-    : S.project ? `Ask ${S.proj?.name || "this project"}. Its page changes only when you press Build.`
     : S.picks.length > 1 ? `Ask ${picksName()}.`
     : S.scope==="all" ? "Ask anything your folders have read."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this folder") + ".";
@@ -2777,8 +2734,7 @@ function push(kind, build, where = $("thread")){
   if (kind !== "me"){
     const who = el("div","who");
     who.append(el("span",null,S.spaceName));
-    /* A project's answers carry the project's name; others, the folder asked. */
-    const b = where.id === "pvThread" ? S.proj : S.brains.find(x=>x.slug===S.scope);
+    const b = S.brains.find(x=>x.slug===S.scope);
     if (b) who.append(el("span","sc","· "+b.name));
     col.append(who);
   }
@@ -2972,7 +2928,6 @@ $("burger").onclick = () => $("side").classList.toggle("open");
 $("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
-$("newProject").onclick = () => openProjectSheet(null);
 
 $("freshBtn").onclick = () => { newChat(); $("input").focus(); };
 $("newChat").onclick = () => { closeSide(); newChat(); $("input").focus(); };
@@ -2985,6 +2940,11 @@ $("pagerBtn").onclick = () => { closeSide(); openPagerSheet(); };
 $("dropBtn").onclick = () => { closeSide(); openDrop(); };
 $("dropClose").onclick = () => { S.mode = "ask"; render(); $("input").focus(); };
 $("sideGo").onclick = () => { closeSide(); $("input").focus(); };
+/* The bar floats over the thread, so the thread keeps room under its last line. */
+try {
+  new ResizeObserver(([e]) => document.querySelector("main").style.setProperty("--bar-h", Math.ceil(e.target.offsetHeight) + "px"))
+    .observe(document.querySelector(".composer-wrap"));
+} catch {}
 $("navToggle").onclick = () => { navOpen = false; paintNav(); };
 $("navOpen").onclick  = () => { navOpen = true;  paintNav(); };
 paintNav();
@@ -3434,21 +3394,11 @@ async function openSetupSheet(){
 
       <div class="f set-row">
         <button class="foot-btn${modelLabel("chat").picked ? " pick" : ""}" id="setModel" title="${esc(modelLabel("chat").title)}">
-          <span class="lbl">Chat model</span><span class="val">${esc(modelLabel("chat").val)}</span></button>
-        <button class="foot-btn${modelLabel("project").picked ? " pick" : ""}" id="setProjModel" title="${esc(modelLabel("project").title)}">
-          <span class="lbl">Project model</span><span class="val">${esc(modelLabel("project").val)}</span></button>
+          <span class="lbl">Model</span><span class="val">${esc(modelLabel("chat").val)}</span></button>
         <button class="foot-btn" id="setExport" title="Every brain of this workspace, as one markdown file">
           <span class="lbl">Export</span><span class="val">markdown</span></button>
         <button class="foot-btn" id="setMap" title="Every brain as an arm of the octopus: its concepts, the links between brains and the open conflicts">
           <span class="lbl">Map</span><span class="val">open</span></button>
-      </div>
-
-      <div class="f" id="modeBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${S.demo ? "hidden" : ""}>
-        <label>Side panel</label>
-        <div class="hint" style="margin:0 0 10px">Limited shows your chats and folders. Full adds Projects: each project, and every one-pager you built.</div>
-        <div class="seg" id="modeSeg" role="radiogroup" aria-label="Side panel">
-          <button type="button" role="radio" data-full="0">Limited</button><button type="button" role="radio" data-full="1">Full</button></div>
-        <div class="hint" id="modeMsg" role="status"></div>
       </div>
 
       <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
@@ -3644,30 +3594,8 @@ async function openSetupSheet(){
 
   /* ---- the model and the export ---- */
   veil.querySelector("#setModel").hidden = S.demo;
-  veil.querySelector("#setProjModel").hidden = S.demo;
   veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet("chat"); };
-  veil.querySelector("#setProjModel").onclick = () => { shut(); openModelSheet("project"); };
   veil.querySelector("#setMap").onclick = () => { shut(); openMap(); };
-  /* Limited or full: saved for the workspace, so every device opening it follows. */
-  const modeSeg = veil.querySelector("#modeSeg"), modeMsg = veil.querySelector("#modeMsg");
-  const paintMode = () => [...modeSeg.children].forEach(x => {
-    const on = (x.dataset.full === "1") === S.full;
-    x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on));
-  });
-  paintMode();
-  modeSeg.onclick = async e => {
-    const x = e.target.closest("button[data-full]");
-    if (!x || (x.dataset.full === "1") === S.full) return;
-    const full = x.dataset.full === "1";
-    modeMsg.textContent = "Saving";
-    try {
-      const r = await api("/api/mode", { full });
-      if (r.error) throw new Error(r.error);
-      S.full = !!r.full;
-      paintMode(); render();
-      modeMsg.textContent = S.full ? "Full: Projects joins Chats and Folders in the side panel." : "Limited: the side panel shows chats and folders.";
-    } catch (err) { modeMsg.textContent = err.message; }
-  };
   const exp = veil.querySelector("#setExport");
   exp.onclick = async () => {
     const v = exp.querySelector(".val");
@@ -3887,7 +3815,7 @@ function openModelSheet(which = "chat"){
   const veil = el("div","veil");
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
-      <header><h3>${proj ? "Project model" : "Chat model"}</h3>
+      <header><h3>${proj ? "Project model" : "Model"}</h3>
       <p>${proj ? "The model that answers in a project's chat and builds its page, the rebuilds after a drop included."
                 : "The model that answers in the chat, reads and files what you drop, and writes one-pagers."}
       It applies to everyone in this workspace. ${S.byok ? "Your own key pays for every call." : "This deployment's key pays for every call."}
@@ -4308,465 +4236,6 @@ function openBrainView(b, openId){
   veil.focus();
 }
 
-/* ============ projects ============ */
-/**
- * A project reads the folders it names and keeps one page up to date. Its
- * chat sits on the left, its page on the right. The page is shown in a frame
- * that runs no script, reaches no server and opens no window, whatever the
- * page holds.
- */
-const IC_FILE = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>`;
-const PAGE_CSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src data:; base-uri 'none'; form-action 'none'">`;
-/** A page made safe to show: the policy goes first in its head, an auto-redirect goes. */
-function framed(html){
-  const t = String(html || "").replace(/<meta[^>]+http-equiv\s*=\s*["']?refresh[^>]*>/gi, "");
-  return /<head[^>]*>/i.test(t) ? t.replace(/<head[^>]*>/i, m => m + PAGE_CSP) : PAGE_CSP + t;
-}
-function pageFrame(html, title){
-  const f = document.createElement("iframe");
-  f.setAttribute("sandbox", "");
-  f.setAttribute("referrerpolicy", "no-referrer");
-  f.title = title || "The project's page";
-  f.srcdoc = framed(html);
-  return f;
-}
-const projName = id => S.projects.find(p => p.id === id)?.name || "";
-/* The project view is drawn at run time, so its parts are found inside it. */
-const pvThread = () => $("projectView").querySelector("#pvThread");
-const pvFrame = () => $("projectView").querySelector("#pvFrame");
-
-async function loadProjects(){
-  let d;
-  try { d = await api("/api/projects"); } catch { return; }
-  S.projects = d.projects || []; S.pagers = d.pagers || [];
-  renderProjects();
-}
-/**
- * Projects, as a list of titles: each project, and every one-pager built,
- * newest first. A row's one button deletes it.
- */
-function renderProjects(){
-  closeChatMenu();
-  const box = $("projects"); box.innerHTML = "";
-  const items = [
-    ...S.projects.map(p => ({ kind: "project", id: p.id, title: p.name, at: p.updated || 0, stale: p.stale, p })),
-    ...(S.pagers || []).map(p => ({ kind: "pager", id: p.id, title: p.title, at: p.at || 0 })),
-  ].sort((x, y) => y.at - x.at);
-  $("pcount").textContent = items.length || "";
-  $("newProject").hidden = S.demo;
-  if (!items.length){
-    box.append(el("div","empty-side", S.demo ? "Every one-pager you build lands here, by its title."
-      : "A project reads the folders you pick and keeps one page up to date. Every one-pager you build lands here too."));
-    return;
-  }
-  for (const it of items){
-    const on = it.kind === "project" ? S.project === it.id : S.pagerId === it.id;
-    const row = el("div","chat-row proj-row" + (on ? " on" : ""));
-    row.tabIndex = 0; row.setAttribute("role","button"); row.dataset.id = it.id; row.dataset.kind = it.kind;
-    const main = el("span","cm"), nm = el("span","nm");
-    nm.append(el("span",null,it.title));
-    if (it.stale){ const d = el("span","dot"); d.title = "A source landed since the last build"; nm.append(d); }
-    main.append(nm);
-    row.append(main);
-    row.title = it.kind === "pager" ? `${it.title}\nOne-pager, ${new Date(it.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : it.title;
-    const open = () => it.kind === "project" ? openProject(it.id) : openSavedPager(it.id);
-    row.onclick = open;
-    row.onkeydown = e => { if (e.key === "Enter" && e.target === row) open(); };
-    const more = el("button","more","⋯");
-    more.title = it.kind === "project" ? "Settings or delete" : "Delete";
-    more.setAttribute("aria-label", `${more.title}: "${it.title}"`);
-    more.setAttribute("aria-haspopup","menu"); more.setAttribute("aria-expanded","false");
-    more.onclick = e => { e.stopPropagation(); chatMenu ? closeChatMenu() : openRowMenu(more, [
-      ...(it.kind === "project" ? [{ label: "Settings", fn: async () => {
-        const p = (await api("/api/projects/get", { id: it.id }).catch(e => ({ error: e.message }))).project;
-        if (p) openProjectSheet(p); else chatMsg("That project is gone.");
-      } }] : []),
-      { label: "Delete", danger: true, fn: () => deleteItem(it) },
-    ]); };
-    row.append(more);
-    box.append(row);
-  }
-}
-/** A project or a kept one-pager, deleted, and its screen closed if it was open. */
-async function deleteItem(it){
-  try {
-    const r = await api(it.kind === "project" ? "/api/projects/remove" : "/api/onepagers/remove", { id: it.id });
-    if (r.error) throw new Error(r.error);
-  } catch (e) { chatMsg(e.message); return; }
-  if (it.kind === "project" && S.project === it.id){ S.project = null; S.proj = null; }
-  if (it.kind === "pager" && S.pagerId === it.id) S.pagerId = null;
-  render(); loadProjects();
-}
-
-/** A kept one-pager on screen again, with Copy, Print and Mail. */
-async function openSavedPager(id){
-  closeSide();
-  S.mode = "ask"; S.folder = null; S.project = null; S.pagerId = id;
-  const pv = $("pagerView"); pv.innerHTML = "";
-  const head = el("header","pv-h"), t = el("div","pv-t");
-  t.append(el("h2",null,(S.pagers || []).find(p => p.id === id)?.title || "One-pager"));
-  const meta = el("div","pv-meta"); meta.append(el("span","pv-chip","Opening")); t.append(meta);
-  const acts = el("div","pv-acts");
-  const del = el("button","fv-b","Delete"); del.type = "button"; del.id = "pgDelete";
-  del.onclick = () => {
-    if (!del.classList.contains("sure")){ del.classList.add("sure"); del.textContent = "Sure? Delete"; return; }
-    deleteItem({ kind: "pager", id });
-  };
-  const x = el("button","fv-b fv-x","×"); x.type = "button"; x.id = "pgClose"; x.title = "Back to the chat"; x.setAttribute("aria-label","Back to the chat");
-  x.onclick = () => { S.pagerId = null; render(); renderProjects(); $("input").focus(); };
-  acts.append(del, x); head.append(t, acts);
-  const th = el("div","thread"); th.id = "pgThread";
-  pv.append(head, th);
-  render(); renderProjects();
-  let r;
-  try { r = (await api("/api/onepagers/get", { id })).pager; }
-  catch (e) { meta.innerHTML = ""; meta.append(el("span","pv-chip warn",e.message)); return; }
-  if (S.pagerId !== id) return;
-  t.querySelector("h2").textContent = r.title;
-  meta.innerHTML = "";
-  meta.append(el("span","pv-chip", `One-pager · ${new Date(r.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`));
-  const picked = String(r.ask?.pick || "all"), b = S.brains.find(x => x.slug === picked);
-  meta.append(el("span","pv-chip acc", b ? b.name : picked === "all" ? "All folders" : picked === "person" ? "People" : picked === "subject" ? "Subjects" : picked));
-  if (r.ask?.q) meta.append(el("span","pv-chip", r.ask.q.length > 60 ? r.ask.q.slice(0, 57) + "..." : r.ask.q));
-  showPager(r.page, r.text, r.ask || {}, null, null, th);
-  th.scrollTop = 0;
-}
-
-/** A project on screen: its head, its chat and its page. */
-async function openProject(id){
-  closeSide();
-  S.mode = "ask"; S.folder = null; S.pagerId = null; S.project = id; S.proj = null; S.projThread = []; S.pageV = null;
-  if (isPersonal(S.scope)){ S.scope = "all"; S.picks = []; }
-  paintProject();
-  render(); renderProjects();
-  let p;
-  try { p = (await api("/api/projects/get", { id })).project; }
-  catch (e) { if (S.project === id){ $("projectView").querySelector(".pv-t p")?.replaceWith(el("p","fv-none",e.message)); } return; }
-  if (S.project !== id) return;
-  S.proj = p; S.projThread = (p.turns || []).slice(-6).map(t => ({ q: t.q, a: String(t.a ?? "") }));
-  paintProject();
-  render();
-  bottom(pvThread());
-}
-
-function paintProject(){
-  const pv = $("projectView"), p = S.proj, id = S.project;
-  /* The bar is moved out first, so repainting the view never deletes it. */
-  const bar = document.querySelector(".composer-wrap");
-  if (pv.contains(bar)) document.querySelector("main").append(bar);
-  pv.innerHTML = "";
-  const head = el("header","pv-h"), t = el("div","pv-t");
-  t.append(el("h2",null, p?.name || projName(id) || "Project"));
-  const meta = el("div","pv-meta");
-  if (!p) meta.append(el("span","pv-chip","Opening"));
-  else {
-    for (const slug of p.brains){
-      const b = S.brains.find(x => x.slug === slug);
-      meta.append(el("span","pv-chip acc", b ? b.name : slug + " (gone)"));
-    }
-    if (p.templateName){ const c = el("span","pv-chip"); c.innerHTML = IC_FILE; c.append(p.templateName); meta.append(c); }
-    if (p.stale) meta.append(el("span","pv-chip warn","A source landed since this page"));
-  }
-  t.append(meta);
-  const acts = el("div","pv-acts");
-  const set = el("button","fv-b","Settings"); set.type = "button"; set.id = "pvSettings";
-  set.disabled = !p; set.onclick = () => openProjectSheet(S.proj);
-  const x = el("button","fv-b fv-x","×"); x.type = "button"; x.id = "pvClose"; x.title = "Back to the chat"; x.setAttribute("aria-label","Back to the chat");
-  x.onclick = () => { S.project = null; render(); renderProjects(); $("input").focus(); };
-  acts.append(set, x);
-  head.append(t, acts);
-
-  const tabs = el("div","seg pv-tabs");
-  const tc = el("button","on","Chat"), tp = el("button",null,"Page");
-  tc.type = tp.type = "button"; tc.id = "pvTabChat"; tp.id = "pvTabPage";
-  tabs.append(tc, tp);
-  const cols = el("div","pv-cols");
-  tc.onclick = () => { cols.classList.remove("page"); tc.classList.add("on"); tp.classList.remove("on"); };
-  tp.onclick = () => { cols.classList.add("page"); tp.classList.add("on"); tc.classList.remove("on"); };
-
-  const chat = el("div","pv-chat");
-  const th = el("div","thread"); th.id = "pvThread";
-  chat.append(th);
-  const page = el("div","pv-page");
-  const frame = el("div","pv-frame"); frame.id = "pvFrame";
-  page.append(frame);
-  cols.append(chat, page);
-  pv.append(head, tabs, cols);
-
-  if (!p) return;
-  if (!(p.turns || []).length){
-    const z = el("div","pv-hint");
-    const n = p.brains.length;
-    z.innerHTML = `<b>Ask ${esc(p.name)}</b>It reads its ${n} folder${n === 1 ? "" : "s"} and follows its instructions. Talking here never changes the page: Add to the page puts an answer aside, and Build makes the next version.`;
-    const col = el("div","col zero"); col.append(z); th.append(col);
-  }
-  for (const turn of p.turns || []){
-    says(turn.q, null, th);
-    push("ai", body => projectAnswer(body, turn, turn.q), th);
-  }
-  paintPage();
-}
-
-/** The page side: the version on show, the versions, Build, and the page itself. */
-async function paintPage(){
-  const p = S.proj, frame = pvFrame();
-  if (!p || !frame) return;
-  frame.innerHTML = "";
-  const top = p.versions?.[0]?.v || 0, v = S.pageV || top;
-  if (!top){
-    const e = el("div","pv-empty");
-    const w = (p.pending || []).length;
-    e.append(el("p",null, S.building ? "" : `No page yet. Build makes it from ${p.brains.length} folder${p.brains.length === 1 ? "" : "s"}${p.templateName ? `, in the layout of ${p.templateName}` : ""}${w ? `, with the ${w} answer${w === 1 ? "" : "s"} you added` : ""}.`));
-    const go = el("button","go","Build the page"); go.type = "button"; go.id = "pvBuild";
-    go.onclick = () => buildProject();
-    if (!S.building) e.append(go);
-    frame.append(e);
-  } else {
-    const bar = el("div","pv-bar");
-    bar.append(el("span","grow", `${p.templateName || "page.html"} · version ${v}${v !== top ? ` of ${top}` : ""}`));
-    const sel = document.createElement("select"); sel.id = "pvVersions"; sel.setAttribute("aria-label","Versions");
-    for (const x of p.versions){
-      const o = document.createElement("option"); o.value = String(x.v);
-      o.textContent = `v${x.v} · ${x.why} · ${new Date(x.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
-      if (x.v === v) o.selected = true;
-      sel.append(o);
-    }
-    sel.onchange = () => { S.pageV = Number(sel.value); paintPage(); };
-    const waiting = (p.pending || []).length;
-    const rb = el("button","mini pv-build" + (waiting ? " due" : ""), waiting ? `Build · ${waiting} to add` : "Build");
-    rb.type = "button"; rb.id = "pvRebuild"; rb.disabled = !!S.building;
-    rb.title = waiting ? `The next version, with the ${waiting} answer${waiting === 1 ? "" : "s"} you added` : "The next version, from the folders as they stand";
-    rb.onclick = () => buildProject();
-    const full = el("button","mini","Open full page"); full.type = "button"; full.id = "pvFull";
-    bar.append(sel, rb, full);
-    frame.append(bar);
-    let html = p.page;
-    if (v !== top){
-      const slot = el("div","pv-empty", "Opening version " + v); frame.append(slot);
-      try { html = (await api("/api/projects/page", { id: p.id, v })).page?.html || ""; }
-      catch (e) { slot.textContent = e.message; return; }
-      if (S.proj !== p || (S.pageV || top) !== v) return;
-      slot.remove();
-    }
-    frame.append(pageFrame(html, `${p.name}, version ${v}`));
-    full.onclick = () => openPageFull(html, `${p.name} · version ${v}`, p.name);
-  }
-  if (S.building){
-    const b = el("div","pv-busy"); b.id = "pvBusy";
-    b.innerHTML = `<span class="spinner"></span><div>Building version ${top + 1}<small>It reads the folders and writes the page. That takes a minute or two.</small></div>`;
-    frame.append(b);
-  }
-}
-
-/** The page over everything, with Copy and Download. It still runs no script. */
-function openPageFull(html, title, name){
-  const box = el("div","page-full");
-  box.setAttribute("role","dialog"); box.setAttribute("aria-modal","true");
-  const bar = el("div","pf-bar"); bar.append(el("b",null,title));
-  const cp = el("button","mini","Copy the HTML"); cp.type = "button";
-  cp.onclick = async () => { try { await navigator.clipboard.writeText(html); cp.textContent = "Copied"; } catch { cp.textContent = "Blocked"; } setTimeout(() => { cp.textContent = "Copy the HTML"; }, 1600); };
-  const dl = el("button","mini","Download"); dl.type = "button";
-  dl.onclick = () => {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
-    a.download = (String(name || "page").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "page") + ".html";
-    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  };
-  const x = el("button","mini","Close"); x.type = "button";
-  const onKey = e => { if (e.key === "Escape") shut(); };
-  const shut = () => { document.removeEventListener("keydown", onKey); box.remove(); };
-  x.onclick = shut; document.addEventListener("keydown", onKey);
-  bar.append(cp, dl, x);
-  box.append(bar, pageFrame(html, title));
-  document.body.append(box);
-}
-
-/** An answer in a project's chat: Copy, and Add to the page. */
-function projectAnswer(body, r, q){
-  showAnswer(body, r, q, "all");
-  const acts = body.querySelector(".ans-acts");
-  if (!acts) return;
-  [...acts.querySelectorAll(".mini")].filter(b => /One-pager/.test(b.textContent)).forEach(b => b.remove());
-  /* Put aside for the next Build, or taken back. Nothing is built here. */
-  const a = String(r.answer ?? r.a ?? "").trim(), qq = String(q).trim();
-  const add = el("button","mini pv-add"); add.type = "button";
-  add.dataset.q = qq; add.dataset.a = a;
-  const paint = () => {
-    const on = (S.proj?.pending || []).some(x => x.q === qq && x.a === a);
-    add.textContent = on ? "Waits for Build" : "Add to the page";
-    add.classList.toggle("on", on);
-    add.title = on ? "It goes on the page at the next Build. Click to take it back." : "Put it aside for the next Build";
-  };
-  add.onclick = async () => {
-    const p = S.proj; if (!p) return;
-    const on = add.classList.contains("on");
-    add.disabled = true;
-    try { await api("/api/projects/queue", { id: p.id, q: qq, a, ...(on ? { remove: true } : {}) }); }
-    catch (e) { add.disabled = false; add.textContent = e.message.slice(0, 60); setTimeout(paint, 2400); return; }
-    add.disabled = false;
-    p.pending = on ? (p.pending || []).filter(x => !(x.q === qq && x.a === a)) : [...(p.pending || []), { q: qq, a, at: Date.now() }];
-    paint(); paintPage();
-  };
-  paint();
-  acts.append(add);
-}
-/** Each Add to the page button shows whether its answer still waits. */
-function syncAdds(){
-  for (const b of pvThread()?.querySelectorAll(".pv-add") || []){
-    const on = (S.proj?.pending || []).some(x => x.q === b.dataset.q && x.a === b.dataset.a);
-    b.classList.toggle("on", on); b.textContent = on ? "Waits for Build" : "Add to the page";
-  }
-}
-
-async function doProjectAsk(q){
-  const p = S.proj, where = pvThread();
-  if (!p || !where) return;
-  says(q, null, where);
-  const body = thinking(undefined, where);
-  try {
-    const r = await api("/api/ask", { q, project: p.id, level: S.level, history: S.projThread.slice(-4) });
-    body.innerHTML = "";
-    projectAnswer(body, r, q);
-    S.projThread.push({ q, a: String(r.answer ?? "") });
-    if (S.projThread.length > 6) S.projThread = S.projThread.slice(-6);
-    p.turns = [...(p.turns || []), { q, a: String(r.answer ?? ""), sources: r.sources, level: r.level }];
-    bottom(where);
-  } catch (e) { fail(body, e.message); }
-}
-
-/** Build: the next version of the page, with the answers that wait for it. The only way the page changes. */
-async function buildProject(){
-  const p = S.proj;
-  if (!p || S.building) return;
-  const took = (p.pending || []).length;
-  S.building = true; S.pageV = null;
-  paintPage();
-  try {
-    const r = await api("/api/projects/build", { id: p.id });
-    p.versions = [{ v: r.v, why: took ? `Built with ${took} answer${took === 1 ? "" : "s"} added` : "Built", at: r.at }, ...(p.versions || [])].slice(0, 10);
-    p.page = r.html; p.version = r.v; p.stale = false;
-    /* What it read is on the page; an answer added while it ran waits for the next. */
-    p.pending = (p.pending || []).slice(took);
-    if (S.proj === p){
-      syncAdds();
-      push("ai", b => { b.innerHTML = rich(took ? `Built. Version ${r.v} holds the ${took} answer${took === 1 ? "" : "s"} you added.` : `Built. The page is at version ${r.v}.`); }, pvThread());
-    }
-    loadProjects();
-  } catch (e) {
-    if (S.proj === p) push("ai", b => { b.innerHTML = rich("**The page did not build.** " + esc(e.message)); }, pvThread());
-  } finally {
-    S.building = false;
-    if (S.proj === p){ paintPage(); const m = $("projectView").querySelector(".pv-chip.warn"); if (m && !p.stale) m.remove(); }
-  }
-}
-
-/** New project, or a project's settings: its name, folders, instructions, template, and when it rebuilds. */
-function openProjectSheet(p){
-  closeSide();
-  const editing = !!p;
-  const veil = el("div","veil");
-  veil.innerHTML = `
-    <div class="sheet roomy" role="dialog" aria-modal="true" aria-labelledby="pjTitle">
-      <header><h3 id="pjTitle">${editing ? "Project settings" : "New project"}</h3>
-        <p>A chat that reads the folders you pick, and one page it keeps up to date.</p></header>
-      <div class="f"><label for="pjName">Name</label><input id="pjName" autocomplete="off" maxlength="60" placeholder="Gold thesis"></div>
-      <div class="f"><label>Folders it reads</label><div class="pj-pick" id="pjPick"></div></div>
-      <div class="f"><label for="pjInstr">Instructions</label>
-        <textarea id="pjInstr" maxlength="2000" placeholder="Keep one page on where my sources stand on gold: the views held, who holds them, and what changed this week. Answer in short lines."></textarea>
-        <div class="hint">What the page keeps up to date, and how the chat answers.</div></div>
-      <div class="f"><label>Page template <span class="optl">(optional)</span></label>
-        <div class="pj-tpl" id="pjTpl"></div>
-        <input type="file" id="pjFile" accept=".html,.htm,text/html" hidden>
-        <div class="hint">An HTML file, 60 KB at most. Each build keeps its layout and fills it from the folders. Its scripts stay off.</div></div>
-      <label class="switch-row" id="pjAutoF"><input type="checkbox" id="pjAuto" role="switch"><span class="sw" aria-hidden="true"></span>
-        <span><b>Also build when a source lands</b><small>${S.byok ? "Off: the page changes only when you press Build. On your own key it stays that way, and a source landing marks the page out of date." : "Off: the page changes only when you press Build, and a source landing marks it out of date. On: a source dropped into one of its folders also builds the next version."}</small></span></label>
-      <div class="f"><div id="pjMsg" class="bad" role="alert"></div></div>
-      <footer>${editing ? `<button class="ghost" id="pjDel" style="margin-right:auto">Delete</button>` : ""}<button class="ghost" id="pjCancel">Cancel</button><button class="go" id="pjSave">${editing ? "Save" : "Create project"}</button></footer>
-    </div>`;
-  document.body.append(veil);
-  const q = sel => veil.querySelector(sel);
-  q("#pjName").value = p?.name || "";
-  q("#pjInstr").value = p?.instructions || "";
-  /* Off unless turned on: the page changes when you press Build. */
-  q("#pjAuto").checked = p ? !!p.auto : false;
-  const syncSwitch = () => q("#pjAutoF").classList.toggle("on", q("#pjAuto").checked);
-  q("#pjAuto").onchange = syncSwitch; syncSwitch();
-
-  /* Every folder this workspace reads, by group. A personal one never joins. */
-  const chosen = new Set(p?.brains || S.picks.filter(x => !isPersonal(x)));
-  const pick = q("#pjPick");
-  const groups = [["Mine", b => (b.space || "octopus") === S.space], ["Ask and drop", b => (b.space || "octopus") !== S.space && !readOnly(b)], ["Ask only", b => readOnly(b)]];
-  const seen = new Set();
-  for (const g of groups){
-    const label = g[0];
-    const fits = g[1];
-    const list = S.brains.filter(b => b.type !== "personal" && !seen.has(b.slug) && fits(b))
-      .sort((a, b) => conceptsOf(b.slug).length - conceptsOf(a.slug).length);
-    if (!list.length) continue;
-    pick.append(el("div","g",label));
-    for (const b of list){
-      seen.add(b.slug);
-      const l = el("label"); const c = document.createElement("input"); c.type = "checkbox"; c.value = b.slug; c.checked = chosen.has(b.slug);
-      c.onchange = () => { c.checked ? chosen.add(b.slug) : chosen.delete(b.slug); };
-      l.append(c, el("span",null,b.name)); pick.append(l);
-    }
-  }
-  if (!seen.size) pick.append(el("div","g","No folder yet. Make one first."));
-
-  /* The template: kept, replaced, or removed. */
-  let tpl, tplName = p?.templateName || "";   // undefined keeps what the server holds
-  const paintTpl = () => {
-    const box = q("#pjTpl"); box.innerHTML = "";
-    const has = tpl === undefined ? !!p?.templateName : !!tpl;
-    box.append(el("span","ft","HTML"));
-    const tn = el("span","tn", has ? tplName : "No template: a clean page is designed for it");
-    if (has && tpl) tn.append(el("small",null,`${Math.max(1, Math.round(tpl.length / 1000))} KB, its layout filled from the folders`));
-    box.append(tn);
-    const add = el("button","mini", has ? "Replace" : "Add a template"); add.type = "button"; add.id = "pjAdd";
-    add.onclick = () => q("#pjFile").click();
-    box.append(add);
-    if (has){ const rm = el("button","mini","Remove"); rm.type = "button"; rm.onclick = () => { tpl = null; tplName = ""; paintTpl(); }; box.append(rm); }
-  };
-  paintTpl();
-  q("#pjFile").onchange = async e => {
-    const f = e.target.files && e.target.files[0]; e.target.value = "";
-    if (!f) return;
-    if (f.size > 60000){ q("#pjMsg").textContent = `${f.name} is ${Math.round(f.size / 1000)} KB. A template holds 60 KB at most.`; return; }
-    const text = await f.text();
-    if (!/<[a-z!]/i.test(text)){ q("#pjMsg").textContent = `${f.name} holds no HTML.`; return; }
-    tpl = text; tplName = f.name; q("#pjMsg").textContent = ""; paintTpl();
-  };
-
-  const shut = () => { if (!busy) veil.remove(); };
-  q("#pjCancel").onclick = shut;
-  veil.onclick = e => { if (e.target === veil) shut(); };
-  setTimeout(() => q("#pjName").focus(), 30);
-  let busy = false, sure = false;
-  if (editing) q("#pjDel").onclick = async () => {
-    if (!sure){ sure = true; q("#pjDel").textContent = "Sure? Delete"; return; }
-    busy = true;
-    try { await api("/api/projects/remove", { id: p.id }); }
-    catch (e) { busy = false; q("#pjMsg").textContent = e.message; return; }
-    busy = false; veil.remove();
-    if (S.project === p.id){ S.project = null; S.proj = null; render(); }
-    loadProjects();
-  };
-  q("#pjSave").onclick = async () => {
-    const name = q("#pjName").value.trim(), brains = [...chosen].filter(x => S.brains.some(b => b.slug === x && b.type !== "personal"));
-    if (!name){ q("#pjName").focus(); q("#pjMsg").textContent = "Give it a name."; return; }
-    if (!brains.length){ q("#pjMsg").textContent = "Tick at least one folder for it to read."; return; }
-    busy = true; const btn = q("#pjSave"); btn.disabled = true; btn.textContent = editing ? "Saving" : "Creating";
-    let r;
-    try {
-      r = await api("/api/projects/save", { ...(editing ? { id: p.id } : {}), name, brains, instructions: q("#pjInstr").value.trim(),
-        auto: q("#pjAuto").checked, ...(tpl !== undefined ? { template: tpl, templateName: tplName } : {}) });
-    } catch (e) { busy = false; btn.disabled = false; btn.textContent = editing ? "Save" : "Create project"; q("#pjMsg").textContent = e.message; return; }
-    busy = false; veil.remove();
-    await loadProjects();
-    await openProject(r.id);
-  };
-}
-
 /* ============ a folder, open ============ */
 const IC_CHAT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg>`;
 const IC_DROP = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>`;
@@ -4784,7 +4253,7 @@ function openFolder(b, openId){
   if (S.mode === "drop") S.mode = "ask";
   if (isPersonal(b.slug)){ crossing(b.slug); S.picks = []; S.scope = b.slug; S.into = []; }
   else { crossing("all"); setPicks([b.slug]); }
-  S.folder = b.slug; S.project = null; S.pagerId = null;
+  S.folder = b.slug;
   const fv = $("folderView"); fv.innerHTML = "";
   const self = isPersonal(b.slug), ro = readOnly(b);
   const cs = conceptsOf(b.slug).slice().sort((x, y) => String(y.updated || "").localeCompare(String(x.updated || "")) || (y.src || 0) - (x.src || 0));
@@ -5084,8 +4553,6 @@ function openPagerSheet(pre = {}){
     if (r.sent) { try { localStorage.setItem(MAIL_KEY, to); } catch {} }
     showPager(r.page, r.text, ask,
       r.sent ? { to, ok: true } : to ? { to, ok: false, why: r.mailError || "the mail service refused it" } : null, r);
-    /* It is kept, and listed under Projects by its title. */
-    if (r.saved) loadProjects();
   };
 }
 
@@ -5379,12 +4846,6 @@ async function go(){
   if (S.mode === "drop" ? !hasContent(src, text) : !text) return;
   $("input").value = ""; sizeBox();
   if (S.mode === "drop") $("srcInput").value = "";
-  /* A project's bar asks the project. */
-  if (S.mode !== "drop" && S.project){
-    S.busy = true; renderComposer();
-    try { await doProjectAsk(text); } finally { S.busy = false; renderComposer(); }
-    return;
-  }
   /* A question asked from an open folder starts a chat on that folder. */
   if (S.mode !== "drop" && S.folder){ S.folder = null; if (S.chatId) newChat(); else renderView(); }
   S.busy = true; renderComposer();

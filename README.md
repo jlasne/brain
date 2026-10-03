@@ -1,23 +1,23 @@
 <div align="center">
 
-<img src="app/brand/brain.svg" width="76" alt="">
+<img src="app/brand/tasu.svg" width="76" alt="">
 
-# Brain
+# Tasu
 
-**The knowledge you choose, organized.**
+**Files what you read, and answers from it.**
 
-Drop the talks, PDFs and links you trust. Ask anything, and see who said it and when.
+Drop a talk, a PDF or a link. Each idea lands in a folder with its author and date. Ask, and every answer cites them.
 
-[**Open the live demo**](https://brain.jeremylasne.com) &nbsp;·&nbsp; [Read the white paper](https://brain.jeremylasne.com/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
+[**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="898 checks passing" src="https://img.shields.io/badge/checks-898%20passing-5fa8d3?style=flat-square&labelColor=050b16">
-<img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-5fa8d3?style=flat-square&labelColor=050b16">
-<img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-5fa8d3?style=flat-square&labelColor=050b16">
-<img alt="MIT license" src="https://img.shields.io/badge/license-MIT-5fa8d3?style=flat-square&labelColor=050b16">
+<img alt="854 checks passing" src="https://img.shields.io/badge/checks-854%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
+<img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
+<img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
 
 <br><br>
 
-<img src="docs/img/landing.jpg" alt="The Brain landing page" width="100%">
+<img src="docs/img/landing.jpg" alt="The Tasu landing page: one passphrase field over a pencil landscape" width="100%">
 
 </div>
 
@@ -31,7 +31,7 @@ Drop the talks, PDFs and links you trust. Ask anything, and see who said it and 
 
 **Ask.** Ask anything, at 3 levels: the answer, a lesson from zero, or guided steps. It answers from your sources only, and the last line names who said it and when.
 
-Drop compiles each source once. Ask reads what was compiled. The [white paper](https://brain.jeremylasne.com/about) walks through both, step by step.
+Drop compiles each source once. Ask reads what was compiled. The [white paper](https://tasu.ai/about) walks through both, step by step.
 
 ## Why it holds up
 
@@ -46,7 +46,7 @@ Drop compiles each source once. Ask reads what was compiled. The [white paper](h
 
 A classic AI chat answers from its training data. Karpathy's LLM wiki compiles your files into pages. A brain compiles them into **positions**, each backed by dated evidence you can open, and asks you when two sources clash.
 
-| | Classic AI chat | Karpathy's LLM wiki | **Brain** |
+| | Classic AI chat | Karpathy's LLM wiki | **Tasu** |
 |---|---|---|---|
 | Answers from | Its training data | Your files, as pages | **Your sources, as positions with their evidence** |
 | Proof | None, or a link it made up | A summary per page | **Author and date on every claim** |
@@ -81,19 +81,18 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 </tr>
 </table>
 
-- **A side panel in three parts.** Drop, One-pager and Settings sit on top. Chats, Folders and Projects follow, each a panel that folds. Every folder is listed: yours first, then the ones another workspace lets you ask and drop into, then the ones you may only ask.
-- **Limited or full.** A workspace starts limited: the side panel shows its chats and folders. Full, switched in Settings for the whole workspace, adds Projects. The demo's visitors cannot reach the switch: `npx convex run admin:setMode '{"space":"demo","full":true}' --prod` sets it.
+- **One field on the landing.** A passphrase opens the workspace it belongs to; any other, or none, opens the demo. The workspaces sit along the top, each opening on its own page.
+- **A calm side panel.** Drop, One-pager and Settings sit on top. Chats and Folders follow, each a list that folds. Every folder is listed: yours first, then the ones another workspace lets you ask and drop into, then the ones you may only ask.
+- **The chat bar floats** over the thread, with the folder picker, the level, the mic and send in one place.
 - **Chat in several folders.** Click a folder to tick it, and tick as many as you like: the question reads those alone. The chat only asks.
 - **A folder, open.** Open fills the main area: its scope, its counts, its health and the next move, then every concept, newest first, with the one open beside them. Chat in it, Drop into it, or edit its name and scope from there. The bar below asks that folder.
-- **Projects, a list of titles.** It holds each project and every one-pager you built, newest first. A row's menu deletes it. A one-pager opens again with Copy, Print and Mail. The newest 50 stay.
-- **A project** reads the folders you pick and keeps one page up to date: name it, tick its folders, write its instructions, and add an HTML template if you have one. Its chat answers from those folders and never changes the page. Add to the page puts an answer aside, and Build makes the next version with it. A source landing in one of its folders marks the page out of date; one switch also builds it then. The newest 10 versions stay. The page runs no script and reaches no server.
-- **Two models, picked in Settings.** The chat model answers, reads drops and writes one-pagers: DeepSeek V4 Flash by default. The project model answers in projects and builds their pages: GLM 5.3 Flash by default. Each is saved for the whole workspace.
+- **The model, picked in Settings.** It answers, reads drops and writes one-pagers: DeepSeek V4 Flash by default, saved for the whole workspace.
 - **Drop on its own screen.** Drop sits in the side panel and opens a screen with its own log. The chat waits as it was, one click away.
 - **New folder.** A folder is fed by Drop, and one switch says it holds one person's view. A personal folder is fed by what you say.
 - **Talk instead of typing.** Tap the mic and speak. It uses the free speech service in Safari on iPhone and Mac, Chrome and Edge. Elsewhere it points to the dictation your device already has.
 - **One page, any shape.** A brain or a question becomes a summary, a quiz, a deep dive or use cases, in 9 languages.
 - **Chats that stay.** Reopen, rename, pin up to 5. Old ones clear after 30 days.
-- **Your look.** Each workspace takes a logo, an accent and a page colour, previewed as you pick them.
+- **Greys, and your look.** Tasu wears greys and near-black. Octopus keeps its orange and Squidgy its brown. Each workspace can set a logo, an accent and a page colour, previewed as you pick them.
 - **A memory for Claude.** The owner's workspaces connect to Claude through MCP: Claude reads and feeds the brains with its own model.
 
 ## The personal brain <sup>alpha</sup>

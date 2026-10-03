@@ -788,6 +788,19 @@ function seed() {
   check("null goes back to the default", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":null}');
 }
 
+/* ---- the landing's one field reads every live door ---- */
+{
+  const { T, ctx } = seed();
+  await run(store.setGate, ctx, { salt: "s1", hash: "h1", space: "octopus" });
+  await run(store.setGate, ctx, { salt: "s2", hash: "h2", space: "squidgy" });
+  await run(store.createWorkspace, ctx, { slug: "acme", name: "Acme", kind: "byok", salt: "s3", hash: "h3" });
+  /* A door left behind by a workspace that is gone. */
+  T.config.push({ _id: "orphan", key: "gate:gone", salt: "s4", hash: "h4" });
+  const doors = await run(store.doorsAll, ctx, {});
+  check("the landing reads every door with a passphrase, the owner's two first", doors.map(d => d.space).join(",") === "octopus,squidgy,acme", JSON.stringify(doors.map(d => d.space)));
+  check("and never the door of a workspace that is gone", !doors.some(d => d.space === "gone"));
+}
+
 /* ---- every one-pager is kept, by owner, the newest 50 ---- */
 {
   const { T, ctx } = seed();

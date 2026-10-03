@@ -25,7 +25,8 @@ import { loadSpace, withoutPersonal } from "./space";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
-import { buildPage, sourceLanded, TEMPLATE_MAX } from "./projects";
+/* Projects are off in the app for now; their routes stay for when they come back. */
+import { buildPage, TEMPLATE_MAX } from "./projects";
 
 const router = httpRouter();
 
@@ -175,6 +176,32 @@ route("/api/unlock", async (ctx, _req, b) => {
   if (good) await ctx.runMutation(internal.store.noteAttempt, { ok: true, space });
   if (!good) return { error: b.name ? "no workspace has that name and passphrase" : "that is not it" };
   return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space }), space };
+});
+
+/**
+ * The landing's one field. A passphrase opens the workspace it belongs to,
+ * whichever that is; one that opens none sends the visitor to the demo.
+ *
+ * Each door keeps its own 8 tries an hour. This field is counted apart, so a
+ * wrong guess here never locks a door: 10 tries an hour from one address and
+ * 120 an hour from everyone, after which the list above still opens each
+ * workspace on its own page.
+ */
+const ENTER_PER_ADDRESS = 10, ENTER_ALL = 120;
+route("/api/enter", async (ctx, req, b) => {
+  const pass = String(b.pass ?? "");
+  if (pass.length < 8) return { demo: true };
+  const from = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  const hour = 60 * 60 * 1000;
+  const mine = await ctx.runMutation(internal.store.mcpRate, { who: `enter:${from}`, max: ENTER_PER_ADDRESS, windowMs: hour });
+  const all = mine.allowed ? await ctx.runMutation(internal.store.mcpRate, { who: "enter:all", max: ENTER_ALL, windowMs: hour }) : mine;
+  if (!all.allowed) return { error: "too many tries here for now. Open your workspace from the list above, or try again in an hour." };
+  for (const d of await ctx.runQuery(internal.store.doorsAll, {})) {
+    if (await sha256(d.salt, pass) !== d.hash) continue;
+    await ctx.runMutation(internal.store.noteAttempt, { ok: true, space: d.space });
+    return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space: d.space }), space: d.space };
+  }
+  return { demo: true };
 });
 
 /**
@@ -577,9 +604,6 @@ route("/api/drop/link", async (ctx, _req, b) => {
   const mine = new Set(head.brains.filter((x: any) => canDrop(x, who)).map((x: any) => x.slug));
   const ids = [...new Set<string>((Array.isArray(b.ids) ? b.ids : []).map(String))]
     .filter(x => /^[a-z0-9-]+\/[a-z0-9-]+$/.test(x) && mine.has(x.split("/")[0])).slice(0, 5000);
-  /* The drop is done: projects reading these folders go out of date, and the
-     ones set to rebuild start. */
-  await sourceLanded(ctx, who, ids.map(x => x.split("/")[0]), { rebuild: true });
   /* Linking runs later, on the deployment's key, so a workspace on its own
      key and the demo skip it rather than spend the owner's. */
   if (who.byok || who.demo) return { linking: 0 };

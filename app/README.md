@@ -13,15 +13,16 @@ file name becomes its path.
 
 ## The colours
 
-The landing wears Brain's own: night navy `#050b16`, ice `#eaf4fb` and one
-blue, `#5fa8d3`, the tokens of jeremylasne.com, set once at the top of
-`index.html`.
+The landing wears Tasu's greys: near-white `#fafafa`, near-black `#09090b`
+for text and its one button, Frank Ruhl Libre for the headline and Geist for
+the rest, over the pencil landscape in `brand/landing.webp`. The mark is the
+folder in `brand/tasu.svg`.
 
-Inside the app, `:root` is Octopus's beige and terracotta,
-`:root[data-space="squidgy"]` is Squidgy's pink and brown, and every other
-workspace gets Brain's blue on ice. A workspace's own look, set in Settings,
-overrides the accent, the page and the mark with inline variables, and this
-browser remembers them so the next visit paints in them from the first frame.
+Inside the app, `:root` holds the same greys, with the side panel a step off
+white. Octopus keeps its orange and Squidgy its brown, as the accent only. A
+workspace's own look, set in Settings, overrides the accent, the page and the
+mark with inline variables, and this browser remembers them so the next visit
+paints in them from the first frame.
 
 `chat.html` stays self contained, styles and script inline. Pulling its layout
 out from under a working screen buys nothing today, so `octopus.css` copies its

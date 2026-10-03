@@ -240,13 +240,12 @@ async function boot(path, init, arg) {
       gone: !document.getElementById("gapsBtn") && !document.getElementById("mapBtn") };
   });
   check("the side panel opens on Drop, One-pager and Settings", top.acts === "dropBtn:Drop,pagerBtn:One-pager,keyBtn:Settings", top.acts);
-  check("then Chats, Folders and Projects, each a panel of its own", top.panels === "chatsPanel:Chats,brainsPanel:Folders,projectsPanel:Projects" && top.gone, top.panels);
-  check("a new chat, a new folder and a new project are the + of their panel", top.plus === "newChat,newBrain,newProject", top.plus);
-  check("Projects is open, and says what a project is when there is none", await page.evaluate(() => !document.getElementById("projectsBox").hidden
-    && /keeps one page up to date/.test(document.getElementById("projectsBox").textContent)));
-  await page.click("#projectsFold");
-  check("and folds like the others", await page.evaluate(() => document.getElementById("projectsBox").hidden));
-  await page.click("#projectsFold");
+  check("then Chats and Folders, each a list of its own, and no Projects", top.panels === "chatsPanel:Chats,brainsPanel:Folders" && top.gone
+    && !(await page.$("#projectsPanel")), top.panels);
+  check("a new chat and a new folder are the + of their list", top.plus === "newChat,newBrain", top.plus);
+  await page.click("#chatsFold");
+  check("a list folds", await page.evaluate(() => document.getElementById("chatsBox").hidden));
+  await page.click("#chatsFold");
   await page.click("#dropBtn"); await page.waitForTimeout(60);
   const dropping = await page.evaluate(() => ({ on: document.querySelector("main").dataset.view, src: !document.getElementById("srcLine").hidden,
     focus: document.activeElement?.id, chat: document.getElementById("thread").hidden, log: !document.getElementById("dropThread").hidden,
@@ -449,7 +448,7 @@ async function boot(path, init, arg) {
   await page.waitForTimeout(150);
   const setup = await page.evaluate(() => ({ model: document.querySelector("#setModel .val")?.textContent,
     exp: !!document.getElementById("setExport"), order: [...document.querySelectorAll(".sheet .set-row button")].map(b => b.id).join(",") }));
-  check("Settings holds the chat model, the project model, the export, then the map", setup.order === "setModel,setProjModel,setExport,setMap" && setup.model === "model", JSON.stringify(setup));
+  check("Settings holds the model, the export, then the map", setup.order === "setModel,setExport,setMap" && setup.model === "model", JSON.stringify(setup));
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#setExport")]);
   const { readFileSync } = await import("node:fs");
   const exported = readFileSync(await dl.path(), "utf8");
@@ -480,127 +479,7 @@ async function boot(path, init, arg) {
   await page.close();
 }
 
-/* ---- a project: its folders, its chat, its page ---- */
-{
-  const withOne = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "", owner: null },
-    { slug: "gave", name: "Charles Gave", type: "person", scope: "his views", space: "squidgy", viewers: ["octopus"] }] };
-  const { page, bad } = await boot("/chat.html", state => {
-    /* The test's own script reaches every frame; the page's frame is left alone. */
-    if (window !== window.top) return;
-    sessionStorage.setItem("octopus.token.v1", "test");
-    window.__calls = [];
-    const P = { id: "p1", name: "Gold thesis", brains: ["content"], instructions: "Where my sources stand.", auto: false, stale: true,
-      templateName: "gold.html", version: 0, turns: [], versions: [], page: null, pending: [] };
-    window.fetch = async (u, opt) => {
-      const s = String(u), body = JSON.parse(opt?.body || "{}");
-      window.__calls.push({ s, body });
-      if (s.includes("/api/state")) return Response.json(state);
-      if (s.endsWith("/api/projects")) return Response.json({ projects: window.__made ? [{ ...P, version: P.versions[0]?.v || 0 }] : [] });
-      if (s.includes("/api/projects/save")) { window.__made = true; return Response.json({ id: "p1" }); }
-      if (s.includes("/api/projects/get")) return Response.json({ project: P });
-      if (s.includes("/api/projects/queue")) {
-        P.pending = body.remove ? P.pending.filter(x => x.q !== body.q) : [...P.pending, { q: body.q, a: body.a }];
-        return Response.json({ waiting: P.pending.length });
-      }
-      if (s.includes("/api/projects/build")) {
-        await new Promise(ok => setTimeout(ok, 300));
-        const v = (P.versions[0]?.v || 0) + 1;
-        window.__built = (window.__built || []).concat([P.pending.map(x => x.q)]);
-        P.versions.unshift({ v, why: P.pending.length ? "Built with answers added" : "Built", at: Date.now() });
-        P.pending = [];
-        P.page = `<!doctype html><html><head><title>p</title><meta http-equiv="refresh" content="0;url=https://example.com"></head><body><h1>Gold v${v}</h1><script>parent.postMessage("ran","*")</script></body></html>`;
-        return Response.json({ v, at: Date.now(), html: P.page });
-      }
-      if (s.includes("/api/ask")) return Response.json({ answer: "Real rates up two quarters.", sources: 2, level: "normal", project: "p1" });
-      return Response.json({});
-    };
-    window.addEventListener("message", e => { if (e.data === "ran") window.__ran = true; });
-  }, withOne);
-  await page.click("#newProject"); await page.waitForTimeout(100);
-  const sheet = await page.evaluate(() => ({ title: document.getElementById("pjTitle")?.textContent,
-    folders: [...document.querySelectorAll("#pjPick label span")].map(x => x.textContent),
-    groups: [...document.querySelectorAll("#pjPick .g")].map(x => x.textContent), auto: document.getElementById("pjAuto").checked }));
-  check("New project offers every folder by group, never a personal one", sheet.title === "New project" && sheet.folders.join(",") === "Content,Charles Gave"
-    && sheet.groups.join(",") === "Mine,Ask only", JSON.stringify(sheet));
-  check("and building when a source lands starts off", sheet.auto === false);
-  await page.click("#pjSave");
-  check("it asks for a name first", /name/.test(await page.textContent("#pjMsg")));
-  await page.fill("#pjName", "Gold thesis");
-  await page.click("#pjSave");
-  check("then for a folder", /folder/.test(await page.textContent("#pjMsg")));
-  await page.click('#pjPick label:has-text("Content")');
-  await page.fill("#pjInstr", "Where my sources stand.");
-  await page.setInputFiles("#pjFile", { name: "gold.html", mimeType: "text/html", buffer: Buffer.from("<html><body><h1>{{title}}</h1></body></html>") });
-  await page.waitForTimeout(80);
-  check("a template reads in, by name", /gold\.html/.test(await page.textContent("#pjTpl")));
-  await page.click("#pjSave"); await page.waitForTimeout(250);
-  const saved = await page.evaluate(() => window.__calls.find(c => c.s.includes("/api/projects/save"))?.body);
-  check("Create sends the name, the folder, the instructions and the template", saved?.name === "Gold thesis" && JSON.stringify(saved.brains) === '["content"]'
-    && saved.instructions === "Where my sources stand." && /\{\{title\}\}/.test(saved.template) && saved.templateName === "gold.html" && saved.auto === false, JSON.stringify(saved));
-  check("creating a project builds nothing until Build is pressed", await page.evaluate(() => !window.__calls.some(c => c.s.includes("/api/projects/build"))));
-  const view = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, name: document.querySelector("#projectView h2")?.textContent,
-    chips: [...document.querySelectorAll("#projectView .pv-chip")].map(x => x.textContent),
-    barIn: !!document.querySelector("#projectView .pv-chat .composer-wrap"), picker: document.getElementById("scopeBtn").hidden,
-    ph: document.getElementById("input").placeholder, row: !!document.querySelector("#projects .proj-row.on"),
-    dot: !!document.querySelector("#projects .proj-row .dot"), empty: !!document.getElementById("pvBuild") }));
-  check("it opens the project: its name, its folders and its template on top", view.view === "project" && view.name === "Gold thesis"
-    && view.chips.includes("Content") && view.chips.includes("gold.html") && view.chips.some(c => /source landed/.test(c)), JSON.stringify(view));
-  check("the bar sits under its chat, with no folder picker, and asks the project", view.barIn && view.picker && /^Ask Gold thesis/.test(view.ph), view.ph);
-  check("the project is listed and lit, marked out of date", view.row && view.dot);
-  check("with no page yet, it offers to build one", view.empty);
-
-  await page.click("#pvBuild"); await page.waitForTimeout(60);
-  check("building shows on the page side", !!(await page.$("#pvBusy")));
-  await page.waitForTimeout(450);
-  const built = await page.evaluate(() => {
-    const f = document.querySelector("#pvFrame iframe");
-    return { sandbox: f?.getAttribute("sandbox"), csp: /Content-Security-Policy/.test(f?.srcdoc || ""), refresh: /http-equiv="refresh"/.test(f?.srcdoc || ""),
-      bar: document.querySelector("#pvFrame .pv-bar")?.textContent || "", stale: !!document.querySelector("#projectView .pv-chip.warn") };
-  });
-  check("the page shows in a frame that runs no script and reaches no server", built.sandbox === "" && built.csp && !built.refresh, JSON.stringify(built));
-  await page.waitForTimeout(150);
-  check("its script never ran", !(await page.evaluate(() => window.__ran)));
-  check("the bar names the template and the version, and the out-of-date mark goes", /gold\.html/.test(built.bar) && /version 1/.test(built.bar) && !built.stale, built.bar);
-
-  await page.fill("#input", "What would make me sell gold?");
-  await page.click("#send"); await page.waitForTimeout(200);
-  const asked = await page.evaluate(() => ({ body: window.__calls.filter(c => c.s.includes("/api/ask")).pop()?.body,
-    acts: [...document.querySelectorAll("#pvThread .ans-acts .mini")].map(b => b.textContent), main: document.getElementById("thread").textContent }));
-  check("a question in the project asks the project, with its own thread", asked.body?.project === "p1" && !asked.body.brains && !asked.body.chat, JSON.stringify(asked.body));
-  check("its answer offers Copy and Add to the page, not a one-pager", asked.acts.join(",") === "Copy,Add to the page", asked.acts.join(","));
-  check("and never lands in the main chat", !/sell gold/.test(asked.main));
-  const builds = () => page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/projects/build")).length);
-  check("talking in the project never rebuilds the page", await builds() === 1);
-  await page.click('#pvThread .ans-acts .pv-add'); await page.waitForTimeout(150);
-  const held = await page.evaluate(() => ({ q: window.__calls.filter(c => c.s.includes("/api/projects/queue")).pop()?.body,
-    btn: document.querySelector("#pvThread .pv-add")?.textContent, bar: document.getElementById("pvRebuild")?.textContent }));
-  check("Add to the page puts the answer aside for the next Build, and builds nothing", held.q?.q === "What would make me sell gold?" && /Real rates/.test(held.q?.a || "")
-    && held.btn === "Waits for Build" && /Build · 1 to add/.test(held.bar || "") && await builds() === 1, JSON.stringify(held));
-  await page.click("#pvRebuild"); await page.waitForTimeout(500);
-  const added = await page.evaluate(() => ({ took: window.__built?.pop(), btn: document.querySelector("#pvThread .pv-add")?.textContent,
-    said: [...document.querySelectorAll("#pvThread .msg.ai")].pop()?.textContent, vs: document.querySelectorAll("#pvVersions option").length,
-    bar: document.getElementById("pvRebuild")?.textContent }));
-  check("Build makes the next version with the answer that waited", JSON.stringify(added.took) === '["What would make me sell gold?"]'
-    && /Version 2 holds the 1 answer/.test(added.said || "") && added.vs === 2 && added.btn === "Add to the page" && added.bar === "Build", JSON.stringify(added));
-  await page.selectOption("#pvVersions", "1"); await page.waitForTimeout(150);
-  check("an older version opens from the list", /version 1 of 2/.test(await page.textContent("#pvFrame .pv-bar")));
-  await page.click("#pvFull"); await page.waitForTimeout(80);
-  check("Open full page shows it over everything, still without scripts", await page.evaluate(() => document.querySelector(".page-full iframe")?.getAttribute("sandbox") === ""));
-  await page.keyboard.press("Escape");
-  await page.click("#pvSettings"); await page.waitForTimeout(80);
-  const set = await page.evaluate(() => ({ title: document.getElementById("pjTitle")?.textContent, name: document.getElementById("pjName").value,
-    ticked: [...document.querySelectorAll("#pjPick input:checked")].map(x => x.value), del: !!document.getElementById("pjDel") }));
-  check("Settings opens the project as it is, with Delete", set.title === "Project settings" && set.name === "Gold thesis" && set.ticked.join(",") === "content" && set.del, JSON.stringify(set));
-  await page.click("#pjCancel");
-  await page.click("#pvClose"); await page.waitForTimeout(80);
-  const back = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, bar: document.querySelector("main > .composer-wrap") !== null,
-    picker: !document.getElementById("scopeBtn").hidden }));
-  check("closing returns to the chat, the bar and its picker back in place", back.view === "chat" && back.bar && back.picker, JSON.stringify(back));
-  check("nothing threw in a project", !bad.length, bad.join(" | "));
-  await page.close();
-}
-
-/* ---- the models: one for the chat, one for projects, saved for the workspace ---- */
+/* ---- the model, saved for the workspace ---- */
 {
   const withModels = { ...STATE, model: "deepseek/deepseek-v4-flash-0731",
     models: { chat: "deepseek/deepseek-v4-flash-0731", project: "z-ai/glm-5.3-flash", chatDefault: "deepseek/deepseek-v4-flash-0731", projectDefault: "z-ai/glm-5.3-flash" } };
@@ -624,81 +503,26 @@ async function boot(path, init, arg) {
   }, withModels);
   check("a model picked in this browser before is dropped: the workspace's pick rules", await page.evaluate(() => localStorage.getItem("octopus.model")) === null);
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(150);
-  const rows = await page.evaluate(() => ({ chat: document.querySelector("#setModel .val")?.textContent, proj: document.querySelector("#setProjModel .val")?.textContent }));
-  check("Settings shows DeepSeek for the chat and GLM 5.3 Flash for projects by default", rows.chat === "deepseek-v4-flash-0731" && rows.proj === "glm-5.3-flash", JSON.stringify(rows));
-  await page.click("#setProjModel"); await page.waitForTimeout(200);
+  const rows = await page.evaluate(() => ({ chat: document.querySelector("#setModel .val")?.textContent, proj: !!document.getElementById("setProjModel") }));
+  check("Settings shows one model, DeepSeek by default", rows.chat === "deepseek-v4-flash-0731" && !rows.proj, JSON.stringify(rows));
+  await page.click("#setModel"); await page.waitForTimeout(200);
   const sheet = await page.evaluate(() => ({ title: document.querySelector(".sheet h3")?.textContent, first: document.querySelector("#mList .mrow span")?.textContent,
     on: document.querySelector("#mList .mrow.on b")?.textContent }));
-  check("Project model opens the list on its default, marked", sheet.title === "Project model" && /z-ai\/glm-5\.3-flash/.test(sheet.first || "") && /default/.test(sheet.first || "")
-    && sheet.on === "Z.ai: GLM 5.3 Flash", JSON.stringify(sheet));
+  check("Model opens the list on its default, marked", sheet.title === "Model" && /deepseek-v4-flash-0731/.test(sheet.first || "") && /default/.test(sheet.first || "")
+    && sheet.on === "DeepSeek V4 Flash", JSON.stringify(sheet));
   await page.click('#mList .mrow:has(b:text-is("Z.ai: GLM 5.3"))'); await page.click("#mSave"); await page.waitForTimeout(150);
   const saved = await page.evaluate(() => ({ body: window.__calls.filter(c => c.s.includes("/api/models")).pop()?.body,
-    proj: document.querySelector("#setProjModel .val")?.textContent, pick: document.getElementById("setProjModel")?.classList.contains("pick") }));
-  check("a pick is saved for the workspace, and Settings shows it", saved.body?.project === "z-ai/glm-5.3" && !("chat" in saved.body) && saved.proj === "glm-5.3" && saved.pick, JSON.stringify(saved));
+    val: document.querySelector("#setModel .val")?.textContent, pick: document.getElementById("setModel")?.classList.contains("pick") }));
+  check("a pick is saved for the workspace, and Settings shows it", saved.body?.chat === "z-ai/glm-5.3" && !("project" in saved.body) && saved.val === "glm-5.3" && saved.pick, JSON.stringify(saved));
   await page.click("#setModel"); await page.waitForTimeout(150);
-  check("Chat model opens its own list", await page.textContent(".sheet h3") === "Chat model");
   await page.click("#mReset"); await page.waitForTimeout(150);
   const reset = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/models")).pop()?.body);
-  check("Use the default sends no model for the chat", reset && reset.chat === null && !("project" in reset), JSON.stringify(reset));
+  check("Use the default sends no model", reset && reset.chat === null, JSON.stringify(reset));
   await page.evaluate(() => document.querySelectorAll(".veil").forEach(v => v.remove()));
   await page.fill("#input", "Is gold a hedge?"); await page.click("#send"); await page.waitForTimeout(150);
   const asked = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/ask")).pop()?.body);
   check("a question carries no model: the server uses the workspace's pick", asked && !("model" in asked), JSON.stringify(asked));
   check("nothing threw picking models", !bad.length, bad.join(" | "));
-  await page.close();
-}
-
-/* ---- every one-pager is kept, and listed under Projects by its title ---- */
-{
-  const { page, bad } = await boot("/chat.html", state => {
-    sessionStorage.setItem("octopus.token.v1", "test");
-    window.__calls = [];
-    const PAGE = { title: "Deep dive: Content", line: "From Content.", sections: [{ head: "The short answer", bullets: [], blocks: [{ p: "An offer people buy beats reach." }] }], foot: "1 of 2 positions" };
-    let kept = [{ id: "g0", title: "Quiz: Content", at: Date.now() - 864e5 }];
-    window.fetch = async (u, opt) => {
-      const s = String(u), body = JSON.parse(opt?.body || "{}");
-      window.__calls.push({ s, body });
-      if (s.includes("/api/state")) return Response.json(state);
-      if (s.endsWith("/api/projects")) return Response.json({ projects: [{ id: "p1", name: "Gold thesis", brains: ["content"], updated: Date.now() - 2 * 864e5, version: 3 }], pagers: kept });
-      if (s.includes("/api/onepager") && !s.includes("/api/onepagers")) {
-        if (body.keep !== false) kept = [{ id: "g1", title: PAGE.title, at: Date.now() }, ...kept];
-        return Response.json({ page: PAGE, text: "Deep dive", lang: "English", ...(body.keep !== false ? { saved: "g1" } : {}) });
-      }
-      if (s.includes("/api/onepagers/get")) return Response.json({ pager: { id: body.id, title: PAGE.title, page: PAGE, text: "Deep dive", at: Date.now(),
-        ask: { pick: "content", q: "", kind: "custom", doc: "deepdive" } } });
-      if (s.includes("/api/onepagers/remove")) { kept = kept.filter(p => p.id !== body.id); return Response.json({ ok: true }); }
-      if (s.includes("/api/projects/remove")) return Response.json({ ok: true });
-      return Response.json({});
-    };
-  }, STATE);
-  await page.waitForTimeout(150);
-  const list0 = await page.evaluate(() => [...document.querySelectorAll("#projects .proj-row .nm")].map(r => r.textContent));
-  check("Projects is a list of titles: projects and one-pagers, newest first", JSON.stringify(list0) === '["Quiz: Content","Gold thesis"]', JSON.stringify(list0));
-  await page.click("#pagerBtn"); await page.waitForTimeout(100);
-  await page.click("#pGo"); await page.waitForTimeout(300);
-  const list1 = await page.evaluate(() => [...document.querySelectorAll("#projects .proj-row .nm")].map(r => r.textContent));
-  check("a one-pager just built lands at the top of Projects", list1[0] === "Deep dive: Content", JSON.stringify(list1));
-  await page.click('#projects .proj-row[data-id="g1"]'); await page.waitForTimeout(200);
-  const open = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, title: document.querySelector("#pagerView h2")?.textContent,
-    card: document.querySelector("#pgThread .pager h3")?.textContent, chips: [...document.querySelectorAll("#pagerView .pv-chip")].map(x => x.textContent),
-    lit: !!document.querySelector('#projects .proj-row.on[data-id="g1"]') }));
-  check("it opens again in the main area, with Copy and Print", open.view === "pager" && open.title === "Deep dive: Content" && open.card === "Deep dive: Content"
-    && open.chips.includes("Content") && open.lit, JSON.stringify(open));
-  await page.click('#projects .proj-row[data-id="g1"] .more'); await page.waitForTimeout(80);
-  const menu = await page.evaluate(() => [...document.querySelectorAll(".chat-menu .cm-it")].map(b => b.textContent));
-  check("a one-pager's row offers Delete", JSON.stringify(menu) === '["Delete"]', JSON.stringify(menu));
-  await page.click(".chat-menu .cm-it"); await page.waitForTimeout(50);
-  check("which asks once more", await page.textContent(".chat-menu .cm-it") === "Sure? Delete");
-  await page.click(".chat-menu .cm-it"); await page.waitForTimeout(200);
-  const gone = await page.evaluate(() => ({ sent: window.__calls.filter(c => c.s.includes("/api/onepagers/remove")).pop()?.body?.id,
-    view: document.querySelector("main").dataset.view, rows: [...document.querySelectorAll("#projects .proj-row .nm")].map(r => r.textContent) }));
-  check("then deletes it, and closes it if it was open", gone.sent === "g1" && gone.view === "chat" && !gone.rows.includes("Deep dive: Content"), JSON.stringify(gone));
-  await page.click('#projects .proj-row[data-id="p1"] .more'); await page.waitForTimeout(80);
-  const pm = await page.evaluate(() => [...document.querySelectorAll(".chat-menu .cm-it")].map(b => b.textContent));
-  check("a project's row offers Settings and Delete", JSON.stringify(pm) === '["Settings","Delete"]', JSON.stringify(pm));
-  await page.click(".chat-menu .cm-it.del"); await page.click(".chat-menu .cm-it.del"); await page.waitForTimeout(200);
-  check("and deletes the project", await page.evaluate(() => window.__calls.some(c => c.s.includes("/api/projects/remove") && c.body.id === "p1")));
-  check("nothing threw with kept one-pagers", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -1557,16 +1381,14 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const d = await page.evaluate(() => ({ bar: !document.getElementById("demoBar").hidden && /Live demo/.test(document.getElementById("demoBar").textContent),
     make: document.getElementById("newBrain").hidden, edit: [...document.querySelectorAll("#brains .brain-row .ed")].map(x => x.textContent) }));
   check("the demo says what it is, and offers no folder to create or edit", d.bar && d.make && !d.edit.includes("edit"), JSON.stringify(d));
-  check("nor a project: Projects holds only the one-pagers a visitor builds", await page.evaluate(() => document.getElementById("newProject").hidden
-    && /one-pager you build/.test(document.getElementById("projects").textContent)));
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(250);
-  const set = await page.evaluate(() => ({ model: document.getElementById("setModel").hidden && document.getElementById("setProjModel").hidden, mcp: document.getElementById("mcpBlock").hidden,
+  const set = await page.evaluate(() => ({ model: document.getElementById("setModel").hidden, mcp: document.getElementById("mcpBlock").hidden,
     use: document.getElementById("useBlock").hidden, key: document.getElementById("keyBlock").hidden,
     asked: window.__calls.filter(c => /\/api\/(account\/mcp|usage)/.test(c.s)).length }));
   check("Setup in the demo keeps the default model, and leaves out the connector and transcripts", set.model && set.mcp && set.use && set.key && set.asked === 0,
     JSON.stringify(set));
-  check("the demo keeps Brain's look: no logo or colours to set", await page.evaluate(() => document.getElementById("lookBlock").hidden)
-    && await page.evaluate(() => document.documentElement.dataset.space === "demo" && getComputedStyle(document.body).backgroundColor === "rgb(238, 245, 250)"));
+  check("the demo keeps Tasu's greys: no logo or colours to set", await page.evaluate(() => document.getElementById("lookBlock").hidden)
+    && await page.evaluate(() => document.documentElement.dataset.space === "demo" && getComputedStyle(document.body).backgroundColor === "rgb(255, 255, 255)"));
   await page.click("#kDone");
   await page.click("#pagerBtn"); await page.waitForTimeout(100);
   check("a one-pager in the demo is copied or printed, never mailed", !(await page.isVisible("#pTo")));
@@ -1617,7 +1439,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click("#lookReset"); await page.waitForTimeout(150);
   const back = await page.evaluate(() => ({ fill: document.documentElement.style.getPropertyValue("--accent-fill"), mark: document.getElementById("spaceMark").getAttribute("src"),
     kept: localStorage.getItem("octopus.look.acme"), reset: window.__calls.filter(c => c.s.includes("/api/brand")).pop()?.body.reset }));
-  check("Back to the default clears the look everywhere", back.fill === "" && back.kept === null && back.reset === true && back.mark === "/brand/brain.svg", JSON.stringify(back));
+  check("Back to the default clears the look everywhere", back.fill === "" && back.kept === null && back.reset === true && back.mark === "/brand/tasu.svg", JSON.stringify(back));
   await page.$eval("#lookAccent", i => { i.value = "#aa0000"; i.dispatchEvent(new Event("input", { bubbles: true })); });
   await page.click("#kDone"); await page.waitForTimeout(100);
   check("a look previewed and not saved goes back on close", await page.evaluate(() => document.documentElement.style.getPropertyValue("--accent-fill")) === "");
@@ -1770,7 +1592,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click(".zero .try button"); await page.waitForTimeout(300);
   check("one tap asks it", (await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/ask")).pop()?.body.q)) === "What does Health hold on sleep optimization?");
   const font = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
-  check("the demo wears the landing's type", /^system-ui/.test(font), font);
+  check("the demo wears the landing's type", /^"?Geist/.test(font), font);
   await page.click("#demoSettle"); await page.waitForTimeout(250);
   check("Settle a clash says when there is none to settle", /No open clash in the demo/.test(await page.textContent("#thread")));
   await page.click("#demoMap"); await page.waitForTimeout(300);
@@ -1846,7 +1668,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
-/* ---- limited, the default: Chats and Folders; full adds Projects ---- */
+/* ---- the side panel: Chats and Folders, a personal folder first ---- */
 {
   const lim = { ...STATE, full: undefined, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "What I say", owner: null },
     { slug: "health", name: "Health", type: "subject", scope: "h", owner: null }] };
@@ -1855,7 +1677,6 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/mode")) return Response.json({ full: body.full });
       return Response.json({ chats: [], conflicts: [], others: 0, health: [] });
     };
   }, lim);
@@ -1864,35 +1685,15 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     panels: [...document.querySelectorAll("aside .panel")].filter(p => !p.hidden).map(p => p.id).join(","),
     folders: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent).join(","),
     acts: [...document.querySelectorAll("aside .side-acts button")].map(b => b.textContent.trim()).join(",") }));
-  check("a workspace starts limited: Chats and Folders, no Projects", seen.panels === "chatsPanel,brainsPanel", seen.panels);
-  check("with Drop, One-pager and Settings still on top", seen.acts === "Drop,One-pager,Settings", seen.acts);
+  check("every workspace shows Chats and Folders", seen.panels === "chatsPanel,brainsPanel", seen.panels);
+  check("with Drop, One-pager and Settings on top", seen.acts === "Drop,One-pager,Settings", seen.acts);
   check("and every folder listed, the personal one first", seen.folders === "Me,Content,Health", seen.folders);
   await page.click('#brains .brain-row:has(.nm:text-is("Me"))'); await page.waitForTimeout(80);
   check("which opens its chat", await page.evaluate(() => /Tell it anything/.test(document.getElementById("input").placeholder)));
   await page.click('#brains .brain-row:has(.nm:text-is("Me"))'); await page.waitForTimeout(80);
   await page.click("#keyBtn"); await page.waitForTimeout(150);
-  const set = await page.evaluate(() => ({ on: document.querySelector("#modeSeg button.on")?.textContent, shown: !document.getElementById("modeBlock").hidden }));
-  check("Settings shows the side panel limited, with Full to unlock", set.shown && set.on === "Limited", JSON.stringify(set));
-  await page.click('#modeSeg button[data-full="1"]'); await page.waitForTimeout(150);
-  const after = await page.evaluate(() => ({ sent: window.__calls.filter(c => c.s.includes("/api/mode")).pop()?.body,
-    on: document.querySelector("#modeSeg button.on")?.textContent, folders: !document.getElementById("brainsPanel").hidden,
-    projects: !document.getElementById("projectsPanel").hidden }));
-  check("Full is saved for the workspace and adds Projects", after.sent?.full === true && after.on === "Full" && after.folders && after.projects, JSON.stringify(after));
-  await page.click('#modeSeg button[data-full="0"]'); await page.waitForTimeout(150);
-  check("and Limited takes it back", await page.evaluate(() => document.getElementById("projectsPanel").hidden && !document.getElementById("brainsPanel").hidden
-    && window.__calls.filter(c => c.s.includes("/api/mode")).pop()?.body.full === false));
-  check("nothing threw in limited mode", !bad.length, bad.join(" | "));
-  await page.close();
-}
-{
-  /* The demo cannot reach the switch: its mode is set from the command line. */
-  const { page } = await boot("/chat.html", state => {
-    sessionStorage.setItem("octopus.token.v1", "test");
-    window.fetch = async u => Response.json(String(u).includes("/api/state") ? state : { chats: [], conflicts: [], others: 0, health: [] });
-  }, { ...STATE, full: undefined, space: "demo", spaceName: "Demo", demo: true });
-  await page.waitForTimeout(200);
-  await page.click("#keyBtn"); await page.waitForTimeout(150);
-  check("a demo visitor gets no side panel switch", await page.evaluate(() => document.getElementById("modeBlock").hidden && document.getElementById("projectsPanel").hidden));
+  check("Settings has no side panel switch now", await page.evaluate(() => !document.getElementById("modeBlock") && !document.getElementById("modeSeg")));
+  check("nothing threw in the side panel", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -2165,10 +1966,10 @@ for (const space of ["octopus", "squidgy"]) {
     const mode = document.getElementById("scopeBtn").getBoundingClientRect(), wrap = document.getElementById("levelWrap").getBoundingClientRect();
     return { W, off: [...document.querySelectorAll("#level button, #scopeBtn")].filter(b => {
         const r = b.getBoundingClientRect(); return r.left < 0 || r.right > W; }).map(b => b.dataset.v || b.id || b.textContent.trim()),
-      scrolls: c.scrollWidth > c.clientWidth + 1, below: wrap.top >= mode.bottom, wide: Math.round(wrap.width),
+      scrolls: c.scrollWidth > c.clientWidth + 1, row: Math.abs(wrap.top - mode.top) < 6, wide: Math.round(wrap.width),
       tall: [...document.querySelectorAll("#level button")].every(b => b.getBoundingClientRect().height >= 40) };
   });
-  check("on a phone the levels take their own row, every button on screen", !lv.off.length && !lv.scrolls && lv.below && lv.wide >= 300 && lv.tall,
+  check("on a phone the folder and the level share one row in the bar, every button on screen", !lv.off.length && !lv.scrolls && lv.row && lv.tall,
     JSON.stringify(lv));
 
   await page.click("#burger"); await page.waitForTimeout(300);
@@ -2208,7 +2009,7 @@ for (const space of ["octopus", "squidgy"]) {
     h: document.getElementById("gateH")?.textContent, locked: document.getElementById("app").classList.contains("locked"),
     theme: document.documentElement.dataset.space || "", bg: getComputedStyle(document.body).backgroundColor }));
   check("a tab with no session asks for the workspace's name and passphrase, over the app", g.gate && g.name && g.locked && g.h === "Open your workspace", JSON.stringify(g));
-  check("and it wears Brain's colours, not Octopus's", g.theme === "" && g.bg === "rgb(238, 245, 250)", JSON.stringify(g));
+  check("and it wears Tasu's greys, not Octopus's", g.theme === "" && g.bg === "rgb(255, 255, 255)", JSON.stringify(g));
   await page.fill("#gName", "Acme Research"); await page.fill("#gPass", "short");
   await page.click("#gGo"); await page.waitForTimeout(100);
   check("a short passphrase is caught before anything is sent", /8 characters/.test(await page.textContent("#gMsg")) && !(await page.evaluate(() => sessionStorage.getItem("test.unlock"))));
@@ -2239,7 +2040,7 @@ for (const space of ["octopus", "squidgy"]) {
     name: !!document.getElementById("gName"), theme: document.documentElement.dataset.space, mark: document.getElementById("gateMark")?.getAttribute("src"),
     bg: getComputedStyle(document.body).backgroundColor, top: document.getElementById("wsGate")?.getBoundingClientRect().top }));
   check("/octopus opens the Octopus workspace with only its passphrase on top", d.url === "/chat?w=octopus" && d.h === "Octopus" && !d.name
-    && d.theme === "octopus" && /logo-mark/.test(d.mark) && d.bg === "rgb(245, 245, 220)" && d.top < 200, JSON.stringify(d));
+    && d.theme === "octopus" && /logo-mark/.test(d.mark) && d.bg === "rgb(255, 255, 255)" && d.top < 200, JSON.stringify(d));
   await page.fill("#gPass", "a wrong passphrase"); await page.click("#gGo"); await page.waitForTimeout(150);
   check("a wrong passphrase says so, and the card stays", /That is not it/.test(await page.textContent("#gMsg")), await page.textContent("#gMsg"));
   await page.fill("#gPass", "a long passphrase"); await page.click("#gGo"); await page.waitForTimeout(400);
@@ -2271,14 +2072,15 @@ for (const space of ["octopus", "squidgy"]) {
   await sw.page.close();
 }
 
-/* ---- the landing: the workspaces first, then what makes a brain ---- */
+/* ---- the landing: the workspaces along the top, one passphrase field ---- */
 {
   const { page, bad } = await boot("/", () => {
     window.__posts = [];
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}");
       window.__posts.push({ s, body });
-      if (s.includes("/api/status")) return Response.json({ gates: { octopus: true }, demo: true });
+      if (s.includes("/api/status")) return Response.json({ demo: true });
+      if (s.includes("/api/enter")) return body.pass === "the octopus door key" ? Response.json({ token: "tOct", space: "octopus" }) : Response.json({ demo: true });
       if (s.includes("/api/demo")) return Response.json({ token: "tDemo", space: "demo" });
       if (s.includes("/api/workspace/create")) return body.name === "Taken" ? Response.json({ error: "that name is taken. Pick another." })
         : Response.json({ token: "tNew", space: "acme-research", name: body.name });
@@ -2286,80 +2088,56 @@ for (const space of ["octopus", "squidgy"]) {
     };
   });
   await page.waitForTimeout(200);
-  const l = await page.evaluate(() => ({ h1: document.querySelector(".hero h1").textContent,
-    next: document.querySelector(".hero .sub").nextElementSibling.id,
-    ws: [...document.querySelectorAll("#start > ul > li > .item .name, #start > ul > li > .fold > .item .name")].map(b => b.textContent).join("|"),
-    live: ["goOctopus", "goSquidgy"].map(id => document.querySelector(`#${id} .desc`).textContent + " " + document.querySelector(`#${id} .tag`).textContent).join("|"),
-    sub: document.querySelector(".hero .sub").textContent, folded: !!document.getElementById("wsLive"),
-    doors: [document.getElementById("goOctopus")?.getAttribute("href"), document.getElementById("goSquidgy")?.getAttribute("href")], openMine: !!document.getElementById("openMine"),
-    video: document.getElementById("video").hidden,
-    code: document.getElementById("goCode").getAttribute("href"), codeDesc: document.querySelector("#goCode .desc").textContent,
-    tiles: [...document.querySelectorAll("#goods .tile h3")].map(h => h.firstChild.textContent.trim()).join("|"),
-    own: [...document.querySelectorAll("#goods .own b")].map(x => x.textContent).join("|"),
-    sections: [...document.querySelectorAll("main > section")].map(x => x.id).join("|"),
-    font: getComputedStyle(document.body).fontFamily, bg: getComputedStyle(document.documentElement).backgroundColor,
-    mark: !!document.querySelector(".hero .mark"), brand: document.querySelector(".bar .me").textContent.trim(), text: document.body.textContent }));
-  check("the landing leads with the outcome, no logo over it", /^The knowledge you choose, organized\.$/.test(l.h1) && !l.mark, JSON.stringify(l.h1));
-  check("the line under it names the two moves", l.sub === "Drop the talks, PDFs and links you trust. Ask anything, and see who said it and when.", l.sub);
-  check("the list comes right after it: the demo, the live workspaces, create, then the code", l.next === "start"
-    && l.ws === "Demo|Octopus|Squidgy|Create your workspace|Explore the open source" && !l.openMine, `${l.next} ${l.ws}`);
-  check("the live workspaces sit open, each with its light", l.live === "The builder's workspace. Live|Someone's workspace. Live"
-    && JSON.stringify(l.doors) === '["/chat?w=octopus","/chat?w=squidgy"]' && !l.folded, JSON.stringify(l.live));
-  check("the video section waits hidden until its link is set", l.video === true);
-  check("the open source names no host", l.code === "https://github.com/jlasne/brain" && l.codeDesc === "Every line of the app and the server. Run your own."
-    && !/Convex|Vercel/.test(l.codeDesc), l.codeDesc);
-  check("one section says what it does: Drop and Ask, then why it holds up", l.tiles === "Drop|Ask"
-    && l.own === "Zero duplicates|Zero hidden contradictions|Lightweight|Fast search|Scalable|Your data", JSON.stringify({ t: l.tiles, o: l.own }));
-  check("three blocks and nothing more: the hero, the video, the goods", l.sections === "top|video|goods", l.sections);
-  await page.evaluate(() => document.getElementById("drop").scrollIntoView({ block: "center", behavior: "instant" }));
-  await page.waitForFunction(() => getComputedStyle(document.querySelector("#ask .rc")).opacity === "1", null, { timeout: 6000 }).catch(() => {});
-  const cards = await page.evaluate(() => ({ drop: document.getElementById("drop").getBoundingClientRect().width, ask: document.getElementById("ask").getBoundingClientRect().width,
-    tile: document.getElementById("drop").closest(".tile").getBoundingClientRect().width,
-    filed: getComputedStyle(document.querySelector("#drop .ln:last-child")).opacity, said: getComputedStyle(document.querySelector("#ask .rc")).opacity }));
-  check("Drop and Ask fill their cards and play when seen", cards.drop > cards.tile - 4 && cards.ask > cards.tile - 4 && cards.filed === "1" && cards.said === "1",
-    JSON.stringify(cards));
-  await page.click("#openYours"); await page.waitForTimeout(900);
-  const shown = await page.evaluate(() => { const r = document.getElementById("goOctopus").getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight; });
-  check("Open your workspace, in the bar, brings the workspaces into view", shown);
-  await page.evaluate(() => window.scrollTo(0, 0));
-  check("it wears jeremylasne.com: the system font on the night navy", /^system-ui/.test(l.font) && l.bg === "rgb(5, 11, 22)", `${l.font} ${l.bg}`);
-  check("the product is called Brain", l.brand === "Brain", l.brand);
-  check("no example card, no builder's tally, no competition, no licence", !/cold email a reply|workspace today|Build Games|MIT licen|What it replaces/i.test(l.text));
+  const l = await page.evaluate(() => ({ h1: document.querySelector("h1").textContent, sub: document.querySelector(".sub").textContent,
+    spaces: [...document.querySelectorAll("#spaces .sp")].map(x => x.textContent.trim()).join("|"),
+    doors: [document.getElementById("goOctopus")?.getAttribute("href"), document.getElementById("goSquidgy")?.getAttribute("href")],
+    field: document.getElementById("pass")?.getAttribute("type"), ph: document.getElementById("pass")?.placeholder,
+    help: document.querySelector(".help").textContent, bg: getComputedStyle(document.querySelector(".bg")).backgroundImage,
+    sections: document.querySelectorAll("main section").length, font: getComputedStyle(document.body).fontFamily,
+    page: getComputedStyle(document.body).backgroundColor, logo: document.querySelector(".logo").textContent.trim(),
+    mark: document.querySelector(".logo img").getAttribute("src"), title: document.title, text: document.body.textContent }));
+  check("the landing is one hero: a serif line, a sub line, one field", l.h1 === "Tasu files what you read, and answers from it." && l.sections === 0
+    && /^Drop a talk, a PDF or a link\./.test(l.sub), JSON.stringify(l.h1));
+  check("the workspaces sit along the top, the demo first", l.spaces === "Demo|Octopus|Squidgy" && JSON.stringify(l.doors) === '["/chat?w=octopus","/chat?w=squidgy"]', l.spaces);
+  check("the field takes a passphrase, hidden as it is typed", l.field === "password" && l.ph === "Enter your passphrase" && /opens the demo/.test(l.help), l.ph);
+  check("the pencil landscape sits behind it", /\/brand\/landing\.webp/.test(l.bg), l.bg);
+  check("it wears the Tasu greys: Geist on near-white, the folder mark", /^"?Geist/.test(l.font) && l.page === "rgb(250, 250, 250)" && l.logo === "tasu" && l.mark === "/brand/tasu.svg"
+    && /^Tasu/.test(l.title), `${l.font} ${l.page}`);
+  check("no em-dash on the landing", !/—/.test(l.text));
 
-  check("the create form waits behind its row", !(await page.evaluate(() => document.getElementById("wsCreate").open)));
-  await page.click("#wsCreate summary");
-  const only = await page.evaluate(() => ({ forms: document.querySelectorAll("#wsCreate form").length, open: !!document.getElementById("oName") }));
-  check("and it holds only the form to make one", only.forms === 1 && !only.open, JSON.stringify(only));
-  await page.fill("#cName", "Taken"); await page.fill("#cPass", "a long passphrase"); await page.fill("#cKey", "nope");
-  await page.click("#cGo"); await page.waitForTimeout(100);
-  check("a key that is not OpenRouter's is caught before anything is sent", /starts with sk-or-/.test(await page.textContent("#cMsg"))
-    && !(await page.evaluate(() => window.__posts.some(p => p.s.includes("/api/workspace/create")))));
-  await page.fill("#cKey", "sk-or-v1-0123456789abcdef0123456789abcdef");
-  await page.click("#cGo"); await page.waitForTimeout(150);
-  check("a taken name says so", /taken/.test(await page.textContent("#cMsg")));
-  await page.fill("#cName", "Acme Research");
-  await Promise.all([page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), page.click("#cGo")]);
-  const made = await page.evaluate(() => ({ token: sessionStorage.getItem("octopus.token.v1"), key: localStorage.getItem("octopus.key.acme-research") }));
-  check("a new workspace opens in the app, its key kept in this browser only", made.token === "tNew" && made.key === "sk-or-v1-0123456789abcdef0123456789abcdef"
-    && new URL(page.url()).pathname === "/chat", JSON.stringify(made) + " " + page.url());
+  await page.fill("#pass", "the octopus door key");
+  await Promise.all([page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), page.press("#pass", "Enter")]);
+  const opened = await page.evaluate(() => ({ token: sessionStorage.getItem("octopus.token.v1"), space: sessionStorage.getItem("octopus.space"),
+    sent: window.__posts?.find(p => p.s.includes("/api/enter"))?.body }));
+  check("a passphrase opens the workspace it belongs to", opened.token === "tOct" && opened.space === "octopus" && new URL(page.url()).pathname === "/chat",
+    JSON.stringify(opened) + " " + page.url());
   check("nothing threw on the landing", !bad.length, bad.join(" | "));
   await page.close();
 
-  /* A workspace made for someone is listed after Squidgy, by its name. */
-  const hostedPage = await boot("/", () => {
-    const px = "data:image/png;base64,iVBORw0KGgo=";
-    window.fetch = async u => String(u).includes("/api/status") ? Response.json({ demo: true, hosted: [{ slug: "pandaaahh", name: "PandAAAHH" }, { slug: "bad slug<", name: "x" }],
-      logos: { pandaaahh: px, octopus: "javascript:alert(1)", squidgy: px } }) : Response.json({});
+  const w = await boot("/", () => {
+    window.__posts = [];
+    window.fetch = async (u, opt) => { const s = String(u); window.__posts.push({ s, body: JSON.parse(opt?.body || "{}") });
+      if (s.includes("/api/status")) return Response.json({ demo: true });
+      if (s.includes("/api/enter")) return Response.json({ demo: true });
+      if (s.includes("/api/demo")) return Response.json({ token: "tDemo", space: "demo" });
+      return Response.json({}); };
   });
-  await hostedPage.page.waitForTimeout(200);
-  const marks = await hostedPage.page.evaluate(() => ({
-    panda: document.querySelector('#start a[href="/chat?w=pandaaahh"] img').getAttribute("src"),
-    squidgy: document.querySelector("#goSquidgy img").getAttribute("src"), octopus: document.querySelector("#goOctopus img").getAttribute("src") }));
-  check("a workspace wears the logo its owner set, on the landing", marks.panda.startsWith("data:image/png") && marks.squidgy.startsWith("data:image/png"), JSON.stringify(marks));
-  check("a logo that is not an image is never used, the default mark stays", marks.octopus === "/brand/logo-mark.png", marks.octopus);
-  const listed = await hostedPage.page.evaluate(() => [...document.querySelectorAll("#start > ul > li > a.item")].map(a => `${a.querySelector(".name").textContent}:${a.getAttribute("href")}`).join("|"));
-  check("a workspace made on the deployment's key is listed after Squidgy and opens by its name", /Octopus:\/chat\?w=octopus\|Squidgy:\/chat\?w=squidgy\|PandAAAHH:\/chat\?w=pandaaahh/.test(listed) && !/bad/.test(listed), listed);
-  await hostedPage.page.close();
+  await w.page.fill("#pass", "not a real passphrase");
+  await Promise.all([w.page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), w.page.click("#go")]);
+  check("a passphrase that opens nothing opens the demo", await w.page.evaluate(() => sessionStorage.getItem("octopus.token.v1")) === "tDemo"
+    && new URL(w.page.url()).pathname === "/chat", w.page.url());
+  await w.page.close();
+
+  const e = await boot("/", () => {
+    window.__posts = [];
+    window.fetch = async (u, opt) => { const s = String(u); window.__posts.push({ s });
+      if (s.includes("/api/status")) return Response.json({ demo: true });
+      if (s.includes("/api/demo")) return Response.json({ token: "tDemo", space: "demo" });
+      return Response.json({}); };
+  });
+  await Promise.all([e.page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), e.page.click("#go")]);
+  check("an empty field opens the demo, asking no door", await e.page.evaluate(() => sessionStorage.getItem("octopus.token.v1")) === "tDemo");
+  await e.page.close();
 
   const d = await boot("/", () => {
     window.fetch = async u => { const s = String(u);
@@ -2368,17 +2146,58 @@ for (const space of ["octopus", "squidgy"]) {
       return Response.json({}); };
   });
   await Promise.all([d.page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), d.page.click("#demoGo")]);
-  check("the demo opens in one click", await d.page.evaluate(() => sessionStorage.getItem("octopus.token.v1")) === "tDemo" && new URL(d.page.url()).pathname === "/chat", d.page.url());
+  check("the demo opens in one click from the top", await d.page.evaluate(() => sessionStorage.getItem("octopus.token.v1")) === "tDemo" && new URL(d.page.url()).pathname === "/chat", d.page.url());
   await d.page.close();
+
+  /* Make your own workspace, from a sheet. */
+  const c = await boot("/", () => {
+    window.__posts = [];
+    window.fetch = async (u, opt) => { const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__posts.push({ s, body });
+      if (s.includes("/api/status")) return Response.json({ demo: true });
+      if (s.includes("/api/workspace/create")) return body.name === "Taken" ? Response.json({ error: "that name is taken. Pick another." })
+        : Response.json({ token: "tNew", space: "acme-research", name: body.name });
+      return Response.json({}); };
+  });
+  check("the create form waits behind its link", !(await c.page.evaluate(() => document.getElementById("make").open)));
+  await c.page.click("#makeOpen");
+  await c.page.fill("#cName", "Taken"); await c.page.fill("#cPass", "a long passphrase"); await c.page.fill("#cKey", "nope");
+  await c.page.click("#cGo"); await c.page.waitForTimeout(100);
+  check("a key that is not OpenRouter's is caught before anything is sent", /starts with sk-or-/.test(await c.page.textContent("#cMsg"))
+    && !(await c.page.evaluate(() => window.__posts.some(p => p.s.includes("/api/workspace/create")))));
+  await c.page.fill("#cKey", "sk-or-v1-0123456789abcdef0123456789abcdef");
+  await c.page.click("#cGo"); await c.page.waitForTimeout(150);
+  check("a taken name says so", /taken/.test(await c.page.textContent("#cMsg")));
+  await c.page.fill("#cName", "Acme Research");
+  await Promise.all([c.page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), c.page.click("#cGo")]);
+  const made = await c.page.evaluate(() => ({ token: sessionStorage.getItem("octopus.token.v1"), key: localStorage.getItem("octopus.key.acme-research") }));
+  check("a new workspace opens in the app, its key kept in this browser only", made.token === "tNew" && made.key === "sk-or-v1-0123456789abcdef0123456789abcdef"
+    && new URL(c.page.url()).pathname === "/chat", JSON.stringify(made) + " " + c.page.url());
+  await c.page.close();
+
+  /* A workspace made for someone joins the list, by its name, with its own mark. */
+  const hostedPage = await boot("/", () => {
+    const px = "data:image/png;base64,iVBORw0KGgo=";
+    window.fetch = async u => String(u).includes("/api/status") ? Response.json({ demo: true, hosted: [{ slug: "pandaaahh", name: "PandAAAHH" }, { slug: "bad slug<", name: "x" }],
+      logos: { pandaaahh: px, octopus: "javascript:alert(1)", squidgy: px } }) : Response.json({});
+  });
+  await hostedPage.page.waitForTimeout(200);
+  const marks = await hostedPage.page.evaluate(() => ({
+    panda: document.querySelector('#spaces a[href="/chat?w=pandaaahh"] img')?.getAttribute("src"),
+    squidgy: document.querySelector("#goSquidgy img").getAttribute("src"), octopus: document.querySelector("#goOctopus img").getAttribute("src"),
+    listed: [...document.querySelectorAll("#spaces .sp")].map(a => `${a.textContent.trim()}:${a.getAttribute("href") || "demo"}`).join("|") }));
+  check("a workspace wears the logo its owner set, on the landing", marks.panda?.startsWith("data:image/png") && marks.squidgy.startsWith("data:image/png"), JSON.stringify(marks));
+  check("a logo that is not an image is never used, the default mark stays", marks.octopus === "/brand/logo-mark.png", marks.octopus);
+  check("a workspace made on the deployment's key joins the top, and a bad slug never does", marks.listed === "Demo:demo|Octopus:/chat?w=octopus|Squidgy:/chat?w=squidgy|PandAAAHH:/chat?w=pandaaahh", marks.listed);
+  await hostedPage.page.close();
 
   const o = await boot("/", () => {
     window.fetch = async u => String(u).includes("/api/status") ? Response.json({ demo: false }) : Response.json({});
   });
   await o.page.waitForTimeout(150);
-  check("with no demo open, the button says so", await o.page.isDisabled("#demoGo") && /opens soon/.test(await o.page.textContent("#demoMsg")));
+  check("with no demo open, its button waits", await o.page.isDisabled("#demoGo"));
   await o.page.close();
 
-  /* A phone gets the same page, one column, and nothing scrolls sideways. */
+  /* A phone gets the same page, and nothing scrolls sideways. */
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const ph = await ctx.newPage();
   await ph.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
@@ -2386,19 +2205,19 @@ for (const space of ["octopus", "squidgy"]) {
   await ph.goto(ORIGIN + "/", { waitUntil: "domcontentloaded" }); await ph.waitForTimeout(400);
   const wide = await ph.evaluate(() => document.documentElement.scrollWidth);
   check("the landing fits a phone", wide <= 390, String(wide));
+  check("it links the white paper", await ph.evaluate(() => [...document.querySelectorAll(".more a")].some(a => a.getAttribute("href") === "/about")));
 
-  /* The white paper: linked from the footer, eleven numbered sections, the
-     house rules kept, and its tables scroll in their frame on a phone. */
-  check("the footer links the white paper", await ph.evaluate(() => [...document.querySelectorAll("footer a")].some(a => a.getAttribute("href") === "/about")));
+  /* The white paper: eleven numbered sections, the house rules kept, and its
+     tables scroll in their frame on a phone. */
   await ph.goto(ORIGIN + "/about", { waitUntil: "domcontentloaded" }); await ph.waitForTimeout(300);
   const paper = await ph.evaluate(() => {
     const text = document.querySelector("main").innerText;
     const toc = [...document.querySelectorAll(".toc a")].map(a => a.getAttribute("href").slice(1));
     return { title: document.title, sections: [...document.querySelectorAll("main section")].map(x => x.id), toc,
-      dash: /\u2014/.test(text), wide: document.documentElement.scrollWidth };
+      dash: /—/.test(text), wide: document.documentElement.scrollWidth };
   });
   check("the white paper opens on its own address with eleven sections, each in the contents",
-    paper.title === "Brain: the white paper" && paper.sections.length === 11 && JSON.stringify(paper.sections) === JSON.stringify(paper.toc), JSON.stringify(paper.sections));
+    paper.title === "Tasu: the white paper" && paper.sections.length === 11 && JSON.stringify(paper.sections) === JSON.stringify(paper.toc), JSON.stringify(paper.sections));
   check("it keeps the house rules: no em-dash", !paper.dash);
   check("and it fits a phone, its tables scrolling in their own frame", paper.wide <= 390, String(paper.wide));
   await ctx.close();

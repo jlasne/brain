@@ -36,6 +36,26 @@ export const gateState = internalQuery({
   },
 });
 
+/**
+ * Every door with a passphrase, for the landing's one field: its space, salt
+ * and hash. A workspace that is gone is left out, so its door opens nothing.
+ */
+export const doorsAll = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const rows = (await ctx.db.query("config").collect()).filter(r => r.hash && r.salt && (r.key === "gate" || r.key.startsWith("gate:")));
+    const out: { space: string; salt: string; hash: string }[] = [];
+    for (const r of rows) {
+      const space = r.key === "gate" ? HOME : r.key.slice(5);
+      const own = (SPACES as readonly string[]).includes(space);
+      if (!own && !(await ctx.db.query("workspaces").withIndex("by_slug", q => q.eq("slug", space)).unique())) continue;
+      out.push({ space, salt: r.salt as string, hash: r.hash as string });
+    }
+    /* The owner's own two first, then the rest by name. */
+    return out.sort((x, y) => Number((SPACES as readonly string[]).includes(y.space)) - Number((SPACES as readonly string[]).includes(x.space)) || x.space.localeCompare(y.space));
+  },
+});
+
 /** Which spaces have a passphrase. The landing asks this before drawing a door. */
 export const gatesSet = internalQuery({
   args: {},

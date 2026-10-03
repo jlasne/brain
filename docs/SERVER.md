@@ -56,22 +56,13 @@ accounts. Nothing reads them now. Run it once, then remove `KEY_SECRET`:
 npx convex run admin:forgetOldKeys --prod
 ```
 
-Every workspace starts limited: its side panel shows Chats and Folders. Full
-adds Projects, and whoever opens the workspace switches it in Settings.
-The demo's visitors cannot reach that switch, so it is set here:
+Projects are off in the app for now: the side panel shows Chats and Folders,
+and the Limited or Full switch left Settings with them. Their routes and
+tables stay, so they can come back, and nothing rebuilds a page after a drop.
 
-```bash
-npx convex run admin:setMode '{"space":"demo","full":true}' --prod
-```
-
-A project's page changes when its owner presses Build. Talking in its chat
-never changes it. A project is out of date once a source lands in one of its
-folders. One its owner set to build then, which starts off, builds its next
-version in the background, on the deployment's key and its project model,
-at most once every 5 minutes. A workspace on its own key never rebuilds in the
-background: its key never reaches the server between calls, so the page is
-marked out of date and Rebuild in the app makes the new version. The page is
-shown in a frame that runs no script, reaches no server and opens no window.
+When projects come back: a project's page changes when its owner presses
+Build, and it is shown in a frame that runs no script, reaches no server and
+opens no window.
 
 Link what is already stored. A drop links the concepts it writes, and these
 fill in the rest, in the background, both spaces:
@@ -161,6 +152,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 |---|---|---|
 | `/api/status` | Says which spaces have a passphrase | No, it leaks nothing |
 | `/api/unlock` | One door per space. It checks the passphrase; only `admin:setPass` sets one | Rate limited, 8 tries an hour per door |
+| `/api/enter` | The landing's one field: the workspace a passphrase opens, or `demo: true` when it opens none. Counted apart from the doors, so a wrong guess never locks one | Rate limited, 10 tries an hour per address and 120 from everyone |
 | `/api/state` | Brains, concept names and summary lines, sources | Yes |
 | `/api/export` | One brain's concepts whole, 100 a page, for the markdown export | Yes |
 | `/api/concept` | One concept whole, for the brain viewer | Yes |
