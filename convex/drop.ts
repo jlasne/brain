@@ -75,6 +75,8 @@ RULES
 - Before replying, walk every "###" topic under THE NEW SOURCE. Each one ends up under "matched" or "candidates", unless it falls outside every brain's scope or is thin.
 - "matched" = an EXISTING concept this source adds to. Copy its id exactly as listed below, in the form brain/slug. One entry per concept touched. "whatItAdds" is what this source says about it.
 - "candidates" = a NEW concept this source argues for, one no listed concept covers. Give a short title, the brain slug it belongs in, and in "why" the idea itself.
+- A listed concept holding the same idea in other words, or in another language, is a match, never a candidate.
+- Every title is in English, whatever the source's language, with no language tag such as "(French)".
 - "whatItAdds" and "why" are stored as evidence, word for word, so each one is the CLAIM ITSELF, with its numbers, as a reader would quote it: "Gold and bonds returned the same since 1973, with large missed moves." Never describe the source or the filing: no "the source presents", "adds", "reinforces", "provides", "not covered by existing concepts", "new to the list".
 - EVERY item in "new" MUST also be filed: under "matched" when a listed concept covers it, under "candidates" when none does. An idea belonging to no concept and needing no new one is thin, not new.
 - So "matched" and "candidates" are both empty only when "new" is empty too.
@@ -518,49 +520,113 @@ export function excerptFor(topics: any[], touched: any[], limit = 20000): string
   return picked.sort((a, b) => a.i - b.i).map(r => r.text).join("\n");
 }
 
-const MERGE_RULES = `Below are concept titles proposed by separate readers of ONE source, each reading a different part of it at the same time. Some may name the same idea in different words.
+const MERGE_RULES = `Below are NEW concepts proposed from ONE source, read in parts, some of them at the same time, and the EXISTING concepts of the same folders that sit closest to them.
 
-- Group titles only when they would hold the SAME position: the same rule, method, claim or idea, worded differently.
-- Related ideas stay apart: a method and its limits, a rule and its exception, two steps of one process, the same topic seen from two angles.
-- Only titles of the same brain can be grouped.
+Find three things.
+
+1. "same": groups of NEW numbers holding the SAME idea: the same rule, method, claim or definition, worded differently or written in another language.
+2. "into": a NEW concept holding the same idea as an EXISTING one. Its evidence then joins that concept instead of starting a second one.
+3. "english": NEW titles not in English, each with its title in English. A title carrying a language tag such as "(French)" loses the tag.
+
+- Related ideas stay apart: a method and its limits, a rule and its exception, two steps of one process, a cause and its effect, a general idea and one example of it.
+- Only concepts of the same folder can be grouped or joined.
 - When unsure, keep them apart. A missed merge costs little; a wrong merge loses an idea.
 
-Reply with only JSON, groups of title numbers, the best title first: {"same":[[3,12],[7,9,21]]}. An empty list is a correct answer.`;
+Reply with only JSON, the best title first in each group. Empty lists are a correct answer:
+{"same":[[3,12],[7,9,21]],"into":[{"n":4,"e":"E7"}],"english":[{"n":5,"title":""}]}`;
+
+/* Existing concepts shown beside the new ones: the closest three for each,
+   300 at most, so the call stays cheap at any folder size. */
+const MERGE_NEAR = 3, MERGE_EXISTING = 300;
 
 /**
- * Titles that name one idea twice, after planning ran in parallel.
+ * One idea under two names, one idea already held, a title in another
+ * language: caught before anything is stored.
  *
- * Parts planned at the same time cannot see each other's titles, so the same
- * idea can come back under two names. One cheap call groups them; if it fails,
- * nothing is merged and every concept is kept.
+ * Parts planned at the same time cannot see each other's titles, and the
+ * planner can propose a new concept for an idea a folder holds in other
+ * words. One cheap call reads the new titles with what each says, beside the
+ * closest concepts already held. If it fails, every concept is kept as it is.
  */
 export async function dropMerge(ctx: any, who: Who, b: any, key?: string, model?: string) {
   const items = (Array.isArray(b.candidates) ? b.candidates : []).slice(0, 600)
-    .map((c: any) => ({ brain: String(c?.brain ?? ""), title: String(c?.title ?? "").slice(0, 200) }));
-  if (items.length < 2) return { same: [] };
-  const list = items.map((c: any, i: number) => `${i + 1}|${c.brain}|${c.title}`).join("\n");
+    .map((c: any) => ({ brain: String(c?.brain ?? ""), title: String(c?.title ?? "").slice(0, 200),
+                        why: plainClaim(c?.why).slice(0, 160) }));
+  const none = { same: [], into: [], english: [] };
+  if (!items.length) return none;
   try {
+    /* The closest concepts each folder already holds, by the words they share. */
+    const { cards } = await loadSpace(ctx, who.space);
+    const existing: any[] = [];
+    const seen = new Set<string>();
+    for (const it of items) {
+      const own = cards.filter((c: any) => c.brain === it.brain);
+      if (!own.length) continue;
+      for (const { c, score } of rankConcepts(own, keywords(`${it.title} ${it.why}`)).slice(0, MERGE_NEAR)) {
+        const id = `${c.brain}/${c.slug}`;
+        if (score <= 0 || seen.has(id) || existing.length >= MERGE_EXISTING) continue;
+        seen.add(id); existing.push(c);
+      }
+    }
+    if (items.length < 2 && !existing.length && !looksForeign(items[0].title)) return none;
+    const list = items.map((c: any, i: number) => `${i + 1}|${c.brain}|${c.title}|${c.why}`).join("\n");
+    const held = existing.map((c: any, i: number) =>
+      `E${i + 1}|${c.brain}|${c.title}|${String(c.summaryLine || c.lead || "").slice(0, 140)}`).join("\n");
     const { text, finish } = await ask([
-      { role: "system", content: "You find duplicate entries in a list of concept titles. You reply with JSON only." },
-      { role: "user", content: `${MERGE_RULES}\n\nTITLES (number|brain|title)\n${list}` },
-    ], { json: true, maxTokens: 3000, timeout: 60000, key, model });
-    const d = parseJson(String(text), finish);
+      { role: "system", content: "You find duplicate entries in a knowledge base and titles not in English. You reply with JSON only." },
+      { role: "user", content: `${MERGE_RULES}\n\nNEW (number|folder|title|what it says)\n${list}` +
+        (held ? `\n\nEXISTING (id|folder|title|what it holds)\n${held}` : "") },
+    ], { json: true, maxTokens: 4000, timeout: 60000, key, model });
+    const d = parseJson(String(text), finish) ?? {};
+    const at = (n: any) => { const i = Number(n) - 1; return Number.isInteger(i) && i >= 0 && i < items.length ? i : -1; };
+
     const used = new Set<number>();
     const same: number[][] = [];
-    for (const g of Array.isArray(d?.same) ? d.same : []) {
-      const idx = (Array.isArray(g) ? g : []).map((n: any) => Number(n) - 1)
-        .filter((i: number) => Number.isInteger(i) && i >= 0 && i < items.length && !used.has(i));
+    for (const g of Array.isArray(d.same) ? d.same : []) {
+      const idx = (Array.isArray(g) ? g : []).map(at).filter((i: number) => i >= 0 && !used.has(i));
       /* One brain per group, whatever the model sent. */
-      const one = idx.filter((i: number) => items[i].brain === items[idx[0]]?.brain);
+      const one = [...new Set<number>(idx)].filter((i: number) => items[i].brain === items[idx[0]]?.brain);
       if (one.length < 2) continue;
       one.forEach((i: number) => used.add(i));
       same.push(one);
     }
-    return { same };
+    /* A folded title goes where its group's first goes. */
+    const folded = new Set<number>(same.flatMap(g => g.slice(1)));
+    const into: { i: number; id: string }[] = [];
+    for (const x of Array.isArray(d.into) ? d.into : []) {
+      const i = at(x?.n);
+      const e = Number(String(x?.e ?? "").replace(/^E/i, "")) - 1;
+      const c = Number.isInteger(e) && e >= 0 ? existing[e] : null;
+      if (i < 0 || !c || folded.has(i) || c.brain !== items[i].brain || into.some(y => y.i === i)) continue;
+      into.push({ i, id: `${c.brain}/${c.slug}` });
+    }
+    const english: { i: number; title: string }[] = [];
+    for (const x of Array.isArray(d.english) ? d.english : []) {
+      const i = at(x?.n);
+      const title = untagged(String(x?.title ?? "")).slice(0, 200);
+      if (i < 0 || title.length < 3 || title === items[i].title || english.some(y => y.i === i)) continue;
+      english.push({ i, title });
+    }
+    return { same, into, english };
   } catch (e: any) {
     console.log(`merge pass skipped: ${String(e?.message ?? e).slice(0, 160)}`);
-    return { same: [] };
+    return none;
   }
+}
+
+/* A language named as a tag on a title: "(French)", "[FR]", "(version française)". */
+const LANG_TAG = /\s*[([]\s*(?:in\s+)?(?:french|english|spanish|german|italian|fran[cç]ais|anglais|fr|en|es|de|version\s+[\p{L}]+)\s*[)\]]\s*/giu;
+
+/** A title without a language tag. */
+export function untagged(t: string): string {
+  return String(t ?? "").replace(LANG_TAG, " ").replace(/\s+/g, " ").trim();
+}
+
+/** A title that carries a language tag or reads as French: the merge pass looks at it even alone. */
+export function looksForeign(t: string): boolean {
+  const s = String(t ?? "");
+  return untagged(s) !== s.replace(/\s+/g, " ").trim()
+    || /[àâçéèêëîïôûùüœ]/i.test(s) || /\b(?:les?|la|des|du|et|pour|dans|une?|est)\b/i.test(s);
 }
 
 /**
@@ -627,13 +693,54 @@ function fitNote(n: any) {
   return n;
 }
 
+/** A list, whatever the model sent in its place. */
+const listOf = (x: any): any[] => Array.isArray(x) ? x.filter((r: any) => r && typeof r === "object") : [];
+
+/**
+ * The rewrite a reply gave for one concept.
+ *
+ * The id is asked for as brain/slug, and a reply that wrote the slug alone,
+ * the title, or the title under its brain still names the concept. An exact
+ * match alone dropped those, and the concept was stored with no position.
+ */
+export function rewriteOf(rewrites: any[], c: any): any {
+  const id = `${c.brain}/${c.slug}`;
+  const title = String(c.title ?? "").trim().toLowerCase();
+  const names = (r: any) => {
+    const raw = String(r?.conceptId ?? r?.id ?? "").trim();
+    const rest = raw.includes("/") ? raw.slice(raw.indexOf("/") + 1) : raw;
+    const br = raw.includes("/") ? raw.slice(0, raw.indexOf("/")) : c.brain;
+    if (br !== c.brain) return false;
+    return raw === id || rest === c.slug || slug(rest) === c.slug || conceptSlug(rest) === c.slug
+      || (!!title && rest.trim().toLowerCase() === title);
+  };
+  return rewrites.find(names) ?? {};
+}
+
+/** A position from the claim itself, when no rewrite came back for it. */
+export function fromClaim(adds: any): string {
+  return plainClaim(adds).slice(0, 600);
+}
+
+/** One line from a position: its first sentence, 18 words at most. */
+export function lineOf(t: string): string {
+  const first = String(t ?? "").split(/(?<=[.!?])\s+/)[0] ?? "";
+  const w = first.split(/\s+/).filter(Boolean);
+  return w.length > 18 ? w.slice(0, 18).join(" ").replace(/[,;:]$/, "") : first;
+}
+
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
 export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model?: string) {
   /* Checked first, before a single read: nothing is written without it. */
   if (!b.packetOnly && !knownAuthor(b.ext?.author)) {
     return { error: "name the author before storing: who wrote or said this source?", needAuthor: true };
   }
-  const plan = b.plan ?? {}, sid = String(b.sid ?? "");
+  const plan = { ...(b.plan ?? {}) }, sid = String(b.sid ?? "");
+  /* A title never carries a language tag: "Bitcoin price (French)" was filed
+     beside "Bitcoin price" as a second concept. */
+  if (Array.isArray(plan.candidates)) {
+    plan.candidates = plan.candidates.map((c: any) => ({ ...c, title: untagged(str(c?.title)) || str(c?.title) }));
+  }
   /* Only what this batch touches is read: the concepts its plan names, and
      whether each new title is already a concept. */
   const ids = new Set<string>(), titles: { brain: string; title: string }[] = [];
@@ -783,7 +890,7 @@ ${excerptFor(ext.topics ?? [], touched)}`;
          whole prompt back and nothing is written yet.
        - neither: the app's own path, paying a model on the caller's key. */
     if (Array.isArray(b.rewrites)) {
-      rewrites = b.rewrites;
+      rewrites = listOf(b.rewrites);
     } else if (b.packetOnly) {
       return { job, positions: touched.length,
                concepts: touched.map(({ c }: any) => `${c.brain}/${c.slug}`) };
@@ -792,12 +899,20 @@ ${excerptFor(ext.topics ?? [], touched)}`;
         { role: "system", content: REWRITE_SYSTEM },
         { role: "user", content: job },
       ], { json: true, maxTokens: 24000, key, model });
-      rewrites = parseJson(text, finish)?.rewrites ?? [];
+      rewrites = listOf(parseJson(text, finish)?.rewrites);
     }
   } else if (b.packetOnly) {
     /* Nothing to rewrite, so there is no job. Storing it is one more call. */
     return { job: "", positions: 0, concepts: [] };
   }
+
+  /* A reply can leave concepts out. Each one used to be stored with its
+     evidence and no position, read as "no position yet" for good. Now it is
+     stored with its claim as the position, and named in the reply, so the app
+     asks for its real position in a request of its own: two model calls in
+     one request run past the deadline. */
+  const unwritten = touched.filter(t => !plainClaim(rewriteOf(rewrites, t.c).position) && !t.c.position)
+    .map(({ c }: any) => `${c.brain}/${c.slug}`);
 
   /* The source and its note go first. A source of another space is refused
      here, before any concept is written, and a failure costs no concept. */
@@ -826,7 +941,7 @@ ${excerptFor(ext.topics ?? [], touched)}`;
        never to itself, twelve at most. */
     const links = Array.from(new Set([...(c.related ?? []), ...(Array.isArray(rel) ? rel : [])]
       .map((r: any) => linkId(String(r), c.brain)).filter((r: string) => r !== id))).slice(0, 12);
-    const rw = rewrites.find((r: any) => r.conceptId === id || r.conceptId === c.slug) ?? {};
+    const rw = rewriteOf(rewrites, c);
     const newData = Array.isArray(rw.data) ? rw.data.map(str).filter(Boolean) : [];
     /* A concept already carrying this source keeps its evidence as it is. That
        makes a resumed store, and a source read again, add nothing twice. */
@@ -838,8 +953,10 @@ ${excerptFor(ext.topics ?? [], touched)}`;
       brain: c.brain, title: c.title, slug: c.slug,
       doc: {
         /* A new write is stated plainly; a position left as it was stays so. */
-        position: plainClaim(rw.position) || c.position || "",
-        summaryLine: plainClaim(rw.summaryLine) || c.summaryLine || "",
+        /* No rewrite came back: the claim this source made stands as the
+           position until the app asks again, so none is ever stored empty. */
+        position: plainClaim(rw.position) || c.position || fromClaim(adds),
+        summaryLine: plainClaim(rw.summaryLine) || c.summaryLine || (c.position ? "" : lineOf(plainClaim(rw.position) || fromClaim(adds))),
         evidence: compress(ev),
         /* The model's figures lead and the stored ones follow, so a rewrite
            that forgot them loses none. Conflicts the same way. */
@@ -868,7 +985,7 @@ ${excerptFor(ext.topics ?? [], touched)}`;
 
   /* How many passages the note kept, so the app knows whether later parts
      can read the text back from it or must send it again. */
-  return { sid, brains: targets, positions: touched.length, missed, written, noteTopics,
+  return { sid, brains: targets, positions: touched.length, missed, written, noteTopics, unwritten,
     counts: { new: (full.new ?? []).length, echo: (full.echo ?? []).length } };
 }
 

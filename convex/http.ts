@@ -27,6 +27,7 @@ import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
 /* Projects are off in the app for now; their routes stay for when they come back. */
 import { buildPage, TEMPLATE_MAX } from "./projects";
+import { rederive, tidyScan } from "./tidy";
 
 const router = httpRouter();
 
@@ -514,6 +515,43 @@ route("/api/brain", async (ctx, _req, b) => {
 route("/api/brain/merge", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   return await ctx.runMutation(internal.store.mergeBrains, { from: String(b.from ?? ""), into: String(b.into ?? ""), space: who.space });
+});
+
+/**
+ * A folder read for concepts held twice, titles not in English and concepts
+ * with no position. Read only: the owner rules on each finding.
+ */
+route("/api/brain/tidy", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return await tidyScan(ctx, who, String(b.brain ?? ""), keyFor(who), modelFor(who, b));
+});
+
+/** Concepts of one folder holding one idea, joined into the first, its position written again. */
+route("/api/concept/merge", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const into = String(b.into ?? "");
+  const from = (Array.isArray(b.from) ? b.from : []).map(String);
+  const r = await ctx.runMutation(internal.store.joinConcepts, { space: who.space, into, from });
+  /* The joined evidence holds more than the kept position says. If the model
+     fails, the join stands and the old position stays until the next drop. */
+  let rewritten = false;
+  try { rewritten = (await rederive(ctx, who, [into], keyFor(who), modelFor(who, b))).written.length > 0; } catch (_) {}
+  return { ...r, rewritten };
+});
+
+route("/api/concept/rename", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return await ctx.runMutation(internal.store.renameConcept, { space: who.space, id: String(b.id ?? ""), title: String(b.title ?? "") });
+});
+
+/**
+ * Positions written again from the evidence each concept holds: one a drop
+ * stored with no rewrite, or one Tidy found empty. Eight per request.
+ */
+route("/api/concept/rederive", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  await demoCount(ctx, who, "step");
+  return await rederive(ctx, who, (Array.isArray(b.ids) ? b.ids : []).map(String), keyFor(who), modelFor(who, b));
 });
 
 route("/api/brain/rename", async (ctx, _req, b) => {
@@ -1045,12 +1083,12 @@ route("/api/onepager", async (ctx, _req, b) => {
   if (!all.length) return { error: "no brain exists yet, so there is nothing to put on a page" };
   const load = async (ids: string[]) => await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids });
 
-  /* One of: a brain slug, "person", "subject", or "all". */
-  const pick = String(b.pick ?? "all").trim();
-  const brains =
-    pick === "person" || pick === "subject" ? all.filter((x: any) => (x.type === "person" ? "person" : "subject") === pick)
-    : pick && pick !== "all" ? all.filter((x: any) => x.slug === pick)
-    : all;
+  /* "all", or a list of brain slugs and groups ("person", "subject"),
+     joined by commas: one folder, several, or a whole group. */
+  const pick = String(b.pick ?? "all").trim() || "all";
+  const parts = pick.split(",").map(x => x.trim()).filter(Boolean).slice(0, 200);
+  const brains = parts.includes("all") ? all
+    : all.filter((x: any) => parts.includes(x.slug) || parts.includes(x.type === "person" ? "person" : "subject"));
   if (!brains.length) {
     return { error: pick === "person" || pick === "subject"
       ? `no ${pick} brain exists yet`

@@ -17,7 +17,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-store-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "projects.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "projects.ts", "tidy.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 /* A query or mutation is its definition, so a test can call its handler. */
@@ -818,6 +818,40 @@ function seed() {
   check("sources, candidates and chats follow", JSON.stringify(T.sources.find(x => x.sid === "s-b").brains) === '["wealth"]'
     && T.candidates[0].brain === "wealth" && T.chats[0].brain === "wealth", JSON.stringify({ s: T.sources.find(x => x.sid === "s-b").brains, c: T.candidates[0].brain, h: T.chats[0].brain }));
   check("the old folder goes, with no card left behind", !T.brains.some(b => b.slug === "gold") && !T.cards.some(c => c.brain === "gold") && r.merged, JSON.stringify(r));
+}
+
+/* ---- concepts of one folder joined, and a title changed in place ---- */
+{
+  const { T, ctx } = seed();
+  T.brains.push({ _id: "b5", slug: "crypto", name: "Crypto", type: "subject", scope: "s", space: undefined },
+                { _id: "b6", slug: "pals", name: "Pals", type: "subject", scope: "s", space: "squidgy", shared: ["octopus"] },
+                { _id: "b7", slug: "showcase", name: "Showcase", type: "subject", scope: "s", space: "squidgy", viewers: ["octopus"] });
+  const mk = (id, brain, slug, title, ev, related = []) => ({ _id: id, brain, slug, n: Number(id.slice(1)), title, position: title + " holds.", summaryLine: "",
+    evidence: ev.map(([date, claim, source]) => ({ date, author: "A", claim, source })), data: [], conflicts: [], sources: ev.map(e => e[2]), related, updated: "x" });
+  T.concepts.push(
+    mk("k1", "crypto", "bitcoin-price", "Bitcoin price", [["2026-09-01", "supply sets it", "s1"]], ["crypto/prix-du-bitcoin"]),
+    mk("k2", "crypto", "prix-du-bitcoin", "Prix du Bitcoin", [["2026-09-02", "demand sets it", "s2"]], ["crypto/bitcoin-price", "crypto/halving"]),
+    mk("k3", "crypto", "halving", "Halving", [["2026-09-03", "supply halves", "s3"]], ["crypto/prix-du-bitcoin"]),
+    mk("k4", "pals", "walks", "Walks", [["2026-09-04", "one a day", "s4"]]),
+    mk("k5", "pals", "daily-walks", "Daily walks", [["2026-09-05", "two a day", "s5"]]),
+    mk("k6", "showcase", "a", "A", []), mk("k7", "showcase", "b", "B", []));
+  for (const c of T.concepts) await store.syncCard(ctx, c._id);
+  const r = await run(store.joinConcepts, ctx, { space: "octopus", into: "crypto/bitcoin-price", from: ["crypto/prix-du-bitcoin"] });
+  const kept = T.concepts.find(c => c._id === "k1");
+  check("a twin folds into the kept concept, evidence and sources joined", r.joined === 1 && kept.evidence.length === 2
+    && kept.sources.join() === "s1,s2" && !T.concepts.some(c => c._id === "k2") && !T.cards.some(c => c.slug === "prix-du-bitcoin"), JSON.stringify(r));
+  check("its links join too, never to itself", JSON.stringify(kept.related) === '["crypto/halving"]', JSON.stringify(kept.related));
+  check("links that named the folded one now name the kept one", JSON.stringify(T.concepts.find(c => c._id === "k3").related) === '["crypto/bitcoin-price"]');
+  check("concepts of two folders never join", /one folder/.test(await throws(run(store.joinConcepts, ctx, { space: "octopus", into: "crypto/halving", from: ["wealth/gold"] }))));
+  check("a folder shared in can be tidied from both workspaces",
+    (await run(store.joinConcepts, ctx, { space: "octopus", into: "pals/walks", from: ["pals/daily-walks"] })).joined === 1);
+  check("a folder only viewed never", /not in this workspace/.test(await throws(run(store.joinConcepts, ctx, { space: "octopus", into: "showcase/a", from: ["showcase/b"] }))));
+  check("nor one of another workspace", /not in this workspace/.test(await throws(run(store.joinConcepts, ctx, { space: "squidgy", into: "crypto/halving", from: [] }))));
+
+  await run(store.renameConcept, ctx, { space: "octopus", id: "crypto/halving", title: "  Bitcoin   halving " });
+  const h = T.concepts.find(c => c._id === "k3");
+  check("a title changes in place, its id kept", h.title === "Bitcoin halving" && h.slug === "halving" && T.cards.find(c => c.cid === "k3").title === "Bitcoin halving");
+  check("a title another concept holds is refused", /merge the two/.test(await throws(run(store.renameConcept, ctx, { space: "octopus", id: "crypto/halving", title: "Bitcoin price" }))));
 }
 
 /* ---- the landing's one field reads every live door ---- */

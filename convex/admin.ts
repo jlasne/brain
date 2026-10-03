@@ -16,6 +16,7 @@ import { today, sha256, randomHex, gateKey, readSpace, slugOfName, SPACE_RE, SPA
 import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle } from "./words";
 import { syncCard, writeMode, mergeInto } from "./store";
 import { loadSpace } from "./space";
+import { rederive, needsPosition, REDERIVE_MAX } from "./tidy";
 
 /**
  * Turn every waiting candidate into a position.
@@ -581,5 +582,46 @@ export const dropReport = internalQuery({
       perBrain,
       recent: recent.map(s => `${s.sid} | ${s.title}`),
     };
+  },
+});
+
+/**
+ * Write a position for every concept that has none, or holds a note about
+ * its filing in place of one, from the evidence it already carries.
+ *
+ *     npx convex run admin:repairPositions "{dry:true}" --prod
+ *     npx convex run admin:repairPositions --prod
+ *
+ * Octopus and Squidgy, on the deployment's key, never a personal folder.
+ * Eight concepts a call, 40 a run; the rest go to a fresh run, so none nears
+ * the 10 minute limit an action has.
+ */
+export const repairPositions = internalAction({
+  args: { space: v.optional(v.string()), dry: v.optional(v.boolean()), ids: v.optional(v.array(v.string())) },
+  handler: async (ctx, a): Promise<any> => {
+    const spaces = a.space ? [readSpace(a.space)] : [...SPACES];
+    if (a.ids) {
+      const space = spaces[0];
+      const who = { kind: "owner" as const, account: null, space };
+      let written = 0;
+      const run = a.ids.slice(0, REDERIVE_MAX * 5);
+      for (let i = 0; i < run.length; i += REDERIVE_MAX) {
+        try { written += (await rederive(ctx, who, run.slice(i, i + REDERIVE_MAX))).written.length; }
+        catch (e: any) { console.log(`repair batch skipped: ${String(e?.message ?? e).slice(0, 160)}`); }
+      }
+      const rest = a.ids.slice(run.length);
+      if (rest.length) await ctx.scheduler.runAfter(0, internal.admin.repairPositions, { space, ids: rest });
+      console.log(`${space}: ${written} positions written, ${rest.length} handed on`);
+      return { space, written, left: rest.length };
+    }
+    const out: any[] = [];
+    for (const space of spaces) {
+      const { cards } = await loadSpace(ctx, space);
+      const want = cards.filter(needsPosition);
+      const ids = want.map((c: any) => `${c.brain}/${c.slug}`);
+      out.push({ space, count: ids.length, ids: a.dry ? ids : ids.slice(0, 5) });
+      if (!a.dry && ids.length) await ctx.scheduler.runAfter(0, internal.admin.repairPositions, { space, ids });
+    }
+    return a.dry ? { dry: true, spaces: out } : { started: true, spaces: out };
   },
 });

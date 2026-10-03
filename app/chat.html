@@ -434,6 +434,42 @@
   .fv-li{ padding:7px 0; border-top:1px solid var(--line); font:400 14px/1.5 var(--sans); color:var(--ink-2); }
   .fv-links{ display:flex; flex-wrap:wrap; gap:6px; }
   .fv-acts2{ display:flex; align-items:center; gap:12px; margin-top:22px; }
+  /* Tidy: findings as cards, each waiting for its own click. */
+  .tidy .td-sub{ margin:-2px 0 10px; font:400 13.5px/1.5 var(--sans); color:var(--ink-3); }
+  .td-card{ display:grid; gap:8px; padding:12px; border:1px solid var(--line); border-radius:14px; background:var(--surface);
+    margin-bottom:10px; transition:opacity .35s ease, transform .35s ease, max-height .45s ease; animation:tdIn .35s ease both; }
+  .td-card.done{ opacity:.55; }
+  .td-card.gone{ opacity:0; transform:translateX(16px); pointer-events:none; max-height:0; padding:0; margin:0; border-width:0; overflow:hidden; }
+  @keyframes tdIn{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+  .td-opt{ display:flex; gap:10px; align-items:flex-start; padding:8px 10px; border-radius:10px; cursor:pointer; }
+  .td-opt:hover{ background:var(--side); }
+  .td-opt input{ margin-top:3px; accent-color:var(--accent-solid); }
+  .td-opt div{ display:grid; gap:2px; min-width:0; }
+  .td-opt b{ font:600 14.5px/1.35 var(--sans); color:var(--ink); }
+  .td-opt span{ font:400 13.5px/1.45 var(--sans); color:var(--ink-2); }
+  .td-opt small{ font:400 12px/1.3 var(--mono); color:var(--ink-4); }
+  .td-acts{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:2px 10px 4px; }
+  .td-go, .td-no{ min-height:34px; padding:0 14px; border-radius:999px; font:600 13px/1 var(--sans); cursor:pointer; }
+  .td-go{ border:1px solid var(--accent-solid); background:var(--accent-solid); color:var(--accent-on); }
+  .td-no{ border:1px solid var(--line); background:transparent; color:var(--ink-2); }
+  .td-go:disabled, .td-no:disabled{ opacity:.5; cursor:default; }
+  .td-all{ justify-self:start; margin:2px 10px 4px; }
+  .td-say{ font:400 13px/1.4 var(--sans); color:var(--ink-3); }
+  .td-say.ok{ color:var(--good); }
+  .td-say.bad, .tidy .bad{ color:var(--bad); }
+  .td-ren{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto; gap:8px; align-items:center; padding:6px 10px; }
+  .td-ren s{ font:400 13.5px/1.4 var(--sans); color:var(--ink-3); overflow-wrap:anywhere; }
+  .td-ren .td-in{ min-width:0; min-height:34px; padding:0 10px; border:1px solid var(--line); border-radius:10px; font:500 14px/1 var(--sans); color:var(--ink); background:var(--surface); }
+  .td-ren .td-say{ grid-column:1 / -1; }
+  .td-ren.done .td-in{ border-color:transparent; background:var(--side); }
+  .td-li{ padding:6px 10px; font:500 14px/1.4 var(--sans); color:var(--ink-2); border-top:1px solid var(--line); }
+  .td-li:first-child{ border-top:0; }
+  .td-clean{ margin-top:18px; padding:16px; border-radius:14px; background:var(--side); font:500 14.5px/1.5 var(--sans); color:var(--ink-2); }
+  .td-wait{ display:flex; gap:6px; margin-top:18px; }
+  .td-wait i{ width:8px; height:8px; border-radius:50%; background:var(--ink-4); animation:tdDot 1s ease-in-out infinite; }
+  .td-wait i:nth-child(2){ animation-delay:.15s; } .td-wait i:nth-child(3){ animation-delay:.3s; }
+  @keyframes tdDot{ 0%,100%{ opacity:.25; transform:translateY(0); } 50%{ opacity:1; transform:translateY(-4px); } }
+  @media (max-width:520px){ .td-ren{ grid-template-columns:1fr; } }
   .fv-upd{ margin-left:auto; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
   main[data-view="folder"] .composer-wrap{ border-top:1px solid var(--line); }
 
@@ -1105,6 +1141,19 @@
     display:block; font:500 13px/1 var(--sans); color:var(--ink);
     margin-bottom:7px;
   }
+  /* Built from: folders as chips, several at once, grouped like the side panel. */
+  .pk-multi{ display:flex; flex-wrap:wrap; gap:6px; max-height:220px; overflow-y:auto; padding:2px; }
+  .pk-multi .pm-g{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; width:100%; }
+  .pk-multi .pm-head{ width:100%; padding:6px 2px 0; border:0; background:none; text-align:left; cursor:pointer;
+    font:600 10.5px/1 var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); }
+  .pk-multi .pm-head:hover{ color:var(--ink); }
+  .pm-chip{ min-height:32px; padding:0 12px; border:1px solid var(--line-2); border-radius:999px; background:var(--surface); cursor:pointer;
+    font:500 13px/1 var(--sans); color:var(--ink-2); transition:background .15s ease, color .15s ease, border-color .15s ease, transform .1s ease; }
+  .pm-chip:hover{ border-color:var(--ink-4); color:var(--ink); }
+  .pm-chip:active{ transform:scale(.97); }
+  .pm-chip.on{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
+  .pm-chip i{ font-style:normal; font:500 11px/1 var(--mono); opacity:.7; margin-left:4px; }
+  @media (max-width:520px){ .pm-chip{ min-height:40px; } }
   .sheet select.pick{
     width:100%; border:1px solid var(--line-2); border-radius:9px; background:var(--bg);
     padding:10px 12px; font:400 14.5px/1.5 var(--sans); color:var(--ink);
@@ -1387,18 +1436,35 @@
   .side-acts .sa.on{ background:rgba(0,0,0,.055); color:var(--ink); }
 
   .panel{ background:transparent; border:0; border-radius:0; box-shadow:none; }
-  .panel + .panel{ margin-top:16px; }
-  .panel-h{ min-height:28px; padding:0 2px 0 10px; }
-  .panel .fold-t{ flex:none; gap:6px; padding:4px 0; font:500 11.5px/1 var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-4); }
-  .panel .fold-t:hover{ color:var(--ink-2); }
-  .panel .fold-t b{ font:500 11px/1 var(--sans); letter-spacing:0; color:var(--ink-4); }
-  .panel .chev{ margin-left:2px; }
-  .p-ic{ display:none; }
-  .panel .side-plus{ margin-left:auto; width:24px; height:24px; background:transparent; color:var(--ink-4); }
-  .panel .side-plus:hover{ background:rgba(0,0,0,.05); color:var(--ink); }
-  .panel-b{ border-top:0; padding:2px 0 0; }
-  .panel .group-h{ margin:12px 10px 4px; font:500 10.5px/1.6 var(--sans); letter-spacing:.06em; color:var(--ink-4); }
-  .panel .group-h:first-child{ margin-top:4px; }
+  .panel + .panel{ margin-top:14px; }
+  /* A section head: its mark, its name, a count, and a chevron that turns. */
+  .panel-h{ min-height:36px; padding:0 4px 0 6px; border-radius:10px; transition:background .15s ease; }
+  .panel-h:hover{ background:rgba(0,0,0,.035); }
+  .panel .fold-t{ flex:1; gap:9px; padding:7px 0; font:600 13.5px/1 var(--sans); letter-spacing:-.005em; text-transform:none; color:var(--ink-2); }
+  .panel .fold-t:hover{ color:var(--ink); }
+  .p-ic{ display:grid; width:24px; height:24px; border-radius:7px; }
+  .p-chat, .p-fold{ background:var(--surface); color:var(--ink-2); box-shadow:0 0 0 1px var(--line), 0 1px 2px rgba(0,0,0,.05); }
+  .panel .fold-t b{ min-width:22px; padding:3px 7px; border-radius:999px; background:rgba(0,0,0,.05); text-align:center;
+    font:600 11px/1 var(--mono); letter-spacing:0; color:var(--ink-3); }
+  .panel .fold-t b:empty{ display:none; }
+  .panel .chev{ width:7px; height:7px; margin:0 6px 0 auto; border:0; border-right:1.6px solid var(--ink-4); border-bottom:1.6px solid var(--ink-4);
+    transform:translateY(-2px) rotate(45deg); transition:transform .25s var(--ease, ease); }
+  .panel .fold-t[aria-expanded="false"] .chev{ transform:rotate(-45deg); }
+  .panel .side-plus{ width:26px; height:26px; border-radius:8px; background:transparent; color:var(--ink-4); }
+  .panel .side-plus:hover{ background:var(--surface); color:var(--ink); box-shadow:0 0 0 1px var(--line); }
+  .panel-b{ border-top:0; padding:4px 0 0; }
+  .panel-b:not([hidden]){ animation:pbOpen .26s var(--ease, ease) both; }
+  @keyframes pbOpen{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:none; } }
+  /* A group inside Folders: its name, how many, and a hairline to the edge. */
+  .panel .group-h{ display:flex; align-items:center; gap:8px; margin:14px 10px 5px; font:600 10.5px/1 var(--sans); letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ink-4); }
+  .panel .group-h::after{ content:attr(data-n); order:1; font:500 10.5px/1 var(--mono); letter-spacing:0; color:var(--ink-4); opacity:.8; }
+  .panel .group-h::before{ content:""; order:2; flex:1; height:1px; background:var(--line); }
+  .panel .group-h:first-child{ margin-top:6px; }
+  .brain-row .cnt{ margin-left:auto; font:500 11px/1 var(--mono); color:var(--ink-4); }
+  .brain-row .cnt:empty{ display:none; }
+  .brain-row .cnt + .hring{ margin-left:8px; }
+  .brain-row .ro-tag{ flex:none; padding:2px 6px; border-radius:6px; background:rgba(0,0,0,.05); font:500 10.5px/1.2 var(--sans); color:var(--ink-3); }
   .panel .empty-side{ padding:4px 10px; }
 
   .chat-row, .brain-row{ border:0; border-radius:8px; padding:6px 10px; }
@@ -1437,6 +1503,38 @@
   .mic{ border-radius:10px; }
   .foot-note{ pointer-events:auto; margin-top:8px; text-align:center; font:400 11.5px/1.4 var(--sans); color:var(--ink-4); }
   .dropsrc{ padding:11px 16px 10px; }
+
+  /* The bar folded: one line, the field and its send, so the thread keeps the
+     page. A click opens it to the folders, the levels and the hints. */
+  .composer{ max-width:820px; transition:max-width .42s cubic-bezier(.2,.85,.25,1), padding .3s ease; }
+  .box{ transition:border-radius .35s cubic-bezier(.2,.85,.25,1), box-shadow .3s ease, border-color .2s ease; }
+  .composer-wrap.compact .composer{ max-width:600px; }
+  .composer-wrap.compact .box{ display:flex; align-items:center; border-radius:999px; cursor:text;
+    box-shadow:0 6px 24px -8px rgba(0,0,0,.14), 0 1px 3px rgba(0,0,0,.05); }
+  .composer-wrap.compact .box:hover{ border-color:#d4d4d8; box-shadow:0 10px 30px -8px rgba(0,0,0,.18), 0 2px 4px rgba(0,0,0,.05); }
+  .composer-wrap.compact .box textarea{ flex:1; min-width:0; height:50px !important; padding:15px 8px 0 22px; overflow:hidden; cursor:text; }
+  .composer-wrap.compact .box .tbar{ flex:none; padding:0 7px 0 0; gap:6px; }
+  .composer-wrap.compact .tbar .ctrls, .composer-wrap.compact .tbar .t, .composer-wrap.compact .tbar .tools,
+  .composer-wrap.compact .foot-note{ display:none; }
+  .composer-wrap.compact .send, .composer-wrap.compact .mic{ width:36px; height:36px; border-radius:50%; }
+  .composer-wrap:not(.compact) .tbar .ctrls, .composer-wrap:not(.compact) .foot-note{ animation:barOpen .34s cubic-bezier(.2,.85,.25,1) both; }
+  .composer-wrap:not(.compact) .tbar .ctrls > *{ animation:barOpen .34s cubic-bezier(.2,.85,.25,1) both; }
+  .composer-wrap:not(.compact) .tbar .ctrls > :nth-child(2){ animation-delay:.04s; }
+  .composer-wrap:not(.compact) .tbar .ctrls > :nth-child(3){ animation-delay:.08s; }
+  @keyframes barOpen{ from{ opacity:0; transform:translateY(6px) scale(.98); } to{ opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce){
+    .composer, .box{ transition:none; }
+    .composer-wrap:not(.compact) .tbar .ctrls, .composer-wrap:not(.compact) .tbar .ctrls > *, .composer-wrap:not(.compact) .foot-note{ animation:none; }
+  }
+
+  /* Easier to read: a wider column, darker text, more air between lines. */
+  .col{ max-width:820px; }
+  .msg.ai .body{ color:var(--ink); font-size:17px; line-height:1.72; }
+  .msg.ai .body p{ margin-bottom:1em; }
+  .msg.ai .body li{ margin:.3em 0; }
+  .msg.me .body{ font-size:16px; line-height:1.55; }
+  .msg{ animation:msgIn .4s cubic-bezier(.2,.85,.25,1) both; }
+  @keyframes msgIn{ from{ opacity:0; transform:translateY(10px); filter:blur(2px); } to{ opacity:1; transform:none; filter:none; } }
 
   /* Titles in the serif, the way the landing sets them. */
   .zero h2{ font:400 40px/1.06 var(--serif); letter-spacing:-.025em; }
@@ -1618,7 +1716,8 @@ const TOKEN_KEY = "octopus.token.v1";
    travels only with the calls that spend a model, and the server keeps no
    copy of it. */
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
-  "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle"]);
+  "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle",
+  "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -2118,6 +2217,8 @@ function brainRow(b){
   tick.append(brainIcon(b));
   if (!self){ const box = el("span","tbox"); box.innerHTML = TICK_SVG; tick.append(box); }
   row.append(tick, el("span","nm",b.name));
+  if (readOnly(b)) row.append(el("span","ro-tag","Ask only"));
+  row.append(el("span","cnt", self ? "" : String(ideas)));
   const h = S.health[b.slug];
   if (h) row.append(healthRing(h, b));
   row.title = b.type === "personal" ? `Personal, alpha: it files what you say in its chat, dated. Only that chat reads it.\n${ideas} notes`
@@ -2309,7 +2410,7 @@ async function openChat(id){
   $("thread").innerHTML = "";
   for (const t of c.turns || []){
     says(t.q);
-    push("ai", body => showAnswer(body, t, t.q, S.scope));
+    push("ai", body => showAnswer(body, t, t.q, asked.join(",") || "all"));
   }
   S.thread = (c.turns || []).slice(-6).map(t => ({ q: t.q, a: String(t.a ?? "") }));
   render(); renderChats(); bottom();
@@ -2426,14 +2527,16 @@ function renderSide(){
   if (!S.brains.length){
     box.append(el("div","empty-side","None yet. A folder holds one subject or one person's view, with a one line scope."));
   } else {
-    const home = b => b.space || S.space;
-    const groups = [
-      { head: S.demo ? "In the demo" : "Mine", rows: ordered().filter(b => home(b) === S.space && !readOnly(b)) },
-      { head: "Ask and drop", rows: ordered().filter(b => home(b) !== S.space && !readOnly(b)) },
-      { head: "Ask only", rows: ordered().filter(b => readOnly(b)) },
-    ].filter(g => g.rows.length);
+    /* By type, then the fullest first: what you said, the people, the
+       subjects. A folder shared in, or one only asked, says so on its row. */
+    const kind = b => b.type === "personal" ? "personal" : b.type === "person" ? "person" : "subject";
+    const bySize = (x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length || x.name.localeCompare(y.name);
+    const groups = [["personal","Personal"], ["person","People"], ["subject","Subjects"]]
+      .map(([k, head]) => ({ head, rows: S.brains.filter(b => kind(b) === k).sort(bySize) }))
+      .filter(g => g.rows.length);
     for (const g of groups){
-      box.append(el("div","group-h",g.head));
+      const h = el("div","group-h",g.head); h.dataset.n = g.rows.length;
+      box.append(h);
       for (const b of g.rows) box.append(brainRow(b));
     }
   }
@@ -2635,6 +2738,20 @@ function closePick(){
   if (!pickMenu) return;
   pickMenu.remove(); pickMenu = null;
   $("scopeBtn").setAttribute("aria-expanded","false");
+  paintBar();
+}
+
+/**
+ * The chat bar stays a one-line pill, so the thread keeps the page. It opens
+ * to its folders, levels and hints when it is wanted: a click in it, text in
+ * it, a drop, its folder menu open, or the mic on.
+ */
+function paintBar(){
+  const wrap = document.querySelector(".composer-wrap");
+  if (!wrap) return;
+  const open = wrap.contains(document.activeElement) || !!$("input").value.trim()
+    || S.mode === "drop" || !!pickMenu || !!S.listening;
+  wrap.classList.toggle("compact", !open);
 }
 
 function renderComposer(){
@@ -2678,6 +2795,7 @@ function renderComposer(){
   $("send").disabled = S.busy || (drop ? !ready : !t);
   $("tHint").textContent = S.busy ? "working" : drop ? dropHint(src, t)
     : S.listening ? "Listening. Tap the mic to stop." : (S.voiceHint || "");
+  paintBar();
 }
 
 /* Declarations, not consts: renderComposer runs once before this line is
@@ -2963,6 +3081,17 @@ $("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
 
+{
+  const wrap = document.querySelector(".composer-wrap");
+  wrap.addEventListener("focusin", paintBar);
+  /* A beat later, so a click from the box to one of its buttons never folds it. */
+  wrap.addEventListener("focusout", () => setTimeout(paintBar, 140));
+  /* Folded, the whole pill is the field: a click anywhere on it opens it. */
+  wrap.querySelector(".box").addEventListener("mousedown", e => {
+    if (!wrap.classList.contains("compact") || e.target.closest("button, input, textarea")) return;
+    e.preventDefault(); $("input").focus();
+  });
+}
 $("freshBtn").onclick = () => { newChat(); $("input").focus(); };
 $("newChat").onclick = () => { closeSide(); newChat(); $("input").focus(); };
 $("startBtn").onclick = () => { closeSide(); newChat(); $("input").focus(); };
@@ -4274,6 +4403,7 @@ function openBrainView(b, openId){
 /* ============ a folder, open ============ */
 const IC_CHAT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg>`;
 const IC_DROP = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>`;
+const IC_TIDY = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h11M4 12h7M4 17h5M15 13l2 2 4-4"/></svg>`;
 const IC_EDIT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 4.3a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L9 19.5 4 20l.5-5Z"/></svg>`;
 const dayOf = d => { const t = Date.parse(d); return isNaN(t) ? String(d || "") : new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
 
@@ -4291,7 +4421,8 @@ function openFolder(b, openId){
   S.folder = b.slug;
   const fv = $("folderView"); fv.innerHTML = "";
   const self = isPersonal(b.slug), ro = readOnly(b);
-  const cs = conceptsOf(b.slug).slice().sort((x, y) => String(y.updated || "").localeCompare(String(x.updated || "")) || (y.src || 0) - (x.src || 0));
+  const sorted = () => conceptsOf(b.slug).slice().sort((x, y) => String(y.updated || "").localeCompare(String(x.updated || "")) || (y.src || 0) - (x.src || 0));
+  let cs = sorted();
   const reads = sourcesOf(b.slug).length, h = S.health[b.slug];
   const clashes = h ? (h.open || 0) : [...(S.conflicted || [])].filter(id => id.split("/")[0] === b.slug).length;
 
@@ -4318,6 +4449,7 @@ function openFolder(b, openId){
   btn("fvChat", "Chat in it", IC_CHAT, () => { S.folder = null; newChat(); $("input").focus(); });
   if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
   if (!S.demo && !ro && !self) btn("fvEdit", "Edit", IC_EDIT, () => openBrainSheet(b), "Its name and the line that decides what goes in");
+  if (!S.demo && !ro && !self && cs.length > 1) btn("fvTidy", "Tidy", IC_TIDY, () => tidy(), "Find concepts filed twice, titles not in English and concepts with no position");
   const x = btn("fvClose", "×", "", () => { S.folder = null; render(); $("input").focus(); }, "Back to the chat");
   x.classList.add("fv-x"); x.setAttribute("aria-label","Back to the chat");
   head.append(acts);
@@ -4411,6 +4543,128 @@ function openFolder(b, openId){
     inner.append(a2);
   };
 
+  /* After a join, a rename or a position written, the list reads the
+     workspace again, and the open pane stays where it is. */
+  const reload = async () => {
+    try { await refresh(); } catch (_) {}
+    if (S.folder !== b.slug) return;
+    cs = sorted(); paint();
+  };
+
+  /**
+   * Tidy: what this folder holds twice, titles not in English, and concepts
+   * with no position. It proposes; each finding waits for a click.
+   */
+  const tidy = async () => {
+    openNow = null; paint();
+    cols.classList.add("reading");
+    doc.innerHTML = ""; doc.scrollTop = 0;
+    const inner = el("div","fv-in tidy"); inner.id = "tidyPane"; doc.append(inner);
+    const back = el("button","fv-back","← All concepts"); back.type = "button";
+    back.onclick = () => { cols.classList.remove("reading"); paint(); };
+    inner.append(back, el("div","fv-eye",`Tidy · ${b.name}`), el("h1",null,"Tidy this folder"));
+    const n = el("p","fv-pos");
+    n.textContent = `Reading ${cs.length} concepts for ideas filed twice, titles not in English and concepts with no position.`;
+    const wait = el("div","td-wait"); wait.append(el("i"), el("i"), el("i"));
+    inner.append(n, wait);
+    let r;
+    try { r = await api("/api/brain/tidy", { brain: b.slug }); }
+    catch (e) { wait.remove(); inner.append(el("div","fv-li bad",e.message)); return; }
+    if (r.error){ wait.remove(); inner.append(el("div","fv-li bad",r.error)); return; }
+    if (!doc.contains(inner)) return;
+    wait.remove();
+    n.textContent = `${r.total} concepts read${r.read < r.total ? `, the newest ${r.read}` : ""}. ` +
+      `${r.same.length} filed twice, ${r.english.length} not in English, ${r.blank.length} with no position.`;
+    if (!r.same.length && !r.english.length && !r.blank.length){
+      inner.append(el("div","td-clean","Nothing to tidy. Each concept holds one idea, in English, with a position."));
+      return;
+    }
+    const sec = (title, sub) => { const h = el("h4",null,title); inner.append(h); if (sub) inner.append(el("p","td-sub",sub)); };
+
+    if (r.same.length){
+      sec(`Filed twice · ${r.same.length}`, "The same idea under two titles. Merge keeps the title you pick, joins the evidence, and writes the position again.");
+      for (const g of r.same){
+        const card = el("div","td-card");
+        const name = `keep-${Math.random().toString(36).slice(2)}`;
+        g.forEach((c, i) => {
+          const row = el("label","td-opt");
+          const rb = el("input"); rb.type = "radio"; rb.name = name; rb.value = c.id; rb.checked = i === 0;
+          const t = el("div"); t.append(el("b",null,c.title), el("span",null,c.line || "No position yet."), el("small",null,`${c.ev} evidence`));
+          row.append(rb, t); card.append(row);
+        });
+        const acts = el("div","td-acts");
+        const go = el("button","td-go","Merge"); go.type = "button";
+        const no = el("button","td-no","Keep apart"); no.type = "button";
+        const say = el("span","td-say");
+        acts.append(go, no, say); card.append(acts);
+        no.onclick = () => card.classList.add("gone");
+        go.onclick = async () => {
+          const keep = card.querySelector("input:checked")?.value || g[0].id;
+          go.disabled = no.disabled = true; say.className = "td-say spin"; say.textContent = "Merging";
+          try {
+            const m = await api("/api/concept/merge", { into: keep, from: g.map(c => c.id).filter(id => id !== keep) });
+            say.className = "td-say ok";
+            say.textContent = `Merged into ${g.find(c => c.id === keep)?.title || keep}${m.rewritten ? ", position written again" : ""}.`;
+            card.classList.add("done");
+            reload();
+          } catch (e) { go.disabled = no.disabled = false; say.className = "td-say bad"; say.textContent = e.message; }
+        };
+        inner.append(card);
+      }
+    }
+
+    if (r.english.length){
+      sec(`Not in English · ${r.english.length}`, "The title changes; the concept, its evidence and its links stay.");
+      const card = el("div","td-card");
+      const rows2 = r.english.map(c => {
+        const row = el("div","td-ren");
+        const old = el("s",null,c.title);
+        const inp = el("input","td-in"); inp.value = c.to; inp.setAttribute("aria-label",`New title for ${c.title}`);
+        const go = el("button","td-go","Rename"); go.type = "button";
+        const say = el("span","td-say");
+        row.append(old, inp, go, say); card.append(row);
+        const run = async () => {
+          const title = inp.value.trim();
+          if (title.length < 3 || row.classList.contains("done")) return true;
+          go.disabled = true; say.className = "td-say spin"; say.textContent = "";
+          try { await api("/api/concept/rename", { id: c.id, title }); row.classList.add("done"); say.className = "td-say ok"; say.textContent = "Renamed"; return true; }
+          catch (e) { go.disabled = false; say.className = "td-say bad"; say.textContent = e.message; return false; }
+        };
+        go.onclick = async () => { if (await run()) reload(); };
+        return run;
+      });
+      if (rows2.length > 1){
+        const all = el("button","td-go td-all",`Rename all ${rows2.length}`); all.type = "button";
+        all.onclick = async () => { all.disabled = true; for (const run of rows2) await run(); reload(); };
+        card.append(all);
+      }
+      inner.append(card);
+    }
+
+    if (r.blank.length){
+      sec(`No position · ${r.blank.length}`, "Each holds evidence but no view. The position is written from the evidence it already has.");
+      const card = el("div","td-card");
+      for (const c of r.blank) card.append(el("div","td-li",c.title));
+      const go = el("button","td-go",`Write ${r.blank.length} position${r.blank.length === 1 ? "" : "s"}`); go.type = "button";
+      const say = el("span","td-say");
+      const acts = el("div","td-acts"); acts.append(go, say); card.append(acts);
+      go.onclick = async () => {
+        go.disabled = true;
+        const ids = r.blank.map(c => c.id);
+        let done = 0;
+        for (let i = 0; i < ids.length; i += 8){
+          say.className = "td-say spin"; say.textContent = `${done} of ${ids.length}`;
+          try { done += ((await api("/api/concept/rederive", { ids: ids.slice(i, i + 8) })).written || []).length; }
+          catch (e) { say.className = "td-say bad"; say.textContent = e.message; go.disabled = false; return; }
+        }
+        say.className = "td-say ok"; say.textContent = `${done} of ${ids.length} written.`;
+        card.classList.add("done");
+        reload();
+      };
+      inner.append(card);
+    }
+  };
+
   paint();
   const wide = window.matchMedia("(min-width:861px)").matches;
   if (openId) show(openId);
@@ -4440,19 +4694,15 @@ const lastMail = () => { try { return localStorage.getItem(MAIL_KEY) || ""; } ca
  * question. The first three assemble from stored positions and cost nothing.
  */
 /**
- * Every brain the page can be built from, grouped the way the sidebar groups
- * them, with the whole group at the head of each. A person or a subject was
- * only reachable as the whole group, or as the brain picked in the sidebar.
+ * Every folder the page can be built from, as chips grouped the way the side
+ * panel groups them. Several can be picked; none picked is everything.
  */
-function pickOptions(){
-  const opt = (v, t) => `<option value="${esc(v)}">${esc(t)}</option>`;
-  const groups = grouped();
+function pickChips(){
   const n = shared().length;
-  let out = opt("all", `Everything (${n} brain${n === 1 ? "" : "s"})`);
-  for (const g of groups){
-    const whole = g.head === "People" ? "person" : "subject";
-    out += `<optgroup label="${esc(g.head)}">` + opt(whole, `All ${g.head.toLowerCase()} (${g.rows.length})`) +
-      g.rows.map(b => opt(b.slug, b.name)).join("") + "</optgroup>";
+  let out = `<button type="button" class="pm-chip pm-all" data-v="all" aria-pressed="false">Everything <i>${n}</i></button>`;
+  for (const g of grouped()){
+    out += `<div class="pm-g"><button type="button" class="pm-head" data-g="${g.head === "People" ? "person" : "subject"}">${esc(g.head)}</button>` +
+      g.rows.map(b => `<button type="button" class="pm-chip" data-v="${esc(b.slug)}" aria-pressed="false">${esc(b.name)}</button>`).join("") + `</div>`;
   }
   return out;
 }
@@ -4468,9 +4718,9 @@ function openPagerSheet(pre = {}){
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>One-pager</h3>
       <p>A summary in bullets, or a document of the type you pick.</p></header>
-      <div class="f"><label for="pPick">Built from</label>
-        <select id="pPick" class="pick">${pickOptions()}</select>
-        <div class="hint">One brain by name, a whole group, or everything.</div></div>
+      <div class="f"><label id="pPickL">Built from</label>
+        <div class="pk-multi" id="pPick" role="group" aria-labelledby="pPickL">${pickChips()}</div>
+        <div class="hint" id="pPickHint"></div></div>
       <div class="f"><label>Kind</label><div class="seg" id="pKind">
         <button data-k="summary">Summary</button><button data-k="custom">Custom</button></div>
         <div class="hint" id="pKindHint"></div></div>
@@ -4493,7 +4743,14 @@ function openPagerSheet(pre = {}){
     </div>`;
   document.body.append(veil);
 
-  let pick = pre.pick && (pre.pick === "all" || S.brains.some(b => b.slug === pre.pick)) ? pre.pick : here ? here.slug : "all";
+  /* The folders ticked: one, several, a whole group, or none for everything.
+     A page asked again arrives with its own list, or a group by its name. */
+  const kindOf = b => b.type === "person" ? "person" : "subject";
+  const picked = new Set();
+  for (const x of String(pre.pick || (here ? here.slug : "all")).split(",")){
+    if (x === "person" || x === "subject") shared().filter(b => kindOf(b) === x).forEach(b => picked.add(b.slug));
+    else if (shared().some(b => b.slug === x)) picked.add(x);
+  }
   /* Summary lays out the positions in bullets, free, or answers the question
      in 9 bullets. Custom writes a document of the type picked, in its own
      format, with one model call. */
@@ -4537,8 +4794,31 @@ function openPagerSheet(pre = {}){
     if (doc === "other") veil.querySelector("#pNote").focus();
   };
   const picker = veil.querySelector("#pPick");
-  picker.value = pick;
-  picker.onchange = () => { pick = picker.value; };
+  const paintPick = () => {
+    for (const c of picker.querySelectorAll(".pm-chip")){
+      const on = c.dataset.v === "all" ? !picked.size : picked.has(c.dataset.v);
+      c.setAttribute("aria-pressed", String(on)); c.classList.toggle("on", on);
+    }
+    const names = [...picked].map(x => S.brains.find(b => b.slug === x)?.name || x);
+    veil.querySelector("#pPickHint").textContent = !names.length ? "Every folder. Tick one or several to narrow it."
+      : names.length > 3 ? `${names.length} folders.` : names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}.` : `${names[0]} only.`;
+  };
+  picker.onclick = e => {
+    const head = e.target.closest(".pm-head"), chip = e.target.closest(".pm-chip");
+    if (head){
+      /* A group's name ticks all of it, or clears it when all are ticked. */
+      const rows = shared().filter(b => kindOf(b) === head.dataset.g).map(b => b.slug);
+      const all = rows.every(x => picked.has(x));
+      rows.forEach(x => all ? picked.delete(x) : picked.add(x));
+    } else if (chip){
+      const v = chip.dataset.v;
+      if (v === "all") picked.clear();
+      else if (picked.has(v)) picked.delete(v); else picked.add(v);
+    } else return;
+    paintPick();
+  };
+  paintPick();
+  const pickVal = () => picked.size ? [...picked].join(",") : "all";
   const shut = () => veil.remove();
   veil.querySelector("#pCancel").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
@@ -4578,7 +4858,7 @@ function openPagerSheet(pre = {}){
     const body = thinking(to ? `${viaModel ? "Writing" : "Building"} the page, then sending it to ${to}`
                              : viaModel ? undefined : "Building the page");
     let r;
-    const ask = { pick, q, kind, ...(kind === "custom" ? { doc } : {}), ...(note ? { note } : {}), ...(lang !== "English" ? { lang } : {}) };
+    const ask = { pick: pickVal(), q, kind, ...(kind === "custom" ? { doc } : {}), ...(note ? { note } : {}), ...(lang !== "English" ? { lang } : {}) };
     try { r = await api("/api/onepager", { ...ask, ...(to ? { mail: to } : {}) }); }
     catch (e) {
       body.innerHTML = rich("**The page did not build.** " + esc(e.message));
@@ -4906,7 +5186,7 @@ async function doAsk(q){
       { q, brain: S.scope, ...(S.picks.length > 1 ? { brains: S.picks.slice() } : {}),
         level: S.level, history: S.thread.slice(-4), chat: S.chatId });
     body.innerHTML = "";
-    showAnswer(body, r, q, S.scope);
+    showAnswer(body, r, q, S.picks.length > 1 ? S.picks.join(",") : S.scope);
     if (r.chat){ S.chatId = r.chat; loadChats(); }
     if (r.filed && (r.filed.new || r.filed.updated)) refresh().catch(() => {});
     /* Six turns is what a thread of follow-ups runs to before the subject has
@@ -5255,41 +5535,64 @@ async function planAll(ext, held, progress){
     for (const ps of group) for (const p of ps) absorb(p);
   }
 
-  /* Parts planned side by side cannot see each other's titles, so one idea
-     can come back under two names. One call groups those; if it fails, every
-     concept is kept as it is. */
-  if (batches.length > 2 && merged.candidates.length > 1){
+  /* Parts planned side by side cannot see each other's titles, and a part
+     can propose a new concept for an idea a folder holds in other words or in
+     another language. One call reads the new titles beside the closest ones
+     held: twins fold into one, an idea already held joins its concept, and a
+     title not in English gets its English one. If it fails, nothing changes. */
+  if (merged.candidates.length){
     try {
-      const { same } = await api("/api/drop/merge", {
-        candidates: merged.candidates.map(c => ({ brain: c.brain, title: c.title })) });
+      const sent = merged.candidates.slice();
+      const r = await api("/api/drop/merge", {
+        candidates: sent.map(c => ({ brain: c.brain, title: c.title, why: c.why || "" })) });
+      /* Where a title went: another title, or a concept already held. */
+      const to = new Map();
+      const point = (x, where) => {
+        for (const k of [`${x.brain}/${x.title}`, x.title, `${x.brain}/${conceptSlug(x.title)}`]) to.set(k, where);
+      };
       const gone = new Set();
-      for (const g of same || []){
-        const keep = merged.candidates[g[0]];
+      for (const g of r.same || []){
+        const keep = sent[g[0]];
         if (!keep) continue;
         for (const j of g.slice(1)){
-          const x = merged.candidates[j];
-          if (!x || x === keep || x.brain !== keep.brain) continue;
+          const x = sent[j];
+          if (!x || x === keep || x.brain !== keep.brain || gone.has(x)) continue;
           keep.why = `${keep.why || ""} ${x.why || ""}`.trim().slice(0, 600);
           keep.related = [...new Set([...(keep.related || []), ...(x.related || [])])];
-          gone.add(x);
+          gone.add(x); point(x, `${keep.brain}/${keep.title}`);
         }
       }
-      if (gone.size){
-        /* Links that named a merged title now name the one kept, so none
-           points at a concept that will never exist. */
-        const to = new Map();
-        for (const g of same || []){
-          const keep = merged.candidates[g[0]];
-          for (const j of g.slice(1)){
-            const x = merged.candidates[j];
-            if (!x || !gone.has(x)) continue;
-            for (const k of [`${x.brain}/${x.title}`, x.title, `${x.brain}/${conceptSlug(x.title)}`]) to.set(k, `${keep.brain}/${keep.title}`);
-          }
+      for (const { i, id } of r.into || []){
+        const x = sent[i];
+        if (!x || gone.has(x) || !S.concepts.some(c => `${c.brain}/${c.slug}` === id)) continue;
+        addMatched({ conceptId: id, brain: x.brain, whatItAdds: x.why, related: x.related });
+        gone.add(x); point(x, id);
+      }
+      for (const { i, title } of r.english || []){
+        const x = sent[i];
+        if (!x || gone.has(x)) continue;
+        /* The English title may already be a concept, or another new one. */
+        const known = heldConcept(x.brain, title);
+        const twin = merged.candidates.find(c => c !== x && !gone.has(c) && unitKey(c.brain, c.title) === unitKey(x.brain, title));
+        if (known){
+          addMatched({ conceptId: `${known.brain}/${known.slug}`, brain: known.brain, whatItAdds: x.why, related: x.related });
+          gone.add(x); point(x, `${known.brain}/${known.slug}`);
+        } else if (twin){
+          twin.why = `${twin.why || ""} ${x.why || ""}`.trim().slice(0, 600);
+          twin.related = [...new Set([...(twin.related || []), ...(x.related || [])])];
+          gone.add(x); point(x, `${twin.brain}/${twin.title}`);
+        } else {
+          point(x, `${x.brain}/${title}`);
+          x.title = title;
         }
+      }
+      if (to.size){
+        /* Links that named an old title now name where it went, so none
+           points at a concept that will never exist. */
         const remap = l => [...new Set((l || []).map(r => to.get(r) ?? r))];
+        merged.candidates = merged.candidates.filter(c => !gone.has(c));
         for (const c of merged.candidates) if (c.related) c.related = remap(c.related);
         for (const m of merged.matched) if (m.related) m.related = remap(m.related);
-        merged.candidates = merged.candidates.filter(c => !gone.has(c));
       }
     } catch (_) {}
   }
@@ -5402,6 +5705,12 @@ async function storeAll(pc, progress){
     const err = new Error(`${units.length - left} of ${units.length} concepts are stored. ${failed.message} ` +
       `Press Store it again to finish: what is stored is not repeated.`);
     err.partial = true; throw err;
+  }
+  /* A concept a rewrite reply left out was stored with its claim as its
+     position. Its real one is written now, eight to a request. */
+  const unwritten = [...new Set(results.flatMap(r => r.unwritten || []))];
+  for (let i = 0; i < unwritten.length; i += 8){
+    try { await api("/api/concept/rederive", { ids: unwritten.slice(i, i + 8) }); } catch (_) {}
   }
   /* Linking runs once, in the background, over everything this drop wrote. */
   try { await api("/api/drop/link", { sid: pc.sid, ids: [...pc.written] }); } catch (_) {}

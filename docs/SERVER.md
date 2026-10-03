@@ -1,11 +1,11 @@
 # The Convex build
 
-Built. The deployment is `uncommon-wolf-174`, Europe (Ireland), and the model is `deepseek/deepseek-v4-flash-0731`.
+Built. The deployment is `uncommon-wolf-174`, Europe (Ireland), and the model is `z-ai/glm-5.3-flash`.
 
 | | Value |
 |---|---|
 | API the app calls | `https://uncommon-wolf-174.eu-west-1.convex.site` |
-| Model | `deepseek/deepseek-v4-flash-0731` |
+| Model | `z-ai/glm-5.3-flash` |
 | Key | `OPENROUTER_API_KEY`, a Convex environment variable |
 | Site | `brain.jeremylasne.com`, its own Vercel project on this repo |
 | Spaces | `octopus` and `squidgy`, one passphrase each, seeing none of each other |
@@ -43,6 +43,18 @@ npx convex run admin:mergeBrain '{"from":"sport","into":"health","dry":true}' --
 
 The app does the same from a folder's Edit sheet: Merge into, then a second
 click to confirm. The owner only, and never with the personal folder.
+
+Write a position for every concept that has none, or holds a note about its
+filing in place of one, from the evidence it already carries. Octopus and
+Squidgy, on the deployment's key, eight concepts a call:
+
+```bash
+npx convex run admin:repairPositions "{dry:true}" --prod   # count them, free
+npx convex run admin:repairPositions --prod                # write them
+```
+
+A folder's Tidy button does the rest by hand: concepts filed twice, merged on
+a click, titles not in English, renamed on a click, and the same positions.
 
 A workspace for someone, on this deployment's key, empty, behind a passphrase
 its owner changes from Settings. The passphrase takes 8 characters at least:
@@ -173,7 +185,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/plan` | Summaries in, the card out | Yes |
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
 | `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
-| `/api/drop/merge` | Groups titles that name one idea twice after parts were planned in parallel | Yes |
+| `/api/drop/merge` | Before storing: groups new titles that name one idea twice, joins a new idea to the concept already holding it, and gives a title not in English its English one | Yes |
 | `/api/ask` | The answer. With `project`, it reads that project's folders and follows its instructions, and the turn joins the project's chat | Yes |
 | `/api/projects` | The workspace's projects and its kept one-pagers, newest first. The demo has no projects; each visitor sees their own one-pagers | Yes |
 | `/api/onepagers/get`, `/api/onepagers/remove` | A kept one-pager, opened again or deleted | Yes |
@@ -189,6 +201,10 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/usage` | What transcripts have cost, from both sides | Yes |
 | `/api/doc` | The connector page's words, served rather than published | Yes |
 | `/api/lock` | Drops the session | Yes |
+| `/api/brain/tidy` | Reads one folder for concepts filed twice, titles not in English and concepts with no position. Proposes only | Yes, owner |
+| `/api/concept/merge` | Folds concepts of one folder into the one kept, then writes its position again from the joined evidence | Yes, owner |
+| `/api/concept/rename` | Changes a concept's title. Its id and links stay | Yes, owner |
+| `/api/concept/rederive` | Writes positions again from the evidence each concept holds, eight per call | Yes |
 | `/api/brain/merge` | Merges one folder into another in the same workspace, then deletes the first. Owner only, never the personal folder | Yes |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
 | `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
@@ -209,9 +225,8 @@ In the artifact build a stranger who opens the page spends their own credits, so
 One function wraps the call, so the model is a single line to change. Each
 workspace picks two in Settings, saved on the server: the chat model, which
 answers, reads drops and writes one-pagers, and the project model, which
-answers in projects and builds their pages. The defaults are
-`deepseek/deepseek-v4-flash-0731` and `z-ai/glm-5.3-flash`. The demo always
-runs on the defaults.
+answers in projects and builds their pages. Both default to
+`z-ai/glm-5.3-flash`, in every workspace. The demo always runs on the defaults.
 
 | Model | Input /1M | Output /1M | Per source | 100 sources |
 |---|---|---|---|---|

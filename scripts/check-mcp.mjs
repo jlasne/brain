@@ -35,7 +35,7 @@ const { handleRpc, versionOk } = await import(pathToFileURL(join(dir, "bundle.mj
 const MENTIONS = 1;
 await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle-drop.mjs"), logLevel: "silent" });
-const { dropSettle, fetchPage, planContext, dropMerge, dropPlan, youtubeChannel, plainClaim, PLAN_RULES: RULES_P, REWRITE_RULES } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
+const { dropSettle, fetchPage, planContext, dropMerge, dropPlan, youtubeChannel, plainClaim, PLAN_RULES: RULES_P, REWRITE_RULES, untagged, rewriteOf } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle-words.mjs"), logLevel: "silent" });
 const { findByTitle, cardOf } = await import(pathToFileURL(join(dir, "bundle-words.mjs")).href);
@@ -672,6 +672,55 @@ let job = "";
   check("an idea filed in a second brain lands there, not in the first", wrote.includes("health/Sleep debt") && wrote.includes("content/Hook rate"),
     wrote.join(", "));
   check("and the source counts both brains", JSON.stringify(r.brains) === JSON.stringify(["content","health"]), JSON.stringify(r.brains));
+}
+
+/* ---- a drop never stores a concept with no position ---- */
+{
+  const WHO = { account:"octopus", kind:"owner", space:"octopus" };
+  const plan = { brains:["content"], matched:[], new:["x"], echo:[], conflicts:[],
+    candidates:[{ title:"Hook first", brain:"content", why:"The first line decides 80% of reads." },
+                { title:"Reply speed", brain:"content", why:"Replies within an hour double reach." },
+                { title:"Prix du Bitcoin (French)", brain:"content", why:"Supply and demand set the price." }] };
+  const before = DB.writes.length;
+  /* The reply names one concept by its title and leaves the others out. */
+  const r = await dropSettle(ctx, WHO, { sid:"s-blank", ext: EXT, plan, fullPlan: plan, linkLater: true,
+    rewrites:[{ conceptId:"content/Hook first", position:"The first line decides most reads.", summaryLine:"First line decides." }] });
+  const wrote = DB.writes.slice(before).filter(w => w.kind === "concept");
+  const by = t => wrote.find(w => w.title === t)?.doc ?? {};
+  check("a rewrite named by its title still lands", by("Hook first").position === "The first line decides most reads.", JSON.stringify(by("Hook first")));
+  check("a concept the reply left out keeps its claim as its position", by("Reply speed").position === "Replies within an hour double reach."
+    && by("Reply speed").summaryLine === "Replies within an hour double reach.", JSON.stringify(by("Reply speed")));
+  check("and is named, so the app asks for its position again", JSON.stringify(r.unwritten) === JSON.stringify(["content/reply-speed", "content/prix-du-bitcoin"]),
+    JSON.stringify(r.unwritten));
+  check("a title never keeps a language tag", wrote.some(w => w.title === "Prix du Bitcoin") && !wrote.some(w => /French/.test(w.title)),
+    wrote.map(w => w.title).join(", "));
+  check("tags go in any form", untagged("Stockage (FR)") === "Stockage" && untagged("Achat [version française]") === "Achat"
+    && untagged("Free trial (English)") === "Free trial" && untagged("Fees (and tips)") === "Fees (and tips)");
+  check("a reply for another folder's concept of the same slug is never taken",
+    !rewriteOf([{ conceptId:"health/reply-speed", position:"x" }], { brain:"content", slug:"reply-speed", title:"Reply speed" }).position);
+}
+
+/* ---- the twin pass sees what each new idea says and what the folder holds ---- */
+{
+  const real = globalThis.fetch;
+  process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "test";
+  let prompt = "";
+  const cands = [{ brain: "content", title: "Créer une offre", why: "An offer people buy beats a bigger audience." },
+                 { brain: "content", title: "Taux d'accroche (French)", why: "Hooks under 8 words hold 30% more viewers." },
+                 { brain: "health", title: "Offer creation", why: "x" }];
+  globalThis.fetch = async (_u, opt) => {
+    prompt = JSON.parse(opt.body).messages[1].content;
+    const e = (prompt.match(/E(\d+)\|content\|Offer creation as a key skill/) ?? [])[1];
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ same: [],
+      into: [{ n: 1, e: `E${e}` }, { n: 3, e: `E${e}` }], english: [{ n: 2, title: "Hook rate (French)" }] }) }, finish_reason: "stop" }] }), { status: 200 });
+  };
+  const r = await dropMerge(ctx, { space: "octopus" }, { candidates: cands });
+  check("the pass reads what each new title says", /1\|content\|Créer une offre\|An offer people buy beats a bigger audience\./.test(prompt), prompt.slice(0, 300));
+  check("beside the closest concepts the folder holds", /EXISTING[\s\S]*Offer creation as a key skill\|Offer first\./.test(prompt));
+  check("an idea already held joins that concept", JSON.stringify(r.into) === '[{"i":0,"id":"content/offer-creation"}]', JSON.stringify(r.into));
+  check("never one of another folder", !r.into.some(x => x.i === 2));
+  check("a title not in English gets its English one, with no tag", JSON.stringify(r.english) === '[{"i":1,"title":"Hook rate"}]', JSON.stringify(r.english));
+  globalThis.fetch = real;
 }
 
 rmSync(dir, { recursive: true, force: true });

@@ -224,6 +224,18 @@ export const pageIds = (brains: any[], concepts: any[]) =>
  * A page from what is stored. No model call, so it costs nothing and never
  * invents a line the brains do not hold.
  */
+/**
+ * What a page built from several brains is called: a group by its name,
+ * everything by the workspace's, and a few picked by hand by theirs.
+ */
+export function pickName(space: Space, brains: any[], pick?: string): string {
+  if (pick === "person") return "People";
+  if (pick === "subject") return "Subjects";
+  if (!pick || pick === "all") return spaceName(space);
+  const n = brains.map((b: any) => b.name);
+  return n.length > 3 ? `${n.length} folders` : n.length > 1 ? `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]}` : n[0] ?? spaceName(space);
+}
+
 export function assemble(
   space: Space, brains: any[], concepts: any[], sources: any[], pick: string, full?: Map<string, any>,
 ): Pager {
@@ -243,10 +255,7 @@ export function assemble(
     bullets: shown.map((c: any) => bulletOf(full?.get(idOf(c)) ?? c)),
   })).filter(s => s.bullets.length);
 
-  const title = one ? brains[0].name
-    : pick === "person" ? "People"
-    : pick === "subject" ? "Subjects"
-    : spaceName(space);
+  const title = one ? brains[0].name : pickName(space, brains, pick);
   const line = one ? String(brains[0].scope ?? "")
     : `${brains.length} brains, ${ideas} positions.`;
 
@@ -457,8 +466,7 @@ ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
   }
 
   const one = brains.length === 1;
-  const scope = one ? brains[0].name
-    : opts.pick === "person" ? "People" : opts.pick === "subject" ? "Subjects" : spaceName(space);
+  const scope = one ? brains[0].name : pickName(space, brains, opts.pick);
   const where = one ? brains[0].name : `${brains.length} brains`;
   const cap = (t: string) => t.length > 78 ? t.slice(0, 75).trimEnd() + "..." : t;
   const subject = cap(q || scope);

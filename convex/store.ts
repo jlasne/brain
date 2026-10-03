@@ -546,6 +546,100 @@ export const renameBrain = internalMutation({
 });
 
 /**
+ * One concept folded into another of the same idea: the evidence, sources,
+ * data, conflicts and links join, and the folded row goes. The kept one holds
+ * its position until it is derived again from the joined evidence.
+ */
+async function joinConcept(ctx: any, keep: any, gone: any) {
+  const keepId = `${keep.brain}/${keep.slug}`, goneId = `${gone.brain}/${gone.slug}`;
+  await ctx.db.patch(keep._id, {
+    evidence: mergeEvidence(gone.evidence ?? [], keep.evidence ?? []),
+    sources: unionCap(keep.sources ?? [], gone.sources ?? [], 1e9, String).slice(-2000),
+    data: unionCap(keep.data ?? [], gone.data ?? [], 24, String),
+    conflicts: unionCap(keep.conflicts ?? [], gone.conflicts ?? [], 12),
+    related: unionCap(keep.related ?? [], gone.related ?? [], 12, String).filter((r: string) => r !== keepId && r !== goneId),
+    updated: today(),
+  });
+  await ctx.db.delete(gone._id); await syncCard(ctx, gone._id); await syncCard(ctx, keep._id);
+}
+
+/** Links across the workspace follow the concepts that moved or joined, found on the slim cards. */
+async function followLinks(ctx: any, to: Map<string, string>, write: boolean): Promise<number> {
+  if (!to.size) return 0;
+  const follow = (r: string) => to.get(r) ?? r;
+  let n = 0;
+  for (const card of await ctx.db.query("cards").collect()) {
+    const rel: string[] = card.related ?? [];
+    if (!rel.some(r => to.has(r))) continue;
+    const c = await ctx.db.get(card.cid);
+    if (!c) continue;
+    const self = `${c.brain}/${c.slug}`;
+    n++;
+    if (write) {
+      await ctx.db.patch(c._id, { related: [...new Set<string>((c.related ?? []).map(follow))].filter(r => r !== self) });
+      await syncCard(ctx, c._id);
+    }
+  }
+  return n;
+}
+
+/**
+ * A concept this workspace may change, by its id: in a folder it holds or one
+ * shared into it, never one it only views, never a personal one.
+ */
+async function ownConcept(ctx: any, space: string, id: string) {
+  const cut = id.indexOf("/");
+  if (cut < 1) return null;
+  const b = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", id.slice(0, cut))).unique();
+  if (!b || !inSpace(b, space) || isViewer(b, space) || b.type === "personal") return null;
+  return await ctx.db.query("concepts")
+    .withIndex("by_brain_slug", (q: any) => q.eq("brain", id.slice(0, cut)).eq("slug", id.slice(cut + 1))).unique();
+}
+
+/**
+ * Concepts of one folder that hold the same idea, folded into the first.
+ * Links anywhere in the workspace that named a folded one now name the kept one.
+ */
+export const joinConcepts = internalMutation({
+  args: { space: v.optional(v.string()), into: v.string(), from: v.array(v.string()) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const keep = await ownConcept(ctx, space, a.into);
+    if (!keep) throw new Error("that concept is not in this workspace");
+    const to = new Map<string, string>();
+    for (const id of [...new Set<string>(a.from as string[])].filter(x => x !== a.into).slice(0, 20)) {
+      const c = await ownConcept(ctx, space, id);
+      if (!c) continue;
+      if (c.brain !== keep.brain) throw new Error("only concepts of one folder merge");
+      /* Read again each time, so a third concept joins what the second added. */
+      await joinConcept(ctx, await ctx.db.get(keep._id), c);
+      to.set(id, a.into);
+    }
+    const links = await followLinks(ctx, to, true);
+    return { into: a.into, joined: to.size, links };
+  },
+});
+
+/** A concept's title, changed in place. Its id stays, so no link breaks. */
+export const renameConcept = internalMutation({
+  args: { space: v.optional(v.string()), id: v.string(), title: v.string() },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const title = a.title.replace(/\s+/g, " ").trim().slice(0, 160);
+    if (title.length < 3) throw new Error("a title takes 3 characters at least");
+    const c = await ownConcept(ctx, space, a.id);
+    if (!c) throw new Error("that concept is not in this workspace");
+    const other = await byTitle(ctx, "concepts", c.brain, title);
+    if (other && other._id !== c._id && sameTitle(other.title, title)) {
+      throw new Error(`"${other.title}" is already in this folder: merge the two instead`);
+    }
+    await ctx.db.patch(c._id, { title, updated: today() });
+    await syncCard(ctx, c._id);
+    return { id: a.id, title };
+  },
+});
+
+/**
  * One folder poured into another, in one write: every concept moves, a
  * concept whose title the target already holds joins that one, and every
  * source, link, candidate, chat and gap that named the old folder follows.
@@ -571,18 +665,7 @@ export async function mergeInto(ctx: any, a: { from: string; into: string; space
     if (twin && sameTitle(twin.title, c.title)) {
       /* The same idea in both: the target keeps its position and gains the evidence. */
       to.set(`${a.from}/${c.slug}`, `${a.into}/${twin.slug}`); done.joined++;
-      if (write) {
-        await ctx.db.patch(twin._id, {
-          evidence: mergeEvidence(c.evidence ?? [], twin.evidence ?? []),
-          sources: unionCap(twin.sources ?? [], c.sources ?? [], 1e9, String).slice(-2000),
-          data: unionCap(twin.data ?? [], c.data ?? [], 24, String),
-          conflicts: unionCap(twin.conflicts ?? [], c.conflicts ?? [], 12),
-          related: unionCap(twin.related ?? [], c.related ?? [], 12, String)
-            .filter((r: string) => r !== `${a.into}/${twin.slug}` && r !== `${a.from}/${c.slug}`),
-          updated: today(),
-        });
-        await ctx.db.delete(c._id); await syncCard(ctx, c._id); await syncCard(ctx, twin._id);
-      }
+      if (write) await joinConcept(ctx, twin, c);
       continue;
     }
     /* A slug the target already uses gets a suffix, so no two rows share one. */
@@ -592,20 +675,7 @@ export async function mergeInto(ctx: any, a: { from: string; into: string; space
     if (write) { await ctx.db.patch(c._id, { brain: a.into, slug: slugTo, n: ++n }); await syncCard(ctx, c._id); }
   }
 
-  /* Links across the workspace, found on the slim cards. */
-  const follow = (r: string) => to.get(r) ?? r;
-  for (const card of await ctx.db.query("cards").collect()) {
-    const rel: string[] = card.related ?? [];
-    if (!rel.some(r => to.has(r))) continue;
-    const c = await ctx.db.get(card.cid);
-    if (!c) continue;
-    const self = `${c.brain}/${c.slug}`;
-    done.links++;
-    if (write) {
-      await ctx.db.patch(c._id, { related: [...new Set((c.related ?? []).map(follow))].filter(r => r !== self) });
-      await syncCard(ctx, c._id);
-    }
-  }
+  done.links = await followLinks(ctx, to, write);
   for (const s2 of await ctx.db.query("sources").collect()) {
     if (!(s2.brains ?? []).includes(a.from)) continue;
     done.sources++;

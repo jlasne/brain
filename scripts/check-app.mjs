@@ -271,12 +271,13 @@ async function boot(path, init, arg) {
   await page.click("#pagerBtn");
   await page.waitForTimeout(120);
   const sheet = await page.evaluate(() => ({
-    picks: [...document.querySelectorAll("#pPick option")].map(o => o.value),
-    on: document.getElementById("pPick")?.value,
+    picks: [...document.querySelectorAll("#pPick .pm-chip")].map(o => o.dataset.v),
+    heads: [...document.querySelectorAll("#pPick .pm-head")].map(o => o.textContent),
+    on: [...document.querySelectorAll("#pPick .pm-chip.on")].map(o => o.dataset.v).join(","),
   }));
-  check("the sheet offers everything, the group, and each brain by name",
-    sheet.picks.join(",") === "all,subject,content", sheet.picks.join(","));
-  check("and starts on everything when no brain is picked", sheet.on === "all", String(sheet.on));
+  check("the sheet offers everything and each folder by name, as chips under their group",
+    sheet.picks.join(",") === "all,content" && sheet.heads.join(",") === "Subjects", JSON.stringify(sheet));
+  check("and starts on everything when no folder is picked", sheet.on === "all", String(sheet.on));
 
   await page.click("#pGo");
   await page.waitForTimeout(250);
@@ -436,7 +437,7 @@ async function boot(path, init, arg) {
   const acts = await page.evaluate(() => [...document.querySelectorAll(".msg.ai .ans-acts button")].map(b => b.textContent));
   check("under the answer: Copy and One-pager from this", acts.join(",") === "Copy,One-pager from this", acts.join(","));
   await page.click(".ans-acts button:nth-child(2)"); await page.waitForTimeout(120);
-  const pre = await page.evaluate(() => ({ q: document.getElementById("pQ")?.value, pick: document.getElementById("pPick")?.value }));
+  const pre = await page.evaluate(() => ({ q: document.getElementById("pQ")?.value, pick: [...document.querySelectorAll("#pPick .pm-chip.on")].map(o => o.dataset.v).join(",") }));
   check("One-pager from this opens the page with the question and its brains", pre.q === "anything" && pre.pick === "all", JSON.stringify(pre));
   await page.click("#pCancel");
 
@@ -1035,14 +1036,31 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       const s = String(u);
       window.__calls.push({ s, body: o && o.body ? JSON.parse(o.body) : null });
       if (s.includes("/api/ask")) return Response.json({ answer: "From two folders.", sources: 2 });
+      if (s.includes("/api/onepager")) return Response.json({ error: "not built in this check" });
       return Response.json(s.includes("/api/state") ? state : {});
     };
   }, mixed);
   const side = await page.evaluate(() => ({
     rows: [...document.querySelectorAll("#brains .brain-row")].map(r => `${r.querySelector(".nm").textContent}:${r.querySelector(".b-ic")?.getAttribute("aria-label")}`),
     heads: [...document.querySelectorAll("#brains .group-h")].map(h => h.textContent).join(",") }));
-  check("the folders are one list under Mine, the fullest first, no People or Subjects heading",
-    side.rows.join(",") === "Richard Detente:Person,Content:Subject,Health:Subject" && side.heads === "Mine", JSON.stringify(side));
+  check("the folders group by type, People then Subjects, the fullest first in each",
+    side.rows.join(",") === "Richard Detente:Person,Content:Subject,Health:Subject" && side.heads === "People,Subjects", JSON.stringify(side));
+  const sized = await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row .cnt")].map(x => x.textContent).join(","));
+  const counts = sized.split(",").map(Number);
+  check("each row shows how many concepts it holds", counts.length === 3 && counts[1] >= counts[2], sized);
+
+  /* The one-pager is built from several folders at once. */
+  await page.evaluate(() => document.getElementById("pagerBtn").click()); await page.waitForTimeout(100);
+  await page.click('#pPick .pm-chip[data-v="content"]'); await page.click('#pPick .pm-chip[data-v="health"]');
+  const multi = await page.evaluate(() => ({ on: [...document.querySelectorAll("#pPick .pm-chip.on")].map(o => o.dataset.v).join(","),
+    hint: document.getElementById("pPickHint").textContent }));
+  check("Built from takes several folders, and says which", multi.on === "content,health" && multi.hint === "Content and Health.", JSON.stringify(multi));
+  await page.click('#pPick .pm-head[data-g="person"]');
+  check("a group's name ticks the whole group", await page.evaluate(() => [...document.querySelectorAll("#pPick .pm-chip.on")].map(o => o.dataset.v).join(",")) === "detente,content,health");
+  await page.click('#pPick .pm-head[data-g="person"]');
+  await page.click("#pGo"); await page.waitForTimeout(150);
+  const sentPick = await page.evaluate(() => window.__calls.find(c => c.s.includes("/api/onepager"))?.body?.pick);
+  check("and the page is asked of exactly those", sentPick === "content,health", String(sentPick));
 
   /* Ticking: one row is that folder, two ask both, and the question carries the list. */
   const rowOf = n => `#brains .brain-row:has(.nm:text-is("${n}"))`;
@@ -1569,7 +1587,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   }, [sq, given]);
   await page.waitForTimeout(250);
   check("a brain given by another workspace says where it comes from", await page.evaluate(() => document.querySelector("#brains .brain-row").title.includes("Shared with this workspace from Octopus")));
-  check("and it sits under Ask and drop", await page.evaluate(() => [...document.querySelectorAll("#brains .group-h")].map(h => h.textContent).join(",")) === "Ask and drop");
+  check("and it sits with the other subjects, fed from either workspace", await page.evaluate(() => [...document.querySelectorAll("#brains .group-h")].map(h => h.textContent).join(",")) === "Subjects"
+    && await page.evaluate(() => !document.querySelector("#brains .ro-tag")));
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(300);
   await page.click("#shareBlock > summary"); await page.waitForTimeout(60);
   const row = await page.evaluate(() => [...document.querySelectorAll("#shareSlot .sh-row > *")].map(x => x.textContent).join("|"));
@@ -1597,7 +1616,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("the demo asks across a shared brain and only offers its own to feed", /Wealth/.test(ask) && /Health/.test(ask) && /Health/.test(feed) && !/Wealth/.test(feed), JSON.stringify({ ask, feed }));
   check("and its row says it is read only here", await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].some(r => /Read only here/.test(r.title))));
   const groups = await page.evaluate(() => [...document.querySelectorAll("#brains .group-h, #brains .brain-row .nm")].map(x => x.textContent).join(","));
-  check("the demo lists its own folders first, then the ones it may only ask", groups === "In the demo,Health,Ask only,Wealth", groups);
+  check("the demo lists its folders by type, the one it may only ask marked so", groups === "Subjects,Health,Wealth"
+    && await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].map(r => r.querySelector(".ro-tag")?.textContent || "").join("|")) === "|Ask only", groups);
   check("and a visitor makes no folder", await page.evaluate(() => document.getElementById("newBrain").hidden));
   await page.close();
 }
@@ -1702,6 +1722,68 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
+/* ---- the chat bar rests folded, and a folder can be tidied ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test"); window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/brain/tidy")) return Response.json({ brain: "content", total: 2, read: 2,
+        same: [[{ id: "content/offer-creation", title: "Offer creation", line: "Offer first.", ev: 2 },
+                { id: "content/personal-brand", title: "Offre", line: "Face beats logo.", ev: 1 }]],
+        english: [{ id: "content/personal-brand", title: "Marque personnelle", line: "", ev: 1, to: "Personal brand" }],
+        blank: [{ id: "content/offer-creation", title: "Offer creation", line: "", ev: 2 }] });
+      if (s.includes("/api/concept/merge")) return Response.json({ into: body.into, joined: 1, links: 0, rewritten: true });
+      if (s.includes("/api/concept/rename")) return Response.json({ id: body.id, title: body.title });
+      if (s.includes("/api/concept/rederive")) return Response.json({ written: body.ids });
+      return Response.json({ chats: [], conflicts: [], others: 0, health: [] });
+    };
+  }, { ...STATE, concepts: [{ brain: "content", slug: "offer-creation", n: 1, title: "Offer creation", summaryLine: "" },
+                             { brain: "content", slug: "personal-brand", n: 2, title: "Offre", summaryLine: "Face beats logo." }] });
+  await page.waitForTimeout(200);
+  await page.evaluate(() => document.activeElement?.blur()); await page.waitForTimeout(250);
+  const bar = () => page.evaluate(() => ({ c: document.querySelector(".composer-wrap").classList.contains("compact"),
+    ctrls: getComputedStyle(document.querySelector(".tbar .ctrls")).display, send: getComputedStyle(document.getElementById("send")).display,
+    h: Math.round(document.querySelector(".composer .box").getBoundingClientRect().height), focus: document.activeElement?.id }));
+  const folded = await bar();
+  check("the chat bar rests folded: one line, the field and its send", folded.c && folded.ctrls === "none" && folded.send !== "none" && folded.h < 64, JSON.stringify(folded));
+  await page.click(".composer .box"); await page.waitForTimeout(300);
+  const open = await bar();
+  check("a click opens it to the folders and the levels, the field ready", !open.c && open.ctrls !== "none" && open.h > folded.h && open.focus === "input", JSON.stringify(open));
+  await page.fill("#input", "a draft"); await page.evaluate(() => document.activeElement?.blur()); await page.waitForTimeout(250);
+  check("a draft keeps it open", !(await bar()).c);
+  await page.fill("#input", ""); await page.evaluate(() => document.activeElement?.blur()); await page.waitForTimeout(250);
+  check("and empty, it folds again", (await bar()).c);
+  await page.click(".composer .box"); await page.click("#scopeBtn"); await page.waitForTimeout(250);
+  check("its folder menu keeps it open", !(await bar()).c && await page.isVisible(".pick-menu"));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+
+  /* Tidy: each finding waits for its own click. */
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Content/.test(r.textContent))?.querySelector(".ed.op")?.click());
+  await page.waitForTimeout(250);
+  await page.click("#fvTidy"); await page.waitForTimeout(300);
+  const pane = await page.evaluate(() => ({ heads: [...document.querySelectorAll("#tidyPane h4")].map(h => h.textContent).join("|"),
+    opts: [...document.querySelectorAll("#tidyPane .td-opt b")].map(b => b.textContent).join(","),
+    ren: document.querySelector("#tidyPane .td-ren .td-in")?.value }));
+  check("Tidy lists what is filed twice, what is not in English, and what has no position",
+    pane.heads === "Filed twice · 1|Not in English · 1|No position · 1" && pane.opts === "Offer creation,Offre" && pane.ren === "Personal brand", JSON.stringify(pane));
+  await page.click("#tidyPane .td-opt:nth-child(1) input");
+  await page.click("#tidyPane .td-card .td-go"); await page.waitForTimeout(250);
+  const merged = await page.evaluate(() => window.__calls.find(c => c.s.includes("/api/concept/merge"))?.body);
+  check("Merge folds the others into the title picked", merged?.into === "content/offer-creation" && JSON.stringify(merged?.from) === '["content/personal-brand"]', JSON.stringify(merged));
+  check("and says it is done", /Merged into Offer creation, position written again/.test(await page.textContent("#tidyPane .td-card .td-say")));
+  await page.fill("#tidyPane .td-ren .td-in", "Personal branding");
+  await page.click("#tidyPane .td-ren .td-go"); await page.waitForTimeout(200);
+  const renamed = await page.evaluate(() => window.__calls.find(c => c.s.includes("/api/concept/rename"))?.body);
+  check("Rename sends the title as edited", renamed?.id === "content/personal-brand" && renamed?.title === "Personal branding", JSON.stringify(renamed));
+  await page.click("#tidyPane .td-card:last-of-type .td-go"); await page.waitForTimeout(250);
+  const wrote = await page.evaluate(() => window.__calls.find(c => c.s.includes("/api/concept/rederive"))?.body);
+  check("and the empty ones get their position from what they hold", JSON.stringify(wrote?.ids) === '["content/offer-creation"]', JSON.stringify(wrote));
+  check("nothing threw folding the bar or tidying", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- the side panel: Chats and Folders, a personal folder first ---- */
 {
   const lim = { ...STATE, full: undefined, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "What I say", owner: null },
@@ -1765,8 +1847,9 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("and names the other brain it called on its own", a.called === "Called your Health brain", JSON.stringify(a.called));
   check("a personal reply offers no one-pager", JSON.stringify(a.pager) === '["Copy"]', JSON.stringify(a.pager));
 
-  /* Add memory: a long paste goes in pieces of 6,000 characters at most. */
-  await page.click("#memBtn"); await page.waitForTimeout(100);
+  /* Add memory: a long paste goes in pieces of 6,000 characters at most.
+     The bar folded after the send, so a click in it opens it first. */
+  await page.click(".composer .box"); await page.click("#memBtn"); await page.waitForTimeout(100);
   const para = "I like long walks and I plan my week on Sundays. ".repeat(40);
   await page.fill("#memText", Array.from({ length: 7 }, () => para).join("\n\n"));
   await page.click("#memGo"); await page.waitForTimeout(500);
@@ -2130,7 +2213,7 @@ for (const space of ["octopus", "squidgy"]) {
     sections: document.querySelectorAll("main section").length, font: getComputedStyle(document.body).fontFamily,
     page: getComputedStyle(document.body).backgroundColor, logo: document.querySelector(".logo").textContent.trim(),
     mark: document.querySelector(".logo img").getAttribute("src"), title: document.title, text: document.body.textContent }));
-  check("the landing is one hero: a serif line, a sub line, one field", l.h1 === "Tasu files what you read, and answers from it." && l.sections === 0
+  check("the landing is one hero: a serif line, a sub line, one field", l.h1 === "Files what you read, and answers from it." && l.sections === 0
     && /^Drop a talk, a PDF or a link\./.test(l.sub), JSON.stringify(l.h1));
   check("the workspaces sit along the top, the demo first", l.spaces === "Demo|Octopus|Squidgy" && JSON.stringify(l.doors) === '["/chat?w=octopus","/chat?w=squidgy"]', l.spaces);
   check("the field takes a passphrase, hidden as it is typed", l.field === "password" && l.ph === "Enter your passphrase" && /opens the demo/.test(l.help), l.ph);
