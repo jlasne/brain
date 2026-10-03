@@ -35,7 +35,14 @@ npx convex run admin:setPass '{"space":"squidgy","pass":"at least 8 characters"}
 
 # move a brain, with its concepts, sources and candidates
 npx convex run admin:moveBrain '{"slug":"content","space":"squidgy","dry":true}' --prod
+
+# merge one folder into another in the same workspace: concepts, links, sources,
+# candidates and chats follow; a concept with the same title joins its twin
+npx convex run admin:mergeBrain '{"from":"sport","into":"health","dry":true}' --prod
 ```
+
+The app does the same from a folder's Edit sheet: Merge into, then a second
+click to confirm. The owner only, and never with the personal folder.
 
 A workspace for someone, on this deployment's key, empty, behind a passphrase
 its owner changes from Settings. The passphrase takes 8 characters at least:
@@ -177,11 +184,12 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/projects/build` | Build: the next version of the page, from the folders and the answers that wait. The only way the app changes a page. The newest 10 versions are kept | Owner |
 | `/api/models` | The workspace's chat model and project model. `null` goes back to the default | Owner |
 | `/api/projects/clear`, `/api/projects/remove` | Clears a project's chat, or deletes the project and its pages | Owner |
-| `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Kept, and listed under Projects. Sends it too, when given an address | Yes |
+| `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Kept, the last 50 per workspace. Sends it too, when given an address | Yes |
 | `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |
 | `/api/usage` | What transcripts have cost, from both sides | Yes |
 | `/api/doc` | The connector page's words, served rather than published | Yes |
 | `/api/lock` | Drops the session | Yes |
+| `/api/brain/merge` | Merges one folder into another in the same workspace, then deletes the first. Owner only, never the personal folder | Yes |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
 | `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
 | `/mcp`, and any path under `/mcp/` | The public MCP server, read only. `/mcp/v0` reaches the same handler | No, by design |

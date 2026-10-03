@@ -507,6 +507,15 @@ route("/api/brain", async (ctx, _req, b) => {
 });
 
 /** Rename a brain, and move its concepts, sources and candidates with it. */
+/**
+ * Merge into: a folder poured into another of this workspace. Both must be
+ * this workspace's own, never personal, never one shared in from elsewhere.
+ */
+route("/api/brain/merge", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return await ctx.runMutation(internal.store.mergeBrains, { from: String(b.from ?? ""), into: String(b.into ?? ""), space: who.space });
+});
+
 route("/api/brain/rename", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   return await ctx.runMutation(internal.store.renameBrain, {

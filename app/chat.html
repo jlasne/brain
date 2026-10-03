@@ -1383,7 +1383,7 @@
   .side-acts .sa.go{ min-height:38px; margin-bottom:8px; justify-content:center; border-radius:10px;
     background:var(--accent-solid); color:var(--accent-on); box-shadow:0 1px 2px rgba(0,0,0,.10), inset 0 1px 0 rgba(255,255,255,.08); }
   .side-acts .sa.go:hover{ background:var(--accent-solid); color:var(--accent-on); filter:brightness(1.12); }
-  .side-acts .sa.go.on{ box-shadow:0 0 0 2px var(--side), 0 0 0 4px var(--accent-line); }
+  .side-acts .sa.go{ min-height:42px; font-size:14.5px; }
   .side-acts .sa.on{ background:rgba(0,0,0,.055); color:var(--ink); }
 
   .panel{ background:transparent; border:0; border-radius:0; box-shadow:none; }
@@ -1484,6 +1484,8 @@
     .box .tbar .seg.lv button span{ display:none; }
     .box .tbar .mic{ margin-left:auto; }
   }
+
+  .sheet .ghost.sure{ border-color:var(--bad); color:var(--bad); }
 </style>
 
 
@@ -1498,7 +1500,9 @@
     <div class="side-scroll">
       <!-- Three things to do, above the three lists. -->
       <div class="side-acts">
-        <button class="sa go" id="dropBtn" type="button" title="Feed a folder: a link, a PDF, a Word file, a video or a transcript">
+        <button class="sa go" id="startBtn" type="button" title="Start a new chat">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
+        <button class="sa" id="dropBtn" type="button" title="Feed a folder: a link, a PDF, a Word file, a video or a transcript">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>Drop</button>
         <button class="sa" id="pagerBtn" type="button" title="A folder, a group, or a question, as bullets on one page">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>One-pager</button>
@@ -2467,6 +2471,10 @@ function openBrainSheet(b){
         against the new line.</p></header>
       <div class="f"><label for="rName">Name</label><input id="rName" autocomplete="off"></div>
       <div class="f"><label for="rScope">Scope, in one line</label><textarea id="rScope"></textarea></div>
+      <div class="f" id="rMergeF" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px">
+        <label for="rInto">Merge into another folder</label>
+        <div class="hint" style="margin:0 0 8px">Every concept, source and link moves there, and this folder goes. A concept with the same title joins its twin.</div>
+        <div style="display:flex; gap:8px"><select id="rInto" class="pick" style="flex:1; min-width:0"></select><button class="ghost" id="rMerge" type="button">Merge</button></div></div>
       <div class="f"><div id="rMsg" class="bad" role="alert"></div></div>
       <footer><button class="ghost" id="rCancel">Cancel</button><button class="go" id="rSave">Save</button></footer>
     </div>`;
@@ -2476,6 +2484,32 @@ function openBrainSheet(b){
   nameI.value = b.name || ""; scopeI.value = b.scope || "";
   const shut = () => veil.remove();
   veil.querySelector("#rCancel").onclick = shut;
+
+  /* Merge into: only this workspace's own folders, never a personal one. */
+  const home = x => (x.space || S.space) === S.space;
+  const targets = S.brains.filter(x => x.slug !== b.slug && x.type !== "personal" && home(x) && !readOnly(x))
+    .sort((x, y) => x.name.localeCompare(y.name));
+  const into = veil.querySelector("#rInto"), merge = veil.querySelector("#rMerge");
+  veil.querySelector("#rMergeF").hidden = b.type === "personal" || !home(b) || !targets.length;
+  into.innerHTML = `<option value="">Pick a folder</option>` + targets.map(x => `<option value="${esc(x.slug)}">${esc(x.name)}</option>`).join("");
+  into.onchange = () => { merge.textContent = "Merge"; merge.classList.remove("sure"); };
+  merge.onclick = async () => {
+    const t = targets.find(x => x.slug === into.value);
+    if (!t){ into.focus(); return; }
+    /* A second click goes: the folder cannot come back. */
+    if (!merge.classList.contains("sure")){ merge.classList.add("sure"); merge.textContent = `Sure? Into ${t.name}`; return; }
+    merge.disabled = true; msg.className = "spin"; msg.textContent = "Merging";
+    let r;
+    try { r = await api("/api/brain/merge", { from: b.slug, into: t.slug }); }
+    catch (e) { merge.disabled = false; msg.className = "bad"; msg.textContent = e.message; return; }
+    shut();
+    if (S.folder === b.slug) S.folder = null;
+    S.picks = S.picks.filter(x => x !== b.slug);
+    await refresh();
+    openFolder(S.brains.find(x => x.slug === t.slug));
+    push("ai", x => { x.innerHTML = rich(`**${esc(r.fromName)}** is now part of **${esc(r.intoName)}**: ${r.moved + r.joined} concepts` +
+      `${r.joined ? `, ${r.joined} joined to a twin` : ""}, ${r.sources} source${r.sources === 1 ? "" : "s"}.`); });
+  };
   veil.onclick = e => { if(e.target===veil) shut(); };
   setTimeout(()=>nameI.focus(),30);
 
@@ -2931,6 +2965,7 @@ $("newBrain").onclick = () => openSheet("","","subject");
 
 $("freshBtn").onclick = () => { newChat(); $("input").focus(); };
 $("newChat").onclick = () => { closeSide(); newChat(); $("input").focus(); };
+$("startBtn").onclick = () => { closeSide(); newChat(); $("input").focus(); };
 
 $("keyBtn").onclick = openSetupSheet;
 $("pagerBtn").onclick = () => { closeSide(); openPagerSheet(); };

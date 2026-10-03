@@ -239,7 +239,8 @@ async function boot(path, init, arg) {
     return { acts, panels, plus: [...document.querySelectorAll("aside .panel .side-plus")].map(b => b.id).join(","),
       gone: !document.getElementById("gapsBtn") && !document.getElementById("mapBtn") };
   });
-  check("the side panel opens on Drop, One-pager and Settings", top.acts === "dropBtn:Drop,pagerBtn:One-pager,keyBtn:Settings", top.acts);
+  check("the side panel opens on New chat, then Drop, One-pager and Settings as rows", top.acts === "startBtn:New chat,dropBtn:Drop,pagerBtn:One-pager,keyBtn:Settings"
+    && await page.evaluate(() => document.getElementById("startBtn").classList.contains("go") && !document.getElementById("dropBtn").classList.contains("go")), top.acts);
   check("then Chats and Folders, each a list of its own, and no Projects", top.panels === "chatsPanel:Chats,brainsPanel:Folders" && top.gone
     && !(await page.$("#projectsPanel")), top.panels);
   check("a new chat and a new folder are the + of their list", top.plus === "newChat,newBrain", top.plus);
@@ -523,6 +524,39 @@ async function boot(path, init, arg) {
   const asked = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/ask")).pop()?.body);
   check("a question carries no model: the server uses the workspace's pick", asked && !("model" in asked), JSON.stringify(asked));
   check("nothing threw picking models", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- Merge into: a folder poured into another, after a second click ---- */
+{
+  const two = { ...STATE, brains: [...STATE.brains, { slug: "wealth", name: "Wealth", type: "subject", scope: "w", owner: null },
+    { slug: "me", name: "Me", type: "personal", scope: "", owner: null }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test"); window.__calls = [];
+    let s0 = state;
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/brain/merge")) { s0 = { ...s0, brains: s0.brains.filter(b => b.slug !== body.from) };
+        return Response.json({ from: body.from, into: body.into, fromName: "Content", intoName: "Wealth", merged: true, moved: 3, joined: 1, sources: 2 }); }
+      if (s.includes("/api/state")) return Response.json(s0);
+      return Response.json({ chats: [], health: [] });
+    };
+  }, two);
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Content/.test(r.textContent)).querySelector(".ed.op").click());
+  await page.waitForTimeout(120);
+  await page.click("#fvEdit"); await page.waitForTimeout(80);
+  const opts = await page.evaluate(() => [...document.querySelectorAll("#rInto option")].map(o => o.textContent));
+  check("Edit offers Merge into this workspace's other folders, never a personal one", JSON.stringify(opts) === '["Pick a folder","Wealth"]', JSON.stringify(opts));
+  await page.selectOption("#rInto", "wealth");
+  await page.click("#rMerge");
+  check("the first click asks once more", await page.textContent("#rMerge") === "Sure? Into Wealth" && !(await page.evaluate(() => window.__calls.some(c => c.s.includes("/api/brain/merge")))));
+  await page.click("#rMerge"); await page.waitForTimeout(250);
+  const done = await page.evaluate(() => ({ sent: window.__calls.find(c => c.s.includes("/api/brain/merge"))?.body,
+    rows: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent), open: document.querySelector("#folderView h2")?.textContent,
+    said: [...document.querySelectorAll("#thread .msg.ai")].pop()?.textContent || "" }));
+  check("the second merges, and the target opens", done.sent?.from === "content" && done.sent?.into === "wealth" && !done.rows.includes("Content") && done.open === "Wealth",
+    JSON.stringify(done));
+  check("nothing threw merging", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -1686,7 +1720,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     folders: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent).join(","),
     acts: [...document.querySelectorAll("aside .side-acts button")].map(b => b.textContent.trim()).join(",") }));
   check("every workspace shows Chats and Folders", seen.panels === "chatsPanel,brainsPanel", seen.panels);
-  check("with Drop, One-pager and Settings on top", seen.acts === "Drop,One-pager,Settings", seen.acts);
+  check("with New chat, Drop, One-pager and Settings on top", seen.acts === "New chat,Drop,One-pager,Settings", seen.acts);
   check("and every folder listed, the personal one first", seen.folders === "Me,Content,Health", seen.folders);
   await page.click('#brains .brain-row:has(.nm:text-is("Me"))'); await page.waitForTimeout(80);
   check("which opens its chat", await page.evaluate(() => /Tell it anything/.test(document.getElementById("input").placeholder)));

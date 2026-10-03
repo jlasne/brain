@@ -14,7 +14,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { today, sha256, randomHex, gateKey, readSpace, slugOfName, SPACE_RE, SPACES, ask, parseJson } from "./lib";
 import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle } from "./words";
-import { syncCard, writeMode } from "./store";
+import { syncCard, writeMode, mergeInto } from "./store";
 import { loadSpace } from "./space";
 
 /**
@@ -203,6 +203,23 @@ export const moveBrain = internalMutation({
     /* A brain that moves leaves the workspaces it was shared with. */
     if (!a.dry) await ctx.db.patch(b._id, { space, shared: [], viewers: [] });
     return { slug: a.slug, name: b.name, from, to: space, moved: !a.dry };
+  },
+});
+
+/**
+ * Pour one folder into another of the same workspace: its concepts, sources,
+ * links, candidates and chats move, and the folder goes. Run with dry first
+ * to see the counts.
+ *
+ *     npx convex run admin:mergeBrain '{"from":"sport","into":"health","dry":true}' --prod
+ *     npx convex run admin:mergeBrain '{"from":"sport","into":"health"}' --prod
+ */
+export const mergeBrain = internalMutation({
+  args: { from: v.string(), into: v.string(), dry: v.optional(v.boolean()) },
+  handler: async (ctx, a) => {
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.from)).unique();
+    if (!b) throw new Error(`no folder called "${a.from}"`);
+    return await mergeInto(ctx, { ...a, space: readSpace(b.space) });
   },
 });
 

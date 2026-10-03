@@ -788,6 +788,38 @@ function seed() {
   check("null goes back to the default", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":null}');
 }
 
+/* ---- one folder merged into another ---- */
+{
+  const { T, ctx } = seed();
+  T.brains.push({ _id: "b3", slug: "gold", name: "Gold", type: "subject", scope: "s", space: undefined },
+                { _id: "b4", slug: "me", name: "Me", type: "personal", scope: "", space: undefined });
+  T.concepts.push(
+    { _id: "c3", brain: "gold", slug: "gold", n: 1, title: "Gold", position: "Gold holds in crises.", summaryLine: "",
+      evidence: [{ date: "2026-02-01", author: "B", claim: "gold rose in 2008", source: "s-b" }], data: [], conflicts: [], sources: ["s-b"], related: ["wealth/gold"], updated: "2026-02-01" },
+    { _id: "c4", brain: "gold", slug: "bullion-vaults", n: 2, title: "Bullion vaults", position: "", summaryLine: "",
+      evidence: [], data: [], conflicts: [], sources: [], related: ["gold/gold"], updated: "2026-02-01" });
+  T.concepts[1].related = ["wealth/gold", "gold/bullion-vaults"];
+  for (const c of T.concepts) await store.syncCard(ctx, c._id);
+  T.sources.push({ _id: "s3", sid: "s-b", link: "", linkKey: "", title: "Gold talk", author: "B", date: "2026-02-01", location: "", brains: ["gold", "wealth"], stored: "x" });
+  T.candidates = [{ _id: "k1", brain: "gold", slug: "coins", title: "Coins", notes: ["n1"], count: 1, updated: "x" }];
+  T.chats = [{ _id: "h1", space: "octopus", title: "q", brain: "gold,wealth", pinned: false, turns: [], created: 1, updated: 1 }];
+  const dry = await run(store.mergeBrains, ctx, { from: "gold", into: "wealth", space: "octopus", dry: true });
+  check("a dry merge counts and writes nothing", dry.moved === 1 && dry.joined === 1 && !dry.merged && T.brains.some(b => b.slug === "gold"), JSON.stringify(dry));
+  check("a personal folder never merges", /personal/.test(await throws(run(store.mergeBrains, ctx, { from: "me", into: "wealth", space: "octopus" }))));
+  check("nor one from another workspace", /no folder/.test(await throws(run(store.mergeBrains, ctx, { from: "dogs", into: "wealth", space: "octopus" }))));
+  const r = await run(store.mergeBrains, ctx, { from: "gold", into: "wealth", space: "octopus" });
+  const gold = T.concepts.filter(c => c.brain === "wealth" && c.title === "Gold");
+  check("a concept the target holds by title joins its twin, evidence and sources added", gold.length === 1 && gold[0].evidence.length === 2
+    && gold[0].sources.includes("s-b") && gold[0].position === "Gold holds.", JSON.stringify(gold.map(c => c.evidence.length)));
+  const vault = T.concepts.find(c => c.title === "Bullion vaults");
+  check("the rest moves in, numbered after the target's newest", vault.brain === "wealth" && vault.n === 3 && JSON.stringify(vault.related) === '["wealth/gold"]', JSON.stringify(vault));
+  check("links into the old folder follow", JSON.stringify(T.concepts[1].related) === '["wealth/gold","wealth/bullion-vaults"]', JSON.stringify(T.concepts[1].related));
+  check("and a concept joined to its twin never links to itself", !gold[0].related.includes("wealth/gold"), JSON.stringify(gold[0].related));
+  check("sources, candidates and chats follow", JSON.stringify(T.sources.find(x => x.sid === "s-b").brains) === '["wealth"]'
+    && T.candidates[0].brain === "wealth" && T.chats[0].brain === "wealth", JSON.stringify({ s: T.sources.find(x => x.sid === "s-b").brains, c: T.candidates[0].brain, h: T.chats[0].brain }));
+  check("the old folder goes, with no card left behind", !T.brains.some(b => b.slug === "gold") && !T.cards.some(c => c.brain === "gold") && r.merged, JSON.stringify(r));
+}
+
 /* ---- the landing's one field reads every live door ---- */
 {
   const { T, ctx } = seed();

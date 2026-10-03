@@ -546,6 +546,106 @@ export const renameBrain = internalMutation({
 });
 
 /**
+ * One folder poured into another, in one write: every concept moves, a
+ * concept whose title the target already holds joins that one, and every
+ * source, link, candidate, chat and gap that named the old folder follows.
+ * The old folder then goes. Both must live in this workspace, and neither may
+ * be personal. With dry, it only counts.
+ */
+export async function mergeInto(ctx: any, a: { from: string; into: string; space: string; dry?: boolean }) {
+  const space = readSpace(a.space);
+  if (a.from === a.into) throw new Error("a folder cannot merge into itself");
+  const bFrom = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", a.from)).unique();
+  const bInto = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", a.into)).unique();
+  if (!bFrom || readSpace(bFrom.space) !== space) throw new Error(`no folder "${a.from}" in this workspace`);
+  if (!bInto || readSpace(bInto.space) !== space) throw new Error(`no folder "${a.into}" in this workspace`);
+  if (bFrom.type === "personal" || bInto.type === "personal") throw new Error("a personal folder never merges");
+  const write = !a.dry;
+  const done = { moved: 0, joined: 0, links: 0, sources: 0, candidates: 0, chats: 0 };
+  /* Where each old concept now lives, so links into it can follow. */
+  const to = new Map<string, string>();
+  let n = (await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", a.into)).order("desc").first())?.n ?? 0;
+
+  for (const c of await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", a.from)).collect()) {
+    const twin = await byTitle(ctx, "concepts", a.into, c.title);
+    if (twin && sameTitle(twin.title, c.title)) {
+      /* The same idea in both: the target keeps its position and gains the evidence. */
+      to.set(`${a.from}/${c.slug}`, `${a.into}/${twin.slug}`); done.joined++;
+      if (write) {
+        await ctx.db.patch(twin._id, {
+          evidence: mergeEvidence(c.evidence ?? [], twin.evidence ?? []),
+          sources: unionCap(twin.sources ?? [], c.sources ?? [], 1e9, String).slice(-2000),
+          data: unionCap(twin.data ?? [], c.data ?? [], 24, String),
+          conflicts: unionCap(twin.conflicts ?? [], c.conflicts ?? [], 12),
+          related: unionCap(twin.related ?? [], c.related ?? [], 12, String)
+            .filter((r: string) => r !== `${a.into}/${twin.slug}` && r !== `${a.from}/${c.slug}`),
+          updated: today(),
+        });
+        await ctx.db.delete(c._id); await syncCard(ctx, c._id); await syncCard(ctx, twin._id);
+      }
+      continue;
+    }
+    /* A slug the target already uses gets a suffix, so no two rows share one. */
+    let slugTo = c.slug;
+    for (let i = 2; await ctx.db.query("concepts").withIndex("by_brain_slug", (q: any) => q.eq("brain", a.into).eq("slug", slugTo)).unique(); i++) slugTo = `${c.slug}-${i}`;
+    to.set(`${a.from}/${c.slug}`, `${a.into}/${slugTo}`); done.moved++;
+    if (write) { await ctx.db.patch(c._id, { brain: a.into, slug: slugTo, n: ++n }); await syncCard(ctx, c._id); }
+  }
+
+  /* Links across the workspace, found on the slim cards. */
+  const follow = (r: string) => to.get(r) ?? r;
+  for (const card of await ctx.db.query("cards").collect()) {
+    const rel: string[] = card.related ?? [];
+    if (!rel.some(r => to.has(r))) continue;
+    const c = await ctx.db.get(card.cid);
+    if (!c) continue;
+    const self = `${c.brain}/${c.slug}`;
+    done.links++;
+    if (write) {
+      await ctx.db.patch(c._id, { related: [...new Set((c.related ?? []).map(follow))].filter(r => r !== self) });
+      await syncCard(ctx, c._id);
+    }
+  }
+  for (const s2 of await ctx.db.query("sources").collect()) {
+    if (!(s2.brains ?? []).includes(a.from)) continue;
+    done.sources++;
+    if (write) await ctx.db.patch(s2._id, { brains: [...new Set(s2.brains.map((x: string) => x === a.from ? a.into : x))] });
+  }
+  for (const c of await ctx.db.query("candidates").collect()) {
+    if (c.brain !== a.from) continue;
+    done.candidates++;
+    if (!write) continue;
+    const same = await ctx.db.query("candidates").withIndex("by_brain_slug", (q: any) => q.eq("brain", a.into).eq("slug", c.slug)).unique();
+    if (same) {
+      await ctx.db.patch(same._id, { count: (same.count ?? 0) + (c.count ?? 0), notes: unionCap(same.notes ?? [], c.notes ?? [], 20, String), updated: today() });
+      await ctx.db.delete(c._id);
+    } else await ctx.db.patch(c._id, { brain: a.into });
+  }
+  const swap = (list: string) => [...new Set(String(list).split(",").map(x => x === a.from ? a.into : x))].join(",");
+  for (const ch of await ctx.db.query("chats").withIndex("by_space_updated", (q: any) => q.eq("space", space)).collect()) {
+    if (!String(ch.brain).split(",").includes(a.from)) continue;
+    done.chats++;
+    if (write) await ctx.db.patch(ch._id, { brain: swap(ch.brain) });
+  }
+  if (write) {
+    for (const g of await ctx.db.query("gaps").withIndex("by_space_at", (q: any) => q.eq("space", space)).collect()) {
+      if ((g.brains ?? []).includes(a.from)) await ctx.db.patch(g._id, { brains: [...new Set(g.brains.map((x: string) => x === a.from ? a.into : x))] });
+    }
+    for (const p of await ctx.db.query("projects").withIndex("by_space", (q: any) => q.eq("space", space)).collect()) {
+      if ((p.brains ?? []).includes(a.from)) await ctx.db.patch(p._id, { brains: [...new Set(p.brains.map((x: string) => x === a.from ? a.into : x))] });
+    }
+    await ctx.db.delete(bFrom._id);
+  }
+  return { from: a.from, into: a.into, fromName: bFrom.name, intoName: bInto.name, merged: write, ...done };
+}
+
+/** The app's Merge into: the folder poured into another of the same workspace. */
+export const mergeBrains = internalMutation({
+  args: { from: v.string(), into: v.string(), space: v.string(), dry: v.optional(v.boolean()) },
+  handler: async (ctx, a) => await mergeInto(ctx, a),
+});
+
+/**
  * The row a title already has. Titles over 48 characters used to be cut to a
  * shared prefix, so two ideas could land on one row. The new id keeps them
  * apart; a row stored under the old cut is still found, but only when its
