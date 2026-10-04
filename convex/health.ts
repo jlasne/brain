@@ -64,13 +64,29 @@ const messLine = (m: { twins: number; foreign: number; empty: number }) => [
  * a note about the filing.
  */
 export function messOf(cs: any[]) {
-  const words = cs.map((c: any) => new Set(keywords(String(c.title ?? "")).map(stem)));
+  const words = cs.map((c: any) => [...new Set(keywords(String(c.title ?? "")).map(stem))]);
+  /* Prefix filtering: each title is indexed by its rarest words only, as many
+     as a twin could miss plus one. Two titles sharing 60% of their words must
+     then share one of those, so no twin is missed, and a word every title
+     holds never makes every pair a candidate. Comparing every pair grew with
+     the folder's square: 12 million pairs at 5,000 concepts. */
+  const df = new Map<string, number>();
+  for (const ws of words) for (const w of ws) df.set(w, (df.get(w) ?? 0) + 1);
+  const rare = (a: string, b: string) => (df.get(a)! - df.get(b)!) || (a < b ? -1 : 1);
+  const prefix = words.map(ws => ws.length < 2 ? [] : ws.slice().sort(rare).slice(0, Math.floor(0.4 * ws.length) + 1));
+  const byWord = new Map<string, number[]>();
+  prefix.forEach((ws, i) => { for (const w of ws) (byWord.get(w) ?? byWord.set(w, []).get(w)!).push(i); });
+  const sets = words.map(ws => new Set(ws));
   let twins = 0;
-  for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) {
-    const a = words[i], b = words[j];
-    if (a.size < 2 || b.size < 2) continue;
-    let both = 0; for (const w of a) if (b.has(w)) both++;
-    if (both >= 2 && both / (a.size + b.size - both) >= 0.6) twins++;
+  for (let i = 0; i < cs.length; i++) {
+    const seen = new Set<number>();
+    for (const w of prefix[i]) for (const j of byWord.get(w) ?? []) {
+      if (j <= i || seen.has(j)) continue;
+      seen.add(j);
+      const a = sets[i], b = sets[j];
+      let both = 0; for (const x of a) if (b.has(x)) both++;
+      if (both >= 2 && both / (a.size + b.size - both) >= 0.6) twins++;
+    }
   }
   const foreign = cs.filter((c: any) => looksForeign(String(c.title ?? ""))).length;
   const empty = cs.filter(needsPosition).length;
