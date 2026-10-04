@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="932 checks passing" src="https://img.shields.io/badge/checks-932%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1010 checks passing" src="https://img.shields.io/badge/checks-1010%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -107,6 +107,9 @@ A third kind of brain, next to subjects and experts. You talk to it, and it keep
 - **Add memory.** Paste what another assistant knows about you, or a notes file.
 - **It talks to you as "you".** Its notes read "You want to move to Lisbon", and so do its replies.
 - **It calls your other brains on its own.** When one holds something that bears on what you said, it brings it up and names it: "your Health brain says 3 to 5 g a day". A line under the reply shows which brains it called.
+- **It interviews you.** Tap Interview me: one question at a time, from 335 in 17 chapters, life story first. A short answer gets a follow-up, a question your notes already answer is skipped, and every 10 answers it reads back 3 notes for you to confirm or correct. Say skip to pass; Stop pauses it, and it picks up where you left off.
+- **It asks in passing.** Every few messages, when you asked nothing, it may end its reply with one question from the chapters it knows least.
+- **Your twin, measured.** 30 test questions, answered once and never filed. Your twin answers them from your notes, you score each 0 to 2, and a retest 2 weeks later sets your own ceiling. The twin profile writes your notes as 7 parts: identity, values, beliefs, decision rules, voice, knowledge and boundaries.
 - **Private.** Its own chat is its only reader.
 
 ## Workspaces

@@ -79,6 +79,18 @@ accounts. Nothing reads them now. Run it once, then remove `KEY_SECRET`:
 npx convex run admin:forgetOldKeys --prod
 ```
 
+A personal brain interviews its owner. 335 questions in 17 chapters, written
+for anyone and asked in the model's own words, fitted to what the notes say.
+Each answer is filed as notes, like any message, with the question as its
+context. A short answer gets up to 2 follow-ups; a question the notes already
+answer is marked known and skipped; every 10 answers, 3 notes are read back.
+"skip" passes a question and Stop pauses it. Outside the interview, the chat
+asks one of the questions in passing every few messages, from the chapters
+covered least. About $0.002 an answer on GLM 5.3 Flash. The twin test's 30
+answers are kept in the `interviews` row, never filed, so they can measure the
+twin; the twin and the profile read the notes alone. Nothing but that
+brain's own folder and chat reads any of it.
+
 Projects are off in the app for now: the side panel shows Chats and Folders,
 and the Limited or Full switch left Settings with them. Their routes and
 tables stay, so they can come back, and nothing rebuilds a page after a drop.
@@ -242,6 +254,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/concept/rename` | Changes a concept's title. Its id and links stay | Yes, owner |
 | `/api/concept/rederive` | Writes positions again from the evidence each concept holds, eight per call | Yes |
 | `/api/brain/merge` | Merges one folder into another in the same workspace, then deletes the first. Owner only, never the personal folder | Yes |
+| `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `answers` (the twin test, round 1 or the retest, never filed), `twin` (the twin answers the test from the notes alone), `score` (0 to 2 a question) and `profile` (the notes as 7 parts). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
 | `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
 | `/mcp`, and any path under `/mcp/` | The public MCP server, read only. `/mcp/v0` reaches the same handler | No, by design |
@@ -299,6 +312,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `onepagers` | every one-pager built, its page, text and what built it, the newest 50 per owner | space, then time |
 | `vectors` | a concept's meaning as 1,024 numbers | concept, and a vector index by folder |
 | `topics` | a folder's topics: title, line, the concepts in each | folder |
+| `interviews` | a personal brain's interview: each question answered, known from the notes or skipped, the one waiting, the twin test's answers and scores, and the profile | space, then brain |
 | `insights` | what follows from two linked concepts: the pair, the kind of link, a title and a line | the pair, each side, space |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.

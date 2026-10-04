@@ -22,12 +22,13 @@ import { sameTitle, idOf } from "./words";
 
 export type Note = { title: string; claim: string; position: string; summaryLine: string; update: string };
 export type Filed = { new: number; updated: number; titles: string[] };
-export type Kind = "chat" | "import";
+export type Kind = "chat" | "import" | "interview";
 
-/* A chat message files a few notes at most; an import files more per piece. */
-const MAX_NOTES: Record<Kind, number> = { chat: 3, import: 10 };
-/* What one call reads: the message, and a piece of an import. */
-export const MAX_CHARS: Record<Kind, number> = { chat: 4000, import: 8000 };
+/* A chat message files a few notes at most; an interview answer, a long
+   story told aloud, files more; an import more again per piece. */
+const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 10 };
+/* What one call reads: the message, the answer, and a piece of an import. */
+export const MAX_CHARS: Record<Kind, number> = { chat: 4000, interview: 8000, import: 8000 };
 
 const words = (t: string) => new Set(String(t).toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "")
   .split(/[^a-z0-9]+/).filter(w => w.length >= 4));
@@ -60,6 +61,8 @@ export function filerPrompt(kind: Kind, text: string, context: string, opened: a
   ].join("\n");
   const what = kind === "chat"
     ? "a message its owner just typed in a chat with their personal brain"
+    : kind === "interview"
+    ? "its owner's answer to a question their personal brain asked in an interview, to know them better"
     : "a memory export or notes its owner pasted in, from another assistant or a notes file";
   return [
     { role: "system" as const, content: "You file notes into a person's own knowledge base. You return JSON only." },
@@ -70,6 +73,7 @@ WHAT TO FILE
 - Anything they state: facts about them or the world, plans, decisions, opinions, ideas, feelings, goals, preferences, things they learned, questions they are thinking about.
 - Only their own words and meaning. Never file a guess or an inference about them ("seems risk-averse"). Never file what an assistant said.
 - A plain request to look something up, a greeting or a thank-you files nothing: return {"notes": []}.
+- A plain "yes" or "right" to notes read back files nothing. A correction to one updates that note.
 - At most ${MAX_NOTES[kind]} notes. One note per topic: group what belongs together.
 
 HOW TO FILE
@@ -79,7 +83,7 @@ HOW TO FILE
 - "summaryLine": the position in under 15 words, as "you" when it needs a subject.
 - Keep their language. No em-dashes.
 ${context ? `
-EARLIER IN THE CHAT (context only, never filed)
+${kind === "interview" ? "THE QUESTION IT ANSWERS" : "EARLIER IN THE CHAT"} (context only, never filed)
 ${context}
 ` : ""}
 HELD NOW
@@ -87,7 +91,7 @@ ${held || "(nothing yet)"}
 
 TODAY: ${date}
 
-${kind === "chat" ? "THE MESSAGE" : "THE PASTED TEXT"}
+${kind === "chat" ? "THE MESSAGE" : kind === "interview" ? "THE ANSWER" : "THE PASTED TEXT"}
 ${text}
 
 Return: {"notes":[{"title":"","update":"","claim":"","position":"","summaryLine":""}]}` },
@@ -120,17 +124,18 @@ export function readNotes(raw: string, kind: Kind): Note[] {
 export async function fileNotes(ctx: any, space: string, brain: string, held: any[], notes: Note[], kind: Kind, date: string): Promise<Filed> {
   const out: Filed = { new: 0, updated: 0, titles: [] };
   if (!notes.length) return out;
-  const sid = `${brain}-${kind === "chat" ? "chat" : "import"}-${date}`;
+  const sid = `${brain}-${kind}-${date}`;
+  const author = kind === "import" ? "You (imported)" : "You";
   await ctx.runMutation(internal.store.writeSource, { space, doc: {
-    sid, link: "", linkKey: sid, title: kind === "chat" ? `Chat, ${date}` : `Imported memory, ${date}`,
-    author: kind === "chat" ? "You" : "You (imported)", date, location: "", brains: [brain],
+    sid, link: "", linkKey: sid, title: kind === "chat" ? `Chat, ${date}` : kind === "interview" ? `Interview, ${date}` : `Imported memory, ${date}`,
+    author, date, location: "", brains: [brain],
   } });
   for (const n of notes) {
     const seen = held.find(c => sameTitle(c.title, n.update || n.title));
     await ctx.runMutation(internal.store.upsertConcept, {
       brain, title: seen?.title ?? n.title, ...(seen?.slug ? { slug: seen.slug } : {}),
       doc: { position: n.position, summaryLine: n.summaryLine, sources: [sid],
-             evidence: [{ date, author: kind === "chat" ? "You" : "You (imported)", claim: n.claim, source: sid }] },
+             evidence: [{ date, author, claim: n.claim, source: sid }] },
     });
     if (seen) out.updated++; else out.new++;
     out.titles.push(seen?.title ?? n.title);

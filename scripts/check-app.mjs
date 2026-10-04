@@ -1982,6 +1982,102 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
+/* ---- the interview: asked in the personal chat, a twin in the folder ---- */
+{
+  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "", owner: null }],
+    concepts: [{ brain: "me", slug: "lyon", n: 1, title: "Born in Lyon", summaryLine: "You were born in Lyon." }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    const titles = ["Life story","Identity","Values","Beliefs","Decisions","Work","Voice and writing","Knowledge","Money","Health and routines","People","Inner world","Tastes","Scenarios","Contradictions","Future","Twin rules"];
+    const ch = titles.map((title, i) => ({ key: String.fromCharCode(65 + i), title, total: 20, answered: i === 0 ? 9 : 0, known: i === 0 ? 3 : i === 1 ? 2 : 0, skipped: 0 }));
+    const iv = on => ({ on, pct: 4, covered: 14, seen: 14, total: 335, chapter: { key: "A", title: "Life story", total: 28, at: 12 }, chapters: ch, pending: on ? "q" : null,
+      test: { mine: false, twin: false, again: false, twinPct: null, selfPct: null, target: 85 }, profile: null });
+    const Q = Array.from({ length: 30 }, (_, i) => ({ id: `Z${i + 1}`, text: `Test question ${i + 1}?` }));
+    const test = { questions: Q, mine: {}, again: {}, twin: {}, twinScore: {}, selfScore: {}, mineAt: null, againAt: null, twinAt: null, retestFrom: null };
+    let profile = null, on = false;
+    const view = () => ({ interview: { ...iv(on), test: { mine: !!Object.keys(test.mine).length, twin: !!Object.keys(test.twin).length, again: false,
+      twinPct: Object.keys(test.twinScore).length ? 75 : null, selfPct: null, target: 85 } }, test, profile });
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/interview")) {
+        const a = body.action || "state";
+        if (a === "start") { on = true; return Response.json({ answer: "One question at a time. Who raised you?", interview: iv(true), chat: "c9", personal: true, filed: { new: 0, updated: 0, titles: [] }, called: [] }); }
+        if (a === "stop") { on = false; return Response.json({ ...view(), answer: "Paused at Life story, 12 of 28. Your twin is 4% complete. Tap Interview to pick up where you left off." }); }
+        if (a === "answers") { test.mine = body.answers; test.mineAt = "2026-10-04"; test.retestFrom = "2026-10-18"; }
+        if (a === "twin") for (const id in test.mine) test.twin[id] = "Twin says " + id;
+        if (a === "score") test.twinScore = body.scores;
+        if (a === "profile") profile = { at: "2026-10-04", notes: 40, parts: ["Identity","Values","Beliefs","Decision rules","Voice","Knowledge","Boundaries"].map(t => ({ title: t, points: [`A point on ${t}.`] })) };
+        return Response.json(view());
+      }
+      if (s.includes("/api/ask")) return Response.json({ answer: body.q === "skip" ? "Then, what is your first memory?" : "Why your grandmother?", sources: 0, level: "normal", personal: true,
+        filed: body.q === "skip" ? { new: 0, updated: 0, titles: [] } : { new: 1, updated: 0, titles: ["Raised by grandmother"] }, called: [], interview: iv(true), chat: "c9" });
+      return Response.json({ chats: [] });
+    };
+  }, mine);
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent)).click());
+  await page.waitForTimeout(250);
+  const off = await page.evaluate(() => ({ shown: !document.getElementById("ivBar").hidden, go: document.getElementById("ivGo")?.textContent }));
+  check("a personal chat offers the interview above the chat bar, with how complete the twin is", off.shown && /Resume the interview/.test(off.go) && /twin 4%/.test(off.go), JSON.stringify(off));
+  await page.click("#ivGo"); await page.waitForTimeout(250);
+  const st = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/interview") && x.body.action === "start").pop()?.body,
+    me: document.querySelectorAll("#thread .msg.me").length, ai: [...document.querySelectorAll("#thread .msg.ai")].pop()?.textContent,
+    bar: document.getElementById("ivBar").textContent, skip: !!document.getElementById("ivSkip"), stop: !!document.getElementById("ivStop"),
+    ph: document.getElementById("input").placeholder, mem: document.getElementById("memBtn").hidden, foot: document.getElementById("footNote").textContent }));
+  check("Interview opens on its first question, with no message before it", st.sent?.brain === "me" && st.me === 0 && /Who raised you\?/.test(st.ai || ""), JSON.stringify(st));
+  check("while on, the strip says where it stands, with Skip and Stop", /Interview/.test(st.bar) && /Life story · 13 of 28/.test(st.bar) && st.skip && st.stop, st.bar);
+  check("the bar asks for an answer, and Add memory waits", /Your answer, in your own words/.test(st.ph) && st.mem && /Say skip to pass, or Stop any time/.test(st.foot), JSON.stringify(st));
+  await page.fill("#input", "My grandmother, in Lyon"); await page.click("#send"); await page.waitForTimeout(250);
+  const ans = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/ask")).pop()?.body, filed: [...document.querySelectorAll(".msg.ai")].pop()?.querySelector(".filed")?.textContent }));
+  check("an answer goes to the personal brain and is filed like any message", ans.sent?.brain === "me" && ans.sent?.q === "My grandmother, in Lyon" && ans.sent?.chat === "c9" && ans.filed === "Filed: 1 new note", JSON.stringify(ans));
+  await page.click("#ivSkip"); await page.waitForTimeout(250);
+  const sk = await page.evaluate(() => ({ q: window.__calls.filter(x => x.s.includes("/api/ask")).pop()?.body.q, ai: [...document.querySelectorAll(".msg.ai")].pop()?.textContent }));
+  check("Skip sends skip, and the next question comes", sk.q === "skip" && /first memory/.test(sk.ai || ""), JSON.stringify(sk));
+  await page.click("#ivStop"); await page.waitForTimeout(250);
+  const stop = await page.evaluate(() => ({ called: window.__calls.some(x => x.s.includes("/api/interview") && x.body.action === "stop"), note: [...document.querySelectorAll(".msg.ai")].pop()?.textContent,
+    go: document.getElementById("ivGo")?.textContent, mem: document.getElementById("memBtn").hidden }));
+  check("Stop pauses it at once, says where, and the chat is everyday again", stop.called && /Paused at Life story/.test(stop.note) && /Resume the interview/.test(stop.go || "") && !stop.mem, JSON.stringify(stop));
+
+  /* The folder: the twin in place of a health score, its chapters, test and profile. */
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent))?.querySelector(".ed.op")?.click());
+  await page.waitForTimeout(350);
+  const fv = await page.evaluate(() => ({ twin: document.getElementById("fvTwin")?.textContent, acts: [...document.querySelectorAll(".fv-acts .fv-b")].map(b => b.id),
+    pane: !!document.getElementById("twinPane"), chs: document.querySelectorAll("#twinPane .tw-ch").length, now: document.querySelector("#twinPane .tw-ch.now b")?.textContent,
+    pos: document.querySelector("#twinPane .fv-pos")?.textContent }));
+  check("a personal folder shows how complete its twin is in place of a health score", /Twin 4% complete/.test(fv.twin || "") && /Next: Life story, 12 of 28 done/.test(fv.twin || ""), fv.twin);
+  check("its actions: chat, interview, twin test and profile; never drop, edit or tidy", fv.acts.join() === "fvChat,fvIv,fvTest,fvProfile,fvClose", fv.acts.join());
+  check("it opens on the twin: the share covered and its 17 chapters, the current one marked", fv.pane && fv.chs === 17 && fv.now === "Life story" && /14 of 335 questions/.test(fv.pos || ""), JSON.stringify(fv));
+
+  await page.click("#fvTest"); await page.waitForTimeout(250);
+  const form = await page.evaluate(() => ({ boxes: document.querySelectorAll("#testPane .ts-q textarea").length, pos: document.querySelector("#testPane .fv-pos")?.textContent }));
+  check("the twin test asks its 30 questions, and says the answers are never filed", form.boxes === 30 && /never filed/.test(form.pos || ""), JSON.stringify(form));
+  await page.evaluate(() => { const t = [...document.querySelectorAll("#testPane .ts-q textarea")]; t.slice(0, 12).forEach((x, i) => { x.value = "Answer " + (i + 1); }); });
+  await page.click("#tsSave"); await page.waitForTimeout(300);
+  const saved = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/interview") && x.body.action === "answers").pop()?.body);
+  check("your answers are saved as round 1", saved?.round === 1 && Object.keys(saved.answers).length === 12 && saved.answers.Z1 === "Answer 1", JSON.stringify(saved));
+  await page.click("#tsTwin"); await page.waitForTimeout(300);
+  const cards = await page.evaluate(() => ({ n: document.querySelectorAll("#testPane .ts-card").length, first: document.querySelector("#testPane .ts-card")?.textContent,
+    retest: [...document.querySelectorAll("#testPane .tw-key")].map(x => x.textContent).join(" ") }));
+  check("your twin answers, each beside yours with a score of 0, 1 or 2", cards.n === 12 && /Answer 1/.test(cards.first) && /Twin says Z1/.test(cards.first), JSON.stringify(cards));
+  check("the retest waits 2 weeks", /The retest opens on 2026-10-18/.test(cards.retest), cards.retest);
+  await page.evaluate(() => { document.querySelector('#testPane .ts-card .ts-s[data-n="2"]').click(); document.querySelectorAll("#testPane .ts-card")[1].querySelector('.ts-s[data-n="1"]').click(); });
+  const tot = await page.evaluate(() => document.querySelector("#testPane .ts-total")?.textContent);
+  check("the score adds up as you go", tot === "75% on 2 scored", tot);
+  await page.click("#tsScore"); await page.waitForTimeout(300);
+  const sc = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/interview") && x.body.action === "score").pop()?.body);
+  check("the scores are saved against the twin", sc?.kind === "twin" && sc.scores.Z1 === 2 && sc.scores.Z2 === 1, JSON.stringify(sc));
+
+  await page.click("#fvProfile"); await page.waitForTimeout(250);
+  await page.click("#pfGo"); await page.waitForTimeout(300);
+  const pf = await page.evaluate(() => [...document.querySelectorAll("#profilePane .pf-part h4")].map(x => x.textContent));
+  check("the twin profile writes your notes as 7 parts", pf.join() === "Identity,Values,Beliefs,Decision rules,Voice,Knowledge,Boundaries", pf.join());
+  await page.click("#fvIv"); await page.waitForTimeout(300);
+  check("Interview from the folder goes back to the chat and asks", await page.evaluate(() => !!document.getElementById("ivStop") && /Who raised you/.test([...document.querySelectorAll(".msg.ai")].pop()?.textContent || "")));
+  check("nothing threw around the interview", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- a workspace on its own key ---- */
 {
   const mine = { ...STATE, space: "acme", spaceName: "Acme", byok: true };

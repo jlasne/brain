@@ -384,6 +384,25 @@ export default defineSchema({
     .index("by_b", ["b"])
     .index("by_space", ["space"]),
 
+  /* A personal brain's interview: which questions are answered, known from
+     the notes or skipped, the one waiting for an answer, and the twin test,
+     whose answers are never filed. One row per personal brain. */
+  interviews: defineTable({
+    space: v.string(),
+    brain: v.string(),
+    on: v.boolean(),
+    /* Question id to "a" answered, "k" known from the notes, "s" skipped. */
+    marks: v.any(),
+    pending: v.optional(v.any()),
+    sinceCheck: v.number(),
+    sinceAsk: v.number(),
+    /* How many times it was started: the first start explains how it works. */
+    opens: v.optional(v.number()),
+    test: v.optional(v.any()),
+    profile: v.optional(v.any()),
+    updated: v.number(),
+  }).index("by_brain", ["space", "brain"]),
+
   candidates: defineTable({
     brain: v.string(),
     slug: v.string(),

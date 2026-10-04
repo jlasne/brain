@@ -29,6 +29,11 @@ import { healthOf } from "./health";
 import { buildPage, TEMPLATE_MAX } from "./projects";
 import { rederive, tidyScan } from "./tidy";
 import { embed, nearest } from "./graph";
+import {
+  ahead, gaps, gapBlock, readGap, interviewStep, pausedLine, summary, notesText, readAnswers, readProfile,
+  cleanAnswers, cleanScores, TEST, TEST_IDS, TWIN_RULES, PROFILE_RULES, NATURAL_GAP, RETEST_DAYS,
+} from "./twin";
+import type { Marks } from "./twin";
 
 const router = httpRouter();
 
@@ -869,9 +874,17 @@ QUESTION: ${String(b.q ?? "")}` },
  */
 async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any) {
   const mKey = keyFor(who), mName = modelFor(who, b);
+  if (!String(b.q ?? "").trim()) return { error: "write something first" };
+  /* An interview under way takes the message as its answer. */
+  const row = who.demo ? null : await ctx.runQuery(internal.store.interviewGet, { space: who.space, brain: mine.slug });
+  if (row?.on) return await interviewTurn(ctx, who, b, mine, every.cards, row, false);
   const q = String(b.q ?? "").slice(0, MAX_CHARS.chat).trim();
-  if (!q) return { error: "write something first" };
   await demoCount(ctx, who, "ask");
+  /* Now and then the chat asks one of the interview's questions in passing:
+     every few messages, when they asked nothing, from the chapters the notes
+     cover least. The reply tags the one it asked. */
+  const marks: Marks = row?.marks ?? {};
+  const offer = !who.demo && (row?.sinceAsk ?? NATURAL_GAP) >= NATURAL_GAP && !/\?\s*$/.test(q) ? gaps(marks, q, 3) : [];
   const date = new Date().toISOString().slice(0, 10);
   const history = (Array.isArray(b.history) ? b.history : []).slice(-4);
   const last = history.slice(-1).map((h: any) => `They said: ${String(h.q ?? "").slice(0, 500)}\nThe brain replied: ${String(h.a ?? "").slice(0, 600)}`).join("");
@@ -895,12 +908,29 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
       { role: "system", content: REPLY_RULES },
       { role: "user", content: `TODAY: ${date}\n\n${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}` +
         `THEIR OTHER BRAINS, yours to call on: ${others.map((x: any) => `${x.name} (${x.type})`).join(", ") || "none yet"}\n\n` +
-        `WHAT THEIR NOTES AND BRAINS HOLD (entries "in ${mine.name}" are their own notes; every other entry comes from the brain it names)\n${pick.dossier}\n\nTHEIR MESSAGE\n${q}` },
+        `WHAT THEIR NOTES AND BRAINS HOLD (entries "in ${mine.name}" are their own notes; every other entry comes from the brain it names)\n${pick.dossier}\n\n` +
+        `${offer.length ? gapBlock(offer) + "\n\n" : ""}THEIR MESSAGE\n${q}` },
     ], { maxTokens: 1200, key: mKey, model: mName, timeout: Math.max(60000, 160000 - (Date.now() - t0)) });
     return text;
   })();
-  const [answer, filed] = await Promise.all([reply, filing]);
+  const [said, filed] = await Promise.all([reply, filing]);
+  const { text: answer, asked } = readGap(said, offer);
   const called = calledBrains(answer, others);
+
+  /* A question asked in passing counts as answered once the next message
+     files something; one ignored is left to be asked again some day. */
+  let interview: any = null;
+  if (!who.demo) {
+    try {
+      const was = row?.pending?.kind === "natural" ? row.pending : null;
+      const next: Marks = { ...marks };
+      if (was && filed && (filed.new || filed.updated)) next[was.id] = "a";
+      const saved = await ctx.runMutation(internal.store.interviewSet, { space: who.space, brain: mine.slug, patch: {
+        marks: next, sinceAsk: asked ? 0 : (row?.sinceAsk ?? NATURAL_GAP) + 1,
+        pending: asked ? { id: asked.id, kind: "natural", text: asked.text, follow: 0 } : null } });
+      interview = summary(saved);
+    } catch { /* the reply still goes out */ }
+  }
 
   let chat: string | undefined;
   if ("chat" in b) {
@@ -912,8 +942,151 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
     } catch { /* the reply still goes out */ }
   }
   return { answer, sources: 0, level: "normal", personal: true, filed: filed ?? { new: 0, updated: 0, titles: [], failed: true },
-           called, ...(chat ? { chat } : {}) };
+           called, ...(interview ? { interview } : {}), ...(chat ? { chat } : {}) };
 }
+
+/* ---------- the interview ---------- */
+
+/**
+ * One turn of a personal brain's interview, with the chat it lands in. The
+ * turn itself, what it files, asks and marks, is interviewStep's.
+ */
+async function interviewTurn(ctx: any, who: Caller, b: any, mine: any, cards: any[], row: any, opening: boolean) {
+  const mKey = keyFor(who), mName = modelFor(who, b);
+  const q = opening ? "" : String(b.q ?? "").slice(0, MAX_CHARS.interview).trim();
+  const date = new Date().toISOString().slice(0, 10);
+  const step = await interviewStep(ctx, { space: who.space, brain: mine.slug, cards, row, q, opening, date,
+    model: async m => (await ask(m, { json: true, maxTokens: 900, key: mKey, model: mName, timeout: 90000, temperature: 0.4 })).text,
+    file: (text, context) => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date,
+      model: async m => (await ask(m, { json: true, maxTokens: 2400, key: mKey, model: mName, timeout: 120000 })).text }) });
+  let chat: string | undefined;
+  if ("chat" in b) {
+    try {
+      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, id: typeof b.chat === "string" ? b.chat : null, brain: mine.slug,
+        turn: { q: q.slice(0, 2000), a: step.reply, level: "normal", sources: 0, at: Date.now(), filed: step.filed ?? null, called: [],
+                interview: true, ...(opening ? { title: "Interview" } : {}) } });
+      chat = r.id;
+    } catch { /* the reply still goes out */ }
+  }
+  return { answer: step.reply, sources: 0, level: "normal", personal: true, filed: step.filed, called: [],
+           interview: summary(step.saved), ...(chat ? { chat } : {}) };
+}
+
+/** A personal brain of this workspace with its cards alone: what the interview reads. */
+async function personalOf(ctx: any, space: string, slug: string) {
+  const head = await ctx.runQuery(internal.store.spaceHead, { space });
+  const mine = head.brains.find((x: any) => x.slug === slug && x.type === "personal");
+  if (!mine) return null;
+  const cards: any[] = [];
+  let cursor: string | null = null;
+  for (;;) {
+    const p: any = await ctx.runQuery(internal.store.cardsPage, { brain: mine.slug, cursor, ready: head.ready });
+    cards.push(...p.cards);
+    if (p.done) break;
+    cursor = p.cursor;
+  }
+  return { mine, cards };
+}
+
+/** Every note of a personal brain whole, for the twin and the profile. */
+async function wholeNotes(ctx: any, space: string, brain: string) {
+  const out: any[] = [];
+  let cursor: string | null = null;
+  for (;;) {
+    const p: any = await ctx.runQuery(internal.store.conceptsOfBrain, { space, brain, cursor });
+    out.push(...p.concepts);
+    if (!p.next) break;
+    cursor = p.next;
+  }
+  return out;
+}
+
+/** The twin test as the app shows it: the questions, both rounds, the twin's answers and the scores. */
+function testView(row: any) {
+  const t = row?.test ?? {};
+  const from = t.mineAt ? new Date(Date.parse(t.mineAt) + RETEST_DAYS * 86400000).toISOString().slice(0, 10) : null;
+  return { questions: TEST.map((text, i) => ({ id: TEST_IDS[i], text })), mine: t.mine ?? {}, again: t.again ?? {}, twin: t.twin ?? {},
+           twinScore: t.twinScore ?? {}, selfScore: t.selfScore ?? {}, mineAt: t.mineAt ?? null, againAt: t.againAt ?? null,
+           twinAt: t.twinAt ?? null, retestFrom: from };
+}
+
+/**
+ * A personal brain's interview, and its twin test and profile, by action:
+ *   state     where it stands, the test and the profile
+ *   start     on, and the next question (or the first)
+ *   stop      paused where it stands
+ *   restart   every question unasked again; the notes stay
+ *   answers   the owner's test answers, round 1 or the retest; never filed
+ *   twin      the twin answers the test from the notes alone
+ *   score     0 to 2 per question: the twin against round 1, or round 2 against round 1
+ *   profile   the notes written as 7 parts
+ * Only the owner, and only their personal brain: nothing else reads it.
+ */
+route("/api/interview", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const got = await personalOf(ctx, who.space, String(b.brain ?? ""));
+  if (!got) return { error: "that is not a personal brain of this workspace" };
+  const { mine, cards } = got;
+  const row = await ctx.runQuery(internal.store.interviewGet, { space: who.space, brain: mine.slug });
+  const save = (patch: any) => ctx.runMutation(internal.store.interviewSet, { space: who.space, brain: mine.slug, patch });
+  const today = new Date().toISOString().slice(0, 10);
+  const test = { ...(row?.test ?? {}) };
+  const view = (r: any) => ({ interview: summary(r), test: testView(r), profile: r?.profile ?? null });
+  switch (String(b.action ?? "state")) {
+    case "state": return view(row);
+    case "start": {
+      if (!ahead(row?.marks ?? {}, 1).length && row) return { error: "every question is answered or skipped. Start over to go again." };
+      const r = await save({ on: true });
+      /* The first start explains how it works: the count goes up after it. */
+      const out = await interviewTurn(ctx, who, b, mine, cards, { ...r, opens: row?.opens ?? 0 }, true);
+      await save({ opens: (row?.opens ?? 0) + 1 });
+      return out;
+    }
+    case "stop": {
+      const r = await save({ on: false });
+      return { ...view(r), answer: pausedLine(summary(r)) };
+    }
+    case "restart": return view(await save({ on: false, marks: {}, pending: null, sinceCheck: 0, sinceAsk: 0 }));
+    case "answers": {
+      const round = Number(b.round) === 2 ? 2 : 1;
+      const answers = cleanAnswers(b.answers);
+      if (Object.keys(answers).length < 10) return { error: "answer at least 10 of the 30 questions first" };
+      /* New answers make the old scores against them meaningless. */
+      if (round === 1) Object.assign(test, { mine: answers, mineAt: today, twinScore: {}, selfScore: {} });
+      else Object.assign(test, { again: answers, againAt: today, selfScore: {} });
+      return view(await save({ test }));
+    }
+    case "twin": {
+      const notes = notesText(await wholeNotes(ctx, who.space, mine.slug));
+      if (notes.used < 5) return { error: "your twin needs at least 5 notes to answer. Talk to it or run the interview first." };
+      const { text, finish } = await ask([
+        { role: "system", content: "You answer as one person would, from their own notes. You reply with JSON only." },
+        { role: "user", content: `${TWIN_RULES}\n\nTHEIR NOTES\n${notes.text}\n\nQUESTIONS\n${TEST.map((t, i) => `${TEST_IDS[i]}: ${t}`).join("\n")}` },
+      ], { json: true, maxTokens: 4000, key: keyFor(who), model: modelFor(who, b), timeout: 150000, temperature: 0.3 });
+      const twin = readAnswers(text);
+      if (Object.keys(twin).length < 10) return { error: finish === "length" ? "the answer ran out of room. Try again." : "your twin could not answer this time. Try again." };
+      Object.assign(test, { twin, twinAt: today, twinScore: {} });
+      return view(await save({ test }));
+    }
+    case "score": {
+      const self = b.kind === "self";
+      Object.assign(test, self ? { selfScore: cleanScores(b.scores) } : { twinScore: cleanScores(b.scores) });
+      return view(await save({ test }));
+    }
+    case "profile": {
+      const notes = notesText(await wholeNotes(ctx, who.space, mine.slug));
+      if (notes.used < 5) return { error: "the profile needs at least 5 notes. Talk to it or run the interview first." };
+      const { text, finish } = await ask([
+        { role: "system", content: "You write a person's profile from their own notes. You reply with JSON only." },
+        { role: "user", content: `${PROFILE_RULES}\n\nTHEIR NOTES\n${notes.text}` },
+      ], { json: true, maxTokens: 4000, key: keyFor(who), model: modelFor(who, b), timeout: 150000, temperature: 0.3 });
+      const parts = readProfile(text);
+      if (parts.length < 3) return { error: finish === "length" ? "the profile ran out of room. Try again." : "the profile could not be written this time. Try again." };
+      return view(await save({ profile: { parts, at: today, notes: notes.used } }));
+    }
+    default: return { error: "that is not something the interview does" };
+  }
+});
 
 /**
  * A memory export or notes, pasted or dropped into a personal brain, one

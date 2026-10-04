@@ -1235,7 +1235,7 @@ export const chatTurn = internalMutation({
       await ctx.db.patch(had._id, { turns: [...had.turns, a.turn].slice(-CHAT_TURNS), brain: a.brain, updated: now });
       return { id: String(had._id), created: false };
     }
-    const q = String(a.turn?.q ?? "").replace(/\s+/g, " ").trim();
+    const q = String(a.turn?.q || a.turn?.title || "").replace(/\s+/g, " ").trim();
     const title = q.length > 80 ? q.slice(0, 77).replace(/\s+\S*$/, "") + "..." : q || "Untitled chat";
     const id = await ctx.db.insert("chats", { space, title, brain: a.brain, pinned: false, turns: [a.turn], created: now, updated: now,
       ...(owner ? { owner } : {}) });
@@ -1459,3 +1459,33 @@ export const setBrand = internalMutation({
     return brandView(doc);
   },
 });
+
+/* ---------- a personal brain's interview ---------- */
+
+/** The interview row of one personal brain, or null before it first asks. */
+export const interviewGet = internalQuery({
+  args: { space: v.string(), brain: v.string() },
+  handler: async (ctx, a) => await ctx.db.query("interviews")
+    .withIndex("by_brain", q => q.eq("space", readSpace(a.space)).eq("brain", a.brain)).first(),
+});
+
+/** Changes to that row, which is made on its first write. */
+export const interviewSet = internalMutation({
+  args: { space: v.string(), brain: v.string(), patch: v.any() },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.brain)).unique();
+    if (!b || b.type !== "personal" || readSpace(b.space) !== space) throw new Error("that is not a personal brain of this workspace");
+    const allowed = ["on", "marks", "pending", "sinceCheck", "sinceAsk", "opens", "test", "profile"];
+    const patch: any = { updated: Date.now() };
+    for (const k of allowed) if (k in (a.patch ?? {})) patch[k] = a.patch[k] ?? undefined;
+    const had = await ctx.db.query("interviews").withIndex("by_brain", q => q.eq("space", space).eq("brain", a.brain)).first();
+    /* A null clears a field on a patch; a new row simply leaves it out. */
+    if (had) { await ctx.db.patch(had._id, patch); return { ...had, ...patch }; }
+    const row: any = { space, brain: a.brain, on: false, marks: {}, sinceCheck: 0, sinceAsk: 0, ...patch };
+    for (const k of Object.keys(row)) if (row[k] === undefined) delete row[k];
+    await ctx.db.insert("interviews", row);
+    return row;
+  },
+});
+

@@ -503,6 +503,48 @@
   .lp-row:hover{ border-color:var(--ink-4); }
   .lp-row b{ font:600 14.5px/1.35 var(--sans); color:var(--ink); }
   .lp-row span{ font:400 13px/1.45 var(--sans); color:var(--ink-3); }
+  /* The twin: how well a personal folder knows you, its test and its profile. */
+  .tw-acts{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:16px; }
+  .tw-score{ margin-top:16px; padding:12px 14px; border-radius:12px; background:var(--side); font:500 14px/1.45 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
+  .tw-chs{ display:grid; gap:2px; }
+  .tw-ch{ display:grid; grid-template-columns:minmax(0,150px) minmax(0,1fr) 56px; align-items:center; gap:12px; padding:7px 10px; border-radius:9px; animation:tdIn .35s ease both; }
+  .tw-ch.now{ background:var(--side); }
+  .tw-ch b{ font:500 13.5px/1.3 var(--sans); color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tw-ch.now b{ color:var(--ink); font-weight:600; }
+  .tw-ch small{ text-align:right; font:500 11.5px/1 var(--mono); color:var(--ink-4); font-variant-numeric:tabular-nums; }
+  .tw-bar{ display:flex; height:6px; border-radius:99px; background:var(--surface-3); overflow:hidden; }
+  .tw-bar i{ display:block; height:100%; transition:width .5s cubic-bezier(.2,.85,.25,1); }
+  .tw-bar i.a{ background:var(--accent-solid); }
+  .tw-bar i.k{ background:var(--accent-line); }
+  .tw-key{ margin-top:10px; font:400 12.5px/1.5 var(--sans); color:var(--ink-4); }
+  .tw .mini{ margin-top:16px; }
+  .ts-say{ font:400 13px/1.45 var(--sans); color:var(--ink-3); }
+  .ts-say.bad{ color:var(--bad); }
+  .ts-form{ display:grid; gap:12px; }
+  .ts-q{ display:grid; gap:6px; }
+  .ts-q span{ font:500 14px/1.45 var(--sans); color:var(--ink-2); }
+  .ts-q textarea{ width:100%; min-height:44px; padding:9px 11px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface);
+    font:400 14px/1.45 var(--sans); color:var(--ink); resize:vertical; }
+  .ts-q textarea:focus{ outline:none; border-color:var(--ink-4); }
+  .ts-card{ margin-top:10px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--surface); animation:tdIn .35s ease both; }
+  .ts-qt{ font:600 14px/1.4 var(--sans); color:var(--ink); }
+  .ts-pair{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px; }
+  .ts-pair small{ font:500 10.5px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); }
+  .ts-pair p{ margin-top:4px; font:400 13.5px/1.5 var(--sans); color:var(--ink-2); overflow-wrap:anywhere; }
+  .ts-chips{ display:flex; gap:6px; margin-top:10px; }
+  .ts-s{ width:38px; height:32px; border:1px solid var(--line-2); border-radius:8px; background:var(--surface); font:600 13px/1 var(--mono); color:var(--ink-3); cursor:pointer; }
+  .ts-s:hover{ border-color:var(--ink-4); color:var(--ink); }
+  .ts-s.on{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
+  .ts-total{ font:600 13.5px/1 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
+  .pf-part{ margin-top:6px; animation:tdIn .35s ease both; }
+  .pf-part ul{ display:grid; gap:6px; padding-left:18px; }
+  .pf-part li{ font:400 14.5px/1.55 var(--sans); color:var(--ink-2); }
+  @media (max-width:520px){
+    .tw-ch{ grid-template-columns:minmax(0,1fr) auto; }
+    .tw-ch small{ white-space:nowrap; }
+    .tw-ch .tw-bar{ grid-column:1 / -1; grid-row:2; }
+    .ts-pair{ grid-template-columns:1fr; }
+  }
   .cf-err{ margin-top:8px; font:400 13px/1.45 var(--sans); color:var(--bad); }
   /* Tidy all folders: one section per folder, the findings under its name. */
   .tidy-all{ max-width:820px; }
@@ -1582,6 +1624,36 @@
   .send{ border-radius:10px; background:var(--accent-solid); color:var(--accent-on); }
   .mic{ border-radius:10px; }
   .foot-note{ pointer-events:auto; margin-top:8px; text-align:center; font:400 11.5px/1.4 var(--sans); color:var(--ink-4); }
+  /* The interview strip, above the chat bar: a way in, or where it stands. */
+  .iv-bar{ display:flex; justify-content:center; margin:0 auto 8px; }
+  .iv-bar[hidden]{ display:none; }
+  .iv-go{ display:inline-flex; align-items:center; gap:7px; min-height:32px; padding:0 13px 0 10px; border:1px solid var(--line-2); border-radius:99px;
+    background:var(--surface); box-shadow:0 4px 14px -6px rgba(0,0,0,.12); font:500 13px/1 var(--sans); color:var(--ink-2); cursor:pointer;
+    transition:border-color .15s ease, transform .2s cubic-bezier(.2,.85,.25,1); animation:barOpen .34s cubic-bezier(.2,.85,.25,1) both; }
+  .iv-go:hover{ border-color:var(--ink-4); color:var(--ink); transform:translateY(-1px); }
+  .iv-go svg{ width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .iv-go small{ font:500 11px/1 var(--mono); color:var(--ink-4); }
+  .iv-go[disabled]{ opacity:.5; cursor:default; transform:none; }
+  .iv-bar.on{ align-items:center; gap:10px; max-width:600px; padding:6px 6px 6px 14px; border:1px solid var(--line-2); border-radius:99px;
+    background:var(--surface); box-shadow:0 4px 14px -6px rgba(0,0,0,.12); animation:barOpen .34s cubic-bezier(.2,.85,.25,1) both; }
+  .iv-live{ display:flex; align-items:center; gap:7px; min-width:0; font:400 13px/1.2 var(--sans); color:var(--ink-3); white-space:nowrap; }
+  .iv-live b{ font-weight:600; color:var(--ink); }
+  .iv-at{ overflow:hidden; text-overflow:ellipsis; }
+  .iv-dot{ width:8px; height:8px; flex:none; border-radius:50%; background:var(--good); animation:ivPulse 1.8s ease-in-out infinite; }
+  @keyframes ivPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(63,125,92,.35); } 50%{ box-shadow:0 0 0 5px rgba(63,125,92,0); } }
+  .iv-track{ flex:1 1 60px; min-width:40px; height:5px; border-radius:99px; background:var(--surface-3); overflow:hidden; }
+  .iv-track i{ display:block; height:100%; background:var(--accent-solid); border-radius:99px; transition:width .6s cubic-bezier(.2,.85,.25,1); }
+  .iv-b{ flex:none; min-height:28px; padding:0 12px; border:1px solid var(--line-2); border-radius:99px; background:var(--surface);
+    font:500 12.5px/1 var(--sans); color:var(--ink-2); cursor:pointer; }
+  .iv-b:hover{ border-color:var(--ink-4); color:var(--ink); }
+  .iv-b.stop{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
+  .iv-b[disabled]{ opacity:.5; cursor:default; }
+  .iv-note{ font:400 14px/1.5 var(--sans); color:var(--ink-3); }
+  @media (max-width:520px){
+    .iv-bar.on{ gap:7px; padding-left:11px; }
+    .iv-at{ display:none; }
+    .iv-b{ padding:0 10px; }
+  }
   .dropsrc{ padding:11px 16px 10px; }
 
   /* The bar folded: one line, the field and its send, so the thread keeps the
@@ -1743,6 +1815,8 @@
 
     <div class="composer-wrap">
       <div class="composer">
+        <!-- A personal chat's interview: a way in, or where it stands with Skip and Stop. -->
+        <div class="iv-bar" id="ivBar" hidden></div>
         <div class="box">
           <!-- A drop is two things: where it comes from, and what it says. They
                were one box, and a link pasted alone read as a source with no
@@ -1805,7 +1879,7 @@ const TOKEN_KEY = "octopus.token.v1";
    copy of it. */
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
   "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle",
-  "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive"]);
+  "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -1823,6 +1897,8 @@ const S = {
   chats: [], chatId: null,
   /* Each brain's health out of 10, and the concepts with an open conflict. */
   health: {}, conflicted: new Set(),
+  /* Where each personal brain's interview stands, by slug, and its test and profile. */
+  iv: {}, ivFull: {},
   /* The demo, or a workspace on the visitor's own key. */
   demo: false, byok: false,
   /* The workspace's own look, as saved, and the logo on the page now. */
@@ -2497,7 +2573,8 @@ async function openChat(id){
   S.mode = "ask"; S.folder = null;
   $("thread").innerHTML = "";
   for (const t of c.turns || []){
-    says(t.q);
+    /* An interview opens on its question: that turn has no message before it. */
+    if (t.q) says(t.q);
     push("ai", body => showAnswer(body, t, t.q, asked.join(",") || "all"));
   }
   S.thread = (c.turns || []).slice(-6).map(t => ({ q: t.q, a: String(t.a ?? "") }));
@@ -2854,13 +2931,15 @@ function renderComposer(){
   /* A personal brain is a chat: no Drop, no levels, and a way to bring in
      what another assistant already knows about you. */
   const mine = S.mode === "ask" && isPersonal(S.scope);
-  $("memBtn").hidden = !mine || S.demo;
+  const asking = mine && !!S.iv[S.scope]?.on;
+  $("memBtn").hidden = !mine || S.demo || asking;
   /* It appears once there is something to forget. */
   $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length || !!S.folder;
   const drop = S.mode==="drop";
   $("srcLine").hidden = !drop;
   fullPlaceholder = drop
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
+    : asking ? "Your answer, in your own words"
     : mine ? "Tell it anything: a plan, a decision, an idea. Or ask what you said."
     : S.picks.length > 1 ? `Ask ${picksName()}.`
     : S.scope==="all" ? "Ask anything your folders have read."
@@ -2874,7 +2953,9 @@ function renderComposer(){
   /* The mic is for asking and talking. A drop takes a source, not a voice. */
   $("micBtn").hidden = drop;
   if (drop && S.listening) stopVoice();
-  $("footNote").textContent = mine
+  $("footNote").textContent = asking
+    ? "Interview: one question at a time, each answer filed as dated notes. Say skip to pass, or Stop any time."
+    : mine
     ? "Personal, alpha: your words are filed as dated notes. It calls your other folders when they help, and only this chat reads it."
     : drop
     ? "The source gets read once, then you reply to one card."
@@ -2891,6 +2972,7 @@ function renderComposer(){
   $("send").disabled = S.busy || (drop ? !ready : !t);
   $("tHint").textContent = S.busy ? "working" : drop ? dropHint(src, t)
     : S.listening ? "Listening. Tap the mic to stop." : (S.voiceHint || "");
+  paintIv();
   paintBar();
 }
 
@@ -4645,6 +4727,18 @@ function openBrainView(b, openId){
 /* ============ a folder, open ============ */
 const IC_CHAT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg>`;
 const IC_DROP = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>`;
+const IC_IV = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M10 9.3a2 2 0 1 1 2.7 1.9c-.4.2-.7.5-.7 1v.3M12 14.3v.1"/></svg>`;
+const IC_TEST = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6M10 4v5l-5 9a1.5 1.5 0 0 0 1.3 2h11.4a1.5 1.5 0 0 0 1.3-2l-5-9V4"/><path d="M7.5 14h9"/></svg>`;
+const IC_PROFILE = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg>`;
+/** A share out of 100 as a ring, the way a folder's health is drawn. */
+function pctRing(pct){
+  const r = el("span","hring");
+  const C = 2 * Math.PI * 9, fill = Math.max(0, Math.min(1, (pct || 0) / 100)) * C;
+  r.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="tr" cx="12" cy="12" r="9"/>
+    <circle class="ar ${healthTone((pct || 0) / 10)}" cx="12" cy="12" r="9" stroke-dasharray="${fill.toFixed(2)} ${C.toFixed(2)}"/>
+    <text x="12" y="12.4">${Math.round(pct || 0)}</text></svg>`;
+  return r;
+}
 const IC_PATH = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h5a3 3 0 0 0 3-3V8"/></svg>`;
 const IC_TIDY = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h11M4 12h7M4 17h5M15 13l2 2 4-4"/></svg>`;
 const IC_EDIT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 4.3a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L9 19.5 4 20l.5-5Z"/></svg>`;
@@ -4684,12 +4778,35 @@ function openFolder(b, openId){
     hl.onclick = () => openHealthSheet(b);
     head.append(hl);
   }
+  /* A personal folder shows how well it knows you in place of a health score. */
+  if (self && !S.demo){
+    const tw = el("button","fv-hl"); tw.type = "button"; tw.id = "fvTwin";
+    const fillCard = iv => {
+      tw.innerHTML = "";
+      const ring = pctRing(iv ? iv.pct : 0); ring.removeAttribute("role");
+      const txt = el("div");
+      txt.append(el("b",null, iv ? `Twin ${iv.pct}% complete` : "Your twin"),
+        el("span","say", !iv ? "How well it knows you" : iv.on ? `Interview on · ${iv.chapter?.title || "last questions"}`
+          : iv.chapter ? `Next: ${iv.chapter.title}, ${iv.chapter.at} of ${iv.chapter.total} done` : "Every question asked"));
+      tw.append(ring, txt);
+    };
+    fillCard(S.iv[b.slug]);
+    tw.onclick = () => twinPane();
+    head.append(tw);
+    loadIv(b.slug).then(r => { if (r && S.folder === b.slug) fillCard(r.interview); });
+  }
   const acts = el("div","fv-acts");
   const btn = (id, label, icon, fn, title) => {
     const x = el("button","fv-b"); x.type = "button"; x.id = id; x.innerHTML = icon || ""; x.append(label);
     if (title) x.title = title; x.onclick = fn; acts.append(x); return x;
   };
   btn("fvChat", "Chat in it", IC_CHAT, () => { S.folder = null; newChat(); $("input").focus(); });
+  if (self && !S.demo){
+    btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
+      "It asks you questions, one at a time, to know you better. Stop any time.");
+    btn("fvTest", "Twin test", IC_TEST, () => testPane(), "30 questions that measure how well your twin knows you");
+    btn("fvProfile", "Twin profile", IC_PROFILE, () => profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
+  }
   if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
   if (!S.demo && !ro && !self) btn("fvEdit", "Edit", IC_EDIT, () => openBrainSheet(b), "Its name and the line that decides what goes in");
   if (!S.demo && !ro && !self && cs.length > 1) btn("fvTidy", "Tidy", IC_TIDY, () => tidy(), "Find concepts filed twice, titles not in English and concepts with no position");
@@ -4892,9 +5009,195 @@ function openFolder(b, openId){
     tidyCards(inner, r, reload);
   };
 
+  /* ---- a personal folder: the twin, its test and its profile ---- */
+  const pane = (id, eye, title) => {
+    openNow = null; paint();
+    cols.classList.add("reading");
+    doc.innerHTML = ""; doc.scrollTop = 0;
+    const inner = el("div","fv-in tw"); inner.id = id; doc.append(inner);
+    const back = el("button","fv-back","← All notes"); back.type = "button";
+    back.onclick = () => { cols.classList.remove("reading"); paint(); };
+    inner.append(back, el("div","fv-eye",`${eye} · ${b.name}`), el("h1",null,title));
+    return inner;
+  };
+  const waitIn = inner => { const w = el("div","td-wait"); w.append(el("i"), el("i"), el("i")); inner.append(w); return w; };
+  const pctOr = (n, none) => n == null ? none : `${n}%`;
+
+  /** How well it knows you: the share covered, each chapter, the test and the profile. */
+  const twinPane = async () => {
+    const inner = pane("twinPane", "Your twin", "How well it knows you");
+    const w = waitIn(inner);
+    const r = await loadIv(b.slug);
+    w.remove();
+    if (!doc.contains(inner)) return;
+    if (!r){ inner.append(el("div","fv-li bad","The interview could not be read. Try again.")); return; }
+    const iv = r.interview;
+    inner.append(el("p","fv-pos",`${iv.pct}% complete: ${iv.covered} of ${iv.total} questions answered, or already known from your notes. ` +
+      `It asks one at a time, and every answer is filed as notes here.`));
+    /* The test and the profile sit in the folder's own actions, above. */
+    const row = el("div","tw-acts");
+    const goB = el("button","go", iv.seen ? "Resume the interview" : "Start the interview"); goB.type = "button"; goB.id = "twGo";
+    goB.onclick = () => { S.folder = null; newChat(); startInterview(b.slug); };
+    row.append(goB, el("span","ts-say", iv.on ? "It is on: your next message answers it." : "About 15 questions a sitting. Stop any time."));
+    inner.append(row);
+    const t = iv.test;
+    inner.append(el("div","tw-score", t.twinPct == null ? "Twin score: take the twin test to measure it."
+      : `Twin score ${t.twinPct}% · your own retest ${pctOr(t.selfPct, "not yet")} · target ${t.target}%`));
+    inner.append(el("h4",null,"Chapters"));
+    const list3 = el("div","tw-chs");
+    for (const c of iv.chapters){
+      const done = c.answered + c.known;
+      const li = el("div","tw-ch" + (iv.chapter?.key === c.key ? " now" : ""));
+      li.append(el("b",null,c.title));
+      const bar = el("span","tw-bar");
+      const a = el("i","a"); a.style.width = `${100 * c.answered / c.total}%`;
+      const k = el("i","k"); k.style.width = `${100 * c.known / c.total}%`;
+      bar.append(a, k);
+      li.append(bar, el("small",null,`${done} / ${c.total}`));
+      li.title = `${c.answered} answered, ${c.known} known from your notes, ${c.skipped} skipped`;
+      list3.append(li);
+    }
+    inner.append(list3);
+    inner.append(el("p","tw-key","Dark: answered in the interview. Light: already in your notes. Skipped questions come back when you start over."));
+    const reset = el("button","mini","Start over"); reset.type = "button"; reset.id = "twReset";
+    let armed = false;
+    reset.onclick = async () => {
+      if (!armed){ armed = true; reset.textContent = "Click again: every question comes back, your notes stay"; return; }
+      try { await api("/api/interview", { action: "restart", brain: b.slug }); await loadIv(b.slug); twinPane(); }
+      catch (e) { reset.textContent = e.message; }
+    };
+    inner.append(reset);
+  };
+
+  /** The twin test: your answers, never filed, the twin's from your notes, and a score for each. */
+  const testPane = async (edit) => {
+    const inner = pane("testPane", "Twin test", "Score your twin");
+    inner.append(el("p","fv-pos","30 questions. Your answers stay here and are never filed, so they can measure your twin. " +
+      "Your twin answers from your notes alone. You score each answer: 0 wrong, 1 close, 2 same as you."));
+    const w = waitIn(inner);
+    const r = await loadIv(b.slug);
+    w.remove();
+    if (!doc.contains(inner)) return;
+    if (!r){ inner.append(el("div","fv-li bad","The test could not be read. Try again.")); return; }
+    const t = r.test, iv = r.interview;
+    const say = el("div","ts-say"); say.setAttribute("role","status");
+    const round = edit === 2 ? 2 : 1;
+    const form = (prev) => {
+      inner.append(el("h4",null, round === 2 ? "Answer again, without looking back" : "Your answers"));
+      const f = el("div","ts-form");
+      const boxes = {};
+      for (const q of t.questions){
+        const lab = el("label","ts-q"); lab.append(el("span",null,q.text));
+        const ta = el("textarea"); ta.rows = 2; ta.value = prev[q.id] || ""; ta.dataset.id = q.id;
+        lab.append(ta); f.append(lab); boxes[q.id] = ta;
+      }
+      inner.append(f);
+      const save = el("button","go", round === 2 ? "Save my retest" : "Save my answers"); save.type = "button"; save.id = "tsSave";
+      save.onclick = async () => {
+        const answers = {}; for (const id in boxes) if (boxes[id].value.trim()) answers[id] = boxes[id].value.trim();
+        save.disabled = true; say.textContent = "Saving";
+        try { await api("/api/interview", { action: "answers", brain: b.slug, round, answers }); testPane(); }
+        catch (e) { save.disabled = false; say.textContent = e.message; say.className = "ts-say bad"; }
+      };
+      const row = el("div","tw-acts"); row.append(save, say); inner.append(row);
+    };
+    if (edit || !Object.keys(t.mine).length){ form(edit === 2 ? {} : t.mine); return; }
+
+    inner.append(el("div","tw-score", `Twin score ${pctOr(iv.test.twinPct, "not scored yet")} · your own retest ${pctOr(iv.test.selfPct, "not yet")} · target ${iv.test.target}%`));
+    /* Scores as chips, 0 to 2, saved as a set. */
+    const scorer = (kind, left, right, now) => {
+      const scores = { ...now };
+      const total = el("b","ts-total");
+      const paintTotal = () => {
+        const v = Object.values(scores); total.textContent = v.length ? `${Math.round(100 * v.reduce((a, n) => a + n, 0) / (2 * v.length))}% on ${v.length} scored` : "Nothing scored yet";
+      };
+      for (const q of t.questions){
+        if (!left[q.id] || !right[q.id]) continue;
+        const card = el("div","ts-card");
+        card.append(el("div","ts-qt",q.text));
+        const pair = el("div","ts-pair");
+        const one = el("div"); one.append(el("small",null, kind === "twin" ? "You" : "You then"), el("p",null,left[q.id]));
+        const two = el("div"); two.append(el("small",null, kind === "twin" ? "Your twin" : "You now"), el("p",null,right[q.id]));
+        pair.append(one, two); card.append(pair);
+        const chips = el("div","ts-chips");
+        for (const n of [0, 1, 2]){
+          const c = el("button","ts-s" + (scores[q.id] === n ? " on" : ""), String(n)); c.type = "button"; c.dataset.n = String(n); c.dataset.id = q.id;
+          c.title = ["Wrong", "Close", "Same as you"][n];
+          c.onclick = () => { scores[q.id] = n; for (const x of chips.children) x.classList.toggle("on", x === c); paintTotal(); };
+          chips.append(c);
+        }
+        card.append(chips);
+        inner.append(card);
+      }
+      const save = el("button","go","Save scores"); save.type = "button"; save.id = kind === "twin" ? "tsScore" : "tsSelf";
+      const msg = el("span","ts-say");
+      save.onclick = async () => {
+        save.disabled = true; msg.textContent = "Saving";
+        try { await api("/api/interview", { action: "score", brain: b.slug, kind, scores }); testPane(); }
+        catch (e) { save.disabled = false; msg.textContent = e.message; }
+      };
+      paintTotal();
+      const row = el("div","tw-acts"); row.append(save, total, msg); inner.append(row);
+    };
+
+    inner.append(el("h4",null,"Your twin's answers"));
+    const ask2 = el("button", Object.keys(t.twin).length ? "ghost" : "go", Object.keys(t.twin).length ? "Let it answer again" : "Let your twin answer");
+    ask2.type = "button"; ask2.id = "tsTwin";
+    ask2.onclick = async () => {
+      ask2.disabled = true; say.textContent = "Your twin is answering from your notes";
+      try { await api("/api/interview", { action: "twin", brain: b.slug }); testPane(); }
+      catch (e) { ask2.disabled = false; say.textContent = e.message; say.className = "ts-say bad"; }
+    };
+    const row = el("div","tw-acts"); row.append(ask2, say); inner.append(row);
+    if (Object.keys(t.twin).length) scorer("twin", t.mine, t.twin, t.twinScore);
+
+    inner.append(el("h4",null,"Your own ceiling"));
+    const today = new Date().toISOString().slice(0, 10);
+    if (Object.keys(t.again).length){
+      inner.append(el("p","tw-key","Your first answers against your retest. You rarely match yourself fully: this is the score your twin aims for."));
+      scorer("self", t.mine, t.again, t.selfScore);
+    } else if (t.retestFrom && today >= t.retestFrom){
+      const again = el("button","go","Answer again"); again.type = "button"; again.id = "tsAgain";
+      again.onclick = () => testPane(2);
+      inner.append(el("p","tw-key","Two weeks on: answer the 30 again, without looking back. Then score yourself."), again);
+    } else inner.append(el("p","tw-key",`The retest opens on ${t.retestFrom || "the day 2 weeks after your answers"}. Answering again then sets the score your twin aims for.`));
+    const change = el("button","mini","Change my answers"); change.type = "button"; change.id = "tsEdit";
+    change.title = "New answers clear the scores given against them";
+    change.onclick = () => testPane(1);
+    inner.append(change);
+  };
+
+  /** Your notes written as 7 parts. */
+  const profilePane = async () => {
+    const inner = pane("profilePane", "Twin profile", "Your twin profile");
+    inner.append(el("p","fv-pos","Your notes written as 7 parts: identity, values, beliefs, decision rules, voice, knowledge and boundaries. It stays in this folder."));
+    const w = waitIn(inner);
+    const r = await loadIv(b.slug);
+    w.remove();
+    if (!doc.contains(inner)) return;
+    const pf = r?.profile;
+    const say = el("span","ts-say"); say.setAttribute("role","status");
+    const write = el("button", pf ? "ghost" : "go", pf ? "Write it again" : "Write it"); write.type = "button"; write.id = "pfGo";
+    write.onclick = async () => {
+      write.disabled = true; say.textContent = "Writing it from your notes"; say.className = "ts-say";
+      try { await api("/api/interview", { action: "profile", brain: b.slug }); profilePane(); }
+      catch (e) { write.disabled = false; say.textContent = e.message; say.className = "ts-say bad"; }
+    };
+    const row = el("div","tw-acts"); row.append(write, say); inner.append(row);
+    if (!pf) return;
+    inner.append(el("p","tw-key",`Written on ${pf.at} from ${pf.notes || "your"} notes.`));
+    for (const part of pf.parts || []){
+      const sec = el("section","pf-part");
+      sec.append(el("h4",null,part.title));
+      const ul = el("ul"); for (const x of part.points) ul.append(el("li",null,x));
+      sec.append(ul); inner.append(sec);
+    }
+  };
+
   paint();
   const wide = window.matchMedia("(min-width:861px)").matches;
   if (openId) show(openId);
+  else if (self && !S.demo && wide) twinPane();
   else if (wide && cs.length) show(`${cs[0].brain}/${cs[0].slug}`);
   else { const p = el("div","fv-in"); p.append(el("div","fv-none", cs.length ? "Pick a concept to read it." : "")); doc.append(p); }
   render();
@@ -5678,6 +5981,7 @@ async function doAsk(q){
     body.innerHTML = "";
     showAnswer(body, r, q, S.picks.length > 1 ? S.picks.join(",") : S.scope);
     if (r.chat){ S.chatId = r.chat; loadChats(); }
+    if (r.interview && isPersonal(S.scope)) S.iv[S.scope] = r.interview;
     if (r.filed && (r.filed.new || r.filed.updated)) refresh().catch(() => {});
     /* Six turns is what a thread of follow-ups runs to before the subject has
        moved anyway. Only the last four travel. */
@@ -5730,6 +6034,99 @@ function filedLine(f){
   const n = f.new || 0, u = f.updated || 0;
   const news = n ? `${n} new note${n === 1 ? "" : "s"}` : "", ups = u ? `${u} note${u === 1 ? "" : "s"} updated` : "";
   return n || u ? "Filed: " + [news, ups].filter(Boolean).join(", ") : "";
+}
+
+/* ============ the interview ============
+   A personal brain asks too: one question at a time, from 335 in 17
+   chapters, each answer filed as notes like any message. The strip above the
+   chat bar starts it, shows where it stands, and stops it. */
+
+/** Where a personal brain's interview stands, read again from the server. */
+async function loadIv(slug){
+  try {
+    const r = await api("/api/interview", { brain: slug });
+    S.iv[slug] = r.interview; S.ivFull[slug] = r;
+    paintIv();
+    return r;
+  } catch { return null; }
+}
+
+function paintIv(){
+  const bar = $("ivBar"); if (!bar) return;
+  /* A press on the strip keeps the field's focus: a blur would fold the bar
+     and move the strip out from under the pointer before the click lands. */
+  if (!bar.dataset.held){ bar.dataset.held = "1"; bar.addEventListener("mousedown", e => { if (e.target.closest("button")) e.preventDefault(); }); }
+  const slug = S.scope;
+  const show = S.mode === "ask" && isPersonal(slug) && !S.demo && !S.folder;
+  bar.hidden = !show;
+  if (!show) return;
+  if (!(slug in S.iv)){ S.iv[slug] = null; loadIv(slug); }
+  const iv = S.iv[slug];
+  /* The bar repaints on every focus change: a strip rebuilt under a click
+     would lose it, so it is drawn again only when what it says changes. */
+  const key = JSON.stringify([slug, !!iv?.on, iv?.pct, iv?.seen, iv?.chapter?.at, S.busy]);
+  if (bar.dataset.key === key && bar.children.length) return;
+  bar.dataset.key = key;
+  bar.innerHTML = "";
+  bar.classList.toggle("on", !!iv?.on);
+  if (iv?.on){
+    const ch = iv.chapter;
+    const live = el("span","iv-live");
+    live.append(el("i","iv-dot"), el("b",null,"Interview"));
+    if (ch) live.append(el("span","iv-at",`${ch.title} · ${Math.min(ch.at + 1, ch.total)} of ${ch.total}`));
+    const track = el("span","iv-track"); const fill = el("i"); fill.style.width = `${Math.max(2, iv.pct)}%`; track.append(fill);
+    track.title = `Your twin is ${iv.pct}% complete`;
+    const skip = el("button","iv-b","Skip"); skip.type = "button"; skip.id = "ivSkip"; skip.disabled = S.busy;
+    skip.title = "Pass this question";
+    skip.onclick = () => { if (S.busy) return; $("input").value = "skip"; go(); };
+    const stop = el("button","iv-b stop","Stop"); stop.type = "button"; stop.id = "ivStop"; stop.disabled = S.busy;
+    stop.title = "Pause the interview. It picks up where you left off.";
+    stop.onclick = () => stopInterview(slug);
+    bar.append(live, track, skip, stop);
+  } else {
+    const goB = el("button","iv-go"); goB.type = "button"; goB.id = "ivGo"; goB.disabled = S.busy;
+    goB.title = "It asks you questions, one at a time, to know you better. Stop any time.";
+    goB.innerHTML = IC_IV;
+    goB.append(el("span",null, iv?.seen ? "Resume the interview" : "Interview me"));
+    if (iv) goB.append(el("small",null,`twin ${iv.pct}%`));
+    goB.onclick = () => startInterview(slug);
+    bar.append(goB);
+  }
+}
+
+/** On, in the chat on screen, and its next question. */
+async function startInterview(slug){
+  if (S.busy || !isPersonal(slug)) return;
+  if (S.scope !== slug){ crossing(slug); S.picks = []; S.scope = slug; S.into = []; }
+  S.mode = "ask"; S.folder = null;
+  render();
+  S.busy = true; renderComposer();
+  const body = thinking("Picking a question");
+  try {
+    const r = await api("/api/interview", { action: "start", brain: slug, chat: S.chatId, history: S.thread.slice(-4) });
+    body.innerHTML = "";
+    showAnswer(body, r, "", slug);
+    if (r.chat){ S.chatId = r.chat; loadChats(); }
+    if (r.interview) S.iv[slug] = r.interview;
+    S.thread.push({ q: "", a: String(r.answer ?? "") });
+    if (S.thread.length > 6) S.thread = S.thread.slice(-6);
+  } catch (e) {
+    body.innerHTML = "";
+    body.append(el("div","err", e.message));
+  } finally {
+    S.busy = false; renderComposer(); bottom(); $("input").focus();
+  }
+}
+
+/** Paused where it stands, with no model call. */
+async function stopInterview(slug){
+  if (S.busy) return;
+  try {
+    const r = await api("/api/interview", { action: "stop", brain: slug });
+    S.iv[slug] = r.interview; S.ivFull[slug] = r;
+    push("ai", b => { b.append(el("div","iv-note", r.answer || "Paused.")); });
+  } catch (e) { push("ai", b => { b.append(el("div","err", e.message)); }); }
+  renderComposer(); bottom();
 }
 
 /**
