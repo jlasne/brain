@@ -194,7 +194,7 @@ const TODAY = "2026-09-30";
   check("em-dashes leave the reply", !/—/.test(t({ reply: "Good — why?", follow: true }).reply));
   const p = twin.interviewPrompt({ notes: [{ title: "Lyon", line: "Born in Lyon" }], pending: null, answer: "", skipped: false, followLeft: 0, next, check: null, intro: true, date: "2026-10-04" });
   check("the first turn explains how it works, and sees the notes and the next questions", /FIRST TURN/.test(p[0].content) && /Lyon: Born in Lyon/.test(p[1].content)
-    && /A1 \| Tell me your life story/.test(p[1].content) && /\(they just opened the interview\)/.test(p[1].content));
+    && /A1 \| In which city and year were you born\?/.test(p[1].content) && /\(they just opened the interview\)/.test(p[1].content));
   check("it is told to fit each question to what the notes say, one question a turn", /fitted to what their notes say/.test(p[0].content) && /exactly ONE question/.test(p[0].content));
   const last = twin.interviewPrompt({ notes: [], pending: null, answer: "x", skipped: false, followLeft: 0, next: [], check: null, intro: false, date: "2026-10-04" });
   check("with no question left, it thanks them and points to the twin test", /LAST TURN/.test(last[0].content) && /twin test/.test(last[0].content));
@@ -232,11 +232,12 @@ const TODAY = "2026-09-30";
 
   const s2 = await step("My grandmother", { reply: "What did she teach you?", follow: true });
   check("an answer is filed with the question it answers as context", files[0]?.text === "My grandmother" && files[0].context === "The brain asked: " + s1.reply, JSON.stringify(files[0]));
-  check("a thin answer gets a follow-up, and the question stays open", row().pending.id === "A3" && row().pending.follow === 1 && !row().marks.A3 && s2.filed.new === 1);
+  check("a one-word answer gets a follow-up, and the question stays open", row().pending.id === "A3" && row().pending.follow === 1 && !row().marks.A3 && s2.filed.new === 1);
   await step("Patience, she ran a bakery for 30 years", { reply: "Give me one example?", follow: true });
-  check("two follow-ups at most", row().pending.follow === 2);
-  await step("She woke at 4 every day", { reply: "And a third?", follow: true });
-  check("a third is refused: the answer counts and the next question comes", row().marks.A3 === "a" && row().pending.id === "A4" && row().pending.follow === 0 && row().sinceCheck === 1);
+  check("one follow-up at most: a second is refused, the answer counts and the next question comes",
+    row().marks.A3 === "a" && row().pending.id === "A4" && row().pending.follow === 0 && row().sinceCheck === 1);
+  check("every question is kept light: one fact, choice, number or sentence, under 30 seconds", /under 30 seconds/.test(prompts.at(-1)[0].content)
+    && /Never ask for a list of more than 3/.test(prompts.at(-1)[0].content) && twin.MAX_FOLLOW === 1);
 
   const n = files.length;
   await step("skip", { reply: "What was your first memory?", next: "A5" });

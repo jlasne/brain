@@ -82,7 +82,8 @@ npx convex run admin:forgetOldKeys --prod
 A personal brain interviews its owner. 335 questions in 17 chapters, written
 for anyone and asked in the model's own words, fitted to what the notes say.
 Each answer is filed as notes, like any message, with the question as its
-context. A short answer gets up to 2 follow-ups; a question the notes already
+context. Each question takes under 30 seconds: one fact, choice, number or
+sentence. A one-word answer gets one follow-up; a question the notes already
 answer is marked known and skipped; every 10 answers, 3 notes are read back.
 "skip" passes a question and Stop pauses it. Outside the interview, the chat
 asks one of the questions in passing every few messages, from the chapters

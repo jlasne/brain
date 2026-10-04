@@ -107,7 +107,7 @@ A third kind of brain, next to subjects and experts. You talk to it, and it keep
 - **Add memory.** Paste what another assistant knows about you, or a notes file.
 - **It talks to you as "you".** Its notes read "You want to move to Lisbon", and so do its replies.
 - **It calls your other brains on its own.** When one holds something that bears on what you said, it brings it up and names it: "your Health brain says 3 to 5 g a day". A line under the reply shows which brains it called.
-- **It interviews you.** Tap Interview me: one question at a time, from 335 in 17 chapters, life story first. A short answer gets a follow-up, a question your notes already answer is skipped, and every 10 answers it reads back 3 notes for you to confirm or correct. Say skip to pass; Stop pauses it, and it picks up where you left off.
+- **It interviews you.** Tap Interview me: one quick question at a time, from 335 in 17 chapters, life story first. Each takes under 30 seconds: a fact, a choice, a number or one sentence. A one-word answer gets one follow-up, a question your notes already answer is skipped, and every 10 answers it reads back 3 notes for you to confirm or correct. Say skip to pass; Stop pauses it, and it picks up where you left off.
 - **It asks in passing.** Every few messages, when you asked nothing, it may end its reply with one question from the chapters it knows least.
 - **Your twin, measured.** 30 test questions, answered once and never filed. Your twin answers them from your notes, you score each 0 to 2, and a retest 2 weeks later sets your own ceiling. The twin profile writes your notes as 7 parts: identity, values, beliefs, decision rules, voice, knowledge and boundaries.
 - **Private.** Its own chat is its only reader.
