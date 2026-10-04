@@ -30,7 +30,10 @@ const check = (what, ok, saw) => {
 const DAY = 86400000, NOW = Date.parse("2026-09-30T12:00:00Z");
 const ago = d => new Date(NOW - d * DAY).toISOString().slice(0, 10);
 const src = (brain, author, days) => ({ brains: [brain], author, stored: ago(days) });
-const cards = (brain, k, deep) => Array.from({ length: k }, (_, i) => ({ brain, slug: "c" + i, src: i < deep ? 2 : 1 }));
+/* Each concept with its own title and a position, so nothing reads as one to tidy. */
+const TOPICS = ["gold", "rates", "yen", "oil", "bonds", "copper", "housing", "wages", "credit", "silver", "grain", "steel"];
+const cards = (brain, k, deep) => Array.from({ length: k }, (_, i) => ({ brain, slug: "c" + i, title: `${TOPICS[i % 12]} cycle ${i}`,
+  summaryLine: `The ${TOPICS[i % 12]} view holds.`, src: i < deep ? 2 : 1 }));
 const SIX = ["Ann Lee", "Bo Chen", "Cy Park", "Di Roy", "Ed Moss", "Flo Ng"];
 
 /* Wealth: six authors, half its concepts deep, fed today, calm.
@@ -49,7 +52,7 @@ const hs = Object.fromEntries(healthOf(brains, all, sources, new Map([["crypto",
 /* ---- the best brain reads 10, the others against it ---- */
 {
   check("the best brain reads 10 and says so", hs.gave.score === 10 && hs.gave.top && /best brain/.test(hs.gave.best), JSON.stringify(hs.gave));
-  check("the others read against it", hs.wealth.score === 8.5 && hs.crypto.score === 2.5 && !hs.wealth.top,
+  check("the others read against it", hs.wealth.score === 8.8 && hs.crypto.score === 3.8 && !hs.wealth.top,
     `${hs.wealth.score} ${hs.crypto.score}`);
   check("a person brain is not marked down for one voice", hs.gave.parts.variety.counted === false && /one voice/.test(hs.gave.parts.variety.say));
 }
@@ -69,10 +72,27 @@ const hs = Object.fromEntries(healthOf(brains, all, sources, new Map([["crypto",
 /* ---- the best move closes the widest gap ---- */
 {
   check("Wealth's widest gap is depth", hs.wealth.best === "Back more concepts with a second source: 50% here, 100% in Charles Gave.", hs.wealth.best);
-  check("Crypto's is depth too, ahead of variety", hs.crypto.best === "Back more concepts with a second source: 0% here, 100% in Charles Gave.", hs.crypto.best);
+  check("an open conflict comes first: it can be settled today", hs.crypto.best === "Settle the 1 open conflict.", hs.crypto.best);
   const calm = Object.fromEntries(healthOf(brains, all, sources, new Map([["wealth", 3]]), NOW).map(h => [h.slug, h]));
   check("an open conflict lowers the score, and settling can be the move", calm.wealth.score < hs.wealth.score && calm.wealth.open === 3,
     `${calm.wealth.score}`);
+}
+
+/* ---- tidiness: twins, titles not in English, empty positions ---- */
+{
+  const b = [{ slug: "w", name: "W", type: "subject" }, { slug: "x", name: "X", type: "subject" }];
+  const messy = [...cards("w", 6, 3),
+    { brain: "w", slug: "t1", title: "Four quadrants framework for market regimes", summaryLine: "Four quadrants guide picks.", src: 1 },
+    { brain: "w", slug: "t2", title: "The four quadrants of market regimes", summaryLine: "Four squares map assets.", src: 1 },
+    { brain: "w", slug: "f1", title: "Prix du Bitcoin (French)", summaryLine: "Le prix monte.", src: 1 },
+    { brain: "w", slug: "e1", title: "Bitcoin transaction fees", summaryLine: "", lead: "", src: 1 }];
+  const ss = [src("w", "Ann Lee", 1), src("x", "Ann Lee", 1)];
+  const hx = Object.fromEntries(healthOf(b, [...messy, ...cards("x", 10, 5)], ss, new Map(), NOW).map(h => [h.slug, h]));
+  check("tidiness counts near twin titles, titles not in English and empty positions",
+    hx.w.parts.tidy.say === "3 things to tidy: 1 pair of titles near twins, 1 title not in English, 1 concept with no position", hx.w.parts.tidy.say);
+  check("it lowers the score against a tidy brain", hx.w.parts.tidy.pct < 100 && hx.x.parts.tidy.pct === 100 && hx.x.parts.tidy.say === "Nothing to tidy");
+  check("and with no conflict open, tidying is the move", hx.w.best === "Tidy it: 1 pair of titles near twins, 1 title not in English, 1 concept with no position.", hx.w.best);
+  check("distinct titles that share a word are not twins", hx.x.parts.tidy.pct === 100);
 }
 
 /* ---- authors ---- */

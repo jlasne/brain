@@ -293,37 +293,47 @@
     font:400 14px/1.5 var(--sans); color:var(--ink); }
   .hb-best b{ display:block; font:600 11px/1.4 var(--sans); letter-spacing:.04em; text-transform:uppercase; color:var(--accent); margin-bottom:3px; }
 
-  /* The map: every brain an arm of the octopus. */
-  .mapbox{ width:100%; max-width:1100px; height:92vh; display:flex; flex-direction:column; background:var(--bg);
-    border:1px solid var(--line); border-radius:18px; overflow:hidden; box-shadow:var(--shadow-lift); animation:rise .24s var(--ease) both; }
-  .mp-h{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line); background:var(--surface); }
-  .mp-h b{ font:600 16px/1.2 var(--sans); color:var(--ink); }
-  .mp-n{ font:400 11.5px/1.3 var(--mono); color:var(--ink-3); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .mp-zoom{ margin-left:auto; display:flex; gap:4px; }
-  .mp-zoom button{ min-width:32px; height:32px; padding:0 9px; border-radius:8px; border:1px solid var(--line-2);
-    font:500 14px/1 var(--sans); color:var(--ink-2); background:var(--surface); }
-  .mp-zoom button:hover{ border-color:var(--accent-fill); color:var(--accent); }
-  .mp-stage{ position:relative; flex:1; min-height:0; }
-  .mp-stage svg{ width:100%; height:100%; display:block; touch-action:none; cursor:grab; user-select:none; }
-  .mp-stage svg.panning{ cursor:grabbing; }
-  .mp-key{ padding:9px 14px 11px; border-top:1px solid var(--line); background:var(--surface);
-    font:400 12px/1.5 var(--sans); color:var(--ink-3); }
-  .mp-arm{ fill:var(--accent-fill); fill-opacity:.16; stroke:var(--accent-fill); stroke-opacity:.45; stroke-width:1; cursor:pointer; }
-  .mp-arm.person{ fill-opacity:.24; }
-  .mp-link{ fill:none; stroke:var(--ink-3); stroke-opacity:.22; stroke-width:.8; pointer-events:none; }
-  .mp-sk{ fill:var(--surface); stroke:var(--accent); stroke-width:1.1; cursor:pointer; }
-  .mp-sk:hover{ fill:var(--accent-fill); }
-  .mp-cf{ fill:var(--bad); stroke:var(--surface); stroke-width:.8; cursor:pointer; }
-  .mp-name{ font:600 13px var(--sans); fill:var(--ink); cursor:pointer; }
-  .mp-sub{ font:400 10px var(--mono); fill:var(--ink-3); }
-  .mp-head{ fill:var(--surface); stroke:var(--accent-fill); stroke-width:1.5; }
-  .mp-stage svg.focus .mp-arm:not(.hot), .mp-stage svg.focus .mp-sk:not(.hot){ opacity:.25; }
-  .mp-stage svg.focus .mp-link{ stroke-opacity:.06; }
-  .mp-stage svg .mp-link.hot{ stroke:var(--accent); stroke-opacity:.85; stroke-width:1.3; }
+  /* The map: one graph of every folder and concept, on a night ground, the way Obsidian draws a vault. */
+  .mapbox{ width:100%; max-width:1180px; height:92vh; display:flex; flex-direction:column; background:#141416; color:#e4e4e7;
+    border:1px solid #2a2a2f; border-radius:18px; overflow:hidden; box-shadow:0 30px 80px -20px rgba(0,0,0,.6); animation:rise .24s var(--ease) both; }
+  .mp-h{ display:flex; align-items:center; gap:10px; padding:10px 12px 10px 16px; border-bottom:1px solid #26262b; background:#18181b; }
+  .mp-h b{ font:400 20px/1.2 var(--serif); color:#fafafa; }
+  .mp-n{ font:400 11.5px/1.3 var(--mono); color:#8b8b93; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mp-find{ margin-left:auto; width:200px; min-width:0; height:32px; padding:0 12px; border-radius:9px; border:1px solid #2f2f35;
+    background:#1f1f23; color:#e4e4e7; font:400 13px/1 var(--sans); outline:none; transition:border-color .15s ease, width .25s ease; }
+  .mp-find:focus{ border-color:#a78bfa; width:240px; }
+  .mp-find::placeholder{ color:#6b6b73; }
+  .mp-zoom{ display:flex; gap:4px; }
+  .mp-zoom button{ min-width:32px; height:32px; padding:0 9px; border-radius:9px; border:1px solid #2f2f35;
+    font:500 14px/1 var(--sans); color:#d4d4d8; background:#1f1f23; }
+  .mp-zoom button:hover{ border-color:#a78bfa; color:#fff; }
+  .mapbox .dk-x{ color:#a1a1aa; background:transparent; border-color:#2f2f35; }
+  .mapbox .dk-x:hover{ color:#fff; }
+  .mp-stage{ position:relative; flex:1; min-height:0; background:radial-gradient(ellipse at 50% 42%, #1d1d22 0%, #141416 72%); }
+  .mp-stage canvas{ display:block; width:100%; height:100%; touch-action:none; cursor:grab; user-select:none; }
+  .mp-stage canvas.grabbing{ cursor:grabbing; }
+  .mp-key{ padding:9px 16px 11px; border-top:1px solid #26262b; background:#18181b; font:400 12px/1.5 var(--sans); color:#8b8b93; }
+  /* What a click picked: a glass card over the graph. */
+  .mp-card{ position:absolute; left:14px; bottom:14px; width:min(360px, calc(100% - 28px)); display:grid; gap:6px; padding:13px 15px 14px;
+    border:1px solid #2f2f35; border-radius:14px; background:rgba(24,24,27,.86); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    box-shadow:0 18px 40px -12px rgba(0,0,0,.6); animation:mpCard .26s cubic-bezier(.2,.85,.25,1) both; }
+  @keyframes mpCard{ from{ opacity:0; transform:translateY(8px) scale(.98); } to{ opacity:1; transform:none; } }
+  .mp-c-top{ display:flex; align-items:center; gap:7px; font:500 11px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:#8b8b93; }
+  .mp-c-top i{ width:9px; height:9px; border-radius:50%; }
+  .mp-card b{ font:600 15.5px/1.3 var(--sans); color:#fafafa; }
+  .mp-card p{ font:400 13px/1.5 var(--sans); color:#b4b4bb; }
+  .mp-c-acts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+  .mp-c-acts button{ min-height:32px; padding:0 13px; border-radius:999px; border:1px solid #3a3a41; background:#232327;
+    font:600 12.5px/1 var(--sans); color:#f4f4f5; cursor:pointer; }
+  .mp-c-acts button:hover{ border-color:#a78bfa; }
+  .mp-c-acts button.bad{ border-color:rgba(248,113,113,.5); color:#fca5a5; }
   @media (max-width:560px){
     .map-veil.veil{ padding:0; }
     .mapbox{ height:100%; max-width:none; border-radius:0; border:none; }
     .mp-n{ display:none; }
+    .mp-find{ width:120px; } .mp-find:focus{ width:150px; }
+    .mp-zoom button, .mp-find{ height:40px; }
+    .mp-zoom button{ min-width:40px; }
   }
 
   /* The brain viewer: a wide sheet, a list, then one concept. */
@@ -383,6 +393,11 @@
   .drop-head h2{ font:600 20px/1.2 var(--sans); color:var(--ink); letter-spacing:-.01em; }
   .drop-head p{ margin-top:5px; font:400 14px/1.55 var(--sans); color:var(--ink-3); max-width:56ch; }
   .drop-head .mini{ margin-left:auto; flex:none; }
+  /* On a phone the screen is the log and the bar: the title stays, the line under it goes. */
+  @media (max-width:520px){
+    .drop-head p{ display:none; }
+    .drop-head .col{ align-items:center; padding-top:14px; }
+  }
   .side-acts .sa.go.on{ box-shadow:0 0 0 2px var(--bg), 0 0 0 4px var(--accent-line); }
 
   /* A folder, open in the main area: its head and health, then its concepts
@@ -551,7 +566,7 @@
   .side-go{ display:none; }
   @media (max-width:860px){
     .side-go{ display:block; width:100%; min-height:44px; margin-bottom:8px; border-radius:11px;
-      background:var(--accent-solid); color:var(--accent-on); font:600 14px/1 var(--sans); }
+      border:1px solid var(--line-2); background:var(--surface); color:var(--ink); font:600 14px/1 var(--sans); }
     .side-go[hidden]{ display:none; }
   }
 
@@ -1161,7 +1176,20 @@
     margin-bottom:7px;
   }
   /* Built from: folders as chips, several at once, grouped like the side panel. */
-  .pk-multi{ display:flex; flex-wrap:wrap; gap:6px; max-height:220px; overflow-y:auto; padding:2px; }
+  .pk-multi{ display:flex; flex-wrap:wrap; gap:6px; padding:2px; }
+  /* The one-pager: its title and its Build bar stay in view while the choices scroll. */
+  .pager-sheet{ max-width:560px; }
+  .pager-sheet > header{ position:sticky; top:0; z-index:2; background:var(--surface); }
+  .pager-sheet > footer{ position:sticky; bottom:0; z-index:2; background:var(--surface); border-top:1px solid var(--line); align-items:center; }
+  .pg-sum{ flex:1; min-width:0; margin-right:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:400 12.5px/1.3 var(--sans); color:var(--ink-3); }
+  @media (max-width:560px){
+    .pager-veil.veil{ padding:0; place-items:stretch; }
+    .pager-veil .sheet.pager-sheet{ width:100%; max-width:none; height:100dvh; max-height:none; border-radius:0; border:0; }
+    .pager-sheet > header p{ display:none; }
+    .pager-sheet > footer{ padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px)); flex-wrap:wrap; }
+    .pager-sheet > footer .pg-sum{ flex:1 0 100%; margin-bottom:8px; }
+    .pager-sheet > footer button{ flex:1; min-height:46px; }
+  }
   .pk-multi .pm-g{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; width:100%; }
   .pk-multi .pm-head{ width:100%; padding:6px 2px 0; border:0; background:none; text-align:left; cursor:pointer;
     font:600 10.5px/1 var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); }
@@ -1497,7 +1525,7 @@
   .side-foot{ border-top:0; padding:8px 14px 12px; }
   .foot-link{ color:var(--ink-4); }
   .foot-link:hover{ color:var(--ink); }
-  .side-go{ background:var(--accent-solid); color:var(--accent-on); }
+  .side-go{ background:var(--surface); color:var(--ink); }
 
   /* The page, white, and the chat bar floating over it. */
   main{ position:relative; background:var(--bg); }
@@ -1534,7 +1562,7 @@
   .composer-wrap.compact .box textarea{ flex:1; min-width:0; height:50px !important; padding:15px 8px 0 22px; overflow:hidden; cursor:text; }
   .composer-wrap.compact .box .tbar{ flex:none; padding:0 7px 0 0; gap:6px; }
   .composer-wrap.compact .tbar .ctrls, .composer-wrap.compact .tbar .t, .composer-wrap.compact .tbar .tools,
-  .composer-wrap.compact .foot-note{ display:none; }
+  .composer-wrap.compact .foot-note, .composer-wrap.compact .dropsrc{ display:none; }
   .composer-wrap.compact .send, .composer-wrap.compact .mic{ width:36px; height:36px; border-radius:50%; }
   .composer-wrap:not(.compact) .tbar .ctrls, .composer-wrap:not(.compact) .foot-note{ animation:barOpen .34s cubic-bezier(.2,.85,.25,1) both; }
   .composer-wrap:not(.compact) .tbar .ctrls > *{ animation:barOpen .34s cubic-bezier(.2,.85,.25,1) both; }
@@ -1589,17 +1617,26 @@
   .h-hi{ stroke:#27272a; } .h-mid{ stroke:#8a8a93; } .h-lo{ stroke:#c4c4cb; }
   .hb-bar .h-hi{ background:#27272a; } .hb-bar .h-mid{ background:#8a8a93; } .hb-bar .h-lo{ background:#c4c4cb; }
 
-  /* On a phone the bar keeps two rows: the folder and the level, then the mic and send. */
+  /* On a phone the open bar keeps one row of controls under the field: the
+     folders, the three levels as icons, the mic and send. The folder name
+     gives way first, cut short, so nothing overlaps. */
   @media (max-width:520px){
-    .box .tbar .ctrls{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
-    .box .tbar #scopeBtn{ grid-area:1 / 1; max-width:none; }
-    .box .tbar #levelWrap{ grid-area:1 / 2; display:flex; }
+    .box .tbar{ flex-wrap:wrap; gap:6px; row-gap:6px; padding:4px 8px 8px 10px; }
+    .box .tbar .ctrls{ display:flex; flex:1 1 0; min-width:0; order:0; flex-wrap:nowrap; gap:6px; }
+    .box .tbar #scopeBtn{ flex:1 1 auto; min-width:0; width:auto; max-width:none; height:42px; padding:0 8px; }
+    .box .tbar #scopeBtn .pk-lbl:empty{ display:none; }
+    .box .tbar #scopeBtn .pk-val{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .box .tbar #levelWrap{ flex:none; display:flex; }
     .box .tbar #levelWrap[hidden]{ display:none; }
-    .box .tbar #memBtn{ grid-area:1 / 2; }
-    .box .tbar #freshBtn{ display:none; }
-    .box .tbar .seg.lv button{ min-height:44px; padding:0 12px; }
+    .box .tbar .seg.lv{ height:auto; }
+    .box .tbar .seg.lv button{ min-height:0; height:40px; width:36px; padding:0; justify-content:center; }
     .box .tbar .seg.lv button span{ display:none; }
-    .box .tbar .mic{ margin-left:auto; }
+    .box .tbar #memBtn{ flex:none; height:42px; }
+    .box .tbar #freshBtn{ display:none; }
+    .box .tbar .t{ order:9; flex:1 0 100%; }
+    .box .tbar .t:empty{ display:none; }
+    .box .tbar .tools{ flex:none; }
+    .box .tbar .mic, .box .tbar .send{ flex:none; width:42px; height:42px; margin-left:0; }
   }
 
   .sheet .ghost.sure{ border-color:var(--bad); color:var(--bad); }
@@ -1629,7 +1666,6 @@
       <section class="panel" id="chatsPanel">
         <div class="panel-h" id="chatsH" title="Unpinned chats go 30 days after their last question, or past the newest 20. Up to 5 pinned chats stay.">
           <button class="fold-t" id="chatsFold" aria-expanded="true" aria-controls="chatsBox"><span class="p-ic p-chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg></span>Chats <b id="ccount"></b><span class="chev"></span></button>
-          <button class="side-plus" id="newChat" type="button" title="Start a new chat" aria-label="New chat"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
         </div>
         <div class="panel-b" id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="chats"></div></div>
       </section>
@@ -2486,7 +2522,8 @@ function openHealthSheet(b){
   const h = S.health[b.slug]; if (!h) return;
   closeSide();
   const veil = el("div","veil");
-  const NAMES = { variety: "Variety", depth: "Depth", fresh: "Freshness", conflicts: "Conflicts" };
+  const NAMES = { variety: "Variety", depth: "Depth", fresh: "Freshness", conflicts: "Conflicts", tidy: "Tidiness" };
+  const messy = !!h.parts.tidy && /to tidy/.test(h.parts.tidy.say);
   const lead = Object.values(S.health).find(x => x.top);
   const leadName = lead ? (S.brains.find(x => x.slug === lead.slug)?.name || lead.slug) : "";
   veil.innerHTML = `
@@ -2496,11 +2533,11 @@ function openHealthSheet(b){
                    : `Measured against the best brain${leadName ? `, ${esc(leadName)},` : ""} which reads 10.`}</p></header>
       <div class="f" id="hbParts"></div>
       <div class="f"><div class="hb-best"><b>Best move</b>${esc(h.best)}</div></div>
-      <footer>${h.open ? `<button class="ghost" id="hbSettle">Settle conflicts</button>` : ""}<button class="ghost" id="hbOpen">Open the folder</button><button class="go" id="hbDone">Done</button></footer>
+      <footer>${h.open ? `<button class="ghost" id="hbSettle">Settle conflicts</button>` : ""}${messy && !S.demo ? `<button class="ghost" id="hbTidy">Tidy it</button>` : ""}<button class="ghost" id="hbOpen">Open the folder</button><button class="go" id="hbDone">Done</button></footer>
     </div>`;
   document.body.append(veil);
   const parts = veil.querySelector("#hbParts");
-  for (const k of ["variety","depth","fresh","conflicts"]){
+  for (const k of ["variety","depth","fresh","conflicts","tidy"]){
     const p = h.parts[k]; if (!p) continue;
     const row = el("div","hb-row");
     row.innerHTML = p.counted
@@ -2518,6 +2555,8 @@ function openHealthSheet(b){
   veil.querySelector("#hbOpen").onclick = () => { shut(); openFolder(b); };
   const st = veil.querySelector("#hbSettle");
   if (st) st.onclick = () => { shut(); settleFrom(null, b.slug); };
+  const td = veil.querySelector("#hbTidy");
+  if (td) td.onclick = () => { shut(); openFolder(b); document.querySelector("#fvTidy")?.click(); };
 }
 
 /**
@@ -2562,7 +2601,8 @@ function renderSide(){
   /* On a phone, one button closes the drawer on the ticked folders. */
   const go = $("sideGo");
   go.hidden = !S.picks.length;
-  go.textContent = S.picks.length ? `Chat in ${S.picks.length === 1 ? picksName() : S.picks.length + " folders"}` : "";
+  /* It closes the drawer on the folders ticked: New chat, at the top, is the one way to start a chat. */
+  go.textContent = S.picks.length ? `Done · ${S.picks.length === 1 ? picksName() : S.picks.length + " folders"} ticked` : "";
 }
 
 /** A model in use, as Settings names it: short on the button, whole in its title. */
@@ -2765,12 +2805,16 @@ function closePick(){
  * to its folders, levels and hints when it is wanted: a click in it, text in
  * it, a drop, its folder menu open, or the mic on.
  */
+var fullPlaceholder = "";   // var: renderComposer runs before this line is reached
 function paintBar(){
   const wrap = document.querySelector(".composer-wrap");
   if (!wrap) return;
+  const drop = S.mode === "drop";
   const open = wrap.contains(document.activeElement) || !!$("input").value.trim()
-    || S.mode === "drop" || !!pickMenu || !!S.listening;
+    || (drop && !!$("srcInput").value.trim()) || !!pickMenu || !!S.listening;
   wrap.classList.toggle("compact", !open);
+  /* Folded, a drop says what it takes in a few words; open, it says it in full. */
+  $("input").placeholder = !open && drop ? "Drop a link, a text or a document" : fullPlaceholder;
 }
 
 function renderComposer(){
@@ -2782,7 +2826,7 @@ function renderComposer(){
   $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length || !!S.folder;
   const drop = S.mode==="drop";
   $("srcLine").hidden = !drop;
-  $("input").placeholder = drop
+  fullPlaceholder = drop
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
     : mine ? "Tell it anything: a plan, a decision, an idea. Or ask what you said."
     : S.picks.length > 1 ? `Ask ${picksName()}.`
@@ -3112,7 +3156,6 @@ $("newBrain").onclick = () => openSheet("","","subject");
   });
 }
 $("freshBtn").onclick = () => { newChat(); $("input").focus(); };
-$("newChat").onclick = () => { closeSide(); newChat(); $("input").focus(); };
 $("startBtn").onclick = () => { closeSide(); newChat(); $("input").focus(); };
 
 $("keyBtn").onclick = openSetupSheet;
@@ -3159,29 +3202,41 @@ $("lockBtn").onclick = async () => {
 };
 
 /**
- * The map: every brain an arm of the octopus.
+ * The map: every folder and every concept as one graph, the way Obsidian
+ * draws a vault. A folder is a large node carrying its health, a concept a
+ * dot in its folder's colour, bigger with more sources, and a line a link
+ * between two concepts. The layout settles by itself and stays live: drag a
+ * dot and the graph follows.
  *
- * Arms run out from the space's mark, one per brain, each with its health
- * ring at the tip. Its concepts are the suckers, bigger when more sources
- * stand behind them. Ink lines join concepts linked across two brains. A red
- * dot is an open conflict, and a tap takes it to the swipe deck. A sucker
- * opens its concept. Drag to move, wheel or pinch to zoom; tap an arm to
- * light it and its links.
+ * Point at a dot to light it and its neighbours. Click it to read it, or to
+ * settle its open conflict, ringed in red. Drag the background to move, and
+ * the wheel, two fingers or the buttons to zoom. The search lights matches.
+ *
+ * Drawn on a canvas, so a workspace of a thousand concepts stays smooth. The
+ * stage keeps a small handle on the graph, which the checks read.
  */
 async function openMap(){
   const veil = el("div","veil map-veil");
   veil.innerHTML = `
-    <div class="mapbox" role="dialog" aria-modal="true" aria-label="Map of the brains">
+    <div class="mapbox" role="dialog" aria-modal="true" aria-label="Map of the folders">
       <header class="mp-h"><b>Map</b><span class="mp-n" id="mpN"></span>
+        <input class="mp-find" id="mpFind" type="search" placeholder="Find a concept" autocomplete="off" spellcheck="false" aria-label="Find a concept">
         <div class="mp-zoom"><button id="mpIn" aria-label="Zoom in">+</button><button id="mpOut" aria-label="Zoom out">&minus;</button><button id="mpFit">Fit</button></div>
         <button class="dk-x" id="mpX" aria-label="Close">&times;</button></header>
-      <div class="mp-stage" id="mpStage"><div class="hint" style="padding:20px">Drawing the octopus</div></div>
-      <div class="mp-key">Arm: a brain, its health at the tip. Sucker: a concept, bigger with more sources. Line: a link between two brains. Red dot: an open conflict, tap it to settle.</div>
+      <div class="mp-stage" id="mpStage"><canvas id="mpCanvas" aria-label="The folders and their concepts, as a graph"></canvas>
+        <div class="mp-card" id="mpCard" hidden></div></div>
+      <div class="mp-key">Big node: a folder, its health around it. Dot: a concept, bigger with more sources. Red ring: an open conflict. Point to light the links, click to read.</div>
     </div>`;
   document.body.append(veil);
-  const stage = veil.querySelector("#mpStage");
-  const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
-  const shut = () => { document.removeEventListener("keydown", onKey); mapRepaint = null; veil.remove(); };
+  const stage = veil.querySelector("#mpStage"), cv = veil.querySelector("#mpCanvas"), card = veil.querySelector("#mpCard");
+  const g = cv.getContext("2d");
+  let alive = true, raf = 0;
+  const onKey = e => {
+    if (e.key !== "Escape" || veil !== [...document.querySelectorAll(".veil")].pop()) return;
+    if (!card.hidden){ pick(null); return; }
+    shut();
+  };
+  const shut = () => { alive = false; window.cancelAnimationFrame(raf); ro.disconnect(); document.removeEventListener("keydown", onKey); mapRepaint = null; veil.remove(); };
   document.addEventListener("keydown", onKey);
   veil.querySelector("#mpX").onclick = shut;
 
@@ -3189,181 +3244,309 @@ async function openMap(){
   try { links = (await api("/api/map", {})).links || []; } catch { links = []; }
   if (!veil.isConnected) return;
 
-  const NS = "http://www.w3.org/2000/svg";
-  const mk = (tag, attrs, parent) => {
-    const n = document.createElementNS(NS, tag);
-    for (const k in attrs) n.setAttribute(k, attrs[k]);
-    if (parent) parent.append(n);
-    return n;
-  };
-  const svg = mk("svg", { role: "img", "aria-label": "Every brain as an arm of the octopus" });
-  let vb = null, fit = null, focus = null;
-  const setVb = () => svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  /* Folder colours: muted, distinct on the dark ground, one per folder. */
+  const HUES = ["#8b9cf7", "#6fcf97", "#f2a65a", "#e07ab8", "#56ccf2", "#c9a7f5", "#f2d16b", "#7fd6c2", "#f28b82", "#a5b4c8", "#b5d66f", "#f5a3c7"];
+  const N = [], byId = new Map(), E = [];
+  let W = 0, H = 0, dpr = 1;
+  const view = { x: 0, y: 0, k: 1 }, goal = { x: 0, y: 0, k: 1 };
+  let heat = 1, hover = null, sel = null, drag = null, query = "";
 
-  const draw = () => {
-    svg.innerHTML = "";
-    const brains = ordered().filter(b => b.type !== "personal"), n = brains.length;
-    const root = mk("g", {}, svg);
-    if (!n){ stage.innerHTML = `<div class="hint" style="padding:20px">No brain yet. Create one and it grows an arm.</div>`; return; }
-    const CX = 500, CY = 500, R0 = 78, L = 360;
-    const linkG = mk("g", {}, root), armG = mk("g", {}, root), skG = mk("g", {}, root), tipG = mk("g", {}, root);
-    const at = {}, byBrain = {};
-    brains.forEach((b, i) => {
-      /* Every arm curls the same way, so the tips stay evenly spaced. */
-      const ang = (-90 + i * 360 / n) * Math.PI / 180, curl = 0.42;
-      const pt = t => { const r = R0 + L * t, th = ang + curl * t * t; return [CX + r * Math.cos(th), CY + r * Math.sin(th)]; };
-      const nrm = t => { const [x1, y1] = pt(t), [x2, y2] = pt(Math.min(1, t + 0.01)); const dx = x2 - x1, dy = y2 - y1, d = Math.hypot(dx, dy) || 1; return [-dy / d, dx / d]; };
-      const w = t => 30 * (1 - t) + 7;
-      /* The arm: a band that thins to its tip. */
-      const left = [], right = [];
-      for (let t = 0; t <= 1.0001; t += 0.04){
-        const [x, y] = pt(t), [nx, ny] = nrm(t), h = w(t) / 2;
-        left.push(`${(x + nx * h).toFixed(1)},${(y + ny * h).toFixed(1)}`);
-        right.unshift(`${(x - nx * h).toFixed(1)},${(y - ny * h).toFixed(1)}`);
+  const build = () => {
+    const keep = new Map(N.map(n => [n.id, n]));
+    N.length = 0; byId.clear(); E.length = 0;
+    const folders = ordered().filter(b => b.type !== "personal");
+    const R = 120 + 26 * folders.length;
+    folders.forEach((b, i) => {
+      const a = -Math.PI / 2 + i * 2 * Math.PI / Math.max(1, folders.length);
+      const old = keep.get("@" + b.slug);
+      const hub = { id: "@" + b.slug, hub: true, b, color: HUES[i % HUES.length], r: 13 + Math.min(10, Math.sqrt(conceptsOf(b.slug).length) * 1.4),
+        x: old?.x ?? Math.cos(a) * R, y: old?.y ?? Math.sin(a) * R, vx: 0, vy: 0, label: b.name, deg: 0 };
+      N.push(hub); byId.set(hub.id, hub);
+      for (const c of conceptsOf(b.slug)){
+        const id = `${c.brain}/${c.slug}`, was = keep.get(id);
+        const n = { id, c, b, color: hub.color, r: 2.6 + 1.5 * Math.sqrt(Math.max(1, c.src || 0)), label: c.title,
+          x: was?.x ?? hub.x + (Math.random() - .5) * 90, y: was?.y ?? hub.y + (Math.random() - .5) * 90, vx: 0, vy: 0,
+          bad: S.conflicted.has(id), deg: 0 };
+        N.push(n); byId.set(id, n);
+        E.push({ a: hub, b: n, hub: true });
       }
-      const arm = mk("path", { d: `M${left.join("L")}L${right.join("L")}Z`, class: "mp-arm" + (b.type === "person" ? " person" : ""), "data-b": b.slug }, armG);
-      mk("title", {}, arm).textContent = b.name;
-
-      /* The suckers, two rows once an arm holds many. */
-      const cs = conceptsOf(b.slug), k = cs.length, rows = k > 18 ? 2 : 1, m = Math.max(1, Math.ceil(k / rows));
-      const rMax = Math.max(1.6, Math.min(7, (L * 0.9 / m) * 0.42));
-      byBrain[b.slug] = [];
-      cs.forEach((c, j) => {
-        const row = rows === 2 ? j % 2 : 0, idx = rows === 2 ? Math.floor(j / 2) : j;
-        const t = 0.06 + 0.9 * (idx + 0.5) / m;
-        const [x, y] = pt(t), [nx, ny] = nrm(t), off = rows === 2 ? (row ? 1 : -1) * w(t) * 0.24 : 0;
-        const px = x + nx * off, py = y + ny * off;
-        const r = Math.min(rMax, 1.8 + 1.4 * Math.sqrt(Math.max(1, c.src || 0)));
-        const id = `${c.brain}/${c.slug}`;
-        at[id] = [px, py];
-        const sk = mk("circle", { cx: px.toFixed(1), cy: py.toFixed(1), r: r.toFixed(1), class: "mp-sk", "data-id": id, "data-b": b.slug }, skG);
-        mk("title", {}, sk).textContent = `${c.title}\n${c.src || 0} source${c.src === 1 ? "" : "s"} \u00b7 ${b.name}`;
-        sk.addEventListener("click", e => { e.stopPropagation(); openBrainView(b, id); });
-        sk.addEventListener("mouseenter", () => hot(id, true));
-        sk.addEventListener("mouseleave", () => hot(id, false));
-        byBrain[b.slug].push(sk);
-        if (S.conflicted.has(id)){
-          /* On the rim, so the sucker under it can still be pointed at. */
-          const dr = Math.max(3.6, r * 0.6), off = (r + dr * 0.35) * 0.707;
-          const cf = mk("circle", { cx: (px + off).toFixed(1), cy: (py - off).toFixed(1), r: dr.toFixed(1), class: "mp-cf", "data-id": id }, skG);
-          mk("title", {}, cf).textContent = `Open conflict on ${c.title}. Tap to settle it.`;
-          cf.addEventListener("click", e => { e.stopPropagation(); settleFrom(id, b.slug); });
-        }
-      });
-
-      /* The tip: the health ring and the name. */
-      const th = ang + curl, rr = R0 + L + 24, tx = CX + rr * Math.cos(th), ty = CY + rr * Math.sin(th);
-      const h = S.health[b.slug];
-      const tip = mk("g", { transform: `translate(${tx.toFixed(1)} ${ty.toFixed(1)})` }, tipG);
-      mk("circle", { r: 13, class: "tr", style: "fill:var(--surface);stroke:var(--line-2);stroke-width:3" }, tip);
-      if (h){
-        const C = 2 * Math.PI * 13;
-        mk("circle", { r: 13, class: healthTone(h.score), style: "fill:none;stroke-width:3;stroke-linecap:round",
-          "stroke-dasharray": `${(h.score / 10 * C).toFixed(2)} ${C.toFixed(2)}`, transform: "rotate(-90)" }, tip);
-        mk("text", { class: "mp-sub", "text-anchor": "middle", "dominant-baseline": "central", style: "font-weight:600;fill:var(--ink-2)" }, tip).textContent = fmtScore(h.score);
-        tip.style.cursor = "pointer";
-        tip.addEventListener("click", e => { e.stopPropagation(); openHealthSheet(b); });
-      }
-      const cos = Math.cos(th), sin = Math.sin(th);
-      const anchor = cos > 0.35 ? "start" : cos < -0.35 ? "end" : "middle";
-      const lx = anchor === "start" ? 19 : anchor === "end" ? -19 : 0, ly = anchor === "middle" ? (sin > 0 ? 30 : -24) : 0;
-      const name = mk("text", { x: lx, y: ly, class: "mp-name", "text-anchor": anchor, "dominant-baseline": "central" }, tip);
-      name.textContent = b.name;
-      name.addEventListener("click", e => { e.stopPropagation(); openBrainView(b); });
-      mk("text", { x: lx, y: ly + 15, class: "mp-sub", "text-anchor": anchor, "dominant-baseline": "central" }, tip)
-        .textContent = `${k} concept${k === 1 ? "" : "s"}`;
     });
-
-    /* Ink between brains, bowed through the body. */
-    let drawn = 0;
     for (const [a, b] of links){
-      const p = at[a], q = at[b];
-      if (!p || !q) continue;
-      const mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
-      const cx = mx + (CX - mx) * 0.55, cy = my + (CY - my) * 0.55;
-      mk("path", { d: `M${p[0].toFixed(1)},${p[1].toFixed(1)}Q${cx.toFixed(1)},${cy.toFixed(1)} ${q[0].toFixed(1)},${q[1].toFixed(1)}`,
-        class: "mp-link", "data-a": a, "data-b": b }, linkG);
-      drawn++;
+      const p = byId.get(a), q = byId.get(b);
+      if (p && q && p !== q){ E.push({ a: p, b: q, cross: p.b !== q.b }); p.deg++; q.deg++; }
     }
-
-    /* The head: the space's own mark. */
-    mk("circle", { cx: CX, cy: CY, r: R0, class: "mp-head" }, root);
-    mk("image", { href: $("spaceMark").getAttribute("src") || "/brand/logo-mark.png", x: CX - R0 * 0.78, y: CY - R0 * 0.78,
-      width: R0 * 1.56, height: R0 * 1.56 }, root);
-
-    const nCs = brains.reduce((t, b) => t + conceptsOf(b.slug).length, 0);
-    veil.querySelector("#mpN").textContent = `${n} brain${n === 1 ? "" : "s"} \u00b7 ${nCs} concepts \u00b7 ${drawn} link${drawn === 1 ? "" : "s"} between brains \u00b7 ${S.conflicted.size} with an open conflict`;
-    if (!svg.isConnected){ stage.innerHTML = ""; stage.append(svg); }
-    const bb = root.getBBox(), pad = 24;
-    fit = { x: bb.x - pad, y: bb.y - pad, w: bb.width + pad * 2, h: bb.height + pad * 2 };
-    if (!vb) vb = { ...fit };
-    setVb(); paintFocus();
+    const cross = E.filter(e => e.cross).length, bad = N.filter(n => n.bad).length, nc = N.filter(n => !n.hub).length;
+    veil.querySelector("#mpN").textContent = `${folders.length} folder${folders.length === 1 ? "" : "s"} · ${nc} concepts · ` +
+      `${E.filter(e => !e.hub).length} links, ${cross} between folders · ${bad} with an open conflict`;
   };
 
-  /* A pointed sucker, or a tapped arm, lights its links. */
-  const hot = (id, on) => {
-    svg.querySelectorAll(`.mp-link[data-a="${CSS.escape(id)}"], .mp-link[data-b="${CSS.escape(id)}"]`).forEach(l => l.classList.toggle("hot", on));
-  };
-  const paintFocus = () => {
-    svg.classList.toggle("focus", !!focus);
-    svg.querySelectorAll(".mp-arm, .mp-sk").forEach(x => x.classList.toggle("hot", !!focus && x.dataset.b === focus));
-    svg.querySelectorAll(".mp-link").forEach(l => l.classList.toggle("hot",
-      !!focus && (l.dataset.a.split("/")[0] === focus || l.dataset.b.split("/")[0] === focus)));
+  /* ---- the physics: links pull, dots push apart, all drift to the middle ---- */
+  const CELL = 90;
+  const tick = () => {
+    const a = heat;
+    /* Repulsion on a grid, so a thousand dots cost what forty would. */
+    const grid = new Map();
+    for (const n of N){ const k = `${Math.floor(n.x / CELL)},${Math.floor(n.y / CELL)}`; (grid.get(k) || grid.set(k, []).get(k)).push(n); }
+    for (const n of N){
+      const cx = Math.floor(n.x / CELL), cy = Math.floor(n.y / CELL);
+      for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++){
+        for (const m of grid.get(`${cx + i},${cy + j}`) || []){
+          if (m === n) continue;
+          let dx = n.x - m.x, dy = n.y - m.y, d2 = dx * dx + dy * dy;
+          if (d2 > CELL * CELL) continue;
+          if (d2 < .01){ dx = Math.random() - .5; dy = Math.random() - .5; d2 = .25; }
+          const f = (n.hub || m.hub ? 900 : 260) * a / d2;
+          n.vx += dx * f; n.vy += dy * f;
+        }
+      }
+    }
+    /* Folders keep their distance from each other at any range. */
+    const hubs = N.filter(n => n.hub);
+    for (let i = 0; i < hubs.length; i++) for (let j = i + 1; j < hubs.length; j++){
+      const p = hubs[i], q = hubs[j], dx = p.x - q.x, dy = p.y - q.y, d2 = Math.max(100, dx * dx + dy * dy), f = 26000 * a / d2;
+      p.vx += dx * f / Math.sqrt(d2); p.vy += dy * f / Math.sqrt(d2); q.vx -= dx * f / Math.sqrt(d2); q.vy -= dy * f / Math.sqrt(d2);
+    }
+    for (const e of E){
+      const dx = e.b.x - e.a.x, dy = e.b.y - e.a.y, d = Math.hypot(dx, dy) || 1;
+      const rest = e.hub ? 46 + e.a.r * 2 : e.cross ? 150 : 60, k = (e.hub ? .05 : e.cross ? .012 : .03) * a;
+      const f = (d - rest) * k / d;
+      e.a.vx += dx * f; e.a.vy += dy * f; e.b.vx -= dx * f; e.b.vy -= dy * f;
+    }
+    for (const n of N){
+      n.vx -= n.x * .0016 * a; n.vy -= n.y * .0016 * a;
+      if (n === drag?.n){ n.vx = n.vy = 0; continue; }
+      n.vx *= .82; n.vy *= .82;
+      n.x += Math.max(-30, Math.min(30, n.vx)); n.y += Math.max(-30, Math.min(30, n.vy));
+    }
+    heat = Math.max(.012, heat * .985);
   };
 
-  /* Move and zoom: drag the background, the wheel, two fingers, or the buttons. */
-  const toSvg = (cx, cy) => { const r = svg.getBoundingClientRect(); return [vb.x + (cx - r.left) / r.width * vb.w, vb.y + (cy - r.top) / r.height * vb.h]; };
-  const zoom = (f, cx, cy) => {
-    const r = svg.getBoundingClientRect();
-    const [px, py] = cx == null ? [vb.x + vb.w / 2, vb.y + vb.h / 2] : toSvg(cx, cy);
-    const w = Math.max(fit.w / 8, Math.min(fit.w * 2, vb.w / f)), h = w * vb.h / vb.w;
-    const rx = cx == null ? 0.5 : (cx - r.left) / r.width, ry = cy == null ? 0.5 : (cy - r.top) / r.height;
-    vb = { x: px - rx * w, y: py - ry * h, w, h }; setVb();
+  /* ---- the camera ---- */
+  const bounds = () => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const n of N){ x0 = Math.min(x0, n.x - n.r); y0 = Math.min(y0, n.y - n.r); x1 = Math.max(x1, n.x + n.r); y1 = Math.max(y1, n.y + n.r); }
+    return N.length ? { x0, y0, x1, y1 } : { x0: -100, y0: -100, x1: 100, y1: 100 };
   };
-  svg.addEventListener("wheel", e => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY); }, { passive: false });
-  /* A press that barely moves is a tap: on an arm it lights that brain, on
-     the background it clears the light. */
-  const pts = new Map(); let last = null, pinch = null, start = null, downOn = null;
-  svg.addEventListener("pointerdown", e => {
-    if (e.target.closest(".mp-sk, .mp-cf, .mp-name") || e.target.closest("g[transform]")?.querySelector(".mp-name")) return;
-    pts.set(e.pointerId, [e.clientX, e.clientY]);
-    svg.setPointerCapture(e.pointerId); svg.classList.add("panning");
-    last = [e.clientX, e.clientY]; start = [e.clientX, e.clientY]; downOn = e.target;
-    if (pts.size === 2){ const [a, b] = [...pts.values()]; pinch = Math.hypot(a[0] - b[0], a[1] - b[1]); }
+  const fitGoal = () => {
+    const b = bounds(), pad = 60;
+    goal.k = Math.max(.15, Math.min(2.2, Math.min(W / (b.x1 - b.x0 + pad * 2), H / (b.y1 - b.y0 + pad * 2))));
+    goal.x = (b.x0 + b.x1) / 2; goal.y = (b.y0 + b.y1) / 2;
+  };
+  const toWorld = (sx, sy) => [(sx - W / 2) / view.k + view.x, (sy - H / 2) / view.k + view.y];
+  const toScreen = (x, y) => [(x - view.x) * view.k + W / 2, (y - view.y) * view.k + H / 2];
+  const zoomAt = (f, sx = W / 2, sy = H / 2) => {
+    const [wx, wy] = toWorld(sx, sy);
+    goal.k = Math.max(.12, Math.min(6, goal.k * f));
+    /* The point under the pointer stays under it. */
+    goal.x = wx - (sx - W / 2) / goal.k; goal.y = wy - (sy - H / 2) / goal.k;
+  };
+  const at = (sx, sy) => {
+    const [wx, wy] = toWorld(sx, sy);
+    let best = null, bd = Infinity;
+    for (const n of N){
+      const d = Math.hypot(n.x - wx, n.y - wy), reach = n.r + 6 / view.k;
+      if (d < reach && d < bd){ best = n; bd = d; }
+    }
+    return best;
+  };
+
+  /* ---- what is lit: the pointed or picked dot and its neighbours, or matches ---- */
+  const near = n => {
+    const s = new Set([n]);
+    for (const e of E) if (e.a === n) s.add(e.b); else if (e.b === n) s.add(e.a);
+    return s;
+  };
+  const litSet = () => {
+    const focus = hover || sel;
+    if (focus) return near(focus);
+    if (query) return new Set(N.filter(n => n.label.toLowerCase().includes(query)));
+    return null;
+  };
+
+  /* ---- drawing ---- */
+  const draw = () => {
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, H);
+    g.save();
+    g.translate(W / 2, H / 2); g.scale(view.k, view.k); g.translate(-view.x, -view.y);
+    const lit = litSet();
+    const dim = n => lit && !lit.has(n);
+    /* Lines first, faint, then the lit ones on top in the accent. */
+    g.lineWidth = 1 / view.k;
+    for (const e of E){
+      if (lit && (lit.has(e.a) && lit.has(e.b) && (e.a === (hover || sel) || e.b === (hover || sel) || query))) continue;
+      g.strokeStyle = e.hub ? "rgba(255,255,255,.05)" : e.cross ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.10)";
+      if (lit) g.strokeStyle = "rgba(255,255,255,.03)";
+      g.beginPath(); g.moveTo(e.a.x, e.a.y); g.lineTo(e.b.x, e.b.y); g.stroke();
+    }
+    if (lit){
+      g.lineWidth = 1.6 / view.k;
+      for (const e of E){
+        if (!(lit.has(e.a) && lit.has(e.b))) continue;
+        if (!query && e.a !== (hover || sel) && e.b !== (hover || sel)) continue;
+        g.strokeStyle = e.hub ? "rgba(255,255,255,.28)" : "rgba(167,139,250,.85)";
+        g.beginPath(); g.moveTo(e.a.x, e.a.y); g.lineTo(e.b.x, e.b.y); g.stroke();
+      }
+    }
+    for (const n of N){
+      g.globalAlpha = dim(n) ? .14 : 1;
+      if (n.hub){
+        /* A folder: a soft halo, the node, its health as an arc around it. */
+        const h = S.health[n.b.slug];
+        g.fillStyle = n.color + "22"; g.beginPath(); g.arc(n.x, n.y, n.r + 9, 0, 7); g.fill();
+        g.fillStyle = n.color; g.beginPath(); g.arc(n.x, n.y, n.r, 0, 7); g.fill();
+        g.lineWidth = 3 / Math.max(.6, view.k); g.strokeStyle = "rgba(255,255,255,.12)";
+        g.beginPath(); g.arc(n.x, n.y, n.r + 5, 0, 7); g.stroke();
+        if (h){ g.strokeStyle = "rgba(255,255,255,.85)"; g.beginPath(); g.arc(n.x, n.y, n.r + 5, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * h.score / 10); g.stroke(); }
+      } else {
+        g.fillStyle = n === hover || n === sel ? "#ffffff" : n.color;
+        g.beginPath(); g.arc(n.x, n.y, n.r, 0, 7); g.fill();
+        if (n.bad){ g.lineWidth = 1.8 / Math.max(.7, view.k); g.strokeStyle = "#f87171"; g.beginPath(); g.arc(n.x, n.y, n.r + 2.6, 0, 7); g.stroke(); }
+      }
+    }
+    g.globalAlpha = 1;
+    /* Labels: folders always, concepts once close enough, and whatever is lit. */
+    g.textAlign = "center"; g.textBaseline = "top";
+    const fz = 11 / view.k;
+    for (const n of N){
+      const show = n.hub || (lit ? lit.has(n) : view.k > 1.5);
+      if (!show) continue;
+      const big = n.hub;
+      /* The same size on screen at any zoom, the way Obsidian keeps them. */
+      const size = big ? 13 / view.k : fz;
+      g.font = `${big ? 600 : 400} ${size}px Geist, ui-sans-serif, system-ui, sans-serif`;
+      const t = n.label.length > 42 && !big ? n.label.slice(0, 40) + "…" : n.label;
+      const ty = n.y + n.r + (big ? 10 : 4) / view.k;
+      /* A dark halo under each label, so it reads over dots and lines. */
+      if (!dim(n)){ g.lineWidth = 3.5 / view.k; g.strokeStyle = "rgba(20,20,22,.9)"; g.lineJoin = "round"; g.strokeText(t, n.x, ty); }
+      g.fillStyle = dim(n) ? "rgba(255,255,255,.18)" : big ? "rgba(255,255,255,.95)" : "rgba(255,255,255,.78)";
+      g.fillText(t, n.x, ty);
+    }
+    g.restore();
+  };
+
+  /* ---- the loop: settle, ease the camera, draw ---- */
+  /* Drawn only while something moves or changed, so a still map costs nothing. */
+  let dirty = true, seen = "";
+  const frame = () => {
+    if (!alive) return;
+    const settling = heat > .013 || !!drag;
+    if (settling) tick();
+    const e = .18, moving = Math.abs(goal.x - view.x) + Math.abs(goal.y - view.y) > .05 / view.k || Math.abs(goal.k - view.k) > .0005;
+    view.x += (goal.x - view.x) * e; view.y += (goal.y - view.y) * e; view.k += (goal.k - view.k) * e;
+    const now = `${hover?.id}|${sel?.id}|${query}|${W}x${H}`;
+    if (settling || moving || dirty || now !== seen){ draw(); dirty = false; seen = now; }
+    raf = window.requestAnimationFrame(frame);
+  };
+
+  /* ---- the card: what a click picked ---- */
+  const pick = n => {
+    sel = n;
+    card.hidden = !n; card.innerHTML = "";
+    if (!n) return;
+    const h = n.hub ? S.health[n.b.slug] : null;
+    const top = el("div","mp-c-top");
+    const dot = el("i"); dot.style.background = n.color;
+    top.append(dot, el("span",null, n.hub ? (n.b.type === "person" ? "Person" : "Folder") : n.b.name));
+    card.append(top, el("b",null, n.label));
+    if (n.hub) card.append(el("p",null, `${conceptsOf(n.b.slug).length} concepts${h ? ` · health ${fmtScore(h.score)}/10` : ""}${n.b.scope ? ` · ${n.b.scope}` : ""}`));
+    else card.append(el("p",null, `${n.c.summaryLine || "No position yet."} · ${n.c.src || 0} source${n.c.src === 1 ? "" : "s"} · ${n.deg} link${n.deg === 1 ? "" : "s"}`));
+    const acts = el("div","mp-c-acts");
+    const btn = (t, fn, cls = "") => { const x = el("button", cls, t); x.type = "button"; x.onclick = fn; acts.append(x); return x; };
+    if (n.hub){
+      btn("Open the folder", () => { shut(); openFolder(n.b); });
+      if (h) btn("Health", () => openHealthSheet(n.b));
+    } else {
+      btn("Read it", () => openBrainView(n.b, n.id));
+      if (n.bad) btn("Settle the conflict", () => settleFrom(n.id, n.b.slug), "bad");
+    }
+    card.append(acts);
+  };
+
+  /* ---- pointer: hover, drag a dot, pan, pinch, click ---- */
+  const pts = new Map(); let pinch = null, down = null;
+  const local = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  cv.addEventListener("pointerdown", e => {
+    cv.setPointerCapture(e.pointerId);
+    const p = local(e); pts.set(e.pointerId, p);
+    if (pts.size === 2){ const [a, b] = [...pts.values()]; pinch = Math.hypot(a[0] - b[0], a[1] - b[1]); drag = null; return; }
+    const n = at(...p);
+    down = { p, t: Date.now(), n, moved: false };
+    drag = n ? { n } : { pan: true, last: p };
+    cv.classList.add("grabbing");
   });
-  svg.addEventListener("pointermove", e => {
-    if (!pts.has(e.pointerId)) return;
-    pts.set(e.pointerId, [e.clientX, e.clientY]);
+  cv.addEventListener("pointermove", e => {
+    const p = local(e);
+    if (!pts.has(e.pointerId)){
+      const n = at(...p);
+      if (n !== hover){ hover = n; cv.style.cursor = n ? "pointer" : "grab"; }
+      return;
+    }
+    pts.set(e.pointerId, p);
     if (pts.size === 2 && pinch){
       const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
-      zoom(d / pinch, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); pinch = d; return;
+      zoomAt(d / pinch, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); view.k = goal.k; view.x = goal.x; view.y = goal.y; pinch = d; return;
     }
-    const r = svg.getBoundingClientRect();
-    vb.x -= (e.clientX - last[0]) / r.width * vb.w; vb.y -= (e.clientY - last[1]) / r.height * vb.h;
-    last = [e.clientX, e.clientY];
-    setVb();
+    if (down && Math.hypot(p[0] - down.p[0], p[1] - down.p[1]) > 4) down.moved = true;
+    if (drag?.n){
+      const [wx, wy] = toWorld(...p); drag.n.x = wx; drag.n.y = wy; heat = Math.max(heat, .3);
+    } else if (drag?.pan){
+      goal.x -= (p[0] - drag.last[0]) / view.k; goal.y -= (p[1] - drag.last[1]) / view.k;
+      view.x = goal.x; view.y = goal.y; drag.last = p;
+    }
   });
   const up = e => {
     if (!pts.has(e.pointerId)) return;
     pts.delete(e.pointerId); if (pts.size < 2) pinch = null;
     if (pts.size) return;
-    svg.classList.remove("panning");
-    if (e.type === "pointerup" && start && Math.hypot(e.clientX - start[0], e.clientY - start[1]) < 5){
-      const arm = downOn?.closest?.(".mp-arm");
-      focus = arm ? (focus === arm.dataset.b ? null : arm.dataset.b) : null;
-      paintFocus();
-    }
-    start = null; downOn = null;
+    cv.classList.remove("grabbing");
+    if (e.type === "pointerup" && down && !down.moved) pick(down.n);
+    drag = null; down = null;
   };
-  svg.addEventListener("pointerup", up); svg.addEventListener("pointercancel", up);
-  veil.querySelector("#mpIn").onclick = () => zoom(1.3);
-  veil.querySelector("#mpOut").onclick = () => zoom(1 / 1.3);
-  veil.querySelector("#mpFit").onclick = () => { vb = { ...fit }; setVb(); };
+  cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+  cv.addEventListener("pointerleave", () => { if (!pts.size) hover = null; });
+  cv.addEventListener("wheel", e => { e.preventDefault(); const p = local(e); zoomAt(Math.exp(-e.deltaY * .0015), ...p); }, { passive: false });
+  cv.addEventListener("dblclick", e => { const n = at(...local(e)); if (n && !n.hub) openBrainView(n.b, n.id); else if (n) { shut(); openFolder(n.b); } });
 
-  stage.innerHTML = ""; stage.append(svg);
-  draw();
+  veil.querySelector("#mpIn").onclick = () => zoomAt(1.35);
+  veil.querySelector("#mpOut").onclick = () => zoomAt(1 / 1.35);
+  veil.querySelector("#mpFit").onclick = () => fitGoal();
+  const find = veil.querySelector("#mpFind");
+  find.oninput = () => { query = find.value.trim().toLowerCase(); };
+  find.onkeydown = e => {
+    if (e.key !== "Enter") return;
+    const n = N.find(x => query && x.label.toLowerCase().includes(query));
+    if (n){ goal.x = n.x; goal.y = n.y; goal.k = Math.max(goal.k, 1.8); pick(n); }
+  };
+
+  /* ---- size ---- */
+  const size = () => {
+    const r = stage.getBoundingClientRect();
+    dpr = Math.min(2, window.devicePixelRatio || 1); W = Math.max(1, r.width); H = Math.max(1, r.height);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.width = W + "px"; cv.style.height = H + "px";
+  };
+  const ro = new ResizeObserver(() => { size(); dirty = true; });
+  ro.observe(stage);
+  size();
+
+  build();
+  /* A first settle before the first frame, so the map opens near its shape. */
+  for (let i = 0; i < 120; i++) tick();
+  fitGoal(); Object.assign(view, goal);
+  raf = window.requestAnimationFrame(frame);
+
+  /* What the checks read: the nodes, where one sits on screen, and the camera. */
+  stage.graph = {
+    nodes: () => N.map(n => ({ id: n.id, hub: !!n.hub, r: n.r, bad: !!n.bad, label: n.label })),
+    links: () => E.filter(e => !e.hub).map(e => [e.a.id, e.b.id]),
+    screen: id => { const n = byId.get(id); return n ? toScreen(n.x, n.y) : null; },
+    lit: () => [...(litSet() || [])].map(n => n.id),
+    zoom: () => goal.k,
+  };
+
   /* A settled conflict or a new ring redraws the map where it stands. */
-  mapRepaint = () => { if (veil.isConnected) draw(); };
+  mapRepaint = () => { if (veil.isConnected){ build(); heat = Math.max(heat, .2); dirty = true; } };
 }
 
 /**
@@ -4842,9 +5025,9 @@ function openPagerSheet(pre = {}){
   const here = S.brains.find(b => b.slug === S.scope && b.type !== "personal");
   const people = S.brains.some(b => b.type === "person");
   const subjects = S.brains.some(b => b.type !== "person" && b.type !== "personal");
-  const veil = el("div","veil");
+  const veil = el("div","veil pager-veil");
   veil.innerHTML = `
-    <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet pager-sheet" role="dialog" aria-modal="true">
       <header><h3>One-pager</h3>
       <p>A summary in bullets, or a document of the type you pick.</p></header>
       <div class="f"><label id="pPickL">Built from</label>
@@ -4868,7 +5051,7 @@ function openPagerSheet(pre = {}){
         <input id="pTo" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com">
         <div class="hint">It lands in the thread as well. Leave this empty to read it there first.</div></div>
       <div id="pSlot"></div>
-      <footer><button class="ghost" id="pCancel">Cancel</button><button class="go" id="pGo">Build it</button></footer>
+      <footer><span class="pg-sum" id="pSum"></span><button class="ghost" id="pCancel">Cancel</button><button class="go" id="pGo">Build it</button></footer>
     </div>`;
   document.body.append(veil);
 
@@ -4911,7 +5094,18 @@ function openPagerSheet(pre = {}){
     veil.querySelector("#pQHint").textContent = custom
       ? "Optional: keeps the document to one subject."
       : "Leave it empty to lay out the positions as they stand.";
+    sumLater();
   };
+  /* The Build bar says what will be built, in one line, as the choices change.
+     A beat later, so every field it reads exists by then. */
+  const DOC_NAME = { quiz: "Quiz", deepdive: "Deep dive", usecase: "Use cases", other: "Custom document" };
+  const sumLater = () => queueMicrotask(() => {
+    const sum = veil.querySelector("#pSum"); if (!sum) return;
+    const names = [...picked].map(x => S.brains.find(b => b.slug === x)?.name || x);
+    const from = !names.length ? "Everything" : names.length > 2 ? `${names.length} folders` : names.join(" and ");
+    const q = veil.querySelector("#pQ").value.trim();
+    sum.textContent = [from, kind === "custom" ? DOC_NAME[doc] : "Summary", veil.querySelector("#pLang").value, q ? "on a question" : ""].filter(Boolean).join(" \u00b7 ");
+  });
   paintKind();
   veil.querySelector("#pKind").onclick = e => {
     const x = e.target.closest("button[data-k]"); if (!x) return;
@@ -4931,6 +5125,7 @@ function openPagerSheet(pre = {}){
     const names = [...picked].map(x => S.brains.find(b => b.slug === x)?.name || x);
     veil.querySelector("#pPickHint").textContent = !names.length ? "Every folder. Tick one or several to narrow it."
       : names.length > 3 ? `${names.length} folders.` : names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}.` : `${names[0]} only.`;
+    sumLater();
   };
   picker.onclick = e => {
     const head = e.target.closest(".pm-head"), chip = e.target.closest(".pm-chip");
@@ -4954,6 +5149,8 @@ function openPagerSheet(pre = {}){
   if (pre.q) veil.querySelector("#pQ").value = pre.q;
   /* The language last picked, English the first time. */
   const langI = veil.querySelector("#pLang");
+  langI.onchange = sumLater;
+  veil.querySelector("#pQ").addEventListener("input", sumLater);
   try { const l = localStorage.getItem("octopus.pagerLang"); if (l && [...langI.options].some(o => o.value === l)) langI.value = l; } catch {}
   setTimeout(() => veil.querySelector("#pQ").focus(), 30);
 

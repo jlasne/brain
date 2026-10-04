@@ -1047,6 +1047,7 @@ route("/api/health", async (ctx, _req, b) => {
 });
 
 /** The links between concepts of different brains, each pair once, for the map. */
+/** Every link between two concepts, inside a folder and across folders, for the map. */
 route("/api/map", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   const { cards } = await loadSpace(ctx, who.space);
@@ -1056,7 +1057,7 @@ route("/api/map", async (ctx, _req, b) => {
     const from = `${c.brain}/${c.slug}`;
     for (const r of c.related ?? []) {
       const to = linkId(String(r), c.brain);
-      if (!known.has(to) || to.split("/")[0] === c.brain) continue;
+      if (!known.has(to) || to === from) continue;
       const key = [from, to].sort().join("|");
       if (seen.has(key)) continue;
       seen.add(key); links.push([from, to]);

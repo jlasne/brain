@@ -2,26 +2,32 @@
  * A brain's health, out of 10, measured against the best brain of its space.
  * No model call.
  *
- * Four parts, each read as a share of the brain that does best on it:
+ * Five parts, each read as a share of the brain that does best on it:
  *
  *   Variety    3  named authors behind it. A person brain skips it: many
  *                 videos from one channel is how a person brain is fed.
  *   Depth      3  share of its concepts backed by two sources or more.
  *   Freshness  2  how recent its last source is.
  *   Conflicts  2  open conflicts for its size, fewer is better.
+ *   Tidiness   2  concepts to tidy for its size: titles near twins of each
+ *                 other, titles not in English, positions empty or a note
+ *                 about the filing. Fewer is better.
  *
- * A person brain's three parts are scaled to 10, so both kinds compare. The
+ * A person brain's other parts are scaled to 10, so both kinds compare. The
  * totals are then scaled so the best brain reads 10 and every other reads
- * against it. An unknown author counts for nothing. Each score comes with the
- * move that closes the widest gap to the best.
+ * against it. An unknown author counts for nothing. Each score comes with one
+ * move: settle the open conflicts first, then tidy, then close the widest gap
+ * to the best.
  */
 
-import { knownAuthor } from "./drop";
+import { knownAuthor, looksForeign } from "./drop";
+import { needsPosition } from "./tidy";
+import { keywords, stem } from "./words";
 
 const DAY = 86400000;
-const WEIGHT = { variety: 3, depth: 3, fresh: 2, conflicts: 2 } as const;
+const WEIGHT = { variety: 3, depth: 3, fresh: 2, conflicts: 2, tidy: 2 } as const;
 type Key = keyof typeof WEIGHT;
-const KEYS: Key[] = ["variety", "depth", "fresh", "conflicts"];
+const KEYS: Key[] = ["variety", "depth", "fresh", "conflicts", "tidy"];
 
 export type Part = {
   /* Counted for this brain: variety is not, for a person. */
@@ -46,6 +52,30 @@ const named = (a: any) => knownAuthor(a) && !/^unnamed\b/i.test(String(a).trim()
 const authorKey = (a: any) => String(a).split(/[(,;]/)[0].trim().toLowerCase();
 const plural = (n: number, one: string, many = one + "s") => `${n} ${n === 1 ? one : many}`;
 const ago = (d: number) => d === 0 ? "today" : `${plural(d, "day")} ago`;
+const messLine = (m: { twins: number; foreign: number; empty: number }) => [
+  m.twins ? `${plural(m.twins, "pair")} of titles near twins` : "",
+  m.foreign ? `${plural(m.foreign, "title")} not in English` : "",
+  m.empty ? `${plural(m.empty, "concept")} with no position` : "",
+].filter(Boolean).join(", ");
+
+/**
+ * What a brain holds that Tidy would fix, without a model: pairs of titles
+ * sharing most of their words, titles not in English, and positions empty or
+ * a note about the filing.
+ */
+export function messOf(cs: any[]) {
+  const words = cs.map((c: any) => new Set(keywords(String(c.title ?? "")).map(stem)));
+  let twins = 0;
+  for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) {
+    const a = words[i], b = words[j];
+    if (a.size < 2 || b.size < 2) continue;
+    let both = 0; for (const w of a) if (b.has(w)) both++;
+    if (both >= 2 && both / (a.size + b.size - both) >= 0.6) twins++;
+  }
+  const foreign = cs.filter((c: any) => looksForeign(String(c.title ?? ""))).length;
+  const empty = cs.filter(needsPosition).length;
+  return { twins, foreign, empty, total: twins + foreign + empty };
+}
 
 export function healthOf(brains: any[], cards: any[], sources: any[], open: Map<string, number>, now = Date.now()): Health[] {
   /* What each brain holds, and how good each part is, higher better. */
@@ -58,9 +88,10 @@ export function healthOf(brains: any[], cards: any[], sources: any[], open: Map<
     const last = own.map((s: any) => String(s.stored || s.date || "")).filter(d => /^\d{4}-\d\d-\d\d/.test(d)).sort().pop();
     const days = last ? Math.max(0, Math.floor((now - Date.parse(last.slice(0, 10))) / DAY)) : null;
     const nOpen = open.get(b.slug) ?? 0;
+    const mess = messOf(cs);
     const person = b.type === "person";
     return {
-      b, person, authors, share, days, nOpen, concepts: cs.length, unsigned: own.length - own.filter((s: any) => named(s.author)).length,
+      b, person, authors, share, days, nOpen, mess, concepts: cs.length, unsigned: own.length - own.filter((s: any) => named(s.author)).length,
       g: {
         variety: person ? 0 : authors,
         depth: share,
@@ -68,6 +99,8 @@ export function healthOf(brains: any[], cards: any[], sources: any[], open: Map<
         fresh: days == null ? 0 : 1 / (1 + days / 14),
         /* One open conflict per ten concepts reads half as calm as none. */
         conflicts: cs.length ? 1 / (1 + 10 * nOpen / cs.length) : 0,
+        /* One concept to tidy per ten reads half as tidy as none. */
+        tidy: cs.length ? 1 / (1 + 10 * mess.total / cs.length) : 0,
       } as Record<Key, number>,
     };
   });
@@ -109,6 +142,8 @@ export function healthOf(brains: any[], cards: any[], sources: any[], open: Map<
       conflicts: { counted: true, pct: pct("conflicts"),
         say: (x.nOpen ? `${plural(x.nOpen, "open conflict")} in ${plural(x.concepts, "concept")}` : x.concepts ? "No open conflict" : "No concept yet") +
              (x.nOpen && bestOf("conflicts") ? `. Best: ${leadName("conflicts")}, ${lead.conflicts.x!.nOpen || "none"} open` : "") },
+      tidy: { counted: true, pct: pct("tidy"),
+        say: !x.concepts ? "No concept yet" : x.mess.total ? `${plural(x.mess.total, "thing")} to tidy: ${messLine(x.mess)}` : "Nothing to tidy" },
     };
 
     /* The move that closes the widest gap to the best. */
@@ -119,8 +154,12 @@ export function healthOf(brains: any[], cards: any[], sources: any[], open: Map<
       depth: () => `Back more concepts with a second source: ${Math.round(x.share * 100)}% here, ${Math.round(lead.depth.x!.share * 100)}% in ${leadName("depth")}.`,
       fresh: () => x.days == null ? "Add a first source." : `Add a source: the last one is ${plural(x.days, "day")} old, ${lead.fresh.x!.days} in ${leadName("fresh")}.`,
       conflicts: () => `Settle the ${plural(x.nOpen, "open conflict")}.`,
+      tidy: () => `Tidy it: ${messLine(x.mess)}.`,
     };
-    const first = gaps.find(([, k]) => k !== "conflicts" ? bestOf(k) : x.nOpen);
+    /* Upkeep comes first: a clash to settle, then something to tidy. Both
+       are in reach today, where a new source or author takes finding. */
+    const upkeep: Key | null = x.nOpen ? "conflicts" : x.mess.total ? "tidy" : null;
+    const first = upkeep ? [0, upkeep] as [number, Key] : gaps.find(([, k]) => bestOf(k));
     return {
       slug: x.b.slug, score, top: topRaw > 0 && raw[i] === topRaw, person: x.person, parts, open: x.nOpen,
       best: x.days == null ? "Add a first source."

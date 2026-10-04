@@ -186,7 +186,7 @@ async function boot(path, init, arg) {
   const ph = await page.getAttribute("#input", "placeholder");
   check("the content box says a transcript is pasted there", /transcript/.test(ph || ""), ph);
   const read = async (src, content) => {
-    await page.fill("#srcInput", src);
+    await page.focus("#input"); await page.fill("#srcInput", src);
     await page.fill("#input", content);
     await page.waitForTimeout(40);
     return await page.evaluate(() => ({
@@ -218,7 +218,7 @@ async function boot(path, init, arg) {
   /* ---- the brain picker ---- */
   const face = await page.evaluate(() => document.getElementById("scopeBtn").textContent.replace(/\s+/g, " ").trim());
   check("the picker names where a question goes, with no label in front", face === "All folders", face);
-  await page.click("#scopeBtn");
+  await page.focus("#input"); await page.click("#scopeBtn");
   const menu = await page.evaluate(() => ({
     rows: [...document.querySelectorAll(".pick-menu .pk-row .pk-nm")].map(x => x.firstChild.textContent),
     heads: [...document.querySelectorAll(".pick-menu .pk-h")].map(x => x.textContent),
@@ -230,9 +230,9 @@ async function boot(path, init, arg) {
   await page.click(".pick-menu .pk-row >> nth=1");
   const picked = await page.evaluate(() => ({ val: document.getElementById("scopeVal").textContent, open: !!document.querySelector(".pick-menu") }));
   check("picking a brain names it and closes the menu", picked.val === "Content" && !picked.open, JSON.stringify(picked));
-  await page.click("#scopeBtn"); await page.keyboard.press("Escape");
+  await page.focus("#input"); await page.click("#scopeBtn"); await page.keyboard.press("Escape");
   check("Escape closes the menu", !(await page.$(".pick-menu")));
-  await page.click("#scopeBtn"); await page.click(".pick-menu .pk-row >> nth=0");
+  await page.focus("#input"); await page.click("#scopeBtn"); await page.click(".pick-menu .pk-row >> nth=0");
   const top = await page.evaluate(() => {
     const acts = [...document.querySelectorAll("aside .side-acts button")].map(b => b.id + ":" + b.textContent.trim()).join(",");
     const panels = [...document.querySelectorAll("aside .panel")].map(p => p.id + ":" + p.querySelector(".fold-t").textContent.replace(/\s+/g, " ").trim().split(" ")[0]).join(",");
@@ -243,7 +243,7 @@ async function boot(path, init, arg) {
     && await page.evaluate(() => document.getElementById("startBtn").classList.contains("go") && !document.getElementById("dropBtn").classList.contains("go")), top.acts);
   check("then Chats and Folders, each a list of its own, and no Projects", top.panels === "chatsPanel:Chats,brainsPanel:Folders" && top.gone
     && !(await page.$("#projectsPanel")), top.panels);
-  check("a new chat and a new folder are the + of their list", top.plus === "newChat,newBrain", top.plus);
+  check("New chat on top is the one way to start a chat; Folders keeps its +", top.plus === "newBrain", top.plus);
   await page.click("#chatsFold");
   check("a list folds", await page.evaluate(() => document.getElementById("chatsBox").hidden));
   await page.click("#chatsFold");
@@ -662,7 +662,7 @@ for (const kind of ["study", "argument"]) {
     };
   }, [STATE, kind]);
   await page.evaluate(() => document.getElementById("dropBtn").click());
-  await page.fill("#srcInput", "Accounting basics.pdf");
+  await page.focus("#input"); await page.fill("#srcInput", "Accounting basics.pdf");
   await page.fill("#input", "Five rules, each explained.");
   await page.click("#send"); await page.waitForTimeout(500);
   const r = await page.evaluate(() => ({
@@ -720,7 +720,7 @@ for (const kind of ["study", "argument"]) {
     };
   }, STATE);
   await page.evaluate(() => document.getElementById("dropBtn").click());
-  await page.fill("#srcInput", "Long manual.pdf");
+  await page.focus("#input"); await page.fill("#srcInput", "Long manual.pdf");
   await page.fill("#input", "Sixty rules, each explained.");
   await page.evaluate(() => { window.__titles = []; new MutationObserver(() => window.__titles.push(document.title))
     .observe(document.querySelector("title"), { childList: true, characterData: true, subtree: true }); });
@@ -798,7 +798,7 @@ for (const kind of ["study", "argument"]) {
     };
   }, STATE);
   await page.evaluate(() => document.getElementById("dropBtn").click());
-  await page.fill("#srcInput", "Accounting basics.pdf");
+  await page.focus("#input"); await page.fill("#srcInput", "Accounting basics.pdf");
   await page.fill("#input", "Accruals explained.");
   await page.click("#send"); await page.waitForTimeout(300);
   const offered = await page.evaluate(() => [...document.querySelectorAll(".msg.ai button")].map(b => b.textContent));
@@ -835,7 +835,7 @@ for (const kind of ["study", "argument"]) {
     };
   }, STATE);
   await page.evaluate(() => document.getElementById("dropBtn").click());
-  await page.fill("#srcInput", "Ziggy case.pdf");
+  await page.focus("#input"); await page.fill("#srcInput", "Ziggy case.pdf");
   await page.fill("#input", "A hedging case study.");
   await page.click("#send"); await page.waitForTimeout(700);
   const note = await page.evaluate(() => document.querySelector(".coverage")?.textContent || "");
@@ -871,7 +871,7 @@ for (const kind of ["study", "argument"]) {
     };
   }, held);
   await page.evaluate(() => document.getElementById("dropBtn").click());
-  await page.fill("#srcInput", "Guide.pdf");
+  await page.focus("#input"); await page.fill("#srcInput", "Guide.pdf");
   await page.fill("#input", "Chapter one. The licence is at https://creativecommons.org/licenses/by/4.0/ and applies.");
   await page.click("#send"); await page.waitForTimeout(6000);
   const got = await page.evaluate(() => ({ checks: window.__checks, reads: window.__reads,
@@ -933,7 +933,7 @@ for (const kind of ["study", "argument"]) {
     };
   }, STATE);
   await page.evaluate(() => document.getElementById("dropBtn").click());
-  await page.fill("#srcInput", "Big manual.pdf");
+  await page.focus("#input"); await page.fill("#srcInput", "Big manual.pdf");
   await page.fill("#input", "Two hundred fifty rules.");
   await page.click("#send"); await page.waitForTimeout(1500);
   const r = await page.evaluate(() => ({ plans: window.__plans, peak: window.__peak, merge: window.__merge,
@@ -981,7 +981,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     };
   }, [held, found]);
   await page.evaluate(() => document.getElementById("dropBtn").click());
-  await page.fill("#srcInput", found === "youtube" ? "https://youtu.be/goldTalk42" : "Offers talk");
+  await page.focus("#input"); await page.fill("#srcInput", found === "youtube" ? "https://youtu.be/goldTalk42" : "Offers talk");
   await page.fill("#input", "Stack the offer until saying no feels stupid.");
   /* The tab is looked away from while it works. */
   if (found === "") await page.evaluate(() => { window.__hidden = true; Object.defineProperty(document, "hidden", { get: () => window.__hidden, configurable: true }); });
@@ -1074,7 +1074,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     box: getComputedStyle(document.querySelector("#brains .brain-row.on .tbox")).display, go: document.getElementById("sideGo").textContent }));
   check("a second click ticks a second folder, and both are asked", two.on === "Content:true,Health:true" && two.val === "Content +1"
     && two.ph === "Ask Content and Health.", JSON.stringify(two));
-  check("a ticked row shows its box, and the phone button counts them", two.box !== "none" && two.go === "Chat in 2 folders", JSON.stringify(two));
+  check("a ticked row shows its box, and the phone's Done counts them", two.box !== "none" && two.go === "Done · 2 folders ticked", JSON.stringify(two));
   await page.fill("#input", "What holds across both?"); await page.click("#send"); await page.waitForTimeout(200);
   const asked = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/ask")).map(c => c.body).pop());
   check("the question travels with the two folders ticked", asked && asked.brain === "all" && (asked.brains || []).join(",") === "content,health", JSON.stringify(asked));
@@ -1262,7 +1262,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("a question asked there continues that chat, with its thread", cont.chat === "k1" && cont.brain === "content"
     && cont.history.length === 2 && cont.history[1].q === "And since 2001?", JSON.stringify(cont));
 
-  await page.click("#newChat"); await page.waitForTimeout(100);
+  await page.evaluate(() => document.getElementById("startBtn").click()); await page.waitForTimeout(100);
   await page.fill("#input", "What is a hook?");
   await page.click("#send"); await page.waitForTimeout(400);
   const fresh = await page.evaluate(() => ({ sent: window.__asks.at(-1), rows: document.querySelectorAll("#chats .chat-row").length,
@@ -1298,7 +1298,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click("#chats .chat-row >> nth=1 >> .nm"); await page.waitForTimeout(200);
   const asksBefore = await page.evaluate(() => window.__asks.length);
   await page.evaluate(() => document.getElementById("dropBtn").click());
-  await page.fill("#srcInput", "https://example.com/a-post");
+  await page.focus("#input"); await page.fill("#srcInput", "https://example.com/a-post");
   await page.click("#send"); await page.waitForTimeout(300);
   const dropped = await page.evaluate(() => ({ chat: document.getElementById("thread").hidden,
     here: [...document.querySelectorAll("#dropThread .msg.me .body")].some(b => /a-post/.test(b.textContent)),
@@ -1373,7 +1373,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       if (s.includes("/api/state")) return Response.json(state);
       if (s.includes("/api/health")) return Response.json({ conflicted: ["content/offer"], health: [
         { slug: "content", score: 8, open: 1, best: "x", parts: {} }, { slug: "gave", score: 3, open: 0, best: "y", parts: {} }] });
-      if (s.includes("/api/map")) return Response.json({ links: [["content/offer", "gave/gold"]] });
+      if (s.includes("/api/map")) return Response.json({ links: [["content/offer", "gave/gold"], ["content/offer", "content/brand"]] });
       if (s.includes("/api/concept")) return Response.json({ concept: { brain: "content", slug: "offer", n: 1, title: "Offer first", summaryLine: "S.",
         position: "P.", evidence: [], data: [], conflicts: [], sources: [], related: [] } });
       if (s.includes("/api/conflicts")) return Response.json({ others: 0, conflicts: [
@@ -1383,41 +1383,52 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   }, two);
   await page.waitForTimeout(200);
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
-  await page.click("#setMap"); await page.waitForTimeout(400);
-  const drawn = await page.evaluate(() => ({ arms: document.querySelectorAll(".mp-arm").length, person: document.querySelectorAll(".mp-arm.person").length,
-    suckers: [...document.querySelectorAll(".mp-sk")].map(c => c.dataset.id + ":" + c.getAttribute("r")), links: document.querySelectorAll(".mp-link").length,
-    dots: [...document.querySelectorAll(".mp-cf")].map(c => c.dataset.id), names: [...document.querySelectorAll(".mp-name")].map(t => t.textContent),
-    n: document.getElementById("mpN").textContent, head: document.querySelector(".mapbox image")?.getAttribute("href") }));
-  check("the map draws an arm per brain, a sucker per concept, the link and the conflict", drawn.arms === 2 && drawn.person === 1
-    && drawn.suckers.length === 3 && drawn.links === 1 && JSON.stringify(drawn.dots) === '["content/offer"]'
-    && drawn.names.join("|") === "Content|Charles Gave" && /2 brains · 3 concepts · 1 link between brains · 1 with an open conflict/.test(drawn.n)
-    && /logo-mark/.test(drawn.head || ""), JSON.stringify(drawn));
-  const r = Object.fromEntries(drawn.suckers.map(x => x.split(":")));
-  check("a sucker grows with its sources", Number(r["content/offer"]) > Number(r["content/brand"]), JSON.stringify(r));
+  await page.click("#setMap"); await page.waitForTimeout(600);
+  const G = () => page.evaluate(() => { const g = document.querySelector("#mpStage").graph;
+    return { nodes: g.nodes(), links: g.links(), zoom: g.zoom(), lit: g.lit(), n: document.getElementById("mpN").textContent }; });
+  const drawn = await G();
+  const node = id => drawn.nodes.find(x => x.id === id);
+  check("the map draws a node per folder and a dot per concept, on a canvas", !!(await page.$("#mpCanvas"))
+    && drawn.nodes.filter(x => x.hub).map(x => x.label).join("|") === "Content|Charles Gave" && drawn.nodes.filter(x => !x.hub).length === 3, JSON.stringify(drawn.nodes));
+  check("with every link, inside a folder and between folders, and the count of each",
+    drawn.links.length === 2 && /2 folders · 3 concepts · 2 links, 1 between folders · 1 with an open conflict/.test(drawn.n), JSON.stringify(drawn));
+  check("a dot grows with its sources, and an open conflict is marked", node("content/offer").r > node("content/brand").r
+    && node("content/offer").bad && !node("content/brand").bad, JSON.stringify(drawn.nodes));
 
-  await page.hover('.mp-sk[data-id="content/offer"]');
-  check("pointing at a sucker lights its links", await page.evaluate(() => document.querySelector(".mp-link").classList.contains("hot")));
-  const fitBefore = await page.evaluate(() => document.querySelector(".mapbox svg").getAttribute("viewBox"));
-  await page.click("#mpIn");
-  const zoomed = await page.evaluate(() => document.querySelector(".mapbox svg").getAttribute("viewBox"));
-  await page.click("#mpFit");
-  check("zoom in narrows the view and Fit brings it back", zoomed !== fitBefore
-    && Number(zoomed.split(" ")[2]) < Number(fitBefore.split(" ")[2])
-    && (await page.evaluate(() => document.querySelector(".mapbox svg").getAttribute("viewBox"))) === fitBefore, `${fitBefore} -> ${zoomed}`);
+  /* Pointing at a dot lights it and its neighbours. */
+  const spot = async id => { const [x, y] = await page.evaluate(i => document.querySelector("#mpStage").graph.screen(i), id);
+    const r = await page.evaluate(() => { const b = document.getElementById("mpCanvas").getBoundingClientRect(); return [b.left, b.top]; });
+    return [r[0] + x, r[1] + y]; };
+  const [ox, oy] = await spot("content/offer");
+  await page.mouse.move(ox, oy); await page.waitForTimeout(120);
+  const lit = (await G()).lit.sort().join(",");
+  check("pointing at a dot lights it, its folder and its neighbours", lit === "@content,content/brand,content/offer,gave/gold", lit);
+  const z0 = (await G()).zoom;
+  await page.click("#mpIn"); const z1 = (await G()).zoom;
+  await page.click("#mpFit"); const z2 = (await G()).zoom;
+  check("zoom in narrows the view and Fit brings it back", z1 > z0 && Math.abs(z2 - z0) < 0.02, `${z0} -> ${z1} -> ${z2}`);
+  await page.waitForTimeout(500);
 
-  await page.evaluate(() => document.querySelector('.mp-sk[data-id="content/offer"]').dispatchEvent(new MouseEvent("click", { bubbles: true })));
-  await page.waitForTimeout(250);
-  check("a sucker opens its concept, over the map", await page.evaluate(() => !!document.querySelector(".viewer") && !!document.querySelector(".mapbox")));
+  /* A click picks it: a card to read it, or settle its conflict. */
+  const [cx, cy] = await spot("content/offer");
+  await page.mouse.click(cx, cy); await page.waitForTimeout(200);
+  const cardSeen = await page.evaluate(() => ({ hidden: document.getElementById("mpCard").hidden, title: document.querySelector("#mpCard b")?.textContent,
+    acts: [...document.querySelectorAll("#mpCard button")].map(b => b.textContent) }));
+  check("a click opens the dot's card, with Read it and Settle the conflict", !cardSeen.hidden && cardSeen.title === "Offer first"
+    && cardSeen.acts.join("|") === "Read it|Settle the conflict", JSON.stringify(cardSeen));
+  await page.click("#mpCard button >> nth=0"); await page.waitForTimeout(250);
+  check("Read it opens the concept, over the map", await page.evaluate(() => !!document.querySelector(".viewer") && !!document.querySelector(".mapbox")));
   await page.keyboard.press("Escape"); await page.waitForTimeout(100);
   check("Escape closes the concept first, the map stays", await page.evaluate(() => !document.querySelector(".viewer") && !!document.querySelector(".mapbox")));
 
-  await page.evaluate(() => document.querySelector(".mp-cf").dispatchEvent(new MouseEvent("click", { bubbles: true })));
-  await page.waitForTimeout(300);
+  await page.click("#mpCard button >> nth=1"); await page.waitForTimeout(300);
   const deck = await page.evaluate(() => ({ title: document.querySelector(".dk-card h4")?.textContent }));
-  check("a red dot opens the swipe deck on that conflict", deck.title === "Offer first", JSON.stringify(deck));
+  check("Settle the conflict opens the swipe deck on it", deck.title === "Offer first", JSON.stringify(deck));
   await page.keyboard.press("Escape"); await page.waitForTimeout(100);
   await page.keyboard.press("Escape"); await page.waitForTimeout(100);
-  check("Escape then closes the map", !(await page.$(".mapbox")));
+  check("Escape clears the card, then a second one closes the map", !!(await page.$(".mapbox")) && await page.evaluate(() => document.getElementById("mpCard").hidden));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+  check("and the map is gone", !(await page.$(".mapbox")));
   check("nothing threw on the map", !bad.length, bad.join(" | "));
   await page.close();
 }
@@ -1613,11 +1624,11 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     window.fetch = async u => String(u).includes("/api/state") ? Response.json(state) : Response.json({ chats: [] });
   }, demo);
   await page.waitForTimeout(250);
-  await page.click("#scopeBtn"); await page.waitForTimeout(80);
+  await page.focus("#input"); await page.click("#scopeBtn"); await page.waitForTimeout(80);
   const ask = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-nm")].map(x => x.firstChild.textContent).join("|"));
   await page.keyboard.press("Escape");
   await page.evaluate(() => document.getElementById("dropBtn").click()); await page.waitForTimeout(80);
-  await page.click("#scopeBtn"); await page.waitForTimeout(80);
+  await page.focus("#input"); await page.click("#scopeBtn"); await page.waitForTimeout(80);
   const feed = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-nm")].map(x => x.firstChild.textContent).join("|"));
   check("the demo asks across a shared brain and only offers its own to feed", /Wealth/.test(ask) && /Health/.test(ask) && /Health/.test(feed) && !/Wealth/.test(feed), JSON.stringify({ ask, feed }));
   check("and its row says it is read only here", await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].some(r => /Read only here/.test(r.title))));
@@ -1765,7 +1776,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("a draft keeps it open", !(await bar()).c);
   await page.fill("#input", ""); await page.evaluate(() => document.activeElement?.blur()); await page.waitForTimeout(250);
   check("and empty, it folds again", (await bar()).c);
-  await page.click(".composer .box"); await page.click("#scopeBtn"); await page.waitForTimeout(250);
+  await page.click(".composer .box"); await page.focus("#input"); await page.click("#scopeBtn"); await page.waitForTimeout(250);
   check("its folder menu keeps it open", !(await bar()).c && await page.isVisible(".pick-menu"));
   await page.keyboard.press("Escape"); await page.waitForTimeout(100);
 
@@ -1888,7 +1899,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent)).click());
   await page.waitForTimeout(80);
   check("leaving the personal chat brings the levels back", await page.evaluate(() => !document.getElementById("levelWrap").hidden && document.getElementById("memBtn").hidden));
-  await page.evaluate(() => document.getElementById("dropBtn").click()); await page.click("#scopeBtn"); await page.waitForTimeout(80);
+  await page.evaluate(() => document.getElementById("dropBtn").click()); await page.focus("#input"); await page.click("#scopeBtn"); await page.waitForTimeout(80);
   const rows = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-nm")].map(x => x.textContent));
   check("a drop never offers the personal brain", !rows.some(r => /^Me/.test(r)) && rows.some(r => /Content/.test(r)), JSON.stringify(rows));
   await page.keyboard.press("Escape"); await page.evaluate(() => document.body.click());
@@ -2007,7 +2018,7 @@ for (const space of ["octopus", "squidgy"]) {
     };
   }, STATE);
   await page.evaluate(() => document.getElementById("dropBtn").click());
-  await page.fill("#srcInput", "Big course.pdf");
+  await page.focus("#input"); await page.fill("#srcInput", "Big course.pdf");
   /* 20,000 characters in paragraphs: an 18,000 pass that must split, and a 2,000 one. */
   await page.fill("#input", Array.from({ length: 100 }, (_, i) => `Paragraph ${i} ` + "word ".repeat(38)).join("\n\n"));
   await page.click("#send"); await page.waitForTimeout(2500);
@@ -2043,7 +2054,7 @@ for (const space of ["octopus", "squidgy"]) {
     };
   }, three);
   await page.evaluate(() => document.getElementById("dropBtn").click());
-  await page.click("#scopeBtn");
+  await page.focus("#input"); await page.click("#scopeBtn");
   const first = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-box")].length);
   check("dropping, each brain can be ticked", first === 3, String(first));
   await page.click('.pick-menu .pk-row:has-text("Wealth")');
@@ -2054,7 +2065,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("its button says how many will be fed", face.done === "Feed 2 folders", face.done);
   await page.click(".pick-menu .pk-done");
   check("Done closes the menu", !(await page.$(".pick-menu")));
-  await page.fill("#srcInput", "Gold note");
+  await page.focus("#input"); await page.fill("#srcInput", "Gold note");
   await page.fill("#input", "Gold keeps its value.");
   await page.click("#send"); await page.waitForTimeout(700);
   const sent = await page.evaluate(() => window.__plan);
@@ -2102,15 +2113,18 @@ for (const space of ["octopus", "squidgy"]) {
   check("every composer button reaches 40px", !r.short.length, r.short.join(","));
   check("the send button stays on screen in Drop", r.sendIn);
 
-  /* Ask: the levels sit on a row of their own, every button on screen. */
-  await page.click("#dropClose"); await page.waitForTimeout(100);
+  /* Ask: the levels share the folder's row, every button on screen. The bar
+     opens with a short rise, so it is measured once that has played. */
+  await page.click("#dropClose"); await page.waitForTimeout(450);
   const lv = await page.evaluate(() => {
     const W = document.documentElement.clientWidth, c = document.querySelector(".ctrls");
     const mode = document.getElementById("scopeBtn").getBoundingClientRect(), wrap = document.getElementById("levelWrap").getBoundingClientRect();
     return { W, off: [...document.querySelectorAll("#level button, #scopeBtn")].filter(b => {
         const r = b.getBoundingClientRect(); return r.left < 0 || r.right > W; }).map(b => b.dataset.v || b.id || b.textContent.trim()),
       scrolls: c.scrollWidth > c.clientWidth + 1, row: Math.abs(wrap.top - mode.top) < 6, wide: Math.round(wrap.width),
-      tall: [...document.querySelectorAll("#level button")].every(b => b.getBoundingClientRect().height >= 40) };
+      tall: [...document.querySelectorAll("#level button")].every(b => b.getBoundingClientRect().height >= 40),
+      hs: [...document.querySelectorAll("#level button")].map(b => Math.round(b.getBoundingClientRect().height)).join(","),
+      open: !document.querySelector(".composer-wrap").classList.contains("compact") };
   });
   check("on a phone the folder and the level share one row in the bar, every button on screen", !lv.off.length && !lv.scrolls && lv.row && lv.tall,
     JSON.stringify(lv));
