@@ -1821,6 +1821,58 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
+/* ---- the graph: kinds of link, what follows, topics, the learning path ---- */
+{
+  const st = { ...STATE, brains: [...STATE.brains, { slug: "macro", name: "Macro", type: "subject", scope: "m" }],
+    concepts: [
+      { brain: "content", slug: "holding", n: 1, title: "Holding cost", summaryLine: "What a unit costs to keep." },
+      { brain: "content", slug: "ordering", n: 2, title: "Ordering cost", summaryLine: "What an order costs to place." },
+      { brain: "content", slug: "eoq", n: 3, title: "Economic order quantity", summaryLine: "The order size that costs least.",
+        kinds: [{ to: "content/holding", type: "needs" }, { to: "content/ordering", type: "needs" }] },
+      { brain: "content", slug: "safety", n: 4, title: "Safety stock", summaryLine: "Stock held against surprises.", kinds: [{ to: "content/eoq", type: "needs" }] },
+      { brain: "macro", slug: "rates", n: 1, title: "Interest rates", summaryLine: "The price of money." }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test"); window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/topics")) return Response.json({ topics: [{ title: "Order costs", summary: "What ordering and holding stock cost.", members: ["content/holding", "content/ordering", "content/eoq"] }] });
+      if (s.includes("/api/concept")) return Response.json({
+        concept: { brain: "content", slug: "eoq", title: "Economic order quantity", position: "EOQ balances ordering and holding costs.", summaryLine: "",
+          evidence: [], data: [], conflicts: [], sources: [], related: ["content/holding", "content/ordering", "macro/rates"],
+          kinds: [{ to: "content/holding", type: "needs" }, { to: "content/ordering", type: "needs" }, { to: "macro/rates", type: "causes" }] },
+        insights: [{ a: "content/eoq", b: "macro/rates", type: "causes", title: "Higher rates shrink orders", text: "Holding cost carries the interest rate, so a rate rise lowers the EOQ." }] });
+      return Response.json({ chats: [], conflicts: [], others: 0, health: [] });
+    };
+  }, st);
+  await page.waitForTimeout(200);
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Content/.test(r.textContent))?.querySelector(".ed.op")?.click());
+  await page.waitForTimeout(300);
+  const tops = await page.evaluate(() => [...document.querySelectorAll(".fv-top")].map(x => x.textContent).join("|"));
+  check("a folder shows its topics above its concepts", tops === "All|Order costs3", tops);
+  await page.click('.fv-top:has-text("Order costs")'); await page.waitForTimeout(100);
+  const rows = await page.evaluate(() => ({ rows: [...document.querySelectorAll(".fv-row b")].map(x => x.textContent).sort().join("|"), line: document.querySelector(".fv-topline").textContent }));
+  check("a topic narrows the list to its concepts and says what it holds", rows.rows === "Economic order quantity|Holding cost|Ordering cost"
+    && rows.line === "What ordering and holding stock cost.", JSON.stringify(rows));
+
+  await page.click('.fv-row:has-text("Economic order quantity")'); await page.waitForTimeout(300);
+  const pane = await page.evaluate(() => ({
+    first: [...document.querySelectorAll(".fv-first .vw-link")].map(x => x.textContent).join("|"),
+    links: [...document.querySelectorAll(".fv-links .vw-link")].map(x => x.textContent).join("|"),
+    ins: document.querySelector(".ins b")?.textContent, note: document.querySelector(".ins-note")?.textContent }));
+  check("a concept says what to learn first", pane.first === "Holding cost|Ordering cost", pane.first);
+  check("each link says what it is, and a link to another folder names it", /needsHolding cost/.test(pane.links) && /causesInterest rates · Macro/.test(pane.links)
+    && /thenSafety stock/.test(pane.links), pane.links);
+  check("what follows is shown, marked as drawn by Tasu, not a source", pane.ins === "Higher rates shrink orders" && /not a source/.test(pane.note || ""), JSON.stringify(pane));
+
+  await page.click("#fvPath"); await page.waitForTimeout(200);
+  const path = await page.evaluate(() => [...document.querySelectorAll(".lp-step")].map(s => s.querySelector(".lp-n").textContent + ":" + [...s.querySelectorAll(".lp-row b")].map(b => b.textContent).join(",")));
+  check("the learning path reads foundations first, each step after what it needs", JSON.stringify(path) ===
+    JSON.stringify(["Step 1 · Foundations:Holding cost,Ordering cost", "Step 2:Economic order quantity", "Step 3:Safety stock"]), JSON.stringify(path));
+  check("nothing threw on the graph", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- the side panel: Chats and Folders, a personal folder first ---- */
 {
   const lim = { ...STATE, full: undefined, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "What I say", owner: null },

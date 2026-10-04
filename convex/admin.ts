@@ -13,10 +13,11 @@ import { internalMutation, internalQuery, internalAction } from "./_generated/se
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { today, sha256, randomHex, gateKey, readSpace, slugOfName, SPACE_RE, SPACES, ask, parseJson } from "./lib";
-import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle } from "./words";
+import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle, kindsOf } from "./words";
 import { syncCard, writeMode, mergeInto } from "./store";
 import { loadSpace } from "./space";
 import { rederive, needsPosition, REDERIVE_MAX } from "./tidy";
+import { embedConcepts, nearest, writeInsights, buildTopics } from "./graph";
 
 /**
  * Turn every waiting candidate into a position.
@@ -332,13 +333,16 @@ async function spaceOf(ctx: any, space: string) {
  * `only`, the shortlists are worked out for those concepts alone, against the
  * whole space: a drop's linking costs what it wrote, not the size of the space.
  */
-function linkWork(concepts: any[], only?: Set<string>) {
+function linkWork(concepts: any[], only?: Set<string>, near?: Map<string, string[]>) {
   const cand = linkCandidates(concepts, [], 6, 0.12, only);
   const byId = new Map(concepts.map((c: any) => [idOf(c), c]));
   return concepts.filter((c: any) => !only || only.has(idOf(c))).map((c: any) => {
+    const id = idOf(c);
     const have = new Set((c.related ?? []).map((r: string) => linkId(r, c.brain)));
-    const fresh = (cand.get(idOf(c)) ?? []).filter(x => !have.has(x.id)).map(x => byId.get(x.id));
-    return { c, cands: fresh };
+    /* The closest by meaning first, then the closest by words: eight at most. */
+    const ids = [...new Set([...(near?.get(id) ?? []), ...(cand.get(id) ?? []).map(x => x.id)])]
+      .filter(x => x !== id && !have.has(x) && byId.has(x)).slice(0, 8);
+    return { c, cands: ids.map(x => byId.get(x)) };
   }).filter(w => w.cands.length);
 }
 
@@ -445,13 +449,20 @@ function toItems(slice: any[], name: Map<any, any>) {
   }));
 }
 
-const LINK_RULES = `For each concept below, keep the candidates it truly connects to.
+const LINK_RULES = `For each concept below, keep the candidates it truly connects to, and say how.
 
 - Keep a candidate when this concept builds on it, explains it, is used together with it, is a case of it, or is weighed against it.
 - Drop a candidate that only shares words.
 - At most 4 per concept. None is a correct answer.
+- "t" says what the link is, read from this concept to the candidate:
+  "needs": this concept is understood only after the candidate (a formula needs its inputs, a method needs its definition).
+  "causes": this concept leads to or drives the candidate.
+  "supports": this concept is evidence for the candidate.
+  "contradicts": the two disagree.
+  "example": this concept is a case of the candidate.
+  "related": anything else.
 
-Reply with only JSON, concept numbers to candidate numbers: {"links":{"1":[2,3],"2":[]}}`;
+Reply with only JSON, concept numbers to candidates: {"links":{"1":[{"c":2,"t":"needs"},{"c":3,"t":"related"}],"2":[]}}`;
 
 /** Start linking, in the background. */
 export const linkAll = internalAction({
@@ -467,11 +478,11 @@ export const linkAll = internalAction({
  * The model reads each concept with its shortlist and keeps the real links,
  * which are written. Returns how many were added, or null when the call failed.
  */
-async function confirmLinks(ctx: any, items: any[]): Promise<number | null> {
+async function confirmLinks(ctx: any, items: any[]): Promise<{ added: number; pairs: { a: string; b: string; type: string }[] } | null> {
   const job = items.map((it: any, n: number) =>
     `### ${n + 1} | ${it.title} [${it.brainName}]\n${it.summary}\ncandidates:\n` +
     it.cands.map((c: any, k: number) => `  ${k + 1}) ${c.title} [${c.brainName}]: ${c.summary}`).join("\n")).join("\n\n");
-  let links: Record<string, number[]> = {};
+  let links: Record<string, any[]> = {};
   try {
     const { text } = await ask([
       { role: "system", content: "You connect the concepts of a knowledge base. You reply with JSON only." },
@@ -483,12 +494,21 @@ async function confirmLinks(ctx: any, items: any[]): Promise<number | null> {
     return null;
   }
   let added = 0;
+  const pairs: { a: string; b: string; type: string }[] = [];
+  const TYPES = ["needs", "causes", "supports", "contradicts", "example", "related"];
   for (const [n, it] of items.entries()) {
-    const keep = (links[String(n + 1)] ?? []).map((k: any) => it.cands[Number(k) - 1]?.id).filter(Boolean).slice(0, 4);
+    /* A candidate number alone, from an older reply shape, is plainly related. */
+    const keep = (Array.isArray(links[String(n + 1)]) ? links[String(n + 1)] : []).map((k: any) => {
+      const c = it.cands[Number(typeof k === "object" && k ? k.c : k) - 1];
+      const t = String(typeof k === "object" && k ? k.t : "related").toLowerCase();
+      return c ? { to: c.id, type: TYPES.includes(t) ? t : "related" } : null;
+    }).filter(Boolean).slice(0, 4) as { to: string; type: string }[];
     if (!keep.length) continue;
-    added += (await ctx.runMutation(internal.store.addRelated, { brain: it.brain, slug: it.slug, ids: keep })).added;
+    added += (await ctx.runMutation(internal.store.addRelated, { brain: it.brain, slug: it.slug, ids: keep.map(k => k.to),
+      kinds: keep.filter(k => k.type !== "related") })).added;
+    for (const k of keep) pairs.push({ a: `${it.brain}/${it.slug}`, b: k.to, type: k.type });
   }
-  return added;
+  return { added, pairs };
 }
 
 /** One batch of the whole-space run, then the next one is scheduled. */
@@ -505,7 +525,7 @@ export const linkStep = internalAction({
     if (!items.length) return await next();
     /* A failed batch skips its concepts and the run goes on. Running linkAll
        again picks them up, since only unlinked candidates are sent. */
-    const added = await confirmLinks(ctx, items);
+    const added = (await confirmLinks(ctx, items))?.added ?? null;
     console.log(added === null
       ? `linking ${a.space} batch ${a.batch + 1} failed, skipped (about ${total} left)`
       : `linking ${a.space} batch ${a.batch + 1}: ${added} links over ${items.length} concepts (about ${total} left)`);
@@ -531,15 +551,38 @@ export const linkConcepts = internalAction({
        come from the browser, and this keeps them to what the drop wrote. */
     const fed = a.sid ? new Set(concepts.filter((c: any) => (c.srcIds ?? c.sources ?? []).includes(a.sid)).map(idOf)) : null;
     const want = new Set<string>((a.ids as string[]).filter((id: string) => !fed || fed.has(id)));
-    const work = linkWork(concepts, want).sort((x, y) => idOf(x.c).localeCompare(idOf(y.c)));
     const RUN = LINK_BATCH * 4;
-    let added = 0;
-    for (let i = 0; i < Math.min(work.length, RUN); i += LINK_BATCH) {
-      added += (await confirmLinks(ctx, toItems(work.slice(i, i + LINK_BATCH), name))) ?? 0;
+    const mine = [...want].sort().slice(0, RUN);
+    /* Meaning first: what this run wrote is embedded, and the closest concepts
+       by meaning join the word shortlist. Without embeddings, words alone. */
+    const near = new Map<string, string[]>();
+    try {
+      const vecs = await embedConcepts(ctx, a.space, mine);
+      const slugs = brains.map((b: any) => b.slug);
+      for (const [id, vec] of vecs) near.set(id, (await nearest(ctx, vec, slugs, 6)).map(x => x.id).filter(x => x !== id));
+    } catch (e: any) {
+      console.log(`embeddings skipped: ${String(e?.message ?? e).slice(0, 160)}`);
     }
-    const rest = work.slice(RUN).map(w => idOf(w.c));
+    const work = linkWork(concepts, new Set(mine), near).sort((x, y) => idOf(x.c).localeCompare(idOf(y.c)));
+    let added = 0;
+    const pairs: { a: string; b: string; type: string }[] = [];
+    for (let i = 0; i < work.length; i += LINK_BATCH) {
+      const r = await confirmLinks(ctx, toItems(work.slice(i, i + LINK_BATCH), name));
+      if (r){ added += r.added; pairs.push(...r.pairs); }
+    }
+    const rest = [...want].sort().slice(RUN);
     if (rest.length) await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: a.space, ids: rest, ...(a.sid ? { sid: a.sid } : {}) });
-    console.log(`linked ${added} for ${Math.min(work.length, RUN)} concepts just stored${rest.length ? `, ${rest.length} handed on` : ""}`);
+    /* What follows from the new links across folders, then the topics of the
+       folders this run touched, read from the links as they stand now. */
+    const insights = await writeInsights(ctx, a.space, pairs);
+    let topics = 0;
+    const touched = new Set(mine.map(id => id.split("/")[0]));
+    const after = touched.size ? (await spaceOf(ctx, a.space)).concepts : [];
+    for (const b of brains.filter((x: any) => touched.has(x.slug))) {
+      try { topics += await buildTopics(ctx, a.space, b, after); } catch (e: any) { console.log(`topics ${b.slug}: ${String(e?.message ?? e).slice(0, 120)}`); }
+    }
+    console.log(`linked ${added} for ${mine.length} concepts just stored, ${insights} new insights, ${topics} topics` +
+      `${rest.length ? `, ${rest.length} handed on` : ""}`);
   },
 });
 
@@ -623,5 +666,111 @@ export const repairPositions = internalAction({
       if (!a.dry && ids.length) await ctx.scheduler.runAfter(0, internal.admin.repairPositions, { space, ids });
     }
     return a.dry ? { dry: true, spaces: out } : { started: true, spaces: out };
+  },
+});
+
+/**
+ * The graph for everything already stored: run once after the upgrade.
+ *
+ *     npx convex run admin:graphAll --prod
+ *
+ * Octopus and Squidgy, on the deployment's key, in four steps a space, each
+ * run handing on to the next so none nears the 10 minute limit:
+ *   embed     every concept turned into numbers, 128 a run
+ *   type      every link already held given its kind, 60 concepts a run
+ *   topics    every folder's topics, 4 folders a run
+ *   insights  what follows from the 20 strongest links across folders
+ * About $0.08 for a space of 1,000 concepts on GLM 5.3 Flash, most of it typing.
+ */
+export const graphAll = internalAction({
+  args: { space: v.optional(v.string()) },
+  handler: async (ctx, a): Promise<string> => {
+    const space = a.space ? readSpace(a.space) : SPACES[0];
+    await ctx.scheduler.runAfter(0, internal.admin.graphStep, { space, phase: "embed", at: 0, only: !!a.space });
+    return `The graph is being built for ${a.space ? space : SPACES.join(" and ")}. Follow it with: npx convex logs --prod`;
+  },
+});
+
+const TYPE_RULES = `Each concept below lists the concepts it already links to. Say what each link is, read from the concept to the one it links to:
+"needs": the concept is understood only after that one (a formula needs its inputs, a method needs its definition).
+"causes": the concept leads to or drives that one.
+"supports": the concept is evidence for that one.
+"contradicts": the two disagree.
+"example": the concept is a case of that one.
+"related": anything else.
+
+Reply with only JSON, one list per concept, in the order its links are listed: {"types":{"1":["needs","related"],"2":["causes"]}}`;
+
+export const graphStep = internalAction({
+  args: { space: v.string(), phase: v.string(), at: v.number(), only: v.optional(v.boolean()) },
+  handler: async (ctx, a) => {
+    const { brains, concepts } = await spaceOf(ctx, a.space);
+    const next = async (phase: string, at = 0) => ctx.scheduler.runAfter(0, internal.admin.graphStep, { space: a.space, phase, at, only: a.only });
+    const done = async () => {
+      const i = SPACES.indexOf(a.space as any);
+      if (!a.only && i >= 0 && i + 1 < SPACES.length) return ctx.scheduler.runAfter(0, internal.admin.graphStep, { space: SPACES[i + 1], phase: "embed", at: 0 });
+      console.log("graph finished");
+    };
+    const ids = concepts.map(idOf).sort();
+    if (a.phase === "embed") {
+      const slice = ids.slice(a.at, a.at + 128);
+      try { await embedConcepts(ctx, a.space, slice); }
+      catch (e: any) { console.log(`graph ${a.space}: embeddings stopped, ${String(e?.message ?? e).slice(0, 160)}`); return await next("type"); }
+      console.log(`graph ${a.space}: embedded ${Math.min(a.at + 128, ids.length)} of ${ids.length}`);
+      return a.at + 128 < ids.length ? await next("embed", a.at + 128) : await next("type");
+    }
+    if (a.phase === "type") {
+      const titled = new Map(concepts.map((c: any) => [idOf(c), c]));
+      const linked = concepts.filter((c: any) => (c.related ?? []).length).sort((x: any, y: any) => idOf(x).localeCompare(idOf(y)));
+      for (let k = 0; k < 2; k++) {
+        const part = linked.slice(a.at + k * 30, a.at + (k + 1) * 30);
+        if (!part.length) break;
+        const rows = part.map((c: any) => ({ c, to: (c.related ?? []).map((r: string) => linkId(r, c.brain)).filter((id: string) => titled.has(id)).slice(0, 12) }));
+        const job = rows.map((r: any, n: number) => `### ${n + 1} | ${r.c.title}: ${r.c.summaryLine || String(r.c.lead ?? "").slice(0, 140)}\n` +
+          r.to.map((id: string, j: number) => `  ${j + 1}) ${titled.get(id).title}: ${titled.get(id).summaryLine || ""}`).join("\n")).join("\n\n");
+        try {
+          const { text, finish } = await ask([
+            { role: "system", content: "You say how the concepts of a knowledge base relate. You reply with JSON only." },
+            { role: "user", content: `${TYPE_RULES}\n\n${job}` },
+          ], { json: true, maxTokens: 3000, timeout: 120000, temperature: 0 });
+          const got = parseJson(String(text), finish)?.types ?? {};
+          for (const [n, r] of rows.entries()) {
+            const list = Array.isArray(got[String(n + 1)]) ? got[String(n + 1)] : [];
+            const kinds = r.to.map((id: string, j: number) => ({ to: id, type: String(list[j] ?? "related").toLowerCase() }))
+              .filter((k: any) => ["needs", "causes", "supports", "contradicts", "example"].includes(k.type));
+            if (kinds.length) await ctx.runMutation(internal.store.addRelated, { brain: r.c.brain, slug: r.c.slug, ids: [], kinds });
+          }
+        } catch (e: any) { console.log(`graph ${a.space}: typing batch skipped, ${String(e?.message ?? e).slice(0, 160)}`); }
+      }
+      console.log(`graph ${a.space}: typed links of ${Math.min(a.at + 60, linked.length)} of ${linked.length} concepts`);
+      return a.at + 60 < linked.length ? await next("type", a.at + 60) : await next("topics");
+    }
+    if (a.phase === "topics") {
+      const part = brains.slice(a.at, a.at + 4);
+      for (const b of part) {
+        try { console.log(`graph ${a.space}: ${b.slug}, ${await buildTopics(ctx, a.space, b, concepts)} topics`); }
+        catch (e: any) { console.log(`graph ${a.space}: topics ${b.slug} skipped, ${String(e?.message ?? e).slice(0, 120)}`); }
+      }
+      return a.at + 4 < brains.length ? await next("topics", a.at + 4) : await next("insights");
+    }
+    if (a.phase === "insights") {
+      const pairs: { a: string; b: string; type: string }[] = [];
+      for (const c of concepts) {
+        const kinds = new Map(kindsOf(c).map((k: any) => [k.to, k.type]));
+        for (const r of c.related ?? []) {
+          const to = linkId(r, c.brain);
+          if (to.split("/")[0] !== c.brain) pairs.push({ a: idOf(c), b: to, type: kinds.get(to) ?? "related" });
+        }
+      }
+      /* The 20 strongest, the kinds that carry a conclusion first, five a call. */
+      const RANK: Record<string, number> = { causes: 5, contradicts: 4, supports: 3, needs: 2, example: 1, related: 0 };
+      const seen = new Set<string>();
+      const top = pairs.sort((x, y) => (RANK[y.type] ?? 0) - (RANK[x.type] ?? 0))
+        .filter(p => { const k = [p.a, p.b].sort().join("|"); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 20);
+      let n = 0;
+      for (let k = 0; k < top.length; k += 5) n += await writeInsights(ctx, a.space, top.slice(k, k + 5), 5);
+      console.log(`graph ${a.space}: ${n} insights`);
+      return await done();
+    }
   },
 });

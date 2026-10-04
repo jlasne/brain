@@ -97,6 +97,36 @@ npx convex run admin:linkStatus --prod    # how many carry links so far
 npx convex run admin:buildCards --prod    # the slim copy of every concept; starts on its own when the app opens
 ```
 
+The graph for what is already stored. A drop now builds it for what it writes;
+run this once after the upgrade, both spaces, on the deployment's key:
+
+```bash
+npx convex run admin:graphAll --prod                   # both spaces
+npx convex run admin:graphAll "{space:'squidgy'}" --prod   # one
+```
+
+It runs in four steps a space, each handing on to the next: every concept
+turned into numbers by meaning (`baai/bge-m3`, 1,024 per concept, any
+language), every link already held given its kind, every folder's topics, then
+what follows from the 20 strongest links across folders. About $0.08 for 1,000
+concepts on GLM 5.3 Flash, most of it typing the links. Follow it with
+`npx convex logs --prod`.
+
+What a drop adds, in the background after it links:
+
+| Step | Does | Cost a drop |
+|---|---|---|
+| Meaning | Each new concept is turned into numbers and its 6 nearest by meaning join the word matches as link candidates, 8 at most | Under $0.0001 |
+| Kinds | Each link says how: needs, causes, supports, contradicts or example. A plain link stays "related" and is never stored as a kind | Inside the link call |
+| What follows | Up to 5 linked pairs across folders, strongest kind first, each read for the conclusion the two make together. Marked as Tasu's own, never a source | About $0.001 |
+| Topics | The folders it touched are grouped again by their links and shared sources. Only a new or reshaped group is named, 12 a folder at most | About $0.001 |
+
+A question is turned into numbers too, so a concept worded differently, or in
+another language, can still answer it. "Needs" links give each folder its
+Learning path: the concepts in steps, each resting on the ones before. All of
+it runs on the deployment's key, so a bring-your-own-key workspace and the demo
+skip it, the same as linking.
+
 PowerShell strips the double quotes inside an argument, which leaves
 `{space:squidgy,...}` and a JSON5 error at 1:8. The CLI parses JSON5, so single
 quoted values survive:
@@ -178,7 +208,9 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/enter` | The landing's one field: the workspace a passphrase opens, or `demo: true` when it opens none. Counted apart from the doors, so a wrong guess never locks one | Rate limited, 10 tries an hour per address and 120 from everyone |
 | `/api/state` | Brains, concept names and summary lines, sources | Yes |
 | `/api/export` | One brain's concepts whole, 100 a page, for the markdown export | Yes |
-| `/api/concept` | One concept whole, for the brain viewer | Yes |
+| `/api/concept` | One concept whole, its links with their kinds, and what follows from it, for the brain viewer | Yes |
+| `/api/topics` | One folder's topics: a title, a line and its concepts. Never a personal folder | Yes |
+| `/api/map` | Every folder, concept and link for the map, each link with its kind | Yes |
 | `/api/conflicts` | The open conflicts that are real contradictions. Each clash is checked once and marked | Yes |
 | `/api/conflicts/settle` | Settles one: the side that holds rewrites the position, or both hold and it only leaves the list | Yes |
 | `/api/passphrase` | Changes the workspace's passphrase: the current one is checked against the same 8 tries an hour, the others are signed out | Owner |
@@ -251,7 +283,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | Table | Holds | Indexed by |
 |---|---|---|
 | `brains` | name, type, scope, created, visibility, owner, space | slug |
-| `concepts` | brain, title, position, summaryLine, evidence, data, conflicts, sources | brain, then slug |
+| `concepts` | brain, title, position, summaryLine, evidence, data, conflicts, sources, links and their kinds | brain, then slug |
 | `sources` | id, link, date, author, location, brains | link, and the normalised link |
 | `notes` | the six note sections | source id |
 | `candidates` | brain, title, mentions, count | brain and slug |
@@ -265,6 +297,9 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `pages` | each build of a project's page, the newest 10 | project, then version |
 | `models` | the chat model and the project model a workspace picked | space |
 | `onepagers` | every one-pager built, its page, text and what built it, the newest 50 per owner | space, then time |
+| `vectors` | a concept's meaning as 1,024 numbers | concept, and a vector index by folder |
+| `topics` | a folder's topics: title, line, the concepts in each | folder |
+| `insights` | what follows from two linked concepts: the pair, the kind of link, a title and a line | the pair, each side, space |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.
 

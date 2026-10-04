@@ -19,7 +19,7 @@ import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from 
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, translatePage, langOf, DOC_TYPES } from "./onepager";
 import type { DocType } from "./onepager";
-import { planDossier, writeDossier, idOf, OPEN_READ, linkId } from "./words";
+import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal } from "./space";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains } from "./personal";
@@ -28,6 +28,7 @@ import { healthOf } from "./health";
 /* Projects are off in the app for now; their routes stay for when they come back. */
 import { buildPage, TEMPLATE_MAX } from "./projects";
 import { rederive, tidyScan } from "./tidy";
+import { embed, nearest } from "./graph";
 
 const router = httpRouter();
 
@@ -396,9 +397,12 @@ route("/api/state", async (ctx, _req, b) => {
   }, { personal: true });
   /* The app lists and counts concepts, so it gets their names and summary
      lines. The whole concept travels only for the export. */
-  const s = { brains, sources, concepts: cards.map((c: any) => ({
-    brain: c.brain, slug: c.slug, n: c.n, title: c.title, summaryLine: c.summaryLine, updated: c.updated,
-    ev: c.ev ?? 0, src: c.src ?? 0, links: (c.related ?? []).length })) };
+  const s = { brains, sources, concepts: cards.map((c: any) => {
+    /* Typed links only: "needs" makes the learning paths, the rest colour the map. */
+    const kinds = kindsOf(c);
+    return { brain: c.brain, slug: c.slug, n: c.n, title: c.title, summaryLine: c.summaryLine, updated: c.updated,
+      ev: c.ev ?? 0, src: c.src ?? 0, links: (c.related ?? []).length, ...(kinds.length ? { kinds } : {}) };
+  }) };
   const brand = await ctx.runQuery(internal.store.brandOf, { space: who.space });
   const full = await ctx.runQuery(internal.store.modeOf, { space: who.space });
   /* The models in use, and the defaults Settings offers to go back to. */
@@ -470,7 +474,20 @@ route("/api/brand/public", async (ctx, _req, b) => {
 route("/api/concept", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   const [c] = await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids: [String(b.id ?? "")] });
-  return c ? { concept: c } : { error: "that concept is not in this space" };
+  if (!c) return { error: "that concept is not in this space" };
+  /* What follows from it and a concept of another folder, derived. */
+  const insights = await ctx.runQuery(internal.graph.insightsFor, { space: who.space, ids: [`${c.brain}/${c.slug}`] });
+  return { concept: { ...c, kinds: kindsOf(c) }, insights };
+});
+
+/** A folder's topics: its concepts that link to each other, named and summed up. */
+route("/api/topics", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
+  const brain = String(b.brain ?? "");
+  if (!head.brains.some((x: any) => x.slug === brain && x.type !== "personal")) return { topics: [] };
+  const topics: any[] = await ctx.runQuery(internal.graph.topicsOf, { brain });
+  return { topics: topics.map(t => ({ title: t.title, summary: t.summary, members: t.members, updated: t.updated })) };
 });
 
 /** The open conflicts that are real contradictions, for Setup. */
@@ -696,12 +713,28 @@ route("/api/ask", async (ctx, _req, b) => {
   await demoCount(ctx, who, "ask");
   const t0 = Date.now();
   const route = await routeQuestion(pool, concepts, String(b.q ?? ""), b.history, mKey, mName);
+  /* The concepts closest in meaning to the question. Embeddings run on the
+     deployment's key, so a workspace on its own key and the demo go by words
+     and the router alone. */
+  let near: string[] = [];
+  if (!who.byok && !who.demo) {
+    try {
+      const [vec] = await embed([String(b.q ?? "").slice(0, 1000)]);
+      near = (await nearest(ctx, vec, pool.map((x: any) => x.slug), 8)).map(x => x.id);
+    } catch (e: any) { console.log(`question embedding skipped: ${String(e?.message ?? e).slice(0, 120)}`); }
+  }
   /* Ranked on the slim copies; only the concepts that lead are read whole. */
-  const plan = planDossier(pool, concepts, String(b.q ?? ""), b.history, route);
+  const plan = planDossier(pool, concepts, String(b.q ?? ""), b.history, { ...route, near });
   const whole = await ctx.runQuery(internal.store.conceptsByIds,
     { space: who.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
   const pick = writeDossier(pool, plan, new Map(whole.map((c: any) => [idOf(c), c])));
-  const dossier = pick.dossier;
+  /* What follows from the opened concepts and the ones they link to across
+     folders: derived, and said so. */
+  const derived: any[] = pick.opened.length ? await ctx.runQuery(internal.graph.insightsFor, { space: who.space, ids: pick.opened.map(idOf) }) : [];
+  const dossier = pick.dossier + (derived.length
+    ? `\n\nWHAT FOLLOWS, Tasu's own conclusions from two linked concepts, never a source:\n` +
+      derived.slice(0, 6).map((x: any) => `- ${x.title}: ${x.text}`).join("\n")
+    : "");
   const reading = pool.filter((x: any) => pick.opened.some((c: any) => c.brain === x.slug));
   const isPerson = reading.length === 1 && reading[0].type === "person";
   const nSources = new Set(sources.filter((s: any) => s.brains.some((x: string) => reading.some((c: any) => c.slug === x))).map((s: any) => s.sid)).size;
@@ -785,6 +818,8 @@ ${nSources > 0 && nSources < 10 ? `- This rests on ${nSources} source${nSources 
 - AT MOST ONE SENTENCE about what is missing, as the last line before the sources, naming the kind of source that would fill it. Never open with it, never list what is absent, never write that you cannot answer.
 - Write about the subject, never about the knowledge base: no "the stored knowledge", "it only names", "it does hold", except in that one last sentence.
 - Never invent evidence.
+- A WHAT FOLLOWS line is a conclusion drawn from two concepts, not a source. Use one only when it answers the question, and say so: "Taken together, ...".
+- LINKS say how concepts relate: "needs" names what must be understood first, "causes" what it drives. Follow them when the question asks why, how or in what order.
 ${earlier ? `- The question may be a follow-up. Read it against the conversation below, so a pronoun or "the second one" points at the right thing.` : ""}
 ${earlier ? `
 EARLIER IN THIS CONVERSATION
@@ -1058,15 +1093,18 @@ route("/api/map", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   const { cards } = await loadSpace(ctx, who.space);
   const known = new Set(cards.map((c: any) => `${c.brain}/${c.slug}`));
-  const seen = new Set<string>(), links: [string, string][] = [];
+  const seen = new Map<string, number>(), links: [string, string, string][] = [];
   for (const c of cards) {
     const from = `${c.brain}/${c.slug}`;
+    const kinds = new Map(kindsOf(c).map(k => [k.to, k.type]));
     for (const r of c.related ?? []) {
       const to = linkId(String(r), c.brain);
       if (!known.has(to) || to === from) continue;
-      const key = [from, to].sort().join("|");
-      if (seen.has(key)) continue;
-      seen.add(key); links.push([from, to]);
+      const key = [from, to].sort().join("|"), type = kinds.get(to) ?? "related";
+      /* One line per pair: the reading that says the most wins. */
+      const at = seen.get(key);
+      if (at !== undefined) { if (links[at][2] === "related" && type !== "related") links[at] = [from, to, type]; continue; }
+      seen.set(key, links.length); links.push([from, to, type]);
     }
   }
   return { links };

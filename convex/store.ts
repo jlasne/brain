@@ -558,6 +558,7 @@ async function joinConcept(ctx: any, keep: any, gone: any) {
     data: unionCap(keep.data ?? [], gone.data ?? [], 24, String),
     conflicts: unionCap(keep.conflicts ?? [], gone.conflicts ?? [], 12),
     related: unionCap(keep.related ?? [], gone.related ?? [], 12, String).filter((r: string) => r !== keepId && r !== goneId),
+    kinds: unionCap(keep.kinds ?? [], gone.kinds ?? [], 12, (k: any) => k.to).filter((k: any) => k.to !== keepId && k.to !== goneId),
     updated: today(),
   });
   await ctx.db.delete(gone._id); await syncCard(ctx, gone._id); await syncCard(ctx, keep._id);
@@ -576,7 +577,8 @@ async function followLinks(ctx: any, to: Map<string, string>, write: boolean): P
     const self = `${c.brain}/${c.slug}`;
     n++;
     if (write) {
-      await ctx.db.patch(c._id, { related: [...new Set<string>((c.related ?? []).map(follow))].filter(r => r !== self) });
+      await ctx.db.patch(c._id, { related: [...new Set<string>((c.related ?? []).map(follow))].filter(r => r !== self),
+        ...(c.kinds ? { kinds: c.kinds.map((k: any) => ({ to: follow(k.to), type: k.type })).filter((k: any) => k.to !== self) } : {}) });
       await syncCard(ctx, c._id);
     }
   }
@@ -897,7 +899,8 @@ export const mcpRate = internalMutation({
  * to itself. Starter links written as prose are rewritten as ids on the way.
  */
 export const addRelated = internalMutation({
-  args: { brain: v.string(), slug: v.string(), ids: v.array(v.string()) },
+  args: { brain: v.string(), slug: v.string(), ids: v.array(v.string()),
+          kinds: v.optional(v.array(v.object({ to: v.string(), type: v.string() }))) },
   handler: async (ctx, a) => {
     const c = await ctx.db.query("concepts")
       .withIndex("by_brain_slug", q => q.eq("brain", a.brain).eq("slug", a.slug)).unique();
@@ -906,8 +909,13 @@ export const addRelated = internalMutation({
     const before = [...new Set((c.related ?? []).map((r: string) => linkId(r, c.brain)))];
     const next = [...new Set([...before, ...a.ids])].filter(x => x !== self).slice(0, 12);
     const added = next.filter(x => !before.includes(x)).length;
-    if (added > 0 || before.length !== (c.related ?? []).length) {
-      await ctx.db.patch(c._id, { related: next });
+    /* What each link means: a new reading of a link replaces the old one. */
+    const typed = new Map<string, string>((c.kinds ?? []).map((k: any) => [k.to, k.type]));
+    for (const k of a.kinds ?? []) typed.set(k.to, k.type);
+    const kinds = next.filter(x => typed.has(x)).map(x => ({ to: x, type: typed.get(x)! }));
+    const kindsChanged = JSON.stringify(kinds) !== JSON.stringify(c.kinds ?? []);
+    if (added > 0 || before.length !== (c.related ?? []).length || kindsChanged) {
+      await ctx.db.patch(c._id, { related: next, ...(kinds.length || c.kinds ? { kinds } : {}) });
       await syncCard(ctx, c._id);
     }
     return { added };

@@ -115,6 +115,10 @@ export default defineSchema({
     conflicts: v.array(v.any()),
     sources: v.array(v.string()),
     related: v.array(v.string()),
+    /* What each link means, from this concept to the one it names: it needs
+       that one first, causes it, supports it, contradicts it, or is an example
+       of it. A link with no entry here is plainly related. */
+    kinds: v.optional(v.array(v.object({ to: v.string(), type: v.string() }))),
     updated: v.string(),
   }).index("by_brain", ["brain"])
     .index("by_brain_slug", ["brain", "slug"]),
@@ -334,10 +338,51 @@ export default defineSchema({
     /* The newest few source ids, which linking reads as a weak bond. */
     srcIds: v.array(v.string()),
     related: v.array(v.string()),
+    kinds: v.optional(v.array(v.object({ to: v.string(), type: v.string() }))),
     updated: v.string(),
   }).index("by_cid", ["cid"])
     .index("by_brain", ["brain"])
     .index("by_brain_title", ["brain", "title"]),
+
+  /**
+   * A concept's meaning as numbers, so a question or a link finds it by what
+   * it says, not only by the words it shares. One row per concept, kept apart
+   * from the concept so cards and lists stay light. Written in the background
+   * after a drop, on the deployment's key.
+   */
+  vectors: defineTable({
+    cid: v.id("concepts"),
+    brain: v.string(),
+    vec: v.array(v.float64()),
+  }).index("by_cid", ["cid"])
+    .vectorIndex("by_vec", { vectorField: "vec", dimensions: 1024, filterFields: ["brain"] }),
+
+  /* The themes a folder holds: concepts that link to each other, named and
+     summed up. Worked out again after each drop into that folder. */
+  topics: defineTable({
+    space: v.string(),
+    brain: v.string(),
+    title: v.string(),
+    summary: v.string(),
+    members: v.array(v.string()),
+    updated: v.string(),
+  }).index("by_brain", ["brain"]),
+
+  /* What follows from two linked concepts of two folders: a conclusion neither
+     states alone. Tasu's own, never a source, always shown as derived. */
+  insights: defineTable({
+    space: v.string(),
+    key: v.string(),
+    a: v.string(),
+    b: v.string(),
+    type: v.string(),
+    title: v.string(),
+    text: v.string(),
+    at: v.string(),
+  }).index("by_key", ["key"])
+    .index("by_a", ["a"])
+    .index("by_b", ["b"])
+    .index("by_space", ["space"]),
 
   candidates: defineTable({
     brain: v.string(),

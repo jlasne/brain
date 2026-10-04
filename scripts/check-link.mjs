@@ -19,7 +19,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-link-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["admin.ts", "lib.ts", "words.ts", "store.ts", "space.ts", "tidy.ts", "drop.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["admin.ts", "lib.ts", "words.ts", "store.ts", "space.ts", "tidy.ts", "drop.ts", "graph.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/server.ts"),
   "export const internalQuery = (x: any) => x; export const internalMutation = (x: any) => x; export const internalAction = (x: any) => x;\n");
 writeFileSync(join(dir, "_generated/api.ts"),
@@ -222,6 +222,81 @@ const talk = () => { console.log = quiet; };
   console.log(`       1,400 concepts linked in ${Math.round(ms)} ms of local work`);
   DB.concepts.splice(0, DB.concepts.length, ...saved);
   DB.brains.splice(0, DB.brains.length, ...brains);
+}
+
+/* ---- one drop grows the graph: meaning, kinds, what follows, topics ---- */
+{
+  const G = {
+    brains: [{ slug: "fin", name: "Finance", type: "subject", scope: "corporate finance" },
+             { slug: "macro", name: "Macro", type: "subject", scope: "the economy" }],
+    concepts: [
+      { ...K("fin", "npv", "Net present value", "Discounted cash flows minus the investment.", "NPV discounts each cash flow at the discount rate.", 1), _id: "c1" },
+      { ...K("fin", "discount-rate", "Discount rate", "The rate that turns future cash flows into present value.", "The discount rate reflects the time value of money.", 2), _id: "c2", related: ["fin/wacc"] },
+      { ...K("fin", "wacc", "Weighted average cost of capital", "The blend of debt and equity costs.", "WACC is the usual discount rate for a firm.", 3), _id: "c3", related: ["fin/discount-rate"] },
+      { ...K("macro", "policy", "Central bank policy", "Sets the cost of money for the whole economy.", "Policy moves the price of credit.", 1), _id: "c4" },
+    ],
+    vectors: [], insights: [], topics: [], embedded: [], asked: [],
+  };
+  const ctx2 = {
+    runQuery: async (fn, a) => {
+      if (fn === "store.spaceHead") return { brains: G.brains, sources: [], ready: true };
+      if (fn === "store.cardsPage") { const all = G.concepts.filter(c => c.brain === a.brain).map(cardOf); return { cards: all, done: true, cursor: "x" }; }
+      if (fn === "store.conceptsByIds") return a.ids.map(id => G.concepts.find(c => `${c.brain}/${c.slug}` === id)).filter(Boolean);
+      if (fn === "graph.vectorOwners") return a.ids.map(id => ({ "v-policy": "macro/policy", "v-dr": "fin/discount-rate" })[id] ?? null);
+      if (fn === "graph.topicsOf") return G.topics.filter(t => t.brain === a.brain);
+      throw new Error("unexpected query " + fn);
+    },
+    runMutation: async (fn, a) => {
+      if (fn === "graph.putVectors") { G.vectors.push(...a.items); return; }
+      if (fn === "graph.putInsights") { G.insights.push(...a.items); return a.items.length; }
+      if (fn === "graph.setTopics") { G.topics = G.topics.filter(t => t.brain !== a.brain).concat(a.topics.map(t => ({ ...t, brain: a.brain }))); return; }
+      if (fn === "store.addRelated") {
+        const c = G.concepts.find(x => x.brain === a.brain && x.slug === a.slug);
+        const before = new Set(c.related); c.related = [...new Set([...c.related, ...a.ids])];
+        c.kinds = [...(c.kinds ?? []).filter(k => !(a.kinds ?? []).some(n => n.to === k.to)), ...(a.kinds ?? [])];
+        return { added: c.related.filter(x => !before.has(x)).length };
+      }
+      throw new Error("unexpected mutation " + fn);
+    },
+    /* The meaning search: Net present value sits close to central bank policy,
+       which shares none of its words. */
+    vectorSearch: async (_t, _i, q) => q.vector[0] === 1 ? [{ _id: "v-policy", _score: 0.91 }, { _id: "v-dr", _score: 0.88 }] : [],
+    scheduler: { runAfter: async () => {} },
+  };
+  const real = globalThis.fetch;
+  globalThis.fetch = async (u, opt) => {
+    const body = JSON.parse(opt.body);
+    if (String(u).endsWith("/embeddings")) {
+      G.embedded.push(body);
+      return Response.json({ data: body.input.map((t, index) => { const e = new Array(1024).fill(0); e[0] = /Net present value/.test(t) ? 1 : 0; e[1] = 1; return { index, embedding: e }; }) });
+    }
+    const sys = body.messages[0].content, job = body.messages[1].content;
+    G.asked.push(sys);
+    if (/connect the concepts/.test(sys)) {
+      const links = {};
+      for (const block of job.split(/\n(?=### )/).filter(b => b.startsWith("### "))) {
+        const n = block.match(/^### (\d+)/)[1];
+        links[n] = [...block.matchAll(/^\s+(\d+)\) ([^[]+)\[/gm)].map(m => ({ c: Number(m[1]), t: /Discount rate/.test(m[2]) ? "needs" : /policy/i.test(m[2]) ? "causes" : "related" }));
+      }
+      return Response.json({ choices: [{ message: { content: JSON.stringify({ links }) }, finish_reason: "stop" }] });
+    }
+    if (/draw conclusions/.test(sys)) return Response.json({ choices: [{ message: { content: JSON.stringify({ insights: [{ n: 1, title: "Policy moves every NPV", text: "A rate change by the central bank shifts the discount rate, so every project's NPV moves with it." }] }) }, finish_reason: "stop" }] });
+    if (/name the themes/.test(sys)) return Response.json({ choices: [{ message: { content: JSON.stringify({ topics: [{ n: 1, title: "Discounting cash flows", summary: "How future cash is valued today." }] }) }, finish_reason: "stop" }] });
+    return Response.json({ choices: [{ message: { content: "{}" }, finish_reason: "stop" }] });
+  };
+  hush(); await admin.linkConcepts.handler(ctx2, { space: "octopus", ids: ["fin/npv"] }); talk();
+  globalThis.fetch = real;
+  const npv = G.concepts.find(c => c.slug === "npv");
+  check("a drop embeds what it wrote, on the multilingual model", G.embedded.length === 1 && G.embedded[0].model === "baai/bge-m3"
+    && G.vectors.length === 1 && G.vectors[0].cid === "c1", JSON.stringify(G.embedded.map(e => e.input)));
+  check("a concept close in meaning joins the shortlist, though it shares no word", npv.related.includes("macro/policy"), npv.related.join(","));
+  check("each link says what it is", JSON.stringify((npv.kinds ?? []).map(k => `${k.to}:${k.type}`).sort()) === '["fin/discount-rate:needs","macro/policy:causes"]',
+    JSON.stringify(npv.kinds));
+  check("what follows from a link across two folders is written, and marked derived by where it lives",
+    G.insights.length === 1 && G.insights[0].a === "fin/npv" && G.insights[0].b === "macro/policy" && /central bank/.test(G.insights[0].text), JSON.stringify(G.insights));
+  check("the folder's topics follow the links: three concepts that link to each other, named",
+    G.topics.length === 1 && G.topics[0].title === "Discounting cash flows" && G.topics[0].members.length === 3 && G.topics[0].brain === "fin", JSON.stringify(G.topics));
+  check("a folder whose links make no group of three gets no topic", !G.topics.some(t => t.brain === "macro"));
 }
 
 console.log(failures ? `\n${failures} failed` : "\nlinking holds");

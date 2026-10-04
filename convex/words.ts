@@ -108,7 +108,7 @@ export const ROW_MAX = 8000;
  * is held, and a follow-up borrows the words of the question before it.
  */
 export function dossierFor(pool: any[], concepts: any[], q: string, history?: any,
-                           opts: { picked?: string[]; terms?: string[]; routed?: boolean } = {}) {
+                           opts: { picked?: string[]; terms?: string[]; routed?: boolean; near?: string[] } = {}) {
   return writeDossier(pool, planDossier(pool, concepts, q, history, opts),
     new Map(concepts.map((c: any) => [idOf(c), c])));
 }
@@ -119,7 +119,7 @@ export function dossierFor(pool: any[], concepts: any[], q: string, history?: an
  * then read whole, by writeDossier.
  */
 export function planDossier(pool: any[], concepts: any[], q: string, history?: any,
-                            opts: { picked?: string[]; terms?: string[]; routed?: boolean } = {}) {
+                            opts: { picked?: string[]; terms?: string[]; routed?: boolean; near?: string[] } = {}) {
   const last = (Array.isArray(history) ? history : []).slice(-1)[0];
   const words = keywords(q);
   const echo = last ? keywords(String(last.q ?? "")).filter(w => !words.includes(w)) : [];
@@ -149,7 +149,11 @@ export function planDossier(pool: any[], concepts: any[], q: string, history?: a
      question asking for a formula. The router picks by sampling, and missing
      one such concept was the difference between an answer and "not held". */
   const named = hits.filter((c: any) => scoreConcept(c, words) >= 3).slice(0, 5);
-  const seeds = picked.length ? [...new Set([...picked, ...named])] : titleHits.slice(0, 10);
+  /* The closest by meaning, found from the question's embedding: a question
+     in another language, or in other words, still reaches its concept. */
+  const near = (opts.near ?? []).map(id => byId.get(id)).filter(Boolean).slice(0, 6);
+  const seeds = picked.length ? [...new Set([...picked, ...named, ...near])]
+    : [...new Set([...titleHits.slice(0, 10), ...near])];
   const linked = neighbours(seeds, inPool).slice(0, 10);
   /* The seeds lead: the picks, or with none the best word matches. Then what
      they link to, then the rest of the matches. */
@@ -166,10 +170,21 @@ export const OPEN_READ = 60;
 export function writeDossier(pool: any[], plan: ReturnType<typeof planDossier>, full: Map<string, any>) {
   const { lead, ranked, inPool, hits, picked, linked } = plan;
   const brainOf = (c: any) => pool.find((x: any) => x.slug === c.brain);
+  const titles = new Map(inPool.map((c: any) => [idOf(c), c.title]));
+  /* What each link means, so an answer can follow a chain: a formula needs
+     its inputs, one cause drives the next. */
+  const linksOf = (c: any) => {
+    const kinds = new Map(kindsOf(c).map(k => [k.to, k.type]));
+    return (c.related ?? []).slice(0, 12).map((r: string) => {
+      const id = linkId(String(r), c.brain), t = titles.get(id);
+      return t ? `${kinds.get(id) ?? "related"}: ${t}` : "";
+    }).filter(Boolean).join("; ");
+  };
   const row = (c: any) => {
     const br = brainOf(c);
+    const links = linksOf(c);
     return `### ${c.title} in ${br?.name ?? c.brain} [${br?.type ?? "subject"}]
-POSITION: ${c.position || "none"}
+POSITION: ${c.position || "none"}${links ? `\nLINKS: ${links}` : ""}
 EVIDENCE: ${(c.evidence ?? []).map((e: any) => `${e.date ?? "?"} ${e.author ?? "?"}: ${e.claim ?? ""}`).join(" | ") || "none"}
 DATA: ${(c.data ?? []).join(" | ") || "none"}
 OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${x.b} (${x.bDate}), because ${x.why}`).join(" | ") || "none"}`;
@@ -466,6 +481,23 @@ export function cardOf(c: any) {
     ev: (c.evidence ?? []).length, src: (c.sources ?? []).length,
     srcIds: (c.sources ?? []).slice(-5).map(String),
     related: (c.related ?? []).slice(0, 12).map(String),
+    kinds: kindsOf(c),
     updated: String(c.updated ?? ""),
   };
+}
+
+/** The kinds a link may carry, from the concept holding it to the one it names. */
+export const LINK_TYPES = ["needs", "causes", "supports", "contradicts", "example"] as const;
+
+/**
+ * A concept's typed links, only for links it still holds: a link folded away
+ * by a merge or a rename drops its type with it. "related" is the default and
+ * is never stored.
+ */
+export function kindsOf(c: any): { to: string; type: string }[] {
+  const held = new Set((c.related ?? []).map((r: string) => linkId(String(r), c.brain)));
+  const seen = new Set<string>();
+  return (Array.isArray(c.kinds) ? c.kinds : [])
+    .filter((k: any) => k && held.has(String(k.to)) && (LINK_TYPES as readonly string[]).includes(String(k.type)) && !seen.has(k.to) && seen.add(k.to))
+    .map((k: any) => ({ to: String(k.to), type: String(k.type) })).slice(0, 12);
 }

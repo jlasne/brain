@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="919 checks passing" src="https://img.shields.io/badge/checks-919%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="932 checks passing" src="https://img.shields.io/badge/checks-932%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -72,7 +72,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 <tr>
 <td width="50%" valign="top">
 <img src="docs/img/map.jpg" alt="The map of every brain">
-<br><b>It draws itself.</b> One graph, the way Obsidian draws a vault: each folder a node ringed by its health, each concept a dot in its colour, each line a link. Point to light the neighbours, drag to rearrange, click to read.
+<br><b>It draws itself.</b> One graph, the way Obsidian draws a vault: each folder a node ringed by its health, each concept a dot in its colour, each line a link. Point to light the neighbours, each link coloured by its kind, drag to rearrange, click to read.
 </td>
 <td width="50%" valign="top">
 <img src="docs/img/personal.jpg" alt="A personal brain filing what you say">
@@ -86,10 +86,13 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 - **The chat bar floats** over the thread, with the folder picker, the level, the mic and send in one place.
 - **Chat in several folders.** Click a folder to tick it, and tick as many as you like: the question reads those alone. The chat only asks.
 - **A folder, open.** Open fills the main area: its scope, its counts, its health and the next move, then every concept, newest first, with the one open beside them. Chat in it, Drop into it, or edit its name and scope from there. The bar below asks that folder.
-- **The model, picked in Settings.** It answers, reads drops and writes one-pagers: DeepSeek V4 Flash by default, saved for the whole workspace.
+- **The model, picked in Settings.** It answers, reads drops and writes one-pagers: GLM 5.3 Flash by default, saved for the whole workspace.
 - **Drop on its own screen.** Drop sits in the side panel and opens a screen with its own log. The chat waits as it was, one click away.
 - **New folder.** A folder is fed by Drop, and one switch says it holds one person's view. A personal folder is fed by what you say.
 - **Talk instead of typing.** Tap the mic and speak. It uses the free speech service in Safari on iPhone and Mac, Chrome and Edge. Elsewhere it points to the dictation your device already has.
+- **Every drop grows the graph.** Each new idea finds its 6 nearest by meaning, in any language. Each link says how: needs, causes, supports, contradicts or example. Folders sort themselves into topics.
+- **What follows.** Two linked ideas from different folders can add up to a third. Each drop writes up to 5, marked as Tasu's own conclusion, never a source, and answers can use them.
+- **Learning path.** A folder's "needs" links set a reading order: the foundations first, then each step resting on the one before.
 - **One page, any shape.** A brain or a question becomes a summary, a quiz, a deep dive or use cases, in 9 languages.
 - **Chats that stay.** Reopen, rename, pin up to 5. Old ones clear after 30 days.
 - **Greys, and your look.** Tasu wears greys and near-black. Octopus keeps its orange and Squidgy its brown. Each workspace can set a logo, an accent and a page colour, previewed as you pick them.

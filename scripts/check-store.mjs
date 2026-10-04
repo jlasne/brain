@@ -17,7 +17,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-store-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "projects.ts", "tidy.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "projects.ts", "tidy.ts", "graph.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 /* A query or mutation is its definition, so a test can call its handler. */
