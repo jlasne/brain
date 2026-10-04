@@ -503,6 +503,7 @@
   .lp-row:hover{ border-color:var(--ink-4); }
   .lp-row b{ font:600 14.5px/1.35 var(--sans); color:var(--ink); }
   .lp-row span{ font:400 13px/1.45 var(--sans); color:var(--ink-3); }
+  .filed .keep{ margin-left:8px; min-height:24px; padding:2px 9px; font-size:11.5px; }
   /* A personal folder's two lists: notes, and one card per person. */
   .fv-tabs{ display:flex; gap:4px; margin:12px 16px 0; padding:3px; border-radius:10px; background:var(--surface-2); }
   .fv-tabs[hidden]{ display:none; }
@@ -6097,7 +6098,24 @@ function showAnswer(body, r, q, asked){
   pg.onclick = () => openPagerSheet({ q, pick: asked });
   if (r.filed){
     const line = filedLine(r.filed);
-    if (line){ const f = el("div","filed",line); f.title = (r.filed.titles || []).join(", "); body.append(f); }
+    if (line){
+      const f = el("div","filed",line); f.title = (r.filed.titles || []).join(", ");
+      /* Not filed: one tap files the message again, people and all. */
+      if (r.filed.failed && q && isPersonal(asked) && !S.demo){
+        const keep = el("button","mini keep","Keep it"); keep.type = "button";
+        keep.onclick = async () => {
+          keep.disabled = true; keep.textContent = "Filing";
+          try {
+            const res = await api("/api/personal/remember", { brain: asked, text: q, kind: "chat" });
+            f.textContent = filedLine(res.filed || {}) || "Nothing in it to file.";
+            f.classList.add("kept");
+            refresh().catch(() => {});
+          } catch (e) { keep.disabled = false; keep.textContent = "Try again"; keep.title = e.message; }
+        };
+        f.append(keep);
+      }
+      body.append(f);
+    }
     const call = calledLine(r.called);
     if (call) body.append(el("div","filed called",call));
     acts.append(cp);

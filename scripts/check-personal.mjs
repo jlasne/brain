@@ -390,6 +390,29 @@ const TODAY = "2026-09-30";
     && T.sources.some(x => x.title === `People in your notes, ${TODAY}`), JSON.stringify({ f4, lea }));
 }
 
+/* ---- a person is never lost: an unread reply is retried, a known name is caught ---- */
+{
+  const max = { brain: "me", slug: "maxime", title: "Maxime", tag: "contact", aliases: ["Max"], summaryLine: "Your friend" };
+  check("a contact named with a capital is caught, a role word in lower case is not", personal.properlyNamed([max], "today Maxime arrived")[0] === max
+    && personal.properlyNamed([max], "Max is here").length === 1 && personal.properlyNamed([{ ...max, title: "Mother", aliases: [] }], "my mother nature walk").length === 0
+    && personal.properlyNamed([max], "maximum effort").length === 0);
+  const { T, ctx } = makeCtx();
+  T.brains = [{ _id: "b1", slug: "me", name: "Me", type: "personal", scope: "", space: "acme" }];
+  const load = async () => (await space.loadSpace(ctx, "acme", undefined, { personal: true })).cards;
+  let threw = "";
+  try { await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: TODAY, text: "Maxime arrived", model: async () => '{"notes":[{"title":"Max' }); }
+  catch (e) { threw = e.message; }
+  check("a reply cut short is a failure to retry, never \"nothing to file\"", /could not be read/.test(threw) && !(T.concepts ?? []).length, threw);
+  const f = await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: "2026-10-04", text: "today 04th october Maxime arrived, we spend a week together",
+    model: async () => JSON.stringify({ notes: [], people: [{ name: "Maxime", claim: "Maxime arrived, we spend a week together", position: "Arrived on 2026-10-04 to spend a week with you.", summaryLine: "Spending a week with you from 4 Oct" }] }) });
+  check("the message from your screen makes Maxime's card", JSON.stringify(f.people) === '["Maxime"]' && T.concepts.find(c => c.title === "Maxime")?.tag === "contact", JSON.stringify(f));
+  const f2 = await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: "2026-10-05", text: "Cooked dinner with Maxime tonight",
+    model: async () => JSON.stringify({ notes: [{ title: "Cooking", claim: "Cooked dinner tonight", position: "You cooked dinner.", summaryLine: "Cooked" }], people: [] }) });
+  const mx = T.concepts.find(c => c.title === "Maxime");
+  check("a known person the filer missed still gets the mention, dated, the card kept", JSON.stringify(f2.people) === '["Maxime"]' && mx.evidence.length === 2
+    && mx.evidence[0].claim === "Cooked dinner with Maxime tonight" && mx.evidence[0].date === "2026-10-05" && /Arrived on 2026-10-04/.test(mx.position), JSON.stringify(mx.evidence));
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe personal brain files what it should, for its owner only");
 process.exit(failures ? 1 : 0);

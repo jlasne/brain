@@ -172,6 +172,32 @@ export function readNotes(raw: string, kind: Kind): Note[] {
     .slice(0, MAX_NOTES[kind]);
 }
 
+/** Whether a filer's reply holds a JSON object at all. */
+export function readable(raw: string) {
+  try {
+    const s = String(raw ?? ""), a = s.indexOf("{"), b = s.lastIndexOf("}");
+    const d = JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s);
+    return !!d && typeof d === "object";
+  } catch { return false; }
+}
+
+/**
+ * Contacts the text names as a proper name: "Maxime arrived" names Maxime,
+ * while "my mother nature walk" names no one. A capital is required, so a
+ * common word that is also a role is never taken for the person.
+ */
+export function properlyNamed(contacts: any[], text: string) {
+  const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return namedIn(contacts, text, 12).filter(c => {
+    const names = new Set<string>();
+    for (const x of [c.title, ...(c.aliases ?? [])]) {
+      const t = String(x ?? "").trim();
+      if (/^\p{Lu}/u.test(t)) { names.add(t); const first = t.split(/\s+/)[0]; if (first.length >= 3) names.add(first); }
+    }
+    return [...names].some(n => new RegExp(`(^|[^\\p{L}])${esc(n)}($|[^\\p{L}])`, "u").test(text));
+  });
+}
+
 /** The people out of the filer's reply, cleaned; anything malformed is dropped. */
 export function readPeople(raw: string, kind: Kind): Person[] {
   let d: any;
@@ -209,9 +235,10 @@ function contactFor(held: any[], p: Person) {
  * and when. A contact keeps every mention as dated evidence, and its card is
  * the whole of what is known about the person, rewritten each time.
  */
-export async function fileNotes(ctx: any, space: string, brain: string, held: any[], notes: Note[], kind: Kind, date: string, people: Person[] = []): Promise<Filed> {
+export async function fileNotes(ctx: any, space: string, brain: string, held: any[], notes: Note[], kind: Kind, date: string, people: Person[] = [],
+  missed: any[] = [], said = ""): Promise<Filed> {
   const out: Filed = { new: 0, updated: 0, titles: [], people: [] };
-  if (!notes.length && !people.length) return out;
+  if (!notes.length && !people.length && !missed.length) return out;
   const sid = `${brain}-${kind}-${date}`;
   const author = kind === "import" ? "You (imported)" : "You";
   await ctx.runMutation(internal.store.writeSource, { space, doc: {
@@ -232,6 +259,12 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
     out.people!.push(title);
     /* A second mention in the same breath finds the card just made. */
     if (!seen) held = [...held, { brain, title, tag: CONTACT, aliases }];
+  }
+  /* Named but missed: the mention joins the card as said, the card unchanged. */
+  for (const c of missed) {
+    await ctx.runMutation(internal.store.upsertConcept, { brain, title: c.title, ...(c.slug ? { slug: c.slug } : {}),
+      doc: { sources: [sid], evidence: [{ date, author, claim: String(said).replace(/\s+/g, " ").trim().slice(0, 400), source: sid }] } });
+    out.people!.push(c.title);
   }
   for (const n of notes) {
     const seen = held.find(c => sameTitle(c.title, n.update || n.title));
@@ -274,7 +307,15 @@ export async function remember(ctx: any, o: {
   const opened = ids.length ? await ctx.runQuery(internal.store.conceptsByIds, { space: o.space, ids }) : [];
   const others = plain.filter(c => !near.includes(c));
   const raw = await o.model(filerPrompt(o.kind, text, context, opened, others, o.date, contacts));
-  return await fileNotes(ctx, o.space, o.brain, held, o.kind === "people" ? [] : readNotes(raw, o.kind), o.kind, o.date, readPeople(raw, o.kind));
+  /* A reply that is not JSON, often one cut short, is a failure to retry,
+     never "nothing to file". */
+  if (!readable(raw)) throw new Error("the filer's reply could not be read");
+  const people = readPeople(raw, o.kind);
+  /* A person already held, named in the message and missed by the filer,
+     still gets the mention on their card. */
+  const missed = o.kind === "people" ? [] : properlyNamed(contacts, text)
+    .filter(c => !people.some(p => [p.update, p.name].some(t => t && (sameTitle(t, c.title) || (c.aliases ?? []).some((a: string) => sameTitle(a, t))))));
+  return await fileNotes(ctx, o.space, o.brain, held, o.kind === "people" ? [] : readNotes(raw, o.kind), o.kind, o.date, people, missed, text);
 }
 
 /** The rules a reply in a personal chat follows. */

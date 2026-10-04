@@ -2094,7 +2094,10 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       if (s.includes("/api/concept")) return Response.json({ concept: { brain: "me", slug: "marc", title: "Marc Dupont", tag: "contact", aliases: ["Marc", "my co-founder"],
         position: "Your co-founder. Joins Revolut in London (2026-10-04).", evidence: [{ date: "2026-10-04", author: "You", claim: "Marc joins Revolut" }, { date: "2026-09-30", author: "You", claim: "Marc raises 2M" }],
         data: [], conflicts: [], sources: [], related: [] }, insights: [] });
-      if (s.includes("/api/ask")) return Response.json({ answer: "Noted.", sources: 0, level: "normal", personal: true, filed: { new: 1, updated: 0, titles: ["Intros"], people: ["Marc Dupont", "Paul"] }, called: [] });
+      if (s.includes("/api/ask")) { const fail = window.__failNext; window.__failNext = false;
+        return Response.json({ answer: "Noted.", sources: 0, level: "normal", personal: true,
+          filed: fail ? { new: 0, updated: 0, titles: [], failed: true } : { new: 1, updated: 0, titles: ["Intros"], people: ["Marc Dupont", "Paul"] }, called: [] }); }
+      if (s.includes("/api/personal/remember")) return Response.json({ filed: { new: 0, updated: 0, titles: [], people: ["Maxime"] } });
       if (s.includes("/api/interview")) return Response.json({});
       return Response.json({ chats: [] });
     };
@@ -2107,6 +2110,17 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("the mic offers its language, French among them", await page.evaluate(() => !!document.querySelector('#voiceLang option[value="fr-FR"]')));
   await page.evaluate(() => { const v = document.getElementById("voiceLang"); v.value = "fr-FR"; v.dispatchEvent(new Event("change")); });
   check("and the choice is kept in this browser", await page.evaluate(() => localStorage.getItem("tasu.voiceLang")) === "fr-FR");
+
+  /* A message whose filing failed offers to keep it, as the message it was. */
+  await page.evaluate(() => { window.__failNext = true; });
+  await page.fill("#input", "today Maxime arrived, a week together"); await page.click("#send"); await page.waitForTimeout(250);
+  const failed = await page.evaluate(() => [...document.querySelectorAll(".msg.ai")].pop()?.querySelector(".filed")?.textContent);
+  check("a message that was not filed says so and offers Keep it", /Not filed this time/.test(failed || "") && /Keep it/.test(failed || ""), failed);
+  await page.evaluate(() => [...document.querySelectorAll(".msg.ai")].pop().querySelector(".keep").click()); await page.waitForTimeout(250);
+  const kept = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/personal/remember")).pop()?.body,
+    line: [...document.querySelectorAll(".msg.ai")].pop()?.querySelector(".filed")?.textContent }));
+  check("Keep it files the message again as a chat message, and says whose card it made", kept.sent?.kind === "chat" && kept.sent?.brain === "me"
+    && kept.sent?.text === "today Maxime arrived, a week together" && kept.line === "Filed: Contact: Maxime", JSON.stringify(kept));
 
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent))?.querySelector(".ed.op")?.click());
   await page.waitForTimeout(300);

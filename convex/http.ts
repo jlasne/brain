@@ -896,8 +896,8 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   const cards = every.cards.filter((c: any) => pool.some((x: any) => x.slug === c.brain));
   const t0 = Date.now();
 
-  const filing = remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text: q, context: last, kind: "chat", date,
-    model: async m => (await ask(m, { json: true, maxTokens: 1800, key: mKey, model: mName, timeout: 120000 })).text })
+  const filing = fileTwice(() => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text: q, context: last, kind: "chat", date,
+    model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: 90000 })).text }))
     .catch(() => null);
   const reply = (async () => {
     const route = await routeQuestion(pool, cards, q, b.history, mKey, mName);
@@ -946,6 +946,15 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
            called, ...(interview ? { interview } : {}), ...(chat ? { chat } : {}) };
 }
 
+/**
+ * A filing tried twice, a moment apart. A busy model, a cut reply or a
+ * dropped call costs one retry, not what the owner said.
+ */
+async function fileTwice<T>(run: () => Promise<T>): Promise<T> {
+  try { return await run(); }
+  catch { await new Promise(ok => setTimeout(ok, 1500)); return await run(); }
+}
+
 /* ---------- the interview ---------- */
 
 /**
@@ -961,8 +970,8 @@ async function interviewTurn(ctx: any, who: Caller, b: any, mine: any, cards: an
     /* A filing that fails is tried once more: an answer lost costs the owner a retype. */
     file: async (text, context) => {
       const run = () => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date,
-        model: async m => (await ask(m, { json: true, maxTokens: 2400, key: mKey, model: mName, timeout: 90000 })).text });
-      try { return await run(); } catch { return await run(); }
+        model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: 90000 })).text });
+      return await fileTwice(run);
     } });
   let chat: string | undefined;
   if ("chat" in b) {
@@ -1103,12 +1112,15 @@ route("/api/personal/remember", async (ctx, _req, b) => {
   const mine = every.brains.find((x: any) => x.slug === String(b.brain ?? "") && x.type === "personal");
   if (!mine) return { error: "that is not a personal brain of this workspace" };
   const text = String(b.text ?? "").trim();
+  /* A chat message that was not filed, sent again from its reply, is filed
+     as the message it was; anything else is a memory brought in. */
+  const kind = b.kind === "chat" ? "chat" : "import";
   if (!text) return { error: "there is nothing to remember in that" };
-  if (text.length > MAX_CHARS.import) return { error: `send at most ${MAX_CHARS.import} characters at a time` };
+  if (text.length > MAX_CHARS[kind]) return { error: `send at most ${MAX_CHARS[kind]} characters at a time` };
   const mKey = keyFor(who), mName = modelFor(who, b);
-  const filed = await remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text, kind: "import",
+  const filed = await fileTwice(() => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text, kind,
     date: new Date().toISOString().slice(0, 10),
-    model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: 150000 })).text });
+    model: async m => (await ask(m, { json: true, maxTokens: kind === "chat" ? 4000 : 6000, key: mKey, model: mName, timeout: 150000 })).text }));
   return { filed };
 });
 

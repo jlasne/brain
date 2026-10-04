@@ -84,7 +84,11 @@ named or by role. The filer that reads each message files people apart from
 notes: a person already held is updated, matched by name, first name or any
 name they go by, and their card is shown to it whole so the rewrite keeps
 every fact; each mention is kept as dated evidence. No extra model call: the
-same call files notes and people.
+same call files notes and people. A person already held and named with a
+capital gets the mention on their card even when the filer misses them. A
+filing is tried twice, 1.5 seconds apart, and a reply that is not JSON counts
+as a failure, never as nothing to file; a message still not filed offers Keep
+it, which files it again through `/api/personal/remember` with `kind: "chat"`.
 
 A personal brain interviews its owner. 335 questions in 17 chapters, written
 for anyone and asked in the model's own words, fitted to what the notes say.
