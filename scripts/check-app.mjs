@@ -2078,6 +2078,61 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
+/* ---- contacts: a People tab in the personal folder, one card per person ---- */
+{
+  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "", owner: null }],
+    concepts: [{ brain: "me", slug: "lisbon", n: 1, title: "Moving abroad", summaryLine: "Lisbon in 2027", updated: "2026-10-01" },
+      { brain: "me", slug: "marc", n: 2, title: "Marc Dupont", summaryLine: "Your co-founder, now at Revolut", tag: "contact", aliases: ["Marc", "my co-founder"], ev: 4, updated: "2026-10-04" },
+      { brain: "me", slug: "paul", n: 3, title: "Paul", summaryLine: "Someone you will introduce to Marc", tag: "contact", ev: 1, updated: "2026-10-02" }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/personal/people")) return Response.json(body.at ? { filed: { people: ["Lea"] }, next: null, read: 25, total: 25 } : { filed: { people: ["Paul", "Lea"] }, next: 20, read: 20, total: 25 });
+      if (s.includes("/api/concept")) return Response.json({ concept: { brain: "me", slug: "marc", title: "Marc Dupont", tag: "contact", aliases: ["Marc", "my co-founder"],
+        position: "Your co-founder. Joins Revolut in London (2026-10-04).", evidence: [{ date: "2026-10-04", author: "You", claim: "Marc joins Revolut" }, { date: "2026-09-30", author: "You", claim: "Marc raises 2M" }],
+        data: [], conflicts: [], sources: [], related: [] }, insights: [] });
+      if (s.includes("/api/ask")) return Response.json({ answer: "Noted.", sources: 0, level: "normal", personal: true, filed: { new: 1, updated: 0, titles: ["Intros"], people: ["Marc Dupont", "Paul"] }, called: [] });
+      if (s.includes("/api/interview")) return Response.json({});
+      return Response.json({ chats: [] });
+    };
+  }, mine);
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent)).click());
+  await page.waitForTimeout(200);
+  await page.fill("#input", "Lunch with Marc. I owe him an intro to Paul."); await page.click("#send"); await page.waitForTimeout(250);
+  const line = await page.evaluate(() => [...document.querySelectorAll(".msg.ai")].pop()?.querySelector(".filed")?.textContent);
+  check("a message about people says whose cards it updated", line === "Filed: 1 new note · Contacts: Marc Dupont, Paul", line);
+  check("the mic offers its language, French among them", await page.evaluate(() => !!document.querySelector('#voiceLang option[value="fr-FR"]')));
+  await page.evaluate(() => { const v = document.getElementById("voiceLang"); v.value = "fr-FR"; v.dispatchEvent(new Event("change")); });
+  check("and the choice is kept in this browser", await page.evaluate(() => localStorage.getItem("tasu.voiceLang")) === "fr-FR");
+
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent))?.querySelector(".ed.op")?.click());
+  await page.waitForTimeout(300);
+  const tabs = await page.evaluate(() => [...document.querySelectorAll(".fv-tab")].map(x => x.textContent));
+  check("a personal folder lists notes and people apart, each counted", JSON.stringify(tabs) === '["Notes1","People2"]', JSON.stringify(tabs));
+  const notes = await page.evaluate(() => [...document.querySelectorAll(".fv-row b")].map(x => x.textContent));
+  check("Notes holds the notes alone", JSON.stringify(notes) === '["Moving abroad"]', JSON.stringify(notes));
+  await page.click("#fvPeople"); await page.waitForTimeout(150);
+  const ppl = await page.evaluate(() => ({ rows: [...document.querySelectorAll(".fv-row")].map(x => x.textContent), ph: document.getElementById("fvFilter").placeholder, scan: !!document.getElementById("fvScan") }));
+  check("People holds one card per person, newest mention first, with how often they came up", ppl.rows.length === 2 && /^Marc Dupont/.test(ppl.rows[0]) && /4 mentions · last/.test(ppl.rows[0])
+    && /1 mention · last/.test(ppl.rows[1]) && ppl.ph === "Filter people", JSON.stringify(ppl));
+  await page.fill("#fvFilter", "co-founder"); await page.waitForTimeout(80);
+  check("a person is found by a name they go by", (await page.evaluate(() => document.querySelectorAll(".fv-row").length)) === 1);
+  await page.fill("#fvFilter", "");
+  await page.click(".fv-row"); await page.waitForTimeout(250);
+  const card = await page.evaluate(() => ({ eye: document.querySelector(".fv-doc .fv-eye")?.textContent, aka: document.querySelector(".fv-doc .fv-aka")?.textContent,
+    h4: [...document.querySelectorAll(".fv-doc h4")].map(x => x.textContent)[0] }));
+  check("a contact opens as a card: its names, and everything you said, dated", card.eye === "Contact · Me" && card.aka === "Also: Marc, my co-founder" && card.h4 === "What you said, newest first (2)", JSON.stringify(card));
+  await page.click("#fvPeople"); await page.waitForTimeout(100);
+  await page.click("#fvScan"); await page.waitForTimeout(400);
+  const scans = await page.evaluate(() => ({ at: window.__calls.filter(x => x.s.includes("/api/personal/people")).map(x => x.body.at), say: document.querySelector(".fv-scan-say")?.textContent }));
+  check("Find people in my notes reads them all, a batch at a time, and says how many people", JSON.stringify(scans.at) === "[0,20]" && /Done: 2 contacts from your notes/.test(scans.say || ""), JSON.stringify(scans));
+  check("nothing threw around contacts", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- a workspace on its own key ---- */
 {
   const mine = { ...STATE, space: "acme", spaceName: "Acme", byok: true };

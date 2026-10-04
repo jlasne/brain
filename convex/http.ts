@@ -406,7 +406,8 @@ route("/api/state", async (ctx, _req, b) => {
     /* Typed links only: "needs" makes the learning paths, the rest colour the map. */
     const kinds = kindsOf(c);
     return { brain: c.brain, slug: c.slug, n: c.n, title: c.title, summaryLine: c.summaryLine, updated: c.updated,
-      ev: c.ev ?? 0, src: c.src ?? 0, links: (c.related ?? []).length, ...(kinds.length ? { kinds } : {}) };
+      ev: c.ev ?? 0, src: c.src ?? 0, links: (c.related ?? []).length, ...(kinds.length ? { kinds } : {}),
+      ...(c.tag ? { tag: c.tag } : {}), ...(c.aliases?.length ? { aliases: c.aliases } : {}) };
   }) };
   const brand = await ctx.runQuery(internal.store.brandOf, { space: who.space });
   const full = await ctx.runQuery(internal.store.modeOf, { space: who.space });
@@ -1109,6 +1110,27 @@ route("/api/personal/remember", async (ctx, _req, b) => {
     date: new Date().toISOString().slice(0, 10),
     model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: 150000 })).text });
   return { filed };
+});
+
+/**
+ * The people in a personal brain's notes, filed as contacts, 20 notes a call.
+ * The app calls it again with `at` until `next` is null. Each person's card
+ * is joined, never doubled, so running it twice only adds what is new.
+ */
+route("/api/personal/people", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const got = await personalOf(ctx, who.space, String(b.brain ?? ""));
+  if (!got) return { error: "that is not a personal brain of this workspace" };
+  const all = (await wholeNotes(ctx, who.space, got.mine.slug)).filter((c: any) => c.tag !== "contact").sort((x: any, y: any) => (x.n ?? 0) - (y.n ?? 0));
+  const at = Math.max(0, Math.floor(Number(b.at) || 0)), part = all.slice(at, at + 20);
+  const next = at + 20 < all.length ? at + 20 : null;
+  if (!part.length) return { filed: { new: 0, updated: 0, titles: [], people: [] }, next: null, read: all.length, total: all.length };
+  const text = part.map((c: any) => `- ${c.title} (${c.evidence?.[0]?.date || c.updated || "?"}): ${String(c.position || c.summaryLine || "").replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
+  const mKey = keyFor(who), mName = modelFor(who, b);
+  const filed = await remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "people",
+    date: new Date().toISOString().slice(0, 10),
+    model: async m => (await ask(m, { json: true, maxTokens: 8000, key: mKey, model: mName, timeout: 150000 })).text });
+  return { filed, next, read: Math.min(at + 20, all.length), total: all.length };
 });
 
 /* ---------- chats ---------- */

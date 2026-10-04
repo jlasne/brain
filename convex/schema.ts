@@ -119,6 +119,10 @@ export default defineSchema({
        that one first, causes it, supports it, contradicts it, or is an example
        of it. A link with no entry here is plainly related. */
     kinds: v.optional(v.array(v.object({ to: v.string(), type: v.string() }))),
+    /* In a personal brain, "contact": the card of one person, and the other
+       names that person goes by. */
+    tag: v.optional(v.string()),
+    aliases: v.optional(v.array(v.string())),
     updated: v.string(),
   }).index("by_brain", ["brain"])
     .index("by_brain_slug", ["brain", "slug"]),
@@ -339,6 +343,8 @@ export default defineSchema({
     srcIds: v.array(v.string()),
     related: v.array(v.string()),
     kinds: v.optional(v.array(v.object({ to: v.string(), type: v.string() }))),
+    tag: v.optional(v.string()),
+    aliases: v.optional(v.array(v.string())),
     updated: v.string(),
   }).index("by_cid", ["cid"])
     .index("by_brain", ["brain"])

@@ -503,6 +503,17 @@
   .lp-row:hover{ border-color:var(--ink-4); }
   .lp-row b{ font:600 14.5px/1.35 var(--sans); color:var(--ink); }
   .lp-row span{ font:400 13px/1.45 var(--sans); color:var(--ink-3); }
+  /* A personal folder's two lists: notes, and one card per person. */
+  .fv-tabs{ display:flex; gap:4px; margin:12px 16px 0; padding:3px; border-radius:10px; background:var(--surface-2); }
+  .fv-tabs[hidden]{ display:none; }
+  .fv-tab{ flex:1; display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:32px; border-radius:8px;
+    font:500 13.5px/1 var(--sans); color:var(--ink-3); cursor:pointer; transition:background .2s ease, color .2s ease; }
+  .fv-tab i{ font-style:normal; font:500 11px/1 var(--mono); color:var(--ink-4); }
+  .fv-tab.on{ background:var(--surface); color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .fv-scan{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 16px 8px; }
+  .fv-scan[hidden]{ display:none; }
+  .fv-scan-say{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
+  .fv-aka{ margin-top:6px; font:400 13.5px/1.45 var(--sans); color:var(--ink-3); }
   /* The twin: how well a personal folder knows you, its test and its profile. */
   .tw-acts{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:16px; }
   .tw-score{ margin-top:16px; padding:12px 14px; border-radius:12px; background:var(--side); font:500 14px/1.45 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
@@ -1624,6 +1635,11 @@
   .send{ border-radius:10px; background:var(--accent-solid); color:var(--accent-on); }
   .mic{ border-radius:10px; }
   .foot-note{ pointer-events:auto; margin-top:8px; text-align:center; font:400 11.5px/1.4 var(--sans); color:var(--ink-4); }
+  /* The mic's language, beside it in the open bar. */
+  .vlang{ height:32px; padding:0 6px; border:1px solid var(--line-2); border-radius:9px; background:var(--surface);
+    font:500 12px/1 var(--mono); color:var(--ink-3); cursor:pointer; }
+  .vlang:hover{ border-color:var(--ink-4); color:var(--ink); }
+  .vlang[hidden], .composer-wrap.compact .vlang{ display:none; }
   /* The interview strip, above the chat bar: a way in, or where it stands. */
   .iv-bar{ display:flex; justify-content:center; margin:0 auto 8px; }
   .iv-bar[hidden]{ display:none; }
@@ -1737,6 +1753,7 @@
     .box .tbar .seg.lv button{ min-height:0; height:40px; width:36px; padding:0; justify-content:center; }
     .box .tbar .seg.lv button span{ display:none; }
     .box .tbar #memBtn{ flex:none; height:42px; }
+    .box .tbar .vlang{ flex:none; height:42px; border-radius:10px; }
     .box .tbar #freshBtn{ display:none; }
     .box .tbar .t{ order:9; flex:1 0 100%; }
     .box .tbar .t:empty{ display:none; }
@@ -1854,6 +1871,10 @@
             <div class="tools">
               <button class="paste" id="fileBtn" hidden title="Read a PDF, a Word file or a text file into the content">+ document</button>
             </div>
+            <select class="vlang" id="voiceLang" aria-label="The language the mic listens in" title="The language the mic listens in">
+              <option value="">Auto</option><option value="en-US">EN</option><option value="fr-FR">FR</option><option value="es-ES">ES</option>
+              <option value="de-DE">DE</option><option value="it-IT">IT</option><option value="pt-PT">PT</option>
+            </select>
             <button class="mic" id="micBtn" type="button" aria-label="Talk" aria-pressed="false" title="Talk instead of typing">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="1.75" width="5" height="8" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/></svg>
             </button>
@@ -1879,7 +1900,7 @@ const TOKEN_KEY = "octopus.token.v1";
    copy of it. */
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
   "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle",
-  "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview"]);
+  "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview", "/api/personal/people"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -2952,6 +2973,8 @@ function renderComposer(){
   $("fileBtn").hidden = !drop;
   /* The mic is for asking and talking. A drop takes a source, not a voice. */
   $("micBtn").hidden = drop;
+  /* Read here, not from Speech: this runs once before that line is reached. */
+  $("voiceLang").hidden = drop || !(window.SpeechRecognition || window.webkitSpeechRecognition);
   if (drop && S.listening) stopVoice();
   $("footNote").textContent = asking
     ? "Interview: one question at a time, each answer filed as dated notes. Say skip to pass, or Stop any time."
@@ -3209,7 +3232,7 @@ function renderMic(){
 function startVoice(){
   if (!Speech){ S.voiceHint = systemDictation(); renderComposer(); $("input").focus(); return; }
   const r = new Speech();
-  r.lang = navigator.language || "en-US";
+  r.lang = voiceLang() || navigator.language || "en-US";
   r.interimResults = true;
   r.continuous = true;
   /* What was typed stays; the words spoken follow it. */
@@ -3236,6 +3259,14 @@ function startVoice(){
   rec = r; S.listening = true; S.voiceHint = ""; renderMic(); renderComposer();
 }
 function stopVoice(){ try { rec?.stop(); } catch { /* it had stopped already */ } }
+/* The language the mic listens in: the browser's own unless one is picked,
+   kept in this browser. A change while listening starts again in it. */
+function voiceLang(){ try { return localStorage.getItem("tasu.voiceLang") || ""; } catch { return ""; } }
+try { $("voiceLang").value = voiceLang(); } catch {}
+$("voiceLang").onchange = e => {
+  try { localStorage.setItem("tasu.voiceLang", e.target.value); } catch {}
+  if (S.listening){ S.listening = false; stopVoice(); renderMic(); setTimeout(startVoice, 250); }
+};
 $("micBtn").onclick = () => S.listening ? stopVoice() : startVoice();
 $("scopeBtn").onclick = e => { e.stopPropagation(); openPick(); };
 document.addEventListener("click", e => { if (pickMenu && !pickMenu.contains(e.target)) closePick(); });
@@ -4767,7 +4798,8 @@ function openFolder(b, openId){
   const t = el("div","fv-t");
   t.append(el("h2",null,b.name));
   if (b.scope && !self) t.append(el("p",null,b.scope));
-  t.append(el("p","fv-n", self ? `${cs.length} note${cs.length===1?"":"s"} · only its own chat reads it`
+  const nPeople = self ? cs.filter(c => c.tag === "contact").length : 0, nNotes = cs.length - nPeople;
+  t.append(el("p","fv-n", self ? `${nNotes} note${nNotes===1?"":"s"} · ${nPeople} ${nPeople===1?"person":"people"} · only its own chat reads it`
     : `${cs.length} concept${cs.length===1?"":"s"} · ${reads} source${reads===1?"":"s"} · ${clashes} clash${clashes===1?"":"es"}`));
   head.append(t);
   if (h && !self){
@@ -4823,7 +4855,53 @@ function openFolder(b, openId){
   const tops = el("div","fv-topics"); tops.hidden = true;
   const topLine = el("p","fv-topline"); topLine.hidden = true;
   let topic = null;
-  list.append(f, tops, topLine, rows);
+  /* A personal folder holds notes and contacts: one card per person, tagged. */
+  let tab = self && openId && cs.find(c => `${c.brain}/${c.slug}` === openId)?.tag === "contact" ? "people" : "notes";
+  const tabs = el("div","fv-tabs"); tabs.hidden = !self;
+  const scan = el("div","fv-scan"); scan.hidden = true;
+  const isPerson = c => c.tag === "contact";
+  const inTab = list0 => self ? list0.filter(c => (tab === "people") === isPerson(c)) : list0;
+  const paintTabs = () => {
+    tabs.innerHTML = "";
+    for (const [k, label] of [["notes","Notes"], ["people","People"]]){
+      const n = cs.filter(c => (k === "people") === isPerson(c)).length;
+      const x = el("button","fv-tab" + (tab === k ? " on" : "")); x.type = "button"; x.id = k === "people" ? "fvPeople" : "fvNotes";
+      x.append(label, el("i",null,String(n)));
+      x.onclick = () => { tab = k; f.value = ""; f.placeholder = k === "people" ? "Filter people" : "Filter notes"; paintTabs(); paint(); paintScan(); };
+      tabs.append(x);
+    }
+  };
+  /* The people already in older notes, found once on a click. */
+  const paintScan = () => {
+    const plain = cs.filter(c => !isPerson(c)).length;
+    scan.hidden = !self || S.demo || tab !== "people" || !plain;
+    if (scan.hidden || scan.dataset.busy) return;
+    scan.innerHTML = "";
+    const go2 = el("button","mini","Find people in my notes"); go2.type = "button"; go2.id = "fvScan";
+    go2.title = `Reads your ${plain} notes once and gives each person they mention a card`;
+    const say = el("span","fv-scan-say");
+    go2.onclick = async () => {
+      scan.dataset.busy = "1"; go2.disabled = true;
+      let at = 0, found = new Set();
+      try {
+        for (let i = 0; i < 100; i++){
+          say.textContent = `Reading your notes${at ? `: ${at} read` : ""}`;
+          const r = await api("/api/personal/people", { brain: b.slug, at });
+          for (const x of r.filed?.people || []) found.add(x);
+          say.textContent = `${r.read} of ${r.total} notes read · ${found.size} contact${found.size === 1 ? "" : "s"}`;
+          if (r.next == null) break;
+          at = r.next;
+        }
+        delete scan.dataset.busy;
+        await reload();
+        say.textContent = `Done: ${found.size} contact${found.size === 1 ? "" : "s"} from your notes.`;
+        go2.remove(); scan.hidden = false;
+      } catch (e) { delete scan.dataset.busy; go2.disabled = false; say.textContent = e.message; }
+    };
+    scan.append(go2, say);
+  };
+  if (self) paintTabs();
+  list.append(tabs, f, scan, tops, topLine, rows);
   if (!self) api("/api/topics", { brain: b.slug }).then(r => {
     const list2 = (r.topics || []).filter(t => t.members.length);
     if (!list2.length || S.folder !== b.slug) return;
@@ -4850,15 +4928,19 @@ function openFolder(b, openId){
   const paint = () => {
     rows.innerHTML = "";
     const q = f.value.trim().toLowerCase();
-    const base = topic ? cs.filter(c => topic.members.includes(`${c.brain}/${c.slug}`)) : cs;
-    const shown = q ? base.filter(c => (c.title + " " + (c.summaryLine || "")).toLowerCase().includes(q)) : base;
-    if (!shown.length){ rows.append(el("div","fv-none", cs.length ? "No concept matches that." : self ? "Nothing yet. Talk to it and it files what you say." : "Nothing yet. Drop a source to feed it.")); return; }
+    const base = inTab(topic ? cs.filter(c => topic.members.includes(`${c.brain}/${c.slug}`)) : cs);
+    const shown = q ? base.filter(c => (c.title + " " + (c.summaryLine || "") + " " + (c.aliases || []).join(" ")).toLowerCase().includes(q)) : base;
+    if (!shown.length){ rows.append(el("div","fv-none", q ? "Nothing matches that."
+      : self && tab === "people" ? "No contact yet. Talk about someone and they get a card here."
+      : cs.length ? "No concept matches that." : self ? "Nothing yet. Talk to it and it files what you say." : "Nothing yet. Drop a source to feed it.")); return; }
     for (const c of shown){
       const id = `${c.brain}/${c.slug}`;
       const r = el("button","fv-row" + (id === openNow ? " on" : "")); r.type = "button"; r.dataset.id = id;
       r.append(el("b",null,c.title));
       if (c.summaryLine) r.append(el("span",null,c.summaryLine));
-      r.append(el("small",null,`${c.src || 0} source${c.src === 1 ? "" : "s"}${c.updated ? " · " + dayOf(c.updated) : ""}`));
+      r.append(el("small",null, isPerson(c)
+        ? `${c.ev || 0} mention${c.ev === 1 ? "" : "s"}${c.updated ? " · last " + dayOf(c.updated) : ""}`
+        : `${c.src || 0} source${c.src === 1 ? "" : "s"}${c.updated ? " · " + dayOf(c.updated) : ""}`));
       r.onclick = () => show(id);
       rows.append(r);
     }
@@ -4883,7 +4965,9 @@ function openFolder(b, openId){
     if (openNow !== id || S.folder !== b.slug) return;
     if (!c){ inner.lastChild.textContent = "This concept is no longer here."; return; }
     inner.lastChild.remove();
-    inner.append(el("div","fv-eye",`${self ? "Note" : "Concept"} · ${b.name}`), el("h1",null,c.title));
+    const person = c.tag === "contact";
+    inner.append(el("div","fv-eye",`${person ? "Contact" : self ? "Note" : "Concept"} · ${b.name}`), el("h1",null,c.title));
+    if (person && (c.aliases || []).length) inner.append(el("p","fv-aka",`Also: ${c.aliases.join(", ")}`));
     inner.append(el("p","fv-pos", c.position || c.summaryLine || "No position yet."));
     /* What to read first, from its "needs" links. */
     const first = needsOf(c);
@@ -4893,7 +4977,7 @@ function openFolder(b, openId){
       inner.append(lf);
     }
     const ev = (c.evidence || []).slice().sort((x, y) => (x.rollup ? 1 : 0) - (y.rollup ? 1 : 0) || String(y.date || y.to || "").localeCompare(String(x.date || x.to || "")));
-    inner.append(el("h4",null, ev.length ? `Evidence, newest first (${ev.length})` : "Evidence"));
+    inner.append(el("h4",null, person ? `What you said, newest first (${ev.length})` : ev.length ? `Evidence, newest first (${ev.length})` : "Evidence"));
     if (!ev.length) inner.append(el("div","fv-li","None yet."));
     for (const e of ev){
       const row = el("div","fv-ev");
@@ -4948,7 +5032,7 @@ function openFolder(b, openId){
   const reload = async () => {
     try { await refresh(); } catch (_) {}
     if (S.folder !== b.slug) return;
-    cs = sorted(); paint();
+    cs = sorted(); if (self) paintTabs(); paint();
   };
 
   /** The learning path: the concepts in the order to read them, a step at a time. */
@@ -5030,7 +5114,7 @@ function openFolder(b, openId){
     const r = await loadIv(b.slug);
     w.remove();
     if (!doc.contains(inner)) return;
-    if (!r){ inner.append(el("div","fv-li bad","The interview could not be read. Try again.")); return; }
+    if (!r?.interview){ inner.append(el("div","fv-li bad","The interview could not be read. Try again.")); return; }
     const iv = r.interview;
     inner.append(el("p","fv-pos",`${iv.pct}% complete: ${iv.covered} of ${iv.total} questions answered, or already known from your notes. ` +
       `It asks one at a time, and every answer is filed as notes here.`));
@@ -5078,7 +5162,7 @@ function openFolder(b, openId){
     const r = await loadIv(b.slug);
     w.remove();
     if (!doc.contains(inner)) return;
-    if (!r){ inner.append(el("div","fv-li bad","The test could not be read. Try again.")); return; }
+    if (!r?.test || !r.interview){ inner.append(el("div","fv-li bad","The test could not be read. Try again.")); return; }
     const t = r.test, iv = r.interview;
     const say = el("div","ts-say"); say.setAttribute("role","status");
     const round = edit === 2 ? 2 : 1;
@@ -6033,7 +6117,12 @@ function filedLine(f){
   if (f.failed) return "Not filed this time. Say it again to keep it.";
   const n = f.new || 0, u = f.updated || 0;
   const news = n ? `${n} new note${n === 1 ? "" : "s"}` : "", ups = u ? `${u} note${u === 1 ? "" : "s"} updated` : "";
-  return n || u ? "Filed: " + [news, ups].filter(Boolean).join(", ") : "";
+  const notes = [news, ups].filter(Boolean).join(", ");
+  /* The people it heard about, each on their own card. */
+  const ppl = [...new Set((f.people || []).map(String))];
+  const who = ppl.length > 3 ? `${ppl.slice(0, 3).join(", ")} and ${ppl.length - 3} more` : ppl.join(", ");
+  const parts = [notes, who ? `Contact${ppl.length === 1 ? "" : "s"}: ${who}` : ""].filter(Boolean);
+  return parts.length ? "Filed: " + parts.join(" · ") : "";
 }
 
 /* ============ the interview ============

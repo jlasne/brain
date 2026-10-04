@@ -482,6 +482,8 @@ export function cardOf(c: any) {
     srcIds: (c.sources ?? []).slice(-5).map(String),
     related: (c.related ?? []).slice(0, 12).map(String),
     kinds: kindsOf(c),
+    ...(c.tag ? { tag: String(c.tag) } : {}),
+    ...(Array.isArray(c.aliases) && c.aliases.length ? { aliases: c.aliases.slice(0, 12).map(String) } : {}),
     updated: String(c.updated ?? ""),
   };
 }

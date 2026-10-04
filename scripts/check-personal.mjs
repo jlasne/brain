@@ -334,6 +334,62 @@ const TODAY = "2026-09-30";
   check("notes are read newest first, within a cap", nt.text === "- New: new" && nt.used === 1 && nt.total === 2, JSON.stringify(nt));
 }
 
+/* ---- contacts: one card per person, the whole of what was said ---- */
+{
+  const marc = { brain: "me", slug: "marc", title: "Marc Dupont", tag: "contact", aliases: ["my co-founder"], summaryLine: "Your co-founder" };
+  const mom = { brain: "me", slug: "mother", title: "Mother", tag: "contact", aliases: [], summaryLine: "Your mother" };
+  check("a contact is found by its first name, a name it goes by, or its role", personal.namedIn([marc, mom], "Lunch with Marc today")[0] === marc
+    && personal.namedIn([marc, mom], "my co-founder called")[0] === marc && personal.namedIn([marc, mom], "dîner chez ma mother")[0] === mom
+    && personal.namedIn([marc, mom], "Marcel came by").length === 0);
+  const m = personal.filerPrompt("chat", "Marc left Finary", "", [{ ...marc, position: "Your co-founder. ".repeat(100), evidence: [{ date: "2026-10-01" }] }], [], TODAY, [marc, mom]);
+  const u = m[1].content;
+  check("the filer is told every person gets one card, never two, kept whole", /Every person they mention gets a contact of their own/.test(u) && /Never make a second contact for the same person/.test(u)
+    && /Keep every fact the card held and add what is new/.test(u) && /the new one and the old one with its date/.test(u));
+  check("it sees every contact with the names they go by", /- "Marc Dupont" \(also: my co-founder\): Your co-founder/.test(u) && /- "Mother": Your mother/.test(u));
+  check("and the card of anyone named, whole", /- CONTACT "Marc Dupont": (Your co-founder\. ){50}/.test(u), u.slice(u.indexOf("CONTACT"), u.indexOf("CONTACT") + 80));
+  const ppl = personal.readPeople(JSON.stringify({ people: [{ name: "Paul — Graham", claim: "Paul invests early", also: ["PG", ""], position: "", date: "2026-02-30x" }, { name: "x", claim: "y" }] }), "chat");
+  check("people are read clean: em-dashes out, empty names dropped, a bad date ignored", ppl.length === 1 && ppl[0].name === "Paul, Graham" && JSON.stringify(ppl[0].also) === '["PG"]'
+    && ppl[0].position === "Paul invests early" && ppl[0].date === "", JSON.stringify(ppl));
+
+  const { T, ctx } = makeCtx();
+  T.brains = [{ _id: "b1", slug: "me", name: "Me", type: "personal", scope: "", space: "acme" }];
+  const prompts = [];
+  const model = reply => async m => { prompts.push(m[1].content); return JSON.stringify(reply); };
+  const load = async () => (await space.loadSpace(ctx, "acme", undefined, { personal: true })).cards;
+  const f1 = await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: TODAY,
+    text: "Lunch with Marc today. He's raising 2M for his fintech in Lisbon. I owe him an intro to Paul.",
+    model: model({ notes: [{ title: "Intros to make", claim: "I owe Marc an intro to Paul", position: "You owe Marc an intro to Paul.", summaryLine: "Intro Marc to Paul" }],
+      people: [{ name: "Marc", also: ["my co-founder"], claim: "He's raising 2M for his fintech in Lisbon", position: "Your co-founder. Raising 2M euros for his fintech in Lisbon (2026-09-30). You owe him an intro to Paul.", summaryLine: "Your co-founder, raising 2M in Lisbon" },
+               { name: "Paul", claim: "I owe Marc an intro to Paul", position: "You plan to introduce him to Marc (2026-09-30).", summaryLine: "Someone you will introduce to Marc" }] }) });
+  const cards = () => T.concepts.filter(c => c.tag === "contact");
+  check("each person gets a card tagged contact, with their other names", cards().length === 2 && cards().find(c => c.title === "Marc")?.aliases.includes("my co-founder")
+    && JSON.stringify(f1.people) === '["Marc","Paul"]' && f1.new === 1, JSON.stringify({ f1, c: cards().map(c => c.title) }));
+  check("a card holds the whole of what was said, and the mention dated, signed You", /Raising 2M euros/.test(cards()[0].position) && cards()[0].evidence[0].date === TODAY
+    && cards()[0].evidence[0].author === "You");
+  check("the list cards carry the tag, so the app can show People apart", (await load()).filter(c => c.tag === "contact").length === 2);
+
+  const f2 = await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: "2026-10-04", text: "Marc D. left the fintech, he joins Revolut in London",
+    model: model({ notes: [], people: [{ name: "Marc D.", update: "Marc", also: ["Marc D."], claim: "Marc left the fintech, he joins Revolut in London",
+      position: "Your co-founder. Joins Revolut in London (2026-10-04); he ran a fintech in Lisbon until then. You owe him an intro to Paul.", summaryLine: "Your co-founder, now at Revolut in London" }] }) });
+  const mc = cards().find(c => c.title === "Marc");
+  check("a new fact updates the same card, never a second one", cards().length === 2 && /Revolut in London/.test(mc.position) && mc.evidence.length === 2
+    && mc.evidence[0].date === "2026-10-04" && JSON.stringify(f2.people) === '["Marc"]', JSON.stringify(mc));
+  check("the card keeps every name used for the person", mc.aliases.includes("Marc D.") && mc.aliases.includes("my co-founder"), JSON.stringify(mc.aliases));
+  check("the filer saw Marc's card whole before rewriting it", /- CONTACT "Marc": Your co-founder\. Raising 2M euros/.test(prompts[1]), prompts[1].slice(prompts[1].indexOf("HELD NOW"), prompts[1].indexOf("HELD NOW") + 300));
+
+  const before = mc.position;
+  await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: "2026-10-05", text: "Marc is tired lately",
+    model: model({ notes: [{ title: "Marc", update: "Marc", claim: "Marc is tired lately", position: "Marc is tired.", summaryLine: "Tired" }] }) });
+  const mc2 = cards().find(c => c.title === "Marc");
+  check("a note never overwrites a person's card: what it says joins the card as a dated mention", mc2.position === before && mc2.evidence.length === 3 && mc2.evidence[0].claim === "Marc is tired lately");
+
+  const f4 = await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "people", date: TODAY, text: "- Trip (2026-03-02): You went to Porto with Lea.",
+    model: model({ notes: [{ title: "Should not", claim: "x" }], people: [{ name: "Lea", claim: "went to Porto with Lea", position: "A friend you went to Porto with (2026-03-02).", summaryLine: "A friend", date: "2026-03-02" }] }) });
+  const lea = cards().find(c => c.title === "Lea");
+  check("reading old notes files people only, dated by the note they came from", f4.new === 0 && lea?.evidence[0].date === "2026-03-02" && !T.concepts.some(c => c.title === "Should not")
+    && T.sources.some(x => x.title === `People in your notes, ${TODAY}`), JSON.stringify({ f4, lea }));
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe personal brain files what it should, for its owner only");
 process.exit(failures ? 1 : 0);
