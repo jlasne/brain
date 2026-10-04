@@ -85,7 +85,11 @@ Each answer is filed as notes, like any message, with the question as its
 context. Each question takes under 30 seconds: one fact, choice, number or
 sentence. A one-word answer gets one follow-up; a question the notes already
 answer is marked known and skipped; every 10 answers, 3 notes are read back.
-"skip" passes a question and Stop pauses it. Outside the interview, the chat
+"skip" passes a question and Stop pauses it; "start", "go" or "ok" answer
+nothing and get the waiting question again. The model writes its
+acknowledgement and its question apart, and a turn whose question is missing,
+or is not a question, asks the bank's own words, so every reply ends on one
+question. Outside the interview, the chat
 asks one of the questions in passing every few messages, from the chapters
 covered least. About $0.002 an answer on GLM 5.3 Flash. The twin test's 30
 answers are kept in the `interviews` row, never filed, so they can measure the

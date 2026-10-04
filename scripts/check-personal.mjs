@@ -181,7 +181,7 @@ const TODAY = "2026-09-30";
 
 /* ---- the interview: what a reply may decide ---- */
 {
-  const next = twin.ahead({}, 4);
+  const next = twin.ahead({}, 6);
   const t = (r, o = {}) => twin.readTurn(typeof r === "string" ? r : JSON.stringify(r), { next, followLeft: 2, check: false, ...o });
   check("a follow-up stays on the question", (x => x.follow && !x.next)(t({ reply: "Why?", follow: true })));
   check("no follow-up once two were asked: it moves on", (x => !x.follow && x.next === "A1")(t({ reply: "Why?", follow: true }, { followLeft: 0 })));
@@ -189,13 +189,25 @@ const TODAY = "2026-09-30";
   check("known means passed on the way: only those before it", JSON.stringify(t({ reply: "q", next: "A2", known: ["A1", "A3"] }).known) === '["A1"]');
   check("a question it was never shown is not taken: the first not known is", (x => x.next === "A2")(t({ reply: "q", next: "Z9", known: ["A1"] })));
   check("a message that is not an answer asks the same question again", (x => x.again && !x.next && !x.follow)(t({ reply: "You said Porto. So, where were you born?", again: true })));
-  check("a reply that is not JSON asks the first question as written", (x => x.fallback && x.next === "A1" && x.reply === next[0].text)(t("I could not")));
-  check("a read-back turn asks no question of its own", (x => !x.next && !x.follow && x.reply === "1. a 2. b 3. c Right?")(t({ reply: "1. a 2. b 3. c Right?", next: "A2", follow: true }, { check: true })));
-  check("em-dashes leave the reply", !/—/.test(t({ reply: "Good — why?", follow: true }).reply));
+  check("a reply that is not JSON asks the first question as written", (x => x.fallback && x.next === "A1" && x.question === next[0].text)(t("I could not")));
+  check("a read-back turn asks no question of its own", (x => !x.next && !x.follow && x.question === "1. a 2. b 3. c Right?")(t({ question: "1. a 2. b 3. c Right?", next: "A2", follow: true }, { check: true })));
+  check("em-dashes leave the reply", !/—/.test(t({ question: "Good — why?", follow: true }).question));
+  check("the acknowledgement and the question are read apart", (x => x.ack === "Lyon, noted." && x.question === "Who raised you?" && x.next === "A3")(t({ ack: "Lyon, noted.", question: "Who raised you?", next: "A3" })));
+  check("a reply with no question gets the bank's question: it never leaves them nothing to answer",
+    (x => x.ack === "Nice to meet you. Let's start at the beginning." && x.question === next[0].text && x.next === "A1")(t({ ack: "Nice to meet you. Let's start at the beginning.", question: "", next: "A1" })));
+  check("a question written in the acknowledgement is taken as the question", (x => x.ack === "" && x.question === "Where were you born?")(t({ ack: "Where were you born?", next: "A1" })));
+  check("a line that asks nothing is dropped for the bank's question", (x => x.question === next[2].text && x.ack === "Lyon, noted.")(t({ ack: "Lyon, noted.", question: "Let's keep going.", next: "A3" })));
+  check("so is another question than the one named: one turn never carries two",
+    (x => x.question === next[3].text)(t({ question: "Describe yourself in three words", next: "A4" })));
+  check("a question fitted to the person, or in their language, is kept", t({ question: "Qui t'a élevé à Lyon ?", next: "A3" }).question === "Qui t'a élevé à Lyon ?"
+    && t({ question: "Describe your childhood home in a sentence", next: "A6" }).question === "Describe your childhood home in a sentence");
+  check("a follow-up with no question written moves on instead", (x => !x.follow && x.next === "A1" && x.question === next[0].text)(t({ ack: "Interesting.", follow: true })));
+  check("a nudge is read alone: start, go, ok, ask me; a yes is an answer", twin.isNudge("do start") && twin.isNudge("Let's go!") && twin.isNudge("ok") && twin.isNudge("vas-y")
+    && !twin.isNudge("yes") && !twin.isNudge("I started in 2018") && !twin.isNudge("go to Lyon"));
   const p = twin.interviewPrompt({ notes: [{ title: "Lyon", line: "Born in Lyon" }], pending: null, answer: "", skipped: false, followLeft: 0, next, check: null, intro: true, date: "2026-10-04" });
   check("the first turn explains how it works, and sees the notes and the next questions", /FIRST TURN/.test(p[0].content) && /Lyon: Born in Lyon/.test(p[1].content)
     && /A1 \| In which city and year were you born\?/.test(p[1].content) && /\(they just opened the interview\)/.test(p[1].content));
-  check("it is told to fit each question to what the notes say, one question a turn", /fitted to what their notes say/.test(p[0].content) && /exactly ONE question/.test(p[0].content));
+  check("it is told to fit each question to what the notes say, one question a turn", /fitted to what their notes say/.test(p[0].content) && /the ONE question you ask now\. Never empty, never two questions/.test(p[0].content));
   const last = twin.interviewPrompt({ notes: [], pending: null, answer: "x", skipped: false, followLeft: 0, next: [], check: null, intro: false, date: "2026-10-04" });
   check("with no question left, it thanks them and points to the twin test", /LAST TURN/.test(last[0].content) && /twin test/.test(last[0].content));
   const gp = twin.readGap("Noted. Where did you grow up? [[G2]]", twin.gaps({}, "x"));
@@ -239,6 +251,12 @@ const TODAY = "2026-09-30";
   check("every question is kept light: one fact, choice, number or sentence, under 30 seconds", /under 30 seconds/.test(prompts.at(-1)[0].content)
     && /Never ask for a list of more than 3/.test(prompts.at(-1)[0].content) && twin.MAX_FOLLOW === 1);
 
+  /* "do start" answers nothing: the question waiting is asked again, unchanged. */
+  const callsBefore = prompts.length, filesBefore = files.length;
+  const nd = await step("do start", { ack: "Let's go." });
+  check("a nudge like \"do start\" files nothing, marks nothing, and asks the waiting question again with no model call",
+    prompts.length === callsBefore && files.length === filesBefore && row().pending.id === "A4" && !row().marks.A4 && nd.reply === row().pending.text && nd.reply.length > 8, nd.reply);
+
   const n = files.length;
   await step("skip", { reply: "What was your first memory?", next: "A5" });
   check("skip passes the question and files nothing", row().marks.A4 === "s" && files.length === n && /\(they skipped this question\)/.test(prompts.at(-1)[1].content));
@@ -262,6 +280,12 @@ const TODAY = "2026-09-30";
   check("a correction is filed with the read-back as its context, then the interview moves on", files.at(-1).context === "The brain asked: " + rb.reply
     && row().pending.id === "A6" && row().pending.kind === "q");
 
+  const lazy = await step("A flat above the bakery", { ack: "A flat above the bakery, noted.", question: "", next: "A7" });
+  check("a model reply with no question still ends on the question, from the bank", /\n\nWhat were you known for as a kid\?$/.test(lazy.reply) && row().pending.id === "A7"
+    && row().pending.text === "What were you known for as a kid?", lazy.reply);
+  await ctx.runMutation("store.interviewSet", { space: "acme", brain: "me", patch: { pending: { id: "A6", kind: "q", text: "Let's go.", follow: 0 }, marks: { ...row().marks, A6: undefined } } });
+  const lost = await step("ok", { ack: "x" });
+  check("a waiting question whose words were lost is asked as the bank words it", lost.reply === "What did your childhood home look like, in one sentence?", lost.reply);
   const bad = await step("A flat above the bakery", "not json at all");
   check("a reply that is not JSON still asks a real question", row().pending.id === "A7" && row().marks.A6 === "a" && bad.reply === "What were you known for as a kid?", bad.reply);
 

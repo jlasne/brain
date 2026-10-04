@@ -513,13 +513,15 @@ export function gaps(marks: Marks, text: string, n = 3): Question[] {
 export const isSkip = (t: string) => /^\s*(skip|pass|next|passe|je passe|suivant|suivante|joker)\s*[.!]?\s*$/i.test(String(t ?? ""));
 /** "stop", "pause" or "enough", alone. */
 export const isStop = (t: string) => /^\s*(stop|pause|enough|that'?s all|arr[eê]te|on arr[eê]te|stop interview)\s*[.!]?\s*$/i.test(String(t ?? ""));
+/** A nudge to get going, not an answer: "start", "go", "ok", "ask me", alone. A "yes" can answer a question, so it is no nudge. */
+export const isNudge = (t: string) => /^\s*(do |so |ok,? |okay,? )?(ok|okay|go|go on|go ahead|start|begin|let'?s go|let'?s start|ready|i'?m ready|continue|ask|ask me|next question|vas[- ]y|on y va|c'?est parti|commence|go ahead and ask)\s*[.!]*\s*$/i.test(String(t ?? ""));
 
 export const INTERVIEW_RULES =
 `You interview a person for their personal brain, so it learns how they think, decide, speak and act. You talk to them as "you".
 
-EACH TURN
-- First, at most one short sentence on what they said. Plain and warm. No praise words, no summary of their answer. Often nothing at all.
-- Then ask exactly ONE question. Never two in one turn.
+YOUR REPLY HAS TWO PARTS
+- "ack": at most one short sentence on what they said, or "". Plain and warm. No praise words, no summary of their answer.
+- "question": the ONE question you ask now. Never empty, never two questions. It is what they answer next.
 
 KEEP IT LIGHT
 - Every question must take under 30 seconds to answer: one fact, one choice, one name, one number or one sentence.
@@ -527,30 +529,30 @@ KEEP IT LIGHT
 - Offer 2 or 3 options when it makes answering easier: "Coffee, tea or neither?".
 - Never ask for a list of more than 3, a long story, a routine minute by minute, or a text to write.
 - Keep the question under 20 words.
-- Write in the language of their answer. Before they have answered, use the language of their notes, or English when there are none.
+- Write in the language of their message. Before they have written, use the language of their notes, or English when there are none.
 - No em-dashes. Under 30 words per sentence. Simple words.
 
-FOLLOW UP OR MOVE ON
+FOLLOW UP, MOVE ON, OR ASK AGAIN
 - FOLLOW-UPS LEFT says how many follow-ups this question may still get.
-- Follow up only when the answer is a word or two and a short reason or a number would make it useful. Ask one short thing: "Why?", "Since when?", "What number would you put on it?" or "One example?". Set "follow": true. A clear short answer needs no follow-up: move on.
-- Otherwise move on: set "next" to the id of the first question under NEXT QUESTIONS that their notes do not already answer, and list the ids you passed because the notes answer them in "known".
-- Ask the next question in your own words, fitted to what their notes say about them: their work, their city, the people they named. Keep its meaning, and keep it light.
-- When their message is not an answer (a question to you, another subject), reply to it in one or two sentences from their notes, then ask the same question again. Set "again": true.
+- Follow up only when the answer is a word or two and a short reason or a number would make it useful: "Why?", "Since when?", "What number would you put on it?" or "One example?". Set "follow": true.
+- When their message does not answer LAST QUESTION ASKED (a command such as "start" or "go", a question to you, another subject), reply to it in "ack" if needed and ask the same question again. Set "again": true.
+- Otherwise move on: set "next" to the id of the first question under NEXT QUESTIONS that their notes do not already answer, put the ids you passed because the notes answer them in "known", and ask it in "question", in your own words, fitted to what their notes say about them: their work, their city, the people they named. Keep its meaning, and keep it light.
 
-Reply with only JSON: {"reply":"","follow":false,"again":false,"next":"","known":[]}`;
+Reply with only JSON: {"ack":"","question":"","follow":false,"again":false,"next":"","known":[]}`;
 
 export const CHECK_RULES =
 `READ BACK, THIS TURN ONLY
-- In place of a question, read back the 3 notes under CHECK, one short line each, as "you", and ask whether each is right. They correct what is off.
+- In "question", read back the 3 notes under CHECK, one short line each, as "you", and ask whether each is right. They correct what is off.
 - Set "follow": false, "again": false, "next": "", "known": [].`;
 
 export const INTRO_RULE =
 `FIRST TURN
-- Open with one short sentence: quick questions, one at a time, a short answer is fine, "skip" passes one, and Stop pauses it any time.`;
+- "ack" is one short sentence: quick questions, one at a time, a short answer is fine, "skip" passes one, and Stop pauses it any time.
+- "question" is the first question you pick from NEXT QUESTIONS.`;
 
 export const LAST_RULE =
 `LAST TURN
-- There is no question left. Thank them in one sentence and say the twin test is next, in the personal folder. "next": "".`;
+- There is no question left. "ack": thank them in one sentence. "question": say the twin test is next, in the personal folder. "next": "".`;
 
 /** The interview's prompt, from what it holds and what was just said. */
 export function interviewPrompt(o: {
@@ -580,11 +582,25 @@ ${o.next.length ? o.next.map(q => `${q.id} | ${q.text}`).join("\n") : "(none lef
   ];
 }
 
+/** A line that asks something: a question mark, or the question's own words. */
+function asks(line: string, bank: string) {
+  if (!line) return false;
+  /* A question mark asks, in any language, fitted to the person or not. */
+  if (/\?/.test(line)) return true;
+  /* A line without one, such as "Describe yourself in 3 words.", asks only
+     when it keeps the bank question's own words. */
+  const want = WORDS(bank), have = WORDS(line);
+  let hit = 0;
+  for (const w of want) if (have.has(w)) hit++;
+  return want.size > 0 && hit / want.size >= 0.5;
+}
+
 /**
  * What the interview reply decided, held to what it may do: a follow-up only
  * while some are left, a next question only from the ones shown, and known
- * only among those passed before it. A reply that is not JSON asks the first
- * question as written.
+ * only among those passed before it. The question is read apart from the
+ * acknowledgement, so a reply can never leave them with nothing to answer:
+ * an empty one is filled by the server from the question itself.
  */
 export function readTurn(raw: string, o: { next: Question[]; followLeft: number; check: boolean }) {
   let d: any = null;
@@ -592,23 +608,37 @@ export function readTurn(raw: string, o: { next: Question[]; followLeft: number;
     const s = String(raw ?? ""), a = s.indexOf("{"), b = s.lastIndexOf("}");
     d = JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s);
   } catch { d = null; }
+  if (!d || typeof d !== "object") d = {};
   const ids = o.next.map(q => q.id);
-  const clean = (t: any) => String(t ?? "").replace(/\s*—\s*/g, ", ").replace(/[ \t]+/g, " ").trim().slice(0, 1200);
-  const reply = clean(d?.reply);
-  if (!d || !reply) {
-    const first = o.next[0];
-    return { reply: o.check ? "" : first?.text ?? "", follow: false, again: false, next: o.check ? "" : first?.id ?? "", known: [] as string[], fallback: true };
+  const clean = (t: any) => String(t ?? "").replace(/\s*—\s*/g, ", ").replace(/[ \t]+/g, " ").trim().slice(0, 900);
+  let ack = clean(d.ack), question = clean(d.question) || clean(d.reply);
+  /* A question written into the acknowledgement is the question. */
+  if (!question && /\?\s*$/.test(ack)) { question = ack; ack = ""; }
+  /* The acknowledgement stays one short sentence. */
+  if (ack.length > 220) ack = (ack.match(/^.{20,220}?[.!?](\s|$)/)?.[0] ?? ack.slice(0, 220)).trim();
+  let fallback = !question;
+  if (o.check) {
+    if (question && !/\?/.test(question)) question += " Is each one right?";
+    return { ack, question, follow: false, again: false, next: "", known: [] as string[], fallback };
   }
-  if (o.check) return { reply, follow: false, again: false, next: "", known: [] as string[], fallback: false };
   const again = d.again === true;
-  const follow = !again && d.follow === true && o.followLeft > 0;
+  /* A follow-up needs a question to ask: with none, the interview moves on. */
+  const follow = !again && d.follow === true && o.followLeft > 0 && /\?/.test(question);
   let next = !again && !follow && ids.includes(String(d.next)) ? String(d.next) : "";
   let known = (Array.isArray(d.known) ? d.known.map(String) : []).filter((x: string) => ids.includes(x) && x !== next);
   /* Moving on with no question named: the first one not passed as known. */
   if (!again && !follow && !next) next = ids.find(x => !known.includes(x)) ?? "";
   /* Known means passed on the way: only the ones before the question asked. */
   if (next) known = known.filter((x: string) => ids.indexOf(x) < ids.indexOf(next));
-  return { reply, follow, again, next, known: [...new Set<string>(known)], fallback: false };
+  /* The next question must be asked: a line that neither asks nor reads as
+     the question named ("Let's start at the beginning.", or another question
+     than the one named) is dropped, and the question is asked as the bank
+     words it, so one turn never carries two. */
+  const bankQ = next ? o.next.find(q => q.id === next)?.text ?? "" : "";
+  if (next && !asks(question, bankQ)) { question = bankQ; fallback = true; }
+  /* Asked again with nothing asked: the server asks the waiting question. */
+  if (again && !/\?/.test(question)) question = "";
+  return { ack, question, follow, again, next, known: [...new Set<string>(known)], fallback };
 }
 
 /** The questions offered in passing, for the everyday reply. */
@@ -781,6 +811,17 @@ export async function interviewStep(ctx: any, o: {
   /* Back in the interview, the question left waiting comes first again: it
      was never marked. A read-back left waiting is let go. */
   const pending: Pending | null = !opening && (row?.pending?.kind === "q" || row?.pending?.kind === "check") ? row.pending : null;
+  /* The question as it was asked, or as the bank words it when that was lost. */
+  const bank = pending?.kind === "q" ? questionOf(pending.id)?.text ?? "" : "";
+  const waiting = pending?.kind === "q" ? (/\?/.test(pending.text ?? "") || pending.text === bank ? pending.text : bank) : "";
+
+  /* "start", "go", "ok": nothing to file and nothing answered. The question
+     waiting is asked again as it stands, with no model call. */
+  if (!opening && pending?.kind === "q" && isNudge(q) && waiting) {
+    const saved = await save({ on: true, pending: { ...pending, text: waiting } });
+    return { reply: waiting, filed: none, saved };
+  }
+
   const skip = !opening && isSkip(q);
   const answering = pending?.kind === "q" ? pending : null;
   if (answering && skip) marks[answering.id] = "s";
@@ -789,21 +830,26 @@ export async function interviewStep(ctx: any, o: {
   const check = answered && (row?.sinceCheck ?? 0) + 1 >= CHECK_EVERY && held.length >= 3 ? notesOf(held, 3) : null;
   const followLeft = answered && !check ? Math.max(0, MAX_FOLLOW - (answering!.follow ?? 0)) : 0;
   const next = ahead(marks, AHEAD, answered ? answering!.id : "");
+  const asked = pending?.kind === "q" ? waiting : pending?.text ?? "";
 
-  const filing = q && !skip ? o.file(q, pending?.text ? `The brain asked: ${pending.text}` : "").catch(() => null) : Promise.resolve(none);
-  const asking = o.model(interviewPrompt({ notes: notesOf(held, 150), pending, answer: q, skipped: skip, followLeft, next, check,
-    intro: opening && !row?.opens, date: o.date })).catch(() => "");
+  const filing = q && !skip && !isNudge(q) ? o.file(q, asked ? `The brain asked: ${asked}` : "").catch(() => null) : Promise.resolve(none);
+  const asking = o.model(interviewPrompt({ notes: notesOf(held, 150), pending: pending ? { ...pending, text: asked } : null, answer: q,
+    skipped: skip, followLeft, next, check, intro: opening && !row?.opens, date: o.date })).catch(() => "");
   const [raw, got] = await Promise.all([asking, filing]);
   const filed = got ?? { ...none, failed: true };
   const turn = readTurn(raw, { next, followLeft, check: !!check });
-  const reply = turn.reply || (check
-    ? `Quick check on what I filed:\n${check.map((n, i) => `${i + 1}. ${n.title}: ${n.line}`).join("\n")}\nIs each one right? Correct anything that is off.`
-    : next[0]?.text ?? "That was the last question. The twin test is next, in your personal folder.");
+
+  /* What they answer next: never left empty. */
+  let question = turn.question;
+  if (check && !question) question = `Quick check on what I filed:\n${check.map((n, i) => `${i + 1}. ${n.title}: ${n.line}`).join("\n")}\nIs each one right? Correct anything that is off.`;
+  if (turn.again && !question) question = asked || next[0]?.text || "";
+  if (!question && !next.length) question = "That was the last question. The twin test is next, in your personal folder.";
+  const reply = [turn.ack, question].filter(Boolean).join("\n\n");
 
   let sinceCheck = row?.sinceCheck ?? 0;
   if (answered && !turn.follow && !turn.again) { marks[answering!.id] = "a"; sinceCheck++; }
   for (const k of turn.known) marks[k] = "k";
-  const text = reply.slice(0, 1200);
+  const text = question.slice(0, 1200);
   let nextPending: Pending | null = null;
   if (check) { nextPending = { id: "", kind: "check", text, follow: 0 }; sinceCheck = 0; }
   else if (turn.follow && answering) nextPending = { ...answering, text, follow: (answering.follow ?? 0) + 1 };

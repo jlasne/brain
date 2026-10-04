@@ -957,8 +957,12 @@ async function interviewTurn(ctx: any, who: Caller, b: any, mine: any, cards: an
   const date = new Date().toISOString().slice(0, 10);
   const step = await interviewStep(ctx, { space: who.space, brain: mine.slug, cards, row, q, opening, date,
     model: async m => (await ask(m, { json: true, maxTokens: 900, key: mKey, model: mName, timeout: 90000, temperature: 0.4 })).text,
-    file: (text, context) => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date,
-      model: async m => (await ask(m, { json: true, maxTokens: 2400, key: mKey, model: mName, timeout: 120000 })).text }) });
+    /* A filing that fails is tried once more: an answer lost costs the owner a retype. */
+    file: async (text, context) => {
+      const run = () => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date,
+        model: async m => (await ask(m, { json: true, maxTokens: 2400, key: mKey, model: mName, timeout: 90000 })).text });
+      try { return await run(); } catch { return await run(); }
+    } });
   let chat: string | undefined;
   if ("chat" in b) {
     try {
