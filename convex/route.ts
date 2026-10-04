@@ -46,7 +46,9 @@ QUESTION: ${q.slice(0, 600)}
 ${before.length ? `ASKED BEFORE, oldest first:\n${before.map(x => `- ${x}`).join("\n")}\n` : ""}
 CONCEPTS (${index.ids.length}${index.total > index.ids.length ? ` of ${index.total}, the closest by wording` : ""})
 ${index.text}` },
-    ], { json: true, maxTokens: 600, timeout: 30000, key, model });
+    /* Temperature 0: the same question opens the same concepts each time.
+       A model that must think gets its room on top of the 600, and the time. */
+    ], { json: true, maxTokens: 600, timeout: 45000, temperature: 0, key, model });
     const d = parseJson(String(text), finish);
     const picked = (Array.isArray(d?.picks) ? d.picks : [])
       .map((n: any) => index.ids[Number(n) - 1]).filter(Boolean).slice(0, 30);

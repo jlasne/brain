@@ -144,7 +144,12 @@ export function planDossier(pool: any[], concepts: any[], q: string, history?: a
      overrules that; loose word matches would fill the answer with noise. */
   const judgedEmpty = !!opts.routed && !picked.length;
   const titleHits = judgedEmpty ? hits.filter((c: any) => scoreConcept(c, words) >= 3) : hits;
-  const seeds = picked.length ? picked : titleHits.slice(0, 10);
+  /* A concept whose title carries the question's own words always opens, even
+     when the router passed it over: "Finance formulas reference" for a
+     question asking for a formula. The router picks by sampling, and missing
+     one such concept was the difference between an answer and "not held". */
+  const named = hits.filter((c: any) => scoreConcept(c, words) >= 3).slice(0, 5);
+  const seeds = picked.length ? [...new Set([...picked, ...named])] : titleHits.slice(0, 10);
   const linked = neighbours(seeds, inPool).slice(0, 10);
   /* The seeds lead: the picks, or with none the best word matches. Then what
      they link to, then the rest of the matches. */

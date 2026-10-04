@@ -96,6 +96,13 @@ const tokens = s => Math.round(s.length / 4);
   check("a pick naming no concept is ignored", ghost.picked === 0 && ghost.opened.length > 0);
 }
 
+/* ---- a title carrying the question's words opens, picked or not ---- */
+{
+  const r = dossierFor(brains, concepts, "how does straight line depreciation work?", undefined, { picked: ["b0/c0"], routed: true });
+  check("the router's pick leads, and the concept named in the question opens beside it, though the router passed it over",
+    r.opened[0]?.slug === "c0" && r.opened.slice(0, 6).some(c => c.slug === "depreciation"), r.opened.slice(0, 6).map(c => c.slug).join(","));
+}
+
 /* ---- the numbered title list ---- */
 {
   const idx = indexFor(brains, concepts, "depreciation");

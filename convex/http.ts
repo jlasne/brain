@@ -752,7 +752,7 @@ route("/api/ask", async (ctx, _req, b) => {
     `Q: ${String(h.q ?? "").slice(0, 400)}\nA: ${String(h.a ?? "").slice(0, 1200)}`).join("\n\n");
 
   const { text } = await ask([
-    { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You always answer in English." },
+    { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You answer in the language the question is written in." },
     { role: "user", content:
 `Answer the question from the stored knowledge below.
 ${proj ? `
@@ -778,8 +778,10 @@ ${isPerson
 - No file paths anywhere.
 ${nSources > 0 && nSources < 10 ? `- This rests on ${nSources} source${nSources === 1 ? "" : "s"} only. Open by saying it is a small brain.` : ""}
 - Then a blank line, then one line: "Sources: {author}, {date} - {author}, {date}" listing only sources you used. Omit that line if you used none.
-- English, always. No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
+- Write in the language of the QUESTION: a question in French gets French, one in English gets English. The stored knowledge is in English; translate what you use, numbers and names kept as they are. The sources line stays as it is.
+- No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
 - If the stored knowledge does not answer it, say so plainly in one sentence and name what kind of source would fill the gap. Never invent evidence.
+- One exception, said openly: when the stored knowledge names a standard formula, rule or definition and does not spell it out, give its textbook form on one line that starts "General knowledge, not from your sources:". Never anything beyond that one line, and never a figure, a date or a view.
 ${earlier ? `- The question may be a follow-up. Read it against the conversation below, so a pronoun or "the second one" points at the right thing.` : ""}
 ${earlier ? `
 EARLIER IN THIS CONVERSATION
@@ -792,7 +794,8 @@ The concepts that bear on this question are opened in full. Others are named und
 ${dossier}
 
 QUESTION: ${String(b.q ?? "")}` },
-  ], { maxTokens: level === "normal" ? 2000 : learning ? 2400 : 3200, key: mKey, model: mName,
+  /* Low temperature: the same question, on the same knowledge, reads the same. */
+  ], { maxTokens: level === "normal" ? 2000 : learning ? 2400 : 3200, key: mKey, model: mName, temperature: 0.2,
        /* The browser waits 3 minutes. The router's time comes out of the
           answer's, so the two never add up past it. */
        timeout: Math.max(60000, 165000 - (Date.now() - t0)) });
