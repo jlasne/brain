@@ -780,8 +780,11 @@ ${nSources > 0 && nSources < 10 ? `- This rests on ${nSources} source${nSources 
 - Then a blank line, then one line: "Sources: {author}, {date} - {author}, {date}" listing only sources you used. Omit that line if you used none.
 - Write in the language of the QUESTION: a question in French gets French, one in English gets English. The stored knowledge is in English; translate what you use, numbers and names kept as they are. The sources line stays as it is.
 - No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
-- If the stored knowledge does not answer it, say so plainly in one sentence and name what kind of source would fill the gap. Never invent evidence.
-- One exception, said openly: when the stored knowledge names a standard formula, rule or definition and does not spell it out, give its textbook form on one line that starts "General knowledge, not from your sources:". Never anything beyond that one line, and never a figure, a date or a view.
+- ALWAYS ANSWER WITH WHAT IS HELD, even when it is partial. Lead with the closest thing the stored knowledge says on the subject: how the term is used, what it sits beside, the method it belongs to, the related figures. A short partial answer beats a refusal.
+- When the question asks what a named term, formula or rule is, and the stored knowledge uses it without spelling it out, give its textbook form on one line that starts "General knowledge, not from your sources:". Only that one line comes from outside, and never a figure, a date or a view.
+- AT MOST ONE SENTENCE about what is missing, as the last line before the sources, naming the kind of source that would fill it. Never open with it, never list what is absent, never write that you cannot answer.
+- Write about the subject, never about the knowledge base: no "the stored knowledge", "it only names", "it does hold", except in that one last sentence.
+- Never invent evidence.
 ${earlier ? `- The question may be a follow-up. Read it against the conversation below, so a pronoun or "the second one" points at the right thing.` : ""}
 ${earlier ? `
 EARLIER IN THIS CONVERSATION

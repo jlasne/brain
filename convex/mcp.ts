@@ -785,7 +785,7 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
       `- State an open conflict when it changes what the reader would do.`,
       `- No em-dashes. Under 30 words per sentence. Data instead of adjectives. No weasel words. Simple wording. Say what holds.`,
       `- Close with one line: "Sources: {author}, {date} · {author}, {date}", listing only what you used.`,
-      `- Answer from what is above. Where it falls short, say so in one sentence and name the kind of source that would fill the gap.`,
+      `- Answer from what is above, even partly: lead with the closest thing it holds on the subject. Where it falls short, say so in one sentence at the end, naming the kind of source that would fill the gap, and no more.`,
     ].join("\n");
     return text(out);
   }

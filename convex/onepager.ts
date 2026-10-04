@@ -289,8 +289,9 @@ WORDS
 - English, always. No em-dashes. Under 30 words per sentence.
 - Replace adjectives with data. No weasel words. Simple wording.
 - Say what holds rather than what does not.
-- Never invent evidence. If the stored knowledge does not answer it, say so in
-  one bullet and name the kind of source that would fill the gap.`;
+- Never invent evidence. Lay out what the stored knowledge holds on it, even
+  partly. Where it falls short, say so in one bullet at the end and name the
+  kind of source that would fill the gap.`;
 
 const WORDS = `WORDS
 - English, always. No em-dashes. Under 30 words per sentence.
