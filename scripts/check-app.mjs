@@ -2104,6 +2104,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
       if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/personal/contact")) return Response.json(body.action === "merge" ? { into: body.into, joined: 1, rewritten: true } : { id: body.id, title: body.title });
       if (s.includes("/api/personal/people")) return Response.json(body.at ? { filed: { people: ["Lea"] }, next: null, read: 25, total: 25 } : { filed: { people: ["Paul", "Lea"] }, next: 20, read: 20, total: 25 });
       if (s.includes("/api/concept")) return Response.json({ concept: { brain: "me", slug: "marc", title: "Marc Dupont", tag: "contact", aliases: ["Marc", "my co-founder"],
         position: "Your co-founder. Joins Revolut in London (2026-10-04).", evidence: [{ date: "2026-10-04", author: "You", claim: "Marc joins Revolut" }, { date: "2026-09-30", author: "You", claim: "Marc raises 2M" }],
@@ -2151,6 +2152,26 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const card = await page.evaluate(() => ({ eye: document.querySelector(".fv-doc .fv-eye")?.textContent, aka: document.querySelector(".fv-doc .fv-aka")?.textContent,
     h4: [...document.querySelectorAll(".fv-doc h4")].map(x => x.textContent)[0] }));
   check("a contact opens as a card: its names, and everything you said, dated", card.eye === "Contact · Me" && card.aka === "Also: Marc, my co-founder" && card.h4 === "What you said, newest first (2)", JSON.stringify(card));
+  /* Edit it by hand. */
+  await page.click("#ctEdit"); await page.waitForTimeout(150);
+  const form = await page.evaluate(() => ({ name: document.getElementById("ctName")?.value, aka: document.getElementById("ctAka")?.value, pos: document.getElementById("ctPos")?.value }));
+  check("Edit opens the card's name, other names, line and text, filled in", form.name === "Marc Dupont" && form.aka === "Marc, my co-founder" && /Revolut/.test(form.pos || ""), JSON.stringify(form));
+  await page.fill("#ctName", "Marc Dupont-Leroy"); await page.fill("#ctAka", "Marc, my co-founder, MDL");
+  await page.click("#ctSave"); await page.waitForTimeout(300);
+  const edited = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/personal/contact")).pop()?.body);
+  check("Save sends the new name and names, and the card comes back", edited?.action === "edit" && edited.id === "me/marc" && edited.title === "Marc Dupont-Leroy"
+    && JSON.stringify(edited.aliases) === '["Marc","my co-founder","MDL"]' && /Revolut/.test(edited.position), JSON.stringify(edited));
+  check("and the card is shown again", await page.evaluate(() => document.querySelector(".fv-doc .fv-eye")?.textContent === "Contact · Me"));
+  /* Merge it with the card of the same person under another name. */
+  await page.click("#ctMerge"); await page.waitForTimeout(100);
+  const pick = await page.evaluate(() => [...document.querySelectorAll(".ct-row b")].map(x => x.textContent));
+  check("Merge lists the other cards, never this one", JSON.stringify(pick) === '["Paul"]', JSON.stringify(pick));
+  await page.click(".ct-row .mini"); await page.waitForTimeout(60);
+  const armed = await page.evaluate(() => ({ t: document.querySelector(".ct-row .mini").textContent, calls: window.__calls.filter(x => x.body?.action === "merge").length }));
+  check("the first tap asks to be sure, and merges nothing", armed.t === "Yes, Paul is Marc Dupont" && armed.calls === 0, JSON.stringify(armed));
+  await page.click(".ct-row .mini"); await page.waitForTimeout(300);
+  const merged = await page.evaluate(() => window.__calls.filter(x => x.body?.action === "merge").pop()?.body);
+  check("the second merges that card into this one", merged?.into === "me/marc" && JSON.stringify(merged.from) === '["me/paul"]', JSON.stringify(merged));
   await page.click("#fvPeople"); await page.waitForTimeout(100);
   await page.click("#fvScan"); await page.waitForTimeout(400);
   const scans = await page.evaluate(() => ({ at: window.__calls.filter(x => x.s.includes("/api/personal/people")).map(x => x.body.at), say: document.querySelector(".fv-scan-say")?.textContent }));

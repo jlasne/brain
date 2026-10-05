@@ -1489,3 +1489,75 @@ export const interviewSet = internalMutation({
   },
 });
 
+/* ---------- a personal brain's contacts ---------- */
+
+/** A contact card of this workspace's personal brain, by its id, or null. */
+async function ownContact(ctx: any, space: string, id: string) {
+  const cut = String(id).indexOf("/");
+  if (cut < 1) return null;
+  const b = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", id.slice(0, cut))).unique();
+  if (!b || b.type !== "personal" || readSpace(b.space) !== space) return null;
+  const c = await ctx.db.query("concepts")
+    .withIndex("by_brain_slug", (q: any) => q.eq("brain", id.slice(0, cut)).eq("slug", id.slice(cut + 1))).unique();
+  return c?.tag === "contact" ? c : null;
+}
+
+const cleanNames = (list: any[], title: string) => [...new Set((Array.isArray(list) ? list : [])
+  .map(x => String(x ?? "").replace(/\s+/g, " ").trim().slice(0, 60)).filter(x => x.length >= 2 && !sameTitle(x, title)))].slice(0, 12);
+
+/**
+ * A contact edited by hand: its name, the other names it goes by, its card
+ * and its line. Its id stays, and so do the dated mentions behind it.
+ */
+export const contactEdit = internalMutation({
+  args: { space: v.string(), id: v.string(), title: v.optional(v.string()), aliases: v.optional(v.array(v.string())),
+          position: v.optional(v.string()), summaryLine: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const c = await ownContact(ctx, space, a.id);
+    if (!c) throw new Error("that person is not in your personal folder");
+    const title = a.title != null ? a.title.replace(/\s+/g, " ").trim().slice(0, 80) : c.title;
+    if (title.length < 2) throw new Error("a name takes 2 characters at least");
+    if (!sameTitle(title, c.title)) {
+      const other = await byTitle(ctx, "concepts", c.brain, title);
+      if (other && other._id !== c._id && sameTitle(other.title, title)) throw new Error(`"${other.title}" already has a card: merge the two instead`);
+    }
+    const patch: any = { title, updated: today() };
+    /* The old name stays findable as another name. */
+    const names = a.aliases != null ? a.aliases : (c.aliases ?? []);
+    patch.aliases = cleanNames([...names, ...(sameTitle(title, c.title) ? [] : [c.title])], title);
+    if (a.position != null) patch.position = a.position.trim().slice(0, 4000);
+    if (a.summaryLine != null) patch.summaryLine = a.summaryLine.replace(/\s+/g, " ").trim().slice(0, 200);
+    await ctx.db.patch(c._id, patch);
+    await syncCard(ctx, c._id);
+    return { id: a.id, title };
+  },
+});
+
+/**
+ * Two cards that are one person, folded into the one kept: every dated
+ * mention and source joins it, the other's names become its other names, and
+ * the two cards' text is kept side by side until it is written again as one.
+ */
+export const contactMerge = internalMutation({
+  args: { space: v.string(), into: v.string(), from: v.array(v.string()) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const keep = await ownContact(ctx, space, a.into);
+    if (!keep) throw new Error("that person is not in your personal folder");
+    let joined = 0;
+    for (const id of [...new Set<string>(a.from)].filter(x => x !== a.into).slice(0, 10)) {
+      const gone = await ownContact(ctx, space, id);
+      if (!gone || gone.brain !== keep.brain) continue;
+      const now = await ctx.db.get(keep._id);
+      await ctx.db.patch(keep._id, {
+        aliases: cleanNames([...(now.aliases ?? []), gone.title, ...(gone.aliases ?? [])], now.title),
+        position: [now.position, gone.position].map((t: any) => String(t ?? "").trim()).filter(Boolean).join("\n\n").slice(0, 4000),
+      });
+      await joinConcept(ctx, await ctx.db.get(keep._id), gone);
+      joined++;
+    }
+    return { into: a.into, joined };
+  },
+});
+

@@ -8,7 +8,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
-  ask, json, cors, sha256, slug, randomHex, isOpen,
+  ask, json, cors, sha256, slug, randomHex, isOpen, parseJson,
   readSpace, SPACE_NAME, HOME, spaceName, slugOfName, SPACE_RE, SPACES,
   MODEL, PROJECT_MODEL, CHUNK,
   canDrop,
@@ -1143,6 +1143,60 @@ route("/api/personal/people", async (ctx, _req, b) => {
     date: new Date().toISOString().slice(0, 10),
     model: async m => (await ask(m, { json: true, maxTokens: 8000, key: mKey, model: mName, timeout: 150000 })).text });
   return { filed, next, read: Math.min(at + 20, all.length), total: all.length };
+});
+
+export const MERGE_RULES =
+`Below are the cards of one person, filed under different names, and every dated thing their owner said about them. Write one card.
+
+- "position": the whole card, written to the owner as "you": who the person is to you, how you met, their work and city, and everything you said about them, with dates. Keep every fact from both cards. When two facts disagree, state the newer one and the older one with its date. End with any promise still open.
+- "summaryLine": who they are to you, under 15 words.
+- Only what the cards and the mentions say. Keep the owner's language. No em-dashes. Under 30 words per sentence.
+
+Reply with only JSON: {"position":"","summaryLine":""}`;
+
+/**
+ * A person's card in a personal brain, by action: "edit" sets its name,
+ * other names, card and line by hand; "merge" folds other cards of the same
+ * person into it, then writes the joined card again as one.
+ */
+route("/api/personal/contact", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const brain = String(b.id ?? b.into ?? "").split("/")[0];
+  const got = await personalOf(ctx, who.space, brain);
+  if (!got) return { error: "that is not a personal brain of this workspace" };
+  if (b.action === "edit") {
+    return await ctx.runMutation(internal.store.contactEdit, { space: who.space, id: String(b.id ?? ""),
+      ...(typeof b.title === "string" ? { title: b.title } : {}),
+      ...(Array.isArray(b.aliases) ? { aliases: b.aliases.map(String).slice(0, 20) } : {}),
+      ...(typeof b.position === "string" ? { position: b.position } : {}),
+      ...(typeof b.summaryLine === "string" ? { summaryLine: b.summaryLine } : {}) });
+  }
+  if (b.action === "merge") {
+    const into = String(b.into ?? ""), from = (Array.isArray(b.from) ? b.from : []).map(String).filter((x: string) => x.split("/")[0] === brain).slice(0, 10);
+    if (!from.length) return { error: "pick the card to merge into this one" };
+    const before = await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids: [into, ...from] });
+    const r = await ctx.runMutation(internal.store.contactMerge, { space: who.space, into, from });
+    if (!r.joined) return { error: "those cards could not be merged" };
+    /* The two texts sit side by side until the joined card is written as one. */
+    let rewritten = false;
+    try {
+      const cards = before.map((c: any) => `CARD "${c.title}"${(c.aliases ?? []).length ? ` (also: ${c.aliases.join(", ")})` : ""}\n${String(c.position || c.summaryLine || "").slice(0, 3000)}`).join("\n\n");
+      const said = before.flatMap((c: any) => (c.evidence ?? []).map((e: any) => `- ${e.date ?? "?"}: ${String(e.claim ?? "").slice(0, 300)}`)).slice(0, 80).join("\n");
+      const { text, finish } = await ask([
+        { role: "system", content: "You keep a person's own contact cards. You reply with JSON only." },
+        { role: "user", content: `${MERGE_RULES}\n\n${cards}\n\nWHAT THEY SAID, DATED\n${said || "(nothing)"}` },
+      ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), timeout: 90000, temperature: 0.2 });
+      const d = parseJson(String(text), finish) ?? {};
+      const position = String(d.position ?? "").replace(/\s*—\s*/g, ", ").trim();
+      const line = String(d.summaryLine ?? "").replace(/\s*—\s*/g, ", ").trim().slice(0, 200);
+      if (position.length > 20) {
+        await ctx.runMutation(internal.store.contactEdit, { space: who.space, id: into, position, ...(line ? { summaryLine: line } : {}) });
+        rewritten = true;
+      }
+    } catch { /* the joined card keeps both texts */ }
+    return { into, joined: r.joined, rewritten };
+  }
+  return { error: "that is not something a contact does" };
 });
 
 /* ---------- chats ---------- */

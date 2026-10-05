@@ -413,6 +413,36 @@ const TODAY = "2026-09-30";
     && mx.evidence[0].claim === "Cooked dinner with Maxime tonight" && mx.evidence[0].date === "2026-10-05" && /Arrived on 2026-10-04/.test(mx.position), JSON.stringify(mx.evidence));
 }
 
+/* ---- a person's card, edited and merged by hand ---- */
+{
+  const { T, ctx } = makeCtx();
+  T.brains = [{ _id: "b1", slug: "me", name: "Me", type: "personal", scope: "", space: "acme" },
+    { _id: "b2", slug: "health", name: "Health", type: "subject", scope: "s", space: "acme" }];
+  const card = (slug, title, extra = {}) => ({ _id: "c-" + slug, brain: "me", slug, n: 1, title, position: `${title}'s card.`, summaryLine: title, tag: "contact", aliases: [],
+    evidence: [{ date: "2026-10-0" + (slug.length % 9), author: "You", claim: `about ${title}`, source: "s" }], data: [], conflicts: [], sources: ["s-" + slug], related: [], updated: "2026-10-01", ...extra });
+  T.concepts = [card("paul", "Paul"), card("paul-martin", "Paul Martin", { aliases: ["PM"] }), card("marc", "Marc"),
+    { _id: "n1", brain: "me", slug: "trip", n: 2, title: "Trip", position: "x", summaryLine: "x", evidence: [], data: [], conflicts: [], sources: [], related: [], updated: "2026-10-01" },
+    { _id: "h1", brain: "health", slug: "sleep", n: 1, title: "Sleep", tag: "contact", position: "x", summaryLine: "x", evidence: [], data: [], conflicts: [], sources: [], related: [], updated: "2026-10-01" }];
+  const run = (name, args) => store[name].handler({ db: ctx.db }, args);
+  await run("contactEdit", { space: "acme", id: "me/marc", title: "Marc Dupont", aliases: ["my co-founder", " ", "Marc Dupont"], summaryLine: "Your co-founder", position: "Your co-founder since 2024." });
+  const m = T.concepts.find(c => c.slug === "marc");
+  check("an edit renames a person in place, the old name kept as another name", m.title === "Marc Dupont" && JSON.stringify(m.aliases) === '["my co-founder","Marc"]'
+    && m.position === "Your co-founder since 2024." && m.summaryLine === "Your co-founder" && m.evidence.length === 1, JSON.stringify(m));
+  let threw = "";
+  try { await run("contactEdit", { space: "acme", id: "me/marc", title: "Paul" }); } catch (e) { threw = e.message; }
+  check("a name another card holds is refused: merge the two instead", /already has a card: merge the two instead/.test(threw), threw);
+  for (const [id, sp] of [["me/trip", "acme"], ["health/sleep", "acme"], ["me/paul", "other"]]) {
+    threw = ""; try { await run("contactEdit", { space: sp, id, title: "X Y" }); } catch (e) { threw = e.message; }
+    check(`only a contact of your own personal folder is edited (${id} in ${sp})`, /not in your personal folder/.test(threw), threw);
+  }
+  const r = await run("contactMerge", { space: "acme", into: "me/paul-martin", from: ["me/paul", "me/paul-martin", "me/nope"] });
+  const pm = T.concepts.find(c => c.slug === "paul-martin");
+  check("a merge folds the other card in: its mentions, sources and names join, and it goes", r.joined === 1 && !T.concepts.some(c => c.slug === "paul")
+    && pm.evidence.length === 2 && pm.sources.includes("s-paul") && JSON.stringify(pm.aliases) === '["PM","Paul"]', JSON.stringify(pm));
+  check("both cards' text is kept side by side until written again as one", pm.position === "Paul Martin's card.\n\nPaul's card.", JSON.stringify(pm.position));
+  check("the list cards follow: the folded card's card is gone", !(T.cards ?? []).some(c => c.slug === "paul") && (T.cards ?? []).find(c => c.slug === "paul-martin")?.aliases?.includes("Paul"));
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe personal brain files what it should, for its owner only");
 process.exit(failures ? 1 : 0);

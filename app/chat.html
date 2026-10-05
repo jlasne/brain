@@ -515,6 +515,23 @@
   .fv-scan[hidden]{ display:none; }
   .fv-scan-say{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
   .fv-aka{ margin-top:6px; font:400 13.5px/1.45 var(--sans); color:var(--ink-3); }
+  /* A person's card: edit it, or merge it with another card of the same person. */
+  .ct-acts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .ct-pick{ margin-top:10px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--side); animation:tdIn .3s ease both; }
+  .ct-pick[hidden]{ display:none; }
+  .ct-pick .tw-key{ margin-top:0; }
+  .ct-find{ display:block; width:100%; margin:10px 0 6px; }
+  .ct-list{ display:grid; gap:4px; max-height:320px; overflow-y:auto; }
+  .ct-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border-radius:9px; background:var(--surface); }
+  .ct-row > div{ min-width:0; display:grid; gap:2px; }
+  .ct-row b{ font:600 14px/1.3 var(--sans); color:var(--ink); }
+  .ct-row span{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ct-row .mini{ flex:none; }
+  .ct-row .mini.armed{ border-color:var(--accent-solid); color:var(--accent); }
+  .ct-form .ts-q{ margin-top:12px; }
+  .ct-form input{ width:100%; min-height:40px; padding:0 11px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface);
+    font:400 14px/1.4 var(--sans); color:var(--ink); }
+  .ct-form input:focus, .ct-form textarea:focus{ outline:none; border-color:var(--ink-4); }
   /* The twin: how well a personal folder knows you, its test and its profile. */
   .tw-acts{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:16px; }
   .tw-score{ margin-top:16px; padding:12px 14px; border-radius:12px; background:var(--side); font:500 14px/1.45 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
@@ -5003,6 +5020,17 @@ function openFolder(b, openId){
     inner.append(el("div","fv-eye",`${person ? "Contact" : self ? "Note" : "Concept"} · ${b.name}`), el("h1",null,c.title));
     if (person && (c.aliases || []).length) inner.append(el("p","fv-aka",`Also: ${c.aliases.join(", ")}`));
     inner.append(el("p","fv-pos", c.position || c.summaryLine || "No position yet."));
+    /* A person's card is yours to correct: edit it, or merge it with the
+       card of the same person under another name. */
+    if (person && !S.demo){
+      const acts = el("div","ct-acts");
+      const ed = el("button","mini","Edit"); ed.type = "button"; ed.id = "ctEdit";
+      const mg = el("button","mini","Merge with another card"); mg.type = "button"; mg.id = "ctMerge";
+      const pick = el("div","ct-pick"); pick.hidden = true;
+      ed.onclick = () => editCard(c, id);
+      mg.onclick = () => { pick.hidden = !pick.hidden; if (!pick.hidden) mergePick(pick, c, id); };
+      acts.append(ed, mg); inner.append(acts, pick);
+    }
     /* What to read first, from its "needs" links. */
     const first = needsOf(c);
     if (first.length){
@@ -5059,6 +5087,66 @@ function openFolder(b, openId){
     askIt.onclick = () => { $("input").value = `What does ${c.title} say, and why?`; sizeBox(); renderComposer(); $("input").focus(); };
     a2.append(askIt, el("span","fv-upd", c.updated ? `Updated ${c.updated}` : ""));
     inner.append(a2);
+  };
+
+  /** A person's card, by hand: name, other names, line and card. */
+  const editCard = (c, id) => {
+    openNow = id;
+    doc.innerHTML = ""; doc.scrollTop = 0;
+    const inner = el("div","fv-in ct-form"); inner.id = "ctForm"; doc.append(inner);
+    const back = el("button","fv-back","← Back to the card"); back.type = "button"; back.onclick = () => show(id);
+    inner.append(back, el("div","fv-eye",`Edit contact · ${b.name}`), el("h1",null,c.title));
+    const field = (label, node) => { const l = el("label","ts-q"); l.append(el("span",null,label), node); inner.append(l); return node; };
+    const name = field("Name", el("input")); name.id = "ctName"; name.value = c.title; name.maxLength = 80;
+    const aka = field("Other names, with a comma between", el("input")); aka.id = "ctAka"; aka.value = (c.aliases || []).join(", ");
+    const line = field("Who they are to you, in one line", el("input")); line.id = "ctLine"; line.value = c.summaryLine || ""; line.maxLength = 200;
+    const card = field("The card", el("textarea")); card.id = "ctPos"; card.rows = 9; card.value = c.position || "";
+    const say = el("span","ts-say"); say.setAttribute("role","status");
+    const save = el("button","go","Save"); save.type = "button"; save.id = "ctSave";
+    const no = el("button","ghost","Cancel"); no.type = "button"; no.onclick = () => show(id);
+    save.onclick = async () => {
+      save.disabled = true; say.textContent = "Saving"; say.className = "ts-say";
+      try {
+        await api("/api/personal/contact", { action: "edit", id, title: name.value.trim(), position: card.value,
+          summaryLine: line.value.trim(), aliases: aka.value.split(",").map(x => x.trim()).filter(Boolean) });
+        await reload(); show(id);
+      } catch (e) { save.disabled = false; say.textContent = e.message; say.className = "ts-say bad"; }
+    };
+    const row = el("div","tw-acts"); row.append(save, no, say); inner.append(row);
+    name.focus();
+  };
+
+  /** The other cards, to pick the one that is the same person. */
+  const mergePick = (pick, c, id) => {
+    pick.innerHTML = "";
+    const others = cs.filter(x => x.tag === "contact" && `${x.brain}/${x.slug}` !== id);
+    if (!others.length){ pick.append(el("p","tw-key","No other card to merge with yet.")); return; }
+    pick.append(el("p","tw-key",`Pick the card that is the same person as ${c.title}. Its mentions and names join this card, and the card is written again as one.`));
+    const q = el("input","fv-filter ct-find"); q.placeholder = "Find a person"; q.id = "ctFind";
+    const list = el("div","ct-list");
+    const paintList = () => {
+      list.innerHTML = "";
+      const t = q.value.trim().toLowerCase();
+      for (const x of others.filter(x => !t || (x.title + " " + (x.aliases || []).join(" ") + " " + (x.summaryLine || "")).toLowerCase().includes(t)).slice(0, 30)){
+        const r = el("div","ct-row");
+        const who2 = el("div"); who2.append(el("b",null,x.title)); if (x.summaryLine) who2.append(el("span",null,x.summaryLine));
+        const go2 = el("button","mini","Merge into this card"); go2.type = "button"; go2.dataset.id = `${x.brain}/${x.slug}`;
+        let armed = false;
+        go2.onclick = async () => {
+          if (!armed){ armed = true; go2.textContent = `Yes, ${x.title} is ${c.title}`; go2.classList.add("armed"); return; }
+          go2.disabled = true; go2.textContent = "Merging";
+          try {
+            const res = await api("/api/personal/contact", { action: "merge", into: id, from: [`${x.brain}/${x.slug}`] });
+            await reload(); await show(id);
+            if (!res.rewritten) doc.querySelector(".fv-in")?.append(el("p","tw-key","Merged. The two cards' text sits side by side until you edit it."));
+          } catch (e) { go2.disabled = false; go2.textContent = e.message; }
+        };
+        r.append(who2, go2); list.append(r);
+      }
+      if (!list.children.length) list.append(el("p","tw-key","No card matches that."));
+    };
+    q.oninput = paintList;
+    pick.append(q, list); paintList();
   };
 
   /* After a join, a rename or a position written, the list reads the
