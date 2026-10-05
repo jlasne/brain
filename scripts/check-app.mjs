@@ -2905,6 +2905,58 @@ for (const space of ["octopus", "squidgy"]) {
   await page.close();
 }
 
+/* ---- a drop checks it kept everything: facts read again, every topic placed ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__reads = []; window.__plans = []; window.__settles = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/drop/check")) return Response.json({ duplicate: false, sid: "s-fund" });
+      if (s.includes("/api/drop/read")) {
+        window.__reads.push(body);
+        return Response.json({ part: body.gaps
+          ? { topics: [{ topic: "Revenue", ideas: ["Revenue reached 3,400 euros in Lyon."] }, { topic: "Fund returns", ideas: ["The fund is run by Charles Gave."] }] }
+          : { title: "Fund letter", author: "Jane Roe", kind: "argument", topics: [{ topic: "Fund returns", ideas: ["In 2019 the fund returned 12.5%."] },
+              { topic: "Team", ideas: ["The team met twice."] }, { topic: "Opinion", ideas: ["Markets will rise."] }] } });
+      }
+      if (s.includes("/api/drop/plan")) {
+        window.__plans.push(body);
+        return Response.json({ plan: body.again ? { brains: ["content"], matched: [], candidates: [], new: [], echo: [], conflicts: [], left: [] }
+          : { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
+              candidates: [{ title: "Fund returns", brain: "content", why: "12.5% in 2019", from: ["T1"] }, { title: "Revenue", brain: "content", why: "3,400 euros", from: ["T4"] }],
+              left: [{ t: "T3", why: "thin" }] } });
+      }
+      if (s.includes("/api/drop/merge")) return Response.json({ same: [], into: [], english: [] });
+      if (s.includes("/api/drop/settle")) { window.__settles.push(body);
+        return Response.json({ sid: "s-fund", brains: ["content"], positions: body.plan.candidates.length, counted: [], written: [], counts: { new: 1, echo: 0 } }); }
+      return Response.json({});
+    };
+  }, STATE);
+  await page.evaluate(() => document.getElementById("dropBtn").click());
+  await page.focus("#input"); await page.fill("#srcInput", "Fund letter.txt");
+  await page.fill("#input", "In 2019 the fund returned 12.5% under Charles Gave. Revenue reached 3,400 euros in Lyon. The team met Marie Curie twice.");
+  await page.click("#send"); await page.waitForTimeout(700);
+  const r = await page.evaluate(() => ({ reads: window.__reads.length, gap: window.__reads[1], plans: window.__plans.map(p => ({ again: !!p.again, n: p.ext.topics.length, t: p.ext.topics.map(x => x.topic) })),
+    head: document.querySelector("#dropCover .cv-head")?.textContent || "", lost: [...document.querySelectorAll("#dropCover .cv-row .cv-t b")].map(x => x.textContent),
+    facts: [...document.querySelectorAll("#dropCover .cv-facts .chip")].map(x => x.textContent) }));
+  check("numbers and names the read left out send their passages for a second read", r.reads === 2 && r.gap?.gaps === true && /3,400 euros in Lyon/.test(r.gap.chunk || "")
+    && /Charles Gave/.test(r.gap.chunk || "") && /Marie Curie/.test(r.gap.chunk || ""), JSON.stringify(r.gap));
+  check("a topic placed nowhere is filed once more, on its own", r.plans.length === 2 && r.plans[1].again && JSON.stringify(r.plans[1].t) === '["Team"]', JSON.stringify(r.plans));
+  check("the card says what was kept: words, facts and topics", /Check what was left out/.test(r.head) && /21 words read/.test(r.head)
+    && /5 of 6 numbers, dates and names kept/.test(r.head) && /2 of 4 topics filed/.test(r.head) && /1 left out on purpose/.test(r.head), r.head);
+  check("it lists what is still missing, and each topic not filed", JSON.stringify(r.facts) === '["Marie Curie"]' && JSON.stringify(r.lost) === '["Team","Opinion"]', JSON.stringify(r));
+  await page.click("#dropCover .cv-sec:not(details) .cv-row .mini"); await page.waitForTimeout(80);
+  const filed = await page.evaluate(() => ({ ok: document.querySelector("#dropCover .cv-ok")?.textContent, chips: [...document.querySelectorAll(".card .chips .chip")].map(x => x.textContent) }));
+  check("File it puts a missing topic on the card as a new concept", /Filed as a new concept in Content/.test(filed.ok || "") && filed.chips.includes("+ Team"), JSON.stringify(filed));
+  await page.click(".card-foot .go"); await page.waitForTimeout(400);
+  const stored = await page.evaluate(() => window.__settles.flatMap(b => b.plan.candidates.map(c => c.title)));
+  check("and Store it files it with the rest", stored.includes("Team") && stored.includes("Fund returns") && stored.includes("Revenue"), JSON.stringify(stored));
+  check("nothing threw checking the drop", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 await browser.close();
 server.close();
 console.log(failures ? `\n${failures} failed` : "\nthe pages run");

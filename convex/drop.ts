@@ -72,7 +72,7 @@ RULES
   study: every rule, formula, method, definition and worked procedure is its own concept, so each can be asked about exactly. Two formulas are two concepts. Nearly every topic gets its own entry.
   argument: passages arguing the same idea from several angles are one concept. File the ideas, not the passages.
   unknown: judge from the topics which of the two the source is.
-- Before replying, walk every "###" topic under THE NEW SOURCE. Each one ends up under "matched" or "candidates", unless it falls outside every brain's scope or is thin.
+- Before replying, walk every "###" topic under THE NEW SOURCE, numbered T1, T2 and on. Each one ends up under "matched" or "candidates", with its number in that entry's "from". A topic outside every brain's scope, or thin, goes under "left" with the reason. Every topic number appears in a "from" or in "left": nothing is dropped without a word.
 - "matched" = an EXISTING concept this source adds to. Copy its id exactly as listed below, in the form brain/slug. One entry per concept touched. "whatItAdds" is what this source says about it.
 - "candidates" = a NEW concept this source argues for, one no listed concept covers. Give a short title, the brain slug it belongs in, and in "why" the idea itself.
 - A listed concept holding the same idea in other words, or in another language, is a match, never a candidate.
@@ -84,8 +84,9 @@ RULES
 
 Reply with only JSON:
 {"brains":["id"],
- "matched":[{"conceptId":"","brain":"","whatItAdds":"","related":["brain/slug"]}],
- "candidates":[{"title":"","brain":"","why":"","related":["brain/slug"]}],
+ "matched":[{"conceptId":"","brain":"","whatItAdds":"","related":["brain/slug"],"from":["T1"]}],
+ "candidates":[{"title":"","brain":"","why":"","related":["brain/slug"],"from":["T2"]}],
+ "left":[{"t":"T3","why":"outside every scope | thin"}],
  "new":[""],
  "echo":[{"claim":"","repeatsSource":""}],
  "conflicts":[{"concept":"","conceptId":"","brain":"","kind":"flip|caveat|drift","says":"","saysDate":"","stored":"","storedDate":"","why":""}]}`;
@@ -143,7 +144,7 @@ SOURCE KIND: ${ext?.kind === "study" || ext?.kind === "argument" ? ext.kind : "u
 title: ${ext?.title ?? ""}
 author: ${ext?.author ?? ""}
 date: ${ext?.date ?? ""}
-${(ext?.topics ?? []).map((t: any) => `### ${t.topic}\n${(t.ideas ?? []).join("\n")}\n${(t.data ?? []).join("\n")}`).join("\n\n").slice(0, 30000)}`;
+${(ext?.topics ?? []).map((t: any, i: number) => `### T${i + 1}. ${t.topic}\n${(t.ideas ?? []).join("\n")}\n${(t.data ?? []).join("\n")}`).join("\n\n").slice(0, 30000)}`;
 }
 
 export const REWRITE_RULES =
@@ -433,12 +434,17 @@ export async function dropRead(ctx: any, who: Who, b: any, key?: string, model?:
     return { error: `that part is ${chunk.length} characters. Reload the page, which splits a source into ${CHUNK} character passes.` };
   }
 
+  /* A second look at the passages a first read left out: the numbers, names
+     and dates it held that the extraction never mentioned. */
+  const GAPS = b.gaps ? `
+
+THESE PASSAGES ARE WHAT A FIRST READ OF THIS PART LEFT OUT. Extract everything they say, with every number, name and date in them. Use the same JSON.` : "";
   const { text, finish } = await ask([
     { role: "system", content: READ_SYSTEM },
     { role: "user", content:
-`${READ_RULES}
+`${READ_RULES}${GAPS}
 
-SOURCE${total > 1 ? ` (part ${part} of ${total})` : ""}:
+SOURCE${total > 1 ? ` (part ${part} of ${total})` : ""}${b.gaps ? ", PASSAGES LEFT OUT" : ""}:
 ${chunk}` },
   ], { json: true, maxTokens: 24000, key, model });
   return { part: parseJson(text, finish) };
@@ -483,11 +489,17 @@ THE OWNER CHOSE THESE BRAINS FOR THIS SOURCE: ${pool.map((x: any) => `${x.name} 
 Feed each of them. File every idea into EACH chosen brain whose scope it fits: the same idea may appear once per brain, as a match or a candidate in that brain. List every chosen brain the source feeds under "brains".
 ` : "";
 
+  /* Topics the first filing placed nowhere, sent back once. */
+  const AGAIN = b.again ? `
+THESE TOPICS WERE LEFT OUT OF THE FIRST FILING OF THIS SOURCE.
+File every one under "matched" or "candidates". Only a topic that is thin, or outside every brain's scope, goes under "left", with the reason.
+` : "";
+
   const { text, finish } = await ask([
     { role: "system", content: PLAN_SYSTEM },
     { role: "user", content:
 `${PLAN_RULES}
-${PICKED}${SO_FAR}${planContext(pool, concepts, sources, ext)}` },
+${PICKED}${SO_FAR}${AGAIN}${planContext(pool, concepts, sources, ext)}` },
   ], { json: true, maxTokens: 16000, key, model });
 
   return { plan: parseJson(text, finish) };

@@ -261,8 +261,8 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/share` | Share brain: the owner of a brain's workspace puts it in one more workspace, or takes it back, one workspace at a time. The owner's other workspace can feed it; the demo only reads it. A workspace can leave a brain it was given. Never a personal brain | Owner |
 | `/api/brain` | Creates one | Yes |
 | `/api/drop/check` | The duplicate check, an index lookup. No model call, so the test button is free | Yes |
-| `/api/drop/read` | One extraction pass over one chunk | Yes |
-| `/api/drop/plan` | Summaries in, the card out | Yes |
+| `/api/drop/read` | One extraction pass over one chunk. With `gaps`, a second look at the passages whose numbers, dates and names the first read never mentioned | Yes |
+| `/api/drop/plan` | Summaries in, the card out. Each topic is numbered, and the plan names it in a concept's `from` or under `left` with the reason. With `again`, the topics a first plan placed nowhere | Yes |
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
 | `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
 | `/api/drop/merge` | Before storing: groups new titles that name one idea twice, joins a new idea to the concept already holding it, and gives a title not in English its English one | Yes |

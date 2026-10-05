@@ -964,9 +964,11 @@ function seed() {
   const tc = read('{"a":[1,2,],"b":{"c":3,},}');
   check("a comma before a closing bracket is dropped", JSON.stringify(tc) === '{"a":[1,2],"b":{"c":3}}', JSON.stringify(tc));
   const cut = read('{"title":"Crypto","topics":[{"topic":"Layer 2s","ideas":["Fees fell 90%","Rollups w');
-  check("a reply that stops before its brackets close keeps what it wrote", cut.title === "Crypto" && cut.topics[0].ideas.join("|") === "Fees fell 90%|Rollups w", JSON.stringify(cut));
+  check("a reply that stops before its end is never kept half: it is read again in halves", /stopped before it ended/.test(cut.error || ""), JSON.stringify(cut));
   const key = read('{"title":"X","topics":[],"kind":');
-  check("a key left with no value is dropped", JSON.stringify(key) === '{"title":"X","topics":[]}', JSON.stringify(key));
+  check("so is one cut on a key with no value", /stopped before it ended/.test(key.error || ""), JSON.stringify(key));
+  check("a mended reply that closed on its own is kept", lib.repairJson('{"a":"x","b":[1,2,]} trailing').cut === false
+    && lib.repairJson('{"a":["x"').cut === true);
   const after = read('Here it is: {"a":1,"b":"x"} Hope this helps {');
   check("prose after the closing bracket is left out", JSON.stringify(after) === '{"a":1,"b":"x"}', JSON.stringify(after));
   const good = read('{"a":"say \\"hi\\"","b":[1,{"c":null}]}');

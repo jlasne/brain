@@ -1205,6 +1205,24 @@
     display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px;
     font:400 13px/1.5 var(--sans); color:var(--ink-3);
   }
+  /* What the drop kept: one line when whole, the gaps listed when not. */
+  .cover{ margin-top:12px; padding:12px 14px; border:1px solid var(--line-2); border-radius:12px; background:var(--surface); display:grid; gap:10px; }
+  .cv-head{ display:grid; gap:2px; }
+  .cv-head b{ font:600 13.5px/1.4 var(--sans); color:var(--warn); }
+  .cv-head.whole b{ color:var(--good); }
+  .cv-head span{ font:400 13px/1.5 var(--sans); color:var(--ink-3); font-variant-numeric:tabular-nums; }
+  .cv-sec h5, .cv-sec summary{ font:600 12.5px/1.4 var(--sans); color:var(--ink-2); cursor:pointer; }
+  .cv-sec h5{ cursor:default; margin-bottom:4px; }
+  .cv-row{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; padding:8px 0; border-top:1px solid var(--line); }
+  .cv-t{ flex:1 1 220px; min-width:0; display:grid; gap:2px; }
+  .cv-t b{ font:500 13.5px/1.4 var(--sans); color:var(--ink); }
+  .cv-t span{ font:400 12.5px/1.45 var(--sans); color:var(--ink-3); overflow-wrap:anywhere; }
+  .cv-pick{ max-width:180px; padding:6px 8px; border:1px solid var(--line-2); border-radius:8px; background:var(--surface); font:400 13px/1 var(--sans); color:var(--ink); }
+  .cv-ok{ font:400 12.5px/1.4 var(--sans); color:var(--good); }
+  .cv-do{ display:flex; align-items:center; gap:8px; flex:none; }
+  .cv-row.done .cv-t b{ color:var(--ink-3); }
+  .cv-facts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .cv-note{ font:400 12.5px/1.45 var(--sans); color:var(--ink-3); margin-top:4px; }
 
 /* ============ one page ============ */
   .pager{
@@ -2142,7 +2160,7 @@ async function api(path, body = {}) {
  * The model ran out of time on a job this big. The same call again runs out
  * the same way, so the caller splits the job in two instead of retrying it.
  */
-const tooBig = e => /still\s(thinking|writing)|sent nothing for|too big for one call|cut off by the token budget|ran past 3 minutes/i
+const tooBig = e => /still\s(thinking|writing)|sent nothing for|too big for one call|cut off by the token budget|stopped before it ended|ran past 3 minutes/i
   .test(String(e?.message || ""));
 
 async function apiRetry(path, body = {}, opts = {}){
@@ -6985,6 +7003,99 @@ function splitAnswer(t){
   return html + (m ? `<div class="srcline">${esc(m[1])}</div>` : "");
 }
 
+/* ---------- did the read keep everything? ----------
+   Every number, date and name of a part is looked for in what the read kept.
+   Numbers compare by value, so 1,000 and 1 000 and 1k are one number, and
+   "5 million" is 5,000,000. Names compare by their longest word. */
+const SCALES = { thousand: 1e3, k: 1e3, million: 1e6, m: 1e6, mn: 1e6, mio: 1e6, millions: 1e6, billion: 1e9, bn: 1e9, b: 1e9, milliard: 1e9,
+  milliards: 1e9, billions: 1e9, trillion: 1e12, tn: 1e12, mille: 1e3, md: 1e9, mds: 1e9 };
+const NOT_NAMES = new Set("the this that these those there then they their when where what which while with from into over under after before during about also however monday tuesday wednesday thursday friday saturday sunday january february march april may june july august september october november december les des une est dans pour avec mais sur par i'm i've i'll i'd it's i’m i’ve i’ll i’d it’s".split(" "));
+function numberValue(tok, scale){
+  let t = tok.replace(/[\s\u00a0\u202f]/g, "");
+  const dot = t.lastIndexOf("."), comma = t.lastIndexOf(",");
+  if (dot >= 0 && comma >= 0) t = dot > comma ? t.replace(/,/g, "") : t.replace(/\./g, "").replace(",", ".");
+  else if (comma >= 0) t = /^\d{1,3}(,\d{3})+$/.test(t) ? t.replace(/,/g, "") : t.replace(",", ".");
+  else if (dot >= 0 && /^\d{1,3}(\.\d{3}){2,}$/.test(t)) t = t.replace(/\./g, "");
+  const v = parseFloat(t) * (SCALES[String(scale || "").toLowerCase()] || 1);
+  return isFinite(v) ? Number(v.toPrecision(6)) : null;
+}
+/** The numbers of a text by value, each with how it was written. */
+function numbersOf(text){
+  const out = new Map();
+  /* A timestamp of a pasted transcript is a place in the video, not a fact. */
+  text = String(text).replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, " ");
+  const re = /(\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)*)(?:\s?(thousand|k|millions?|m|mn|mio|billions?|bn|b|milliards?|trillion|tn|mille|mds?)\b)?/gi;
+  for (const m of String(text).matchAll(re)){
+    const digits = m[1].replace(/\D/g, "");
+    if (digits.length < 2 && !m[2]) continue;
+    const v = numberValue(m[1], m[2]);
+    if (v !== null && !out.has(v)) out.set(v, m[0].trim());
+  }
+  return out;
+}
+/** The names of a text: capitalised words inside a sentence. Too many, as in German, and none are counted. */
+function namesOf(text){
+  const out = new Map(), words = (String(text).match(/\S+/g) || []).length;
+  let seen = 0;
+  const re = /(?<![.!?:;"«“\n]\s{0,3})(?<=\s)([A-ZÀ-Ý][a-zà-ÿ'’-]{2,}(?:\s+[A-ZÀ-Ý][a-zà-ÿ'’-]{2,})*)/g;
+  for (const m of String(text).matchAll(re)){
+    const name = m[1].trim(), key = name.toLowerCase();
+    seen++;
+    if (NOT_NAMES.has(key) || out.has(key)) continue;
+    out.set(key, name);
+  }
+  /* A language that capitalises every noun, as German does, names nothing this way. */
+  return words > 60 && seen > words * 0.12 ? new Map() : out;
+}
+/** What a read kept, as one text. */
+function partText(p){
+  return [p.title, p.author, ...(p.topics || []).flatMap(t => [t.topic, ...(t.ideas || []), ...(t.data || [])]),
+    ...(p.quotes || []).map(q => `${q.text || ""} ${q.speaker || ""}`), ...(p.thin || [])].join("\n");
+}
+/** The numbers, dates and names of a part that the read never mentions. */
+function factsLeft(chunk, part){
+  const kept = partText(part), keptNums = numbersOf(kept), low = kept.toLowerCase();
+  const nums = numbersOf(chunk), names = namesOf(chunk);
+  const missing = [];
+  for (const [v, said] of nums) if (!keptNums.has(v)) missing.push(said);
+  for (const [, name] of names){
+    const long = name.split(/\s+/).sort((a, b) => b.length - a.length)[0].toLowerCase();
+    if (!low.includes(long)) missing.push(name);
+  }
+  return { facts: nums.size + names.size, missing };
+}
+/** The sentences of a part that hold what the read left out, in order. */
+function gapPassages(chunk, missing, limit = 9000){
+  const sentences = String(chunk).split(/(?<=[.!?])\s+|\n+/);
+  const out = []; let used = 0;
+  for (const s of sentences){
+    if (!missing.some(f => s.includes(f))) continue;
+    if (used + s.length > limit) break;
+    out.push(s.trim()); used += s.length + 1;
+  }
+  return out.join("\n");
+}
+/** One more read of what a part left out, folded into the part. Its count goes on the card. */
+async function fillGaps(chunk, part, i, total){
+  let left = factsLeft(chunk, part);
+  if (left.missing.length >= 2){
+    const passages = gapPassages(chunk, left.missing);
+    if (passages){
+      try {
+        const more = (await apiRetry("/api/drop/read", { chunk: passages, part: i + 1, total, gaps: true })).part || {};
+        part = { ...part, topics: [...(part.topics || [])], quotes: [...(part.quotes || []), ...(more.quotes || [])], thin: [...(part.thin || []), ...(more.thin || [])] };
+        for (const t of more.topics || []){
+          const had = part.topics.find(x => String(x.topic).toLowerCase() === String(t.topic).toLowerCase());
+          if (had) Object.assign(had, { ideas: [...(had.ideas || []), ...(t.ideas || [])], data: [...(had.data || []), ...(t.data || [])] });
+          else part.topics.push(t);
+        }
+        left = factsLeft(chunk, part);
+      } catch { /* the first read stands, and the card says what it left out */ }
+    }
+  }
+  return { ...part, cover: { facts: left.facts, missing: left.missing } };
+}
+
 /* ---------- drop ---------- */
 async function doDrop(src, content, again){
   /* The link decides whether the source can be opened, and it is what catches a
@@ -7111,6 +7222,9 @@ async function doDrop(src, content, again){
       const i = nextRead++;
       try {
         parts[i] = await readText(chunks[i], i);
+        /* Every number, date and name of the part checked against what was
+           read; the passages holding the ones left out are read once more. */
+        parts[i] = await fillGaps(chunks[i], parts[i], i, chunks.length);
         if (chunks.length > 1) setThinking(body, `Reading, pass ${++readDone} of ${chunks.length}`);
       } catch(e){ readErr = readErr || e; }
     }
@@ -7131,6 +7245,11 @@ async function doDrop(src, content, again){
     topics: parts.flatMap(p=>p.topics||[]),
     quotes: parts.flatMap(p=>p.quotes||[]),
     thin: parts.flatMap(p=>p.thin||[]),
+    /* What the reads kept of the source: its words, and its numbers, dates
+       and names found again in the extraction. Shown on the card, never stored. */
+    cover: { words: (bodyTxt.match(/\S+/g) || []).length,
+      facts: parts.reduce((n, p) => n + (p.cover?.facts || 0), 0),
+      missing: parts.flatMap(p => p.cover?.missing || []) },
   };
   /* A YouTube video is filed under its channel, whoever speaks in it. */
   if (chk.channel) ext.author = chk.channel;
@@ -7195,7 +7314,11 @@ const unitKey = (brain, title) => `${brain}/${conceptSlug(title)}`;
 async function planAll(ext, held, progress){
   /* A stored extraction keeps its kind with the note's findings. */
   if (!ext.kind && ext.findings && ext.findings.kind) ext = { ...ext, kind: ext.findings.kind };
-  const batches = topicBatches(ext.topics || []);
+  /* Each topic keeps its place, so the plan's "from" and "left" say where every one went. */
+  const topics = (ext.topics || []).map((t, i) => ({ ...t, _i: i }));
+  ext = { ...ext, topics };
+  const placed = new Set(), left = new Map(), untracked = new Set();
+  const batches = topicBatches(topics);
   const merged = { brains: [], matched: [], candidates: [], new: [], echo: [], conflicts: [] };
   const seenM = new Set(), seenC = new Set(), seenX = new Set();
   const addMatched = m => {
@@ -7216,14 +7339,27 @@ async function planAll(ext, held, progress){
     const h = Math.ceil(topics.length / 2);
     return [...await planTopics(topics.slice(0, h)), ...await planTopics(topics.slice(h))];
   });
-  const planCall = topics => apiRetry("/api/drop/plan", {
+  const planCall = (topics, again) => apiRetry("/api/drop/plan", {
       ext: { ...ext, topics },
       /* Several brains ticked: the plan feeds each one. None: it picks. */
       ...(S.into.length > 1 ? { brains: S.into } : { brain: S.into[0] || "all" }),
       ...(held && held.length ? { exclude: held } : {}),
       ...(merged.candidates.length ? { proposed: merged.candidates.map(c => `${c.brain} | ${c.title}`) } : {}),
-    }, { split: true }).then(r => r.plan || {});
+      ...(again ? { again: true } : {}),
+    }, { split: true }).then(r => ({ ...(r.plan || {}), _topics: topics }));
+  /* Where each topic of a batch went: T3 is the batch's third. A plan that
+     names none of its topics leaves them untracked, never counted as lost. */
+  const mark = p => {
+    const ts = p._topics || [];
+    const at = l => { const m = String(l ?? "").match(/(\d+)/); return m ? ts[Number(m[1]) - 1]?._i : undefined; };
+    let named = false;
+    for (const x of [...(p.matched || []), ...(p.candidates || [])])
+      for (const l of Array.isArray(x.from) ? x.from : []){ const i = at(l); if (i !== undefined){ placed.add(i); named = true; } }
+    for (const l of Array.isArray(p.left) ? p.left : []){ const i = at(l?.t ?? l); if (i !== undefined){ left.set(i, String(l?.why || "")); named = true; } }
+    if (!named && ((p.matched || []).length || (p.candidates || []).length)) for (const t of ts) untracked.add(t._i);
+  };
   const absorb = p => {
+    mark(p);
     for (const b of p.brains || []) if (!merged.brains.includes(b)) merged.brains.push(b);
     for (const m of p.matched || []) addMatched(m);
     for (const c of p.candidates || []){
@@ -7263,6 +7399,17 @@ async function planAll(ext, held, progress){
     const group = await Promise.all(batches.slice(i, i + PLAN_PARALLEL).map((_, k) => planOne(i + k).then(p => { tick(); return p; })));
     for (const ps of group) for (const p of ps) absorb(p);
   }
+
+  /* Every topic lands somewhere, or is left out with its reason: the ones
+     placed nowhere are planned once more, on their own. */
+  const lost = () => topics.filter(t => !placed.has(t._i) && !left.has(t._i) && !untracked.has(t._i));
+  if (lost().length && topics.length){
+    try { for (const p of await planCall(lost(), true).then(p => [p])) absorb(p); }
+    catch (_) { /* the card lists them, each with File it */ }
+  }
+  merged._cover = { topics: topics.length, untracked: untracked.size,
+    left: [...left].filter(([i]) => !placed.has(i)).map(([i, why]) => ({ t: topics[i], why })),
+    lost: lost().map(t => t) };
 
   /* Parts planned side by side cannot see each other's titles, and a part
      can propose a new concept for an idea a folder holds in other words or in
@@ -7461,6 +7608,8 @@ async function planAndCard(body, sid, link, ext, len, held){
     plan = await planAll(ext, held, (i, n) => setThinking(body,
       `Comparing against what you hold, part ${i} of ${n}`));
   } catch(e){ fail(body, e.message); return; }
+  /* Where every topic went, for the card: never sent to be stored. */
+  const cover = plan._cover || null; delete plan._cover;
 
   /* A plan that files nothing anywhere is a failed read, not an empty source.
      Rendering the card would offer Store it on a source that touches no
@@ -7503,6 +7652,8 @@ async function planAndCard(body, sid, link, ext, len, held){
     body.append(el("div","coverage",
       `${how}${how ? " " : ""}${topics} passage${topics === 1 ? "" : "s"} read, filed into ${filed} concept${filed === 1 ? "" : "s"}.`));
   }
+  const cv = coverageBlock(pc, ext.cover, cover);
+  if (cv) body.append(cv);
   dbottom();
 }
 
@@ -7527,6 +7678,77 @@ function authorsIn(slugs){
 /* The decision travels under the concept it concerns, never under a position
    number, because the rewriter reads it per concept. */
 const ckey = (c, i) => c.conceptId || (c.brain && c.concept ? c.brain+"/"+c.concept : c.concept) || ("c"+i);
+
+/**
+ * What the drop kept, before you store it: the words read, the numbers,
+ * dates and names found again in what was read, and where every topic went.
+ * A topic placed nowhere, or left out on purpose, can be filed by hand: it
+ * joins the card as a new concept in the folder picked.
+ */
+function coverageBlock(pc, read, cover){
+  if (!read && !cover) return null;
+  const box = el("div","cover"); box.id = "dropCover";
+  const parts = [];
+  if (read?.words) parts.push(`${read.words.toLocaleString()} words read`);
+  if (read?.facts) parts.push(`${(read.facts - read.missing.length).toLocaleString()} of ${read.facts.toLocaleString()} numbers, dates and names kept`);
+  if (cover?.topics){
+    const tracked = cover.topics - cover.untracked, out = cover.left.length + cover.lost.length;
+    parts.push(tracked ? `${cover.topics - out} of ${cover.topics} topics filed` : `${cover.topics} topics read`);
+    if (cover.left.length) parts.push(`${cover.left.length} left out on purpose`);
+  }
+  const whole = (!read?.missing?.length) && !cover?.lost?.length;
+  const head = el("div","cv-head" + (whole ? " whole" : ""));
+  head.append(el("b",null, whole ? "Everything taken into account" : "Check what was left out"), el("span",null, parts.join(" · ")));
+  box.append(head);
+  /* A folder to file by hand into: the ones the plan feeds first, then any this drop may feed. */
+  const folders = [...new Set([...(pc.plan.brains || []), ...S.into, ...S.brains.filter(b => b.type !== "personal" && !readOnly(b)).map(b => b.slug)])]
+    .map(x => S.brains.find(b => b.slug === x)).filter(b => b && b.type !== "personal" && !readOnly(b));
+  const fileRow = (t, why) => {
+    const r = el("div","cv-row");
+    const txt = el("div","cv-t");
+    txt.append(el("b",null,t.topic || "Untitled"), el("span",null,[why, (t.ideas || [])[0]].filter(Boolean).join(" · ").slice(0, 220)));
+    r.append(txt);
+    if (folders.length){
+      const pick = el("select","cv-pick"); pick.setAttribute("aria-label", `Folder for ${t.topic}`);
+      for (const b of folders) pick.append(Object.assign(el("option",null,b.name), { value: b.slug }));
+      const go = el("button","mini","File it"); go.type = "button";
+      go.onclick = () => {
+        const brain = pick.value;
+        pc.plan.candidates = [...(pc.plan.candidates || []), { title: String(t.topic || "").slice(0, 90), brain,
+          why: [...(t.ideas || []), ...(t.data || [])].join(" ").slice(0, 600), related: [] }];
+        if (!(pc.plan.brains || []).includes(brain)) pc.plan.brains = [...(pc.plan.brains || []), brain];
+        box.closest(".body")?.querySelector(".card .chips")?.append(el("span","chip cand","+ " + t.topic));
+        r.classList.add("done");
+        act.replaceWith(el("span","cv-ok", `Filed as a new concept in ${S.brains.find(b => b.slug === brain)?.name || brain}. Store it to keep it.`));
+      };
+      const act = el("span","cv-do"); act.append(pick, go);
+      r.append(act);
+    }
+    return r;
+  };
+  if (cover?.lost?.length){
+    const sec = el("div","cv-sec");
+    sec.append(el("h5",null,`Not filed yet: ${cover.lost.length}`));
+    for (const t of cover.lost) sec.append(fileRow(t, ""));
+    box.append(sec);
+  }
+  if (read?.missing?.length){
+    const d = el("details","cv-sec");
+    const sm = el("summary"); sm.append(`Not found in what was read: ${read.missing.length}`); d.append(sm);
+    d.append(el("p","cv-note","Numbers, dates and names the source holds that the read never mentions, after a second look at their passages."));
+    const chips = el("div","cv-facts");
+    for (const f of read.missing.slice(0, 40)) chips.append(el("span","chip none", f));
+    if (read.missing.length > 40) chips.append(el("span","cv-note", `and ${read.missing.length - 40} more`));
+    d.append(chips); box.append(d);
+  }
+  if (cover?.left?.length){
+    const d = el("details","cv-sec");
+    const sm = el("summary"); sm.append(`Left out on purpose: ${cover.left.length}`); d.append(sm);
+    for (const { t, why } of cover.left) d.append(fileRow(t, why || "left out"));
+    box.append(d);
+  }
+  return box;
+}
 
 function buildCard(pc, decide){
   const { sid, ext, plan } = pc;

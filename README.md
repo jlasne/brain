@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1173 checks passing" src="https://img.shields.io/badge/checks-1173%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1181 checks passing" src="https://img.shields.io/badge/checks-1181%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -87,6 +87,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 - **Chat in several folders.** Click a folder to tick it, and tick as many as you like: the question reads those alone. The chat only asks.
 - **A folder, open.** Open fills the main area: its scope, its counts, its health and the next move, then every concept, newest first, with the one open beside them. Chat in it, Drop into it, or edit its name and scope from there. The bar below asks that folder.
 - **The model, picked in Settings.** It answers, reads drops and writes one-pagers: GLM 5.3 Flash by default, saved for the whole workspace.
+- **A drop checks it kept everything.** Every number, date and name of the source is looked for in what was read, and the passages holding the ones left out are read again. Every topic must land in a concept or be left out with its reason: one placed nowhere is filed once more. A reply cut short is read again in halves, never kept half. Before you store, the card says it: "7,020 words read · 142 of 145 numbers, dates and names kept · 23 of 23 topics filed", with what is missing listed and a File it button on each topic not filed.
 - **Drop on its own screen.** Drop sits in the side panel and opens a screen with its own log. The chat waits as it was, one click away.
 - **New folder.** A folder is fed by Drop, and one switch says it holds one person's view. A personal folder is fed by what you say.
 - **Talk instead of typing.** Tap the mic and speak, in the language picked in Settings, Languages: English, French, Spanish, German, Italian or Portuguese. Nothing is guessed: a tap before one is picked opens Settings on it. It uses the free speech service in Safari on iPhone and Mac, Chrome and Edge. Elsewhere it points to the dictation your device already has.
