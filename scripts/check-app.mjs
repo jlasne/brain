@@ -2238,6 +2238,26 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
+/* ---- the open chat bar keeps the folders, levels, mic and send on one row ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.fetch = async u => String(u).includes("/api/state") ? Response.json(state) : Response.json({ chats: [] });
+  }, STATE);
+  const rows = [];
+  for (const w of [390, 640, 800, 860, 1000, 1280]) {
+    await page.setViewportSize({ width: w, height: 800 }); await page.waitForTimeout(120);
+    await page.focus("#input"); await page.waitForTimeout(400);
+    rows.push(await page.evaluate(w => {
+      const mid = id => { const b = document.getElementById(id).getBoundingClientRect(); return Math.round(b.top + b.height / 2); };
+      return { w, scope: mid("scopeBtn"), mic: mid("micBtn"), send: mid("send"), over: document.documentElement.scrollWidth > innerWidth };
+    }, w));
+  }
+  check("at every width the folders, levels, mic and send share one row, nothing off screen", rows.every(r => r.scope === r.mic && r.mic === r.send && !r.over), JSON.stringify(rows));
+  check("nothing threw sizing the bar", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- a workspace on its own key ---- */
 {
   const mine = { ...STATE, space: "acme", spaceName: "Acme", byok: true };

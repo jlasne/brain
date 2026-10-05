@@ -1778,8 +1778,12 @@
     .composer{ padding:16px 12px 0; }
     .composer-wrap{ padding-bottom:10px; }
     main[data-view="folder"] .composer-wrap{ left:0; }
+    /* The folders and levels share the row with the mic and send, which
+       stay at its end; a hint, when there is one, takes the row above. */
     .box .tbar{ flex-wrap:wrap; row-gap:8px; }
-    .box .tbar .ctrls{ flex:1 0 100%; order:-1; flex-wrap:wrap; }
+    .box .tbar .ctrls{ flex:1 1 auto; min-width:0; order:0; flex-wrap:wrap; }
+    .box .tbar .t:not(:empty){ flex:1 0 100%; order:-1; }
+    .box .tbar .t:empty{ display:none; }
     .box .tbar .pick-btn, .box .tbar .fresh{ height:44px; }
     .zero h2{ font-size:30px; }
     .fv-t h2{ font-size:26px; }
