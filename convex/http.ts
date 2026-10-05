@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal } from "./space";
-import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange } from "./personal";
+import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
 /* Projects are off in the app for now; their routes stay for when they come back. */
@@ -1231,9 +1231,14 @@ route("/api/personal/remember", async (ctx, _req, b) => {
   const kind = b.kind === "chat" ? "chat" : "import";
   if (!text) return { error: "there is nothing to remember in that" };
   if (text.length > MAX_CHARS[kind]) return { error: `send at most ${MAX_CHARS[kind]} characters at a time` };
+  const date = new Date().toISOString().slice(0, 10);
+  /* What two filings of an import still left out, kept as written: no model call. */
+  if (b.verbatim === true && kind === "import")
+    return { filed: await fileVerbatim(ctx, who.space, mine.slug, text.split("\n"), date) };
   const mKey = keyFor(who), mName = modelFor(who, b);
+  /* "gaps": the passages a first filing of this import left out, filed again. */
   const filed = await fileTwice(t => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text, kind, lang: storeLang(who),
-    date: new Date().toISOString().slice(0, 10),
+    date, gaps: kind === "import" && b.gaps === true,
     model: async m => (await ask(m, { json: true, maxTokens: kind === "chat" ? 4000 : 6000, key: mKey, model: mName, timeout: t })).text }),
     { budget: 160000, first: 120000 });
   return { filed };

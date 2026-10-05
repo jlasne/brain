@@ -568,7 +568,7 @@
   .mem-run[hidden]{ display:none; }
   .mem-track{ height:6px; border-radius:3px; background:var(--surface-3); overflow:hidden; }
   .mem-track i{ display:block; height:100%; border-radius:3px; background:var(--accent-solid); transition:width .4s var(--ease); }
-  .mem-say{ font:400 14.5px/1.55 var(--sans); color:var(--ink-2); }
+  .mem-say{ font:400 14.5px/1.55 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
   .lang-row.ask{ margin:0 -10px; padding:8px 10px; border-radius:10px; background:var(--accent-soft); box-shadow:inset 0 0 0 1px var(--accent-line); }
   .seg.seg-wrap{ flex-wrap:wrap; }
   /* A person's file: the summary, then what is open, facts, their people and the history. */
@@ -4954,7 +4954,7 @@ function memPieces(t, max = 6000){
    an error goes on from the piece it stopped at. */
 
 function startMemory(brain, name, text){
-  S.memJob = { brain, name, pieces: memPieces(text), done: 0, made: 0, updated: 0, people: [], state: "running", seen: false, at: Date.now() };
+  S.memJob = { brain, name, pieces: memPieces(text), done: 0, made: 0, updated: 0, people: [], words: 0, facts: 0, state: "running", seen: false, at: Date.now() };
   runMemory(S.memJob);
   return S.memJob;
 }
@@ -4963,9 +4963,23 @@ async function runMemory(j){
   paintInbox(); memOn()?.paint();
   try {
     while (j.done < j.pieces.length){
-      const r = await apiRetry("/api/personal/remember", { brain: j.brain, text: j.pieces[j.done] });
-      j.made += r.filed?.new || 0; j.updated += r.filed?.updated || 0;
-      j.people = [...new Set([...j.people, ...(r.filed?.people || [])])];
+      /* As a drop is checked: every number, date and name of the piece looked
+         for in what was filed; the passages holding the ones left out filed
+         once more; what is still missing kept word for word. */
+      const piece = j.pieces[j.done];
+      const add = f => { j.made += f?.new || 0; j.updated += f?.updated || 0; j.people = [...new Set([...j.people, ...(f?.people || [])])]; return f?.kept || ""; };
+      let kept = add((await apiRetry("/api/personal/remember", { brain: j.brain, text: piece })).filed);
+      let left = factsIn(piece, kept);
+      if (left.missing.length){
+        const passages = gapPassages(piece, left.missing, 7000);
+        if (passages){
+          try { kept += "\n" + add((await apiRetry("/api/personal/remember", { brain: j.brain, text: passages, gaps: true })).filed); left = factsIn(piece, kept); }
+          catch { /* kept as written, below */ }
+        }
+        const rest = left.missing.length ? gapPassages(piece, left.missing, 7000) : "";
+        if (rest) add((await apiRetry("/api/personal/remember", { brain: j.brain, text: rest, verbatim: true })).filed);
+      }
+      j.words += (piece.match(/\S+/g) || []).length; j.facts += left.facts;
       j.done++;
       paintInbox(); memOn()?.paint();
     }
@@ -4981,8 +4995,10 @@ async function runMemory(j){
 }
 /** What a memory filed, in one line. */
 function memSaid(j){
+  const kept = [`${j.words.toLocaleString()} word${j.words === 1 ? "" : "s"}`,
+    j.facts ? `${j.facts.toLocaleString()} number${j.facts === 1 ? "" : "s"}, date${j.facts === 1 ? "" : "s"} and name${j.facts === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ");
   return j.made || j.updated || j.people.length
-    ? `**Remembered.** ${filedLine({ new: j.made, updated: j.updated, people: j.people }).replace(/^Filed: /, "")}, in ${esc(j.name)}. Ask it what it knows about you.`
+    ? `**Remembered.** All of it kept: ${kept}, filed as ${filedLine({ new: j.made, updated: j.updated, people: j.people }).replace(/^Filed: /, "")}, in ${esc(j.name)}. Ask it what it knows about you.`
     : "Nothing in that was worth filing as a note.";
 }
 
@@ -4997,11 +5013,11 @@ function openMemorySheet(slug){
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Add memory to ${esc(b.name)}</h3>
-      <p>Paste what another assistant knows about you, or drop a text, markdown or JSON file. In ChatGPT it sits under
-        Settings, Personalization, Memory. It is filed as dated notes, like what you say in the chat.</p></header>
+      <p>Paste what another assistant knows about you, or add a PDF, Word, text, markdown or JSON file. In ChatGPT it sits under
+        Settings, Personalization, Memory. It is read like a drop: every fact, number, date and name is filed as dated notes, and the result says so.</p></header>
       <div class="f" id="memIn1"><textarea class="mem" id="memText" placeholder="Paste it here"></textarea>
         <div class="mem-bar"><button class="mini" id="memFile" type="button">+ file</button><span class="hint" id="memCount"></span></div>
-        <input type="file" id="memIn" hidden accept=".txt,.md,.markdown,.json,text/plain,text/markdown,application/json"></div>
+        <input type="file" id="memIn" hidden accept=".pdf,.docx,.txt,.md,.markdown,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,application/json"></div>
       <div class="f mem-run" id="memRun" hidden>
         <div class="mem-track"><i id="memFill"></i></div>
         <div class="mem-say" id="memSay" role="status"></div>
@@ -5020,8 +5036,15 @@ function openMemorySheet(slug){
   veil.querySelector("#memIn").onchange = async ev => {
     const f = ev.target.files?.[0]; ev.target.value = "";
     if (!f) return;
-    if (f.size > 400000){ msg.textContent = "That file is over 400 KB. Paste the part that matters."; return; }
-    t.value = (t.value ? t.value + "\n\n" : "") + await f.text(); count();
+    /* A PDF or a Word file is read the way a drop reads it. */
+    let text = "";
+    try {
+      if (/\.(pdf|docx)$/i.test(f.name)){ msg.textContent = `Reading ${f.name}`; text = (await readDocument(f)).text; msg.textContent = ""; }
+      else if (f.size > 400000){ msg.textContent = "That file is over 400 KB. Paste the part that matters."; return; }
+      else text = await f.text();
+    } catch (e) { msg.textContent = e.message; return; }
+    if (!text.trim()){ msg.textContent = `${f.name} gave no text. A scanned PDF holds pictures of words: paste the text instead.`; return; }
+    t.value = (t.value ? t.value + "\n\n" : "") + text; count();
   };
   const button = (cls, label, fn, id) => { const x = el("button", cls, label); x.type = "button"; if (id) x.id = id; x.onclick = fn; return x; };
   /* The sheet shows the memory of this folder when there is one to show:
@@ -5059,7 +5082,7 @@ function openMemorySheet(slug){
   const go = () => {
     const text = t.value.trim();
     if (!text){ t.focus(); return; }
-    if (text.length > 200000){ msg.textContent = "Up to 200,000 characters at a time. Paste the part that matters most."; return; }
+    if (text.length > 400000){ msg.textContent = "Up to 400,000 characters at a time, about 70 pages. Add the rest after."; return; }
     if (S.memJob && S.memJob.state === "running") return;
     startMemory(b.slug, b.name, text);
   };
@@ -7032,8 +7055,11 @@ function partText(p){
     ...(p.quotes || []).map(q => `${q.text || ""} ${q.speaker || ""}`), ...(p.thin || [])].join("\n");
 }
 /** The numbers, dates and names of a part that the read never mentions. */
-function factsLeft(chunk, part){
-  const kept = partText(part), keptNums = numbersOf(kept), low = kept.toLowerCase();
+function factsLeft(chunk, part){ return factsIn(chunk, partText(part)); }
+/** The numbers, dates and names of a text that what was kept never mentions. */
+function factsIn(chunk, kept){
+  kept = String(kept || "");
+  const keptNums = numbersOf(kept), low = kept.toLowerCase();
   const nums = numbersOf(chunk), names = namesOf(chunk);
   const missing = [];
   for (const [v, said] of nums) if (!keptNums.has(v)) missing.push(said);

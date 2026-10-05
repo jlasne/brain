@@ -86,7 +86,7 @@ const TODAY = "2026-09-30";
   check("an update keeps the title of the note it updates", notes[1].title === "Pricing plan" && notes[1].update === "Pricing plan");
   check("an empty position falls back to the claim, and em-dashes go", notes[0].position === notes[0].claim && !/—/.test(notes[0].claim), JSON.stringify(notes[0]));
   check("a reply that is not JSON files nothing", personal.readNotes("I could not", "chat").length === 0);
-  check("an import files up to 10 notes a piece", personal.readNotes(JSON.stringify({ notes: Array.from({ length: 14 }, (_, i) => ({ title: "T" + i, claim: "c" + i })) }), "import").length === 10);
+  check("an import files up to 20 notes a piece", personal.readNotes(JSON.stringify({ notes: Array.from({ length: 24 }, (_, i) => ({ title: "T" + i, claim: "c" + i })) }), "import").length === 20);
 }
 
 /* ---- the prompt: only the owner's words, never a guess ---- */
@@ -634,6 +634,34 @@ const TODAY = "2026-09-30";
   const n2 = T.concepts.find(x => x.slug === "marathon");
   check("a note is rewritten from the chat about it, the change dated", /2028/.test(n2.position) && n2.summaryLine === "A marathon in 2028" && n2.evidence.length === 1
     && n2.evidence[0].claim === "I now aim for 2028" && ch2.summary && !T.concepts.some(x => x.title === "make it 2028"), JSON.stringify(n2));
+}
+
+/* ---- an imported memory is filed like a drop: everything, and what is left kept as written ---- */
+{
+  const imp = personal.filerPrompt("import", "I run 10 km on Sundays.", "", [], [], TODAY, [], "en")[1].content;
+  check("an import files everything: every fact, number, date and name, up to 20 notes a piece", /EVERYTHING IN IT IS FILED/.test(imp) && /At most 20 notes/.test(imp));
+  const gap = personal.filerPrompt("import", "Kinugawa every Friday.", "", [], [], TODAY, [], "en", true)[1].content;
+  check("a second filing is told it holds what the first one left out", /WHAT A FIRST FILING OF THIS TEXT LEFT OUT/.test(gap) && !/LEFT OUT/.test(imp));
+  const chat = personal.filerPrompt("chat", "hi", "", [], [], TODAY)[1].content;
+  check("a chat message keeps its own rules", !/EVERYTHING IN IT IS FILED/.test(chat) && /At most 3 notes/.test(chat));
+
+  const { T, ctx } = makeCtx();
+  T.brains = [{ _id: "b1", slug: "me", name: "Me", type: "personal", scope: "", space: "acme" }];
+  const load = async () => (await space.loadSpace(ctx, "acme", undefined, { personal: true })).cards;
+  const f = await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "import", date: TODAY, lang: "en",
+    text: "I run 10 km on Sundays. Maxime lives in Lyon.",
+    model: async () => JSON.stringify({ notes: [{ title: "Running", claim: "I run 10 km on Sundays", position: "You run 10 km every Sunday." }],
+      people: [{ name: "Maxime", claim: "Maxime lives in Lyon", facts: [{ section: "identity", label: "Lives in", value: "Lyon" }] }] }) });
+  check("a filing says what it kept, notes and people alike, so the app can check it", /10 km/.test(f.kept || "") && /Lives in Lyon/.test(f.kept || "") && /Maxime/.test(f.kept || ""), f.kept);
+  const v = await personal.fileVerbatim(ctx, "acme", "me", ["I eat sushi at Kinugawa every Friday.", " ", "My sister is 31."], TODAY);
+  const note = T.concepts.find(c => c.title === `Imported details, ${TODAY}`);
+  check("what two filings left out is kept word for word, one dated mention a sentence", v.new === 1 && note?.evidence.length === 2
+    && note.evidence.some(e => e.claim === "I eat sushi at Kinugawa every Friday." && e.author === "You (imported)") && /Kinugawa every Friday/.test(note.position)
+    && T.sources.some(x => x.sid === `me-import-${TODAY}`), JSON.stringify(note));
+  const v2 = await personal.fileVerbatim(ctx, "acme", "me", ["I fly to Tokyo in May 2027."], TODAY);
+  const again = T.concepts.find(c => c.title === `Imported details, ${TODAY}`);
+  check("a second one the same day joins that note, and loses nothing", v2.updated === 1 && again.evidence.length === 3
+    && /Kinugawa/.test(again.position) && /Tokyo in May 2027/.test(again.position), JSON.stringify(again.position));
 }
 
 rmSync(dir, { recursive: true, force: true });

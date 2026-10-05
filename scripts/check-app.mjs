@@ -1958,7 +1958,9 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       if (s.includes("/api/ask")) return Response.json({ answer: "Noted. Porto replaces Lisbon.", sources: 0, level: "normal", personal: true,
         filed: { new: 1, updated: 1, titles: ["Moving abroad", "Budget"] }, called: ["Health"], chat: "c1" });
       if (s.includes("/api/personal/remember")) { await new Promise(ok => setTimeout(ok, window.__memSlow || 0));
-        return Response.json({ filed: { new: 2, updated: 0, titles: ["A", "B"] } }); }
+        /* What was filed comes back as text: here, all of it, unless a line is to be left out. */
+        const kept = window.__memDrop ? body.text.split(window.__memDrop).join("") : body.text;
+        return Response.json({ filed: { new: body.verbatim ? 0 : 2, updated: body.verbatim ? 1 : 0, titles: ["A", "B"], kept: body.gaps ? "" : kept } }); }
       if (s.includes("/api/brain")) return Response.json({ slug: "me-2" });
       return Response.json({ chats: [] });
     };
@@ -2002,16 +2004,28 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     said: [...document.querySelectorAll(".msg.ai")].pop()?.textContent, badge: document.getElementById("inboxN").hidden ? "" : document.getElementById("inboxN").textContent,
     ring: document.getElementById("inboxBtn").classList.contains("run") }));
   check("Add memory files a long paste in pieces, each under 6,000 characters", m.calls.length === 3 && m.calls.every(x => x.b === "me" && x.n <= 6000)
-    && /Remembered\. 6 new notes/.test(m.said || "") && !m.ring, JSON.stringify(m));
+    && /Remembered\. All of it kept: 3,080 words, 3 numbers, dates and names, filed as 6 new notes/.test(m.said || "") && !m.ring, JSON.stringify(m));
   check("done while closed, it waits in the inbox", m.badge === "1", m.badge);
   await page.click("#inboxBtn"); await page.waitForTimeout(60);
   await page.click("#inbox .ib-g:has(h4:text('Memory')) .ib-it"); await page.waitForTimeout(100);
   const back = await page.evaluate(() => ({ say: document.getElementById("memSay")?.textContent, badge: document.getElementById("inboxN").hidden,
     btns: [...document.querySelectorAll("#memFoot button")].map(b => b.textContent) }));
-  check("the inbox opens it again, with what it filed", /Remembered\. 6 new notes/.test(back.say || "") && back.badge && JSON.stringify(back.btns) === '["Add more","Done"]', JSON.stringify(back));
+  check("the inbox opens it again, with what it filed", /Remembered\. All of it kept: .*6 new notes/.test(back.say || "") && back.badge && JSON.stringify(back.btns) === '["Add more","Done"]', JSON.stringify(back));
   await page.click("#memMore"); await page.waitForTimeout(60);
   check("Add more brings the box back", await page.evaluate(() => !document.getElementById("memIn1").hidden && document.getElementById("memText").value === ""));
   await page.evaluate(() => { window.__memSlow = 0; document.querySelector(".veil")?.remove(); });
+
+  /* Like a drop: a number or a name the filing left out is filed again, then kept as written. */
+  await page.evaluate(() => { window.__memDrop = "Kinugawa"; window.__calls = []; });
+  await page.click(".composer .box"); await page.click("#memBtn"); await page.waitForTimeout(100);
+  await page.fill("#memText", "I eat sushi at Kinugawa every Friday with my sister. I run 10 km on Sundays.");
+  await page.click("#memGo"); await page.waitForTimeout(500);
+  const gaps = await page.evaluate(() => ({ calls: window.__calls.filter(x => x.s.includes("/api/personal/remember")).map(x => ({ gaps: !!x.body.gaps, verbatim: !!x.body.verbatim, text: x.body.text })),
+    say: document.getElementById("memSay")?.textContent }));
+  check("a memory is checked like a drop: what the filing left out is filed again, then kept word for word",
+    gaps.calls.length === 3 && gaps.calls[1].gaps && /Kinugawa/.test(gaps.calls[1].text) && gaps.calls[2].verbatim && /Kinugawa every Friday/.test(gaps.calls[2].text)
+    && /All of it kept: 16 words, 3 numbers, dates and names/.test(gaps.say || ""), JSON.stringify(gaps));
+  await page.evaluate(() => { window.__memDrop = ""; document.querySelector(".veil")?.remove(); });
 
   /* It is never fed by a drop. */
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent)).click());

@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1181 checks passing" src="https://img.shields.io/badge/checks-1181%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1188 checks passing" src="https://img.shields.io/badge/checks-1188%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -109,7 +109,7 @@ A third kind of brain, next to subjects and experts. You talk to it, and it keep
 
 - **It files your words.** Each message becomes up to 3 notes, each claim dated and signed "You". Only your words get filed.
 - **A change of mind** rewrites the note: the new view, and the one it replaces with its date.
-- **Add memory.** Paste what another assistant knows about you, or a notes file. It files in the background: close it, and the inbox shows the piece it is on, then what it filed. One stopped by an error goes on from where it stopped.
+- **Add memory.** Paste what another assistant knows about you, or add a PDF, Word, text or JSON file. It is checked like a drop: every number, date and name is looked for in what was filed, the passages holding the ones left out are filed again, and what is still missing is kept word for word. The result says "All of it kept". It files in the background: close it, and the inbox shows the piece it is on, then what it filed. One stopped by an error goes on from where it stopped.
 - **It talks to you as "you".** Its notes read "You want to move to Lisbon", and so do its replies.
 - **It calls your other brains on its own.** When one holds something that bears on what you said, it brings it up and names it: "your Health brain says 3 to 5 g a day". A line under the reply shows which brains it called.
 - **A file per person.** Each person you mention, by name or by role, gets a file: a short summary on top, then what is still open, their facts by section (identity, contact details, you and them, work, tastes), their people both ways, and their whole history, year by year, each moment dated and told with its details. It only grows: a changed fact keeps the old one with the day it ended, and after the history come its raw notes: every message you sent about them, word for word, dated, in the language you wrote it. The People tab lists them, the most recent first, and one click finds the people in your older notes. Edit a card by hand, or merge two cards of the same person: the mentions and names join, and the card is written again as one.

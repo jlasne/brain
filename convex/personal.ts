@@ -18,7 +18,7 @@
  */
 
 import { internal } from "./_generated/api";
-import { sameTitle, idOf, fileText, FILE_SECTIONS } from "./words";
+import { sameTitle, idOf, fileText, FILE_SECTIONS, conceptSlug } from "./words";
 
 export type Note = { title: string; claim: string; position: string; summaryLine: string; update: string; orig?: string };
 /* What the personal folder keeps: English whatever was written ("en"), or the language written in ("same"). */
@@ -28,14 +28,16 @@ export type Lang = "en" | "same";
    what this message adds to their file. */
 export type Person = { name: string; update: string; also: string[]; claim: string; position: string; summaryLine: string; date: string;
   facts: any[]; events: any[]; links: any[]; open: any[]; orig?: string; raw?: string };
-export type Filed = { new: number; updated: number; titles: string[]; people?: string[] };
+/* "kept" is what the filer wrote, as plain text, so the app can check every
+   number, date and name of what was sent made it in. */
+export type Filed = { new: number; updated: number; titles: string[]; people?: string[]; kept?: string };
 /* "people" reads notes already held, for the people in them alone. */
 /* "files" builds the files of people already held from their cards and mentions. */
 export type Kind = "chat" | "import" | "interview" | "people" | "files";
 
 /* A chat message files a few notes at most; an interview answer, a long
    story told aloud, files more; an import more again per piece. */
-const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 10, people: 0, files: 0 };
+const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 20, people: 0, files: 0 };
 /* People are filed apart from notes, each on their own card. */
 const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, people: 12, files: 6 };
 /* What one call reads: the message, the answer, and a piece of an import. */
@@ -94,7 +96,7 @@ export function nearest(cards: any[], text: string, n = 10): any[] {
 }
 
 /** The filer's instructions and input. */
-export function filerPrompt(kind: Kind, text: string, context: string, opened: any[], others: any[], date: string, contacts: any[] = [], lang: Lang = "same") {
+export function filerPrompt(kind: Kind, text: string, context: string, opened: any[], others: any[], date: string, contacts: any[] = [], lang: Lang = "same", gaps = false) {
   const en = lang === "en";
   /* A contact named in the message is shown whole, so its card is rewritten
      from everything it holds; a note, from its opening. */
@@ -125,7 +127,9 @@ WHAT TO FILE
 - A plain request to look something up, a greeting or a thank-you files nothing: return {"notes": [], "people": []}.
 - A plain "yes" or "right" to notes read back files nothing. A correction to one updates that note.
 - At most ${MAX_NOTES[kind]} notes. One note per topic: group what belongs together.
-- What is only about another person goes to that person's contact, not to a note.
+- What is only about another person goes to that person's contact, not to a note.${kind === "import" ? `
+- EVERYTHING IN IT IS FILED: every fact, number, date, name, place, preference and plan, however small. A note's position carries all the details of its topic; leave none out.` : ""}${gaps ? `
+- THESE PASSAGES ARE WHAT A FIRST FILING OF THIS TEXT LEFT OUT. File every number, date and name in them.` : ""}
 
 HOW TO FILE
 - Prefer an existing note on the same topic: set "update" to its exact title as listed under HELD NOW. Otherwise leave "update" empty and give a new short title (2 to 6 words, a topic, never a sentence).
@@ -339,7 +343,7 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
  * comes in as a function, so the key it runs on never passes through here.
  */
 export async function remember(ctx: any, o: {
-  space: string; brain: string; cards: any[]; text: string; context?: string; kind: Kind; date: string; lang?: Lang;
+  space: string; brain: string; cards: any[]; text: string; context?: string; kind: Kind; date: string; lang?: Lang; gaps?: boolean;
   model: (messages: { role: "system" | "user" | "assistant"; content: string }[]) => Promise<string>;
 }): Promise<Filed> {
   const text = String(o.text ?? "").slice(0, MAX_CHARS[o.kind]).trim();
@@ -354,7 +358,7 @@ export async function remember(ctx: any, o: {
   const ids = [...near, ...named].map(idOf);
   const opened = ids.length ? await ctx.runQuery(internal.store.conceptsByIds, { space: o.space, ids }) : [];
   const others = plain.filter(c => !near.includes(c));
-  const raw = await o.model(filerPrompt(o.kind, text, context, opened, others, o.date, contacts, o.lang ?? "same"));
+  const raw = await o.model(filerPrompt(o.kind, text, context, opened, others, o.date, contacts, o.lang ?? "same", !!o.gaps));
   /* A reply that is not JSON, often one cut short, is a failure to retry,
      never "nothing to file". */
   if (!readable(raw)) throw new Error("the filer's reply could not be read");
@@ -363,8 +367,39 @@ export async function remember(ctx: any, o: {
      still gets the mention on their card. */
   const missed = bulk ? [] : properlyNamed(contacts, text)
     .filter(c => !people.some(p => [p.update, p.name].some(t => t && (sameTitle(t, c.title) || (c.aliases ?? []).some((a: string) => sameTitle(a, t))))));
-  return await fileNotes(ctx, o.space, o.brain, held, bulk ? [] : readNotes(raw, o.kind), o.kind, o.date, people, missed, text,
+  const notes = bulk ? [] : readNotes(raw, o.kind);
+  const filed = await fileNotes(ctx, o.space, o.brain, held, notes, o.kind, o.date, people, missed, text,
     o.kind === "interview" ? context.replace(/^The brain asked:\s*/, "") : "");
+  return { ...filed, kept: keptText(notes, people) };
+}
+
+/** What a filing wrote, as plain text: every note and every person's line, fact, moment and link. */
+export function keptText(notes: Note[], people: Person[]) {
+  return [
+    ...notes.flatMap(n => [n.title, n.claim, n.orig ?? "", n.position, n.summaryLine]),
+    ...people.flatMap(p => [p.name, ...p.also, p.claim, p.orig ?? "", p.raw ?? "", p.position, p.summaryLine,
+      ...p.facts.map((f: any) => `${f?.label ?? ""} ${f?.value ?? ""}`), ...p.events.map((e: any) => `${e?.date ?? ""} ${e?.text ?? ""}`),
+      ...p.links.map((l: any) => `${l?.name ?? ""} ${l?.rel ?? ""}`), ...p.open.map((x: any) => String(x?.text ?? ""))]),
+  ].filter(Boolean).join("\n").slice(0, 60000);
+}
+
+/**
+ * What two filings of an imported memory still left out, kept as written: one
+ * note of the day, each sentence a dated mention signed You. Nothing is lost,
+ * even what no note took.
+ */
+export async function fileVerbatim(ctx: any, space: string, brain: string, sentences: string[], date: string): Promise<Filed> {
+  const lines = sentences.map(x => String(x).replace(/\s+/g, " ").trim()).filter(x => x.length >= 2).slice(0, 80);
+  if (!lines.length) return { new: 0, updated: 0, titles: [], people: [] };
+  const sid = `${brain}-import-${date}`, title = `Imported details, ${date}`;
+  await ctx.runMutation(internal.store.writeSource, { space, doc: {
+    sid, link: "", linkKey: sid, title: `Imported memory, ${date}`, author: "You (imported)", date, location: "", brains: [brain] } });
+  const had = (await ctx.runQuery(internal.store.conceptsByIds, { space, ids: [`${brain}/${conceptSlug(title)}`] }))[0];
+  await ctx.runMutation(internal.store.upsertConcept, { brain, title, doc: {
+    position: `Details from the memory you imported on ${date}, kept as you wrote them:\n${[...String(had?.position ?? "").split("\n").slice(1), ...lines].join("\n")}`.slice(0, 4000),
+    summaryLine: "Details you imported, kept word for word",
+    sources: [sid], evidence: lines.map(claim => ({ date, author: "You (imported)", claim: claim.slice(0, 600), source: sid })) } });
+  return { new: had ? 0 : 1, updated: had ? 1 : 0, titles: [title], people: [], kept: lines.join("\n") };
 }
 
 /** The rules a reply in a personal chat follows. */
