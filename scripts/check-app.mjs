@@ -1713,12 +1713,26 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click("#micBtn"); await page.waitForTimeout(150);
   const on = await page.evaluate(() => ({ value: document.getElementById("input").value, on: document.getElementById("micBtn").classList.contains("on"),
     pressed: document.getElementById("micBtn").getAttribute("aria-pressed"), hint: document.getElementById("tHint").textContent, lang: window.__voice[0]?.lang }));
-  check("the mic listens in the browser's language and writes after what was typed", on.value === "Quick one: what do my brains say on sleep"
-    && on.on && on.pressed === "true" && on.hint === "Listening. Tap the mic to stop." && !!on.lang, JSON.stringify(on));
+  check("the mic listens in the browser's language, says which, and writes after what was typed", on.value === "Quick one: what do my brains say on sleep"
+    && on.on && on.pressed === "true" && on.hint === "Listening in English. Tap the mic to stop." && on.lang === "en-US", JSON.stringify(on));
   await page.click("#micBtn"); await page.waitForTimeout(80);
   const off = await page.evaluate(() => ({ on: document.getElementById("micBtn").classList.contains("on"), send: document.getElementById("send").disabled,
     hint: document.getElementById("tHint").textContent }));
   check("a second tap stops it, and the words wait to be sent", !off.on && !off.send && off.hint === "", JSON.stringify(off));
+
+  /* French: the chip beside the mic, then the mic, both in the folded bar. */
+  await page.fill("#input", ""); await page.evaluate(() => document.activeElement?.blur()); await page.waitForTimeout(250);
+  const folded = await page.evaluate(() => ({ compact: document.querySelector(".composer-wrap").classList.contains("compact"),
+    chip: document.getElementById("voiceLang").textContent, shown: document.getElementById("voiceLang").getBoundingClientRect().width > 0 }));
+  check("the language sits beside the mic even in the folded bar", folded.compact && folded.shown && folded.chip === "EN", JSON.stringify(folded));
+  await page.click("#voiceLang"); await page.waitForTimeout(80);
+  const fr = await page.evaluate(() => ({ chip: document.getElementById("voiceLang").textContent, saved: localStorage.getItem("tasu.voiceLang"),
+    compact: document.querySelector(".composer-wrap").classList.contains("compact") }));
+  check("one tap on it moves to French, kept in this browser, and the bar stays folded", fr.chip === "FR" && fr.saved === "fr-FR" && fr.compact, JSON.stringify(fr));
+  await page.click("#micBtn"); await page.waitForTimeout(150);
+  const heard = await page.evaluate(() => ({ lang: window.__voice.at(-1)?.lang, n: window.__voice.length, hint: document.getElementById("tHint").textContent }));
+  check("a tap on the mic in the folded bar starts it, listening in French", heard.n === 2 && heard.lang === "fr-FR" && heard.hint === "Listening in French. Tap the mic to stop.", JSON.stringify(heard));
+  await page.click("#micBtn"); await page.waitForTimeout(80);
   await page.evaluate(() => document.getElementById("dropBtn").click()); await page.waitForTimeout(60);
   check("a drop takes a source, so the mic steps aside", await page.evaluate(() => document.getElementById("micBtn").hidden));
   check("no page error with the mic", bad.length === 0, bad.join(" | "));
@@ -2107,9 +2121,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.fill("#input", "Lunch with Marc. I owe him an intro to Paul."); await page.click("#send"); await page.waitForTimeout(250);
   const line = await page.evaluate(() => [...document.querySelectorAll(".msg.ai")].pop()?.querySelector(".filed")?.textContent);
   check("a message about people says whose cards it updated", line === "Filed: 1 new note · Contacts: Marc Dupont, Paul", line);
-  check("the mic offers its language, French among them", await page.evaluate(() => !!document.querySelector('#voiceLang option[value="fr-FR"]')));
-  await page.evaluate(() => { const v = document.getElementById("voiceLang"); v.value = "fr-FR"; v.dispatchEvent(new Event("change")); });
-  check("and the choice is kept in this browser", await page.evaluate(() => localStorage.getItem("tasu.voiceLang")) === "fr-FR");
+  check("the mic's language is a chip beside it", await page.evaluate(() => document.getElementById("voiceLang").tagName === "BUTTON"));
 
   /* A message whose filing failed offers to keep it, as the message it was. */
   await page.evaluate(() => { window.__failNext = true; });

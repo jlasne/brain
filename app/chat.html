@@ -1637,10 +1637,12 @@
   .mic{ border-radius:10px; }
   .foot-note{ pointer-events:auto; margin-top:8px; text-align:center; font:400 11.5px/1.4 var(--sans); color:var(--ink-4); }
   /* The mic's language, beside it in the open bar. */
-  .vlang{ height:32px; padding:0 6px; border:1px solid var(--line-2); border-radius:9px; background:var(--surface);
-    font:500 12px/1 var(--mono); color:var(--ink-3); cursor:pointer; }
+  .vlang{ flex:none; height:32px; min-width:38px; padding:0 8px; border:1px solid var(--line-2); border-radius:9px; background:var(--surface);
+    font:600 11.5px/1 var(--mono); letter-spacing:.04em; color:var(--ink-3); cursor:pointer; }
   .vlang:hover{ border-color:var(--ink-4); color:var(--ink); }
-  .vlang[hidden], .composer-wrap.compact .vlang{ display:none; }
+  .vlang[hidden]{ display:none; }
+  /* Folded, the chip stays beside the mic, round like it. */
+  .composer-wrap.compact .vlang{ height:30px; min-width:34px; padding:0 7px; border-radius:99px; }
   /* The interview strip, above the chat bar: a way in, or where it stands. */
   .iv-bar{ display:flex; justify-content:center; margin:0 auto 8px; }
   .iv-bar[hidden]{ display:none; }
@@ -1755,6 +1757,7 @@
     .box .tbar .seg.lv button span{ display:none; }
     .box .tbar #memBtn{ flex:none; height:42px; }
     .box .tbar .vlang{ flex:none; height:42px; border-radius:10px; }
+    .composer-wrap.compact .box .tbar .vlang{ height:32px; border-radius:99px; }
     .box .tbar #freshBtn{ display:none; }
     .box .tbar .t{ order:9; flex:1 0 100%; }
     .box .tbar .t:empty{ display:none; }
@@ -1872,10 +1875,7 @@
             <div class="tools">
               <button class="paste" id="fileBtn" hidden title="Read a PDF, a Word file or a text file into the content">+ document</button>
             </div>
-            <select class="vlang" id="voiceLang" aria-label="The language the mic listens in" title="The language the mic listens in">
-              <option value="">Auto</option><option value="en-US">EN</option><option value="fr-FR">FR</option><option value="es-ES">ES</option>
-              <option value="de-DE">DE</option><option value="it-IT">IT</option><option value="pt-PT">PT</option>
-            </select>
+            <button class="vlang" id="voiceLang" type="button" aria-label="Voice language">EN</button>
             <button class="mic" id="micBtn" type="button" aria-label="Talk" aria-pressed="false" title="Talk instead of typing">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="1.75" width="5" height="8" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/></svg>
             </button>
@@ -2938,6 +2938,8 @@ function closePick(){
  * it, a drop, its folder menu open, or the mic on.
  */
 var fullPlaceholder = "";   // var: renderComposer runs before this line is reached
+/* The folded bar's few words, where the full line would not fit beside the mic. */
+var shortPlaceholder = "";
 function paintBar(){
   const wrap = document.querySelector(".composer-wrap");
   if (!wrap) return;
@@ -2946,7 +2948,7 @@ function paintBar(){
     || (drop && !!$("srcInput").value.trim()) || !!pickMenu || !!S.listening;
   wrap.classList.toggle("compact", !open);
   /* Folded, a drop says what it takes in a few words; open, it says it in full. */
-  $("input").placeholder = !open && drop ? "Drop a link, a text or a document" : fullPlaceholder;
+  $("input").placeholder = !open && drop ? "Drop a link, a text or a document" : !open && shortPlaceholder ? shortPlaceholder : fullPlaceholder;
 }
 
 function renderComposer(){
@@ -2959,6 +2961,7 @@ function renderComposer(){
   $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length || !!S.folder;
   const drop = S.mode==="drop";
   $("srcLine").hidden = !drop;
+  shortPlaceholder = asking ? "Your answer" : mine ? "Tell it anything" : "";
   fullPlaceholder = drop
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
     : asking ? "Your answer, in your own words"
@@ -2995,7 +2998,7 @@ function renderComposer(){
   const ready = hasContent(src, t);
   $("send").disabled = S.busy || (drop ? !ready : !t);
   $("tHint").textContent = S.busy ? "working" : drop ? dropHint(src, t)
-    : S.listening ? "Listening. Tap the mic to stop." : (S.voiceHint || "");
+    : S.listening ? `Listening in ${voiceName()}. Tap the mic to stop.` : (S.voiceHint || "");
   paintIv();
   paintBar();
 }
@@ -3216,6 +3219,9 @@ $("send").onclick = go;
    Where a browser has none, the mic says how to dictate with the system's
    own, which every phone and computer carries. */
 const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+/* The languages the mic offers: code, chip, name. */
+const VOICE_LANGS = [["en-US", "EN", "English"], ["fr-FR", "FR", "French"], ["es-ES", "ES", "Spanish"],
+  ["de-DE", "DE", "German"], ["it-IT", "IT", "Italian"], ["pt-PT", "PT", "Portuguese"]];
 let rec = null, voiceBase = "";
 function systemDictation(){
   const ua = navigator.userAgent;
@@ -3233,7 +3239,7 @@ function renderMic(){
 function startVoice(){
   if (!Speech){ S.voiceHint = systemDictation(); renderComposer(); $("input").focus(); return; }
   const r = new Speech();
-  r.lang = voiceLang() || navigator.language || "en-US";
+  r.lang = voiceLang();
   r.interimResults = true;
   r.continuous = true;
   /* What was typed stays; the words spoken follow it. */
@@ -3249,6 +3255,7 @@ function startVoice(){
   r.onerror = e => {
     const why = e.error;
     S.voiceHint = why === "not-allowed" || why === "service-not-allowed" ? "Allow the microphone for this site, then tap the mic again."
+      : why === "language-not-supported" ? `This browser cannot listen in ${voiceName()}. Tap the language chip, or open it in Chrome.`
       : why === "network" ? "Voice input needs a connection."
       : why === "no-speech" || why === "aborted" ? "" : "Voice input stopped. Tap the mic to try again.";
   };
@@ -3260,13 +3267,34 @@ function startVoice(){
   rec = r; S.listening = true; S.voiceHint = ""; renderMic(); renderComposer();
 }
 function stopVoice(){ try { rec?.stop(); } catch { /* it had stopped already */ } }
-/* The language the mic listens in: the browser's own unless one is picked,
-   kept in this browser. A change while listening starts again in it. */
-function voiceLang(){ try { return localStorage.getItem("tasu.voiceLang") || ""; } catch { return ""; } }
-try { $("voiceLang").value = voiceLang(); } catch {}
-$("voiceLang").onchange = e => {
-  try { localStorage.setItem("tasu.voiceLang", e.target.value); } catch {}
+/* The language the mic listens in, on a chip beside it in both the folded
+   and the open bar: the speech service hears one language at a time and
+   cannot tell French from English by itself. A tap moves to the next one;
+   the pick is kept in this browser. With none picked, the browser's own
+   language when it is one of these, else English. */
+function voiceLang(){
+  let saved = "";
+  try { saved = localStorage.getItem("tasu.voiceLang") || ""; } catch {}
+  if (VOICE_LANGS.some(x => x[0] === saved)) return saved;
+  const mine = String(navigator.language || "").slice(0, 2).toLowerCase();
+  return (VOICE_LANGS.find(x => x[0].startsWith(mine)) || VOICE_LANGS[0])[0];
+}
+function voiceName(){ return (VOICE_LANGS.find(x => x[0] === voiceLang()) || VOICE_LANGS[0])[2]; }
+function paintVoiceLang(){
+  const b = $("voiceLang"), x = VOICE_LANGS.find(v => v[0] === voiceLang()) || VOICE_LANGS[0];
+  b.textContent = x[1];
+  b.title = `The mic listens in ${x[2]}. Tap for another language.`;
+  b.setAttribute("aria-label", `Voice language: ${x[2]}. Tap for another language.`);
+}
+paintVoiceLang();
+$("voiceLang").onclick = () => {
+  const at = VOICE_LANGS.findIndex(x => x[0] === voiceLang());
+  const next = VOICE_LANGS[(at + 1) % VOICE_LANGS.length];
+  try { localStorage.setItem("tasu.voiceLang", next[0]); } catch {}
+  paintVoiceLang();
+  /* Listening already: it starts again in the new language. */
   if (S.listening){ S.listening = false; stopVoice(); renderMic(); setTimeout(startVoice, 250); }
+  else { S.voiceHint = `The mic now listens in ${next[2]}.`; renderComposer(); }
 };
 $("micBtn").onclick = () => S.listening ? stopVoice() : startVoice();
 $("scopeBtn").onclick = e => { e.stopPropagation(); openPick(); };
@@ -3298,7 +3326,12 @@ $("newBrain").onclick = () => openSheet("","","subject");
   wrap.addEventListener("focusout", () => setTimeout(paintBar, 140));
   /* Folded, the whole pill is the field: a click anywhere on it opens it. */
   wrap.querySelector(".box").addEventListener("mousedown", e => {
-    if (!wrap.classList.contains("compact") || e.target.closest("button, input, textarea")) return;
+    if (!wrap.classList.contains("compact")) return;
+    /* Folded, the mic, its language and send act where they are: a press
+       that moved the focus would open the bar and slide them out from under
+       the finger before the tap landed, and the mic never started. */
+    if (e.target.closest("#micBtn, #voiceLang, #send")){ e.preventDefault(); return; }
+    if (e.target.closest("button, input, textarea")) return;
     e.preventDefault(); $("input").focus();
   });
 }
