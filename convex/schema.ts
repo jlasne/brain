@@ -125,6 +125,8 @@ export default defineSchema({
     aliases: v.optional(v.array(v.string())),
     /* A contact's file: facts by section, dated history, links, what is open. */
     file: v.optional(v.any()),
+    /* The day a contact's raw notes were last gathered from the saved chats. */
+    rawScan: v.optional(v.string()),
     updated: v.string(),
   }).index("by_brain", ["brain"])
     .index("by_brain_slug", ["brain", "slug"]),
@@ -173,6 +175,8 @@ export default defineSchema({
     /* In the demo, the visitor whose chat it is. Absent: the workspace's. */
     owner: v.optional(v.string()),
     turns: v.array(v.any()),
+    /* A chat about one concept: its brain/slug id. It reads that concept alone. */
+    concept: v.optional(v.string()),
     created: v.number(),
     updated: v.number(),
   }).index("by_space_updated", ["space", "updated"]),
@@ -399,6 +403,20 @@ export default defineSchema({
     .index("by_a", ["a"])
     .index("by_b", ["b"])
     .index("by_space", ["space"]),
+
+  /* Everything the owner said about a person of their personal brain, word
+     for word and dated: one row a message. Only that person's file reads it. */
+  rawNotes: defineTable({
+    brain: v.string(),
+    slug: v.string(),
+    date: v.string(),
+    /* chat, interview or import */
+    kind: v.string(),
+    text: v.string(),
+    /* For an interview answer, the question it answered. */
+    asked: v.optional(v.string()),
+    at: v.number(),
+  }).index("by_contact", ["brain", "slug", "at"]),
 
   /* A personal brain's interview: which questions are answered, known from
      the notes or skipped, the one waiting for an answer, and the twin test,

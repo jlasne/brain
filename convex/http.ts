@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal } from "./space";
-import { remember, REPLY_RULES, MAX_CHARS, calledBrains } from "./personal";
+import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
 /* Projects are off in the app for now; their routes stay for when they come back. */
@@ -492,9 +492,15 @@ route("/api/concept", async (ctx, _req, b) => {
   if (!c) return { error: "that concept is not in this space" };
   /* What follows from it and a concept of another folder, derived. */
   const insights = await ctx.runQuery(internal.graph.insightsFor, { space: who.space, ids: [`${c.brain}/${c.slug}`] });
-  /* A person's file also names the people whose files link to them. */
-  const linkedFrom = c.tag === "contact" ? await ctx.runQuery(internal.store.contactsLinking, { space: who.space, id: `${c.brain}/${c.slug}` }) : [];
-  return { concept: { ...c, kinds: kindsOf(c) }, insights, ...(c.tag === "contact" ? { linkedFrom } : {}) };
+  if (c.tag !== "contact") return { concept: { ...c, kinds: kindsOf(c) }, insights };
+  /* A person's file also names the people whose files link to them, and
+     holds everything said about them word for word: gathered once from the
+     chats still kept, then written as each message is filed. */
+  const id = `${c.brain}/${c.slug}`;
+  const linkedFrom = await ctx.runQuery(internal.store.contactsLinking, { space: who.space, id });
+  if (!c.rawScan && !who.demo) { try { await ctx.runMutation(internal.store.rawFromChats, { space: who.space, id }); } catch { /* read what is there */ } }
+  const raw = await ctx.runQuery(internal.store.rawOf, { space: who.space, id, n: 300 });
+  return { concept: { ...c, kinds: kindsOf(c) }, insights, linkedFrom, raw };
 });
 
 /** A folder's topics: its concepts that link to each other, named and summed up. */
@@ -696,6 +702,8 @@ route("/api/drop/link", async (ctx, _req, b) => {
 
 route("/api/ask", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
+  /* A chat opened on one concept reads that concept alone. */
+  if (b.concept) return await conceptChat(ctx, who, b);
   /* Every brain in this space answers questions, whoever is asking. A personal
      brain answers in its own chat only, and no other chat reads it. */
   const every = await loadSpace(ctx, who.space, undefined, { personal: true });
@@ -965,6 +973,88 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
 async function fileTwice<T>(run: () => Promise<T>): Promise<T> {
   try { return await run(); }
   catch { await new Promise(ok => setTimeout(ok, 1500)); return await run(); }
+}
+
+/* ---------- a chat about one concept ---------- */
+
+/**
+ * A chat opened on one concept. It reads that concept alone, and answers
+ * from it. In the personal folder it also changes it: what the message adds
+ * or corrects is written to the note or the person's file at once, dated,
+ * in English, with the message kept word for word in a person's raw notes.
+ */
+async function conceptChat(ctx: any, who: Caller, b: any) {
+  const id = String(b.concept ?? "");
+  const q = String(b.q ?? "").slice(0, MAX_CHARS.chat).trim();
+  if (!q) return { error: "write something first" };
+  const home = await ctx.runQuery(internal.store.conceptHome, { space: who.space, id });
+  if (!home) return { error: "that concept is not in this space" };
+  const { concept: c, brain: folder } = home;
+  const personal = folder.type === "personal";
+  if (personal && who.demo) return { error: "that concept is not in this space" };
+  const contact = personal && c.tag === "contact";
+  const mKey = keyFor(who), mName = modelFor(who, b);
+  await demoCount(ctx, who, "ask");
+  const date = new Date().toISOString().slice(0, 10);
+  const english = who.models?.reply === "en";
+  const raw = contact ? (await ctx.runQuery(internal.store.rawOf, { space: who.space, id, n: 40 })).notes : [];
+  const history = (Array.isArray(b.history) ? b.history : []).slice(-6);
+  const earlier = history.map((h: any) => `They said: ${String(h.q ?? "").slice(0, 400)}\nYou replied: ${String(h.a ?? "").slice(0, 800)}`).join("\n\n");
+  const dump = conceptDump(c, raw);
+
+  let answer = "", changed: any = null;
+  if (personal) {
+    const { text, finish } = await ask([
+      { role: "system", content: "You keep a person's own notes and the files of the people they know. You reply with JSON only." },
+      { role: "user", content: `${conceptRules(c.title, contact, english)}\n\nTODAY: ${date}\n\n` +
+        `${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}THE ${contact ? "PERSON" : "NOTE"}\n${dump}\n\nTHEIR MESSAGE\n${q}` },
+    ], { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: 120000, temperature: 0.2 });
+    const d = parseJson(String(text), finish);
+    if (!d || typeof d !== "object") return { error: "the reply could not be read. Send it again." };
+    answer = String(d.reply ?? "").replace(/\s*—\s*/g, ", ").trim();
+    if (d.change && typeof d.change === "object")
+      changed = await applyChange(ctx, { space: who.space, brain: folder.slug, c, q, change: d.change, date });
+    if (!answer) answer = changed ? `Saved to ${c.title}.` : "Nothing to change there.";
+  } else {
+    const isPerson = folder.type === "person";
+    const r = await ask([
+      { role: "system", content: `You are the user's own knowledge base, in a chat about one concept. ${english ? "You answer in English, whatever language the question is written in." : "You answer in the language the question is written in."}` },
+      { role: "user", content:
+`Answer the question from this one concept alone: "${c.title}", in the folder ${folder.name}.
+
+- The first sentence answers the question. One sentence per line, each ending with a full stop.
+- 3 to 6 sentences, unless the question asks for another shape. A list asked for is a list.
+- Numbers, dates and findings go inside the answer. Newer evidence wins on the same question.
+${isPerson ? "- This is a PERSON folder: name that person throughout." : "- Never put a source's name in the answer text. Attribution belongs on the sources line only."}
+- Only what the concept below holds. Never invent evidence.
+- When the question goes beyond this concept, say in one sentence that this chat covers ${c.title} alone and that the main chat reads every folder.
+- Then a blank line, then one line: "Sources: {author}, {date} - {author}, {date}" listing only the evidence you used. Omit it if you used none.
+- No em-dashes. Under 30 words per sentence. Simple wording. No file paths.
+${earlier ? `
+EARLIER IN THIS CHAT (context only, never a source)
+${earlier}
+` : ""}
+THE CONCEPT
+${dump}
+
+QUESTION: ${q}` },
+    ], { maxTokens: 1600, key: mKey, model: mName, temperature: 0.2, timeout: 150000 });
+    answer = r.text;
+  }
+
+  const nSources = new Set((c.evidence ?? []).map((e: any) => e.source).filter(Boolean)).size;
+  let chat: string | undefined;
+  if ("chat" in b) {
+    try {
+      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
+        id: typeof b.chat === "string" ? b.chat : null, brain: folder.slug, concept: id, title: `About ${c.title}`,
+        turn: { q: q.slice(0, 2000), a: answer, level: "normal", sources: personal ? 0 : nSources, at: Date.now(), concept: id,
+                ...(changed ? { changed } : {}) } });
+      chat = r.id;
+    } catch { /* the answer still goes out */ }
+  }
+  return { answer, sources: personal ? 0 : nSources, level: "normal", concept: { id, title: c.title, brain: folder.slug, personal },
+           changed, ...(chat ? { chat } : {}) };
 }
 
 /* ---------- the interview ---------- */

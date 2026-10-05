@@ -1212,7 +1212,7 @@ export const chatList = internalMutation({
       .order("desc").collect()).filter((c: any) => ownerOf(c) === owner);
     return rows.sort((x: any, y: any) => Number(y.pinned) - Number(x.pinned) || y.updated - x.updated)
       .map((c: any) => ({ id: String(c._id), title: c.title, brain: c.brain, pinned: c.pinned,
-                          updated: c.updated, turns: c.turns.length }));
+                          updated: c.updated, turns: c.turns.length, ...(c.concept ? { concept: c.concept } : {}) }));
   },
 });
 
@@ -1221,24 +1221,27 @@ export const chatGet = internalQuery({
   args: { space: v.string(), id: v.string(), owner: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const c = await chatIn(ctx, readSpace(a.space), a.id, a.owner ?? "");
-    return c ? { id: String(c._id), title: c.title, brain: c.brain, pinned: c.pinned, turns: c.turns } : null;
+    return c ? { id: String(c._id), title: c.title, brain: c.brain, pinned: c.pinned, turns: c.turns, ...(c.concept ? { concept: c.concept } : {}) } : null;
   },
 });
 
 /** A question and its answer, added to a chat. No chat, or one gone, starts a new one. */
 export const chatTurn = internalMutation({
-  args: { space: v.string(), id: v.optional(v.union(v.string(), v.null())), brain: v.string(), turn: v.any(), owner: v.optional(v.string()) },
+  args: { space: v.string(), id: v.optional(v.union(v.string(), v.null())), brain: v.string(), turn: v.any(), owner: v.optional(v.string()),
+          /* A chat about one concept keeps its id, and is named after it. */
+          concept: v.optional(v.string()), title: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const space = readSpace(a.space), now = Date.now(), owner = a.owner ?? "";
     const had = await chatIn(ctx, space, a.id, owner);
     if (had) {
-      await ctx.db.patch(had._id, { turns: [...had.turns, a.turn].slice(-CHAT_TURNS), brain: a.brain, updated: now });
+      await ctx.db.patch(had._id, { turns: [...had.turns, a.turn].slice(-CHAT_TURNS), brain: a.brain, updated: now,
+        ...(a.concept ? { concept: a.concept } : {}) });
       return { id: String(had._id), created: false };
     }
-    const q = String(a.turn?.q || a.turn?.title || "").replace(/\s+/g, " ").trim();
+    const q = String(a.title || a.turn?.q || a.turn?.title || "").replace(/\s+/g, " ").trim();
     const title = q.length > 80 ? q.slice(0, 77).replace(/\s+\S*$/, "") + "..." : q || "Untitled chat";
     const id = await ctx.db.insert("chats", { space, title, brain: a.brain, pinned: false, turns: [a.turn], created: now, updated: now,
-      ...(owner ? { owner } : {}) });
+      ...(owner ? { owner } : {}), ...(a.concept ? { concept: a.concept } : {}) });
     await pruneChats(ctx, space, owner);
     return { id: String(id), created: true };
   },
@@ -1563,6 +1566,9 @@ export const contactMerge = internalMutation({
         /* Both files join: every fact, moment, link and open item kept. */
         ...(now.file || gone.file ? { file: mergeFile(now.file, gone.file ?? {}, today()) } : {}),
       });
+      /* Their raw notes follow them to the card kept. */
+      for (const r of await ctx.db.query("rawNotes").withIndex("by_contact", (q: any) => q.eq("brain", gone.brain).eq("slug", gone.slug)).collect())
+        await ctx.db.patch(r._id, { slug: keep.slug });
       await joinConcept(ctx, await ctx.db.get(keep._id), gone);
       joined++;
     }
@@ -1649,3 +1655,95 @@ export const contactsLinking = internalQuery({
   },
 });
 
+/* ---------- a person's raw notes ---------- */
+
+const RAW_MAX = 8000;
+
+/** A contact of a personal brain by its slug, else by its title, else null. */
+async function contactNamed(ctx: any, brain: string, title: string, slug?: string) {
+  const c = slug ? await ctx.db.query("concepts").withIndex("by_brain_slug", (q: any) => q.eq("brain", brain).eq("slug", slug)).unique()
+    : await byTitle(ctx, "concepts", brain, title);
+  return c?.tag === "contact" ? c : null;
+}
+
+/**
+ * What the owner said about a person, word for word and dated: one row a
+ * message, in the language it was said. The same words on the same day are
+ * kept once, so a filing tried twice adds nothing.
+ */
+export const rawAdd = internalMutation({
+  args: { brain: v.string(), title: v.string(), slug: v.optional(v.string()), date: v.string(), kind: v.string(), text: v.string(),
+          asked: v.optional(v.string()), at: v.optional(v.number()) },
+  handler: async (ctx, a) => {
+    const text = a.text.trim().slice(0, RAW_MAX);
+    if (text.length < 2) return false;
+    const c = await contactNamed(ctx, a.brain, a.title, a.slug);
+    if (!c) return false;
+    const had = await ctx.db.query("rawNotes").withIndex("by_contact", (q: any) => q.eq("brain", c.brain).eq("slug", c.slug)).collect();
+    if (had.some((r: any) => r.date === a.date && r.text === text)) return false;
+    await ctx.db.insert("rawNotes", { brain: c.brain, slug: c.slug, date: a.date, kind: a.kind, text,
+      ...(a.asked ? { asked: a.asked.trim().slice(0, 600) } : {}), at: a.at ?? Date.now() });
+    return true;
+  },
+});
+
+/** A person's raw notes, newest first, and how many there are. */
+export const rawOf = internalQuery({
+  args: { space: v.string(), id: v.string(), n: v.optional(v.number()) },
+  handler: async (ctx, a) => {
+    const c = await ownContact(ctx, readSpace(a.space), a.id);
+    if (!c) return { notes: [], total: 0 };
+    const rows = await ctx.db.query("rawNotes").withIndex("by_contact", (q: any) => q.eq("brain", c.brain).eq("slug", c.slug)).order("desc").collect();
+    return { notes: rows.slice(0, a.n ?? 300).map((r: any) => ({ date: r.date, kind: r.kind, text: r.text, ...(r.asked ? { asked: r.asked } : {}), at: r.at })),
+             total: rows.length };
+  },
+});
+
+/**
+ * A person's raw notes gathered once from the chats still kept: every
+ * message of the personal chat that filed something about them, as typed.
+ */
+export const rawFromChats = internalMutation({
+  args: { space: v.string(), id: v.string() },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const c = await ownContact(ctx, space, a.id);
+    if (!c || c.rawScan) return 0;
+    const names = [c.title, ...(c.aliases ?? [])];
+    const had = await ctx.db.query("rawNotes").withIndex("by_contact", (q: any) => q.eq("brain", c.brain).eq("slug", c.slug)).collect();
+    const seen = new Set(had.map((r: any) => `${r.date}|${r.text}`));
+    let added = 0;
+    for (const chat of await ctx.db.query("chats").withIndex("by_space_updated", (q: any) => q.eq("space", space)).collect()) {
+      if (chat.brain !== c.brain || chat.owner) continue;
+      let asked = "";
+      for (const t of chat.turns ?? []) {
+        const text = String(t?.q ?? "").trim().slice(0, RAW_MAX);
+        const about = (t?.filed?.people ?? []).some((p: any) => names.some(n => sameTitle(String(p), n)));
+        const date = new Date(Number(t?.at) || chat.created).toISOString().slice(0, 10);
+        if (text.length >= 2 && about && !seen.has(`${date}|${text}`)) {
+          seen.add(`${date}|${text}`);
+          await ctx.db.insert("rawNotes", { brain: c.brain, slug: c.slug, date, kind: t.interview ? "interview" : "chat", text,
+            ...(t.interview && asked ? { asked: asked.slice(0, 600) } : {}), at: Number(t?.at) || chat.created });
+          added++;
+        }
+        /* An interview turn's reply ends on the next question. */
+        asked = t?.interview ? String(t?.a ?? "").trim().split("\n").filter(Boolean).pop() ?? "" : "";
+      }
+    }
+    await ctx.db.patch(c._id, { rawScan: today() });
+    return added;
+  },
+});
+
+/** One concept and the folder it sits in, inside one space. */
+export const conceptHome = internalQuery({
+  args: { space: v.string(), id: v.string() },
+  handler: async (ctx, a) => {
+    const cut = a.id.indexOf("/");
+    if (cut < 1) return null;
+    const b = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", a.id.slice(0, cut))).unique();
+    if (!b || !inSpace(b, readSpace(a.space))) return null;
+    const c = await ctx.db.query("concepts").withIndex("by_brain_slug", (q: any) => q.eq("brain", b.slug).eq("slug", a.id.slice(cut + 1))).unique();
+    return c ? { concept: c, brain: { slug: b.slug, name: b.name, type: b.type } } : null;
+  },
+});

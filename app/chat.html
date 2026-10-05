@@ -166,6 +166,50 @@
 
   /* The drop's source line. It shares the composer box with the content, divided by one
      rule, so the two read as halves of one drop rather than two forms. */
+  /* A chat about one concept: its chip over the field, and the × that leaves it. */
+  .about{ display:flex; align-items:center; gap:8px; min-width:0; padding:9px 10px 9px 15px; border-bottom:1px solid var(--line); }
+  .about[hidden]{ display:none; }
+  .ab-k{ flex:none; font:500 11px/1 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--ink-4); }
+  .about b{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:600 13.5px/1.3 var(--sans); color:var(--accent); }
+  .ab-x{ flex:none; margin-left:auto; width:26px; height:26px; border-radius:7px; font:400 16px/1 var(--sans); color:var(--ink-4); cursor:pointer; }
+  .ab-x:hover{ background:var(--surface-2); color:var(--ink); }
+  .composer-wrap.compact .about{ flex:0 1 auto; max-width:42%; padding:0 0 0 16px; border:0; }
+
+  /* The inbox: a bubble top right, with what waits for you counted on it. */
+  .inbox-btn{ position:fixed; top:13px; right:16px; z-index:31; display:grid; place-items:center; width:34px; height:34px; border-radius:50%;
+    border:1px solid var(--line-2); background:var(--surface); color:var(--ink-3); cursor:pointer;
+    box-shadow:0 2px 8px -2px rgba(0,0,0,.12); transition:color .15s var(--ease), border-color .15s var(--ease); }
+  .inbox-btn:hover, .inbox-btn[aria-expanded="true"]{ color:var(--accent); border-color:var(--accent-fill); }
+  .inbox-btn svg{ width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linejoin:round; stroke-linecap:round; }
+  /* Something on its way: a ring turns around the bubble. */
+  .inbox-btn.run::after{ content:""; position:absolute; inset:-4px; border-radius:50%; border:2px solid transparent;
+    border-top-color:var(--accent-solid); animation:turn 1s linear infinite; }
+  .ib-n{ position:absolute; top:-5px; right:-6px; min-width:18px; height:18px; padding:0 5px; border-radius:9px;
+    background:var(--accent-solid); color:var(--accent-on); font:600 11px/18px var(--sans); text-align:center; font-variant-numeric:tabular-nums; }
+  .ib-n[hidden]{ display:none; }
+  .inbox{ position:fixed; top:56px; right:16px; z-index:45; width:min(360px, calc(100vw - 32px)); max-height:min(70vh, 560px); overflow-y:auto;
+    padding:14px 8px 8px; border:1px solid var(--line-2); border-radius:14px; background:var(--surface);
+    box-shadow:0 18px 50px -12px rgba(0,0,0,.25), 0 2px 6px rgba(0,0,0,.06); animation:pbOpen .18s ease both; }
+  .inbox[hidden]{ display:none; }
+  .inbox h3{ padding:0 8px 6px; font:600 15px/1.2 var(--sans); color:var(--ink); }
+  .ib-g{ padding-top:6px; }
+  .ib-g h4{ padding:6px 8px 4px; font:500 10.5px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); }
+  .ib-it{ display:grid; grid-template-columns:14px minmax(0,1fr); gap:2px 8px; width:100%; padding:8px; border-radius:9px; text-align:left; cursor:pointer; }
+  .ib-it:hover, .ib-it:focus-visible{ background:var(--surface-2); }
+  .ib-mark{ grid-row:1 / 3; align-self:start; margin-top:5px; width:8px; height:8px; border-radius:50%; background:var(--accent-solid); }
+  .ib-it.run .ib-mark{ background:none; border:2px solid var(--line-2); border-top-color:var(--accent-solid); width:10px; height:10px; margin-top:4px; animation:turn 1s linear infinite; }
+  .ib-it.bad .ib-mark{ background:var(--bad); }
+  .ib-it.clash .ib-mark{ background:var(--warn); }
+  .ib-t{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:500 14px/1.35 var(--sans); color:var(--ink); }
+  .ib-s{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:400 12.5px/1.35 var(--sans); color:var(--ink-4); }
+  .ib-none{ padding:4px 8px 10px; font:400 13.5px/1.5 var(--sans); color:var(--ink-3); }
+  /* A chat row with an answer unread, or one on its way. */
+  .cr-dot{ flex:none; width:8px; height:8px; border-radius:50%; background:var(--accent-solid); }
+  .cr-dot.run{ background:none; width:10px; height:10px; border:2px solid var(--line-2); border-top-color:var(--accent-solid); animation:turn 1s linear infinite; }
+  /* The bubble keeps the folder and Drop headers clear of it. */
+  @media (min-width:861px){ main .fv-h, main .drop-head .col{ padding-right:64px; } }
+  @media (max-width:860px){ .inbox-btn{ top:6px; right:12px; width:34px; height:34px; } .inbox{ top:50px; right:12px; } }
+
   .dropsrc{
     display:flex; align-items:center; gap:10px;
     padding:9px 14px 9px 15px; border-bottom:1px solid var(--line);
@@ -549,10 +593,19 @@
   .pf-ev.seen::before{ background:var(--accent-solid); border-color:var(--accent-solid); }
   .pf-ev time{ font:500 12px/1.6 var(--mono); color:var(--ink-3); }
   .pf-ev p{ font:400 14.5px/1.55 var(--sans); color:var(--ink); }
+  /* A person's raw notes: every message about them, as typed, after the history. */
+  .pf-raw{ margin-top:22px; }
+  .pf-rn{ padding:10px 0; border-top:1px solid var(--line); animation:tdIn .3s ease both; }
+  .pf-rn:first-of-type{ border-top:0; }
+  .pf-rh{ display:flex; align-items:baseline; gap:10px; }
+  .pf-rh time{ font:500 12px/1.4 var(--mono); color:var(--ink-3); }
+  .pf-kind{ font:500 10.5px/1 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--ink-4); }
+  .pf-asked{ margin-top:5px; font:italic 400 13px/1.45 var(--sans); color:var(--ink-4); }
+  .pf-rt{ margin-top:4px; font:400 14.5px/1.6 var(--sans); color:var(--ink); white-space:pre-wrap; overflow-wrap:anywhere; }
   .pf-said{ margin-top:22px; }
   .pf-said summary{ cursor:pointer; font:600 13px/1.4 var(--sans); color:var(--ink-3); }
   .pf-said[open] summary{ margin-bottom:8px; }
-  @media (max-width:520px){ .pf-fact{ grid-template-columns:minmax(0,1fr) 22px; } .pf-v{ grid-column:1 / 2; } .pf-was{ grid-column:1 / -1; } .pf-x{ grid-row:1; grid-column:2; } }
+  @media (max-width:520px){ .pf-fact{ grid-template-columns:minmax(0,1fr) 22px; } .pf-v{ grid-column:1 / 2; } .pf-was{ grid-column:1 / -1; } .pf-fact .pf-x{ grid-row:1; grid-column:2; } }
   /* A person's card: edit it, or merge it with another card of the same person. */
   .ct-acts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
   .ct-pick{ margin-top:10px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--side); animation:tdIn .3s ease both; }
@@ -1443,10 +1496,10 @@
     .app{ grid-template-columns:1fr; }
     aside{
       position:fixed; inset:0 auto 0 0; width:264px; z-index:40;
-      transform:translateX(-100%); transition:transform .22s var(--ease);
-      box-shadow:0 0 40px rgba(0,0,0,.5);
+      transform:translateX(-100%); transition:transform .22s var(--ease), box-shadow .22s var(--ease);
     }
-    aside.open{ transform:none; }
+    /* The shadow comes with the drawer: closed, it bled a grey band down the left edge. */
+    aside.open{ transform:none; box-shadow:0 0 40px rgba(0,0,0,.5); }
     .burger{ display:grid !important; }
   }
   .burger{
@@ -1865,6 +1918,13 @@
     <button class="navopen" id="navOpen" aria-label="Show the side panel">
       <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
     </button>
+    <!-- What runs and what waits: answers unread, questions on their way, a drop
+         not finished, open clashes. -->
+    <button class="inbox-btn" id="inboxBtn" type="button" aria-label="Inbox" aria-haspopup="dialog" aria-expanded="false" title="What is running and what waits for you">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 5.4A2 2 0 0 1 7.5 4h9a2 2 0 0 1 1.9 1.4L21 13.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg>
+      <span class="ib-n" id="inboxN" hidden></span>
+    </button>
+    <div class="inbox" id="inbox" role="dialog" aria-label="Inbox" hidden></div>
     <div class="topbar">
       <button class="burger" id="burger" aria-label="Menu">
         <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
@@ -1897,6 +1957,8 @@
             <input id="srcInput" type="text" autocomplete="off" spellcheck="false"
                    placeholder="The link, or where it comes from">
           </div>
+          <!-- A chat about one concept says which, and leaves with its ×. -->
+          <div class="about" id="aboutLine" hidden></div>
           <textarea id="input" rows="1" placeholder="Ask anything your folders have read."></textarea>
           <input type="file" id="fileIn" hidden
                  accept=".pdf,.txt,.md,.markdown,.text,.docx,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
@@ -1954,7 +2016,13 @@ const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remembe
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
-  mode: "ask", scope: "all", into: [], busy: false, pendingCard: null, chunk: 18000,
+  mode: "ask", scope: "all", into: [], pendingCard: null, chunk: 18000,
+  /* Work that runs whatever is on screen: the questions on their way, by the
+     chat they were asked in, and the drop under way. A new chat is a draft
+     until its first answer names it. */
+  jobs: [], draft: "d0", dropJob: null, dropBusy: false,
+  /* A chat about one concept: { id, title, brain, personal }, or null. */
+  concept: null,
   /* The folders ticked in the side panel to chat in. None asks them all. */
   picks: [],
   /* The folder open in the main area, or null for the chat. */
@@ -2246,7 +2314,7 @@ async function loadHealth(){
     S.health = Object.fromEntries((d.health || []).map(h => [h.slug, h]));
     S.conflicted = new Set(d.conflicted || []);
   } catch { return; }
-  renderSide();
+  renderSide(); paintInbox();
   if (mapRepaint) mapRepaint();
 }
 async function loadChats(){
@@ -2272,6 +2340,7 @@ function renderView(){
   $("thread").hidden = drop || folder;
   $("dropBtn").classList.toggle("on", drop);
   document.querySelector("main").dataset.view = drop ? "drop" : folder ? "folder" : "chat";
+  markSeen();
 }
 /** Drop, on the folders ticked. A personal folder takes no drop. */
 function openDrop(){
@@ -2415,7 +2484,7 @@ function isPersonal(slug){ return S.brains.find(b => b.slug === slug)?.type === 
 /** A brain shared into this workspace to be read, never fed: the demo's view of one. */
 function readOnly(b){ return !!b && (b.viewers || []).includes(S.space); }
 /* Into a personal chat or out of one, the thread starts fresh: the two never share a chat. */
-function crossing(to){ if (S.chatId && isPersonal(to) !== isPersonal(S.scope)) newChat(); }
+function crossing(to){ if ((S.chatId || chatBusy()) && isPersonal(to) !== isPersonal(S.scope)) newChat(); }
 /**
  * The folders ticked to chat in. None asks them all, one reads as that
  * folder, and two or more travel as a list. A drop feeds the ones it may.
@@ -2460,6 +2529,7 @@ function brainRow(b){
     : `${b.scope || "no scope line"}\n${ideas} concepts, ${read} sources` +
       (from ? `\nShared with this workspace from ${from}${readOnly(b) ? ". Read only here" : ""}` : out.length ? `\nShared with ${out.join(", ")}` : "");
   row.onclick = () => {
+    if (S.concept) newChat();
     if (self){
       crossing(on ? "all" : b.slug);
       if (on) setPicks([]); else { S.picks = []; S.scope = b.slug; S.into = []; }
@@ -2543,8 +2613,10 @@ function chatRow(c){
   if (c.pinned){ const p = el("span"); p.innerHTML = PIN_SVG; row.append(p.firstChild); }
   const main = el("span","cm");
   main.append(el("span","nm",c.title),
-    el("span","cb",`${brainLabel(c.brain)} \u00b7 ${c.turns} question${c.turns === 1 ? "" : "s"}`));
+    el("span","cb",`${c.concept ? "About one concept" : brainLabel(c.brain)} \u00b7 ${c.turns} question${c.turns === 1 ? "" : "s"}`));
   row.append(main);
+  const job = S.jobs.find(j => j.key === c.id && (j.status === "running" || !j.seen));
+  if (job){ const d = el("span","cr-dot" + (job.status === "running" ? " run" : "")); d.title = job.status === "running" ? "On its way" : "Answer unread"; row.append(d); }
   row.title = c.title;
   const open = () => { if (S.chatId !== c.id) openChat(c.id); else closeSide(); };
   row.onclick = open;
@@ -2625,10 +2697,13 @@ function renderChats(){
 
 /** A clean screen, and the next question starts a new chat. */
 function newChat(){
-  S.thread = []; S.chatId = null; S.mode = "ask"; S.folder = null;
+  S.thread = []; S.chatId = null; S.mode = "ask"; S.folder = null; S.concept = null;
+  /* A question still on its way in the chat left behind lands there, unread. */
+  S.draft = "d" + (++draftSeq);
   $("thread").innerHTML = "";
   render(); renderChats();
 }
+var draftSeq = 0;
 
 /** A saved chat back on screen, ready to continue on the brain it asked. */
 async function openChat(id){
@@ -2642,13 +2717,17 @@ async function openChat(id){
   if (asked.length === 1 && isPersonal(asked[0])){ S.picks = []; S.scope = asked[0]; S.into = []; }
   else setPicks(asked);
   S.mode = "ask"; S.folder = null;
+  /* A chat about one concept reads that concept again. */
+  S.concept = c.concept ? aboutOf(c.concept, c.title) : null;
   $("thread").innerHTML = "";
   for (const t of c.turns || []){
     /* An interview opens on its question: that turn has no message before it. */
     if (t.q) says(t.q);
-    push("ai", body => showAnswer(body, t, t.q, asked.join(",") || "all"));
+    push("ai", body => showAnswer(body, t, t.q, t.concept ? t.concept.split("/")[0] : asked.join(",") || "all"));
   }
   S.thread = (c.turns || []).slice(-6).map(t => ({ q: t.q, a: String(t.a ?? "") }));
+  /* A question still on its way here gets its waiting line back, and lands in it. */
+  for (const j of S.jobs) if (j.status === "running" && j.key === c.id){ if (j.q) says(j.q); j.body = thinking(j.label); }
   render(); renderChats(); bottom();
 }
 
@@ -3003,22 +3082,27 @@ function paintBar(){
 function renderComposer(){
   /* A personal brain is a chat: no Drop, no levels, and a way to bring in
      what another assistant already knows about you. */
-  const mine = S.mode === "ask" && isPersonal(S.scope);
+  const about = S.mode === "ask" ? S.concept : null;
+  const mine = S.mode === "ask" && isPersonal(S.scope) && !about;
   const asking = mine && !!S.iv[S.scope]?.on;
+  paintAbout(about);
   $("memBtn").hidden = !mine || S.demo || asking;
   /* It appears once there is something to forget. */
   $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length || !!S.folder;
   const drop = S.mode==="drop";
   $("srcLine").hidden = !drop;
-  shortPlaceholder = asking ? "Your answer" : mine ? "Tell it anything" : "";
+  shortPlaceholder = about ? `About ${about.title}` : asking ? "Your answer" : mine ? "Tell it anything" : "";
   fullPlaceholder = drop
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
+    : about ? (about.personal ? `Tell or ask anything about ${about.title}. What you say changes it.` : `Ask about ${about.title}.`)
     : asking ? "Your answer, in your own words"
     : mine ? "Tell it anything: a plan, a decision, an idea. Or ask what you said."
     : S.picks.length > 1 ? `Ask ${picksName()}.`
     : S.scope==="all" ? "Ask anything your folders have read."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this folder") + ".";
-  $("levelWrap").hidden = drop || mine;
+  $("levelWrap").hidden = drop || mine || !!about || isPersonal(S.scope);
+  /* A chat about one concept reads that one alone: its chip stands for the folders. */
+  $("scopeBtn").hidden = !!about;
   for (const x of $("level").children){
     const on = x.dataset.v === S.level;
     x.classList.toggle("on", on); x.setAttribute("aria-checked", on ? "true" : "false");
@@ -3027,7 +3111,10 @@ function renderComposer(){
   /* The mic is for asking and talking. A drop takes a source, not a voice. */
   $("micBtn").hidden = drop;
   if (drop && S.listening) stopVoice();
-  $("footNote").textContent = asking
+  $("footNote").textContent = about
+    ? (about.personal ? `This chat reads ${about.title} alone. A fact, a date or a correction you give is written to it at once.`
+      : `This chat reads ${about.title} alone. A new chat reads every folder.`)
+    : asking
     ? "Interview: one question at a time, each answer filed as dated notes. Say skip to pass, or Stop any time."
     : mine
     ? "Personal, alpha: your words are filed as dated notes. It calls your other folders when they help, and only this chat reads it."
@@ -3043,8 +3130,9 @@ function renderComposer(){
      the server can open. A source named with neither is a title and nothing
      else, so the button stays off and the hint says what is missing. */
   const ready = hasContent(src, t);
-  $("send").disabled = S.busy || (drop ? !ready : !t);
-  $("tHint").textContent = S.busy ? "working" : drop ? dropHint(src, t)
+  const busy = drop ? S.dropBusy : chatBusy();
+  $("send").disabled = busy || (drop ? !ready : !t);
+  $("tHint").textContent = busy ? (drop ? "reading" : "working") : drop ? dropHint(src, t)
     : S.listening ? `Listening in ${voiceName()}. Tap the mic to stop.` : (S.voiceHint || "");
   paintIv();
   paintBar();
@@ -3212,6 +3300,7 @@ document.addEventListener("visibilitychange", () => {
 
 function thinking(label, where){
   tabStep(label);
+  if (where && where === $("dropThread")) dropStep(label);
   return push("ai", b => {
     const t = el("div","thinking"), mark = el("span","spinner");
     mark.setAttribute("aria-hidden", "true");
@@ -3235,6 +3324,7 @@ function thinking(label, where){
 }
 function setThinking(body, label){
   tabStep(label);
+  if (body.closest?.("#dropThread")) dropStep(label);
   const t = body.querySelector(".thinking");
   const s = body.querySelector(".thinking .tl");
   if (t) t.dataset.fixed = "1";
@@ -3246,6 +3336,171 @@ function fail(body, msg){
   const e = el("div","err");
   e.append(el("b",null,"Nothing was stored"), el("span",null,msg || "Something failed on the way. Send it again."));
   body.append(e);
+}
+
+/* ============ background work and the inbox ============
+   A question runs on whatever opens next: another chat, a folder, Drop. It
+   lands in the chat it was asked in, and the inbox, top right, lists what is
+   on its way, what landed unread, a drop not finished, and the open clashes. */
+
+/** The chat on screen: its saved id, or the draft a new chat is until its first answer. */
+function currentKey(){ return S.chatId || S.draft; }
+/** A question on its way in the chat on screen. Another chat stays free. */
+/* Declarations, not consts: renderComposer reads these before this line runs. */
+function chatBusy(){ return S.jobs.some(j => j.status === "running" && j.key === currentKey()); }
+var jobSeq = 0;
+
+function addJob(q, about, label){
+  const j = { id: ++jobSeq, q, key: currentKey(), chat: S.chatId, status: "running", seen: false, at: Date.now(),
+    scope: S.scope, picks: S.picks.slice(), concept: about || null, label: label || "" };
+  S.jobs.push(j);
+  paintInbox(); renderChats();
+  return j;
+}
+/** The answer names its chat: a draft still on screen becomes that chat. True when it is on screen. */
+function landed(j, r){
+  const here = currentKey() === j.key;
+  if (r && r.chat){ if (here && !S.chatId) S.chatId = r.chat; j.key = j.chat = r.chat; loadChats(); }
+  return here;
+}
+function endJob(j, ok){
+  j.status = ok ? "done" : "failed"; j.done = Date.now();
+  /* Read when it landed in front of you; otherwise it waits in the inbox. */
+  j.seen = !document.hidden && S.mode === "ask" && !S.folder && currentKey() === j.key && !!j.body?.isConnected;
+  /* What was read is let go; the list never grows past 30. */
+  S.jobs = S.jobs.filter(x => x.status === "running" || !x.seen || Date.now() - x.done < 60000).slice(-30);
+  paintInbox(); renderChats();
+}
+/** What is on screen now counts as read. */
+function markSeen(){
+  let n = 0;
+  if (S.mode === "ask" && !S.folder && !document.hidden)
+    for (const j of S.jobs) if (!j.seen && j.status !== "running" && j.key === currentKey()){ j.seen = true; n++; }
+  if (S.mode === "drop" && !document.hidden && S.dropJob && !S.dropJob.seen){ S.dropJob.seen = true; n++; }
+  if (n){ paintInbox(); renderChats(); }
+}
+document.addEventListener("visibilitychange", markSeen);
+
+/** Where the drop stands: running, a card to review, storing, stored, waiting on a choice, failed. Null when done with. */
+function dropState(state, title){
+  if (!state){ S.dropJob = null; paintInbox(); return; }
+  S.dropJob = { ...(S.dropJob || {}), state, ...(title ? { title: String(title).slice(0, 90) } : {}),
+    step: state === "running" ? (S.dropJob?.step || "") : "", seen: S.mode === "drop" && !document.hidden, at: Date.now() };
+  paintInbox();
+}
+function dropStep(label){ if (S.dropJob && label){ S.dropJob.step = String(label); paintInbox(); } }
+/** A drop's run is over: a card waits, or the last message says how it ended. */
+function dropSettled(){
+  if (S.pendingCard){ if (S.dropJob?.state !== "card") dropState("card"); return; }
+  if (S.dropJob && !["running", "storing"].includes(S.dropJob.state)) return;
+  const last = $("dropThread").lastElementChild;
+  dropState(last?.querySelector(".err") ? "failed" : last?.querySelector("button") ? "waiting" : "ended");
+}
+
+/** The open clashes across the folders, from the health check. */
+function openClashes(){ return Object.values(S.health || {}).reduce((n, h) => n + (Number(h.open) || 0), 0); }
+function ago(t){ const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h`; }
+
+/** The bubble's count, and the panel when it is open. */
+function paintInbox(){
+  const btn = $("inboxBtn"); if (!btn) return;
+  const unread = S.jobs.filter(j => j.status !== "running" && !j.seen).length;
+  const running = S.jobs.filter(j => j.status === "running").length;
+  const d = S.dropJob;
+  const dropWaits = d && (d.state === "card" || (!d.seen && ["stored", "waiting", "failed", "ended"].includes(d.state))) ? 1 : 0;
+  const n = unread + dropWaits + openClashes();
+  $("inboxN").hidden = !n; $("inboxN").textContent = n > 99 ? "99+" : String(n);
+  btn.classList.toggle("run", running > 0 || (!!d && ["running", "storing"].includes(d.state)));
+  btn.setAttribute("aria-label", n ? `Inbox, ${n} waiting` : "Inbox");
+  if (!$("inbox").hidden) paintInboxPanel();
+}
+
+function paintInboxPanel(){
+  const box = $("inbox"); box.innerHTML = "";
+  box.append(el("h3",null,"Inbox"));
+  const group = (title, rows) => { if (!rows.length) return; const g = el("section","ib-g"); g.append(el("h4",null,title), ...rows); box.append(g); };
+  const item = (cls, title, sub, go) => {
+    const b = el("button","ib-it " + cls); b.type = "button";
+    b.append(el("i","ib-mark"), el("span","ib-t", title), el("span","ib-s", sub));
+    b.onclick = () => { closeInbox(); go(); };
+    return b;
+  };
+  const named = j => j.q ? (j.q.length > 70 ? j.q.slice(0, 67) + "..." : j.q) : (j.label || "Interview");
+  const where = j => j.concept ? `About ${j.concept.title}` : brainLabel(j.picks.length > 1 ? j.picks.join(",") : j.scope);
+  group("Answers ready", S.jobs.filter(j => j.status !== "running" && !j.seen).reverse()
+    .map(j => item(j.status === "failed" ? "bad" : "new", named(j), `${j.status === "failed" ? "Failed" : "Answered"} ${ago(j.done)} ago · ${where(j)}`, () => openJob(j))));
+  group("On its way", S.jobs.filter(j => j.status === "running")
+    .map(j => item("run", named(j), `Thinking for ${ago(j.at)} · ${where(j)}`, () => openJob(j))));
+  const d = S.dropJob;
+  if (d){
+    const say = { running: d.step || "Reading", storing: "Storing", card: "Card ready to review", stored: "Stored",
+      waiting: "Waiting on your choice", failed: "Stopped on an error", ended: "Ended, read why" }[d.state] || "";
+    if (["running", "storing", "card"].includes(d.state) || !d.seen)
+      group("Drop", [item(["running", "storing"].includes(d.state) ? "run" : d.state === "failed" ? "bad" : "new", d.title || "Your drop", say, () => openDrop())]);
+  }
+  const clash = openClashes();
+  if (clash) group("Conflicts", [item("clash", `${clash} open clash${clash === 1 ? "" : "es"} to settle`, "One card at a time: keep a side, or both", () => settleFrom(null, null))]);
+  if (box.children.length === 1) box.append(el("p","ib-none","Nothing waiting. A question you send keeps running here while you look elsewhere."));
+}
+
+/** A question from the inbox, back on screen: its chat, or the draft it was asked in. */
+function openJob(j){
+  j.seen = true; paintInbox();
+  if (j.chat){
+    if (S.chatId === j.chat && S.mode === "ask" && !S.folder){ markSeen(); paintInbox(); renderChats(); return; }
+    openChat(j.chat); return;
+  }
+  /* A new chat with no answer yet: the draft comes back with its question. */
+  S.thread = []; S.chatId = null; S.draft = j.key; S.mode = "ask"; S.folder = null; S.concept = j.concept;
+  if (j.concept) setScopeFor(j.concept.brain); else if (isPersonal(j.scope)){ S.picks = []; S.scope = j.scope; S.into = []; } else setPicks(j.picks);
+  $("thread").innerHTML = "";
+  if (j.q) says(j.q);
+  if (j.status === "running") j.body = thinking(j.label);
+  else push("ai", b => fail(b, j.error));
+  render(); renderChats(); paintInbox(); bottom();
+}
+
+var inboxTimer = null;
+function openInbox(){
+  const box = $("inbox"); box.hidden = false; $("inboxBtn").setAttribute("aria-expanded","true");
+  paintInboxPanel();
+  clearInterval(inboxTimer); inboxTimer = setInterval(() => { if (box.hidden) clearInterval(inboxTimer); else paintInboxPanel(); }, 1000);
+  /* The open clashes are counted again as it opens. */
+  loadHealth().then(paintInbox);
+}
+function closeInbox(){ $("inbox").hidden = true; $("inboxBtn").setAttribute("aria-expanded","false"); clearInterval(inboxTimer); }
+$("inboxBtn").onclick = e => { e.stopPropagation(); $("inbox").hidden ? openInbox() : closeInbox(); };
+document.addEventListener("pointerdown", e => { if (!$("inbox").hidden && !$("inbox").contains(e.target) && !$("inboxBtn").contains(e.target)) closeInbox(); }, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("inbox").hidden){ closeInbox(); $("inboxBtn").focus(); } });
+
+/* ============ a chat about one concept ============ */
+
+/** The folder ticked for a chat about one of its concepts. */
+function setScopeFor(slug){ if (isPersonal(slug)){ S.picks = []; S.scope = slug; S.into = []; } else setPicks([slug]); }
+/** A concept by its id, as a chat about it names it. */
+function aboutOf(id, title){
+  const card = S.concepts.find(x => `${x.brain}/${x.slug}` === id), brain = String(id).split("/")[0];
+  return { id, title: card?.title || String(title || "").replace(/^About /, "") || id, brain, personal: isPersonal(brain) };
+}
+/** A new chat that reads one concept alone. In the personal folder, what you tell it changes it. */
+function chatAbout(cn){
+  newChat();
+  S.concept = cn;
+  setScopeFor(cn.brain);
+  render(); $("input").focus();
+}
+/** The chip over the field: which concept, and the × that leaves it. */
+function paintAbout(about){
+  const line = $("aboutLine"); if (!line) return;
+  line.hidden = !about;
+  if (!about){ line.innerHTML = ""; delete line.dataset.id; return; }
+  if (line.dataset.id === about.id) return;
+  line.dataset.id = about.id; line.innerHTML = "";
+  const x = el("button","ab-x","\u00d7"); x.type = "button"; x.id = "aboutX";
+  x.title = "Leave it: a new chat on every folder"; x.setAttribute("aria-label", `Leave the chat about ${about.title}`);
+  x.addEventListener("mousedown", e => e.preventDefault());
+  x.onclick = () => { newChat(); $("input").focus(); };
+  line.append(el("span","ab-k", about.personal ? "Editing" : "About"), el("b",null, about.title), x);
 }
 
 /* ============ input ============ */
@@ -5078,8 +5333,8 @@ function openFolder(b, openId){
     const back = el("button","fv-back", self ? (tab === "people" ? "← All people" : "← All notes") : "← All concepts"); back.type = "button";
     back.onclick = () => { cols.classList.remove("reading"); openNow = null; paint(); };
     inner.append(back, el("div","fv-none","Opening"));
-    let c, insights = [], linkedFrom = [];
-    try { const got = await api("/api/concept", { id }); c = got.concept; insights = got.insights || []; linkedFrom = got.linkedFrom || []; }
+    let c, insights = [], linkedFrom = [], raw = null;
+    try { const got = await api("/api/concept", { id }); c = got.concept; insights = got.insights || []; linkedFrom = got.linkedFrom || []; raw = got.raw || null; }
     catch (e) { inner.lastChild.textContent = e.message; return; }
     if (openNow !== id || S.folder !== b.slug) return;
     if (!c){ inner.lastChild.textContent = "This concept is no longer here."; return; }
@@ -5104,7 +5359,7 @@ function openFolder(b, openId){
       mg.onclick = () => { pick.hidden = !pick.hidden; if (!pick.hidden) mergePick(pick, c, id); };
       acts.append(ed, mg); inner.append(acts, pick);
     }
-    if (person) personFile(inner, c, id, linkedFrom);
+    if (person){ personFile(inner, c, id, linkedFrom); rawNotes(inner, raw); }
     /* What to read first, from its "needs" links. */
     const first = needsOf(c);
     if (first.length){
@@ -5115,7 +5370,7 @@ function openFolder(b, openId){
     const ev = (c.evidence || []).slice().sort((x, y) => (x.rollup ? 1 : 0) - (y.rollup ? 1 : 0) || String(y.date || y.to || "").localeCompare(String(x.date || x.to || "")));
     /* A person's own words sit folded under the file; a concept's evidence is its body. */
     const evBox = person ? el("details","pf-said") : inner;
-    if (person){ const sm = el("summary"); sm.id = "pfSaid"; sm.append(`Everything you said about them, as you said it · ${ev.length}`); evBox.append(sm); inner.append(evBox); }
+    if (person){ const sm = el("summary"); sm.id = "pfSaid"; sm.append(`Each mention in one line · ${ev.length}`); evBox.append(sm); inner.append(evBox); }
     else inner.append(el("h4",null, ev.length ? `Evidence, newest first (${ev.length})` : "Evidence"));
     if (!ev.length) evBox.append(el("div","fv-li","None yet."));
     for (const e of ev){
@@ -5162,8 +5417,10 @@ function openFolder(b, openId){
       for (const x of srcs.slice(-12).reverse()) inner.append(el("div","fv-li",`${x.date || ""} · ${x.title || x.sid}${x.author ? " · " + x.author : ""}`));
     }
     const a2 = el("div","fv-acts2");
-    const askIt = el("button","fresh","Ask about it"); askIt.type = "button"; askIt.id = "fvAsk";
-    askIt.onclick = () => { $("input").value = `What does ${c.title} say, and why?`; sizeBox(); renderComposer(); $("input").focus(); };
+    /* A chat on this one alone. In the personal folder, what you tell it changes it. */
+    const askIt = el("button","fresh","Chat about it"); askIt.type = "button"; askIt.id = "fvAsk";
+    askIt.title = self ? "A chat on this one alone. A fact or a correction you give is written to it." : "A chat that reads this concept alone";
+    askIt.onclick = () => chatAbout({ id, title: c.title, brain: b.slug, personal: !!self });
     a2.append(askIt, el("span","fv-upd", c.updated ? `Updated ${c.updated}` : ""));
     inner.append(a2);
   };
@@ -5254,6 +5511,28 @@ function openFolder(b, openId){
       hist.append(r);
     }
     inner.append(hist);
+  };
+
+  /**
+   * Everything you said about a person, word for word and dated, newest
+   * first, under their history: the raw material the file is written from,
+   * in the language you said it.
+   */
+  const rawNotes = (inner, raw) => {
+    const rn = raw?.notes || [], KIND = { chat: "Chat", interview: "Interview", import: "Imported" };
+    const box = el("section","pf-raw"); box.id = "pfRaw";
+    box.append(el("h4",null, raw?.total ? `Raw notes (${raw.total})` : "Raw notes"));
+    if (!rn.length) box.append(el("div","fv-li","Every message where you talk about them lands here, as you typed it."));
+    for (const x of rn){
+      const r = el("div","pf-rn");
+      const top = el("div","pf-rh"); top.append(el("time",null, fileDay(x.date)), el("span","pf-kind", KIND[x.kind] || x.kind));
+      r.append(top);
+      if (x.asked) r.append(el("p","pf-asked", x.asked));
+      r.append(el("p","pf-rt", x.text));
+      box.append(r);
+    }
+    if (raw?.total > rn.length) box.append(el("div","fv-li",`The newest ${rn.length} of ${raw.total} are shown.`));
+    inner.append(box);
   };
 
   /** A person's card, by hand: name, other names, line and card. */
@@ -6319,7 +6598,7 @@ async function takeDocument(file){
 
 /* ============ go ============ */
 async function go(){
-  if (S.busy) return;
+  if (S.mode === "drop" ? S.dropBusy : chatBusy()) return;
   /* Late words from the mic would land in the box after it was cleared. */
   if (S.listening){ S.listening = false; stopVoice(); renderMic(); }
   const text = $("input").value.trim();
@@ -6329,12 +6608,16 @@ async function go(){
   if (S.mode === "drop") $("srcInput").value = "";
   /* A question asked from an open folder starts a chat on that folder. */
   if (S.mode !== "drop" && S.folder){ S.folder = null; if (S.chatId) newChat(); else renderView(); }
-  S.busy = true; renderComposer();
-  try { S.mode==="drop" ? await doDrop(src, text) : await doAsk(text); }
+  /* A drop runs on, whatever is on screen: one at a time, and the chat stays free. */
+  const drop = S.mode === "drop";
+  if (drop){ S.dropBusy = true; dropState("running", src || text.slice(0, 80)); }
+  renderComposer();
+  try { drop ? await doDrop(src, text) : await doAsk(text); }
   finally {
-    S.busy = false; renderComposer();
+    if (drop){ S.dropBusy = false; dropSettled(); }
+    renderComposer();
     /* A drop that ended without a card leaves no step running. */
-    if (!S.pendingCard && !/^Card ready /.test(document.title)) tabTitle("");
+    if (!S.dropBusy && !S.pendingCard && !/^Card ready /.test(document.title)) tabTitle("");
   }
 }
 
@@ -6345,24 +6628,32 @@ async function doAsk(q){
     push("ai", b => { b.innerHTML = rich("No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again."); });
     return;
   }
-  const body = thinking();
+  /* It runs on if another chat, a folder or Drop opens: the answer lands in
+     its own chat, and the inbox says it is there. */
+  const about = S.concept, scope = S.scope, picks = S.picks.slice();
+  const asked = about ? about.brain : picks.length > 1 ? picks.join(",") : scope;
+  const job = addJob(q, about);
+  job.body = thinking();
   try {
-    /* "chat" files the turn in the chat on screen, or starts one. */
-    const r = await api("/api/ask",
-      { q, brain: S.scope, ...(S.picks.length > 1 ? { brains: S.picks.slice() } : {}),
-        level: S.level, history: S.thread.slice(-4), chat: S.chatId });
-    body.innerHTML = "";
-    showAnswer(body, r, q, S.picks.length > 1 ? S.picks.join(",") : S.scope);
-    if (r.chat){ S.chatId = r.chat; loadChats(); }
-    if (r.interview && isPersonal(S.scope)) S.iv[S.scope] = r.interview;
-    if (r.filed && (r.filed.new || r.filed.updated)) refresh().catch(() => {});
+    /* "chat" files the turn in the chat on screen, or starts one. A chat
+       about one concept sends that concept alone. */
+    const r = await api("/api/ask", about
+      ? { q, concept: about.id, history: S.thread.slice(-4), chat: S.chatId }
+      : { q, brain: scope, ...(picks.length > 1 ? { brains: picks } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });
+    const here = landed(job, r);
+    if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, q, asked); }
+    if (r.interview && isPersonal(scope)) S.iv[scope] = r.interview;
+    if ((r.filed && (r.filed.new || r.filed.updated)) || r.changed) refresh().catch(() => {});
     /* Six turns is what a thread of follow-ups runs to before the subject has
        moved anyway. Only the last four travel. */
-    S.thread.push({ q, a: String(r.answer ?? "") });
-    if (S.thread.length > 6) S.thread = S.thread.slice(-6);
+    if (here){
+      S.thread.push({ q, a: String(r.answer ?? "") });
+      if (S.thread.length > 6) S.thread = S.thread.slice(-6);
+    }
+    endJob(job, true);
     renderComposer();
-    bottom();
-  } catch(e){ fail(body, e.message); }
+    if (here) bottom();
+  } catch(e){ if (job.body.isConnected) fail(job.body, e.message); job.error = e.message; endJob(job, false); renderComposer(); }
 }
 /**
  * An answer on screen, live or from a saved chat: the small-brain note, the
@@ -6384,6 +6675,19 @@ function showAnswer(body, r, q, asked){
   };
   const pg = el("button","mini","One-pager from this");
   pg.onclick = () => openPagerSheet({ q, pick: asked });
+  /* A chat about one concept: what it wrote to it, and the way to it. */
+  if (r.changed){
+    const f = el("div","filed", changedLine(r.changed));
+    const id = typeof r.concept === "string" ? r.concept : r.concept?.id;
+    const fb = id && S.brains.find(x => x.slug === id.split("/")[0]);
+    if (fb){
+      const op = el("button","mini keep","Open it"); op.type = "button";
+      op.onclick = () => openFolder(fb, id);
+      f.append(op);
+    }
+    body.append(f);
+  }
+  if (r.concept){ acts.append(cp); body.append(acts); return; }
   if (r.filed){
     const line = filedLine(r.filed);
     if (line){
@@ -6409,6 +6713,14 @@ function showAnswer(body, r, q, asked){
     acts.append(cp);
   } else acts.append(cp, pg);
   body.append(acts);
+}
+
+/** What a chat about one concept wrote to it, in a few words. */
+function changedLine(c){
+  const parts = [c.summary ? "card rewritten" : "",
+    c.added ? `${c.added} line${c.added === 1 ? "" : "s"} added` : "",
+    c.removed ? `${c.removed} taken out` : ""].filter(Boolean);
+  return `Saved to ${c.title}${parts.length ? ": " + parts.join(" · ") : ""}`;
 }
 
 /** The other brains a personal reply reached for on its own, or nothing. */
@@ -6452,14 +6764,15 @@ function paintIv(){
      and move the strip out from under the pointer before the click lands. */
   if (!bar.dataset.held){ bar.dataset.held = "1"; bar.addEventListener("mousedown", e => { if (e.target.closest("button")) e.preventDefault(); }); }
   const slug = S.scope;
-  const show = S.mode === "ask" && isPersonal(slug) && !S.demo && !S.folder;
+  const show = S.mode === "ask" && isPersonal(slug) && !S.demo && !S.folder && !S.concept;
   bar.hidden = !show;
   if (!show) return;
   if (!(slug in S.iv)){ S.iv[slug] = null; loadIv(slug); }
   const iv = S.iv[slug];
   /* The bar repaints on every focus change: a strip rebuilt under a click
      would lose it, so it is drawn again only when what it says changes. */
-  const key = JSON.stringify([slug, !!iv?.on, iv?.pct, iv?.seen, iv?.chapter?.at, S.busy]);
+  const busy = chatBusy();
+  const key = JSON.stringify([slug, !!iv?.on, iv?.pct, iv?.seen, iv?.chapter?.at, busy]);
   if (bar.dataset.key === key && bar.children.length) return;
   bar.dataset.key = key;
   bar.innerHTML = "";
@@ -6471,15 +6784,15 @@ function paintIv(){
     if (ch) live.append(el("span","iv-at",`${ch.title} · ${Math.min(ch.at + 1, ch.total)} of ${ch.total}`));
     const track = el("span","iv-track"); const fill = el("i"); fill.style.width = `${Math.max(2, iv.pct)}%`; track.append(fill);
     track.title = `Your twin is ${iv.pct}% complete`;
-    const skip = el("button","iv-b","Skip"); skip.type = "button"; skip.id = "ivSkip"; skip.disabled = S.busy;
+    const skip = el("button","iv-b","Skip"); skip.type = "button"; skip.id = "ivSkip"; skip.disabled = busy;
     skip.title = "Pass this question";
-    skip.onclick = () => { if (S.busy) return; $("input").value = "skip"; go(); };
-    const stop = el("button","iv-b stop","Stop"); stop.type = "button"; stop.id = "ivStop"; stop.disabled = S.busy;
+    skip.onclick = () => { if (chatBusy()) return; $("input").value = "skip"; go(); };
+    const stop = el("button","iv-b stop","Stop"); stop.type = "button"; stop.id = "ivStop"; stop.disabled = busy;
     stop.title = "Pause the interview. It picks up where you left off.";
     stop.onclick = () => stopInterview(slug);
     bar.append(live, track, skip, stop);
   } else {
-    const goB = el("button","iv-go"); goB.type = "button"; goB.id = "ivGo"; goB.disabled = S.busy;
+    const goB = el("button","iv-go"); goB.type = "button"; goB.id = "ivGo"; goB.disabled = busy;
     goB.title = "It asks you questions, one at a time, to know you better. Stop any time.";
     goB.innerHTML = IC_IV;
     goB.append(el("span",null, iv?.seen ? "Resume the interview" : "Interview me"));
@@ -6491,31 +6804,34 @@ function paintIv(){
 
 /** On, in the chat on screen, and its next question. */
 async function startInterview(slug){
-  if (S.busy || !isPersonal(slug)) return;
+  if (chatBusy() || !isPersonal(slug)) return;
   if (S.scope !== slug){ crossing(slug); S.picks = []; S.scope = slug; S.into = []; }
-  S.mode = "ask"; S.folder = null;
+  S.mode = "ask"; S.folder = null; S.concept = null;
   render();
-  S.busy = true; renderComposer();
-  const body = thinking("Picking a question");
+  const job = addJob("", null, "Picking a question");
+  job.body = thinking(job.label);
+  renderComposer();
   try {
     const r = await api("/api/interview", { action: "start", brain: slug, chat: S.chatId, history: S.thread.slice(-4) });
-    body.innerHTML = "";
-    showAnswer(body, r, "", slug);
-    if (r.chat){ S.chatId = r.chat; loadChats(); }
+    const here = landed(job, r);
+    if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, "", slug); }
     if (r.interview) S.iv[slug] = r.interview;
-    S.thread.push({ q: "", a: String(r.answer ?? "") });
-    if (S.thread.length > 6) S.thread = S.thread.slice(-6);
+    if (here){
+      S.thread.push({ q: "", a: String(r.answer ?? "") });
+      if (S.thread.length > 6) S.thread = S.thread.slice(-6);
+    }
+    endJob(job, true);
   } catch (e) {
-    body.innerHTML = "";
-    body.append(el("div","err", e.message));
+    if (job.body.isConnected){ job.body.innerHTML = ""; job.body.append(el("div","err", e.message)); }
+    job.error = e.message; endJob(job, false);
   } finally {
-    S.busy = false; renderComposer(); bottom(); $("input").focus();
+    renderComposer(); bottom(); $("input").focus();
   }
 }
 
 /** Paused where it stands, with no model call. */
 async function stopInterview(slug){
-  if (S.busy) return;
+  if (chatBusy()) return;
   try {
     const r = await api("/api/interview", { action: "stop", brain: slug });
     S.iv[slug] = r.interview; S.ivFull[slug] = r;
@@ -6581,17 +6897,20 @@ async function doDrop(src, content, again){
     const go = el("button","go","File it elsewhere");
     const no = el("button","ghost","Stop");
     no.onclick = () => {
-      row.remove();
+      row.remove(); dropState(null);
       dpush("ai", b => { b.innerHTML = rich("Stopped. Nothing was read and no position moved."); });
     };
     go.onclick = async () => {
       go.disabled = no.disabled = true; row.remove();
+      dropState("running");
       const b2 = dthinking("Reading back what it already gave up");
-      let got;
-      try { got = await api("/api/drop/again", { sid: chk.sid }); }
-      catch(e){ fail(b2, e.message); return; }
-      if (got.error){ fail(b2, got.error); return; }
-      await planAndCard(b2, chk.sid, chk.link || link, got.ext, 0, chk.brains || []);
+      try {
+        let got;
+        try { got = await api("/api/drop/again", { sid: chk.sid }); }
+        catch(e){ fail(b2, e.message); return; }
+        if (got.error){ fail(b2, got.error); return; }
+        await planAndCard(b2, chk.sid, chk.link || link, got.ext, 0, chk.brains || []);
+      } finally { dropSettled(); }
     };
     /* A source filed under older rules, or filed thinly, deserves a second
        read into the same brain. It needs the text, which a link fetches again
@@ -6601,9 +6920,10 @@ async function doDrop(src, content, again){
     const text = bodyTxt;
     redo.onclick = async () => {
       row.remove();
-      S.busy = true; renderComposer();
+      if (S.dropBusy) return;
+      S.dropBusy = true; dropState("running", src || said); renderComposer();
       try { await doDrop(src, text || "", true); }
-      finally { S.busy = false; renderComposer(); }
+      finally { S.dropBusy = false; dropSettled(); renderComposer(); }
     };
     row.append(go, redo, no); body.append(row);
     return;
@@ -7037,6 +7357,7 @@ async function planAndCard(body, sid, link, ext, len, held){
                   ...(plan.conflicts||[]).filter(c=>c.kind!=="flip")];
   const pc = { sid, link, ext, plan, choices:{}, byKey:{}, len };
   S.pendingCard = pc; renderComposer();
+  dropState("card", ext.title);
   tabTitle(document.hidden ? "Card ready" : "");
 
   body.innerHTML = "";
@@ -7192,7 +7513,7 @@ function buildCard(pc, decide){
     : "Nothing here contradicts what you hold."));
   const skip = el("button","ghost","Reject source");
   const ok   = el("button","go","Store it");
-  skip.onclick = () => { card.remove(); S.pendingCard=null;
+  skip.onclick = () => { card.remove(); S.pendingCard=null; dropState(null);
     dpush("ai", b => { b.innerHTML = rich("Rejected. Nothing was stored and no position moved."); }); };
   ok.onclick = async () => {
     const author = whoIn.value.trim();
@@ -7207,10 +7528,11 @@ function buildCard(pc, decide){
     pc.ext.author = author;
     ok.disabled = skip.disabled = true; ok.textContent = "Storing";
     if (Object.values(pc.choices).includes("skip")){
-      card.remove(); S.pendingCard=null;
+      card.remove(); S.pendingCard=null; dropState(null);
       dpush("ai", b => { b.innerHTML = rich("Rejected on a conflict. Nothing was stored and no position moved."); });
       return;
     }
+    dropState("storing");
     const b2 = dthinking("Rewriting the positions it touched");
     try {
       const r = await storeAll(pc, (i, n) => { if (n > 1) setThinking(b2, `Rewriting the positions it touched, part ${i} of ${n}`); });
@@ -7220,8 +7542,10 @@ function buildCard(pc, decide){
       b2.append(receipt(r, pc));
       dbottom();
       S.pendingCard = null;
+      dropState("stored");
     } catch(e){
       ok.disabled = skip.disabled = false; ok.textContent = "Store it";
+      dropState("card");
       /* Part of a long source may already be in: the card stays, and pressing
          Store it again finishes the rest. */
       if (e.partial){ b2.innerHTML = rich("**Part of it is stored.** " + esc(e.message)); await refresh(); }

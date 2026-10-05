@@ -252,7 +252,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/enter` | The landing's one field: the workspace a passphrase opens, or `demo: true` when it opens none. Counted apart from the doors, so a wrong guess never locks one | Rate limited, 10 tries an hour per address and 120 from everyone |
 | `/api/state` | Brains, concept names and summary lines, sources | Yes |
 | `/api/export` | One brain's concepts whole, 100 a page, for the markdown export | Yes |
-| `/api/concept` | One concept whole, its links with their kinds, and what follows from it, for the brain viewer | Yes |
+| `/api/concept` | One concept whole, its links with their kinds, and what follows from it, for the brain viewer. A person of a personal folder also brings the people linking to them and their raw notes, the newest 300; the first open gathers those from the chats still kept | Yes |
 | `/api/topics` | One folder's topics: a title, a line and its concepts. Never a personal folder | Yes |
 | `/api/map` | Every folder, concept and link for the map, each link with its kind | Yes |
 | `/api/conflicts` | The open conflicts that are real contradictions. Each clash is checked once and marked | Yes |
@@ -266,7 +266,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
 | `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
 | `/api/drop/merge` | Before storing: groups new titles that name one idea twice, joins a new idea to the concept already holding it, and gives a title not in English its English one | Yes |
-| `/api/ask` | The answer. With `project`, it reads that project's folders and follows its instructions, and the turn joins the project's chat | Yes |
+| `/api/ask` | The answer. With `project`, it reads that project's folders and follows its instructions, and the turn joins the project's chat. With `concept`, it reads that one concept alone; in a personal folder, what the message adds or corrects is written to the note or the person's file at once, and `changed` says what moved | Yes |
 | `/api/projects` | The workspace's projects and its kept one-pagers, newest first. The demo has no projects; each visitor sees their own one-pagers | Yes |
 | `/api/onepagers/get`, `/api/onepagers/remove` | A kept one-pager, opened again or deleted | Yes |
 | `/api/projects/get` | One project whole: settings, chat, versions, newest page | Owner |
@@ -346,6 +346,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `onepagers` | every one-pager built, its page, text and what built it, the newest 50 per owner | space, then time |
 | `vectors` | a concept's meaning as 1,024 numbers | concept, and a vector index by folder |
 | `topics` | a folder's topics: title, line, the concepts in each | folder |
+| `rawNotes` | everything said about a person of a personal folder, word for word and dated: one row a message, with the question it answered for an interview. Only that person's file reads it | brain, slug, then time |
 | `interviews` | a personal brain's interview: each question answered, known from the notes or skipped, the one waiting, the twin test's answers and scores, and the profile | space, then brain |
 | `insights` | what follows from two linked concepts: the pair, the kind of link, a title and a line | the pair, each side, space |
 

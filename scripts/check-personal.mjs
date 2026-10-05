@@ -540,6 +540,102 @@ const TODAY = "2026-09-30";
   check("answers set to English: the interview asks in English", /Write in English, whatever language they write in/.test(ask) && !/Write in the language of their message/.test(ask));
 }
 
+/* ---- a person's raw notes: everything said about them, word for word ---- */
+{
+  const { T, ctx } = makeCtx();
+  T.brains = [{ _id: "b1", slug: "me", name: "Me", type: "personal", scope: "", space: "acme" },
+    { _id: "b2", slug: "health", name: "Health", type: "subject", scope: "s", space: "acme" }];
+  const load = async () => (await space.loadSpace(ctx, "acme", undefined, { personal: true })).cards;
+  const said = "Aujourd'hui Maxime est arrivé de Lyon.\nOn passe la semaine ensemble.";
+  const max = async (o = {}) => personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: "2026-10-04", lang: "en", text: said,
+    model: async () => JSON.stringify({ notes: [], people: [{ name: "Maxime", claim: "Maxime arrived from Lyon", orig: "Maxime est arrivé de Lyon", summary: "A friend from Lyon." }] }), ...o });
+  await max();
+  const rows = () => T.rawNotes ?? [];
+  check("a message about a person is kept whole in their raw notes, as typed, in its language",
+    rows().length === 1 && rows()[0].text === said && rows()[0].kind === "chat" && rows()[0].date === "2026-10-04" && rows()[0].slug === "maxime", JSON.stringify(rows()));
+  await max();
+  check("the same words on the same day are kept once, so a retry adds nothing", rows().length === 1);
+  await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: "2026-10-05", text: "Cooked with Maxime tonight",
+    model: async () => JSON.stringify({ notes: [{ title: "Cooking", claim: "Cooked tonight", position: "You cooked.", summaryLine: "Cooked" }], people: [] }) });
+  check("a person the filer missed still gets the message in their raw notes", rows().length === 2 && rows()[1].text === "Cooked with Maxime tonight");
+  await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "interview", date: "2026-10-05", context: "The brain asked: Who is your oldest friend?",
+    text: "Maxime, since school", model: async () => JSON.stringify({ notes: [], people: [{ name: "Maxime", update: "Maxime", claim: "Maxime is your oldest friend, since school" }] }) });
+  check("an interview answer keeps the question it answered", rows()[2]?.kind === "interview" && rows()[2].asked === "Who is your oldest friend?" && rows()[2].text === "Maxime, since school",
+    JSON.stringify(rows()[2]));
+  await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "import", date: "2026-10-05", text: "Notes: I like tea. Lea lives in Porto and paints. I run.",
+    model: async () => JSON.stringify({ notes: [], people: [{ name: "Lea", claim: "Lea lives in Porto", raw: "Lea lives in Porto and paints." }] }) });
+  check("a pasted import keeps the sentences about that person, word for word", rows().find(r => r.slug === "lea")?.text === "Lea lives in Porto and paints.");
+  const n = rows().length;
+  await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "files", date: "2026-10-06", text: '- CONTACT "Lea"\n  CARD: Lives in Porto.',
+    model: async () => JSON.stringify({ notes: [], people: [{ name: "Lea", update: "Lea", claim: "Lea lives in Porto", events: [{ date: "2026-03", text: "You met Lea in Porto." }] }] }) });
+  check("building a file from what is held adds no raw note", rows().length === n);
+  const got = await store.rawOf.handler({ db: ctx.db }, { space: "acme", id: "me/maxime" });
+  check("a person's raw notes read newest first, with their count", got.total === 3 && got.notes[0].text === "Maxime, since school" && got.notes[2].text === said, JSON.stringify(got));
+  const other = await store.rawOf.handler({ db: ctx.db }, { space: "other", id: "me/maxime" });
+  check("another workspace reads none of them", other.total === 0 && !other.notes.length);
+
+  /* The chats still kept give the raw notes of people filed before raw notes existed. */
+  T.concepts.push({ _id: "cp", brain: "me", slug: "paul", n: 7, title: "Paul", tag: "contact", aliases: ["Polo"], position: "x", summaryLine: "x",
+    evidence: [], data: [], conflicts: [], sources: [], related: [], updated: "2026-09-20" });
+  const at = d => Date.parse(d + "T10:00:00Z");
+  T.chats = [
+    { _id: "ch1", space: "acme", brain: "me", title: "x", pinned: false, created: at("2026-09-20"), updated: at("2026-09-21"), turns: [
+      { q: "Paul called me about the flat", a: "Noted.", at: at("2026-09-20"), filed: { people: ["Paul"] } },
+      { q: "", a: "Thanks.\nWho is your oldest friend?", at: at("2026-09-21"), interview: true },
+      { q: "Polo, since 1998", a: "Noted.", at: at("2026-09-21"), interview: true, filed: { people: ["Polo"] } },
+      { q: "I like tea", a: "Noted.", at: at("2026-09-21"), filed: { people: [] } }] },
+    { _id: "ch2", space: "acme", brain: "health", title: "y", pinned: false, created: at("2026-09-20"), updated: at("2026-09-20"),
+      turns: [{ q: "Paul sleeps badly", a: "x", at: at("2026-09-20"), filed: { people: ["Paul"] } }] }];
+  const added = await store.rawFromChats.handler({ db: ctx.db }, { space: "acme", id: "me/paul" });
+  const pr = rows().filter(r => r.slug === "paul");
+  check("a person's raw notes are gathered once from the personal chats still kept", added === 2 && pr.length === 2 && pr[0].text === "Paul called me about the flat"
+    && pr[0].date === "2026-09-20" && pr[1].asked === "Who is your oldest friend?" && pr[1].kind === "interview", JSON.stringify(pr));
+  check("and only once", await store.rawFromChats.handler({ db: ctx.db }, { space: "acme", id: "me/paul" }) === 0);
+  T.concepts.push({ _id: "cpm", brain: "me", slug: "paul-martin", n: 8, title: "Paul Martin", tag: "contact", aliases: [], position: "y", summaryLine: "y",
+    evidence: [], data: [], conflicts: [], sources: [], related: [], updated: "2026-09-20" });
+  await store.contactMerge.handler({ db: ctx.db }, { space: "acme", into: "me/paul-martin", from: ["me/paul"] });
+  check("a merge carries the raw notes to the card kept", rows().filter(r => r.slug === "paul-martin").length === 2 && !rows().some(r => r.slug === "paul"));
+}
+
+/* ---- a chat about one person or one note changes it at once ---- */
+{
+  const { T, ctx } = makeCtx();
+  T.brains = [{ _id: "b1", slug: "me", name: "Me", type: "personal", scope: "", space: "acme" }];
+  const load = async () => (await space.loadSpace(ctx, "acme", undefined, { personal: true })).cards;
+  await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: "2026-10-04", text: "Maxime from Lyon works at Airbus, his number is 06 12",
+    model: async () => JSON.stringify({ notes: [], people: [{ name: "Maxime", claim: "Maxime works at Airbus", summary: "Your friend from Lyon, at Airbus.",
+      facts: [{ section: "contact", label: "Phone", value: "06 12" }, { section: "work", label: "Company", value: "Airbus" }],
+      events: [{ date: "2026-10-04", text: "Maxime told you about Airbus.", seen: true }] }] }) });
+  const c = T.concepts.find(x => x.title === "Maxime");
+  const dump = personal.conceptDump(c, [{ date: "2026-10-04", kind: "chat", text: "Maxime from Lyon works at Airbus" }]);
+  const phone = c.file.facts.find(x => x.l === "Phone"), job = c.file.facts.find(x => x.l === "Company");
+  check("the chat reads the whole file, each line with the key that takes it out, and the raw notes",
+    dump.includes(`[fact:${phone.k}] Contact details, Phone: 06 12`) && dump.includes(`[event:${c.file.events[0].k}] 2026-10-04 (together)`) && /RAW NOTES, WORD FOR WORD/.test(dump), dump);
+  const rules = personal.conceptRules("Maxime", true, true);
+  check("its rules keep it on that one person, and let it add, correct and take out",
+    /This chat is about it alone/.test(rules) && /their main chat takes the rest/.test(rules) && /"remove"/.test(rules) && /Write the reply in English/.test(rules) && /Every field of "change" is in English/.test(rules));
+  check("a note's rules rewrite the note", /"position": the note as it stands after this/.test(personal.conceptRules("Marathon", false, false)) && /language of their message/.test(personal.conceptRules("Marathon", false, false)));
+  const said = "Il ne travaille plus chez Airbus, il est chez Mistral depuis septembre";
+  const ch = await personal.applyChange(ctx, { space: "acme", brain: "me", c, q: said, date: "2026-10-07",
+    change: { claim: "He left Airbus and works at Mistral since September", orig: said, summary: "Your friend from Lyon, now at Mistral.", summaryLine: "Your friend, at Mistral",
+      facts: [{ section: "work", label: "Company", value: "Mistral", since: "2026-09" }], remove: [{ part: "fact", key: job.k }, { part: "fact", key: "nope" }, { part: "bad", key: "x" }] } });
+  const m = T.concepts.find(x => x.title === "Maxime");
+  check("a correction takes the wrong line out and writes the right one", !m.file.facts.some(x => x.v === "Airbus") && m.file.facts.some(x => x.l === "Company" && x.v === "Mistral")
+    && m.file.facts.some(x => x.l === "Phone") && ch.removed === 1 && ch.added === 1 && ch.summary, JSON.stringify({ ch, facts: m.file.facts }));
+  check("the summary is rewritten, and the message is a dated mention in English, their words beside it",
+    m.position === "Your friend from Lyon, now at Mistral." && m.summaryLine === "Your friend, at Mistral" && m.evidence[0].date === "2026-10-07" && m.evidence[0].orig === said
+    && T.sources.some(x => x.sid === "me-chat-2026-10-07" && x.author === "You"), JSON.stringify(m.evidence[0]));
+  check("and the message joins their raw notes, word for word", (T.rawNotes ?? []).some(r => r.slug === "maxime" && r.text === said && r.date === "2026-10-07"));
+  T.concepts.push({ _id: "nm", brain: "me", slug: "marathon", n: 5, title: "Marathon", position: "You want to run a marathon in 2027.", summaryLine: "A marathon in 2027",
+    evidence: [], data: [], conflicts: [], sources: [], related: [], updated: "2026-10-01" });
+  const note = T.concepts.find(x => x.slug === "marathon");
+  const ch2 = await personal.applyChange(ctx, { space: "acme", brain: "me", c: note, q: "make it 2028", date: "2026-10-07",
+    change: { claim: "I now aim for 2028", position: "You now aim for a marathon in 2028 (2026-10-07); you said 2027 before.", summaryLine: "A marathon in 2028" } });
+  const n2 = T.concepts.find(x => x.slug === "marathon");
+  check("a note is rewritten from the chat about it, the change dated", /2028/.test(n2.position) && n2.summaryLine === "A marathon in 2028" && n2.evidence.length === 1
+    && n2.evidence[0].claim === "I now aim for 2028" && ch2.summary && !T.concepts.some(x => x.title === "make it 2028"), JSON.stringify(n2));
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe personal brain files what it should, for its owner only");
 process.exit(failures ? 1 : 0);

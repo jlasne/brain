@@ -573,6 +573,9 @@ async function boot(path, init, arg) {
         summaryLine: "Offer beats audience.", position: "An offer people buy beats a bigger audience.",
         evidence: [{ date: "2026-01-02", author: "A", claim: "sold out twice", source: "s-a" }], data: ["31 percent"], conflicts: [],
         sources: [], related: ["content/offer"], updated: "2026-09-27" } });
+      if (s.includes("/api/ask")) { window.__askedC = JSON.parse(opt?.body || "{}");
+        return Response.json({ answer: "It holds: an offer beats reach.", sources: 1, level: "normal", chat: "c-about",
+          concept: { id: "content/offer", title: "Offer first", brain: "content", personal: false }, changed: null }); }
       return Response.json({});
     };
   }, withOne);
@@ -592,9 +595,24 @@ async function boot(path, init, arg) {
   check("a concept opens with its position, evidence and figures",
     one.title === "Offer first" && /bigger audience/.test(one.text) && /sold out twice/.test(one.text) && /31 percent/.test(one.text), one.text.slice(0, 160));
   check("and its links, each one clickable", one.links === 1);
-  await page.click("#fvAsk");
-  check("Ask about it fills the bar, scoped to the folder", /Offer first/.test(await page.inputValue("#input")) && /^Ask Content/.test(await page.getAttribute("#input", "placeholder") || ""));
-  await page.fill("#input", "");
+  /* ---- a chat about this one concept alone ---- */
+  await page.click("#fvAsk"); await page.waitForTimeout(80);
+  const about = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, chip: document.getElementById("aboutLine").textContent,
+    shown: !document.getElementById("aboutLine").hidden, ph: document.getElementById("input").placeholder,
+    scope: document.getElementById("scopeBtn").hidden, levels: document.getElementById("levelWrap").hidden }));
+  check("Chat about it opens a chat on that concept alone, named on a chip",
+    about.view === "chat" && about.shown && /Offer first/.test(about.chip) && /^Ask about Offer first/.test(about.ph) && about.scope && about.levels, JSON.stringify(about));
+  await page.fill("#input", "What holds?"); await page.click("#send"); await page.waitForTimeout(250);
+  const sent = await page.evaluate(() => window.__askedC);
+  check("its question travels with the concept, and no folder", sent?.concept === "content/offer" && !("brain" in sent) && !sent.brains, JSON.stringify(sent));
+  const said = await page.evaluate(() => ({ ans: [...document.querySelectorAll("#thread .msg.ai")].pop()?.textContent || "",
+    pager: [...document.querySelectorAll("#thread .ans-acts button")].some(b => /One-pager/.test(b.textContent)) }));
+  check("its answer reads that concept, with Copy alone under it", /an offer beats reach/.test(said.ans) && !said.pager, JSON.stringify(said));
+  await page.click("#aboutX"); await page.waitForTimeout(60);
+  const left = await page.evaluate(() => ({ hidden: document.getElementById("aboutLine").hidden, ph: document.getElementById("input").placeholder,
+    thread: document.querySelectorAll("#thread .msg").length }));
+  check("its × leaves it for a new chat on the folders", left.hidden && !/Offer first/.test(left.ph) && left.thread === 0, JSON.stringify(left));
+  await page.hover(".brain-row"); await page.click(".brain-row .ed >> text=open"); await page.waitForTimeout(150);
   await page.click("#fvClose");
   check("the close button returns to the chat", await page.evaluate(() => document.getElementById("folderView").hidden && !document.getElementById("thread").hidden));
   await page.hover(".brain-row"); await page.click(".brain-row .ed >> text=open"); await page.waitForTimeout(100);
@@ -2120,7 +2138,9 @@ for (const found of ["Charles Gave", "", "youtube"]) {
                    { k: "e3", d: "2023-03", t: "You met at Station F.", seen: true, at: "2026-09-12" }],
           links: [{ k: "l1", n: "Paul", r: "an investor he will meet" }, { k: "l2", n: "Julie", r: "his wife" }],
           open: [{ k: "o1", t: "Intro him to Paul Martin", at: "2026-09-30" }, { k: "o2", t: "Send the deck", at: "2026-09-01", done: "2026-09-02" }] } },
-        insights: [], linkedFrom: [{ id: "me/paul", title: "Paul", rel: "his future investor" }, { id: "me/clara", title: "Clara", rel: "her brother" }] });
+        insights: [], linkedFrom: [{ id: "me/paul", title: "Paul", rel: "his future investor" }, { id: "me/clara", title: "Clara", rel: "her brother" }],
+        raw: { total: 2, notes: [{ date: "2026-10-04", kind: "chat", text: "Marc rejoint Revolut à Londres.\nIl commence lundi.", at: 2 },
+          { date: "2026-09-21", kind: "interview", asked: "Who did you build your first company with?", text: "Marc, since Station F", at: 1 }] } });
       if (s.includes("/api/ask")) { const fail = window.__failNext; window.__failNext = false;
         return Response.json({ answer: "Noted.", sources: 0, level: "normal", personal: true,
           filed: fail ? { new: 0, updated: 0, titles: [], failed: true } : { new: 1, updated: 0, titles: ["Intros"], people: ["Marc Dupont", "Paul"] }, called: [] }); }
@@ -2176,8 +2196,17 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("a fact that changed shows what it was before, and until when", /Revolut \(since 4 Oct 2026\)×?Before: His fintech in Lisbon \(until 4 Oct 2026\)/.test(file.work || ""), file.work);
   check("their people both ways: who they name, and who names them, each person once", JSON.stringify(file.people) === '["Paulan investor he will meet","Juliehis wife","Claraher brother"]', JSON.stringify(file.people));
   check("the history goes year by year, newest first, the days together marked", JSON.stringify(file.years) === '["2026","2023"]' && /^4 Oct/.test(file.evs[0]) && /^Mar/.test(file.evs[2]) && file.seen === 2, JSON.stringify(file));
-  check("your own words sit folded under the file", file.said === "Everything you said about them, as you said it · 2" && file.folded, JSON.stringify(file.said));
+  check("each mention in one line sits folded under the file", file.said === "Each mention in one line · 2" && file.folded, JSON.stringify(file.said));
   check("a mention kept in English shows the words as you said them beside it", await page.evaluate(() => document.querySelector(".pf-said .ev-orig")?.textContent) === "Marc rejoint Revolut");
+  const raw = await page.evaluate(() => {
+    const hist = document.getElementById("pfHist"), box = document.getElementById("pfRaw");
+    return { after: !!(hist && box && (hist.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING)), head: box?.querySelector("h4")?.textContent,
+      texts: [...(box?.querySelectorAll(".pf-rt") || [])].map(x => x.textContent), asked: box?.querySelector(".pf-asked")?.textContent,
+      kinds: [...(box?.querySelectorAll(".pf-kind") || [])].map(x => x.textContent), wrap: box ? getComputedStyle(box.querySelector(".pf-rt")).whiteSpace : "" };
+  });
+  check("after the history, every message about them, word for word, newest first", raw.after && raw.head === "Raw notes (2)"
+    && raw.texts[0] === "Marc rejoint Revolut à Londres.\nIl commence lundi." && raw.wrap === "pre-wrap" && JSON.stringify(raw.kinds) === '["Chat","Interview"]', JSON.stringify(raw));
+  check("an interview answer shows the question it answered", raw.asked === "Who did you build your first company with?", String(raw.asked));
   await page.click(".pf-tick"); await page.waitForTimeout(200);
   await page.evaluate(() => document.querySelector(".pf-ev .pf-x").click()); await page.waitForTimeout(200);
   const parts = await page.evaluate(() => window.__parts);
@@ -2706,6 +2735,102 @@ for (const space of ["octopus", "squidgy"]) {
   check("it keeps the house rules: no em-dash", !paper.dash);
   check("and it fits a phone, its tables scrolling in their own frame", paper.wide <= 390, String(paper.wide));
   await ctx.close();
+}
+
+/* ---- questions and drops run in the background; the inbox lists what waits ---- */
+{
+  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "s", owner: null }],
+    concepts: [{ brain: "me", slug: "marc", n: 2, title: "Marc Dupont", summaryLine: "Your co-founder", tag: "contact", ev: 1, updated: "2026-10-04" }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__asks = []; window.__gets = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/health")) return Response.json({ conflicted: [], health: [{ slug: "content", score: 5, top: true, person: false, open: 3, best: "x", parts: {} }] });
+      if (s.includes("/api/ask")) {
+        window.__asks.push(body);
+        await new Promise(ok => setTimeout(ok, body.q === "slow one" ? 1200 : 100));
+        if (body.concept) return Response.json({ answer: "Noted: Marc is at Revolut now.", sources: 0, level: "normal", chat: "c-marc",
+          concept: { id: body.concept, title: "Marc Dupont", brain: "me", personal: true }, changed: { title: "Marc Dupont", summary: true, added: 1, removed: 1 } });
+        return Response.json({ answer: "Answer to " + body.q, sources: 3, level: "normal", chat: body.chat || (body.q === "slow one" ? "c-slow" : "c-fast") });
+      }
+      if (s.includes("/api/chats/get")) { window.__gets.push(body.id); return Response.json({ chat: { id: body.id, title: "slow one", brain: "content", pinned: false,
+        turns: [{ q: "slow one", a: "Answer to slow one", level: "normal", sources: 3, at: 1 }] } }); }
+      if (s.includes("/api/chats")) return Response.json({ chats: [] });
+      if (s.includes("/api/drop/check")) { await new Promise(ok => setTimeout(ok, 500)); return Response.json({ duplicate: false, sid: "s-notes" }); }
+      if (s.includes("/api/drop/read")) return Response.json({ part: { title: "Notes", topics: [] } });
+      if (s.includes("/api/concept")) return Response.json({ concept: { brain: "me", slug: "marc", title: "Marc Dupont", tag: "contact", position: "Your co-founder.",
+        evidence: [], data: [], conflicts: [], sources: [], related: [] }, insights: [], linkedFrom: [], raw: { notes: [], total: 0 } });
+      return Response.json({});
+    };
+  }, mine);
+  await page.waitForTimeout(200);
+  const badge = () => page.evaluate(() => document.getElementById("inboxN").hidden ? "" : document.getElementById("inboxN").textContent);
+  check("the inbox bubble counts the open clashes from the start", await badge() === "3", await badge());
+  await page.fill("#input", "slow one"); await page.click("#send"); await page.waitForTimeout(120);
+  await page.fill("#input", "and then?");
+  const held = await page.evaluate(() => ({ run: document.getElementById("inboxBtn").classList.contains("run"), off: document.getElementById("send").disabled }));
+  check("a question on its way turns a ring on the bubble, and holds this chat's send", held.run && held.off, JSON.stringify(held));
+  await page.fill("#input", "");
+  await page.click("#startBtn"); await page.waitForTimeout(80);
+  await page.fill("#input", "fast one");
+  check("a new chat is free while the first question runs", !(await page.evaluate(() => document.getElementById("send").disabled)));
+  await page.click("#send"); await page.waitForTimeout(400);
+  const fast = await page.evaluate(() => ({ chat: window.__asks[1]?.chat ?? null, text: document.getElementById("thread").textContent }));
+  check("its question starts a chat of its own, and its answer lands on screen", fast.chat === null && /Answer to fast one/.test(fast.text) && !/slow one/.test(fast.text), JSON.stringify(fast));
+  await page.waitForTimeout(900);
+  const landed = await page.evaluate(() => ({ text: document.getElementById("thread").textContent, run: document.getElementById("inboxBtn").classList.contains("run") }));
+  check("the first answer lands in its own chat, off screen, and the ring stops", !/Answer to slow one/.test(landed.text) && !landed.run, JSON.stringify(landed));
+  check("the bubble counts it unread", await badge() === "4", await badge());
+  await page.fill("#input", "next"); await page.click("#send"); await page.waitForTimeout(300);
+  check("the chat on screen keeps its own id: the next question joins it", await page.evaluate(() => window.__asks[2]?.chat) === "c-fast");
+  await page.click("#inboxBtn"); await page.waitForTimeout(80);
+  const panel = await page.evaluate(() => ({ open: !document.getElementById("inbox").hidden, groups: [...document.querySelectorAll("#inbox .ib-g h4")].map(x => x.textContent),
+    items: [...document.querySelectorAll("#inbox .ib-t")].map(x => x.textContent) }));
+  check("the bubble opens a panel: answers ready, then the clashes", panel.open && JSON.stringify(panel.groups) === '["Answers ready","Conflicts"]'
+    && panel.items[0] === "slow one" && panel.items[1] === "3 open clashes to settle", JSON.stringify(panel));
+  await page.click("#inbox .ib-it.new"); await page.waitForTimeout(200);
+  const opened = await page.evaluate(() => ({ get: window.__gets.pop(), text: document.getElementById("thread").textContent, closed: document.getElementById("inbox").hidden }));
+  check("an answer ready opens its chat, and counts as read", opened.get === "c-slow" && /Answer to slow one/.test(opened.text) && opened.closed && await badge() === "3", JSON.stringify(opened));
+
+  /* A drop runs on while you chat. */
+  await page.evaluate(() => document.getElementById("dropBtn").click());
+  await page.focus("#input"); await page.fill("#srcInput", "Notes.txt"); await page.fill("#input", "Some notes to file.");
+  await page.click("#send"); await page.waitForTimeout(100);
+  await page.click("#dropClose"); await page.waitForTimeout(60);
+  await page.fill("#input", "while it reads");
+  const free = await page.evaluate(() => ({ off: document.getElementById("send").disabled, run: document.getElementById("inboxBtn").classList.contains("run") }));
+  check("the chat stays free while a drop reads, and the ring says it runs", !free.off && free.run, JSON.stringify(free));
+  await page.click("#inboxBtn"); await page.waitForTimeout(60);
+  const reading = await page.evaluate(() => [...document.querySelectorAll("#inbox .ib-g")].find(g => g.querySelector("h4").textContent === "Drop")?.textContent || "");
+  check("the inbox lists the drop with its step", /Notes\.txt/.test(reading) && /Checking for a repeat/.test(reading), reading);
+  await page.keyboard.press("Escape"); await page.fill("#input", "");
+  await page.waitForTimeout(700);
+  check("a drop that stops on a choice waits in the inbox", await badge() === "4", await badge());
+  await page.click("#inboxBtn"); await page.waitForTimeout(60);
+  const waits = await page.evaluate(() => [...document.querySelectorAll("#inbox .ib-g")].find(g => g.querySelector("h4").textContent === "Drop")?.textContent || "");
+  check("it says what it waits on", /Waiting on your choice/.test(waits), waits);
+  await page.click("#inbox .ib-g:has(h4:text('Drop')) .ib-it"); await page.waitForTimeout(80);
+  check("a tap opens Drop on it, and it counts as seen", await page.evaluate(() => document.querySelector("main").dataset.view) === "drop" && await badge() === "3");
+  await page.click("#dropClose");
+
+  /* A chat about one person of the personal folder changes their file. */
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent))?.querySelector(".ed.op")?.click());
+  await page.waitForTimeout(200);
+  await page.click("#fvPeople"); await page.waitForTimeout(80);
+  await page.click(".fv-row"); await page.waitForTimeout(200);
+  await page.click("#fvAsk"); await page.waitForTimeout(80);
+  const chip = await page.evaluate(() => ({ chip: document.getElementById("aboutLine").textContent, ph: document.getElementById("input").placeholder,
+    iv: document.getElementById("ivBar").hidden, foot: document.getElementById("footNote").textContent }));
+  check("a person's chat says it edits them, and nothing else runs there", /^EditingMarc Dupont/.test(chip.chip) && /^Tell or ask anything about Marc Dupont/.test(chip.ph)
+    && chip.iv && /written to it at once/.test(chip.foot), JSON.stringify(chip));
+  await page.fill("#input", "Il a quitté la fintech pour Revolut"); await page.click("#send"); await page.waitForTimeout(300);
+  const edit = await page.evaluate(() => ({ sent: window.__asks.pop(), line: [...document.querySelectorAll("#thread .filed")].pop()?.textContent || "" }));
+  check("what you tell it goes to that person alone", edit.sent?.concept === "me/marc" && edit.sent.q === "Il a quitté la fintech pour Revolut", JSON.stringify(edit.sent));
+  check("the answer says what changed in their file, with the way to it", /^Saved to Marc Dupont: card rewritten · 1 line added · 1 taken out/.test(edit.line) && /Open it$/.test(edit.line), edit.line);
+  check("nothing threw in the background or the inbox", !bad.length, bad.join(" | "));
+  await page.close();
 }
 
 await browser.close();
