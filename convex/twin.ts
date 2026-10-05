@@ -557,12 +557,14 @@ export const LAST_RULE =
 /** The interview's prompt, from what it holds and what was just said. */
 export function interviewPrompt(o: {
   notes: { title: string; line: string }[]; pending: Pending | null; answer: string; skipped: boolean;
-  followLeft: number; next: Question[]; check: { title: string; line: string }[] | null; intro: boolean; date: string;
+  followLeft: number; next: Question[]; check: { title: string; line: string }[] | null; intro: boolean; date: string; english?: boolean;
 }) {
   const extra = [o.check ? CHECK_RULES : "", o.intro ? INTRO_RULE : "", !o.next.length && !o.check ? LAST_RULE : ""].filter(Boolean).join("\n\n");
+  /* Answers set to English: the interview asks in English, whatever language comes back. */
+  const rules = o.english ? INTERVIEW_RULES.replace(/- Write in the language of their message\.[^\n]*/, "- Write in English, whatever language they write in.") : INTERVIEW_RULES;
   const said = o.skipped ? "(they skipped this question)" : o.answer ? o.answer : "(they just opened the interview)";
   return [
-    { role: "system" as const, content: `${INTERVIEW_RULES}${extra ? "\n\n" + extra : ""}` },
+    { role: "system" as const, content: `${rules}${extra ? "\n\n" + extra : ""}` },
     { role: "user" as const, content:
 `TODAY: ${o.date}
 
@@ -796,7 +798,7 @@ export const notesOf = (held: any[], n: number) => [...held]
  * the key they run on never passes through here.
  */
 export async function interviewStep(ctx: any, o: {
-  space: string; brain: string; cards: any[]; row: any; q: string; opening: boolean; date: string;
+  space: string; brain: string; cards: any[]; row: any; q: string; opening: boolean; date: string; english?: boolean;
   model: (messages: { role: "system" | "user"; content: string }[]) => Promise<string>;
   file: (text: string, context: string) => Promise<any>;
 }) {
@@ -834,7 +836,7 @@ export async function interviewStep(ctx: any, o: {
 
   const filing = q && !skip && !isNudge(q) ? o.file(q, asked ? `The brain asked: ${asked}` : "").catch(() => null) : Promise.resolve(none);
   const asking = o.model(interviewPrompt({ notes: notesOf(held, 150), pending: pending ? { ...pending, text: asked } : null, answer: q,
-    skipped: skip, followLeft, next, check, intro: opening && !row?.opens, date: o.date })).catch(() => "");
+    skipped: skip, followLeft, next, check, intro: opening && !row?.opens, date: o.date, english: o.english })).catch(() => "");
   const [raw, got] = await Promise.all([asking, filing]);
   const filed = got ?? { ...none, failed: true };
   const turn = readTurn(raw, { next, followLeft, check: !!check });

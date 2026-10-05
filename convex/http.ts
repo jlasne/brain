@@ -51,8 +51,9 @@ const router = httpRouter();
  *           written, logged or passed to a query or mutation.
  */
 type Caller = Who & { demo: boolean; byok: boolean; key?: string; visitor: string | null; wsName: string;
-  /* The models this workspace picked in Settings, or null for the defaults. */
-  models: { chat: string | null; project: string | null } };
+  /* The models this workspace picked in Settings, or null for the defaults,
+     and its languages: what the personal folder keeps, how answers come back. */
+  models: { chat: string | null; project: string | null; store?: string; reply?: string } };
 const KEY_RE = /^sk-or-[A-Za-z0-9_-]{20,200}$/;
 const owners = SPACES as readonly string[];
 
@@ -71,10 +72,13 @@ async function gate(ctx: any, body: any, opts: { ownerOnly?: boolean } = {}): Pr
   const byok = ws?.kind === "byok";
   const k = String(body?.key ?? "").trim();
   /* The demo always runs on the defaults. */
-  const models = demo ? { chat: null, project: null } : await ctx.runQuery(internal.store.modelsOf, { space: who.space });
+  const models = demo ? { chat: null, project: null, store: "en", reply: "same" } : await ctx.runQuery(internal.store.modelsOf, { space: who.space });
   return { ...who, kind: "owner", demo, byok, models, visitor: demo ? who.visitor : null, wsName: ws?.name ?? spaceName(who.space),
     key: byok ? (KEY_RE.test(k) ? k : undefined) : ws?.kind === "demo" ? (process.env.DEMO_OPENROUTER_API_KEY || undefined) : undefined };
 }
+
+/** What the personal folder keeps: English unless the workspace keeps the language written in. */
+const storeLang = (who: Caller): "en" | "same" => who.models?.store === "same" ? "same" : "en";
 
 /** The key a model call runs on. A workspace on its own key never falls back to the owner's. */
 function keyFor(who: Caller): string | undefined {
@@ -412,7 +416,8 @@ route("/api/state", async (ctx, _req, b) => {
   const brand = await ctx.runQuery(internal.store.brandOf, { space: who.space });
   const full = await ctx.runQuery(internal.store.modeOf, { space: who.space });
   /* The models in use, and the defaults Settings offers to go back to. */
-  const models = { chat: who.models.chat || MODEL, project: who.models.project || PROJECT_MODEL, chatDefault: MODEL, projectDefault: PROJECT_MODEL };
+  const models = { chat: who.models.chat || MODEL, project: who.models.project || PROJECT_MODEL, chatDefault: MODEL, projectDefault: PROJECT_MODEL,
+    store: who.models.store === "same" ? "same" : "en", reply: who.models.reply === "en" ? "en" : "same" };
   return { ...s, model: models.chat, models, chunk: CHUNK,
            space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand, full };
 });
@@ -431,11 +436,15 @@ route("/api/models", async (ctx, _req, b) => {
     return m;
   };
   const chat = one("chat"), project = one("project");
-  if (chat === undefined && project === undefined) return { error: "say which model to change" };
+  /* The languages: what the personal folder keeps, and how answers come back. */
+  const store = "store" in b ? (b.store === "same" ? "same" : "en") : undefined;
+  const reply = "reply" in b ? (b.reply === "en" ? "en" : "same") : undefined;
+  if (chat === undefined && project === undefined && !store && !reply) return { error: "say which model or language to change" };
   const r = await ctx.runMutation(internal.store.setModels, { space: who.space,
     ...(chat !== undefined ? { chat: chat === MODEL ? null : chat } : {}),
-    ...(project !== undefined ? { project: project === PROJECT_MODEL ? null : project } : {}) });
-  return { chat: r.chat || MODEL, project: r.project || PROJECT_MODEL };
+    ...(project !== undefined ? { project: project === PROJECT_MODEL ? null : project } : {}),
+    ...(store ? { store } : {}), ...(reply ? { reply } : {}) });
+  return { chat: r.chat || MODEL, project: r.project || PROJECT_MODEL, store: r.store, reply: r.reply };
 });
 
 /**
@@ -793,7 +802,7 @@ route("/api/ask", async (ctx, _req, b) => {
     `Q: ${String(h.q ?? "").slice(0, 400)}\nA: ${String(h.a ?? "").slice(0, 1200)}`).join("\n\n");
 
   const { text } = await ask([
-    { role: "system", content: "You are the user's own knowledge base, answering from what it holds. You answer in the language the question is written in." },
+    { role: "system", content: `You are the user's own knowledge base, answering from what it holds. ${who.models?.reply === "en" ? "You answer in English, whatever language the question is written in." : "You answer in the language the question is written in."}` },
     { role: "user", content:
 `Answer the question from the stored knowledge below.
 ${proj ? `
@@ -819,7 +828,8 @@ ${isPerson
 - No file paths anywhere.
 ${nSources > 0 && nSources < 10 ? `- This rests on ${nSources} source${nSources === 1 ? "" : "s"} only. Open by saying it is a small brain.` : ""}
 - Then a blank line, then one line: "Sources: {author}, {date} - {author}, {date}" listing only sources you used. Omit that line if you used none.
-- Write in the language of the QUESTION: a question in French gets French, one in English gets English. The stored knowledge is in English; translate what you use, numbers and names kept as they are. The sources line stays as it is.
+${who.models?.reply === "en" ? "- Write in English, whatever language the question is in. The sources line stays as it is."
+  : "- Write in the language of the QUESTION: a question in French gets French, one in English gets English. The stored knowledge is in English; translate what you use, numbers and names kept as they are. The sources line stays as it is."}
 - No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
 - ALWAYS ANSWER WITH WHAT IS HELD, even when it is partial. Lead with the closest thing the stored knowledge says on the subject: how the term is used, what it sits beside, the method it belongs to, the related figures. A short partial answer beats a refusal.
 - When the question asks what a named term, formula or rule is, and the stored knowledge uses it without spelling it out, give its textbook form on one line that starts "General knowledge, not from your sources:". Only that one line comes from outside, and never a figure, a date or a view.
@@ -898,7 +908,7 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   const cards = every.cards.filter((c: any) => pool.some((x: any) => x.slug === c.brain));
   const t0 = Date.now();
 
-  const filing = fileTwice(() => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text: q, context: last, kind: "chat", date,
+  const filing = fileTwice(() => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text: q, context: last, kind: "chat", date, lang: storeLang(who),
     model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: 90000 })).text }))
     .catch(() => null);
   const reply = (async () => {
@@ -908,7 +918,7 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
     const pick = writeDossier(pool, plan, new Map(whole.map((c: any) => [idOf(c), c])));
     const earlier = history.map((h: any) => `They said: ${String(h.q ?? "").slice(0, 400)}\nYou replied: ${String(h.a ?? "").slice(0, 800)}`).join("\n\n");
     const { text } = await ask([
-      { role: "system", content: REPLY_RULES },
+      { role: "system", content: REPLY_RULES + (who.models?.reply === "en" ? "\n- Reply in English, whatever language they write in." : "") },
       { role: "user", content: `TODAY: ${date}\n\n${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}` +
         `THEIR OTHER BRAINS, yours to call on: ${others.map((x: any) => `${x.name} (${x.type})`).join(", ") || "none yet"}\n\n` +
         `WHAT THEIR NOTES AND BRAINS HOLD (entries "in ${mine.name}" are their own notes; every other entry comes from the brain it names)\n${pick.dossier}\n\n` +
@@ -967,11 +977,11 @@ async function interviewTurn(ctx: any, who: Caller, b: any, mine: any, cards: an
   const mKey = keyFor(who), mName = modelFor(who, b);
   const q = opening ? "" : String(b.q ?? "").slice(0, MAX_CHARS.interview).trim();
   const date = new Date().toISOString().slice(0, 10);
-  const step = await interviewStep(ctx, { space: who.space, brain: mine.slug, cards, row, q, opening, date,
+  const step = await interviewStep(ctx, { space: who.space, brain: mine.slug, cards, row, q, opening, date, english: who.models?.reply === "en",
     model: async m => (await ask(m, { json: true, maxTokens: 900, key: mKey, model: mName, timeout: 90000, temperature: 0.4 })).text,
     /* A filing that fails is tried once more: an answer lost costs the owner a retype. */
     file: async (text, context) => {
-      const run = () => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date,
+      const run = () => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date, lang: storeLang(who),
         model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: 90000 })).text });
       return await fileTwice(run);
     } });
@@ -1120,7 +1130,7 @@ route("/api/personal/remember", async (ctx, _req, b) => {
   if (!text) return { error: "there is nothing to remember in that" };
   if (text.length > MAX_CHARS[kind]) return { error: `send at most ${MAX_CHARS[kind]} characters at a time` };
   const mKey = keyFor(who), mName = modelFor(who, b);
-  const filed = await fileTwice(() => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text, kind,
+  const filed = await fileTwice(() => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text, kind, lang: storeLang(who),
     date: new Date().toISOString().slice(0, 10),
     model: async m => (await ask(m, { json: true, maxTokens: kind === "chat" ? 4000 : 6000, key: mKey, model: mName, timeout: 150000 })).text }));
   return { filed };
@@ -1146,7 +1156,7 @@ route("/api/personal/people", async (ctx, _req, b) => {
     if (!part.length) return { filed: { new: 0, updated: 0, titles: [], people: [] }, next: null, left: 0 };
     const text = part.map((c: any) => `- CONTACT "${c.title}"${(c.aliases ?? []).length ? ` (also: ${c.aliases.join(", ")})` : ""}\n  CARD: ${String(c.position || c.summaryLine || "").replace(/\s+/g, " ").slice(0, 2500)}\n  WHAT YOU SAID ABOUT THEM:\n` +
       (c.evidence ?? []).slice(0, 60).map((e: any) => `  - ${e.date ?? "?"}: ${String(e.claim ?? "").replace(/\s+/g, " ").slice(0, 400)}`).join("\n")).join("\n\n");
-    const filed = await fileTwice(() => remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "files", date,
+    const filed = await fileTwice(() => remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "files", date, lang: storeLang(who),
       model: async m => (await ask(m, { json: true, maxTokens: 12000, key: mKey, model: mName, timeout: 150000 })).text }));
     /* A person the model passed over gets an empty file, so the run moves on. */
     for (const c of part) if (!(filed.people ?? []).some(t => t === c.title))
@@ -1158,7 +1168,7 @@ route("/api/personal/people", async (ctx, _req, b) => {
   const next = at + 20 < all.length ? at + 20 : null;
   if (!part.length) return { filed: { new: 0, updated: 0, titles: [], people: [] }, next: null, read: all.length, total: all.length };
   const text = part.map((c: any) => `- ${c.title} (${c.evidence?.[0]?.date || c.updated || "?"}): ${String(c.position || c.summaryLine || "").replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
-  const filed = await remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "people", date,
+  const filed = await remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "people", date, lang: storeLang(who),
     model: async m => (await ask(m, { json: true, maxTokens: 8000, key: mKey, model: mName, timeout: 150000 })).text });
   return { filed, next, read: Math.min(at + 20, all.length), total: all.length };
 });
@@ -1168,7 +1178,7 @@ export const MERGE_RULES =
 
 - "position": the person's summary, 3 to 6 sentences, written to the owner as "you": who the person is to you, how you met, their work and city, what matters most about them now. Their full history and facts stay in their file; this is the summary on top of it. When two facts disagree, state the newer one.
 - "summaryLine": who they are to you, under 15 words.
-- Only what the cards and the mentions say. Keep the owner's language. No em-dashes. Under 30 words per sentence.
+- Only what the cards and the mentions say. Write in the language asked below. No em-dashes. Under 30 words per sentence.
 
 Reply with only JSON: {"position":"","summaryLine":""}`;
 
@@ -1206,7 +1216,7 @@ route("/api/personal/contact", async (ctx, _req, b) => {
       const said = before.flatMap((c: any) => (c.evidence ?? []).map((e: any) => `- ${e.date ?? "?"}: ${String(e.claim ?? "").slice(0, 300)}`)).slice(0, 80).join("\n");
       const { text, finish } = await ask([
         { role: "system", content: "You keep a person's own contact cards. You reply with JSON only." },
-        { role: "user", content: `${MERGE_RULES}\n\n${cards}\n\nWHAT THEY SAID, DATED\n${said || "(nothing)"}` },
+        { role: "user", content: `${MERGE_RULES}\nLANGUAGE: ${storeLang(who) === "en" ? "English" : "the language the cards are written in"}.\n\n${cards}\n\nWHAT THEY SAID, DATED\n${said || "(nothing)"}` },
       ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), timeout: 90000, temperature: 0.2 });
       const d = parseJson(String(text), finish) ?? {};
       const position = String(d.position ?? "").replace(/\s*—\s*/g, ", ").trim();

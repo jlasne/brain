@@ -98,6 +98,15 @@ filing is tried twice, 1.5 seconds apart, and a reply that is not JSON counts
 as a failure, never as nothing to file; a message still not filed offers Keep
 it, which files it again through `/api/personal/remember` with `kind: "chat"`.
 
+Languages, per workspace, in the `models` row and Settings: `store` is what
+the personal folder keeps, `en` (the default) or `same`, the language written
+in; `reply` is how answers come back, `same` (the default, the language asked
+in) or `en`. Kept in English, every field the filer writes is English and
+each claim carries `orig`, the words as written, when they were in another
+language. `reply` sets the language of answers, the personal chat and the
+interview's questions. Folders fed by Drop always keep English. Both are set
+through `/api/models` with `store` or `reply`.
+
 A personal brain interviews its owner. 335 questions in 17 chapters, written
 for anyone and asked in the model's own words, fitted to what the notes say.
 Each answer is filed as notes, like any message, with the question as its

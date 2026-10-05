@@ -2109,7 +2109,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       if (s.includes("/api/personal/contact") && body.action === "part") { window.__parts.push(body); return Response.json({ ok: true }); }
       if (s.includes("/api/personal/contact")) return Response.json(body.action === "merge" ? { into: body.into, joined: 1, rewritten: true } : { id: body.id, title: body.title });
       if (s.includes("/api/concept")) return Response.json({ concept: { brain: "me", slug: "marc", title: "Marc Dupont", tag: "contact", aliases: ["Marc", "my co-founder"],
-        position: "Your co-founder. Joins Revolut in London (2026-10-04).", evidence: [{ date: "2026-10-04", author: "You", claim: "Marc joins Revolut" }, { date: "2026-09-30", author: "You", claim: "Marc raises 2M" }],
+        position: "Your co-founder. Joins Revolut in London (2026-10-04).", evidence: [{ date: "2026-10-04", author: "You", claim: "Marc joins Revolut", orig: "Marc rejoint Revolut" }, { date: "2026-09-30", author: "You", claim: "Marc raises 2M" }],
         data: [], conflicts: [], sources: [], related: [], file: { v: 1, seen: "2026-09-30",
           facts: [{ k: "f1", s: "work", l: "Company", v: "Revolut", since: "2026-10-04", at: "2026-10-04" }, { k: "f0", s: "work", l: "Company", v: "His fintech in Lisbon", until: "2026-10-04", at: "2026-09-30" },
                   { k: "f2", s: "contact", l: "Phone", v: "+44 7700 900123", at: "2026-10-04" }, { k: "f3", s: "identity", l: "Born in", v: "Lyon, 1993", at: "2026-09-12" }],
@@ -2175,6 +2175,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("their people both ways: who they name, and who names them, each person once", JSON.stringify(file.people) === '["Paulan investor he will meet","Juliehis wife","Claraher brother"]', JSON.stringify(file.people));
   check("the history goes year by year, newest first, the days together marked", JSON.stringify(file.years) === '["2026","2023"]' && /^4 Oct/.test(file.evs[0]) && /^Mar/.test(file.evs[2]) && file.seen === 2, JSON.stringify(file));
   check("your own words sit folded under the file", file.said === "Everything you said about them, as you said it · 2" && file.folded, JSON.stringify(file.said));
+  check("a mention kept in English shows the words as you said them beside it", await page.evaluate(() => document.querySelector(".pf-said .ev-orig")?.textContent) === "Marc rejoint Revolut");
   await page.click(".pf-tick"); await page.waitForTimeout(200);
   await page.evaluate(() => document.querySelector(".pf-ev .pf-x").click()); await page.waitForTimeout(200);
   const parts = await page.evaluate(() => window.__parts);
@@ -2206,6 +2207,32 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("Find people in my notes reads them all, a batch at a time, then builds the full files", JSON.stringify(scans.at) === "[0,20,null]"
     && await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/personal/people")).pop()?.body.phase) === "files" && /Done: 3 people filed/.test(scans.say || ""), JSON.stringify(scans));
   check("nothing threw around contacts", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- languages in Settings: what the personal folder keeps, how answers come back ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/models")) return Response.json({ chat: "z-ai/glm-5.3-flash", project: "z-ai/glm-5.3-flash", store: body.store ?? "en", reply: body.reply ?? "same" });
+      return Response.json({ chats: [] });
+    };
+  }, { ...STATE, models: { chat: "z-ai/glm-5.3-flash", project: "z-ai/glm-5.3-flash", chatDefault: "z-ai/glm-5.3-flash", projectDefault: "z-ai/glm-5.3-flash", store: "en", reply: "same" } });
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
+  const lang = await page.evaluate(() => ({ shown: !document.getElementById("langBlock").hidden,
+    store: [...document.querySelectorAll("#langStore button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")),
+    reply: [...document.querySelectorAll("#langReply button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")) }));
+  check("Settings offers the languages: kept in English, answered as you write, by default", lang.shown && JSON.stringify(lang.store) === '["English*","As you write"]'
+    && JSON.stringify(lang.reply) === '["As you write*","In English"]', JSON.stringify(lang));
+  await page.click('#langReply button[data-v="en"]'); await page.waitForTimeout(150);
+  const saved = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/models")).pop()?.body, on: document.querySelector("#langReply .on")?.textContent,
+    msg: document.getElementById("langMsg").textContent }));
+  check("a tap saves it for the workspace and says so", saved.sent?.reply === "en" && saved.on === "In English" && /Answers come back in English/.test(saved.msg), JSON.stringify(saved));
+  check("nothing threw in the languages", !bad.length, bad.join(" | "));
   await page.close();
 }
 

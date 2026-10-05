@@ -517,6 +517,29 @@ const TODAY = "2026-09-30";
   check("a file knows who links to it", linking.length === 1 && linking[0].title === "Maxime" && linking[0].rel === "his girlfriend", JSON.stringify(linking));
 }
 
+/* ---- languages: written in any, kept in English, answered as set ---- */
+{
+  const en = personal.filerPrompt("chat", "Maxime est arrivé aujourd'hui", "", [], [], TODAY, [], "en")[1].content;
+  const same = personal.filerPrompt("chat", "Maxime est arrivé aujourd'hui", "", [], [], TODAY, [], "same")[1].content;
+  check("kept in English, every field is written in English whatever the language written in", /Write every field in English, whatever language they write in/.test(en)
+    && /"claim": what they said, in one sentence, in English/.test(en) && /"orig" holds that sentence as they wrote it/.test(en) && /"orig":""/.test(en));
+  check("kept as written, the filer keeps their language", /Keep their language/.test(same) && !/"orig"/.test(same) && !/Write every field in English/.test(same));
+  const { T, ctx } = makeCtx();
+  T.brains = [{ _id: "b1", slug: "me", name: "Me", type: "personal", scope: "", space: "acme" }];
+  const load = async () => (await space.loadSpace(ctx, "acme", undefined, { personal: true })).cards;
+  await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: TODAY, lang: "en", text: "Je veux courir un marathon en 2027. Maxime est arrivé.",
+    model: async () => JSON.stringify({ notes: [{ title: "Marathon", claim: "I want to run a marathon in 2027", orig: "Je veux courir un marathon en 2027", position: "You want to run a marathon in 2027.", summaryLine: "A marathon in 2027" }],
+      people: [{ name: "Maxime", claim: "Maxime arrived", orig: "Maxime est arrivé", summary: "A friend who arrived today." }] }) });
+  const mar = T.concepts.find(c => c.title === "Marathon"), mx = T.concepts.find(c => c.title === "Maxime");
+  check("the note is kept in English, with their own words beside it", mar.evidence[0].claim === "I want to run a marathon in 2027" && mar.evidence[0].orig === "Je veux courir un marathon en 2027");
+  check("and so is a person's mention", mx.evidence[0].claim === "Maxime arrived" && mx.evidence[0].orig === "Maxime est arrivé");
+  await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: TODAY, lang: "en", text: "I sleep 7 hours",
+    model: async () => JSON.stringify({ notes: [{ title: "Sleep", claim: "I sleep 7 hours", orig: "I sleep 7 hours", position: "You sleep 7 hours." }] }) });
+  check("words already in English keep no copy beside them", !("orig" in T.concepts.find(c => c.title === "Sleep").evidence[0]));
+  const ask = twin.interviewPrompt({ notes: [], pending: null, answer: "Lyon", skipped: false, followLeft: 1, next: twin.ahead({}, 2), check: null, intro: false, date: TODAY, english: true })[0].content;
+  check("answers set to English: the interview asks in English", /Write in English, whatever language they write in/.test(ask) && !/Write in the language of their message/.test(ask));
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe personal brain files what it should, for its owner only");
 process.exit(failures ? 1 : 0);

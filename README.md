@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1091 checks passing" src="https://img.shields.io/badge/checks-1091%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="354 checks passing" src="https://img.shields.io/badge/checks-354%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -111,6 +111,7 @@ A third kind of brain, next to subjects and experts. You talk to it, and it keep
 - **It interviews you.** Tap Interview me: one quick question at a time, from 335 in 17 chapters, life story first. Each takes under 30 seconds: a fact, a choice, a number or one sentence. A one-word answer gets one follow-up, a question your notes already answer is skipped, and every 10 answers it reads back 3 notes for you to confirm or correct. Say skip to pass; Stop pauses it, and it picks up where you left off.
 - **It asks in passing.** Every few messages, when you asked nothing, it may end its reply with one question from the chapters it knows least.
 - **Your twin, measured.** 30 test questions, answered once and never filed. Your twin answers them from your notes, you score each 0 to 2, and a retest 2 weeks later sets your own ceiling. The twin profile writes your notes as 7 parts: identity, values, beliefs, decision rules, voice, knowledge and boundaries.
+- **Any language in, English kept.** Write or talk in French or any other language. Your personal folder keeps it in English, your own words beside each line, and answers come back in the language you wrote in. Both are switches in Settings, Languages.
 - **Private.** Its own chat is its only reader.
 
 ## Workspaces

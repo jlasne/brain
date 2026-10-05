@@ -20,12 +20,14 @@
 import { internal } from "./_generated/api";
 import { sameTitle, idOf, fileText, FILE_SECTIONS } from "./words";
 
-export type Note = { title: string; claim: string; position: string; summaryLine: string; update: string };
+export type Note = { title: string; claim: string; position: string; summaryLine: string; update: string; orig?: string };
+/* What the personal folder keeps: English whatever was written ("en"), or the language written in ("same"). */
+export type Lang = "en" | "same";
 /* A contact: one card per person, the whole of what was said about them. */
 /* A person as the filer sends them: who, the summary rewritten, and only
    what this message adds to their file. */
 export type Person = { name: string; update: string; also: string[]; claim: string; position: string; summaryLine: string; date: string;
-  facts: any[]; events: any[]; links: any[]; open: any[] };
+  facts: any[]; events: any[]; links: any[]; open: any[]; orig?: string };
 export type Filed = { new: number; updated: number; titles: string[]; people?: string[] };
 /* "people" reads notes already held, for the people in them alone. */
 /* "files" builds the files of people already held from their cards and mentions. */
@@ -92,7 +94,8 @@ export function nearest(cards: any[], text: string, n = 10): any[] {
 }
 
 /** The filer's instructions and input. */
-export function filerPrompt(kind: Kind, text: string, context: string, opened: any[], others: any[], date: string, contacts: any[] = []) {
+export function filerPrompt(kind: Kind, text: string, context: string, opened: any[], others: any[], date: string, contacts: any[] = [], lang: Lang = "same") {
+  const en = lang === "en";
   /* A contact named in the message is shown whole, so its card is rewritten
      from everything it holds; a note, from its opening. */
   const held = [
@@ -126,10 +129,12 @@ WHAT TO FILE
 
 HOW TO FILE
 - Prefer an existing note on the same topic: set "update" to its exact title as listed under HELD NOW. Otherwise leave "update" empty and give a new short title (2 to 6 words, a topic, never a sentence).
-- "claim": what they said, in one sentence, in their own words and their language, first person kept ("I want to move to Lisbon").
+${en ? `- "claim": what they said, in one sentence, in English, first person kept ("I want to move to Lisbon"). When they wrote in another language, "orig" holds that sentence as they wrote it.`
+  : `- "claim": what they said, in one sentence, in their own words and their language, first person kept ("I want to move to Lisbon").`}
 - "position": the note as it stands after this, 1 to 4 sentences, written to them as "you" ("You want to move to Lisbon in 2027."). For an update, rewrite it from what it held plus this. When they changed their mind, state the new view and name the one it replaces with its date, e.g. "You now prefer X (${date}); you said Y on 2026-09-12."
 - "summaryLine": the position in under 15 words, as "you" when it needs a subject.
-- Keep their language. No em-dashes.
+${en ? `- Write every field in English, whatever language they write in: titles, claims, positions, summaries, facts and moments. Translate faithfully; names, places, numbers and quotes keep their meaning. No em-dashes.`
+  : `- Keep their language. No em-dashes.`}
 
 PEOPLE
 Each person has a FILE that only grows: lasting facts, the history of what happened, the people they are linked to, and what is still open. Send only what THE MESSAGE adds. The server folds it into the file and never loses what the file held.
@@ -137,7 +142,8 @@ Each person has a FILE that only grows: lasting facts, the history of what happe
 - One file per person. When the person is already under CONTACTS NOW (the same name, a first name, a nickname or the same role), set "update" to its exact title. Never make a second file for the same person.
 - "name": the full name when known, else the first name, else the role ("Mother").
 - "also": the other names or roles they use for this person ("Marc", "my co-founder").
-- "claim": what they said about this person, in one sentence, in their own words and language.
+${en ? `- "claim": what they said about this person, in one sentence, in English, with "orig" as they wrote it when that is not English.`
+  : `- "claim": what they said about this person, in one sentence, in their own words and language.`}
 - "summary": who the person is now, 3 to 6 sentences, written to them as "you": who they are to you, their work, where they live, what matters most about them now. Rewrite it from the file shown under HELD NOW plus this message.
 - "summaryLine": who they are to you, under 15 words ("Your co-founder, now at Revolut in London").
 - "facts": each lasting fact this message gives, one per entry: {"section","label","value"}. Sections: ${FILE_SECTIONS.map(x => x[0]).join(", ")}. identity: birthday, age, born in, lives in, nationality, languages, family status. contact: phone, email, address, social accounts. you: how you met, since when, how close, how often you see them. work: job, company, role, projects, money. tastes: likes, dislikes, character, habits, values, health. Keep every detail given: numbers, names, places. When the fact replaces an older one (they moved, changed job), add "replaces": true and "since": the date.
@@ -162,7 +168,7 @@ TODAY: ${date}
 ${kind === "chat" ? "THE MESSAGE" : kind === "interview" ? "THE ANSWER" : kind === "people" ? "THE NOTES" : kind === "files" ? "THE CARDS" : "THE PASTED TEXT"}
 ${text}
 
-Return: {"notes":[{"title":"","update":"","claim":"","position":"","summaryLine":""}],"people":[{"name":"","update":"","also":[],"claim":"","summary":"","summaryLine":"","facts":[{"section":"","label":"","value":""}],"events":[{"date":"","text":"","seen":false}],"links":[{"name":"","rel":""}],"open":[{"text":"","done":false}]${kind === "people" ? ',"date":""' : ""}}]}` },
+Return: {"notes":[{"title":"","update":"","claim":"",${en ? '"orig":"",' : ""}"position":"","summaryLine":""}],"people":[{"name":"","update":"","also":[],"claim":"",${en ? '"orig":"",' : ""}"summary":"","summaryLine":"","facts":[{"section":"","label":"","value":""}],"events":[{"date":"","text":"","seen":false}],"links":[{"name":"","rel":""}],"open":[{"text":"","done":false}]${kind === "people" ? ',"date":""' : ""}}]}` },
   ];
 }
 
@@ -178,6 +184,7 @@ export function readNotes(raw: string, kind: Kind): Note[] {
     title: clean(x?.update || x?.title, 90),
     update: clean(x?.update, 90),
     claim: clean(x?.claim, 600),
+    orig: clean(x?.orig, 600),
     position: clean(x?.position, 1400),
     summaryLine: clean(x?.summaryLine, 200),
   })).filter((x: Note) => x.title.length >= 2 && x.claim.length >= 2)
@@ -225,6 +232,7 @@ export function readPeople(raw: string, kind: Kind): Person[] {
     update: clean(x?.update, 80),
     also: (Array.isArray(x?.also) ? x.also : []).map((t: any) => clean(t, 60)).filter((t: string) => t.length >= 2).slice(0, 8),
     claim: clean(x?.claim, 600),
+    orig: clean(x?.orig, 600),
     /* The summary goes where a card's text always went; an older reply's "position" still reads. */
     position: clean(x?.summary || x?.position, 3000),
     summaryLine: clean(x?.summaryLine, 160),
@@ -252,6 +260,9 @@ function contactFor(held: any[], p: Person) {
  * and when. A contact keeps every mention as dated evidence, and its card is
  * the whole of what is known about the person, rewritten each time.
  */
+/* Their own words, beside a claim kept in English, when they wrote in another language. */
+const inTheirWords = (x: { claim: string; orig?: string }) => x.orig && x.orig.toLowerCase() !== x.claim.toLowerCase() ? { orig: x.orig } : {};
+
 export async function fileNotes(ctx: any, space: string, brain: string, held: any[], notes: Note[], kind: Kind, date: string, people: Person[] = [],
   missed: any[] = [], said = ""): Promise<Filed> {
   const out: Filed = { new: 0, updated: 0, titles: [], people: [] };
@@ -273,7 +284,7 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
     await ctx.runMutation(internal.store.fileContact, {
       brain, title, ...(seen?.slug ? { slug: seen.slug } : {}), date,
       doc: { position: p.position, summaryLine: p.summaryLine, aliases,
-             ...(quiet ? {} : { sources: [sid], evidence: [{ date: p.date || date, author, claim: p.claim, source: sid }] }) },
+             ...(quiet ? {} : { sources: [sid], evidence: [{ date: p.date || date, author, claim: p.claim, source: sid, ...inTheirWords(p) }] }) },
       add: { facts: p.facts, events: p.events, links: p.links, open: p.open },
     });
     out.people!.push(title);
@@ -299,7 +310,7 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
     await ctx.runMutation(internal.store.upsertConcept, {
       brain, title: seen?.title ?? n.title, ...(seen?.slug ? { slug: seen.slug } : {}),
       doc: { position: n.position, summaryLine: n.summaryLine, sources: [sid],
-             evidence: [{ date, author, claim: n.claim, source: sid }] },
+             evidence: [{ date, author, claim: n.claim, source: sid, ...inTheirWords(n) }] },
     });
     if (seen) out.updated++; else out.new++;
     out.titles.push(seen?.title ?? n.title);
@@ -312,7 +323,7 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
  * comes in as a function, so the key it runs on never passes through here.
  */
 export async function remember(ctx: any, o: {
-  space: string; brain: string; cards: any[]; text: string; context?: string; kind: Kind; date: string;
+  space: string; brain: string; cards: any[]; text: string; context?: string; kind: Kind; date: string; lang?: Lang;
   model: (messages: { role: "system" | "user" | "assistant"; content: string }[]) => Promise<string>;
 }): Promise<Filed> {
   const text = String(o.text ?? "").slice(0, MAX_CHARS[o.kind]).trim();
@@ -327,7 +338,7 @@ export async function remember(ctx: any, o: {
   const ids = [...near, ...named].map(idOf);
   const opened = ids.length ? await ctx.runQuery(internal.store.conceptsByIds, { space: o.space, ids }) : [];
   const others = plain.filter(c => !near.includes(c));
-  const raw = await o.model(filerPrompt(o.kind, text, context, opened, others, o.date, contacts));
+  const raw = await o.model(filerPrompt(o.kind, text, context, opened, others, o.date, contacts, o.lang ?? "same"));
   /* A reply that is not JSON, often one cut short, is a failure to retry,
      never "nothing to file". */
   if (!readable(raw)) throw new Error("the filer's reply could not be read");

@@ -264,6 +264,10 @@ export default defineSchema({
     space: v.string(),
     chat: v.optional(v.string()),
     project: v.optional(v.string()),
+    /* Languages: what the personal folder keeps ("en", or "same" as written)
+       and how answers come back ("same" as asked, or "en"). */
+    store: v.optional(v.string()),
+    reply: v.optional(v.string()),
     updated: v.number(),
   }).index("by_space", ["space"]),
 

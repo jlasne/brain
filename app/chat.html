@@ -515,6 +515,10 @@
   .fv-scan[hidden]{ display:none; }
   .fv-scan-say{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
   .fv-aka{ margin-top:6px; font:400 13.5px/1.45 var(--sans); color:var(--ink-3); }
+  .ev-orig{ display:block; margin-top:3px; font:italic 400 13px/1.45 var(--sans); color:var(--ink-4); }
+  .lang-row{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 14px; padding:6px 0; }
+  .lang-row > span{ font:500 14px/1.4 var(--sans); color:var(--ink-2); }
+  .lang-row .seg button{ padding:7px 12px; font:500 13px/1 var(--sans); }
   /* A person's file: the summary, then what is open, facts, their people and the history. */
   .pf-meta{ margin-top:6px; font:500 12px/1.4 var(--mono); color:var(--ink-4); }
   .pf-open{ margin-top:18px; padding:12px 14px; border-radius:12px; background:var(--side); }
@@ -4001,6 +4005,18 @@ async function openSetupSheet(){
           <span class="lbl">Tidy all folders</span><span class="val">run</span></button>
       </div>
 
+      <div class="f" id="langBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${S.demo ? "hidden" : ""}>
+        <label>Languages</label>
+        <div class="hint" style="margin:0 0 10px">Write and talk in any language. Folders fed by Drop always keep English.</div>
+        <div class="lang-row"><span>Your personal folder keeps</span>
+          <div class="seg" id="langStore" role="radiogroup" aria-label="What your personal folder keeps">
+            <button type="button" role="radio" data-v="en">English</button><button type="button" role="radio" data-v="same">As you write</button></div></div>
+        <div class="lang-row"><span>Answers come back</span>
+          <div class="seg" id="langReply" role="radiogroup" aria-label="How answers come back">
+            <button type="button" role="radio" data-v="same">As you write</button><button type="button" role="radio" data-v="en">In English</button></div></div>
+        <div class="hint" id="langMsg" role="status" style="margin-top:6px"></div>
+      </div>
+
       <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
         <label>Open conflicts <b id="cfCount" class="cf-count"></b></label>
         <div class="hint" style="margin:0 0 8px">Contradictions a drop left on "keep both". Rule on each one here.</div>
@@ -4197,6 +4213,24 @@ async function openSetupSheet(){
   veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet("chat"); };
   veil.querySelector("#setMap").onclick = () => { shut(); openMap(); };
   veil.querySelector("#setTidy").hidden = S.demo;
+  /* Languages: saved for the workspace on a tap. */
+  const langSeg = (id, key, def, said) => {
+    const seg = veil.querySelector("#" + id), msg = veil.querySelector("#langMsg");
+    const paint = () => { for (const x of seg.children){ const on = x.dataset.v === (S.models?.[key] || def); x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); } };
+    paint();
+    seg.onclick = async e => {
+      const x = e.target.closest("button[data-v]");
+      if (!x || x.dataset.v === (S.models?.[key] || def)) return;
+      msg.textContent = "Saving";
+      try {
+        const r = await api("/api/models", { [key]: x.dataset.v });
+        S.models = { ...(S.models || {}), store: r.store, reply: r.reply };
+        paint(); msg.textContent = said(x.dataset.v);
+      } catch (err) { msg.textContent = err.message; }
+    };
+  };
+  langSeg("langStore", "store", "en", v => v === "en" ? "Saved. What you say is kept in English from now on, your own words beside it." : "Saved. What you say is kept in the language you write in.");
+  langSeg("langReply", "reply", "same", v => v === "en" ? "Saved. Answers come back in English." : "Saved. Answers come back in the language you write in.");
   veil.querySelector("#setTidy").onclick = () => { shut(); openTidyAll(); };
   const exp = veil.querySelector("#setExport");
   exp.onclick = async () => {
@@ -4476,7 +4510,7 @@ function openModelSheet(which = "chat"){
     let r;
     try { r = await api("/api/models", { [which]: model }); }
     catch (e) { save.disabled = false; msg.className = "bad"; msg.textContent = e.message; return; }
-    S.models = { ...(S.models || {}), chat: r.chat, project: r.project };
+    S.models = { ...(S.models || {}), chat: r.chat, project: r.project, ...(r.store ? { store: r.store, reply: r.reply } : {}) };
     S.model = r.chat;
     shut(); render(); openSetupSheet();
   };
@@ -5109,6 +5143,8 @@ function openFolder(b, openId){
       const d = el("div");
       if (!e.rollup && e.author){ d.append(el("b",null,e.author + ". ")); }
       d.append(e.claim || "");
+      /* Kept in English: their own words beside it, as they said them. */
+      if (e.orig) d.append(el("span","ev-orig", e.orig));
       row.append(d); evBox.append(row);
     }
     if ((c.data || []).length){
