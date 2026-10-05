@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1103 checks passing" src="https://img.shields.io/badge/checks-1103%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1104 checks passing" src="https://img.shields.io/badge/checks-1104%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -89,7 +89,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 - **The model, picked in Settings.** It answers, reads drops and writes one-pagers: GLM 5.3 Flash by default, saved for the whole workspace.
 - **Drop on its own screen.** Drop sits in the side panel and opens a screen with its own log. The chat waits as it was, one click away.
 - **New folder.** A folder is fed by Drop, and one switch says it holds one person's view. A personal folder is fed by what you say.
-- **Talk instead of typing.** Tap the mic and speak. The chip beside it says the language it listens in, EN by default; one tap moves to FR, then ES, DE, IT and PT, and the pick stays in your browser. It uses the free speech service in Safari on iPhone and Mac, Chrome and Edge. Elsewhere it points to the dictation your device already has.
+- **Talk instead of typing.** Tap the mic and speak, in the language set in Settings, Languages: English, French, Spanish, German, Italian, Portuguese, or your browser's own. It uses the free speech service in Safari on iPhone and Mac, Chrome and Edge. Elsewhere it points to the dictation your device already has.
 - **Every drop grows the graph.** Each new idea finds its 6 nearest by meaning, in any language. Each link says how: needs, causes, supports, contradicts or example. Folders sort themselves into topics.
 - **What follows.** Two linked ideas from different folders can add up to a third. Each drop writes up to 5, marked as Tasu's own conclusion, never a source, and answers can use them.
 - **Learning path.** A folder's "needs" links set a reading order: the foundations first, then each step resting on the one before.
@@ -111,7 +111,7 @@ A third kind of brain, next to subjects and experts. You talk to it, and it keep
 - **It interviews you.** Tap Interview me: one quick question at a time, from 335 in 17 chapters, life story first. Each takes under 30 seconds: a fact, a choice, a number or one sentence. A one-word answer gets one follow-up, a question your notes already answer is skipped, and every 10 answers it reads back 3 notes for you to confirm or correct. Say skip to pass; Stop pauses it, and it picks up where you left off.
 - **It asks in passing.** Every few messages, when you asked nothing, it may end its reply with one question from the chapters it knows least.
 - **Your twin, measured.** 30 test questions, answered once and never filed. Your twin answers them from your notes, you score each 0 to 2, and a retest 2 weeks later sets your own ceiling. The twin profile writes your notes as 7 parts: identity, values, beliefs, decision rules, voice, knowledge and boundaries.
-- **Any language in, English kept.** Write or talk in French or any other language. Your personal folder keeps it in English, your own words beside each line, and answers come back in the language you wrote in. Both are switches in Settings, Languages.
+- **Any language in, English kept.** Write or talk in French or any other language. Every note and file is kept in English, your own words beside each line. In Settings, Languages, pick how chat answers come back (as you write, or in English) and the language the mic listens in.
 - **Private.** Its own chat is its only reader.
 
 ## Workspaces

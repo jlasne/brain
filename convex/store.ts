@@ -1386,25 +1386,28 @@ export const modelsOf = internalQuery({
   args: { space: v.string() },
   handler: async (ctx, a) => {
     const r = await modelsRow(ctx, readSpace(a.space));
-    return { chat: r?.chat ?? null, project: r?.project ?? null, store: r?.store === "same" ? "same" : "en", reply: r?.reply === "en" ? "en" : "same" };
+    return { chat: r?.chat ?? null, project: r?.project ?? null, reply: r?.reply === "en" ? "en" : "same", voice: VOICES.includes(r?.voice) ? r.voice : null };
   },
 });
+
+/* The languages the mic may listen in. */
+export const VOICES = ["en-US", "fr-FR", "es-ES", "de-DE", "it-IT", "pt-PT"];
 
 /** A new pick for either one. null goes back to the default; absent leaves it. */
 export const setModels = internalMutation({
   args: { space: v.string(), chat: v.optional(v.union(v.string(), v.null())), project: v.optional(v.union(v.string(), v.null())),
-          store: v.optional(v.string()), reply: v.optional(v.string()) },
+          reply: v.optional(v.string()), voice: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, a) => {
     const space = readSpace(a.space), row = await modelsRow(ctx, space), at = Date.now();
-    const next: any = { chat: row?.chat, project: row?.project, store: row?.store, reply: row?.reply };
+    const next: any = { chat: row?.chat, project: row?.project, reply: row?.reply, voice: row?.voice };
     if (a.chat !== undefined) next.chat = a.chat ?? undefined;
     if (a.project !== undefined) next.project = a.project ?? undefined;
-    if (a.store !== undefined) next.store = a.store === "same" ? "same" : "en";
     if (a.reply !== undefined) next.reply = a.reply === "en" ? "en" : "same";
+    if (a.voice !== undefined) next.voice = VOICES.includes(a.voice as string) ? a.voice : undefined;
     for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
-    if (row) await ctx.db.patch(row._id, { chat: undefined, project: undefined, ...next, updated: at });
+    if (row) await ctx.db.patch(row._id, { chat: undefined, project: undefined, voice: undefined, ...next, updated: at });
     else await ctx.db.insert("models", { space, ...next, updated: at });
-    return { chat: next.chat ?? null, project: next.project ?? null, store: next.store === "same" ? "same" : "en", reply: next.reply === "en" ? "en" : "same" };
+    return { chat: next.chat ?? null, project: next.project ?? null, reply: next.reply === "en" ? "en" : "same", voice: next.voice ?? null };
   },
 });
 

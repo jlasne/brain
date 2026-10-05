@@ -53,7 +53,7 @@ const router = httpRouter();
 type Caller = Who & { demo: boolean; byok: boolean; key?: string; visitor: string | null; wsName: string;
   /* The models this workspace picked in Settings, or null for the defaults,
      and its languages: what the personal folder keeps, how answers come back. */
-  models: { chat: string | null; project: string | null; store?: string; reply?: string } };
+  models: { chat: string | null; project: string | null; reply?: string; voice?: string | null } };
 const KEY_RE = /^sk-or-[A-Za-z0-9_-]{20,200}$/;
 const owners = SPACES as readonly string[];
 
@@ -72,13 +72,13 @@ async function gate(ctx: any, body: any, opts: { ownerOnly?: boolean } = {}): Pr
   const byok = ws?.kind === "byok";
   const k = String(body?.key ?? "").trim();
   /* The demo always runs on the defaults. */
-  const models = demo ? { chat: null, project: null, store: "en", reply: "same" } : await ctx.runQuery(internal.store.modelsOf, { space: who.space });
+  const models = demo ? { chat: null, project: null, reply: "same", voice: null } : await ctx.runQuery(internal.store.modelsOf, { space: who.space });
   return { ...who, kind: "owner", demo, byok, models, visitor: demo ? who.visitor : null, wsName: ws?.name ?? spaceName(who.space),
     key: byok ? (KEY_RE.test(k) ? k : undefined) : ws?.kind === "demo" ? (process.env.DEMO_OPENROUTER_API_KEY || undefined) : undefined };
 }
 
-/** What the personal folder keeps: English unless the workspace keeps the language written in. */
-const storeLang = (who: Caller): "en" | "same" => who.models?.store === "same" ? "same" : "en";
+/** What the personal folder keeps: English, always, whatever language comes in. */
+const storeLang = (_who: Caller): "en" => "en";
 
 /** The key a model call runs on. A workspace on its own key never falls back to the owner's. */
 function keyFor(who: Caller): string | undefined {
@@ -417,7 +417,7 @@ route("/api/state", async (ctx, _req, b) => {
   const full = await ctx.runQuery(internal.store.modeOf, { space: who.space });
   /* The models in use, and the defaults Settings offers to go back to. */
   const models = { chat: who.models.chat || MODEL, project: who.models.project || PROJECT_MODEL, chatDefault: MODEL, projectDefault: PROJECT_MODEL,
-    store: who.models.store === "same" ? "same" : "en", reply: who.models.reply === "en" ? "en" : "same" };
+    reply: who.models.reply === "en" ? "en" : "same", voice: who.models.voice ?? null };
   return { ...s, model: models.chat, models, chunk: CHUNK,
            space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand, full };
 });
@@ -436,15 +436,15 @@ route("/api/models", async (ctx, _req, b) => {
     return m;
   };
   const chat = one("chat"), project = one("project");
-  /* The languages: what the personal folder keeps, and how answers come back. */
-  const store = "store" in b ? (b.store === "same" ? "same" : "en") : undefined;
+  /* The languages: how answers come back, and the one the mic listens in. */
   const reply = "reply" in b ? (b.reply === "en" ? "en" : "same") : undefined;
-  if (chat === undefined && project === undefined && !store && !reply) return { error: "say which model or language to change" };
+  const voice = "voice" in b ? (b.voice ? String(b.voice) : null) : undefined;
+  if (chat === undefined && project === undefined && !reply && voice === undefined) return { error: "say which model or language to change" };
   const r = await ctx.runMutation(internal.store.setModels, { space: who.space,
     ...(chat !== undefined ? { chat: chat === MODEL ? null : chat } : {}),
     ...(project !== undefined ? { project: project === PROJECT_MODEL ? null : project } : {}),
-    ...(store ? { store } : {}), ...(reply ? { reply } : {}) });
-  return { chat: r.chat || MODEL, project: r.project || PROJECT_MODEL, store: r.store, reply: r.reply };
+    ...(reply ? { reply } : {}), ...(voice !== undefined ? { voice } : {}) });
+  return { chat: r.chat || MODEL, project: r.project || PROJECT_MODEL, reply: r.reply, voice: r.voice };
 });
 
 /**
@@ -1216,7 +1216,7 @@ route("/api/personal/contact", async (ctx, _req, b) => {
       const said = before.flatMap((c: any) => (c.evidence ?? []).map((e: any) => `- ${e.date ?? "?"}: ${String(e.claim ?? "").slice(0, 300)}`)).slice(0, 80).join("\n");
       const { text, finish } = await ask([
         { role: "system", content: "You keep a person's own contact cards. You reply with JSON only." },
-        { role: "user", content: `${MERGE_RULES}\nLANGUAGE: ${storeLang(who) === "en" ? "English" : "the language the cards are written in"}.\n\n${cards}\n\nWHAT THEY SAID, DATED\n${said || "(nothing)"}` },
+        { role: "user", content: `${MERGE_RULES}\nLANGUAGE: English.\n\n${cards}\n\nWHAT THEY SAID, DATED\n${said || "(nothing)"}` },
       ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), timeout: 90000, temperature: 0.2 });
       const d = parseJson(String(text), finish) ?? {};
       const position = String(d.position ?? "").replace(/\s*—\s*/g, ", ").trim();

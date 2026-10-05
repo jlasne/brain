@@ -264,10 +264,12 @@ export default defineSchema({
     space: v.string(),
     chat: v.optional(v.string()),
     project: v.optional(v.string()),
-    /* Languages: what the personal folder keeps ("en", or "same" as written)
-       and how answers come back ("same" as asked, or "en"). */
+    /* Languages. Files are always kept in English. How answers come back
+       ("same" as asked, or "en"), and the language the mic listens in. The
+       old "store" field is left readable for rows written before. */
     store: v.optional(v.string()),
     reply: v.optional(v.string()),
+    voice: v.optional(v.string()),
     updated: v.number(),
   }).index("by_space", ["space"]),
 

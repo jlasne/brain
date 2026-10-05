@@ -1707,7 +1707,10 @@ for (const found of ["Charles Gave", "", "youtube"]) {
         setTimeout(() => this.onresult?.({ results: [[{ transcript: "what do my brains say on sleep" }]] }), 60); }
       stop(){ setTimeout(() => this.onend?.(), 10); }
     };
-    window.fetch = async u => String(u).includes("/api/state") ? Response.json(state) : Response.json({ chats: [] });
+    window.fetch = async (u, opt) => { const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/models")) return Response.json({ chat: "m/x", project: "m/x", reply: "same", voice: body.voice ?? null });
+      return Response.json({ chats: [] }); };
   }, STATE);
   await page.fill("#input", "Quick one:");
   await page.click("#micBtn"); await page.waitForTimeout(150);
@@ -1720,15 +1723,14 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     hint: document.getElementById("tHint").textContent }));
   check("a second tap stops it, and the words wait to be sent", !off.on && !off.send && off.hint === "", JSON.stringify(off));
 
-  /* French: the chip beside the mic, then the mic, both in the folded bar. */
+  /* French: set once in Settings, then the mic in the folded bar. */
+  check("the bar carries no language chip: the voice language lives in Settings", await page.evaluate(() => !document.getElementById("voiceLang")));
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(150);
+  await page.click('#langVoice button[data-v="fr-FR"]'); await page.waitForTimeout(150);
+  check("Settings, Languages, Voice input: French saved for the workspace", await page.evaluate(() => document.querySelector("#langVoice .on")?.textContent) === "French");
+  await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelector(".veil")?.remove());
   await page.fill("#input", ""); await page.evaluate(() => document.activeElement?.blur()); await page.waitForTimeout(250);
-  const folded = await page.evaluate(() => ({ compact: document.querySelector(".composer-wrap").classList.contains("compact"),
-    chip: document.getElementById("voiceLang").textContent, shown: document.getElementById("voiceLang").getBoundingClientRect().width > 0 }));
-  check("the language sits beside the mic even in the folded bar", folded.compact && folded.shown && folded.chip === "EN", JSON.stringify(folded));
-  await page.click("#voiceLang"); await page.waitForTimeout(80);
-  const fr = await page.evaluate(() => ({ chip: document.getElementById("voiceLang").textContent, saved: localStorage.getItem("tasu.voiceLang"),
-    compact: document.querySelector(".composer-wrap").classList.contains("compact") }));
-  check("one tap on it moves to French, kept in this browser, and the bar stays folded", fr.chip === "FR" && fr.saved === "fr-FR" && fr.compact, JSON.stringify(fr));
+  check("the bar rests folded", await page.evaluate(() => document.querySelector(".composer-wrap").classList.contains("compact")));
   await page.click("#micBtn"); await page.waitForTimeout(150);
   const heard = await page.evaluate(() => ({ lang: window.__voice.at(-1)?.lang, n: window.__voice.length, hint: document.getElementById("tHint").textContent }));
   check("a tap on the mic in the folded bar starts it, listening in French", heard.n === 2 && heard.lang === "fr-FR" && heard.hint === "Listening in French. Tap the mic to stop.", JSON.stringify(heard));
@@ -2132,7 +2134,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.fill("#input", "Lunch with Marc. I owe him an intro to Paul."); await page.click("#send"); await page.waitForTimeout(250);
   const line = await page.evaluate(() => [...document.querySelectorAll(".msg.ai")].pop()?.querySelector(".filed")?.textContent);
   check("a message about people says whose cards it updated", line === "Filed: 1 new note · Contacts: Marc Dupont, Paul", line);
-  check("the mic's language is a chip beside it", await page.evaluate(() => document.getElementById("voiceLang").tagName === "BUTTON"));
+  check("the chat bar holds no language chip", await page.evaluate(() => !document.getElementById("voiceLang")));
 
   /* A message whose filing failed offers to keep it, as the message it was. */
   await page.evaluate(() => { window.__failNext = true; });
@@ -2218,15 +2220,15 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/models")) return Response.json({ chat: "z-ai/glm-5.3-flash", project: "z-ai/glm-5.3-flash", store: body.store ?? "en", reply: body.reply ?? "same" });
+      if (s.includes("/api/models")) return Response.json({ chat: "z-ai/glm-5.3-flash", project: "z-ai/glm-5.3-flash", reply: body.reply ?? "same", voice: "voice" in body ? body.voice : null });
       return Response.json({ chats: [] });
     };
-  }, { ...STATE, models: { chat: "z-ai/glm-5.3-flash", project: "z-ai/glm-5.3-flash", chatDefault: "z-ai/glm-5.3-flash", projectDefault: "z-ai/glm-5.3-flash", store: "en", reply: "same" } });
+  }, { ...STATE, models: { chat: "z-ai/glm-5.3-flash", project: "z-ai/glm-5.3-flash", chatDefault: "z-ai/glm-5.3-flash", projectDefault: "z-ai/glm-5.3-flash", reply: "same", voice: null } });
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
-  const lang = await page.evaluate(() => ({ shown: !document.getElementById("langBlock").hidden,
-    store: [...document.querySelectorAll("#langStore button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")),
+  const lang = await page.evaluate(() => ({ shown: !document.getElementById("langBlock").hidden, store: !!document.getElementById("langStore"),
+    hint: document.querySelector("#langBlock .hint").textContent,
     reply: [...document.querySelectorAll("#langReply button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")) }));
-  check("Settings offers the languages: kept in English, answered as you write, by default", lang.shown && JSON.stringify(lang.store) === '["English*","As you write"]'
+  check("Settings, Languages: files always in English, answers as you write by default", lang.shown && !lang.store && /Every note and file is kept in English/.test(lang.hint)
     && JSON.stringify(lang.reply) === '["As you write*","In English"]', JSON.stringify(lang));
   await page.click('#langReply button[data-v="en"]'); await page.waitForTimeout(150);
   const saved = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/models")).pop()?.body, on: document.querySelector("#langReply .on")?.textContent,

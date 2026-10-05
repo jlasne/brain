@@ -519,6 +519,8 @@
   .lang-row{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 14px; padding:6px 0; }
   .lang-row > span{ font:500 14px/1.4 var(--sans); color:var(--ink-2); }
   .lang-row .seg button{ padding:7px 12px; font:500 13px/1 var(--sans); }
+  .lang-row[hidden]{ display:none; }
+  .seg.seg-wrap{ flex-wrap:wrap; }
   /* A person's file: the summary, then what is open, facts, their people and the history. */
   .pf-meta{ margin-top:6px; font:500 12px/1.4 var(--mono); color:var(--ink-4); }
   .pf-open{ margin-top:18px; padding:12px 14px; border-radius:12px; background:var(--side); }
@@ -1689,13 +1691,6 @@
   .send{ border-radius:10px; background:var(--accent-solid); color:var(--accent-on); }
   .mic{ border-radius:10px; }
   .foot-note{ pointer-events:auto; margin-top:8px; text-align:center; font:400 11.5px/1.4 var(--sans); color:var(--ink-4); }
-  /* The mic's language, beside it in the open bar. */
-  .vlang{ flex:none; height:32px; min-width:38px; padding:0 8px; border:1px solid var(--line-2); border-radius:9px; background:var(--surface);
-    font:600 11.5px/1 var(--mono); letter-spacing:.04em; color:var(--ink-3); cursor:pointer; }
-  .vlang:hover{ border-color:var(--ink-4); color:var(--ink); }
-  .vlang[hidden]{ display:none; }
-  /* Folded, the chip stays beside the mic, round like it. */
-  .composer-wrap.compact .vlang{ height:30px; min-width:34px; padding:0 7px; border-radius:99px; }
   /* The interview strip, above the chat bar: a way in, or where it stands. */
   .iv-bar{ display:flex; justify-content:center; margin:0 auto 8px; }
   .iv-bar[hidden]{ display:none; }
@@ -1809,8 +1804,6 @@
     .box .tbar .seg.lv button{ min-height:0; height:40px; width:36px; padding:0; justify-content:center; }
     .box .tbar .seg.lv button span{ display:none; }
     .box .tbar #memBtn{ flex:none; height:42px; }
-    .box .tbar .vlang{ flex:none; height:42px; border-radius:10px; }
-    .composer-wrap.compact .box .tbar .vlang{ height:32px; border-radius:99px; }
     .box .tbar #freshBtn{ display:none; }
     .box .tbar .t{ order:9; flex:1 0 100%; }
     .box .tbar .t:empty{ display:none; }
@@ -1928,7 +1921,6 @@
             <div class="tools">
               <button class="paste" id="fileBtn" hidden title="Read a PDF, a Word file or a text file into the content">+ document</button>
             </div>
-            <button class="vlang" id="voiceLang" type="button" aria-label="Voice language">EN</button>
             <button class="mic" id="micBtn" type="button" aria-label="Talk" aria-pressed="false" title="Talk instead of typing">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="1.75" width="5" height="8" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/></svg>
             </button>
@@ -3030,8 +3022,6 @@ function renderComposer(){
   $("fileBtn").hidden = !drop;
   /* The mic is for asking and talking. A drop takes a source, not a voice. */
   $("micBtn").hidden = drop;
-  /* Read here, not from Speech: this runs once before that line is reached. */
-  $("voiceLang").hidden = drop || !(window.SpeechRecognition || window.webkitSpeechRecognition);
   if (drop && S.listening) stopVoice();
   $("footNote").textContent = asking
     ? "Interview: one question at a time, each answer filed as dated notes. Say skip to pass, or Stop any time."
@@ -3308,7 +3298,7 @@ function startVoice(){
   r.onerror = e => {
     const why = e.error;
     S.voiceHint = why === "not-allowed" || why === "service-not-allowed" ? "Allow the microphone for this site, then tap the mic again."
-      : why === "language-not-supported" ? `This browser cannot listen in ${voiceName()}. Tap the language chip, or open it in Chrome.`
+      : why === "language-not-supported" ? `This browser cannot listen in ${voiceName()}. Pick another in Settings, Languages, or open it in Chrome.`
       : why === "network" ? "Voice input needs a connection."
       : why === "no-speech" || why === "aborted" ? "" : "Voice input stopped. Tap the mic to try again.";
   };
@@ -3320,35 +3310,17 @@ function startVoice(){
   rec = r; S.listening = true; S.voiceHint = ""; renderMic(); renderComposer();
 }
 function stopVoice(){ try { rec?.stop(); } catch { /* it had stopped already */ } }
-/* The language the mic listens in, on a chip beside it in both the folded
-   and the open bar: the speech service hears one language at a time and
-   cannot tell French from English by itself. A tap moves to the next one;
-   the pick is kept in this browser. With none picked, the browser's own
-   language when it is one of these, else English. */
+/* The language the mic listens in, set for the workspace in Settings: the
+   speech service hears one language at a time and cannot tell French from
+   English by itself. With none set, the browser's own language when it is
+   one of these, else English. */
 function voiceLang(){
-  let saved = "";
-  try { saved = localStorage.getItem("tasu.voiceLang") || ""; } catch {}
-  if (VOICE_LANGS.some(x => x[0] === saved)) return saved;
+  const set = S.models?.voice;
+  if (VOICE_LANGS.some(x => x[0] === set)) return set;
   const mine = String(navigator.language || "").slice(0, 2).toLowerCase();
   return (VOICE_LANGS.find(x => x[0].startsWith(mine)) || VOICE_LANGS[0])[0];
 }
 function voiceName(){ return (VOICE_LANGS.find(x => x[0] === voiceLang()) || VOICE_LANGS[0])[2]; }
-function paintVoiceLang(){
-  const b = $("voiceLang"), x = VOICE_LANGS.find(v => v[0] === voiceLang()) || VOICE_LANGS[0];
-  b.textContent = x[1];
-  b.title = `The mic listens in ${x[2]}. Tap for another language.`;
-  b.setAttribute("aria-label", `Voice language: ${x[2]}. Tap for another language.`);
-}
-paintVoiceLang();
-$("voiceLang").onclick = () => {
-  const at = VOICE_LANGS.findIndex(x => x[0] === voiceLang());
-  const next = VOICE_LANGS[(at + 1) % VOICE_LANGS.length];
-  try { localStorage.setItem("tasu.voiceLang", next[0]); } catch {}
-  paintVoiceLang();
-  /* Listening already: it starts again in the new language. */
-  if (S.listening){ S.listening = false; stopVoice(); renderMic(); setTimeout(startVoice, 250); }
-  else { S.voiceHint = `The mic now listens in ${next[2]}.`; renderComposer(); }
-};
 $("micBtn").onclick = () => S.listening ? stopVoice() : startVoice();
 $("scopeBtn").onclick = e => { e.stopPropagation(); openPick(); };
 document.addEventListener("click", e => { if (pickMenu && !pickMenu.contains(e.target)) closePick(); });
@@ -3380,10 +3352,10 @@ $("newBrain").onclick = () => openSheet("","","subject");
   /* Folded, the whole pill is the field: a click anywhere on it opens it. */
   wrap.querySelector(".box").addEventListener("mousedown", e => {
     if (!wrap.classList.contains("compact")) return;
-    /* Folded, the mic, its language and send act where they are: a press
+    /* Folded, the mic and send act where they are: a press
        that moved the focus would open the bar and slide them out from under
        the finger before the tap landed, and the mic never started. */
-    if (e.target.closest("#micBtn, #voiceLang, #send")){ e.preventDefault(); return; }
+    if (e.target.closest("#micBtn, #send")){ e.preventDefault(); return; }
     if (e.target.closest("button, input, textarea")) return;
     e.preventDefault(); $("input").focus();
   });
@@ -4007,13 +3979,16 @@ async function openSetupSheet(){
 
       <div class="f" id="langBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${S.demo ? "hidden" : ""}>
         <label>Languages</label>
-        <div class="hint" style="margin:0 0 10px">Write and talk in any language. Folders fed by Drop always keep English.</div>
-        <div class="lang-row"><span>Your personal folder keeps</span>
-          <div class="seg" id="langStore" role="radiogroup" aria-label="What your personal folder keeps">
-            <button type="button" role="radio" data-v="en">English</button><button type="button" role="radio" data-v="same">As you write</button></div></div>
-        <div class="lang-row"><span>Answers come back</span>
-          <div class="seg" id="langReply" role="radiogroup" aria-label="How answers come back">
+        <div class="hint" style="margin:0 0 10px">Write and talk in any language. Every note and file is kept in English, your own words beside each line.</div>
+        <div class="lang-row"><span>Answers in the chat</span>
+          <div class="seg" id="langReply" role="radiogroup" aria-label="The language answers come back in">
             <button type="button" role="radio" data-v="same">As you write</button><button type="button" role="radio" data-v="en">In English</button></div></div>
+        <div class="lang-row"><span>Voice input</span>
+          <div class="seg seg-wrap" id="langVoice" role="radiogroup" aria-label="The language the mic listens in">
+            <button type="button" role="radio" data-v="">Auto</button><button type="button" role="radio" data-v="en-US">English</button>
+            <button type="button" role="radio" data-v="fr-FR">French</button><button type="button" role="radio" data-v="es-ES">Spanish</button>
+            <button type="button" role="radio" data-v="de-DE">German</button><button type="button" role="radio" data-v="it-IT">Italian</button>
+            <button type="button" role="radio" data-v="pt-PT">Portuguese</button></div></div>
         <div class="hint" id="langMsg" role="status" style="margin-top:6px"></div>
       </div>
 
@@ -4217,20 +4192,22 @@ async function openSetupSheet(){
   const langSeg = (id, key, def, said) => {
     const seg = veil.querySelector("#" + id), msg = veil.querySelector("#langMsg");
     const paint = () => { for (const x of seg.children){ const on = x.dataset.v === (S.models?.[key] || def); x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); } };
+    seg.closest(".lang-row").hidden = key === "voice" && !(window.SpeechRecognition || window.webkitSpeechRecognition);
     paint();
     seg.onclick = async e => {
       const x = e.target.closest("button[data-v]");
       if (!x || x.dataset.v === (S.models?.[key] || def)) return;
       msg.textContent = "Saving";
       try {
-        const r = await api("/api/models", { [key]: x.dataset.v });
-        S.models = { ...(S.models || {}), store: r.store, reply: r.reply };
+        const r = await api("/api/models", { [key]: x.dataset.v || null });
+        S.models = { ...(S.models || {}), reply: r.reply, voice: r.voice };
         paint(); msg.textContent = said(x.dataset.v);
       } catch (err) { msg.textContent = err.message; }
     };
   };
-  langSeg("langStore", "store", "en", v => v === "en" ? "Saved. What you say is kept in English from now on, your own words beside it." : "Saved. What you say is kept in the language you write in.");
   langSeg("langReply", "reply", "same", v => v === "en" ? "Saved. Answers come back in English." : "Saved. Answers come back in the language you write in.");
+  langSeg("langVoice", "voice", "", v => v ? `Saved. The mic listens in ${(VOICE_LANGS.find(x => x[0] === v) || [])[2] || v}, on every device of this workspace.`
+    : "Saved. The mic listens in your browser's language.");
   veil.querySelector("#setTidy").onclick = () => { shut(); openTidyAll(); };
   const exp = veil.querySelector("#setExport");
   exp.onclick = async () => {
@@ -4510,7 +4487,7 @@ function openModelSheet(which = "chat"){
     let r;
     try { r = await api("/api/models", { [which]: model }); }
     catch (e) { save.disabled = false; msg.className = "bad"; msg.textContent = e.message; return; }
-    S.models = { ...(S.models || {}), chat: r.chat, project: r.project, ...(r.store ? { store: r.store, reply: r.reply } : {}) };
+    S.models = { ...(S.models || {}), chat: r.chat, project: r.project, ...(r.reply ? { reply: r.reply, voice: r.voice } : {}) };
     S.model = r.chat;
     shut(); render(); openSetupSheet();
   };
