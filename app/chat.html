@@ -2140,7 +2140,8 @@ async function apiRetry(path, body = {}, opts = {}){
     catch (e) {
       /* A job too big for one call goes back to be split, not sent again. */
       if (opts.split && tooBig(e)) throw e;
-      const passing = /did not answer|unreachable|ran past|timed out|still\s(thinking|writing)|429|rate limit|overloaded|busy|50[0-9]|temporar|unreadable|cut off/i
+      /* A reply that held no readable JSON is asked again: the next one usually reads. */
+      const passing = /did not answer|unreachable|ran past|timed out|still\s(thinking|writing)|429|rate limit|overloaded|busy|50[0-9]|temporar|unreadable|cut off|held no JSON/i
         .test(e.message);
       if (!passing || n >= 3 || e.message === "locked") throw e;
       await new Promise(ok => setTimeout(ok, n * 2500));

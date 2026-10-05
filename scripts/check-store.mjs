@@ -938,6 +938,29 @@ function seed() {
   globalThis.fetch = real; delete process.env.OPENROUTER_API_KEY;
 }
 
+/* ---- a reply that is JSON with a slip in it is mended, not lost ---- */
+{
+  const read = (t, f = "stop") => { try { return lib.parseJson(t, f); } catch (e) { return { error: e.message }; } };
+  const q = read('{"title":"The "ultrasound money" thesis","topics":[]}');
+  check("a quote mark left bare inside a string is mended", q.title === 'The "ultrasound money" thesis' && Array.isArray(q.topics), JSON.stringify(q));
+  const c = read('{"t":"He called it "digital gold", a store of value","n":1}');
+  check("even when a comma and plain words follow it", c.t === 'He called it "digital gold", a store of value' && c.n === 1, JSON.stringify(c));
+  const nl = read('{"quote":"line one\nline two\tend"}');
+  check("a line break or a tab inside a string is mended", nl.quote === "line one\nline two\tend", JSON.stringify(nl));
+  const tc = read('{"a":[1,2,],"b":{"c":3,},}');
+  check("a comma before a closing bracket is dropped", JSON.stringify(tc) === '{"a":[1,2],"b":{"c":3}}', JSON.stringify(tc));
+  const cut = read('{"title":"Crypto","topics":[{"topic":"Layer 2s","ideas":["Fees fell 90%","Rollups w');
+  check("a reply that stops before its brackets close keeps what it wrote", cut.title === "Crypto" && cut.topics[0].ideas.join("|") === "Fees fell 90%|Rollups w", JSON.stringify(cut));
+  const key = read('{"title":"X","topics":[],"kind":');
+  check("a key left with no value is dropped", JSON.stringify(key) === '{"title":"X","topics":[]}', JSON.stringify(key));
+  const after = read('Here it is: {"a":1,"b":"x"} Hope this helps {');
+  check("prose after the closing bracket is left out", JSON.stringify(after) === '{"a":1,"b":"x"}', JSON.stringify(after));
+  const good = read('{"a":"say \\"hi\\"","b":[1,{"c":null}]}');
+  check("good JSON reads as it is", good.a === 'say "hi"' && good.b[1].c === null, JSON.stringify(good));
+  check("a reply cut by the token budget still says so", /cut off by the token budget/.test(read('{"a":', "length").error || ""));
+  check("prose with no JSON still fails, and says what came back", /held no JSON/.test(read("I could not read this source.").error || ""));
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe store holds");
 process.exit(failures ? 1 : 0);
