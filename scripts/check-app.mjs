@@ -3020,12 +3020,56 @@ for (const space of ["octopus", "squidgy"]) {
   check("a tap runs that folder's audit, and once stamped it leaves the inbox", ran.pane && ran.stamp?.brain === "content" && ran.badge === "1", JSON.stringify(ran));
   await page.click("#inboxBtn"); await page.waitForTimeout(80);
   await page.click("#inbox .ib-it >> text=Audit Me"); await page.waitForTimeout(400);
-  const me = await page.evaluate(() => ({ pairs: [...document.querySelectorAll("#auditPane .td-card")].map(c => [...c.querySelectorAll(".td-opt b")].map(b => b.textContent).join("+")) }));
+  const me = await page.evaluate(() => ({ pairs: [...document.querySelectorAll("#auditPane .td-card")].map(c => [...c.querySelectorAll(".td-opt b")].map(b => b.textContent).join("+")),
+    fin: document.querySelector("#auditPane .au-fin")?.textContent, load: !!document.querySelector("#auditPane .au-load") }));
   check("the personal audit proposes the same person filed twice, the most mentioned first", JSON.stringify(me.pairs) === '["Marc+Marc Dupont"]', JSON.stringify(me));
+  check("and it says it finished, the loader gone", /^Audit finished in \d+s\.$/.test(me.fin || "") && !me.load, JSON.stringify(me));
   await page.click("#auditPane .td-card .td-no"); await page.waitForTimeout(150);
   const apart = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/brain/audit") && x.body.action === "apart").pop()?.body);
   check("Keep apart is remembered, so the next audit never asks", apart?.brain === "me" && JSON.stringify(apart.ids) === '["me/marc","me/marc-dupont"]', JSON.stringify(apart));
   check("nothing threw in the audits", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- an audit shows it runs, and says when it finished, here or in the inbox ---- */
+{
+  const st = { ...STATE, brains: [{ slug: "content", name: "Content", type: "subject", scope: "c" }],
+    concepts: [{ brain: "content", slug: "a", n: 1, title: "A" }, { brain: "content", slug: "b", n: 2, title: "B" }],
+    sources: Array.from({ length: 60 }, (_, i) => ({ sid: "s" + i, brains: ["content"] })) };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.__go = null;
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/brain/audit")) return Response.json({ audit: { at: new Date().toISOString().slice(0, 10), sources: 60 } });
+      if (s.includes("/api/brain/tidy")){ await new Promise(r => { window.__go = r; }); return Response.json({ brain: body.brain, total: 2, read: 2, same: [], english: [], blank: [] }); }
+      return Response.json({ chats: [] });
+    };
+  }, st);
+  await page.waitForTimeout(200);
+  await page.click("#inboxBtn"); await page.waitForTimeout(80);
+  await page.click("#inbox .ib-it >> text=Audit Content"); await page.waitForTimeout(1300);
+  const run = await page.evaluate(() => ({ spin: !!document.querySelector("#tidyPane .au-load .spinner"), step: document.querySelector("#tidyPane .au-step")?.textContent,
+    time: document.querySelector("#tidyPane .au-time")?.textContent, ring: document.getElementById("inboxBtn").classList.contains("run") }));
+  check("a running audit shows the turning mark, its step and the time it has run, and the inbox ring turns",
+    run.spin && run.step === "Reading 2 concepts" && /^[1-9]s$/.test(run.time) && run.ring, JSON.stringify(run));
+  await page.click("#fvChat"); await page.waitForTimeout(150);
+  await page.click("#inboxBtn"); await page.waitForTimeout(80);
+  const away = await page.evaluate(() => [...document.querySelectorAll("#inbox .ib-g")].map(g => g.querySelector("h4").textContent + ":" + [...g.querySelectorAll(".ib-it")].map(x => x.className + "=" + x.textContent).join(",")));
+  check("left, it keeps running in the inbox, with its step", away.length === 1 && /^Audit:ib-it run=Audit ContentReading 2 concepts · \d+s$/.test(away[0]), JSON.stringify(away));
+  await page.click("#inboxBtn"); await page.evaluate(() => window.__go()); await page.waitForTimeout(300);
+  const done = await page.evaluate(() => ({ ring: document.getElementById("inboxBtn").classList.contains("run"), badge: document.getElementById("inboxN").textContent }));
+  await page.click("#inboxBtn"); await page.waitForTimeout(80);
+  const fin = await page.evaluate(() => [...document.querySelectorAll("#inbox .ib-it")].map(x => x.textContent));
+  check("when it ends elsewhere, the ring stops and the inbox says it finished", !done.ring && done.badge === "1" && JSON.stringify(fin) === '["Audit ContentFinished · all clean"]', JSON.stringify({ done, fin }));
+  await page.click("#inbox .ib-it >> text=Audit Content"); await page.waitForTimeout(200);
+  const back = await page.evaluate(() => ({ fin: document.querySelector("#tidyPane .au-fin")?.textContent, spin: !!document.querySelector("#tidyPane .au-load"),
+    clean: document.querySelector("#tidyPane .td-clean")?.textContent, badge: document.getElementById("inboxN").hidden, tidies: window.__calls.filter(x => x.s.includes("/api/brain/tidy")).length }));
+  check("a tap brings its pane back, finished, with no second run, and the inbox lets go",
+    /^Audit finished in \d+s\.$/.test(back.fin || "") && !back.spin && /^All clean/.test(back.clean || "") && back.badge && back.tidies === 1, JSON.stringify(back));
+  check("nothing threw around a running audit", !bad.length, bad.join(" | "));
   await page.close();
 }
 

@@ -575,6 +575,15 @@
   .au-t b{ font:500 14px/1.35 var(--sans); color:var(--ink); }
   .au-t span{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
   .mini.au-due{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
+  .au-row.run .au-t span{ color:var(--ink-2); }
+  /* A running audit: the turning mark, the step, a bar when the count is known, the time it has run. */
+  .au-load{ display:grid; gap:10px; margin-top:18px; padding:14px 16px; border-radius:14px; background:var(--side); }
+  .au-top{ display:flex; align-items:center; gap:10px; min-width:0; }
+  .au-step{ flex:1; min-width:0; font:500 14.5px/1.45 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
+  .au-time{ flex:none; font:400 12px/1 var(--mono); color:var(--ink-4); font-variant-numeric:tabular-nums; }
+  .au-fin{ display:flex; align-items:center; gap:8px; margin-top:14px; font:500 13.5px/1.4 var(--sans); color:var(--good); }
+  .au-fin::before{ content:""; flex:none; width:8px; height:8px; border-radius:50%; background:currentColor; }
+  .au-fin.bad{ color:var(--bad); }
   .lang-row.ask{ margin:0 -10px; padding:8px 10px; border-radius:10px; background:var(--accent-soft); box-shadow:inset 0 0 0 1px var(--accent-line); }
   .seg.seg-wrap{ flex-wrap:wrap; }
   /* A person's file: the summary, then what is open, facts, their people and the history. */
@@ -3443,6 +3452,8 @@ function markSeen(){
   if (S.mode === "ask" && !S.folder && !document.hidden)
     for (const j of S.jobs) if (!j.seen && j.status !== "running" && j.key === currentKey()){ j.seen = true; n++; }
   if (S.mode === "drop" && !document.hidden && S.dropJob && !S.dropJob.seen){ S.dropJob.seen = true; n++; }
+  const a = S.auditRun;
+  if (a && a.state !== "running" && !a.seen && auditShown(a)){ a.seen = true; n++; }
   if (n){ paintInbox(); renderChats(); }
 }
 document.addEventListener("visibilitychange", markSeen);
@@ -3476,10 +3487,12 @@ function paintInbox(){
   const dropWaits = d && (d.state === "card" || (!d.seen && ["stored", "waiting", "failed", "ended"].includes(d.state))) ? 1 : 0;
   const m = S.memJob;
   const memWaits = m && m.state !== "running" && !m.seen ? 1 : 0;
-  const dueAudits = S.demo ? [] : (S.brains || []).filter(b => auditDue(b));
-  const n = unread + dropWaits + memWaits + dueAudits.length + openClashes();
+  const a = S.auditRun, auditing = a?.state === "running";
+  const auditWaits = a && !auditing && !a.seen ? 1 : 0;
+  const dueAudits = S.demo ? [] : (S.brains || []).filter(b => auditDue(b) && !(auditing && a.slug === b.slug));
+  const n = unread + dropWaits + memWaits + auditWaits + dueAudits.length + openClashes();
   $("inboxN").hidden = !n; $("inboxN").textContent = n > 99 ? "99+" : String(n);
-  btn.classList.toggle("run", running > 0 || (!!d && ["running", "storing"].includes(d.state)) || m?.state === "running");
+  btn.classList.toggle("run", running > 0 || (!!d && ["running", "storing"].includes(d.state)) || m?.state === "running" || auditing);
   btn.setAttribute("aria-label", n ? `Inbox, ${n} waiting` : "Inbox");
   if (!$("inbox").hidden) paintInboxPanel();
 }
@@ -3514,7 +3527,11 @@ function paintInboxPanel(){
       m.state === "running" ? `Filing piece ${Math.min(m.done + 1, n)} of ${n}` : m.state === "failed" ? `Stopped at piece ${m.done + 1} of ${n}` : "Done: see what it filed",
       () => openMemorySheet(m.brain))]);
   }
-  const due = S.demo ? [] : S.brains.filter(b => auditDue(b));
+  const a = S.auditRun, ab = a && S.brains.find(x => x.slug === a.slug);
+  if (ab && (a.state === "running" || !a.seen))
+    group("Audit", [item(a.state === "running" ? "run" : a.state === "failed" ? "bad" : "new", `Audit ${a.name}`,
+      a.state === "running" ? `${a.step} · ${ago(a.at)}` : a.state === "failed" ? "Stopped on an error" : `Finished · ${a.summary}`, () => runAudit(ab, true))]);
+  const due = S.demo ? [] : S.brains.filter(b => auditDue(b) && !(a?.state === "running" && a.slug === b.slug));
   if (due.length) group("Cleaning needed", due.map(b => item("clash", `Audit ${b.name}`, auditDue(b), () => runAudit(b))));
   const clash = openClashes();
   if (clash) group("Conflicts", [item("clash", `${clash} open clash${clash === 1 ? "" : "es"} to settle`, "One card at a time: keep a side, or both", () => settleFrom(null, null))]);
@@ -3581,7 +3598,45 @@ function auditLine(b){
   const when = d === null ? "Never audited" : `Last audit ${fileDay(b.audit.at)}${d ? `, ${d} day${d === 1 ? "" : "s"} ago` : ", today"}`;
   return b.type === "personal" ? `${when} · due every week` : `${when} · ${since} source${since === 1 ? "" : "s"} since`;
 }
-function runAudit(b){ closeInbox(); openFolder(b, null, { audit: true }); }
+/** An audit runs once per folder: asked again while it runs, or once it ended, its pane comes back. */
+function runAudit(b, resume){
+  closeInbox();
+  const a = S.auditRun;
+  openFolder(b, null, { audit: true, resume: resume || (a?.slug === b.slug && a.state === "running") });
+}
+/** The audit's pane is the one on screen: its folder open, the pane in it, the tab in view. */
+function auditShown(a){ return S.folder === a.slug && a.inner.isConnected && !document.hidden; }
+function clock(ms){ const s = Math.round(ms / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")}s`; }
+/**
+ * The audit's loader: the turning mark, the step it is on, a bar once the
+ * count is known, and the time it has run. It ends as one line that says it
+ * finished, and the inbox says so too when you were looking elsewhere.
+ */
+function auditLoader(inner, b){
+  const box = el("div","au-load"); box.setAttribute("role","status");
+  const top = el("div","au-top"), mark = el("span","spinner"), line = el("span","au-step","Starting"), time = el("span","au-time","0s");
+  mark.setAttribute("aria-hidden","true");
+  top.append(mark, line, time);
+  const track = el("div","mem-track"), bar = el("i"); track.append(bar); track.hidden = true;
+  box.append(top, track); inner.append(box);
+  const run = S.auditRun = { slug: b.slug, name: b.name, state: "running", step: "Starting", at: Date.now(), inner, seen: false };
+  const timer = setInterval(() => { time.textContent = clock(Date.now() - run.at); }, 1000);
+  paintInbox();
+  return {
+    step(text, done, total){
+      line.textContent = run.step = text;
+      track.hidden = !total; if (total) bar.style.width = `${Math.min(100, Math.round(done / total * 100))}%`;
+      paintInbox();
+    },
+    end(ok, summary){
+      clearInterval(timer);
+      const took = clock(Date.now() - run.at);
+      box.replaceWith(el("div", ok ? "au-fin" : "au-fin bad", ok ? `Audit finished in ${took}.` : `Audit stopped after ${took}.`));
+      Object.assign(run, { state: ok ? "done" : "failed", summary: summary || "", seen: auditShown(run) });
+      paintInbox();
+    },
+  };
+}
 /** An audit ran: the day and the sources are kept, and the inbox lets go of it. */
 async function auditDone(b){
   try {
@@ -4597,10 +4652,11 @@ async function openSetupSheet(opts = {}){
   const al = veil.querySelector("#auditList");
   for (const b of auditFolders()){
     const r = el("div","au-row"); r.dataset.slug = b.slug;
-    const due = auditDue(b);
-    const t = el("div","au-t"); t.append(el("b",null,b.name), el("span",null, auditLine(b)));
-    const go = el("button", due ? "mini au-due" : "mini", due ? "Audit now" : "Audit"); go.type = "button";
-    go.onclick = () => { shut(); runAudit(b); };
+    const due = auditDue(b), run = S.auditRun?.slug === b.slug && S.auditRun.state === "running";
+    if (run) r.classList.add("run");
+    const t = el("div","au-t"); t.append(el("b",null,b.name), el("span",null, run ? `Running · ${S.auditRun.step}` : auditLine(b)));
+    const go = el("button", due && !run ? "mini au-due" : "mini", run ? "Open" : due ? "Audit now" : "Audit"); go.type = "button";
+    go.onclick = () => { shut(); runAudit(b, run); };
     r.append(t, go); al.append(r);
   }
   if (!al.children.length) al.append(el("div","hint","No folder to audit yet."));
@@ -5945,19 +6001,19 @@ function openFolder(b, openId, opts = {}){
     back.onclick = () => { cols.classList.remove("reading"); paint(); };
     inner.append(back, el("div","fv-eye",`Audit · ${b.name}`), el("h1",null,"Audit this folder"));
     const n = el("p","fv-pos");
-    n.textContent = `Reading ${cs.length} concepts for ideas filed twice, titles not in English and concepts with no position.`;
-    const wait = el("div","td-wait"); wait.append(el("i"), el("i"), el("i"));
-    inner.append(n, wait);
+    n.textContent = `It reads ${cs.length} concepts for ideas filed twice, titles not in English and concepts with no position.`;
+    inner.append(n);
+    const load = auditLoader(inner, b);
+    load.step(`Reading ${cs.length} concept${cs.length === 1 ? "" : "s"}`);
     let r;
-    try { r = await api("/api/brain/tidy", { brain: b.slug }); }
-    catch (e) { wait.remove(); inner.append(el("div","fv-li bad",e.message)); return; }
-    if (r.error){ wait.remove(); inner.append(el("div","fv-li bad",r.error)); return; }
-    if (!doc.contains(inner)) return;
-    wait.remove();
+    try { r = await api("/api/brain/tidy", { brain: b.slug }); if (r.error) throw new Error(r.error); }
+    catch (e) { load.end(false); inner.append(el("div","fv-li bad",e.message), feedbackButton(e.message, { where: "audit", scope: b.slug })); return; }
     auditDone(b);
+    const found = r.same.length + r.english.length + r.blank.length;
+    load.end(true, found ? `${found} to decide` : "all clean");
     n.textContent = `${r.total} concepts read${r.read < r.total ? `, the newest ${r.read}` : ""}. ` +
       `${r.same.length} filed twice, ${r.english.length} not in English, ${r.blank.length} with no position.`;
-    if (!r.same.length && !r.english.length && !r.blank.length){
+    if (!found){
       inner.append(el("div","td-clean","All clean. Each concept holds one idea, in English, with a position."));
       return;
     }
@@ -5975,28 +6031,34 @@ function openFolder(b, openId, opts = {}){
     const back = el("button","fv-back","← All notes"); back.type = "button";
     back.onclick = () => { cols.classList.remove("reading"); paint(); };
     const say = el("p","fv-pos"); say.id = "auditSay";
+    say.textContent = "It finds the people in your notes, gives each one a full file, then shows the cards that look like one person.";
     inner.append(back, el("div","fv-eye",`Audit · ${b.name}`), el("h1",null,"Audit your personal folder"), say);
-    let at = 0; const found = new Set();
+    const load = auditLoader(inner, b);
+    let at = 0, toBuild = 0; const found = new Set();
     try {
+      load.step("Step 1 of 2 · Finding the people in your notes");
       for (let i = 0; i < 100; i++){
-        say.textContent = `Finding the people in your notes${at ? `: ${at} read` : ""}`;
         const r = await api("/api/personal/people", { brain: b.slug, at });
         for (const x of r.filed?.people || []) found.add(x);
+        if (r.total) load.step(`Step 1 of 2 · Finding the people in your notes: ${r.read} of ${r.total} read`, r.read, r.total);
         if (r.next == null) break;
         at = r.next;
       }
       /* Every person with only a card gets a full file, 5 at a time. */
+      load.step("Step 2 of 2 · Building full files");
       for (let i = 0; i < 200; i++){
-        say.textContent = `Building full files${found.size ? ` · ${found.size} people so far` : ""}`;
         const r = await api("/api/personal/people", { brain: b.slug, phase: "files" });
         for (const x of r.filed?.people || []) found.add(x);
+        if (!toBuild && r.total) toBuild = r.total;
+        if (toBuild) load.step(`Step 2 of 2 · Building full files: ${toBuild - (r.left || 0)} of ${toBuild} people`, toBuild - (r.left || 0), toBuild);
         if (r.next == null) break;
       }
-    } catch (e) { say.textContent = e.message; inner.append(feedbackButton(e.message, { where: "audit", scope: b.slug })); return; }
+    } catch (e) { load.end(false); say.textContent = e.message; inner.append(feedbackButton(e.message, { where: "audit", scope: b.slug })); return; }
+    load.step("Reading the cards back");
     await reload();
-    if (!doc.contains(inner)) return;
     auditDone(b);
-    const pairs = samePeople(cs.filter(isPerson), S.brains.find(x => x.slug === b.slug)?.apart || []);
+    const pairs = samePeople(conceptsOf(b.slug).filter(isPerson), S.brains.find(x => x.slug === b.slug)?.apart || []);
+    load.end(true, pairs.length ? `${pairs.length} to decide` : "all clean");
     say.textContent = `${found.size} ${found.size === 1 ? "person" : "people"} filed or brought up to date. ${pairs.length} look${pairs.length === 1 ? "s" : ""} filed twice.`;
     if (!pairs.length){ inner.append(el("div","td-clean","All clean. Each person has one card.")); return; }
     inner.append(el("h4",null,`Filed twice · ${pairs.length}`), el("p","td-sub","The same person under two names. Merge keeps the name you pick and joins both files; Keep apart never asks again."));
@@ -6026,6 +6088,17 @@ function openFolder(b, openId, opts = {}){
         } catch (e) { go.disabled = no.disabled = false; msg.className = "td-say bad"; msg.textContent = e.message; }
       };
     }
+  };
+
+  /* An audit you left, back where it is: still running, or ended. */
+  const backToAudit = () => {
+    openNow = null; paint();
+    cols.classList.add("reading");
+    doc.innerHTML = ""; doc.scrollTop = 0;
+    const a = S.auditRun; doc.append(a.inner);
+    const back = a.inner.querySelector(".fv-back");
+    if (back) back.onclick = () => { cols.classList.remove("reading"); paint(); };
+    if (a.state !== "running"){ a.seen = true; paintInbox(); }
   };
 
   /* ---- a personal folder: the twin, its test and its profile ---- */
@@ -6215,7 +6288,8 @@ function openFolder(b, openId, opts = {}){
 
   paint();
   const wide = window.matchMedia("(min-width:861px)").matches;
-  if (opts.audit) (self ? personalAudit() : tidy());
+  if (opts.audit && opts.resume && S.auditRun?.slug === b.slug && S.auditRun.inner) backToAudit();
+  else if (opts.audit) (self ? personalAudit() : tidy());
   else if (openId) show(openId);
   else if (self && !S.demo && wide) twinPane();
   else if (wide && cs.length) show(`${cs[0].brain}/${cs[0].slug}`);
