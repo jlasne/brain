@@ -464,7 +464,10 @@ const TODAY = "2026-09-30";
       { name: "Clara", claim: "his girlfriend Clara joins Friday", summary: "Maxime's girlfriend.", summaryLine: "Maxime's girlfriend",
         events: [{ date: "2026-10-09", text: "Clara joins you and Maxime." }], links: [{ name: "Maxime", rel: "her boyfriend" }] }] }) });
   const mx = () => T.concepts.find(c => c.title === "Maxime");
-  const f = mx().file;
+  /* A person read whole: the file with its moments, as every reader gets it. */
+  const whole = async slug => (await store.conceptsByIds.handler({ db: ctx.db }, { space: "acme", ids: [`me/${slug}`] }))[0];
+  const mxw = () => whole("maxime");
+  const f = (await mxw()).file;
   check("the summary sits on top, the file underneath", mx().position === "Your friend from Lyon, an engineer at Airbus, staying with you this week." && f.v === 1);
   check("contact details, work and identity are kept as facts by section", f.facts.map(x => `${x.s}:${x.l}:${x.v}`).join("|") === "contact:Phone:06 12 34 56 78|work:Company:Airbus|identity:Lives in:Lyon", JSON.stringify(f.facts));
   check("the moment is dated, and the day you were together is the last time seen", f.events[0].d === "2026-10-04" && f.seen === "2026-10-04"
@@ -479,7 +482,9 @@ const TODAY = "2026-09-30";
       events: [{ date: "2026-10-05", text: "Over sushi at Kinugawa, Maxime told you he quits Airbus for a startup in Paris.", seen: true },
                { date: "2026-10-04", text: "Maxime arrived from Lyon to spend a week with you.", seen: true }],
       open: [{ text: "Pick up Clara on Friday", done: true }] }] }) });
-  const g = mx().file;
+  const g = (await mxw()).file;
+  check("each moment is a row of its own, and the file keeps none: a person grows without a size limit",
+    !("events" in mx().file) && T.moments.filter(r => r.slug === "maxime").length === 2 && mx().file.n === 2, JSON.stringify(mx().file));
   check("a changed fact keeps the old one, closed on the day it changed", g.facts.filter(x => x.l === "Company").map(x => `${x.v}${x.until ? " until " + x.until : ""}`).join("|") === "Airbus until 2026-10-05|A startup in Paris",
     JSON.stringify(g.facts));
   check("a new moment joins the history, newest first, and a moment told twice stays once", g.events.length === 2 && g.events[0].d === "2026-10-05" && /Kinugawa/.test(g.events[0].t) && g.seen === "2026-10-05");
@@ -492,7 +497,7 @@ const TODAY = "2026-09-30";
     { facts: [{ s: "work", l: "Company", v: "Airbus", at: "2026-02-01" }, { s: "nonsense", l: "Shoe size", v: "44" }], events: [{ d: "2025", t: "met in lyon" }, { d: "bad", t: "Called him" }] }, "2026-10-06");
   check("two files merge without doubles; an unknown section goes to Other, a bad date to the day told",
     merged.facts.length === 2 && merged.facts[1].s === "other" && merged.events.length === 2 && merged.events.some(x => x.d === "2026-10-06" && x.t === "Called him"), JSON.stringify(merged));
-  check("the dossier an answer reads carries the person's file", /THE PERSON'S FILE\nFACTS/.test(words.fileText(mx(), 4000) ? `THE PERSON'S FILE\n${words.fileText(mx(), 4000)}` : ""));
+  check("the dossier an answer reads carries the person's file", /THE PERSON'S FILE\nFACTS/.test(words.fileText(await mxw(), 4000) ? `THE PERSON'S FILE\n${words.fileText(await mxw(), 4000)}` : ""));
 
   /* Building files for people held before files existed: no new mention, no new source. */
   T.concepts.push({ _id: "old1", brain: "me", slug: "lea", n: 9, title: "Lea", tag: "contact", position: "A friend you went to Porto with.", summaryLine: "A friend",
@@ -501,16 +506,16 @@ const TODAY = "2026-09-30";
   await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "files", date: "2026-10-06", text: '- CONTACT "Lea"\n  CARD: A friend you went to Porto with.',
     model: model({ notes: [{ title: "Not filed", claim: "x" }], people: [{ name: "Lea", update: "Lea", claim: "Went to Porto with Lea", summary: "A friend you travelled to Porto with in March 2026.",
       events: [{ date: "2026-03-02", text: "You went to Porto with Lea.", seen: true }] }] }) });
-  const lea = T.concepts.find(c => c.title === "Lea");
+  const lea = { ...T.concepts.find(c => c.title === "Lea"), file: (await whole("lea")).file };
   check("building a file from an old card adds the history, and no mention or source", lea.file?.events[0]?.d === "2026-03-02" && lea.evidence.length === before.ev
     && T.sources.length === before.src && !T.concepts.some(c => c.title === "Not filed"), JSON.stringify({ lea, src: T.sources.length }));
   check("files are asked for only for people held, by their title", /File ONLY these people, each with \\"update\\" set to their title/.test(prompts.at(-1)) || /File ONLY these people/.test(prompts.at(-1)));
 
   /* By hand: a wrong line taken out, a promise reopened. */
   const run = (name, args) => store[name].handler({ db: ctx.db }, args);
-  const ev = mx().file.events.find(x => /Kinugawa/.test(x.t));
+  const ev = (await mxw()).file.events.find(x => /Kinugawa/.test(x.t));
   await run("contactPart", { space: "acme", id: "me/maxime", part: "event", key: ev.k });
-  check("one wrong moment can be taken out, and the last time seen follows", mx().file.events.length === 1 && mx().file.seen === "2026-10-04");
+  check("one wrong moment can be taken out, and the last time seen follows", (await mxw()).file.events.length === 1 && mx().file.seen === "2026-10-04");
   await run("contactPart", { space: "acme", id: "me/maxime", part: "open", key: mx().file.open[0].k, done: false });
   check("a promise can be opened again", !("done" in mx().file.open[0]));
   const linking = await store.contactsLinking.handler({ db: ctx.db }, { space: "acme", id: "me/clara" });
@@ -606,7 +611,7 @@ const TODAY = "2026-09-30";
     model: async () => JSON.stringify({ notes: [], people: [{ name: "Maxime", claim: "Maxime works at Airbus", summary: "Your friend from Lyon, at Airbus.",
       facts: [{ section: "contact", label: "Phone", value: "06 12" }, { section: "work", label: "Company", value: "Airbus" }],
       events: [{ date: "2026-10-04", text: "Maxime told you about Airbus.", seen: true }] }] }) });
-  const c = T.concepts.find(x => x.title === "Maxime");
+  const c = (await store.conceptsByIds.handler({ db: ctx.db }, { space: "acme", ids: ["me/maxime"] }))[0];
   const dump = personal.conceptDump(c, [{ date: "2026-10-04", kind: "chat", text: "Maxime from Lyon works at Airbus" }]);
   const phone = c.file.facts.find(x => x.l === "Phone"), job = c.file.facts.find(x => x.l === "Company");
   check("the chat reads the whole file, each line with the key that takes it out, and the raw notes",
@@ -662,6 +667,37 @@ const TODAY = "2026-09-30";
   const again = T.concepts.find(c => c.title === `Imported details, ${TODAY}`);
   check("a second one the same day joins that note, and loses nothing", v2.updated === 1 && again.evidence.length === 3
     && /Kinugawa/.test(again.position) && /Tokyo in May 2027/.test(again.position), JSON.stringify(again.position));
+}
+
+/* ---- a person is a folder: pages by year and month, an old file split once ---- */
+{
+  const { T, ctx } = makeCtx();
+  T.brains = [{ _id: "b1", slug: "me", name: "Me", type: "personal", scope: "", space: "acme" }];
+  /* A file from before moments had rows: its history sits inside it. */
+  T.concepts = [{ _id: "c1", brain: "me", slug: "marc", n: 1, title: "Marc", tag: "contact", aliases: [], position: "Your co-founder.", summaryLine: "Co-founder",
+    evidence: [], data: [], conflicts: [], sources: [], related: [], updated: "2026-10-01",
+    file: { v: 1, seen: "2025-06-02", facts: [{ k: "f1", s: "work", l: "Company", v: "Revolut", at: "2026-01-01" }], links: [], open: [],
+      events: [{ k: "e1", d: "2025-06-02", t: "Dinner in Lisbon: he talked about leaving his job.", seen: true, at: "2025-06-02" },
+               { k: "e2", d: "2024-03", t: "You met at Station F.", at: "2024-03-01" }] } }];
+  T.rawNotes = [{ _id: "r1", brain: "me", slug: "marc", date: "2026-09-30", kind: "chat", text: "Marc called", at: 2 },
+                { _id: "r2", brain: "me", slug: "marc", date: "2026-08-12", kind: "chat", text: "Marc moved", at: 1 }];
+  const read = async () => (await store.conceptsByIds.handler({ db: ctx.db }, { space: "acme", ids: ["me/marc"] }))[0];
+  const before = await read();
+  check("an old file still reads whole before it is split", before.file.events.length === 2 && before.file.legacy === true);
+  const pages = await store.personPages.handler({ db: ctx.db }, { space: "acme", id: "me/marc" });
+  check("a person's pages: the years of their history and the months of their raw notes, each counted",
+    JSON.stringify(pages) === '{"years":[{"y":"2025","n":1},{"y":"2024","n":1}],"months":[{"m":"2026-09","n":1},{"m":"2026-08","n":1}]}', JSON.stringify(pages));
+  await store.splitContact.handler({ db: ctx.db }, { space: "acme", id: "me/marc" });
+  check("opened once, the old file is split: its moments become rows, nothing lost", !("events" in T.concepts[0].file) && T.moments.length === 2
+    && T.concepts[0].file.n === 2 && T.concepts[0].file.seen === "2025-06-02" && (await read()).file.events[0].t.startsWith("Dinner in Lisbon"));
+  const y = await store.personPage.handler({ db: ctx.db }, { space: "acme", id: "me/marc", year: "2024" });
+  const m = await store.personPage.handler({ db: ctx.db }, { space: "acme", id: "me/marc", month: "2026-08" });
+  check("a page is one year of history, or one month of raw notes", y.moments.length === 1 && y.moments[0].t === "You met at Station F." && m.raw.length === 1 && m.raw[0].text === "Marc moved");
+  const other = await store.personPage.handler({ db: ctx.db }, { space: "other", id: "me/marc", year: "2024" });
+  check("another workspace reads no page", other.moments.length === 0);
+  const text = words.fileText(await read(), 3500, "Is he still thinking of leaving his job?");
+  check("the filer reads the moments that bear on the message first, whatever their age", /HISTORY THAT BEARS ON THIS\n- 2025-06-02 \(together\): Dinner in Lisbon/.test(text)
+    && /MORE HISTORY, NEWEST FIRST\n- 2024-03: You met at Station F/.test(text), text);
 }
 
 rmSync(dir, { recursive: true, force: true });

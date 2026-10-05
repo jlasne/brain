@@ -404,6 +404,19 @@ export default defineSchema({
     .index("by_b", ["b"])
     .index("by_space", ["space"]),
 
+  /* A person's history in a personal brain, one moment a row, so a person
+     can grow without a size limit: what happened, its date (YYYY, YYYY-MM or
+     YYYY-MM-DD), whether you were together, and the day it was told. */
+  moments: defineTable({
+    brain: v.string(),
+    slug: v.string(),
+    k: v.string(),
+    d: v.string(),
+    t: v.string(),
+    seen: v.optional(v.boolean()),
+    at: v.string(),
+  }).index("by_person", ["brain", "slug", "d"]),
+
   /* Each error report sent with Send feedback: when, from which workspace,
      and its first words. It counts the reports an hour; the mail holds the rest. */
   feedback: defineTable({

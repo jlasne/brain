@@ -995,7 +995,7 @@ export const conceptsByIds = internalQuery({
       }
       if (!ok.get(brain)) continue;
       const c = await ctx.db.query("concepts").withIndex("by_brain_slug", q => q.eq("brain", brain).eq("slug", slug)).unique();
-      if (c) out.push(c);
+      if (c) out.push(c.tag === "contact" ? await withMoments(ctx, c) : c);
     }
     return out;
   },
@@ -1553,18 +1553,26 @@ export const contactMerge = internalMutation({
   args: { space: v.string(), into: v.string(), from: v.array(v.string()) },
   handler: async (ctx, a) => {
     const space = readSpace(a.space);
-    const keep = await ownContact(ctx, space, a.into);
-    if (!keep) throw new Error("that person is not in your personal folder");
+    const kept = await ownContact(ctx, space, a.into);
+    if (!kept) throw new Error("that person is not in your personal folder");
+    const keep = await splitFile(ctx, kept);
     let joined = 0;
     for (const id of [...new Set<string>(a.from)].filter(x => x !== a.into).slice(0, 10)) {
-      const gone = await ownContact(ctx, space, id);
-      if (!gone || gone.brain !== keep.brain) continue;
+      const gone0 = await ownContact(ctx, space, id);
+      if (!gone0 || gone0.brain !== keep.brain) continue;
+      const gone = await splitFile(ctx, gone0);
+      /* Their moments follow them to the card kept; one told on both stays once. */
+      const had = new Set((await momentRows(ctx, keep.brain, keep.slug)).map(momentKey));
+      for (const r of await momentRows(ctx, gone.brain, gone.slug)) {
+        if (had.has(momentKey(r))) await ctx.db.delete(r._id);
+        else { await ctx.db.patch(r._id, { slug: keep.slug }); had.add(momentKey(r)); }
+      }
       const now = await ctx.db.get(keep._id);
       await ctx.db.patch(keep._id, {
         aliases: cleanNames([...(now.aliases ?? []), gone.title, ...(gone.aliases ?? [])], now.title),
         position: [now.position, gone.position].map((t: any) => String(t ?? "").trim()).filter(Boolean).join("\n\n").slice(0, 4000),
-        /* Both files join: every fact, moment, link and open item kept. */
-        ...(now.file || gone.file ? { file: mergeFile(now.file, gone.file ?? {}, today()) } : {}),
+        /* Both files join: every fact, link and open item kept; the moments moved above. */
+        ...(now.file || gone.file ? { file: await withNewMoments(ctx, keep.brain, keep.slug, mergeFile(now.file, { ...(gone.file ?? {}), events: [] }, today()), [], today()) } : {}),
       });
       /* Their raw notes follow them to the card kept. */
       for (const r of await ctx.db.query("rawNotes").withIndex("by_contact", (q: any) => q.eq("brain", gone.brain).eq("slug", gone.slug)).collect())
@@ -1593,20 +1601,22 @@ export const fileContact = internalMutation({
     if (d.summaryLine) fields.summaryLine = String(d.summaryLine).slice(0, 200);
     if (Array.isArray(d.aliases)) fields.aliases = d.aliases.map(String).slice(0, 12);
     if (seen) {
+      const was = await splitFile(ctx, seen);
       await ctx.db.patch(seen._id, {
         ...fields,
-        ...(d.evidence ? { evidence: mergeEvidence(d.evidence, seen.evidence ?? []) } : {}),
-        ...(d.sources ? { sources: unionCap(seen.sources ?? [], d.sources, 1e9, String).slice(-2000) } : {}),
-        file: mergeFile(seen.file, a.add, a.date),
+        ...(d.evidence ? { evidence: mergeEvidence(d.evidence, was.evidence ?? []) } : {}),
+        ...(d.sources ? { sources: unionCap(was.sources ?? [], d.sources, 1e9, String).slice(-2000) } : {}),
+        file: await withNewMoments(ctx, was.brain, was.slug, mergeFile(was.file, { ...(a.add ?? {}), events: [] }, a.date), a.add?.events, a.date),
       });
       await syncCard(ctx, seen._id);
       return seen._id;
     }
     const newest = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain)).order("desc").first();
+    const slug = conceptSlug(a.title);
     const id = await ctx.db.insert("concepts", {
-      brain: a.brain, slug: conceptSlug(a.title), n: (newest?.n ?? 0) + 1, title: a.title,
+      brain: a.brain, slug, n: (newest?.n ?? 0) + 1, title: a.title,
       position: "", summaryLine: "", evidence: d.evidence ?? [], data: [], conflicts: [], sources: d.sources ?? [], related: [],
-      ...fields, file: mergeFile(null, a.add, a.date),
+      ...fields, file: await withNewMoments(ctx, a.brain, slug, mergeFile(null, { ...(a.add ?? {}), events: [] }, a.date), a.add?.events, a.date),
     });
     await syncCard(ctx, id);
     return id;
@@ -1617,21 +1627,30 @@ export const fileContact = internalMutation({
 export const contactPart = internalMutation({
   args: { space: v.string(), id: v.string(), part: v.string(), key: v.string(), done: v.optional(v.boolean()) },
   handler: async (ctx, a) => {
-    const c = await ownContact(ctx, readSpace(a.space), a.id);
-    if (!c) throw new Error("that person is not in your personal folder");
+    const c0 = await ownContact(ctx, readSpace(a.space), a.id);
+    if (!c0) throw new Error("that person is not in your personal folder");
+    const c = await splitFile(ctx, c0);
     const parts: Record<string, string> = { fact: "facts", event: "events", link: "links", open: "open" };
     const list = parts[a.part];
     if (!list || !c.file) throw new Error("there is no such line in this file");
-    const file = { ...c.file, [list]: [...(c.file[list] ?? [])] };
-    const at = file[list].findIndex((x: any) => x.k === a.key);
-    if (at < 0) throw new Error("that line is already gone");
-    if (a.part === "open" && a.done != null) {
-      const { done: _was, ...rest } = file.open[at];
-      file.open[at] = a.done ? { ...rest, done: today() } : rest;
+    let file = { ...c.file };
+    if (a.part === "event") {
+      /* A moment is a row of its own; the last day together follows the history left. */
+      const rows = await momentRows(ctx, c.brain, c.slug);
+      const row = rows.find((r: any) => r.k === a.key);
+      if (!row) throw new Error("that line is already gone");
+      await ctx.db.delete(row._id);
+      file = await withNewMoments(ctx, c.brain, c.slug, file, [], today());
+    } else {
+      file = { ...file, [list]: [...(c.file[list] ?? [])] };
+      const at = file[list].findIndex((x: any) => x.k === a.key);
+      if (at < 0) throw new Error("that line is already gone");
+      if (a.part === "open" && a.done != null) {
+        const { done: _was, ...rest } = file.open[at];
+        file.open[at] = a.done ? { ...rest, done: today() } : rest;
+      }
+      else file[list].splice(at, 1);
     }
-    else file[list].splice(at, 1);
-    /* The last day together follows the history that is left. */
-    file.seen = (file.events ?? []).filter((x: any) => x.seen).map((x: any) => String(x.d)).sort().pop() ?? "";
     await ctx.db.patch(c._id, { file, updated: today() });
     await syncCard(ctx, c._id);
     return { ok: true };
@@ -1768,5 +1787,100 @@ export const feedbackLog = internalMutation({
     if (hour.length >= FEEDBACK_SPACE_PER_HOUR || hour.filter((r: any) => (r.owner ?? "") === owner).length >= FEEDBACK_PER_HOUR) return { ok: false };
     await ctx.db.insert("feedback", { space, ...(owner ? { owner } : {}), error: a.error.slice(0, 200), at: now });
     return { ok: true };
+  },
+});
+
+/* ---------- a person's moments ---------- */
+
+/* What a read of a person carries of their history: the newest 300 moments.
+   The years before come a page at a time. */
+const MOMENTS_READ = 300;
+const asMoment = (r: any) => ({ k: r.k, d: r.d, t: r.t, ...(r.seen ? { seen: true } : {}), at: r.at });
+const momentKey = (r: any) => `${r.d}|${String(r.t ?? "").replace(/\s+/g, " ").trim().toLowerCase()}`;
+const byDateDesc = (x: any, y: any) => String(y.d).localeCompare(String(x.d));
+
+async function momentRows(ctx: any, brain: string, slug: string) {
+  return await ctx.db.query("moments").withIndex("by_person", (q: any) => q.eq("brain", brain).eq("slug", slug)).collect();
+}
+
+/**
+ * A file with the moments a message adds written as rows of their own, each
+ * once: a moment told twice on the same day stays one. The file keeps its
+ * count and the last day together, never the moments themselves, so a
+ * person grows without a size limit.
+ */
+async function withNewMoments(ctx: any, brain: string, slug: string, file: any, events: any[] | undefined, date: string) {
+  const { events: _none, ...f } = file ?? {};
+  const rows = await momentRows(ctx, brain, slug);
+  const have = new Set(rows.map(momentKey));
+  const fresh = (mergeFile(null, { events: Array.isArray(events) ? events : [] }, date).events ?? []) as any[];
+  const all = [...rows];
+  for (const e of fresh) {
+    if (have.has(momentKey(e))) continue;
+    have.add(momentKey(e));
+    await ctx.db.insert("moments", { brain, slug, k: e.k, d: e.d, t: e.t, ...(e.seen ? { seen: true } : {}), at: e.at });
+    all.push(e);
+  }
+  const seen = all.filter((x: any) => x.seen).map((x: any) => String(x.d)).sort().pop() ?? "";
+  return { ...f, seen, n: all.length };
+}
+
+/** A file written before moments had rows of their own, split once: its history moves to rows. */
+async function splitFile(ctx: any, c: any) {
+  if (!c?.file || !Array.isArray(c.file.events)) return c;
+  const file = await withNewMoments(ctx, c.brain, c.slug, c.file, c.file.events, today());
+  await ctx.db.patch(c._id, { file });
+  return { ...c, file };
+}
+
+/** A person as the readers know it: the file with its newest moments in it. */
+async function withMoments(ctx: any, c: any) {
+  if (!c.file) return c;
+  const rows = (await momentRows(ctx, c.brain, c.slug)).map(asMoment);
+  const legacy = Array.isArray(c.file.events) ? c.file.events : [];
+  const events = [...rows, ...legacy].sort(byDateDesc);
+  return { ...c, file: { ...c.file, events: events.slice(0, MOMENTS_READ), n: events.length, ...(legacy.length ? { legacy: true } : {}) } };
+}
+
+/** Split once by hand: what opening an old person's file runs. */
+export const splitContact = internalMutation({
+  args: { space: v.string(), id: v.string() },
+  handler: async (ctx, a) => {
+    const c = await ownContact(ctx, readSpace(a.space), a.id);
+    if (c) await splitFile(ctx, c);
+    return true;
+  },
+});
+
+/** A person's pages: the years of their history and the months of their raw notes, each with its count. */
+export const personPages = internalQuery({
+  args: { space: v.string(), id: v.string() },
+  handler: async (ctx, a) => {
+    const c = await ownContact(ctx, readSpace(a.space), a.id);
+    if (!c) return { years: [], months: [] };
+    const count = (keys: string[]) => [...keys.reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map<string, number>())]
+      .sort((x, y) => y[0].localeCompare(x[0]));
+    const legacy = Array.isArray(c.file?.events) ? c.file.events : [];
+    const years = count([...(await momentRows(ctx, c.brain, c.slug)), ...legacy].map((r: any) => String(r.d).slice(0, 4)));
+    const raw = await ctx.db.query("rawNotes").withIndex("by_contact", (q: any) => q.eq("brain", c.brain).eq("slug", c.slug)).collect();
+    const months = count(raw.map((r: any) => String(r.date).slice(0, 7)));
+    return { years: years.map(([y, n]) => ({ y, n })), months: months.map(([m, n]) => ({ m, n })) };
+  },
+});
+
+/** One page of a person: the moments of a year, or the raw notes of a month, newest first. */
+export const personPage = internalQuery({
+  args: { space: v.string(), id: v.string(), year: v.optional(v.string()), month: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const c = await ownContact(ctx, readSpace(a.space), a.id);
+    if (!c) return { moments: [], raw: [] };
+    if (a.year) {
+      const legacy = Array.isArray(c.file?.events) ? c.file.events : [];
+      const rows = [...(await momentRows(ctx, c.brain, c.slug)).map(asMoment), ...legacy];
+      return { moments: rows.filter((r: any) => String(r.d).startsWith(a.year!)).sort(byDateDesc), raw: [] };
+    }
+    const raw = await ctx.db.query("rawNotes").withIndex("by_contact", (q: any) => q.eq("brain", c.brain).eq("slug", c.slug)).collect();
+    return { moments: [], raw: raw.filter((r: any) => String(r.date).startsWith(a.month ?? "")).sort((x: any, y: any) => y.at - x.at)
+      .map((r: any) => ({ date: r.date, kind: r.kind, text: r.text, ...(r.asked ? { asked: r.asked } : {}), at: r.at })) };
   },
 });

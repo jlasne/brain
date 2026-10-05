@@ -159,7 +159,7 @@ export function planDossier(pool: any[], concepts: any[], q: string, history?: a
      they link to, then the rest of the matches. */
   const lead0 = [...seeds, ...linked, ...titleHits];
   const lead = [...new Set(lead0.length || judgedEmpty ? lead0 : ranked.map(r => r.c))];
-  return { lead, ranked, inPool, hits, picked, linked };
+  return { lead, ranked, inPool, hits, picked, linked, words };
 }
 
 /* How many of the leading concepts a caller reads whole: the 30 that can
@@ -184,7 +184,7 @@ export function writeDossier(pool: any[], plan: ReturnType<typeof planDossier>, 
     const br = brainOf(c);
     const links = linksOf(c);
     return `### ${c.title} in ${br?.name ?? c.brain} [${br?.type ?? "subject"}]
-POSITION: ${c.position || "none"}${links ? `\nLINKS: ${links}` : ""}${c.file ? `\nTHE PERSON'S FILE\n${fileText(c, 4000)}` : ""}
+POSITION: ${c.position || "none"}${links ? `\nLINKS: ${links}` : ""}${c.file ? `\nTHE PERSON'S FILE\n${fileText(c, 4000, (plan as any).words ?? [])}` : ""}
 EVIDENCE: ${(c.evidence ?? []).map((e: any) => `${e.date ?? "?"} ${e.author ?? "?"}: ${e.claim ?? ""}`).join(" | ") || "none"}
 DATA: ${(c.data ?? []).join(" | ") || "none"}
 OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${x.b} (${x.bDate}), because ${x.why}`).join(" | ") || "none"}`;
@@ -578,8 +578,27 @@ export function mergeFile(old: any, add: any, date: string) {
   return f;
 }
 
-/** A person's file as a model reads it: the facts that hold, the past ones, links, what is open, then the history. */
-export function fileText(c: any, max = 3500) {
+/**
+ * A person's file as a model reads it: the facts that hold, the past ones,
+ * links, what is open, then the history. With words to look for, the moments
+ * that carry them come first, whatever their age, then the newest: a file of
+ * years is read where it bears, not only at its latest page.
+ */
+const momentLine = (x: any) => `- ${x.d}${x.seen ? " (together)" : ""}: ${x.t}`;
+/** The history as read: what bears on the words first, up to 12 moments, then the newest. */
+function history(events: any[], c: any, focus: string | string[]) {
+  if (!events.length) return [""];
+  const names = new Set(keywords([c?.title ?? "", ...(c?.aliases ?? [])].join(" ")).map(stem));
+  const want = new Set((Array.isArray(focus) ? focus : keywords(String(focus))).map(stem).filter(w => !names.has(w)));
+  const score = (x: any) => keywords(String(x.t)).reduce((n, w) => n + (want.has(stem(w)) ? 1 : 0), 0);
+  const bears = want.size ? events.map(x => ({ x, n: score(x) })).filter(e => e.n > 0).sort((a, b) => b.n - a.n).slice(0, 12).map(e => e.x) : [];
+  const rest = events.filter(x => !bears.includes(x));
+  return bears.length
+    ? [`HISTORY THAT BEARS ON THIS\n${bears.map(momentLine).join("\n")}`, rest.length ? `MORE HISTORY, NEWEST FIRST\n${rest.map(momentLine).join("\n")}` : ""]
+    : [`HISTORY, NEWEST FIRST\n${events.map(momentLine).join("\n")}`];
+}
+
+export function fileText(c: any, max = 3500, focus: string | string[] = []) {
   const f = c?.file;
   if (!f) return "";
   const name = (s: string) => FILE_SECTIONS.find(x => x[0] === s)?.[1] ?? s;
@@ -589,7 +608,7 @@ export function fileText(c: any, max = 3500) {
     (f.links ?? []).length ? `LINKED TO: ${f.links.map((x: any) => `${x.n}${x.r ? ` (${x.r})` : ""}`).join("; ")}` : "",
     (f.open ?? []).filter((x: any) => !x.done).length ? `STILL OPEN: ${f.open.filter((x: any) => !x.done).map((x: any) => x.t).join("; ")}` : "",
     f.seen ? `LAST SEEN: ${f.seen}` : "",
-    (f.events ?? []).length ? `HISTORY, NEWEST FIRST\n${f.events.map((x: any) => `- ${x.d}${x.seen ? " (together)" : ""}: ${x.t}`).join("\n")}` : "",
+    ...history(f.events ?? [], c, focus),
   ].filter(Boolean).join("\n");
   return lines.length > max ? lines.slice(0, max) + "\n(older history left out)" : lines;
 }

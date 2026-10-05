@@ -599,6 +599,25 @@
   .pf-ev.seen::before{ background:var(--accent-solid); border-color:var(--accent-solid); }
   .pf-ev time{ font:500 12px/1.6 var(--mono); color:var(--ink-3); }
   .pf-ev p{ font:400 14.5px/1.55 var(--sans); color:var(--ink); }
+  /* A person is a folder: tabs, then one page at a time. */
+  .pf-tabs{ display:flex; gap:4px; margin-top:18px; border-bottom:1px solid var(--line); overflow-x:auto; scrollbar-width:none; }
+  .pf-tabs::-webkit-scrollbar{ display:none; }
+  .pf-tab{ flex:none; display:inline-flex; align-items:center; gap:6px; padding:9px 12px; margin-bottom:-1px; border-bottom:2px solid transparent;
+    font:500 13.5px/1 var(--sans); color:var(--ink-3); cursor:pointer; }
+  .pf-tab:hover{ color:var(--ink); }
+  .pf-tab.on{ color:var(--ink); border-bottom-color:var(--accent-solid); }
+  .pf-tab small{ font:500 11px/1 var(--mono); color:var(--ink-4); }
+  .pf-pane{ padding-top:6px; }
+  .pf-pane[hidden]{ display:none; }
+  .pf-chips{ display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 4px; }
+  .pf-chip{ display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border:1px solid var(--line-2); border-radius:999px; font:500 12.5px/1 var(--sans); color:var(--ink-2); cursor:pointer; }
+  .pf-chip small{ font:500 11px/1 var(--mono); color:var(--ink-4); }
+  .pf-chip.on{ border-color:var(--accent-solid); background:var(--accent-soft); color:var(--ink); }
+  .pf-latest{ margin-top:14px; }
+  .pf-late{ display:grid; grid-template-columns:96px minmax(0,1fr); gap:12px; padding:7px 0; border-top:1px solid var(--line); }
+  .pf-late time{ font:500 12px/1.6 var(--mono); color:var(--ink-3); }
+  .pf-late p{ font:400 14.5px/1.55 var(--sans); color:var(--ink); }
+  .pf-latest .mini{ margin-top:8px; }
   /* A person's raw notes: every message about them, as typed, after the history. */
   .pf-raw{ margin-top:22px; }
   .pf-rn{ padding:10px 0; border-top:1px solid var(--line); animation:tdIn .3s ease both; }
@@ -3095,7 +3114,7 @@ function renderComposer(){
   const mine = S.mode === "ask" && isPersonal(S.scope) && !about;
   const asking = mine && !!S.iv[S.scope]?.on;
   paintAbout(about);
-  $("memBtn").hidden = !mine || S.demo || asking;
+  $("memBtn").hidden = !mine || S.demo;
   /* It appears once there is something to forget. */
   $("freshBtn").hidden = S.mode !== "ask" || !S.thread.length || !!S.folder;
   const drop = S.mode==="drop";
@@ -3703,6 +3722,8 @@ $("input").addEventListener("drop", e => {
   const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
   if (!f) return;
   e.preventDefault();
+  /* In a personal chat a file is about you: it goes to Add memory. */
+  if (S.mode !== "drop" && isPersonal(S.scope) && !S.demo && !S.concept){ openMemorySheet(S.scope, f); return; }
   if (S.mode !== "drop") openDrop();
   takeDocument(f);
 });
@@ -5005,7 +5026,7 @@ function memSaid(j){
 var memView = null;
 /** The memory sheet, when it is on screen. */
 function memOn(){ return memView && memView.veil.isConnected ? memView : null; }
-function openMemorySheet(slug){
+function openMemorySheet(slug, file){
   const b = S.brains.find(x => x.slug === (typeof slug === "string" ? slug : S.scope) && x.type === "personal");
   if (!b) return;
   closeSide();
@@ -5033,8 +5054,8 @@ function openMemorySheet(slug){
   const shut = () => { veil.remove(); if (memView?.veil === veil) memView = null; };
   veil.onclick = e => { if (e.target === veil) shut(); };
   veil.querySelector("#memFile").onclick = () => veil.querySelector("#memIn").click();
-  veil.querySelector("#memIn").onchange = async ev => {
-    const f = ev.target.files?.[0]; ev.target.value = "";
+  veil.querySelector("#memIn").onchange = ev => { const f = ev.target.files?.[0]; ev.target.value = ""; takeFile(f); };
+  const takeFile = async f => {
     if (!f) return;
     /* A PDF or a Word file is read the way a drop reads it. */
     let text = "";
@@ -5088,6 +5109,7 @@ function openMemorySheet(slug){
   };
   memView = { veil, paint, brain: b.slug, keep: false };
   paint();
+  if (file && !veil.querySelector("#memIn1").hidden) takeFile(file);
   if (!veil.querySelector("#memIn1").hidden) setTimeout(() => t.focus(), 30);
 }
 $("memBtn").onclick = openMemorySheet;
@@ -5341,6 +5363,7 @@ function openFolder(b, openId){
   };
   btn("fvChat", "Chat in it", IC_CHAT, () => { S.folder = null; newChat(); $("input").focus(); });
   if (self && !S.demo){
+    btn("fvMem", "Add memory", IC_DROP, () => openMemorySheet(b.slug), "Paste, or add a PDF, Word or text file about you. It is read like a drop.");
     btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
       "It asks you questions, one at a time, to know you better. Stop any time.");
     btn("fvTest", "Twin test", IC_TEST, () => testPane(), "30 questions that measure how well your twin knows you");
@@ -5440,6 +5463,8 @@ function openFolder(b, openId){
   fv.append(head, cols);
 
   let openNow = null;
+  /* The page of a person open last: an edit brings you back to it. */
+  let pfTab = "overview";
   const paint = () => {
     rows.innerHTML = "";
     const q = f.value.trim().toLowerCase();
@@ -5474,8 +5499,8 @@ function openFolder(b, openId){
     const back = el("button","fv-back", self ? (tab === "people" ? "← All people" : "← All notes") : "← All concepts"); back.type = "button";
     back.onclick = () => { cols.classList.remove("reading"); openNow = null; paint(); };
     inner.append(back, el("div","fv-none","Opening"));
-    let c, insights = [], linkedFrom = [], raw = null;
-    try { const got = await api("/api/concept", { id }); c = got.concept; insights = got.insights || []; linkedFrom = got.linkedFrom || []; raw = got.raw || null; }
+    let c, insights = [], linkedFrom = [], raw = null, pg = null;
+    try { const got = await api("/api/concept", { id }); c = got.concept; insights = got.insights || []; linkedFrom = got.linkedFrom || []; raw = got.raw || null; pg = got.pages || null; }
     catch (e) { inner.lastChild.textContent = e.message; return; }
     if (openNow !== id || S.folder !== b.slug) return;
     if (!c){ inner.lastChild.textContent = "This concept is no longer here."; return; }
@@ -5500,7 +5525,10 @@ function openFolder(b, openId){
       mg.onclick = () => { pick.hidden = !pick.hidden; if (!pick.hidden) mergePick(pick, c, id); };
       acts.append(ed, mg); inner.append(acts, pick);
     }
-    if (person){ personFile(inner, c, id, linkedFrom); rawNotes(inner, raw); }
+    /* A person is a folder: an overview, then their facts, history by year,
+       people, and raw notes by month, each a page of its own. */
+    const pp = person ? personTabs(inner, c, raw, linkedFrom) : null;
+    if (person){ personFile(pp, c, id, linkedFrom, pg); rawNotes(pp.panes.raw, raw, id, pg); }
     /* What to read first, from its "needs" links. */
     const first = needsOf(c);
     if (first.length){
@@ -5511,7 +5539,7 @@ function openFolder(b, openId){
     const ev = (c.evidence || []).slice().sort((x, y) => (x.rollup ? 1 : 0) - (y.rollup ? 1 : 0) || String(y.date || y.to || "").localeCompare(String(x.date || x.to || "")));
     /* A person's own words sit folded under the file; a concept's evidence is its body. */
     const evBox = person ? el("details","pf-said") : inner;
-    if (person){ const sm = el("summary"); sm.id = "pfSaid"; sm.append(`Each mention in one line · ${ev.length}`); evBox.append(sm); inner.append(evBox); }
+    if (person){ const sm = el("summary"); sm.id = "pfSaid"; sm.append(`Each mention in one line · ${ev.length}`); evBox.append(sm); pp.panes.raw.append(evBox); }
     else inner.append(el("h4",null, ev.length ? `Evidence, newest first (${ev.length})` : "Evidence"));
     if (!ev.length) evBox.append(el("div","fv-li","None yet."));
     for (const e of ev){
@@ -5572,12 +5600,54 @@ function openFolder(b, openId){
    * and the history, year by year, newest first. A line that is wrong comes
    * out with its ×; a promise kept is ticked.
    */
-  const personFile = (inner, c, id, linkedFrom) => {
+  /** The tabs of a person and their empty pages. */
+  const personTabs = (inner, c, raw, linkedFrom) => {
+    const f = c.file || {};
+    const tabs = el("div","pf-tabs"); tabs.setAttribute("role","tablist"); tabs.id = "pfTabs";
+    const panes = {};
+    const counts = { facts: (f.facts || []).filter(x => !x.until).length, history: f.n ?? (f.events || []).length,
+      people: (f.links || []).length + linkedFrom.length, raw: raw?.total || 0 };
+    const pick = k => {
+      pfTab = k;
+      for (const b of tabs.children){ const on = b.dataset.k === k; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); }
+      for (const [kk, p] of Object.entries(panes)) p.hidden = kk !== k;
+    };
+    for (const [k, label] of [["overview","Overview"],["facts","Facts"],["history","History"],["people","Their people"],["raw","Raw notes"]]){
+      const b = el("button","pf-tab"); b.type = "button"; b.dataset.k = k; b.id = "pfTab-" + k; b.setAttribute("role","tab");
+      b.append(label); if (counts[k]) b.append(el("small",null,String(counts[k])));
+      b.onclick = () => pick(k);
+      tabs.append(b);
+      const p = el("div","pf-pane"); p.dataset.k = k; p.id = "pfPane-" + k; p.setAttribute("role","tabpanel"); panes[k] = p;
+    }
+    inner.append(tabs, ...Object.values(panes));
+    pick(panes[pfTab] ? pfTab : "overview");
+    /* A count set once the page knows it: each person once, whichever way they link. */
+    const count = (k, n) => { const b = tabs.querySelector(`[data-k="${k}"]`); b.querySelector("small")?.remove(); if (n) b.append(el("small",null,String(n))); };
+    return { panes, pick, count };
+  };
+
+  /** Chips that pick a page: a year of history, a month of raw notes. "All" is the newest ones held. */
+  const pageChips = (list, key, label, onPick) => {
+    const box = el("div","pf-chips");
+    const all = el("button","pf-chip on"); all.type = "button"; all.textContent = "Latest"; all.dataset.v = "";
+    box.append(all);
+    for (const x of list){ const b = el("button","pf-chip"); b.type = "button"; b.dataset.v = x[key]; b.append(label(x[key]), el("small",null,String(x.n))); box.append(b); }
+    box.onclick = e => {
+      const b = e.target.closest(".pf-chip"); if (!b) return;
+      for (const x of box.children) x.classList.toggle("on", x === b);
+      onPick(b.dataset.v);
+    };
+    return box;
+  };
+
+  const personFile = (pp, c, id, linkedFrom, pg) => {
+    const { panes, pick } = pp;
     const f = c.file;
     if (!f){
-      inner.append(el("p","tw-key","This card has no full file yet. In People, Build full files writes one from everything you said about them."));
+      panes.overview.append(el("p","tw-key","This card has no full file yet. In Settings, Audit writes one from everything you said about them."));
       return;
     }
+    const inner = panes.overview;
     const fix = (part, key, extra) => api("/api/personal/contact", { action: "part", id, part, key, ...(extra || {}) })
       .then(() => show(id)).catch(e => alert2(e.message));
     const alert2 = msg => inner.prepend(el("div","fv-li bad",msg));
@@ -5597,6 +5667,16 @@ function openFolder(b, openId){
       inner.append(box);
     }
 
+    /* The newest moments, on the overview; the whole history has its own page. */
+    const late = (f.events || []).slice(0, 3);
+    if (late.length){
+      const box = el("section","pf-latest"); box.append(el("h4",null,"Latest"));
+      for (const x of late){ const r = el("div","pf-late"); r.append(el("time",null, fileDay(x.d)), el("p",null,x.t)); box.append(r); }
+      const more = el("button","mini","See the whole history"); more.type = "button"; more.onclick = () => pick("history");
+      box.append(more); inner.append(box);
+    }
+    if (!inner.children.length) inner.append(el("div","fv-li","Nothing open, and no moment told yet."));
+
     for (const [key, name] of FILE_SECTIONS){
       const facts = (f.facts || []).filter(x => x.s === key);
       if (!facts.length) continue;
@@ -5614,8 +5694,9 @@ function openFolder(b, openId){
         r.append(el("span","pf-l",y.l), el("span","pf-v",`${y.v} (until ${fileDay(y.until)})`), cut("fact", y.k, y.l));
         sec.append(r);
       }
-      inner.append(sec);
+      panes.facts.append(sec);
     }
+    if (!panes.facts.children.length) panes.facts.append(el("div","fv-li","No fact yet. Their city, work, phone or birthday land here as you mention them."));
 
     const people = cs.filter(x => x.tag === "contact");
     const find = n => people.find(x => [x.title, ...(x.aliases || [])].some(t => String(t).toLowerCase() === String(n).toLowerCase()));
@@ -5635,23 +5716,40 @@ function openFolder(b, openId){
         chip.onclick = () => show(x.id);
         row.append(chip);
       }
-      sec.append(row); inner.append(sec);
+      sec.append(row); panes.people.append(sec);
+      pp.count("people", row.children.length);
     }
+    if (!panes.people.children.length) panes.people.append(el("div","fv-li","No one linked yet. Their partner, boss or friends land here as you mention them."));
 
-    const evs = (f.events || []);
+    /* History, a year at a time: "Latest" is the newest moments held; an
+       older year is fetched when its moments are not all here. */
+    const evs = (f.events || []), total = f.n ?? evs.length;
     const hist = el("section","pf-hist"); hist.id = "pfHist";
-    hist.append(el("h4",null, evs.length ? `History (${evs.length})` : "History"));
-    if (!evs.length) hist.append(el("div","fv-li","Nothing told yet. Every moment you mention lands here, dated."));
-    let year = "";
-    for (const x of evs){
-      const y = String(x.d).slice(0, 4);
-      if (y !== year){ year = y; hist.append(el("div","pf-year",y)); }
-      const r = el("div","pf-ev" + (x.seen ? " seen" : ""));
-      const when = el("time",null, fileDay(x.d, true)); if (x.seen) when.title = "You were together";
-      r.append(when, el("p",null,x.t), cut("event", x.k, "this moment"));
-      hist.append(r);
-    }
-    inner.append(hist);
+    hist.append(el("h4",null, total ? `History (${total})` : "History"));
+    if ((pg?.years || []).length > 1) hist.append(pageChips(pg.years, "y", y => y, async y => {
+      if (!y) return draw(evs);
+      const held = evs.filter(x => String(x.d).startsWith(y)), want = pg.years.find(x => x.y === y)?.n || 0;
+      if (held.length >= want) return draw(held);
+      list.innerHTML = ""; list.append(el("div","fv-li","Opening " + y));
+      try { draw((await api("/api/personal/page", { id, year: y })).moments || []); } catch (e) { list.innerHTML = ""; list.append(el("div","fv-li bad", e.message)); }
+    }));
+    const list = el("div","pf-list");
+    const draw = rows => {
+      list.innerHTML = "";
+      if (!rows.length) list.append(el("div","fv-li","Nothing told yet. Every moment you mention lands here, dated."));
+      let year = "";
+      for (const x of rows){
+        const y = String(x.d).slice(0, 4);
+        if (y !== year){ year = y; list.append(el("div","pf-year",y)); }
+        const r = el("div","pf-ev" + (x.seen ? " seen" : ""));
+        const when = el("time",null, fileDay(x.d, true)); if (x.seen) when.title = "You were together";
+        r.append(when, el("p",null,x.t), cut("event", x.k, "this moment"));
+        list.append(r);
+      }
+    };
+    draw(evs);
+    hist.append(list);
+    panes.history.append(hist);
   };
 
   /**
@@ -5659,20 +5757,35 @@ function openFolder(b, openId){
    * first, under their history: the raw material the file is written from,
    * in the language you said it.
    */
-  const rawNotes = (inner, raw) => {
+  const rawNotes = (inner, raw, id, pg) => {
     const rn = raw?.notes || [], KIND = { chat: "Chat", interview: "Interview", import: "Imported" };
+    const M = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const box = el("section","pf-raw"); box.id = "pfRaw";
     box.append(el("h4",null, raw?.total ? `Raw notes (${raw.total})` : "Raw notes"));
-    if (!rn.length) box.append(el("div","fv-li","Every message where you talk about them lands here, as you typed it."));
-    for (const x of rn){
-      const r = el("div","pf-rn");
-      const top = el("div","pf-rh"); top.append(el("time",null, fileDay(x.date)), el("span","pf-kind", KIND[x.kind] || x.kind));
-      r.append(top);
-      if (x.asked) r.append(el("p","pf-asked", x.asked));
-      r.append(el("p","pf-rt", x.text));
-      box.append(r);
-    }
-    if (raw?.total > rn.length) box.append(el("div","fv-li",`The newest ${rn.length} of ${raw.total} are shown.`));
+    const list = el("div","pf-list");
+    const draw = rows => {
+      list.innerHTML = "";
+      if (!rows.length) list.append(el("div","fv-li","Every message where you talk about them lands here, as you typed it."));
+      for (const x of rows){
+        const r = el("div","pf-rn");
+        const top = el("div","pf-rh"); top.append(el("time",null, fileDay(x.date)), el("span","pf-kind", KIND[x.kind] || x.kind));
+        r.append(top);
+        if (x.asked) r.append(el("p","pf-asked", x.asked));
+        r.append(el("p","pf-rt", x.text));
+        list.append(r);
+      }
+      if (rows === rn && raw?.total > rn.length) list.append(el("div","fv-li",`The newest ${rn.length} of ${raw.total}. Pick a month for the others.`));
+    };
+    /* A month at a time, fetched when its notes are not all here. */
+    if ((pg?.months || []).length > 1) box.append(pageChips(pg.months, "m", m => `${M[Number(m.slice(5)) - 1] || ""} ${m.slice(0, 4)}`, async m => {
+      if (!m) return draw(rn);
+      const held = rn.filter(x => String(x.date).startsWith(m)), want = pg.months.find(x => x.m === m)?.n || 0;
+      if (held.length >= want) return draw(held);
+      list.innerHTML = ""; list.append(el("div","fv-li","Opening"));
+      try { draw((await api("/api/personal/page", { id, month: m })).raw || []); } catch (e) { list.innerHTML = ""; list.append(el("div","fv-li bad", e.message)); }
+    }));
+    draw(rn);
+    box.append(list);
     inner.append(box);
   };
 

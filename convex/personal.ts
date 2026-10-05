@@ -102,7 +102,7 @@ export function filerPrompt(kind: Kind, text: string, context: string, opened: a
      from everything it holds; a note, from its opening. */
   const held = [
     ...opened.map(c => isContact(c)
-      ? `- CONTACT "${c.title}"\n  SUMMARY: ${String(c.position || c.summaryLine || "").slice(0, 1500)}${c.file ? `\n  ${fileText(c, 3500).replace(/\n/g, "\n  ")}` : ""}`
+      ? `- CONTACT "${c.title}"\n  SUMMARY: ${String(c.position || c.summaryLine || "").slice(0, 1500)}${c.file ? `\n  ${fileText(c, 3500, text).replace(/\n/g, "\n  ")}` : ""}`
       : `- "${c.title}": ${String(c.position || c.summaryLine || "").slice(0, 700)}` + (c.evidence?.[0]?.date ? ` (last said ${c.evidence[0].date})` : "")),
     ...others.filter(c => !isContact(c)).slice(0, 80).map(c => `- "${c.title}": ${String(c.summaryLine ?? "").slice(0, 160)}`),
   ].join("\n");

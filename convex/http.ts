@@ -499,8 +499,13 @@ route("/api/concept", async (ctx, _req, b) => {
   const id = `${c.brain}/${c.slug}`;
   const linkedFrom = await ctx.runQuery(internal.store.contactsLinking, { space: who.space, id });
   if (!c.rawScan && !who.demo) { try { await ctx.runMutation(internal.store.rawFromChats, { space: who.space, id }); } catch { /* read what is there */ } }
+  /* A file from before moments had rows of their own is split the first time it opens. */
+  if (c.file?.legacy && !who.demo) { try { await ctx.runMutation(internal.store.splitContact, { space: who.space, id }); } catch { /* it reads whole as it is */ } }
   const raw = await ctx.runQuery(internal.store.rawOf, { space: who.space, id, n: 300 });
-  return { concept: { ...c, kinds: kindsOf(c) }, insights, linkedFrom, raw };
+  /* Its pages: the years of its history and the months of its raw notes. */
+  const pages = await ctx.runQuery(internal.store.personPages, { space: who.space, id });
+  const { legacy: _old, ...file } = c.file ?? {};
+  return { concept: { ...c, ...(c.file ? { file } : {}), kinds: kindsOf(c) }, insights, linkedFrom, raw, pages };
 });
 
 /** A folder's topics: its concepts that link to each other, named and summed up. */
@@ -1280,6 +1285,15 @@ route("/api/personal/people", async (ctx, _req, b) => {
   const filed = await remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "people", date, lang: storeLang(who),
     model: async m => (await ask(m, { json: true, maxTokens: 8000, key: mKey, model: mName, timeout: 150000 })).text });
   return { filed, next, read: Math.min(at + 20, all.length), total: all.length };
+});
+
+/** One page of a person: the moments of a year, or the raw notes of a month. */
+route("/api/personal/page", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const year = /^\d{4}$/.test(String(b.year ?? "")) ? String(b.year) : undefined;
+  const month = /^\d{4}-\d{2}$/.test(String(b.month ?? "")) ? String(b.month) : undefined;
+  if (!year && !month) return { error: "pick a year or a month" };
+  return await ctx.runQuery(internal.store.personPage, { space: who.space, id: String(b.id ?? ""), ...(year ? { year } : { month }) });
 });
 
 export const MERGE_RULES =

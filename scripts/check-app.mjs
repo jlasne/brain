@@ -2107,7 +2107,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     ph: document.getElementById("input").placeholder, mem: document.getElementById("memBtn").hidden, foot: document.getElementById("footNote").textContent }));
   check("Interview opens on its first question, with no message before it", st.sent?.brain === "me" && st.me === 0 && /Who raised you\?/.test(st.ai || ""), JSON.stringify(st));
   check("while on, the strip says where it stands, with Skip and Stop", /Interview/.test(st.bar) && /Life story · 13 of 28/.test(st.bar) && st.skip && st.stop, st.bar);
-  check("the bar asks for an answer, and Add memory waits", /Your answer, in your own words/.test(st.ph) && st.mem && /Say skip to pass, or Stop any time/.test(st.foot), JSON.stringify(st));
+  check("the bar asks for an answer, and Add memory stays in reach", /Your answer, in your own words/.test(st.ph) && !st.mem && /Say skip to pass, or Stop any time/.test(st.foot), JSON.stringify(st));
   await page.fill("#input", "My grandmother, in Lyon"); await page.click("#send"); await page.waitForTimeout(250);
   const ans = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/ask")).pop()?.body, filed: [...document.querySelectorAll(".msg.ai")].pop()?.querySelector(".filed")?.textContent }));
   check("an answer goes to the personal brain and is filed like any message", ans.sent?.brain === "me" && ans.sent?.q === "My grandmother, in Lyon" && ans.sent?.chat === "c9" && ans.filed === "Filed: 1 new note", JSON.stringify(ans));
@@ -2126,7 +2126,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     pane: !!document.getElementById("twinPane"), chs: document.querySelectorAll("#twinPane .tw-ch").length, now: document.querySelector("#twinPane .tw-ch.now b")?.textContent,
     pos: document.querySelector("#twinPane .fv-pos")?.textContent }));
   check("a personal folder shows how complete its twin is in place of a health score", /Twin 4% complete/.test(fv.twin || "") && /Next: Life story, 12 of 28 done/.test(fv.twin || ""), fv.twin);
-  check("its actions: chat, interview, twin test and profile; never drop, edit or tidy", fv.acts.join() === "fvChat,fvIv,fvTest,fvProfile,fvClose", fv.acts.join());
+  check("its actions: chat, add memory, interview, twin test and profile; never drop, edit or tidy", fv.acts.join() === "fvChat,fvMem,fvIv,fvTest,fvProfile,fvClose", fv.acts.join());
   check("it opens on the twin: the share covered and its 17 chapters, the current one marked", fv.pane && fv.chs === 17 && fv.now === "Life story" && /14 of 335 questions/.test(fv.pos || ""), JSON.stringify(fv));
 
   await page.click("#fvTest"); await page.waitForTimeout(250);
@@ -2173,6 +2173,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       if (s.includes("/api/personal/people")) return Response.json(body.phase === "files" ? { filed: { people: ["Marc Dupont"] }, next: null, left: 0, total: 1 }
         : body.at ? { filed: { people: ["Lea"] }, next: null, read: 25, total: 25 } : { filed: { people: ["Paul", "Lea"] }, next: 20, read: 20, total: 25 });
       if (s.includes("/api/personal/contact") && body.action === "part") { window.__parts.push(body); return Response.json({ ok: true }); }
+      if (s.includes("/api/personal/page")) { window.__page = body; return Response.json({ moments: [{ k: "o1", d: "2021-05", t: "He moved to Lisbon for his first startup." }], raw: [] }); }
       if (s.includes("/api/personal/contact")) return Response.json(body.action === "merge" ? { into: body.into, joined: 1, rewritten: true } : { id: body.id, title: body.title });
       if (s.includes("/api/concept")) return Response.json({ concept: { brain: "me", slug: "marc", title: "Marc Dupont", tag: "contact", aliases: ["Marc", "my co-founder"],
         position: "Your co-founder. Joins Revolut in London (2026-10-04).", evidence: [{ date: "2026-10-04", author: "You", claim: "Marc joins Revolut", orig: "Marc rejoint Revolut" }, { date: "2026-09-30", author: "You", claim: "Marc raises 2M" }],
@@ -2185,6 +2186,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
           links: [{ k: "l1", n: "Paul", r: "an investor he will meet" }, { k: "l2", n: "Julie", r: "his wife" }],
           open: [{ k: "o1", t: "Intro him to Paul Martin", at: "2026-09-30" }, { k: "o2", t: "Send the deck", at: "2026-09-01", done: "2026-09-02" }] } },
         insights: [], linkedFrom: [{ id: "me/paul", title: "Paul", rel: "his future investor" }, { id: "me/clara", title: "Clara", rel: "her brother" }],
+        pages: { years: [{ y: "2026", n: 2 }, { y: "2023", n: 1 }, { y: "2021", n: 4 }], months: [{ m: "2026-10", n: 1 }, { m: "2026-09", n: 1 }] },
         raw: { total: 2, notes: [{ date: "2026-10-04", kind: "chat", text: "Marc rejoint Revolut à Londres.\nIl commence lundi.", at: 2 },
           { date: "2026-09-21", kind: "interview", asked: "Who did you build your first company with?", text: "Marc, since Station F", at: 1 }] } });
       if (s.includes("/api/ask")) { const fail = window.__failNext; window.__failNext = false;
@@ -2253,6 +2255,23 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("after the history, every message about them, word for word, newest first", raw.after && raw.head === "Raw notes (2)"
     && raw.texts[0] === "Marc rejoint Revolut à Londres.\nIl commence lundi." && raw.wrap === "pre-wrap" && JSON.stringify(raw.kinds) === '["Chat","Interview"]', JSON.stringify(raw));
   check("an interview answer shows the question it answered", raw.asked === "Who did you build your first company with?", String(raw.asked));
+  /* A person is a folder: tabs, one page at a time. */
+  const pft = await page.evaluate(() => ({ tabs: [...document.querySelectorAll("#pfTabs .pf-tab")].map(b => b.textContent), on: document.querySelector("#pfTabs .on")?.dataset.k,
+    shown: [...document.querySelectorAll(".pf-pane")].filter(p => !p.hidden).map(p => p.dataset.k), late: [...document.querySelectorAll(".pf-late p")].map(p => p.textContent) }));
+  check("a person opens as a folder: Overview, Facts, History, Their people, Raw notes, each counted", JSON.stringify(pft.tabs) === '["Overview","Facts3","History3","Their people3","Raw notes2"]'
+    && pft.on === "overview" && JSON.stringify(pft.shown) === '["overview"]' && pft.late.length === 3, JSON.stringify(pft));
+  await page.click("#pfTab-history"); await page.waitForTimeout(60);
+  const years = await page.evaluate(() => ({ shown: [...document.querySelectorAll(".pf-pane")].filter(p => !p.hidden).map(p => p.dataset.k),
+    chips: [...document.querySelectorAll("#pfHist .pf-chip")].map(b => b.textContent) }));
+  check("History has a page per year, with its count", JSON.stringify(years.shown) === '["history"]' && JSON.stringify(years.chips) === '["Latest","20262","20231","20214"]', JSON.stringify(years));
+  await page.click('#pfHist .pf-chip[data-v="2023"]'); await page.waitForTimeout(60);
+  check("a year held already shows at once", await page.evaluate(() => [...document.querySelectorAll("#pfHist .pf-ev p")].map(p => p.textContent).join("|")) === "You met at Station F." && !(await page.evaluate(() => window.__page)));
+  await page.click('#pfHist .pf-chip[data-v="2021"]'); await page.waitForTimeout(150);
+  const old = await page.evaluate(() => ({ asked: window.__page, evs: [...document.querySelectorAll("#pfHist .pf-ev p")].map(p => p.textContent) }));
+  check("an older year is fetched when its moments are not all here", old.asked?.id === "me/marc" && old.asked.year === "2021" && JSON.stringify(old.evs) === '["He moved to Lisbon for his first startup."]', JSON.stringify(old));
+  await page.click("#pfTab-raw"); await page.waitForTimeout(60);
+  check("Raw notes has a page per month", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll("#pfRaw .pf-chip")].map(b => b.textContent))) === '["Latest","Oct 20261","Sep 20261"]');
+  await page.click("#pfTab-overview"); await page.waitForTimeout(40);
   await page.click(".pf-tick"); await page.waitForTimeout(200);
   await page.evaluate(() => document.querySelector(".pf-ev .pf-x").click()); await page.waitForTimeout(200);
   const parts = await page.evaluate(() => window.__parts);
