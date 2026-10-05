@@ -685,11 +685,11 @@ for (const kind of ["study", "argument"]) {
   await page.click("#send"); await page.waitForTimeout(500);
   const r = await page.evaluate(() => ({
     sent: window.__plans[0]?.ext?.kind,
-    note: document.querySelector(".coverage")?.textContent || "",
+    note: document.getElementById("dropKept")?.textContent || "",
     button: [...document.querySelectorAll(".msg.ai button")].some(b => /File every topic/.test(b.textContent)) }));
   check(`a source read as ${kind} tells the plan so`, r.sent === kind, String(r.sent));
   check(`and the card says how it was read`,
-    kind === "study" ? /Read as study material/.test(r.note) && /5 passages read, filed into 5 concepts/.test(r.note)
+    kind === "study" ? /Read as study material/.test(r.note) && /5 topics, filed into 5 concepts/.test(r.note)
                      : /Read as an argument/.test(r.note) && /filed into 2 concepts/.test(r.note), r.note);
   check("with no button to second-guess it", !r.button);
   check("nothing threw", !bad.length, bad.join(" | "));
@@ -749,10 +749,10 @@ for (const kind of ["study", "argument"]) {
   const planned = await page.evaluate(() => ({
     n: window.__plans.length, sizes: window.__plans.map(p => p.ext.topics.length),
     proposed: window.__plans.map(p => (p.proposed || []).length),
-    note: document.querySelector(".coverage")?.textContent || "" }));
+    note: document.getElementById("dropKept")?.textContent || "" }));
   check("60 topics are planned in 3 batches", planned.n === 3 && planned.sizes.join(",") === "25,25,10", planned.sizes.join(","));
   check("the first part plans alone, the next ones see its titles", planned.proposed.join(",") === "0,25,25", planned.proposed.join(","));
-  check("and every topic is filed", /60 passages read, filed into 60 concepts/.test(planned.note), planned.note);
+  check("and every topic is filed", /60 topics, filed into 60 concepts/.test(planned.note), planned.note);
 
   /* ---- a source is stored under a named author ---- */
   const who = await page.evaluate(() => ({ value: document.getElementById("cardAuthor")?.value,
@@ -856,7 +856,7 @@ for (const kind of ["study", "argument"]) {
   await page.focus("#input"); await page.fill("#srcInput", "Ziggy case.pdf");
   await page.fill("#input", "A hedging case study.");
   await page.click("#send"); await page.waitForTimeout(700);
-  const note = await page.evaluate(() => document.querySelector(".coverage")?.textContent || "");
+  const note = await page.evaluate(() => document.getElementById("dropKept")?.textContent || "");
   check("four look-alike long titles are four concepts", /filed into 4 concepts/.test(note), note);
   check("nothing threw with long titles", !bad.length, bad.join(" | "));
   await page.close();
@@ -955,7 +955,7 @@ for (const kind of ["study", "argument"]) {
   await page.fill("#input", "Two hundred fifty rules.");
   await page.click("#send"); await page.waitForTimeout(1500);
   const r = await page.evaluate(() => ({ plans: window.__plans, peak: window.__peak, merge: window.__merge,
-    note: document.querySelector(".coverage")?.textContent || "" }));
+    note: document.getElementById("dropKept")?.textContent || "" }));
   check("ten parts are planned", r.plans.length === 10, String(r.plans.length));
   check("three at a time, never more", r.peak === 3, String(r.peak));
   check("the first part plans before the rest start", r.plans[0] === 0 && r.plans.slice(1).every(n => n > 0), r.plans.join(","));
@@ -2412,13 +2412,13 @@ for (const space of ["octopus", "squidgy"]) {
   await page.fill("#input", Array.from({ length: 100 }, (_, i) => `Paragraph ${i} ` + "word ".repeat(38)).join("\n\n"));
   await page.click("#send"); await page.waitForTimeout(2500);
   const r = await page.evaluate(() => ({ reads: window.__reads, plans: window.__plans,
-    note: document.querySelector(".coverage")?.textContent || "", card: !!document.querySelector(".card-foot .go"),
+    note: document.getElementById("dropKept")?.textContent || "", card: !!document.querySelector(".card-foot .go"),
     err: document.querySelector(".err")?.textContent || "" }));
   check("a pass too big for one call is read again as two halves", r.reads[0] > 10000 && r.reads.filter(x => x <= 10000).length >= 3 && !r.err,
     JSON.stringify(r.reads) + " " + r.err);
   check("a plan too big for one call is split until it fits, and every topic is filed",
     r.plans.some(x => x > 10) && r.card && /filed into (\d+) concepts/.test(r.note)
-    && /(\d+) passages read, filed into \1 concepts/.test(r.note), JSON.stringify(r.plans) + " " + r.note);
+    && /(\d+) topics, filed into \1 concepts/.test(r.note), JSON.stringify(r.plans) + " " + r.note);
   check("nothing threw splitting", !bad.length, bad.join(" | "));
   await page.close();
 }
@@ -2905,7 +2905,7 @@ for (const space of ["octopus", "squidgy"]) {
   await page.close();
 }
 
-/* ---- a drop checks it kept everything: facts read again, every topic placed ---- */
+/* ---- a drop keeps everything: facts read again, every topic filed ---- */
 {
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test");
@@ -2919,14 +2919,13 @@ for (const space of ["octopus", "squidgy"]) {
         return Response.json({ part: body.gaps
           ? { topics: [{ topic: "Revenue", ideas: ["Revenue reached 3,400 euros in Lyon."] }, { topic: "Fund returns", ideas: ["The fund is run by Charles Gave."] }] }
           : { title: "Fund letter", author: "Jane Roe", kind: "argument", topics: [{ topic: "Fund returns", ideas: ["In 2019 the fund returned 12.5%."] },
-              { topic: "Team", ideas: ["The team met twice."] }, { topic: "Opinion", ideas: ["Markets will rise."] }] } });
+              { topic: "Team", ideas: ["The team met twice."] }], thin: ["Markets will rise next year"] } });
       }
       if (s.includes("/api/drop/plan")) {
         window.__plans.push(body);
-        return Response.json({ plan: body.again ? { brains: ["content"], matched: [], candidates: [], new: [], echo: [], conflicts: [], left: [] }
+        return Response.json({ plan: body.again ? { brains: ["content"], matched: [], candidates: [], new: [], echo: [], conflicts: [] }
           : { brains: ["content"], matched: [], new: ["x"], echo: [], conflicts: [],
-              candidates: [{ title: "Fund returns", brain: "content", why: "12.5% in 2019", from: ["T1"] }, { title: "Revenue", brain: "content", why: "3,400 euros", from: ["T4"] }],
-              left: [{ t: "T3", why: "thin" }] } });
+              candidates: [{ title: "Fund returns", brain: "content", why: "12.5% in 2019", from: ["T1"] }, { title: "Revenue", brain: "content", why: "3,400 euros", from: ["T3"] }] } });
       }
       if (s.includes("/api/drop/merge")) return Response.json({ same: [], into: [], english: [] });
       if (s.includes("/api/drop/settle")) { window.__settles.push(body);
@@ -2938,21 +2937,20 @@ for (const space of ["octopus", "squidgy"]) {
   await page.focus("#input"); await page.fill("#srcInput", "Fund letter.txt");
   await page.fill("#input", "In 2019 the fund returned 12.5% under Charles Gave. Revenue reached 3,400 euros in Lyon. The team met Marie Curie twice.");
   await page.click("#send"); await page.waitForTimeout(700);
-  const r = await page.evaluate(() => ({ reads: window.__reads.length, gap: window.__reads[1], plans: window.__plans.map(p => ({ again: !!p.again, n: p.ext.topics.length, t: p.ext.topics.map(x => x.topic) })),
-    head: document.querySelector("#dropCover .cv-head")?.textContent || "", lost: [...document.querySelectorAll("#dropCover .cv-row .cv-t b")].map(x => x.textContent),
-    facts: [...document.querySelectorAll("#dropCover .cv-facts .chip")].map(x => x.textContent) }));
+  const r = await page.evaluate(() => ({ reads: window.__reads.length, gap: window.__reads[1], plans: window.__plans.map(p => ({ again: !!p.again, t: p.ext.topics.map(x => x.topic) })),
+    kept: document.getElementById("dropKept")?.textContent || "", box: !!document.getElementById("dropCover"),
+    chips: [...document.querySelectorAll(".card .chips .chip")].map(x => x.textContent) }));
   check("numbers and names the read left out send their passages for a second read", r.reads === 2 && r.gap?.gaps === true && /3,400 euros in Lyon/.test(r.gap.chunk || "")
     && /Charles Gave/.test(r.gap.chunk || "") && /Marie Curie/.test(r.gap.chunk || ""), JSON.stringify(r.gap));
-  check("a topic placed nowhere is filed once more, on its own", r.plans.length === 2 && r.plans[1].again && JSON.stringify(r.plans[1].t) === '["Team"]', JSON.stringify(r.plans));
-  check("the card says what was kept: words, facts and topics", /Check what was left out/.test(r.head) && /21 words read/.test(r.head)
-    && /5 of 6 numbers, dates and names kept/.test(r.head) && /2 of 4 topics filed/.test(r.head) && /1 left out on purpose/.test(r.head), r.head);
-  check("it lists what is still missing, and each topic not filed", JSON.stringify(r.facts) === '["Marie Curie"]' && JSON.stringify(r.lost) === '["Team","Opinion"]', JSON.stringify(r));
-  await page.click("#dropCover .cv-sec:not(details) .cv-row .mini"); await page.waitForTimeout(80);
-  const filed = await page.evaluate(() => ({ ok: document.querySelector("#dropCover .cv-ok")?.textContent, chips: [...document.querySelectorAll(".card .chips .chip")].map(x => x.textContent) }));
-  check("File it puts a missing topic on the card as a new concept", /Filed as a new concept in Content/.test(filed.ok || "") && filed.chips.includes("+ Team"), JSON.stringify(filed));
+  check("an opinion with nothing behind it, and what is still missing word for word, are topics too",
+    JSON.stringify(r.plans[0]?.t) === '["Fund returns","Team","Revenue","More from the source","Markets will rise next year"]', JSON.stringify(r.plans));
+  check("topics placed nowhere are filed once more, on their own", r.plans.length === 2 && r.plans[1].again
+    && JSON.stringify(r.plans[1].t) === '["Team","More from the source","Markets will rise next year"]', JSON.stringify(r.plans));
+  check("and the ones still left become concepts of their own: nothing is left out", ["+ Team", "+ More from the source", "+ Markets will rise next year"].every(c => r.chips.includes(c)), JSON.stringify(r.chips));
+  check("the card says it in one line, with no section of its own", !r.box && /^Read as an argument: .*All of it kept: 21 words, 6 numbers, dates and names, 5 topics, filed into 5 concepts\.$/.test(r.kept), r.kept);
   await page.click(".card-foot .go"); await page.waitForTimeout(400);
   const stored = await page.evaluate(() => window.__settles.flatMap(b => b.plan.candidates.map(c => c.title)));
-  check("and Store it files it with the rest", stored.includes("Team") && stored.includes("Fund returns") && stored.includes("Revenue"), JSON.stringify(stored));
+  check("Store it files every one", ["Fund returns", "Revenue", "Team", "More from the source", "Markets will rise next year"].every(t => stored.includes(t)), JSON.stringify(stored));
   check("nothing threw checking the drop", !bad.length, bad.join(" | "));
   await page.close();
 }

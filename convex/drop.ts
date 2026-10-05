@@ -66,19 +66,19 @@ RULES
 - "echo" = what this repeats, naming the earlier source.
 - "conflict" = a claim contradicting a stored position. Rank each: "flip" if it would change the position, "caveat" if it only adds nuance.
 - In a PERSON brain, a claim contradicting that same person's earlier view is drift, not conflict. Mark it kind "drift".
-- Thin means an opinion or prediction asserted with nothing behind it. Only those stay out of concepts. A definition, rule, method, procedure, formula, framework or worked example is knowledge and gets filed, number or not.
+- EVERYTHING IS FILED. A definition, rule, method, procedure, formula, framework or worked example is knowledge and gets filed, number or not. An opinion or prediction asserted with nothing behind it is filed too, worded so a reader sees it was asserted, not shown: "X expects Y, with no figure given".
 - ONE CONCEPT PER DISTINCT IDEA a reader could look up on its own. Never fold several into one umbrella concept named after the document or its subject.
 - The grain follows SOURCE KIND, stated under THE NEW SOURCE:
   study: every rule, formula, method, definition and worked procedure is its own concept, so each can be asked about exactly. Two formulas are two concepts. Nearly every topic gets its own entry.
   argument: passages arguing the same idea from several angles are one concept. File the ideas, not the passages.
   unknown: judge from the topics which of the two the source is.
-- Before replying, walk every "###" topic under THE NEW SOURCE, numbered T1, T2 and on. Each one ends up under "matched" or "candidates", with its number in that entry's "from". A topic outside every brain's scope, or thin, goes under "left" with the reason. Every topic number appears in a "from" or in "left": nothing is dropped without a word.
+- Before replying, walk every "###" topic under THE NEW SOURCE, numbered T1, T2 and on. Each one ends up under "matched" or "candidates", with its number in that entry's "from". A topic outside every brain's scope goes into the brain closest to it. Every topic number appears in a "from": nothing is dropped.
 - "matched" = an EXISTING concept this source adds to. Copy its id exactly as listed below, in the form brain/slug. One entry per concept touched. "whatItAdds" is what this source says about it.
 - "candidates" = a NEW concept this source argues for, one no listed concept covers. Give a short title, the brain slug it belongs in, and in "why" the idea itself.
 - A listed concept holding the same idea in other words, or in another language, is a match, never a candidate.
 - Every title is in English, whatever the source's language, with no language tag such as "(French)".
 - "whatItAdds" and "why" are stored as evidence, word for word, so each one is the CLAIM ITSELF, with its numbers, as a reader would quote it: "Gold and bonds returned the same since 1973, with large missed moves." Never describe the source or the filing: no "the source presents", "adds", "reinforces", "provides", "not covered by existing concepts", "new to the list".
-- EVERY item in "new" MUST also be filed: under "matched" when a listed concept covers it, under "candidates" when none does. An idea belonging to no concept and needing no new one is thin, not new.
+- EVERY item in "new" MUST also be filed: under "matched" when a listed concept covers it, under "candidates" when none does.
 - So "matched" and "candidates" are both empty only when "new" is empty too.
 - "related" links a concept to up to 4 others it builds on, explains, or is used with: a listed concept by its id brain/slug, or a candidate proposed in this reply by brain/its title. Leave it empty when nothing connects. These links are how an answer moves from one concept to the next.
 
@@ -86,7 +86,6 @@ Reply with only JSON:
 {"brains":["id"],
  "matched":[{"conceptId":"","brain":"","whatItAdds":"","related":["brain/slug"],"from":["T1"]}],
  "candidates":[{"title":"","brain":"","why":"","related":["brain/slug"],"from":["T2"]}],
- "left":[{"t":"T3","why":"outside every scope | thin"}],
  "new":[""],
  "echo":[{"claim":"","repeatsSource":""}],
  "conflicts":[{"concept":"","conceptId":"","brain":"","kind":"flip|caveat|drift","says":"","saysDate":"","stored":"","storedDate":"","why":""}]}`;
@@ -492,7 +491,7 @@ Feed each of them. File every idea into EACH chosen brain whose scope it fits: t
   /* Topics the first filing placed nowhere, sent back once. */
   const AGAIN = b.again ? `
 THESE TOPICS WERE LEFT OUT OF THE FIRST FILING OF THIS SOURCE.
-File every one under "matched" or "candidates". Only a topic that is thin, or outside every brain's scope, goes under "left", with the reason.
+File every one under "matched" or "candidates", with its number in "from". A topic outside every brain's scope goes into the brain closest to it.
 ` : "";
 
   const { text, finish } = await ask([

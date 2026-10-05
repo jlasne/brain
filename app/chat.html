@@ -1201,28 +1201,7 @@
   .receipt .ok{ color:var(--good); }
 
   /* How much of a source the plan filed. */
-  .coverage{
-    display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px;
-    font:400 13px/1.5 var(--sans); color:var(--ink-3);
-  }
-  /* What the drop kept: one line when whole, the gaps listed when not. */
-  .cover{ margin-top:12px; padding:12px 14px; border:1px solid var(--line-2); border-radius:12px; background:var(--surface); display:grid; gap:10px; }
-  .cv-head{ display:grid; gap:2px; }
-  .cv-head b{ font:600 13.5px/1.4 var(--sans); color:var(--warn); }
-  .cv-head.whole b{ color:var(--good); }
-  .cv-head span{ font:400 13px/1.5 var(--sans); color:var(--ink-3); font-variant-numeric:tabular-nums; }
-  .cv-sec h5, .cv-sec summary{ font:600 12.5px/1.4 var(--sans); color:var(--ink-2); cursor:pointer; }
-  .cv-sec h5{ cursor:default; margin-bottom:4px; }
-  .cv-row{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px; padding:8px 0; border-top:1px solid var(--line); }
-  .cv-t{ flex:1 1 220px; min-width:0; display:grid; gap:2px; }
-  .cv-t b{ font:500 13.5px/1.4 var(--sans); color:var(--ink); }
-  .cv-t span{ font:400 12.5px/1.45 var(--sans); color:var(--ink-3); overflow-wrap:anywhere; }
-  .cv-pick{ max-width:180px; padding:6px 8px; border:1px solid var(--line-2); border-radius:8px; background:var(--surface); font:400 13px/1 var(--sans); color:var(--ink); }
-  .cv-ok{ font:400 12.5px/1.4 var(--sans); color:var(--good); }
-  .cv-do{ display:flex; align-items:center; gap:8px; flex:none; }
-  .cv-row.done .cv-t b{ color:var(--ink-3); }
-  .cv-facts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
-  .cv-note{ font:400 12.5px/1.45 var(--sans); color:var(--ink-3); margin-top:4px; }
+  .kept{ font:400 14px/1.5 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
 
 /* ============ one page ============ */
   .pager{
@@ -7090,10 +7069,15 @@ async function fillGaps(chunk, part, i, total){
           else part.topics.push(t);
         }
         left = factsLeft(chunk, part);
-      } catch { /* the first read stands, and the card says what it left out */ }
+      } catch { /* the passages go in as they are, below */ }
     }
   }
-  return { ...part, cover: { facts: left.facts, missing: left.missing } };
+  /* What is still missing goes in word for word, so it is filed with the rest. */
+  if (left.missing.length){
+    const rest = gapPassages(chunk, left.missing).split("\n").filter(Boolean);
+    if (rest.length) part = { ...part, topics: [...(part.topics || []), { topic: total > 1 ? `More from part ${i + 1} of the source` : "More from the source", ideas: rest }] };
+  }
+  return { ...part, cover: { facts: left.facts } };
 }
 
 /* ---------- drop ---------- */
@@ -7248,8 +7232,7 @@ async function doDrop(src, content, again){
     /* What the reads kept of the source: its words, and its numbers, dates
        and names found again in the extraction. Shown on the card, never stored. */
     cover: { words: (bodyTxt.match(/\S+/g) || []).length,
-      facts: parts.reduce((n, p) => n + (p.cover?.facts || 0), 0),
-      missing: parts.flatMap(p => p.cover?.missing || []) },
+      facts: parts.reduce((n, p) => n + (p.cover?.facts || 0), 0) },
   };
   /* A YouTube video is filed under its channel, whoever speaks in it. */
   if (chk.channel) ext.author = chk.channel;
@@ -7314,10 +7297,12 @@ const unitKey = (brain, title) => `${brain}/${conceptSlug(title)}`;
 async function planAll(ext, held, progress){
   /* A stored extraction keeps its kind with the note's findings. */
   if (!ext.kind && ext.findings && ext.findings.kind) ext = { ...ext, kind: ext.findings.kind };
-  /* Each topic keeps its place, so the plan's "from" and "left" say where every one went. */
-  const topics = (ext.topics || []).map((t, i) => ({ ...t, _i: i }));
+  /* Each topic keeps its place, so the plan's "from" says where every one
+     went. An opinion with nothing behind it is a topic too: everything is filed. */
+  const topics = [...(ext.topics || []), ...(ext.thin || []).filter(Boolean).map(x => ({ topic: String(x).split(/\s+/).slice(0, 10).join(" "),
+    ideas: [`${x} (asserted, with nothing behind it)`] }))].map((t, i) => ({ ...t, _i: i }));
   ext = { ...ext, topics };
-  const placed = new Set(), left = new Map(), untracked = new Set();
+  const placed = new Set(), untracked = new Set();
   const batches = topicBatches(topics);
   const merged = { brains: [], matched: [], candidates: [], new: [], echo: [], conflicts: [] };
   const seenM = new Set(), seenC = new Set(), seenX = new Set();
@@ -7355,7 +7340,6 @@ async function planAll(ext, held, progress){
     let named = false;
     for (const x of [...(p.matched || []), ...(p.candidates || [])])
       for (const l of Array.isArray(x.from) ? x.from : []){ const i = at(l); if (i !== undefined){ placed.add(i); named = true; } }
-    for (const l of Array.isArray(p.left) ? p.left : []){ const i = at(l?.t ?? l); if (i !== undefined){ left.set(i, String(l?.why || "")); named = true; } }
     if (!named && ((p.matched || []).length || (p.candidates || []).length)) for (const t of ts) untracked.add(t._i);
   };
   const absorb = p => {
@@ -7400,16 +7384,23 @@ async function planAll(ext, held, progress){
     for (const ps of group) for (const p of ps) absorb(p);
   }
 
-  /* Every topic lands somewhere, or is left out with its reason: the ones
-     placed nowhere are planned once more, on their own. */
-  const lost = () => topics.filter(t => !placed.has(t._i) && !left.has(t._i) && !untracked.has(t._i));
+  /* Every topic lands in a concept. The ones placed nowhere are planned once
+     more, on their own; any still left becomes a new concept of its own, in
+     the folder the source goes to. */
+  const lost = () => topics.filter(t => !placed.has(t._i) && !untracked.has(t._i));
   if (lost().length && topics.length){
-    try { for (const p of await planCall(lost(), true).then(p => [p])) absorb(p); }
-    catch (_) { /* the card lists them, each with File it */ }
+    try { absorb(await planCall(lost(), true)); }
+    catch (_) { /* filed as they are, below */ }
   }
-  merged._cover = { topics: topics.length, untracked: untracked.size,
-    left: [...left].filter(([i]) => !placed.has(i)).map(([i, why]) => ({ t: topics[i], why })),
-    lost: lost().map(t => t) };
+  const home = merged.brains[0] || S.into[0] || S.brains.find(b => b.type !== "personal" && !readOnly(b))?.slug;
+  const rest = lost();
+  if (rest.length && home){
+    if (!merged.brains.includes(home)) merged.brains.push(home);
+    absorb({ candidates: rest.map(t => ({ title: String(t.topic || "").slice(0, 90), brain: home,
+      why: [...(t.ideas || []), ...(t.data || [])].join(" ").slice(0, 600), related: [], from: ["T" + (t._i + 1)] })),
+      _topics: topics });
+  }
+  merged._cover = { topics: topics.length, untracked: untracked.size };
 
   /* Parts planned side by side cannot see each other's titles, and a part
      can propose a new concept for an idea a folder holds in other words or in
@@ -7631,7 +7622,7 @@ async function planAndCard(body, sid, link, ext, len, held){
      you are the one who holds these positions. */
   const decide = [...(plan.conflicts||[]).filter(c=>c.kind==="flip"),
                   ...(plan.conflicts||[]).filter(c=>c.kind!=="flip")];
-  const pc = { sid, link, ext, plan, choices:{}, byKey:{}, len };
+  const pc = { sid, link, ext, plan, choices:{}, byKey:{}, len, cover };
   S.pendingCard = pc; renderComposer();
   dropState("card", ext.title);
   tabTitle(document.hidden ? "Card ready" : "");
@@ -7642,18 +7633,6 @@ async function planAndCard(body, sid, link, ext, len, held){
   /* How the source was read, which decided the grain. The AI picks it from
      the source itself: every rule its own concept for study material, ideas
      rather than passages for an argument. */
-  const kind = ext.kind || (ext.findings && ext.findings.kind) || "";
-  const topics = (ext.topics||[]).length;
-  const filed = (plan.matched||[]).length + (plan.candidates||[]).length;
-  if (topics >= 3){
-    const how = kind === "study" ? "Read as study material: one concept per rule, formula and method."
-      : kind === "argument" ? "Read as an argument: passages making the same point share one concept."
-      : "";
-    body.append(el("div","coverage",
-      `${how}${how ? " " : ""}${topics} passage${topics === 1 ? "" : "s"} read, filed into ${filed} concept${filed === 1 ? "" : "s"}.`));
-  }
-  const cv = coverageBlock(pc, ext.cover, cover);
-  if (cv) body.append(cv);
   dbottom();
 }
 
@@ -7680,74 +7659,21 @@ function authorsIn(slugs){
 const ckey = (c, i) => c.conceptId || (c.brain && c.concept ? c.brain+"/"+c.concept : c.concept) || ("c"+i);
 
 /**
- * What the drop kept, before you store it: the words read, the numbers,
- * dates and names found again in what was read, and where every topic went.
- * A topic placed nowhere, or left out on purpose, can be filed by hand: it
- * joins the card as a new concept in the folder picked.
+ * What the drop kept, in one line of the card: how it was read, its words,
+ * its numbers, dates and names, and its topics, every one filed.
  */
-function coverageBlock(pc, read, cover){
-  if (!read && !cover) return null;
-  const box = el("div","cover"); box.id = "dropCover";
-  const parts = [];
-  if (read?.words) parts.push(`${read.words.toLocaleString()} words read`);
-  if (read?.facts) parts.push(`${(read.facts - read.missing.length).toLocaleString()} of ${read.facts.toLocaleString()} numbers, dates and names kept`);
-  if (cover?.topics){
-    const tracked = cover.topics - cover.untracked, out = cover.left.length + cover.lost.length;
-    parts.push(tracked ? `${cover.topics - out} of ${cover.topics} topics filed` : `${cover.topics} topics read`);
-    if (cover.left.length) parts.push(`${cover.left.length} left out on purpose`);
-  }
-  const whole = (!read?.missing?.length) && !cover?.lost?.length;
-  const head = el("div","cv-head" + (whole ? " whole" : ""));
-  head.append(el("b",null, whole ? "Everything taken into account" : "Check what was left out"), el("span",null, parts.join(" · ")));
-  box.append(head);
-  /* A folder to file by hand into: the ones the plan feeds first, then any this drop may feed. */
-  const folders = [...new Set([...(pc.plan.brains || []), ...S.into, ...S.brains.filter(b => b.type !== "personal" && !readOnly(b)).map(b => b.slug)])]
-    .map(x => S.brains.find(b => b.slug === x)).filter(b => b && b.type !== "personal" && !readOnly(b));
-  const fileRow = (t, why) => {
-    const r = el("div","cv-row");
-    const txt = el("div","cv-t");
-    txt.append(el("b",null,t.topic || "Untitled"), el("span",null,[why, (t.ideas || [])[0]].filter(Boolean).join(" · ").slice(0, 220)));
-    r.append(txt);
-    if (folders.length){
-      const pick = el("select","cv-pick"); pick.setAttribute("aria-label", `Folder for ${t.topic}`);
-      for (const b of folders) pick.append(Object.assign(el("option",null,b.name), { value: b.slug }));
-      const go = el("button","mini","File it"); go.type = "button";
-      go.onclick = () => {
-        const brain = pick.value;
-        pc.plan.candidates = [...(pc.plan.candidates || []), { title: String(t.topic || "").slice(0, 90), brain,
-          why: [...(t.ideas || []), ...(t.data || [])].join(" ").slice(0, 600), related: [] }];
-        if (!(pc.plan.brains || []).includes(brain)) pc.plan.brains = [...(pc.plan.brains || []), brain];
-        box.closest(".body")?.querySelector(".card .chips")?.append(el("span","chip cand","+ " + t.topic));
-        r.classList.add("done");
-        act.replaceWith(el("span","cv-ok", `Filed as a new concept in ${S.brains.find(b => b.slug === brain)?.name || brain}. Store it to keep it.`));
-      };
-      const act = el("span","cv-do"); act.append(pick, go);
-      r.append(act);
-    }
-    return r;
-  };
-  if (cover?.lost?.length){
-    const sec = el("div","cv-sec");
-    sec.append(el("h5",null,`Not filed yet: ${cover.lost.length}`));
-    for (const t of cover.lost) sec.append(fileRow(t, ""));
-    box.append(sec);
-  }
-  if (read?.missing?.length){
-    const d = el("details","cv-sec");
-    const sm = el("summary"); sm.append(`Not found in what was read: ${read.missing.length}`); d.append(sm);
-    d.append(el("p","cv-note","Numbers, dates and names the source holds that the read never mentions, after a second look at their passages."));
-    const chips = el("div","cv-facts");
-    for (const f of read.missing.slice(0, 40)) chips.append(el("span","chip none", f));
-    if (read.missing.length > 40) chips.append(el("span","cv-note", `and ${read.missing.length - 40} more`));
-    d.append(chips); box.append(d);
-  }
-  if (cover?.left?.length){
-    const d = el("details","cv-sec");
-    const sm = el("summary"); sm.append(`Left out on purpose: ${cover.left.length}`); d.append(sm);
-    for (const { t, why } of cover.left) d.append(fileRow(t, why || "left out"));
-    box.append(d);
-  }
-  return box;
+function keptLine(pc){
+  const { ext, plan } = pc, read = ext.cover, cover = pc.cover;
+  const kind = ext.kind || (ext.findings && ext.findings.kind) || "";
+  const how = kind === "study" ? "Read as study material: one concept per rule, formula and method. "
+    : kind === "argument" ? "Read as an argument: passages making the same point share one concept. " : "";
+  const n = (plan.matched || []).length + (plan.candidates || []).length;
+  const topics = cover?.topics ?? (ext.topics || []).length;
+  const bits = [read?.words ? `${read.words.toLocaleString()} word${read.words === 1 ? "" : "s"}` : "",
+    read?.facts ? `${read.facts.toLocaleString()} number${read.facts === 1 ? "" : "s"}, date${read.facts === 1 ? "" : "s"} and name${read.facts === 1 ? "" : "s"}` : "",
+    `${topics} topic${topics === 1 ? "" : "s"}`].filter(Boolean);
+  const all = cover && !cover.untracked;
+  return `${how}${all ? "All of it kept" : "Read"}: ${bits.join(", ")}, filed into ${n} concept${n === 1 ? "" : "s"}.`;
 }
 
 function buildCard(pc, decide){
@@ -7813,6 +7739,9 @@ function buildCard(pc, decide){
   if ((plan.candidates||[]).length)
     cbox.append(el("div","chip-note", "Orange ones are new here. Each becomes a position when you store it."));
   row("Concepts", cbox);
+  /* What was kept of the source: every topic filed, in one line. */
+  const kept = el("span","kept", keptLine(pc)); kept.id = "dropKept";
+  row("Kept", kept);
 
   const nu = el("ul");
   (plan.new||[]).slice(0,3).forEach(x => nu.append(el("li",null,"· "+x)));
