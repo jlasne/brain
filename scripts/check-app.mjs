@@ -1731,10 +1731,19 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       return Response.json({ chats: [] }); };
   }, STATE);
   await page.fill("#input", "Quick one:");
+  await page.click("#micBtn"); await page.waitForTimeout(200);
+  const ask = await page.evaluate(() => ({ heard: window.__voice.length, open: !!document.getElementById("langVoice"),
+    langs: [...document.querySelectorAll("#langVoice button")].map(b => b.textContent), lit: document.querySelectorAll("#langVoice .on").length,
+    asked: document.querySelector(".lang-row.ask") !== null, msg: document.getElementById("langMsg")?.textContent }));
+  check("with no language picked, the mic opens Settings on Voice input and listens to nothing",
+    ask.heard === 0 && ask.open && ask.asked && ask.lit === 0 && /Pick the language the mic listens in/.test(ask.msg || ""), JSON.stringify(ask));
+  check("Voice input has no Auto: a language is picked", JSON.stringify(ask.langs) === '["English","French","Spanish","German","Italian","Portuguese"]', JSON.stringify(ask.langs));
+  await page.click('#langVoice button[data-v="en-US"]'); await page.waitForTimeout(150);
+  await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelector(".veil")?.remove());
   await page.click("#micBtn"); await page.waitForTimeout(150);
   const on = await page.evaluate(() => ({ value: document.getElementById("input").value, on: document.getElementById("micBtn").classList.contains("on"),
     pressed: document.getElementById("micBtn").getAttribute("aria-pressed"), hint: document.getElementById("tHint").textContent, lang: window.__voice[0]?.lang }));
-  check("the mic listens in the browser's language, says which, and writes after what was typed", on.value === "Quick one: what do my brains say on sleep"
+  check("once picked, the mic listens in it, says which, and writes after what was typed", on.value === "Quick one: what do my brains say on sleep"
     && on.on && on.pressed === "true" && on.hint === "Listening in English. Tap the mic to stop." && on.lang === "en-US", JSON.stringify(on));
   await page.click("#micBtn"); await page.waitForTimeout(80);
   const off = await page.evaluate(() => ({ on: document.getElementById("micBtn").classList.contains("on"), send: document.getElementById("send").disabled,
@@ -1948,7 +1957,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       if (s.includes("/api/state")) return Response.json(state);
       if (s.includes("/api/ask")) return Response.json({ answer: "Noted. Porto replaces Lisbon.", sources: 0, level: "normal", personal: true,
         filed: { new: 1, updated: 1, titles: ["Moving abroad", "Budget"] }, called: ["Health"], chat: "c1" });
-      if (s.includes("/api/personal/remember")) return Response.json({ filed: { new: 2, updated: 0, titles: ["A", "B"] } });
+      if (s.includes("/api/personal/remember")) { await new Promise(ok => setTimeout(ok, window.__memSlow || 0));
+        return Response.json({ filed: { new: 2, updated: 0, titles: ["A", "B"] } }); }
       if (s.includes("/api/brain")) return Response.json({ slug: "me-2" });
       return Response.json({ chats: [] });
     };
@@ -1975,11 +1985,33 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click(".composer .box"); await page.click("#memBtn"); await page.waitForTimeout(100);
   const para = "I like long walks and I plan my week on Sundays. ".repeat(40);
   await page.fill("#memText", Array.from({ length: 7 }, () => para).join("\n\n"));
-  await page.click("#memGo"); await page.waitForTimeout(500);
+  await page.evaluate(() => { window.__memSlow = 200; });
+  await page.click("#memGo"); await page.waitForTimeout(100);
+  const run = await page.evaluate(() => ({ say: document.getElementById("memSay")?.textContent, box: document.getElementById("memIn1").hidden,
+    close: document.getElementById("memClose")?.textContent, ring: document.getElementById("inboxBtn").classList.contains("run") }));
+  check("Add memory shows where it stands, and can close while it files", /^Filing piece 1 of 3\./.test(run.say || "") && run.box
+    && run.close === "Close, it keeps going" && run.ring, JSON.stringify(run));
+  await page.click("#memClose"); await page.waitForTimeout(80);
+  await page.click("#inboxBtn"); await page.waitForTimeout(60);
+  const away = await page.evaluate(() => ({ sheet: !!document.getElementById("memText"),
+    item: [...document.querySelectorAll("#inbox .ib-g")].find(g => g.querySelector("h4").textContent === "Memory")?.textContent || "" }));
+  check("closed, it keeps filing, and the inbox shows the piece it is on", !away.sheet && /Add memory to Me/.test(away.item) && /Filing piece \d of 3/.test(away.item), JSON.stringify(away));
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(800);
   const m = await page.evaluate(() => ({ calls: window.__calls.filter(x => x.s.includes("/api/personal/remember")).map(x => ({ b: x.body.brain, n: x.body.text.length })),
-    said: [...document.querySelectorAll(".msg.ai")].pop()?.textContent, open: !!document.getElementById("memText") }));
-  check("Add memory files a long paste in pieces, each under 6,000 characters", m.calls.length >= 3 && m.calls.every(x => x.b === "me" && x.n <= 6000)
-    && /Remembered\. 6 new notes/.test(m.said || "") && !m.open, JSON.stringify(m));
+    said: [...document.querySelectorAll(".msg.ai")].pop()?.textContent, badge: document.getElementById("inboxN").hidden ? "" : document.getElementById("inboxN").textContent,
+    ring: document.getElementById("inboxBtn").classList.contains("run") }));
+  check("Add memory files a long paste in pieces, each under 6,000 characters", m.calls.length === 3 && m.calls.every(x => x.b === "me" && x.n <= 6000)
+    && /Remembered\. 6 new notes/.test(m.said || "") && !m.ring, JSON.stringify(m));
+  check("done while closed, it waits in the inbox", m.badge === "1", m.badge);
+  await page.click("#inboxBtn"); await page.waitForTimeout(60);
+  await page.click("#inbox .ib-g:has(h4:text('Memory')) .ib-it"); await page.waitForTimeout(100);
+  const back = await page.evaluate(() => ({ say: document.getElementById("memSay")?.textContent, badge: document.getElementById("inboxN").hidden,
+    btns: [...document.querySelectorAll("#memFoot button")].map(b => b.textContent) }));
+  check("the inbox opens it again, with what it filed", /Remembered\. 6 new notes/.test(back.say || "") && back.badge && JSON.stringify(back.btns) === '["Add more","Done"]', JSON.stringify(back));
+  await page.click("#memMore"); await page.waitForTimeout(60);
+  check("Add more brings the box back", await page.evaluate(() => !document.getElementById("memIn1").hidden && document.getElementById("memText").value === ""));
+  await page.evaluate(() => { window.__memSlow = 0; document.querySelector(".veil")?.remove(); });
 
   /* It is never fed by a drop. */
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent)).click());

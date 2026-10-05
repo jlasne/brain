@@ -564,6 +564,12 @@
   .lang-row > span{ font:500 14px/1.4 var(--sans); color:var(--ink-2); }
   .lang-row .seg button{ padding:7px 12px; font:500 13px/1 var(--sans); }
   .lang-row[hidden]{ display:none; }
+  .mem-run{ display:grid; gap:10px; }
+  .mem-run[hidden]{ display:none; }
+  .mem-track{ height:6px; border-radius:3px; background:var(--surface-3); overflow:hidden; }
+  .mem-track i{ display:block; height:100%; border-radius:3px; background:var(--accent-solid); transition:width .4s var(--ease); }
+  .mem-say{ font:400 14.5px/1.55 var(--sans); color:var(--ink-2); }
+  .lang-row.ask{ margin:0 -10px; padding:8px 10px; border-radius:10px; background:var(--accent-soft); box-shadow:inset 0 0 0 1px var(--accent-line); }
   .seg.seg-wrap{ flex-wrap:wrap; }
   /* A person's file: the summary, then what is open, facts, their people and the history. */
   .pf-meta{ margin-top:6px; font:500 12px/1.4 var(--mono); color:var(--ink-4); }
@@ -2025,7 +2031,7 @@ const S = {
   /* Work that runs whatever is on screen: the questions on their way, by the
      chat they were asked in, and the drop under way. A new chat is a draft
      until its first answer names it. */
-  jobs: [], draft: "d0", dropJob: null, dropBusy: false,
+  jobs: [], draft: "d0", dropJob: null, dropBusy: false, memJob: null,
   /* A chat about one concept: { id, title, brain, personal }, or null. */
   concept: null,
   /* The folders ticked in the side panel to chat in. None asks them all. */
@@ -3446,9 +3452,11 @@ function paintInbox(){
   const running = S.jobs.filter(j => j.status === "running").length;
   const d = S.dropJob;
   const dropWaits = d && (d.state === "card" || (!d.seen && ["stored", "waiting", "failed", "ended"].includes(d.state))) ? 1 : 0;
-  const n = unread + dropWaits + openClashes();
+  const m = S.memJob;
+  const memWaits = m && m.state !== "running" && !m.seen ? 1 : 0;
+  const n = unread + dropWaits + memWaits + openClashes();
   $("inboxN").hidden = !n; $("inboxN").textContent = n > 99 ? "99+" : String(n);
-  btn.classList.toggle("run", running > 0 || (!!d && ["running", "storing"].includes(d.state)));
+  btn.classList.toggle("run", running > 0 || (!!d && ["running", "storing"].includes(d.state)) || m?.state === "running");
   btn.setAttribute("aria-label", n ? `Inbox, ${n} waiting` : "Inbox");
   if (!$("inbox").hidden) paintInboxPanel();
 }
@@ -3475,6 +3483,13 @@ function paintInboxPanel(){
       waiting: "Waiting on your choice", failed: "Stopped on an error", ended: "Ended, read why" }[d.state] || "";
     if (["running", "storing", "card"].includes(d.state) || !d.seen)
       group("Drop", [item(["running", "storing"].includes(d.state) ? "run" : d.state === "failed" ? "bad" : "new", d.title || "Your drop", say, () => openDrop())]);
+  }
+  const m = S.memJob;
+  if (m && (m.state === "running" || !m.seen)){
+    const n = m.pieces.length;
+    group("Memory", [item(m.state === "running" ? "run" : m.state === "failed" ? "bad" : "new", `Add memory to ${m.name}`,
+      m.state === "running" ? `Filing piece ${Math.min(m.done + 1, n)} of ${n}` : m.state === "failed" ? `Stopped at piece ${m.done + 1} of ${n}` : "Done: see what it filed",
+      () => openMemorySheet(m.brain))]);
   }
   const clash = openClashes();
   if (clash) group("Conflicts", [item("clash", `${clash} open clash${clash === 1 ? "" : "es"} to settle`, "One card at a time: keep a side, or both", () => settleFrom(null, null))]);
@@ -3578,6 +3593,8 @@ function renderMic(){
 }
 function startVoice(){
   if (!Speech){ S.voiceHint = systemDictation(); renderComposer(); $("input").focus(); return; }
+  /* No language picked yet: Settings opens on it. */
+  if (!voiceLang()){ S.voiceHint = "Pick the language the mic listens in, then tap the mic."; renderComposer(); openSetupSheet({ voice: true }); return; }
   const r = new Speech();
   r.lang = voiceLang();
   r.interimResults = true;
@@ -3607,17 +3624,17 @@ function startVoice(){
   rec = r; S.listening = true; S.voiceHint = ""; renderMic(); renderComposer();
 }
 function stopVoice(){ try { rec?.stop(); } catch { /* it had stopped already */ } }
-/* The language the mic listens in, set for the workspace in Settings: the
-   speech service hears one language at a time and cannot tell French from
-   English by itself. With none set, the browser's own language when it is
-   one of these, else English. */
+/* The language the mic listens in, picked in Settings: the speech service
+   hears one language at a time and cannot tell French from English by
+   itself, so nothing is guessed. With none picked, the mic asks for one. The
+   demo keeps the pick in this browser. */
 function voiceLang(){
-  const set = S.models?.voice;
-  if (VOICE_LANGS.some(x => x[0] === set)) return set;
-  const mine = String(navigator.language || "").slice(0, 2).toLowerCase();
-  return (VOICE_LANGS.find(x => x[0].startsWith(mine)) || VOICE_LANGS[0])[0];
+  const set = S.demo ? localVoice() : S.models?.voice;
+  return VOICE_LANGS.some(x => x[0] === set) ? set : "";
 }
-function voiceName(){ return (VOICE_LANGS.find(x => x[0] === voiceLang()) || VOICE_LANGS[0])[2]; }
+function voiceName(){ return (VOICE_LANGS.find(x => x[0] === voiceLang()) || ["", "", ""])[2]; }
+function localVoice(){ try { return localStorage.getItem("octopus.voice") || ""; } catch { return ""; } }
+function setLocalVoice(v){ try { localStorage.setItem("octopus.voice", v); } catch { /* kept for this visit only */ } S.models = { ...(S.models || {}), voice: v }; }
 $("micBtn").onclick = () => S.listening ? stopVoice() : startVoice();
 $("scopeBtn").onclick = e => { e.stopPropagation(); openPick(); };
 document.addEventListener("click", e => { if (pickMenu && !pickMenu.contains(e.target)) closePick(); });
@@ -4253,7 +4270,8 @@ function openConflictDeck(list, others){
  * and what the transcript service has cost. The deployment's key pays for
  * every model call, so there is no key to set here.
  */
-async function openSetupSheet(){
+async function openSetupSheet(opts = {}){
+  if (opts instanceof Event) opts = {};
   closeSide();
   const veil = el("div","veil");
   veil.innerHTML = `
@@ -4274,15 +4292,15 @@ async function openSetupSheet(){
           <span class="lbl">Tidy all folders</span><span class="val">run</span></button>
       </div>
 
-      <div class="f" id="langBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${S.demo ? "hidden" : ""}>
+      <div class="f" id="langBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
         <label>Languages</label>
-        <div class="hint" style="margin:0 0 10px">Write and talk in any language. Every note and file is kept in English, your own words beside each line.</div>
-        <div class="lang-row"><span>Answers in the chat</span>
+        <div class="hint" style="margin:0 0 10px">${S.demo ? "The language the mic listens in, kept in this browser." : "Write and talk in any language. Every note and file is kept in English, your own words beside each line."}</div>
+        <div class="lang-row" ${S.demo ? "hidden" : ""}><span>Answers in the chat</span>
           <div class="seg" id="langReply" role="radiogroup" aria-label="The language answers come back in">
             <button type="button" role="radio" data-v="same">As you write</button><button type="button" role="radio" data-v="en">In English</button></div></div>
         <div class="lang-row"><span>Voice input</span>
           <div class="seg seg-wrap" id="langVoice" role="radiogroup" aria-label="The language the mic listens in">
-            <button type="button" role="radio" data-v="">Auto</button><button type="button" role="radio" data-v="en-US">English</button>
+            <button type="button" role="radio" data-v="en-US">English</button>
             <button type="button" role="radio" data-v="fr-FR">French</button><button type="button" role="radio" data-v="es-ES">Spanish</button>
             <button type="button" role="radio" data-v="de-DE">German</button><button type="button" role="radio" data-v="it-IT">Italian</button>
             <button type="button" role="radio" data-v="pt-PT">Portuguese</button></div></div>
@@ -4485,15 +4503,18 @@ async function openSetupSheet(){
   veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet("chat"); };
   veil.querySelector("#setMap").onclick = () => { shut(); openMap(); };
   veil.querySelector("#setTidy").hidden = S.demo;
-  /* Languages: saved for the workspace on a tap. */
+  /* Languages: saved for the workspace on a tap. The demo keeps its voice
+     language in this browser, since its settings are shared by every visitor. */
   const langSeg = (id, key, def, said) => {
     const seg = veil.querySelector("#" + id), msg = veil.querySelector("#langMsg");
-    const paint = () => { for (const x of seg.children){ const on = x.dataset.v === (S.models?.[key] || def); x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); } };
-    seg.closest(".lang-row").hidden = key === "voice" && !(window.SpeechRecognition || window.webkitSpeechRecognition);
+    const now = () => key === "voice" ? voiceLang() : (S.models?.[key] || def);
+    const paint = () => { for (const x of seg.children){ const on = x.dataset.v === now(); x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); } };
+    seg.closest(".lang-row").hidden = key === "voice" ? !Speech : S.demo;
     paint();
     seg.onclick = async e => {
       const x = e.target.closest("button[data-v]");
-      if (!x || x.dataset.v === (S.models?.[key] || def)) return;
+      if (!x || x.dataset.v === now()) return;
+      if (key === "voice" && S.demo){ setLocalVoice(x.dataset.v); paint(); msg.textContent = said(x.dataset.v); return; }
       msg.textContent = "Saving";
       try {
         const r = await api("/api/models", { [key]: x.dataset.v || null });
@@ -4503,8 +4524,14 @@ async function openSetupSheet(){
     };
   };
   langSeg("langReply", "reply", "same", v => v === "en" ? "Saved. Answers come back in English." : "Saved. Answers come back in the language you write in.");
-  langSeg("langVoice", "voice", "", v => v ? `Saved. The mic listens in ${(VOICE_LANGS.find(x => x[0] === v) || [])[2] || v}, on every device of this workspace.`
-    : "Saved. The mic listens in your browser's language.");
+  langSeg("langVoice", "voice", "", v => `Saved. The mic listens in ${(VOICE_LANGS.find(x => x[0] === v) || [])[2] || v}${S.demo ? ", in this browser" : ", on every device of this workspace"}. Tap the mic to talk.`);
+  /* The mic, tapped with no language picked, sends you here to pick one. */
+  if (opts.voice){
+    const row = veil.querySelector("#langVoice").closest(".lang-row");
+    row.classList.add("ask");
+    veil.querySelector("#langMsg").textContent = "Pick the language the mic listens in. It hears one language at a time.";
+    setTimeout(() => row.scrollIntoView({ block: "center" }), 60);
+  }
   veil.querySelector("#setTidy").onclick = () => { shut(); openTidyAll(); };
   const exp = veil.querySelector("#setExport");
   exp.onclick = async () => {
@@ -4878,22 +4905,15 @@ function openSheet(name, scope, type){
       const r = await api("/api/brain", { name:nm, scope:sc, type:t });
       /* What it should know about you, filed the way Add memory files it. */
       const mem = mine ? memI.value.trim().slice(0, 200000) : "";
-      let made = 0, updated = 0;
-      if (mem){
-        const pieces = memPieces(mem);
-        for (const [i, piece] of pieces.entries()){
-          btn.textContent = pieces.length > 1 ? `Filing ${i + 1} of ${pieces.length}` : "Filing";
-          const f = await apiRetry("/api/personal/remember", { brain: r.slug, text: piece });
-          made += f.filed?.new || 0; updated += f.filed?.updated || 0;
-        }
-      }
       busy = false; shut(); await refresh();
+      /* What was pasted is filed in the background; the inbox shows where it stands. */
+      const memo = mem && !(S.memJob && S.memJob.state === "running") ? startMemory(r.slug, nm, mem) : null;
       if (mine){
         if (S.chatId) newChat();
         S.picks = []; S.scope = r.slug; S.into = []; S.mode = "ask"; S.folder = null;
         render();
         push("ai", b => { b.innerHTML = rich(`**${esc(nm)}** is ready. Talk to it: it files what you say as dated notes, and answers from them and from your other folders. ` +
-          (made || updated ? `It starts with what you pasted: ${filedLine({ new: made, updated }).replace(/^Filed: /, "")}.`
+          (memo ? `It is filing what you pasted, ${memo.pieces.length} piece${memo.pieces.length === 1 ? "" : "s"}, in the background: the inbox shows where it stands.`
             : `**Add memory** brings in what another assistant already knows about you.`)); });
         $("input").focus();
         return;
@@ -4931,8 +4951,49 @@ function memPieces(t, max = 6000){
   if (cur) out.push(cur);
   return out;
 }
-function openMemorySheet(){
-  const b = S.brains.find(x => x.slug === S.scope && x.type === "personal");
+/* ---- Add memory runs in the background ----
+   One memory at a time is filed, piece by piece, whatever is on screen: the
+   sheet can close, and the inbox shows where it stands. A memory stopped by
+   an error goes on from the piece it stopped at. */
+
+function startMemory(brain, name, text){
+  S.memJob = { brain, name, pieces: memPieces(text), done: 0, made: 0, updated: 0, people: [], state: "running", seen: false, at: Date.now() };
+  runMemory(S.memJob);
+  return S.memJob;
+}
+async function runMemory(j){
+  j.state = "running"; j.error = ""; j.seen = false;
+  paintInbox(); memOn()?.paint();
+  try {
+    while (j.done < j.pieces.length){
+      const r = await apiRetry("/api/personal/remember", { brain: j.brain, text: j.pieces[j.done] });
+      j.made += r.filed?.new || 0; j.updated += r.filed?.updated || 0;
+      j.people = [...new Set([...j.people, ...(r.filed?.people || [])])];
+      j.done++;
+      paintInbox(); memOn()?.paint();
+    }
+    j.state = "done";
+    refresh().catch(() => {});
+    /* Said in its own chat when that chat is on screen. */
+    if (S.mode === "ask" && !S.folder && S.scope === j.brain && !memOn())
+      push("ai", x => { x.innerHTML = rich(memSaid(j)); });
+  } catch (e) { j.state = "failed"; j.error = e.message; }
+  j.ended = Date.now();
+  j.seen = memOn()?.brain === j.brain;
+  paintInbox(); memOn()?.paint();
+}
+/** What a memory filed, in one line. */
+function memSaid(j){
+  return j.made || j.updated || j.people.length
+    ? `**Remembered.** ${filedLine({ new: j.made, updated: j.updated, people: j.people }).replace(/^Filed: /, "")}, in ${esc(j.name)}. Ask it what it knows about you.`
+    : "Nothing in that was worth filing as a note.";
+}
+
+var memView = null;
+/** The memory sheet, when it is on screen. */
+function memOn(){ return memView && memView.veil.isConnected ? memView : null; }
+function openMemorySheet(slug){
+  const b = S.brains.find(x => x.slug === (typeof slug === "string" ? slug : S.scope) && x.type === "personal");
   if (!b) return;
   closeSide();
   const veil = el("div","veil");
@@ -4941,19 +5002,22 @@ function openMemorySheet(){
       <header><h3>Add memory to ${esc(b.name)}</h3>
       <p>Paste what another assistant knows about you, or drop a text, markdown or JSON file. In ChatGPT it sits under
         Settings, Personalization, Memory. It is filed as dated notes, like what you say in the chat.</p></header>
-      <div class="f"><textarea class="mem" id="memText" placeholder="Paste it here"></textarea>
+      <div class="f" id="memIn1"><textarea class="mem" id="memText" placeholder="Paste it here"></textarea>
         <div class="mem-bar"><button class="mini" id="memFile" type="button">+ file</button><span class="hint" id="memCount"></span></div>
         <input type="file" id="memIn" hidden accept=".txt,.md,.markdown,.json,text/plain,text/markdown,application/json"></div>
+      <div class="f mem-run" id="memRun" hidden>
+        <div class="mem-track"><i id="memFill"></i></div>
+        <div class="mem-say" id="memSay" role="status"></div>
+      </div>
       <div class="f"><div id="memMsg" class="hint" role="status"></div></div>
-      <footer><button class="ghost" id="memNo">Cancel</button><button class="go" id="memGo">Remember it</button></footer>
+      <footer id="memFoot"></footer>
     </div>`;
   document.body.append(veil);
-  const t = veil.querySelector("#memText"), msg = veil.querySelector("#memMsg"), go = veil.querySelector("#memGo");
-  const count = () => { const n = t.value.length; veil.querySelector("#memCount").textContent = n ? `${n.toLocaleString()} characters, ${memPieces(t.value).length} piece${memPieces(t.value).length === 1 ? "" : "s"}` : ""; };
+  const t = veil.querySelector("#memText"), msg = veil.querySelector("#memMsg"), foot = veil.querySelector("#memFoot");
+  const count = () => { const n = t.value.length, k = memPieces(t.value).length; veil.querySelector("#memCount").textContent = n ? `${n.toLocaleString()} characters, ${k} piece${k === 1 ? "" : "s"}` : ""; };
   t.oninput = count;
-  let busy = false;
-  const shut = () => { if (!busy) veil.remove(); };
-  veil.querySelector("#memNo").onclick = shut;
+  /* Closing never stops it: what is filing goes on, and the inbox keeps count. */
+  const shut = () => { veil.remove(); if (memView?.veil === veil) memView = null; };
   veil.onclick = e => { if (e.target === veil) shut(); };
   veil.querySelector("#memFile").onclick = () => veil.querySelector("#memIn").click();
   veil.querySelector("#memIn").onchange = async ev => {
@@ -4962,30 +5026,49 @@ function openMemorySheet(){
     if (f.size > 400000){ msg.textContent = "That file is over 400 KB. Paste the part that matters."; return; }
     t.value = (t.value ? t.value + "\n\n" : "") + await f.text(); count();
   };
-  setTimeout(() => t.focus(), 30);
-  go.onclick = async () => {
+  const button = (cls, label, fn, id) => { const x = el("button", cls, label); x.type = "button"; if (id) x.id = id; x.onclick = fn; return x; };
+  /* The sheet shows the memory of this folder when there is one to show:
+     filing, stopped, or done and not looked at yet. Otherwise, the box. */
+  const paint = () => {
+    const j = S.memJob && S.memJob.brain === b.slug ? S.memJob : null;
+    const show = j && (j.state !== "done" || !j.seen || memView?.keep);
+    veil.querySelector("#memIn1").hidden = !!show;
+    veil.querySelector("#memRun").hidden = !show;
+    foot.innerHTML = "";
+    if (!show){
+      msg.textContent = S.memJob && S.memJob.state === "running" ? `${S.memJob.name} is still filing a memory. This one starts when it is done.` : "";
+      foot.append(button("ghost", "Cancel", shut, "memNo"), button("go", "Remember it", go, "memGo"));
+      veil.querySelector("#memGo").disabled = !!(S.memJob && S.memJob.state === "running");
+      return;
+    }
+    if (memView) memView.keep = true;
+    j.seen = j.state !== "running" ? true : j.seen;
+    const n = j.pieces.length;
+    veil.querySelector("#memFill").style.width = `${Math.max(3, Math.round(100 * j.done / n))}%`;
+    veil.querySelector("#memSay").innerHTML = j.state === "running"
+      ? rich(`**Filing piece ${Math.min(j.done + 1, n)} of ${n}.** ${j.made || j.updated ? filedLine({ new: j.made, updated: j.updated }).replace(/^Filed: /, "") + " so far. " : ""}Close this: it goes on, and the inbox shows where it stands.`)
+      : j.state === "done" ? rich(memSaid(j))
+      : rich(`**Stopped at piece ${j.done + 1} of ${n}.** ${j.done ? `${j.done} filed. ` : ""}${esc(j.error || "")}`);
+    msg.textContent = "";
+    if (j.state === "running") foot.append(button("go", "Close, it keeps going", shut, "memClose"));
+    else if (j.state === "failed"){
+      foot.append(feedbackButton(j.error || "memory stopped", { where: "add memory", scope: b.slug }),
+        button("ghost", "Close", shut, "memClose"), button("go", "Go on", () => runMemory(j), "memOn"));
+    }
+    else foot.append(button("ghost", "Add more", () => { S.memJob = null; memView.keep = false; t.value = ""; count(); paint(); paintInbox(); }, "memMore"),
+      button("go", "Done", shut, "memClose"));
+    paintInbox();
+  };
+  const go = () => {
     const text = t.value.trim();
     if (!text){ t.focus(); return; }
     if (text.length > 200000){ msg.textContent = "Up to 200,000 characters at a time. Paste the part that matters most."; return; }
-    const pieces = memPieces(text);
-    busy = true; go.disabled = true; t.disabled = true;
-    let made = 0, updated = 0, done = 0;
-    try {
-      for (const piece of pieces){
-        msg.textContent = pieces.length > 1 ? `Filing piece ${done + 1} of ${pieces.length}` : "Filing";
-        const r = await apiRetry("/api/personal/remember", { brain: b.slug, text: piece });
-        made += r.filed?.new || 0; updated += r.filed?.updated || 0; done++;
-      }
-      busy = false; veil.remove();
-      await refresh().catch(() => {});
-      push("ai", x => { x.innerHTML = rich(made || updated
-        ? `**Remembered.** ${filedLine({ new: made, updated }).replace(/^Filed: /, "")}, in ${esc(b.name)}. Ask it what it knows about you.`
-        : "Nothing in that was worth filing as a note."); });
-    } catch (e) {
-      busy = false; go.disabled = false; t.disabled = false;
-      msg.textContent = (done ? `${done} of ${pieces.length} pieces were filed. ` : "") + e.message;
-    }
+    if (S.memJob && S.memJob.state === "running") return;
+    startMemory(b.slug, b.name, text);
   };
+  memView = { veil, paint, brain: b.slug, keep: false };
+  paint();
+  if (!veil.querySelector("#memIn1").hidden) setTimeout(() => t.focus(), 30);
 }
 $("memBtn").onclick = openMemorySheet;
 $("demoMap").onclick = () => openMap();
