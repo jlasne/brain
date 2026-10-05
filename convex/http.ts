@@ -916,8 +916,8 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   const cards = every.cards.filter((c: any) => pool.some((x: any) => x.slug === c.brain));
   const t0 = Date.now();
 
-  const filing = fileTwice(() => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text: q, context: last, kind: "chat", date, lang: storeLang(who),
-    model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: 90000 })).text }))
+  const filing = fileTwice(t => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text: q, context: last, kind: "chat", date, lang: storeLang(who),
+    model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: t })).text }))
     .catch(() => null);
   const reply = (async () => {
     const route = await routeQuestion(pool, cards, q, b.history, mKey, mName);
@@ -967,12 +967,24 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
 }
 
 /**
- * A filing tried twice, a moment apart. A busy model, a cut reply or a
- * dropped call costs one retry, not what the owner said.
+ * A filing tried twice, a moment apart, inside one time budget. A busy model,
+ * a cut reply or a dropped call costs one retry, not what the owner said.
+ *
+ * Two full tries in a row ran past the response deadline: a first try that
+ * timed out at 90 seconds and a second one after it kept the request open
+ * about 3 minutes, and the app saw "The server did not answer" three times
+ * over on one interview answer. Now the second try runs only on the time the
+ * first one left, and each try gets `first` at most.
  */
-async function fileTwice<T>(run: () => Promise<T>): Promise<T> {
-  try { return await run(); }
-  catch { await new Promise(ok => setTimeout(ok, 1500)); return await run(); }
+async function fileTwice<T>(run: (timeout: number) => Promise<T>, o: { budget?: number; first?: number } = {}): Promise<T> {
+  const budget = o.budget ?? 120000, first = Math.min(o.first ?? 90000, budget), t0 = Date.now();
+  try { return await run(first); }
+  catch (e) {
+    const left = budget - (Date.now() - t0) - 1500;
+    if (left < 25000) throw e;
+    await new Promise(ok => setTimeout(ok, 1500));
+    return await run(Math.min(first, left));
+  }
 }
 
 /* ---------- a chat about one concept ---------- */
@@ -1071,8 +1083,8 @@ async function interviewTurn(ctx: any, who: Caller, b: any, mine: any, cards: an
     model: async m => (await ask(m, { json: true, maxTokens: 900, key: mKey, model: mName, timeout: 90000, temperature: 0.4 })).text,
     /* A filing that fails is tried once more: an answer lost costs the owner a retype. */
     file: async (text, context) => {
-      const run = () => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date, lang: storeLang(who),
-        model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: 90000 })).text });
+      const run = (t: number) => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date, lang: storeLang(who),
+        model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: t })).text });
       return await fileTwice(run);
     } });
   let chat: string | undefined;
@@ -1220,9 +1232,10 @@ route("/api/personal/remember", async (ctx, _req, b) => {
   if (!text) return { error: "there is nothing to remember in that" };
   if (text.length > MAX_CHARS[kind]) return { error: `send at most ${MAX_CHARS[kind]} characters at a time` };
   const mKey = keyFor(who), mName = modelFor(who, b);
-  const filed = await fileTwice(() => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text, kind, lang: storeLang(who),
+  const filed = await fileTwice(t => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text, kind, lang: storeLang(who),
     date: new Date().toISOString().slice(0, 10),
-    model: async m => (await ask(m, { json: true, maxTokens: kind === "chat" ? 4000 : 6000, key: mKey, model: mName, timeout: 150000 })).text }));
+    model: async m => (await ask(m, { json: true, maxTokens: kind === "chat" ? 4000 : 6000, key: mKey, model: mName, timeout: t })).text }),
+    { budget: 160000, first: 120000 });
   return { filed };
 });
 
@@ -1246,8 +1259,9 @@ route("/api/personal/people", async (ctx, _req, b) => {
     if (!part.length) return { filed: { new: 0, updated: 0, titles: [], people: [] }, next: null, left: 0 };
     const text = part.map((c: any) => `- CONTACT "${c.title}"${(c.aliases ?? []).length ? ` (also: ${c.aliases.join(", ")})` : ""}\n  CARD: ${String(c.position || c.summaryLine || "").replace(/\s+/g, " ").slice(0, 2500)}\n  WHAT YOU SAID ABOUT THEM:\n` +
       (c.evidence ?? []).slice(0, 60).map((e: any) => `  - ${e.date ?? "?"}: ${String(e.claim ?? "").replace(/\s+/g, " ").slice(0, 400)}`).join("\n")).join("\n\n");
-    const filed = await fileTwice(() => remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "files", date, lang: storeLang(who),
-      model: async m => (await ask(m, { json: true, maxTokens: 12000, key: mKey, model: mName, timeout: 150000 })).text }));
+    const filed = await fileTwice(t => remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "files", date, lang: storeLang(who),
+      model: async m => (await ask(m, { json: true, maxTokens: 12000, key: mKey, model: mName, timeout: t })).text }),
+      { budget: 160000, first: 150000 });
     /* A person the model passed over gets an empty file, so the run moves on. */
     for (const c of part) if (!(filed.people ?? []).some(t => t === c.title))
       await ctx.runMutation(internal.store.fileContact, { brain: got.mine.slug, title: c.title, slug: c.slug, date, doc: {}, add: {} });
@@ -1319,6 +1333,46 @@ route("/api/personal/contact", async (ctx, _req, b) => {
     return { into, joined: r.joined, rewritten };
   }
   return { error: "that is not something a contact does" };
+});
+
+/* ---------- error reports ---------- */
+
+/**
+ * Send feedback: an error the app could not get past, mailed to the
+ * deployment's owner when the person asks. It carries the error, where it
+ * happened, the workspace and the message behind it. A personal message of
+ * another workspace keeps its words to itself. The address is FEEDBACK_TO,
+ * else DIGEST_TO, in this deployment's environment, never in the code and
+ * never sent to the app.
+ */
+route("/api/feedback", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const flat = (t: any, n: number) => String(t ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+  const error = flat(b.error, 600);
+  if (!error) return { error: "there is no error to send" };
+  const to = String(process.env.FEEDBACK_TO || process.env.DIGEST_TO || "").trim();
+  if (!to) return { error: "feedback has no address on this deployment yet: run npx convex env set FEEDBACK_TO you@example.com --prod" };
+  const ok = await ctx.runMutation(internal.store.feedbackLog, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}), error });
+  if (!ok.ok) return { error: "that is 5 reports this hour. The ones sent already reached us." };
+  const where = flat(b.where, 40) || "the app";
+  const said = b.personal && !owners.includes(who.space) ? "(a personal message: its words stay private)" : flat(b.q, 1500);
+  const at = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
+  const page = {
+    title: `Tasu error: ${error.slice(0, 70)}`,
+    line: `${who.wsName}, ${where}, ${at}`,
+    sections: [{ head: "", bullets: [
+      { k: "Error", say: error },
+      { k: "Where", say: where },
+      { k: "Workspace", say: `${who.wsName} (${who.space})${who.demo ? ", the demo" : who.byok ? ", on its own key" : ""}` },
+      ...(said ? [{ k: "Message", say: said }] : []),
+      ...(b.chat ? [{ k: "Chat", say: flat(b.chat, 60) }] : []),
+      { k: "Model", say: who.models?.chat || MODEL },
+      ...(b.agent ? [{ k: "Browser", say: flat(b.agent, 240) }] : []),
+    ] }],
+    foot: "Sent with Send feedback, from the app.",
+  };
+  await mail(to, page, who.space);
+  return { sent: true };
 });
 
 /* ---------- chats ---------- */

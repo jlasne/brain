@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1157 checks passing" src="https://img.shields.io/badge/checks-1157%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1166 checks passing" src="https://img.shields.io/badge/checks-1166%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -96,6 +96,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 - **One page, any shape.** A brain or a question becomes a summary, a quiz, a deep dive or use cases, in 9 languages.
 - **Chats that stay.** Reopen, rename, pin up to 5. Old ones clear after 30 days.
 - **Questions run in the background.** Ask, then open another chat, a folder or Drop: the answer lands in its own chat. A drop reads on while you chat.
+- **An error says what to do.** A dropped connection or a timeout offers Try again, which sends the same message once more in place. Every error offers Send feedback, which mails the error, where it happened and the message behind it, 5 an hour at most.
 - **An inbox, top right.** A bubble counts what waits for you and opens a panel: answers ready and unread, questions on their way, a drop not finished, and the open clashes to settle. A ring turns on it while something runs.
 - **Chat about one concept.** Chat about it, from any concept, opens a chat that reads that concept alone.
 - **Greys, and your look.** Tasu wears greys and near-black. Octopus keeps its orange and Squidgy its brown. Each workspace can set a logo, an accent and a page colour, previewed as you pick them.
@@ -170,6 +171,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 | `OTHERS_FETCH_DAY` | Pages and transcripts fetched for every other workspace together, a day. Default 100, on top of 20 each. |
 | `RESEND_API_KEY`, `MAIL_FROM` | Mail one-pagers from the owner's workspaces. |
 | `DIGEST_TO` | Where the Monday digest goes: the week's sources, new concepts and open conflicts. |
+| `FEEDBACK_TO` | Where Send feedback mails an error. Unset, it goes to `DIGEST_TO`. |
 
 `admin:copyBrain '{"slug":"...","space":"demo"}'` adds one more brain to the demo. `digest:send '{"dry":true}'` previews the digest.
 

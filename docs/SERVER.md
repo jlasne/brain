@@ -289,6 +289,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/personal/contact` | A person's file by hand: `edit` sets its name, other names, line and summary (the old name stays as another name); `part` takes one fact, moment or link out, or marks an open item done; `merge` folds other files of the same person into it, then writes the summary again | Owner |
 | `/api/personal/people` | The people in a personal brain's older notes, filed as contacts, 20 notes a call; the app calls again with `at` until `next` is null | Owner |
 | `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `answers` (the twin test, round 1 or the retest, never filed), `twin` (the twin answers the test from the notes alone), `score` (0 to 2 a question) and `profile` (the notes as 7 parts). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
+| `/api/feedback` | Send feedback: mails one error, where it happened, the workspace and the message to `FEEDBACK_TO`, else `DIGEST_TO`. Another workspace's personal message keeps its words out. 5 an hour per sender, 20 per workspace | Yes |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
 | `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
 | `/mcp`, and any path under `/mcp/` | The public MCP server, read only. `/mcp/v0` reaches the same handler | No, by design |
@@ -346,6 +347,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `onepagers` | every one-pager built, its page, text and what built it, the newest 50 per owner | space, then time |
 | `vectors` | a concept's meaning as 1,024 numbers | concept, and a vector index by folder |
 | `topics` | a folder's topics: title, line, the concepts in each | folder |
+| `feedback` | each error report sent: workspace, sender in the demo, its first words, when. It counts the hour; the mail holds the rest. Cleared after a week | space, then time |
 | `rawNotes` | everything said about a person of a personal folder, word for word and dated: one row a message, with the question it answered for an interview. Only that person's file reads it | brain, slug, then time |
 | `interviews` | a personal brain's interview: each question answered, known from the notes or skipped, the one waiting, the twin test's answers and scores, and the profile | space, then brain |
 | `insights` | what follows from two linked concepts: the pair, the kind of link, a title and a line | the pair, each side, space |

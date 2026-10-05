@@ -2833,6 +2833,46 @@ for (const space of ["octopus", "squidgy"]) {
   await page.close();
 }
 
+/* ---- a failed question: Try again for the connection, Send feedback for the rest ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__asks = []; window.__fb = []; window.__mode = "drop";
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/feedback")) { window.__fb.push(body); return Response.json({ sent: true }); }
+      if (s.includes("/api/ask")) {
+        window.__asks.push(body);
+        if (window.__mode === "drop") { window.__mode = "ok"; throw new TypeError("Failed to fetch"); }
+        if (window.__mode === "refuse") return Response.json({ error: "that model refused the request" });
+        return Response.json({ answer: "Back on track.", sources: 3, level: "normal", chat: "c-1" });
+      }
+      return Response.json({ chats: [] });
+    };
+  }, STATE);
+  await page.fill("#input", "the first 35 characters matter most"); await page.click("#send"); await page.waitForTimeout(200);
+  const dead = await page.evaluate(() => ({ msg: document.querySelector("#thread .err span")?.textContent,
+    btns: [...document.querySelectorAll("#thread .err button")].map(b => b.textContent) }));
+  check("a dropped connection offers Try again, and Send feedback", /did not answer/.test(dead.msg || "") && JSON.stringify(dead.btns) === '["Try again","Send feedback"]', JSON.stringify(dead));
+  await page.click("#thread .err .err-go"); await page.waitForTimeout(250);
+  const back = await page.evaluate(() => ({ asks: window.__asks.length, mine: document.querySelectorAll("#thread .msg.me").length,
+    text: document.getElementById("thread").textContent, err: !!document.querySelector("#thread .err") }));
+  check("Try again sends the same message once more, in place", back.asks === 2 && back.mine === 1 && /Back on track/.test(back.text) && !back.err
+    && await page.evaluate(() => window.__asks[1].q) === "the first 35 characters matter most", JSON.stringify(back));
+  await page.evaluate(() => { window.__mode = "refuse"; });
+  await page.fill("#input", "and the subject line?"); await page.click("#send"); await page.waitForTimeout(200);
+  const other = await page.evaluate(() => [...document.querySelectorAll("#thread .err button")].map(b => b.textContent));
+  check("any other error offers Send feedback alone", JSON.stringify(other) === '["Send feedback"]', JSON.stringify(other));
+  await page.click("#thread .err .err-fb"); await page.waitForTimeout(200);
+  const sent = await page.evaluate(() => ({ fb: window.__fb[0], label: document.querySelector("#thread .err .err-fb").textContent }));
+  check("Send feedback sends the error, where it happened and the message, then says so",
+    sent.fb?.error === "that model refused the request" && sent.fb.where === "chat" && sent.fb.q === "and the subject line?" && sent.fb.chat === "c-1"
+    && !("to" in sent.fb) && sent.label === "Sent. Thank you", JSON.stringify(sent));
+  check("nothing threw around a failed question", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 await browser.close();
 server.close();
 console.log(failures ? `\n${failures} failed` : "\nthe pages run");

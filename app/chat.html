@@ -1094,6 +1094,11 @@
     border-radius:12px; padding:13px 15px; color:var(--ink-2); font-size:15px;
   }
   .err b{ color:var(--accent); font-weight:500; display:block; margin-bottom:3px; }
+  .err-acts{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px; }
+  .err-acts:empty{ display:none; }
+  .err .err-go{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
+  .err .err-go:disabled{ opacity:.6; }
+  .err-why{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
 
   /* ============ the card ============ */
   .card{
@@ -3302,26 +3307,28 @@ document.addEventListener("visibilitychange", () => {
 function thinking(label, where){
   tabStep(label);
   if (where && where === $("dropThread")) dropStep(label);
-  return push("ai", b => {
-    const t = el("div","thinking"), mark = el("span","spinner");
-    mark.setAttribute("aria-hidden", "true");
-    t.setAttribute("role", "status");
-    const line = el("span","tl",label||"Thinking");
-    t.append(mark, line);
-    b.append(t);
-    const lines = !label && (WAITING[S.space] || waitingFor(S.spaceName));
-    if (lines){
-      const show = i => { line.textContent = lines[i][0] + " "; line.append(el("span","act",`(${lines[i][1]})`)); };
-      let i = 0;
+  return push("ai", b => thinkInto(b, label), where);
+}
+/** The turning mark and its line, inside a message already on screen. */
+function thinkInto(b, label){
+  const t = el("div","thinking"), mark = el("span","spinner");
+  mark.setAttribute("aria-hidden", "true");
+  t.setAttribute("role", "status");
+  const line = el("span","tl",label||"Thinking");
+  t.append(mark, line);
+  b.append(t);
+  const lines = !label && (WAITING[S.space] || waitingFor(S.spaceName));
+  if (lines){
+    const show = i => { line.textContent = lines[i][0] + " "; line.append(el("span","act",`(${lines[i][1]})`)); };
+    let i = 0;
+    show(i);
+    const timer = setInterval(() => {
+      /* The wait ended when the line left the page. */
+      if (!line.isConnected || t.dataset.fixed){ clearInterval(timer); return; }
+      i = i < lines.length - 1 ? i + 1 : lines.length - 2;
       show(i);
-      const timer = setInterval(() => {
-        /* The wait ended when the line left the page. */
-        if (!line.isConnected || t.dataset.fixed){ clearInterval(timer); return; }
-        i = i < lines.length - 1 ? i + 1 : lines.length - 2;
-        show(i);
-      }, 2400);
-    }
-  }, where);
+    }, 2400);
+  }
 }
 function setThinking(body, label){
   tabStep(label);
@@ -3331,12 +3338,42 @@ function setThinking(body, label){
   if (t) t.dataset.fixed = "1";
   if (s) s.textContent = label;
 }
-function fail(body, msg){
+/* A failure worth trying again as it was: the connection, the clock, a busy model. */
+const RETRYABLE = /did not answer|ran past|unreachable|timed out|still\s(thinking|writing)|sent nothing|overloaded|rate limit|429|50[0-9]|busy|temporar/i;
+/**
+ * The error, and what to do about it: Try again when the failure was the
+ * connection or the clock and the caller can send it again, and Send
+ * feedback, which mails the error to the people who run Tasu.
+ */
+function fail(body, msg, o = {}){
   tabTitle("");
   body.innerHTML = "";
+  const text = msg || "Something failed on the way. Send it again.";
   const e = el("div","err");
-  e.append(el("b",null,"Nothing was stored"), el("span",null,msg || "Something failed on the way. Send it again."));
+  e.append(el("b",null,"Nothing was stored"), el("span",null,text));
+  const acts = el("div","err-acts");
+  if (o.retry && RETRYABLE.test(text)){
+    const again = el("button","mini err-go","Try again"); again.type = "button";
+    again.onclick = () => { if (!again.disabled){ again.disabled = true; o.retry(); } };
+    acts.append(again);
+  }
+  if (text !== "locked") acts.append(feedbackButton(text, { ...o, where: o.where || (body.closest?.("#dropThread") ? "drop" : "chat") }));
+  e.append(acts);
   body.append(e);
+}
+/** Send feedback: the error, where it happened and the message behind it, mailed once. */
+function feedbackButton(error, o){
+  const b = el("button","mini err-fb","Send feedback"); b.type = "button";
+  b.title = "Mails this error to the people who run Tasu";
+  b.onclick = async () => {
+    b.disabled = true; b.textContent = "Sending";
+    try {
+      await api("/api/feedback", { error, where: o.where, q: o.q || "", chat: S.chatId || "", personal: isPersonal(o.scope ?? S.scope),
+        agent: navigator.userAgent });
+      b.textContent = "Sent. Thank you";
+    } catch (e) { b.disabled = false; b.textContent = "Send feedback"; b.title = "Not sent: " + e.message; b.after(el("span","err-why", "Not sent: " + e.message)); }
+  };
+  return b;
 }
 
 /* ============ background work and the inbox ============
@@ -3457,7 +3494,7 @@ function openJob(j){
   $("thread").innerHTML = "";
   if (j.q) says(j.q);
   if (j.status === "running") j.body = thinking(j.label);
-  else push("ai", b => fail(b, j.error));
+  else push("ai", b => fail(b, j.error, { q: j.q, scope: j.scope, retry: () => { if (!chatBusy()) doAsk(j.q, b).finally(renderComposer); } }));
   render(); renderChats(); paintInbox(); bottom();
 }
 
@@ -6623,8 +6660,9 @@ async function go(){
 }
 
 /* ---------- ask ---------- */
-async function doAsk(q){
-  says(q);
+async function doAsk(q, again){
+  /* Try again sends the same message into the message that failed. */
+  if (!again) says(q);
   if (!S.brains.length){
     push("ai", b => { b.innerHTML = rich("No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again."); });
     return;
@@ -6634,7 +6672,7 @@ async function doAsk(q){
   const about = S.concept, scope = S.scope, picks = S.picks.slice();
   const asked = about ? about.brain : picks.length > 1 ? picks.join(",") : scope;
   const job = addJob(q, about);
-  job.body = thinking();
+  if (again){ again.innerHTML = ""; thinkInto(again); job.body = again; } else job.body = thinking();
   try {
     /* "chat" files the turn in the chat on screen, or starts one. A chat
        about one concept sends that concept alone. */
@@ -6654,7 +6692,12 @@ async function doAsk(q){
     endJob(job, true);
     renderComposer();
     if (here) bottom();
-  } catch(e){ if (job.body.isConnected) fail(job.body, e.message); job.error = e.message; endJob(job, false); renderComposer(); }
+  } catch(e){
+    const where = about ? "chat about one concept" : isPersonal(scope) ? (S.iv[scope]?.on ? "interview" : "personal chat") : "chat";
+    if (job.body.isConnected) fail(job.body, e.message, { q, where, scope,
+      retry: () => { if (chatBusy()) return; doAsk(q, job.body).finally(renderComposer); renderComposer(); } });
+    job.error = e.message; endJob(job, false); renderComposer();
+  }
 }
 /**
  * An answer on screen, live or from a saved chat: the small-brain note, the

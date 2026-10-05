@@ -938,6 +938,20 @@ function seed() {
   globalThis.fetch = real; delete process.env.OPENROUTER_API_KEY;
 }
 
+/* ---- error reports: counted, and held to a few an hour ---- */
+{
+  const { T, db } = makeDb();
+  const send = (space, owner) => run(store.feedbackLog, { db }, { space, ...(owner ? { owner } : {}), error: "The server did not answer." });
+  const five = []; for (let i = 0; i < 6; i++) five.push((await send("octopus")).ok);
+  check("5 reports an hour from one sender, the 6th refused", JSON.stringify(five) === "[true,true,true,true,true,false]", JSON.stringify(five));
+  check("another workspace keeps its own count", (await send("squidgy")).ok);
+  const visitors = []; for (let i = 0; i < 25; i++) visitors.push((await send("demo", "v" + i)).ok);
+  check("the demo stops at 20 an hour, whoever sends", visitors.filter(Boolean).length === 20, String(visitors.filter(Boolean).length));
+  T.feedback.push({ _id: "old", space: "octopus", error: "x", at: Date.now() - 8 * 86400000 });
+  await send("octopus");
+  check("reports past a week are cleared", !T.feedback.some(r => r._id === "old"));
+}
+
 /* ---- a reply that is JSON with a slip in it is mended, not lost ---- */
 {
   const read = (t, f = "stop") => { try { return lib.parseJson(t, f); } catch (e) { return { error: e.message }; } };

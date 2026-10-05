@@ -1747,3 +1747,26 @@ export const conceptHome = internalQuery({
     return c ? { concept: c, brain: { slug: b.slug, name: b.name, type: b.type } } : null;
   },
 });
+
+/* ---------- error reports ---------- */
+
+export const FEEDBACK_PER_HOUR = 5;
+export const FEEDBACK_SPACE_PER_HOUR = 20;
+
+/**
+ * One error report counted, or refused past 5 an hour per sender and 20 an
+ * hour per workspace, so a stuck screen or the demo cannot flood the inbox.
+ * Reports past a week are cleared as this runs.
+ */
+export const feedbackLog = internalMutation({
+  args: { space: v.string(), owner: v.optional(v.string()), error: v.string() },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space), now = Date.now(), owner = a.owner ?? "";
+    const rows = await ctx.db.query("feedback").withIndex("by_space_at", (q: any) => q.eq("space", space)).collect();
+    for (const r of rows) if (r.at < now - 7 * 86400000) await ctx.db.delete(r._id);
+    const hour = rows.filter((r: any) => r.at >= now - 3600000);
+    if (hour.length >= FEEDBACK_SPACE_PER_HOUR || hour.filter((r: any) => (r.owner ?? "") === owner).length >= FEEDBACK_PER_HOUR) return { ok: false };
+    await ctx.db.insert("feedback", { space, ...(owner ? { owner } : {}), error: a.error.slice(0, 200), at: now });
+    return { ok: true };
+  },
+});

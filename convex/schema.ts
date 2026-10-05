@@ -404,6 +404,16 @@ export default defineSchema({
     .index("by_b", ["b"])
     .index("by_space", ["space"]),
 
+  /* Each error report sent with Send feedback: when, from which workspace,
+     and its first words. It counts the reports an hour; the mail holds the rest. */
+  feedback: defineTable({
+    space: v.string(),
+    /* In the demo, the visitor who sent it. */
+    owner: v.optional(v.string()),
+    error: v.string(),
+    at: v.number(),
+  }).index("by_space_at", ["space", "at"]),
+
   /* Everything the owner said about a person of their personal brain, word
      for word and dated: one row a message. Only that person's file reads it. */
   rawNotes: defineTable({
