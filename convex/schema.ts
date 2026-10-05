@@ -101,6 +101,10 @@ export default defineSchema({
     /* Workspaces that may read this brain and never change it: the demo, which
        any visitor opens. */
     viewers: v.optional(v.array(v.string())),
+    /* The last audit: the day it ran, and how many sources the folder held then. */
+    audit: v.optional(v.object({ at: v.string(), sources: v.number() })),
+    /* Pairs of concepts or people you said to keep apart, so an audit never asks again. */
+    apart: v.optional(v.array(v.string())),
   }).index("by_slug", ["slug"]),
 
   concepts: defineTable({

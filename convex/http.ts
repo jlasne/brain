@@ -1287,6 +1287,25 @@ route("/api/personal/people", async (ctx, _req, b) => {
   return { filed, next, read: Math.min(at + 20, all.length), total: all.length };
 });
 
+/**
+ * An audit run on a folder this workspace holds: "done" stamps the day and
+ * the sources it held, so the inbox counts what was dropped since; "apart"
+ * keeps two or more concepts or people apart for good.
+ */
+route("/api/brain/audit", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
+  const brain = head.brains.find((x: any) => x.slug === String(b.brain ?? ""));
+  if (!brain || !(brain.type === "personal" ? brain.space === who.space || (!brain.space && who.space === HOME) : canDrop(brain, who)))
+    return { error: "that folder is not one you can audit" };
+  if (b.action === "apart") {
+    const ids = (Array.isArray(b.ids) ? b.ids : []).map(String).filter((x: string) => x.startsWith(brain.slug + "/"));
+    if (ids.length < 2) return { error: "name two concepts to keep apart" };
+    return await ctx.runMutation(internal.store.auditMark, { space: who.space, brain: brain.slug, apart: ids });
+  }
+  return await ctx.runMutation(internal.store.auditMark, { space: who.space, brain: brain.slug });
+});
+
 /** One page of a person: the moments of a year, or the raw notes of a month. */
 route("/api/personal/page", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });

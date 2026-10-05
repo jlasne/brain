@@ -938,6 +938,19 @@ function seed() {
   globalThis.fetch = real; delete process.env.OPENROUTER_API_KEY;
 }
 
+/* ---- an audit: the day it ran, the sources then, and the pairs kept apart ---- */
+{
+  const { T, db } = makeDb();
+  T.brains = [{ _id: "b1", slug: "content", name: "Content", type: "subject", scope: "c", space: "octopus" }];
+  T.sources = [{ _id: "s1", sid: "a", brains: ["content"] }, { _id: "s2", sid: "b", brains: ["content", "x"] }, { _id: "s3", sid: "c", brains: ["x"] }];
+  const r = await run(store.auditMark, { db }, { space: "octopus", brain: "content" });
+  check("an audit keeps its day and the sources the folder held", r.audit.sources === 2 && /^\d{4}-\d{2}-\d{2}$/.test(r.audit.at) && T.brains[0].audit.sources === 2);
+  await run(store.auditMark, { db }, { space: "octopus", brain: "content", apart: ["content/b", "content/a"] });
+  await run(store.auditMark, { db }, { space: "octopus", brain: "content", apart: ["content/a", "content/b"] });
+  check("a pair kept apart is kept once, whichever way round", JSON.stringify(T.brains[0].apart) === '["content/a|content/b"]', JSON.stringify(T.brains[0].apart));
+  check("another workspace's folder is never stamped", /not in this workspace/.test(await throws(run(store.auditMark, { db }, { space: "squidgy", brain: "content" }))));
+}
+
 /* ---- error reports: counted, and held to a few an hour ---- */
 {
   const { T, db } = makeDb();

@@ -450,7 +450,8 @@ async function boot(path, init, arg) {
   await page.waitForTimeout(150);
   const setup = await page.evaluate(() => ({ model: document.querySelector("#setModel .val")?.textContent,
     exp: !!document.getElementById("setExport"), order: [...document.querySelectorAll(".sheet .set-row button")].map(b => b.id).join(",") }));
-  check("Settings holds the model, the export, the map, then Tidy all folders", setup.order === "setModel,setExport,setMap,setTidy" && setup.model === "model", JSON.stringify(setup));
+  check("Settings holds the model, the export and the map; Audit has its own section", setup.order === "setModel,setExport,setMap" && setup.model === "model"
+    && await page.evaluate(() => !!document.getElementById("auditBlock") && !document.getElementById("setTidy")), JSON.stringify(setup));
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#setExport")]);
   const { readFileSync } = await import("node:fs");
   const exported = readFileSync(await dl.path(), "utf8");
@@ -1823,10 +1824,14 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("its folder menu keeps it open", !(await bar()).c && await page.isVisible(".pick-menu"));
   await page.keyboard.press("Escape"); await page.waitForTimeout(100);
 
-  /* Tidy: each finding waits for its own click. */
+  /* Audit, from Settings: each finding waits for its own click. */
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Content/.test(r.textContent))?.querySelector(".ed.op")?.click());
   await page.waitForTimeout(250);
-  await page.click("#fvTidy"); await page.waitForTimeout(300);
+  check("a folder carries no Tidy button: the audit lives in Settings", await page.evaluate(() => !document.getElementById("fvTidy")));
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
+  const rows = await page.evaluate(() => [...document.querySelectorAll("#auditList .au-row")].map(r => `${r.querySelector("b").textContent}:${r.querySelector("span").textContent}`));
+  check("Settings, Audit lists each folder held, with its last audit and the sources since", rows.some(r => /^Content:Never audited · \d+ sources? since$/.test(r)), JSON.stringify(rows));
+  await page.click('#auditList .au-row[data-slug="content"] button'); await page.waitForTimeout(300);
   const pane = await page.evaluate(() => ({ heads: [...document.querySelectorAll("#tidyPane h4")].map(h => h.textContent).join("|"),
     opts: [...document.querySelectorAll("#tidyPane .td-opt b")].map(b => b.textContent).join(","),
     ren: document.querySelector("#tidyPane .td-ren .td-in")?.value }));
@@ -1844,22 +1849,9 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click("#tidyPane .td-card:last-of-type .td-go"); await page.waitForTimeout(250);
   const wrote = await page.evaluate(() => window.__calls.find(c => c.s.includes("/api/concept/rederive"))?.body);
   check("and the empty ones get their position from what they hold, never one a merge folded away", JSON.stringify(wrote?.ids) === '["content/offer-creation"]', JSON.stringify(wrote));
+  const stamped = await page.evaluate(() => window.__calls.find(c => c.s.includes("/api/brain/audit"))?.body);
+  check("the audit is stamped once it has read the folder", stamped?.brain === "content" && stamped.action === "done", JSON.stringify(stamped));
 
-  /* Tidy all folders, from Settings: every folder read and tidied, no click per finding. */
-  await page.evaluate(() => { window.__calls.length = 0; document.querySelector("#fvClose")?.click(); document.getElementById("keyBtn").click(); });
-  await page.waitForTimeout(250);
-  await page.click("#setTidy"); await page.waitForTimeout(800);
-  const all = await page.evaluate(() => ({ asked: window.__calls.filter(c => c.s.includes("/api/brain/tidy")).map(c => c.body.brain).sort().join(","),
-    secs: [...document.querySelectorAll("#taBody .ta-sec")].map(x => `${x.querySelector(".ta-h b").textContent}:${x.querySelector(".ta-n").textContent}`).join("|"),
-    merge: window.__calls.find(c => c.s.includes("/api/concept/merge"))?.body,
-    rename: window.__calls.find(c => c.s.includes("/api/concept/rename"))?.body,
-    write: window.__calls.find(c => c.s.includes("/api/concept/rederive"))?.body,
-    say: document.getElementById("taSay").textContent, close: document.getElementById("taClose").textContent }));
-  check("Tidy all folders reads every folder but the personal one", all.asked === "content,health", JSON.stringify(all));
-  check("and tidies each on its own: merges into the first title, renames, writes positions", all.merge?.into === "content/offer-creation"
-    && all.rename?.title === "Offer creation" && JSON.stringify(all.write?.ids) === '["content/offer-creation"]', JSON.stringify(all));
-  check("each folder says what it did, and the line counts it all", all.secs === "Content:Tidied|Health:Already tidy"
-    && all.say === "2 of 2 folders tidied: 1 merged, 1 renamed, 1 position written." && all.close === "Close", JSON.stringify(all));
   check("nothing threw folding the bar or tidying", !bad.length, bad.join(" | "));
   await page.close();
 }
@@ -1947,7 +1939,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
 
 /* ---- a personal brain: a chat that files what you say ---- */
 {
-  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "What I say", owner: null }],
+  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "What I say", owner: null, audit: { at: new Date().toISOString().slice(0, 10), sources: 0 } }],
     concepts: [{ brain: "me", slug: "lisbon", n: 1, title: "Moving abroad", summaryLine: "Lisbon in 2027" }] };
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test");
@@ -2223,6 +2215,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("Notes holds the notes alone", JSON.stringify(notes) === '["Moving abroad"]', JSON.stringify(notes));
   await page.click("#fvPeople"); await page.waitForTimeout(150);
   const ppl = await page.evaluate(() => ({ rows: [...document.querySelectorAll(".fv-row")].map(x => x.textContent), ph: document.getElementById("fvFilter").placeholder, scan: !!document.getElementById("fvScan") }));
+  check("People carries no scan button: the audit finds the people", !ppl.scan);
   check("People holds one card per person, newest mention first, with how often they came up", ppl.rows.length === 2 && /^Marc Dupont/.test(ppl.rows[0]) && /4 mentions · last/.test(ppl.rows[0])
     && /1 mention · last/.test(ppl.rows[1]) && ppl.ph === "Filter people", JSON.stringify(ppl));
   await page.fill("#fvFilter", "co-founder"); await page.waitForTimeout(80);
@@ -2297,11 +2290,14 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click(".ct-row .mini"); await page.waitForTimeout(300);
   const merged = await page.evaluate(() => window.__calls.filter(x => x.body?.action === "merge").pop()?.body);
   check("the second merges that card into this one", merged?.into === "me/marc" && JSON.stringify(merged.from) === '["me/paul"]', JSON.stringify(merged));
-  await page.click("#fvPeople"); await page.waitForTimeout(100);
-  await page.click("#fvScan"); await page.waitForTimeout(400);
-  const scans = await page.evaluate(() => ({ at: window.__calls.filter(x => x.s.includes("/api/personal/people")).map(x => x.body.at ?? null), say: document.querySelector(".fv-scan-say")?.textContent }));
-  check("Find people in my notes reads them all, a batch at a time, then builds the full files", JSON.stringify(scans.at) === "[0,20,null]"
-    && await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/personal/people")).pop()?.body.phase) === "files" && /Done: 3 people filed/.test(scans.say || ""), JSON.stringify(scans));
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
+  await page.click('#auditList .au-row[data-slug="me"] button'); await page.waitForTimeout(500);
+  const scans = await page.evaluate(() => ({ at: window.__calls.filter(x => x.s.includes("/api/personal/people")).map(x => x.body.at ?? null), say: document.getElementById("auditSay")?.textContent,
+    clean: document.querySelector("#auditPane .td-clean")?.textContent, stamp: window.__calls.filter(x => x.s.includes("/api/brain/audit")).pop()?.body }));
+  check("the personal audit finds the people in your notes, a batch at a time, then builds the full files", JSON.stringify(scans.at) === "[0,20,null]"
+    && await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/personal/people")).pop()?.body.phase) === "files"
+    && /^3 people filed or brought up to date\. 0 look filed twice\./.test(scans.say || "") && /Each person has one card/.test(scans.clean || "")
+    && scans.stamp?.brain === "me" && scans.stamp.action === "done", JSON.stringify(scans));
   check("nothing threw around contacts", !bad.length, bad.join(" | "));
   await page.close();
 }
@@ -2804,7 +2800,8 @@ for (const space of ["octopus", "squidgy"]) {
 
 /* ---- questions and drops run in the background; the inbox lists what waits ---- */
 {
-  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "s", owner: null }],
+  /* Audited today, so no audit waits in the inbox here. */
+  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "s", owner: null, audit: { at: new Date().toISOString().slice(0, 10), sources: 0 } }],
     concepts: [{ brain: "me", slug: "marc", n: 2, title: "Marc Dupont", summaryLine: "Your co-founder", tag: "contact", ev: 1, updated: "2026-10-04" }] };
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test");
@@ -2985,6 +2982,50 @@ for (const space of ["octopus", "squidgy"]) {
   const stored = await page.evaluate(() => window.__settles.flatMap(b => b.plan.candidates.map(c => c.title)));
   check("Store it files every one", ["Fund returns", "Revenue", "Team", "More from the source", "Markets will rise next year"].every(t => stored.includes(t)), JSON.stringify(stored));
   check("nothing threw checking the drop", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- audits: due after 50 sources, the personal folder every week, decided from the inbox ---- */
+{
+  const old = new Date(Date.now() - 9 * 86400000).toISOString().slice(0, 10);
+  const st = { ...STATE, brains: [{ slug: "content", name: "Content", type: "subject", scope: "c", audit: { at: old, sources: 2 } },
+      { slug: "health", name: "Health", type: "subject", scope: "h", audit: { at: old, sources: 0 } },
+      { slug: "me", name: "Me", type: "personal", scope: "", audit: { at: old, sources: 0 } },
+      { slug: "theirs", name: "Theirs", type: "subject", scope: "t", space: "squidgy", shared: ["octopus"] }],
+    concepts: [{ brain: "content", slug: "a", n: 1, title: "A" }, { brain: "health", slug: "b", n: 1, title: "B" },
+      { brain: "me", slug: "marc", n: 1, title: "Marc", tag: "contact", ev: 3 }, { brain: "me", slug: "marc-dupont", n: 2, title: "Marc Dupont", tag: "contact", ev: 1 },
+      { brain: "theirs", slug: "c", n: 1, title: "C" }],
+    sources: [...Array.from({ length: 60 }, (_, i) => ({ sid: "s" + i, brains: ["content", "theirs"] })), { sid: "h1", brains: ["health"] }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/brain/audit")) return Response.json(body.action === "apart" ? { apart: 1 } : { audit: { at: new Date().toISOString().slice(0, 10), sources: body.brain === "content" ? 60 : 0 } });
+      if (s.includes("/api/brain/tidy")) return Response.json({ brain: body.brain, total: 1, read: 1, same: [], english: [], blank: [] });
+      if (s.includes("/api/personal/people")) return Response.json({ filed: { people: [] }, next: null, read: 2, total: 2 });
+      return Response.json({ chats: [] });
+    };
+  }, st);
+  await page.waitForTimeout(200);
+  await page.click("#inboxBtn"); await page.waitForTimeout(80);
+  const due = await page.evaluate(() => ({ badge: document.getElementById("inboxN").textContent,
+    items: [...document.querySelectorAll("#inbox .ib-g")].filter(g => g.querySelector("h4").textContent === "Cleaning needed").flatMap(g => [...g.querySelectorAll(".ib-it")].map(x => x.textContent)) }));
+  check("the inbox asks for an audit: a folder with 50 sources since its last one, the personal folder after a week, never a folder shared in",
+    JSON.stringify(due.items) === '["Audit Content58 sources dropped since the last audit","Audit Melast audit 9 days ago"]' && due.badge === "2", JSON.stringify(due));
+  await page.click("#inbox .ib-it >> text=Audit Content"); await page.waitForTimeout(300);
+  const ran = await page.evaluate(() => ({ pane: !!document.getElementById("tidyPane"), stamp: window.__calls.filter(x => x.s.includes("/api/brain/audit")).pop()?.body,
+    badge: document.getElementById("inboxN").hidden ? "" : document.getElementById("inboxN").textContent }));
+  check("a tap runs that folder's audit, and once stamped it leaves the inbox", ran.pane && ran.stamp?.brain === "content" && ran.badge === "1", JSON.stringify(ran));
+  await page.click("#inboxBtn"); await page.waitForTimeout(80);
+  await page.click("#inbox .ib-it >> text=Audit Me"); await page.waitForTimeout(400);
+  const me = await page.evaluate(() => ({ pairs: [...document.querySelectorAll("#auditPane .td-card")].map(c => [...c.querySelectorAll(".td-opt b")].map(b => b.textContent).join("+")) }));
+  check("the personal audit proposes the same person filed twice, the most mentioned first", JSON.stringify(me.pairs) === '["Marc+Marc Dupont"]', JSON.stringify(me));
+  await page.click("#auditPane .td-card .td-no"); await page.waitForTimeout(150);
+  const apart = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/brain/audit") && x.body.action === "apart").pop()?.body);
+  check("Keep apart is remembered, so the next audit never asks", apart?.brain === "me" && JSON.stringify(apart.ids) === '["me/marc","me/marc-dupont"]', JSON.stringify(apart));
+  check("nothing threw in the audits", !bad.length, bad.join(" | "));
   await page.close();
 }
 

@@ -126,6 +126,7 @@ export const needsPosition = (c: any) => !(c.summaryLine || c.lead) || filler(c.
 export async function tidyScan(ctx: any, who: Who, brain: string, key?: string, model?: string) {
   const mine = await writable(ctx, who);
   if (!mine.has(brain)) return { error: "that folder is not one you can tidy" };
+  const apart = new Set<string>(mine.get(brain)?.apart ?? []);
   const { cards } = await loadSpace(ctx, who.space);
   const all = cards.filter((c: any) => c.brain === brain).sort((a: any, b: any) => (b.n ?? 0) - (a.n ?? 0));
   const list = all.slice(0, TIDY_MAX);
@@ -148,6 +149,9 @@ export async function tidyScan(ctx: any, who: Who, brain: string, key?: string, 
     const idx = (Array.isArray(g) ? g : []).map(at).filter((i: number) => i >= 0 && !used.has(i));
     const one = [...new Set<number>(idx)];
     if (one.length < 2) continue;
+    /* A group you said to keep apart is never proposed again. */
+    const ids = one.map(i => `${list[i].brain}/${list[i].slug}`);
+    if (ids.every((x, k) => ids.slice(k + 1).every(y => apart.has([x, y].sort().join("|"))))) continue;
     one.forEach(i => used.add(i));
     same.push(one.map(i => card(list[i])));
   }

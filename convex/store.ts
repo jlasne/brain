@@ -1884,3 +1884,31 @@ export const personPage = internalQuery({
       .map((r: any) => ({ date: r.date, kind: r.kind, text: r.text, ...(r.asked ? { asked: r.asked } : {}), at: r.at })) };
   },
 });
+
+/* ---------- audits ---------- */
+
+/** "a|b": one pair, the same whichever way round it is named. */
+export const pairKey = (x: string, y: string) => [x, y].sort().join("|");
+
+/**
+ * An audit run on a folder: the day, and how many sources it held then, so
+ * the app counts what was dropped since. Or pairs to keep apart, so the
+ * next audit never asks about them again.
+ */
+export const auditMark = internalMutation({
+  args: { space: v.string(), brain: v.string(), apart: v.optional(v.array(v.string())) },
+  handler: async (ctx, a) => {
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.brain)).unique();
+    if (!b || !inSpace(b, readSpace(a.space))) throw new Error("that folder is not in this workspace");
+    if (a.apart) {
+      const ids: string[] = [...new Set<string>(a.apart)].slice(0, 10), keys: string[] = [];
+      for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) keys.push(pairKey(ids[i], ids[j]));
+      await ctx.db.patch(b._id, { apart: [...new Set([...(b.apart ?? []), ...keys])].slice(-2000) });
+      return { apart: keys.length };
+    }
+    const sources = (await ctx.db.query("sources").collect()).filter(s => (s.brains ?? []).includes(b.slug)).length;
+    const audit = { at: today(), sources };
+    await ctx.db.patch(b._id, { audit });
+    return { audit };
+  },
+});

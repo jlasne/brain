@@ -53,12 +53,16 @@ npx convex run admin:repairPositions "{dry:true}" --prod   # count them, free
 npx convex run admin:repairPositions --prod                # write them
 ```
 
-A folder's Tidy button does the rest by hand: concepts filed twice, merged on
-a click, titles not in English, renamed on a click, and the same positions.
-Settings, Tidy all folders, does it for every folder with no click per
-finding: twins merge into the clearest title, titles go into English, and
-empty positions are written. About $0.003 a folder on GLM 5.3 Flash, plus
-$0.001 a merge.
+Settings, Audit, does the rest by hand, one folder at a time. A folder's
+audit lists concepts filed twice, merged on a click, titles not in English,
+renamed on a click, and the same positions. The personal folder's audit files
+the people in older notes, builds their files, then lists the cards that look
+like one person: Merge, or Keep apart. A pair kept apart is stored on the
+folder in `apart` and never proposed again. Each audit stamps the folder's
+`audit` with its date and its source count. The inbox shows "Cleaning needed"
+for a folder of the workspace with 50 sources dropped since that stamp, and
+for the personal folder 7 days after it. About $0.003 a folder on GLM 5.3
+Flash, plus $0.001 a merge.
 
 A workspace for someone, on this deployment's key, empty, behind a passphrase
 its owner changes from Settings. The passphrase takes 8 characters at least:
@@ -282,6 +286,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/doc` | The connector page's words, served rather than published | Yes |
 | `/api/lock` | Drops the session | Yes |
 | `/api/brain/tidy` | Reads one folder for concepts filed twice, titles not in English and concepts with no position. Proposes only | Yes, owner |
+| `/api/brain/audit` | Stamps a folder's last audit: its date and its source count. With `action: "apart"`, keeps a pair of concepts or people apart, so no audit proposes them again | Yes, owner |
 | `/api/concept/merge` | Folds concepts of one folder into the one kept, then writes its position again from the joined evidence | Yes, owner |
 | `/api/concept/rename` | Changes a concept's title. Its id and links stay | Yes, owner |
 | `/api/concept/rederive` | Writes positions again from the evidence each concept holds, eight per call | Yes |
@@ -332,7 +337,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 
 | Table | Holds | Indexed by |
 |---|---|---|
-| `brains` | name, type, scope, created, visibility, owner, space | slug |
+| `brains` | name, type, scope, created, visibility, owner, space; `audit`, the last audit's date and source count; `apart`, the pairs kept apart | slug |
 | `concepts` | brain, title, position, summaryLine, evidence, data, conflicts, sources, links and their kinds; in a personal brain, `tag: "contact"` and the other names a person goes by | brain, then slug |
 | `sources` | id, link, date, author, location, brains | link, and the normalised link |
 | `notes` | the six note sections | source id |

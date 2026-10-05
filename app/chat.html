@@ -569,6 +569,12 @@
   .mem-track{ height:6px; border-radius:3px; background:var(--surface-3); overflow:hidden; }
   .mem-track i{ display:block; height:100%; border-radius:3px; background:var(--accent-solid); transition:width .4s var(--ease); }
   .mem-say{ font:400 14.5px/1.55 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
+  .au-row{ display:flex; align-items:center; gap:10px 14px; padding:9px 0; border-top:1px solid var(--line); }
+  .au-row:first-child{ border-top:0; }
+  .au-t{ flex:1; min-width:0; display:grid; gap:2px; }
+  .au-t b{ font:500 14px/1.35 var(--sans); color:var(--ink); }
+  .au-t span{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
+  .mini.au-due{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
   .lang-row.ask{ margin:0 -10px; padding:8px 10px; border-radius:10px; background:var(--accent-soft); box-shadow:inset 0 0 0 1px var(--accent-line); }
   .seg.seg-wrap{ flex-wrap:wrap; }
   /* A person's file: the summary, then what is open, facts, their people and the history. */
@@ -2844,7 +2850,7 @@ function openHealthSheet(b){
   const st = veil.querySelector("#hbSettle");
   if (st) st.onclick = () => { shut(); settleFrom(null, b.slug); };
   const td = veil.querySelector("#hbTidy");
-  if (td) td.onclick = () => { shut(); openFolder(b); document.querySelector("#fvTidy")?.click(); };
+  if (td) td.onclick = () => { shut(); runAudit(b); };
 }
 
 /**
@@ -3470,7 +3476,8 @@ function paintInbox(){
   const dropWaits = d && (d.state === "card" || (!d.seen && ["stored", "waiting", "failed", "ended"].includes(d.state))) ? 1 : 0;
   const m = S.memJob;
   const memWaits = m && m.state !== "running" && !m.seen ? 1 : 0;
-  const n = unread + dropWaits + memWaits + openClashes();
+  const dueAudits = S.demo ? [] : (S.brains || []).filter(b => auditDue(b));
+  const n = unread + dropWaits + memWaits + dueAudits.length + openClashes();
   $("inboxN").hidden = !n; $("inboxN").textContent = n > 99 ? "99+" : String(n);
   btn.classList.toggle("run", running > 0 || (!!d && ["running", "storing"].includes(d.state)) || m?.state === "running");
   btn.setAttribute("aria-label", n ? `Inbox, ${n} waiting` : "Inbox");
@@ -3507,6 +3514,8 @@ function paintInboxPanel(){
       m.state === "running" ? `Filing piece ${Math.min(m.done + 1, n)} of ${n}` : m.state === "failed" ? `Stopped at piece ${m.done + 1} of ${n}` : "Done: see what it filed",
       () => openMemorySheet(m.brain))]);
   }
+  const due = S.demo ? [] : S.brains.filter(b => auditDue(b));
+  if (due.length) group("Cleaning needed", due.map(b => item("clash", `Audit ${b.name}`, auditDue(b), () => runAudit(b))));
   const clash = openClashes();
   if (clash) group("Conflicts", [item("clash", `${clash} open clash${clash === 1 ? "" : "es"} to settle`, "One card at a time: keep a side, or both", () => settleFrom(null, null))]);
   if (box.children.length === 1) box.append(el("p","ib-none","Nothing waiting. A question you send keeps running here while you look elsewhere."));
@@ -3541,6 +3550,66 @@ function closeInbox(){ $("inbox").hidden = true; $("inboxBtn").setAttribute("ari
 $("inboxBtn").onclick = e => { e.stopPropagation(); $("inbox").hidden ? openInbox() : closeInbox(); };
 document.addEventListener("pointerdown", e => { if (!$("inbox").hidden && !$("inbox").contains(e.target) && !$("inboxBtn").contains(e.target)) closeInbox(); }, true);
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("inbox").hidden){ closeInbox(); $("inboxBtn").focus(); } });
+
+/* ============ audits ============
+   One place for every folder this workspace holds: what is filed twice,
+   titles not in English, empty positions, and in the personal folder the
+   people not filed and the same person twice. Due after 50 sources dropped
+   since the last one; the personal folder, every week. The inbox says when. */
+
+/** A folder this workspace holds and may change, never one shared in. */
+function auditable(b){ return !!b && !S.demo && !readOnly(b) && (b.space || "octopus") === S.space; }
+function auditFolders(){
+  return S.brains.filter(b => auditable(b) && (b.type === "personal" || conceptsOf(b.slug).length))
+    .sort((x, y) => Number(y.type === "personal") - Number(x.type === "personal") || x.name.localeCompare(y.name));
+}
+function auditAge(b){ return b.audit?.at ? Math.max(0, Math.floor((Date.now() - Date.parse(b.audit.at)) / 86400000)) : null; }
+/** Why a folder needs an audit now, or "". */
+function auditDue(b){
+  if (!auditable(b)) return "";
+  if (b.type === "personal"){
+    if (!conceptsOf(b.slug).length) return "";
+    const d = auditAge(b);
+    return d === null ? "never audited" : d >= 7 ? `last audit ${d} days ago` : "";
+  }
+  const since = sourcesOf(b.slug).length - (b.audit?.sources || 0);
+  return since >= 50 ? `${since} sources dropped since the last audit` : "";
+}
+/** The last audit in one line: when, and what came since. */
+function auditLine(b){
+  const since = Math.max(0, sourcesOf(b.slug).length - (b.audit?.sources || 0)), d = auditAge(b);
+  const when = d === null ? "Never audited" : `Last audit ${fileDay(b.audit.at)}${d ? `, ${d} day${d === 1 ? "" : "s"} ago` : ", today"}`;
+  return b.type === "personal" ? `${when} · due every week` : `${when} · ${since} source${since === 1 ? "" : "s"} since`;
+}
+function runAudit(b){ closeInbox(); openFolder(b, null, { audit: true }); }
+/** An audit ran: the day and the sources are kept, and the inbox lets go of it. */
+async function auditDone(b){
+  try {
+    const r = await api("/api/brain/audit", { brain: b.slug, action: "done" });
+    const x = S.brains.find(y => y.slug === b.slug);
+    if (x && r.audit) x.audit = r.audit;
+    paintInbox();
+  } catch { /* the next audit stamps it */ }
+}
+/**
+ * The same person on two cards, by their names: one name inside the other
+ * ("Marc" and "Marc Dupont"), or one card's other name being the other's
+ * title. A pair you kept apart is never proposed again.
+ */
+function samePeople(people, apart){
+  const fold = t => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").trim();
+  const names = c => [c.title, ...(c.aliases || [])].map(fold).filter(Boolean);
+  const kept = new Set(apart || []), out = [];
+  for (let i = 0; i < people.length; i++) for (let j = i + 1; j < people.length; j++){
+    const a = people[i], b = people[j], ida = `${a.brain}/${a.slug}`, idb = `${b.brain}/${b.slug}`;
+    if (kept.has([ida, idb].sort().join("|"))) continue;
+    const na = names(a), nb = names(b);
+    const inside = (x, y) => (` ${y} `).includes(` ${x} `);
+    if (na.some(x => nb.some(y => x === y || (x.split(" ").length < y.split(" ").length && inside(x, y)) || (y.split(" ").length < x.split(" ").length && inside(y, x)))))
+      out.push((b.ev || 0) > (a.ev || 0) ? [b, a] : [a, b]);
+  }
+  return out.slice(0, 40);
+}
 
 /* ============ a chat about one concept ============ */
 
@@ -4306,8 +4375,12 @@ async function openSetupSheet(opts = {}){
           <span class="lbl">Export</span><span class="val">markdown</span></button>
         <button class="foot-btn" id="setMap" title="Every brain as an arm of the octopus: its concepts, the links between brains and the open conflicts">
           <span class="lbl">Map</span><span class="val">open</span></button>
-        <button class="foot-btn" id="setTidy" title="Every folder read for concepts filed twice, titles not in English and concepts with no position">
-          <span class="lbl">Tidy all folders</span><span class="val">run</span></button>
+      </div>
+
+      <div class="f" id="auditBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${S.demo ? "hidden" : ""}>
+        <label>Audit</label>
+        <div class="hint" style="margin:0 0 10px">Finds what is filed twice, titles not in English and empty positions, and in your personal folder the people not filed yet and the same person twice. You decide each one. Due after 50 sources dropped, and every week for the personal folder: the inbox says when.</div>
+        <div id="auditList"></div>
       </div>
 
       <div class="f" id="langBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
@@ -4520,7 +4593,17 @@ async function openSetupSheet(opts = {}){
   veil.querySelector("#setModel").hidden = S.demo;
   veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet("chat"); };
   veil.querySelector("#setMap").onclick = () => { shut(); openMap(); };
-  veil.querySelector("#setTidy").hidden = S.demo;
+  /* Audit: one row per folder this workspace holds, the last run and what came since. */
+  const al = veil.querySelector("#auditList");
+  for (const b of auditFolders()){
+    const r = el("div","au-row"); r.dataset.slug = b.slug;
+    const due = auditDue(b);
+    const t = el("div","au-t"); t.append(el("b",null,b.name), el("span",null, auditLine(b)));
+    const go = el("button", due ? "mini au-due" : "mini", due ? "Audit now" : "Audit"); go.type = "button";
+    go.onclick = () => { shut(); runAudit(b); };
+    r.append(t, go); al.append(r);
+  }
+  if (!al.children.length) al.append(el("div","hint","No folder to audit yet."));
   /* Languages: saved for the workspace on a tap. The demo keeps its voice
      language in this browser, since its settings are shared by every visitor. */
   const langSeg = (id, key, def, said) => {
@@ -4550,7 +4633,7 @@ async function openSetupSheet(opts = {}){
     veil.querySelector("#langMsg").textContent = "Pick the language the mic listens in. It hears one language at a time.";
     setTimeout(() => row.scrollIntoView({ block: "center" }), 60);
   }
-  veil.querySelector("#setTidy").onclick = () => { shut(); openTidyAll(); };
+
   const exp = veil.querySelector("#setExport");
   exp.onclick = async () => {
     const v = exp.querySelector(".val");
@@ -5287,7 +5370,6 @@ function pctRing(pct){
   return r;
 }
 const IC_PATH = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h5a3 3 0 0 0 3-3V8"/></svg>`;
-const IC_TIDY = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h11M4 12h7M4 17h5M15 13l2 2 4-4"/></svg>`;
 const IC_EDIT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 4.3a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L9 19.5 4 20l.5-5Z"/></svg>`;
 const dayOf = d => { const t = Date.parse(d); return isNaN(t) ? String(d || "") : new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
 /* A person's file: its sections, and its dates as people say them: a day, a month, or a year. */
@@ -5309,7 +5391,7 @@ function fileDay(d, noYear){
  * next move, then every concept, newest first, and the one open beside them.
  * The bar below asks this folder, and the answer lands in a new chat.
  */
-function openFolder(b, openId){
+function openFolder(b, openId, opts = {}){
   closeSide();
   if (!b) return;
   if (S.mode === "drop") S.mode = "ask";
@@ -5371,7 +5453,6 @@ function openFolder(b, openId){
   }
   if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
   if (!S.demo && !ro && !self) btn("fvEdit", "Edit", IC_EDIT, () => openBrainSheet(b), "Its name and the line that decides what goes in");
-  if (!S.demo && !ro && !self && cs.length > 1) btn("fvTidy", "Tidy", IC_TIDY, () => tidy(), "Find concepts filed twice, titles not in English and concepts with no position");
   if (!self && learningPath(b.slug).length) btn("fvPath", "Learning path", IC_PATH, () => pathPane(), "Its concepts in the order to read them, foundations first");
   const x = btn("fvClose", "×", "", () => { S.folder = null; render(); $("input").focus(); }, "Back to the chat");
   x.classList.add("fv-x"); x.setAttribute("aria-label","Back to the chat");
@@ -5401,43 +5482,8 @@ function openFolder(b, openId){
       tabs.append(x);
     }
   };
-  /* The people already in older notes, found once on a click. */
-  const paintScan = () => {
-    const plain = cs.filter(c => !isPerson(c)).length, bare = cs.filter(c => isPerson(c) && !c.full).length;
-    scan.hidden = !self || S.demo || tab !== "people" || (!plain && !bare);
-    if (scan.hidden || scan.dataset.busy) return;
-    scan.innerHTML = "";
-    const go2 = el("button","mini", plain ? "Find people in my notes" : "Build full files"); go2.type = "button"; go2.id = "fvScan";
-    go2.title = plain ? `Reads your ${plain} notes once and gives each person they mention a file` : `Writes a full file for the ${bare} people who have only a card`;
-    const say = el("span","fv-scan-say");
-    go2.onclick = async () => {
-      scan.dataset.busy = "1"; go2.disabled = true;
-      let at = 0, found = new Set();
-      try {
-        for (let i = 0; plain && i < 100; i++){
-          say.textContent = `Reading your notes${at ? `: ${at} read` : ""}`;
-          const r = await api("/api/personal/people", { brain: b.slug, at });
-          for (const x of r.filed?.people || []) found.add(x);
-          say.textContent = `${r.read} of ${r.total} notes read · ${found.size} contact${found.size === 1 ? "" : "s"}`;
-          if (r.next == null) break;
-          at = r.next;
-        }
-        /* Then every person with only a card gets a full file, 5 at a time. */
-        for (let i = 0; i < 200; i++){
-          say.textContent = `Building full files${found.size ? ` · ${found.size} people so far` : ""}`;
-          const r = await api("/api/personal/people", { brain: b.slug, phase: "files" });
-          for (const x of r.filed?.people || []) found.add(x);
-          if (r.next == null) break;
-          say.textContent = `Building full files · ${r.left} to go`;
-        }
-        delete scan.dataset.busy;
-        await reload();
-        say.textContent = `Done: ${found.size} ${found.size === 1 ? "person" : "people"} filed.`;
-        go2.remove(); scan.hidden = false;
-      } catch (e) { delete scan.dataset.busy; go2.disabled = false; say.textContent = e.message; }
-    };
-    scan.append(go2, say);
-  };
+  /* The people in older notes are found by the audit, in Settings. */
+  const paintScan = () => { scan.hidden = true; };
   if (self) paintTabs();
   list.append(tabs, f, scan, tops, topLine, rows);
   if (!self) api("/api/topics", { brain: b.slug }).then(r => {
@@ -5888,6 +5934,8 @@ function openFolder(b, openId){
    * Tidy: what this folder holds twice, titles not in English, and concepts
    * with no position. It proposes; each finding waits for a click.
    */
+  /* The audit of a subject or person folder: what is filed twice, titles not
+     in English, empty positions. Each one waits for your call. */
   const tidy = async () => {
     openNow = null; paint();
     cols.classList.add("reading");
@@ -5895,7 +5943,7 @@ function openFolder(b, openId){
     const inner = el("div","fv-in tidy"); inner.id = "tidyPane"; doc.append(inner);
     const back = el("button","fv-back","← All concepts"); back.type = "button";
     back.onclick = () => { cols.classList.remove("reading"); paint(); };
-    inner.append(back, el("div","fv-eye",`Tidy · ${b.name}`), el("h1",null,"Tidy this folder"));
+    inner.append(back, el("div","fv-eye",`Audit · ${b.name}`), el("h1",null,"Audit this folder"));
     const n = el("p","fv-pos");
     n.textContent = `Reading ${cs.length} concepts for ideas filed twice, titles not in English and concepts with no position.`;
     const wait = el("div","td-wait"); wait.append(el("i"), el("i"), el("i"));
@@ -5906,13 +5954,78 @@ function openFolder(b, openId){
     if (r.error){ wait.remove(); inner.append(el("div","fv-li bad",r.error)); return; }
     if (!doc.contains(inner)) return;
     wait.remove();
+    auditDone(b);
     n.textContent = `${r.total} concepts read${r.read < r.total ? `, the newest ${r.read}` : ""}. ` +
       `${r.same.length} filed twice, ${r.english.length} not in English, ${r.blank.length} with no position.`;
     if (!r.same.length && !r.english.length && !r.blank.length){
-      inner.append(el("div","td-clean","Nothing to tidy. Each concept holds one idea, in English, with a position."));
+      inner.append(el("div","td-clean","All clean. Each concept holds one idea, in English, with a position."));
       return;
     }
     tidyCards(inner, r, reload);
+  };
+
+  /* The audit of the personal folder: the people in your notes filed, the
+     ones with only a card given a full file, then the same person filed
+     twice, each pair for you to merge or keep apart. */
+  const personalAudit = async () => {
+    openNow = null; paint();
+    cols.classList.add("reading");
+    doc.innerHTML = ""; doc.scrollTop = 0;
+    const inner = el("div","fv-in tidy"); inner.id = "auditPane"; doc.append(inner);
+    const back = el("button","fv-back","← All notes"); back.type = "button";
+    back.onclick = () => { cols.classList.remove("reading"); paint(); };
+    const say = el("p","fv-pos"); say.id = "auditSay";
+    inner.append(back, el("div","fv-eye",`Audit · ${b.name}`), el("h1",null,"Audit your personal folder"), say);
+    let at = 0; const found = new Set();
+    try {
+      for (let i = 0; i < 100; i++){
+        say.textContent = `Finding the people in your notes${at ? `: ${at} read` : ""}`;
+        const r = await api("/api/personal/people", { brain: b.slug, at });
+        for (const x of r.filed?.people || []) found.add(x);
+        if (r.next == null) break;
+        at = r.next;
+      }
+      /* Every person with only a card gets a full file, 5 at a time. */
+      for (let i = 0; i < 200; i++){
+        say.textContent = `Building full files${found.size ? ` · ${found.size} people so far` : ""}`;
+        const r = await api("/api/personal/people", { brain: b.slug, phase: "files" });
+        for (const x of r.filed?.people || []) found.add(x);
+        if (r.next == null) break;
+      }
+    } catch (e) { say.textContent = e.message; inner.append(feedbackButton(e.message, { where: "audit", scope: b.slug })); return; }
+    await reload();
+    if (!doc.contains(inner)) return;
+    auditDone(b);
+    const pairs = samePeople(cs.filter(isPerson), S.brains.find(x => x.slug === b.slug)?.apart || []);
+    say.textContent = `${found.size} ${found.size === 1 ? "person" : "people"} filed or brought up to date. ${pairs.length} look${pairs.length === 1 ? "s" : ""} filed twice.`;
+    if (!pairs.length){ inner.append(el("div","td-clean","All clean. Each person has one card.")); return; }
+    inner.append(el("h4",null,`Filed twice · ${pairs.length}`), el("p","td-sub","The same person under two names. Merge keeps the name you pick and joins both files; Keep apart never asks again."));
+    for (const g of pairs){
+      const card = el("div","td-card"), name = `keep-${Math.random().toString(36).slice(2)}`;
+      g.forEach((c, i) => {
+        const row = el("label","td-opt");
+        const rb = el("input"); rb.type = "radio"; rb.name = name; rb.value = `${c.brain}/${c.slug}`; rb.checked = i === 0;
+        const t = el("div"); t.append(el("b",null,c.title), el("span",null,c.summaryLine || "No line yet."), el("small",null,`${c.ev || 0} mention${c.ev === 1 ? "" : "s"}`));
+        row.append(rb, t); card.append(row);
+      });
+      const acts = el("div","td-acts");
+      const go = el("button","td-go","Merge"); go.type = "button";
+      const no = el("button","td-no","Keep apart"); no.type = "button";
+      const msg = el("span","td-say");
+      acts.append(go, no, msg); card.append(acts); inner.append(card);
+      const ids = g.map(c => `${c.brain}/${c.slug}`);
+      no.onclick = () => { card.classList.add("gone"); api("/api/brain/audit", { brain: b.slug, action: "apart", ids }).catch(() => {}); };
+      go.onclick = async () => {
+        const into = card.querySelector("input:checked")?.value || ids[0];
+        go.disabled = no.disabled = true; msg.className = "td-say spin"; msg.textContent = "Merging";
+        try {
+          const r = await api("/api/personal/contact", { action: "merge", into, from: ids.filter(x => x !== into) });
+          if (r.error) throw new Error(r.error);
+          msg.className = "td-say ok"; msg.textContent = `Merged into ${g.find(c => `${c.brain}/${c.slug}` === into)?.title || into}.`;
+          card.classList.add("done"); reload();
+        } catch (e) { go.disabled = no.disabled = false; msg.className = "td-say bad"; msg.textContent = e.message; }
+      };
+    }
   };
 
   /* ---- a personal folder: the twin, its test and its profile ---- */
@@ -6102,7 +6215,8 @@ function openFolder(b, openId){
 
   paint();
   const wide = window.matchMedia("(min-width:861px)").matches;
-  if (openId) show(openId);
+  if (opts.audit) (self ? personalAudit() : tidy());
+  else if (openId) show(openId);
   else if (self && !S.demo && wide) twinPane();
   else if (wide && cs.length) show(`${cs[0].brain}/${cs[0].slug}`);
   else { const p = el("div","fv-in"); p.append(el("div","fv-none", cs.length ? "Pick a concept to read it." : "")); doc.append(p); }
@@ -6139,7 +6253,8 @@ function tidyCards(inner, r, onChange, tally = {}){
       const no = el("button","td-no","Keep apart"); no.type = "button";
       const say = el("span","td-say");
       acts.append(go, no, say); card.append(acts);
-      no.onclick = () => card.classList.add("gone");
+      /* Kept apart for good: the next audit never proposes them again. */
+      no.onclick = () => { card.classList.add("gone"); api("/api/brain/audit", { brain: r.brain, action: "apart", ids: g.map(c => c.id) }).catch(() => {}); };
       const merge = async () => {
         if (card.classList.contains("done") || card.classList.contains("gone")) return true;
         const keep = card.querySelector("input:checked")?.value || g[0].id;
@@ -6228,72 +6343,6 @@ const tidyCount = r => r.same.length + r.english.length + r.blank.length;
  * Three folders at a time, each one's steps in order. Every step shows what
  * it did, and one that fails says why and keeps its button.
  */
-function openTidyAll(){
-  const folders = S.brains.filter(b => b.type !== "personal" && !readOnly(b) && conceptsOf(b.slug).length > 1)
-    .sort((x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length);
-  const veil = el("div","veil");
-  veil.innerHTML = `
-    <div class="sheet viewer tidy-all" role="dialog" aria-modal="true" aria-label="Tidy all folders">
-      <header><h3>Tidy all folders</h3>
-      <p>Each folder is read, then tidied: twins merged into the clearest title, titles put in English, empty positions written from their evidence.</p>
-      <div class="ta-bar"><span class="td-say spin" id="taSay"></span>
-        <button class="ghost" id="taClose" type="button">Stop</button></div></header>
-      <div class="ta-body tidy" id="taBody"></div>
-    </div>`;
-  document.body.append(veil);
-  const body = veil.querySelector("#taBody"), say = veil.querySelector("#taSay"), close = veil.querySelector("#taClose");
-  let open = true, changed = false;
-  const shut = () => { open = false; veil.remove(); if (changed) refresh().catch(() => {}); };
-  close.onclick = shut;
-  const onChange = () => { changed = true; };
-  if (!folders.length){ say.className = "td-say"; say.textContent = "No folder to tidy yet."; close.textContent = "Close"; return; }
-
-  const tally = {};
-  let done = 0, failed = 0;
-  const paint = () => {
-    const did = [tally.merged ? `${tally.merged} merged` : "", tally.renamed ? `${tally.renamed} renamed` : "",
-                 tally.written ? `${tally.written} position${tally.written === 1 ? "" : "s"} written` : ""].filter(Boolean).join(", ");
-    say.textContent = `${done} of ${folders.length} folders tidied${did ? `: ${did}` : ""}${failed ? `. ${failed} step${failed === 1 ? "" : "s"} failed, each says why` : ""}.`;
-  };
-  paint();
-
-  /* A section per folder, in place from the start, so the list never jumps. */
-  const parts = folders.map(b => {
-    const sec = el("section","ta-sec");
-    const h = el("div","ta-h"); h.append(el("b",null,b.name), el("span","ta-n","Waiting"));
-    sec.append(h); body.append(sec);
-    return { b, sec, n: h.lastChild };
-  });
-  const tidyOne = async p => {
-    p.n.textContent = "Reading";
-    const wait = el("div","td-wait"); wait.append(el("i"), el("i"), el("i")); p.sec.append(wait);
-    let r;
-    try { r = await api("/api/brain/tidy", { brain: p.b.slug }); if (r.error) throw new Error(r.error); }
-    catch (e) { wait.remove(); p.n.textContent = "Not read"; p.sec.append(el("div","td-say bad",e.message)); failed++; return; }
-    wait.remove();
-    if (!open) return;
-    if (!tidyCount(r)){ p.n.textContent = "Already tidy"; p.sec.classList.add("clean"); return; }
-    p.n.textContent = "Tidying";
-    for (const run of tidyCards(p.sec, r, onChange, tally)){
-      if (!open) return;
-      if (!(await run())) failed++;
-      paint();
-    }
-    changed = true;
-    p.n.textContent = "Tidied"; p.sec.classList.add("clean");
-  };
-  (async () => {
-    const queue = parts.slice();
-    await Promise.all(Array.from({ length: Math.min(3, queue.length) }, async () => {
-      while (queue.length && open){ await tidyOne(queue.shift()); done++; paint(); }
-    }));
-    if (!open) return;
-    say.className = failed ? "td-say bad" : "td-say ok";
-    paint();
-    close.textContent = "Close";
-  })();
-}
-
 /* The source line keeps its link, and the box below takes the pasted text or
    transcript: one box for everything a source says. */
 function pasteHere(){
