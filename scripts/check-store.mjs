@@ -777,15 +777,19 @@ function seed() {
   await run(projects.addVersion, ctx, { space: "octopus", id: made.id, html: "<html>v1</html>", why: "Built", took: 8 });
   check("a build clears what it read, and keeps an answer added while it ran", T.projects[0].pending.map(x => x.q).join(",") === "q7,q8", JSON.stringify(T.projects[0].pending.map(x => x.q)));
 
-  check("a workspace starts on the default models", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"project":null}');
+  check("a workspace starts on the default models, kept in English, answered as asked", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"project":null,"store":"en","reply":"same"}');
   await run(store.setModels, ctx, { space: "octopus", project: "z-ai/glm-5.3" });
   const one = await run(store.modelsOf, ctx, { space: "octopus" });
   check("a project model picked leaves the chat model alone", one.project === "z-ai/glm-5.3" && one.chat === null, JSON.stringify(one));
   await run(store.setModels, ctx, { space: "octopus", chat: "openai/gpt-5" });
-  check("and the other way round", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":"z-ai/glm-5.3"}');
-  check("another workspace keeps its own", JSON.stringify(await run(store.modelsOf, ctx, { space: "squidgy" })) === '{"chat":null,"project":null}');
+  check("and the other way round", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":"z-ai/glm-5.3","store":"en","reply":"same"}');
+  check("another workspace keeps its own", JSON.stringify(await run(store.modelsOf, ctx, { space: "squidgy" })) === '{"chat":null,"project":null,"store":"en","reply":"same"}');
   await run(store.setModels, ctx, { space: "octopus", project: null });
-  check("null goes back to the default", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":null}');
+  check("null goes back to the default", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":null,"store":"en","reply":"same"}');
+  await run(store.setModels, ctx, { space: "octopus", store: "same", reply: "en" });
+  check("the languages are saved apart, and the models stay", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":null,"store":"same","reply":"en"}');
+  await run(store.setModels, ctx, { space: "octopus", chat: null, store: "anything" });
+  check("an unknown language reads as English, and a model change leaves the reply alone", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"project":null,"store":"en","reply":"en"}');
 }
 
 /* ---- one folder merged into another ---- */
