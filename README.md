@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1066 checks passing" src="https://img.shields.io/badge/checks-1066%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1091 checks passing" src="https://img.shields.io/badge/checks-1091%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -107,7 +107,7 @@ A third kind of brain, next to subjects and experts. You talk to it, and it keep
 - **Add memory.** Paste what another assistant knows about you, or a notes file.
 - **It talks to you as "you".** Its notes read "You want to move to Lisbon", and so do its replies.
 - **It calls your other brains on its own.** When one holds something that bears on what you said, it brings it up and names it: "your Health brain says 3 to 5 g a day". A line under the reply shows which brains it called.
-- **A card per person.** Each person you mention, by name or by role, gets a contact card: who they are to you, their work and city, and everything you said about them, dated. A new fact updates the same card, and a changed one keeps the old with its date. The People tab lists them, the most recent first, and one click finds the people in your older notes. Edit a card by hand, or merge two cards of the same person: the mentions and names join, and the card is written again as one.
+- **A file per person.** Each person you mention, by name or by role, gets a file: a short summary on top, then what is still open, their facts by section (identity, contact details, you and them, work, tastes), their people both ways, and their whole history, year by year, each moment dated and told with its details. It only grows: a changed fact keeps the old one with the day it ended, and your own words stay folded underneath. The People tab lists them, the most recent first, and one click finds the people in your older notes. Edit a card by hand, or merge two cards of the same person: the mentions and names join, and the card is written again as one.
 - **It interviews you.** Tap Interview me: one quick question at a time, from 335 in 17 chapters, life story first. Each takes under 30 seconds: a fact, a choice, a number or one sentence. A one-word answer gets one follow-up, a question your notes already answer is skipped, and every 10 answers it reads back 3 notes for you to confirm or correct. Say skip to pass; Stop pauses it, and it picks up where you left off.
 - **It asks in passing.** Every few messages, when you asked nothing, it may end its reply with one question from the chapters it knows least.
 - **Your twin, measured.** 30 test questions, answered once and never filed. Your twin answers them from your notes, you score each 0 to 2, and a retest 2 weeks later sets your own ceiling. The twin profile writes your notes as 7 parts: identity, values, beliefs, decision rules, voice, knowledge and boundaries.

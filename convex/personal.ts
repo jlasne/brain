@@ -18,22 +18,26 @@
  */
 
 import { internal } from "./_generated/api";
-import { sameTitle, idOf } from "./words";
+import { sameTitle, idOf, fileText, FILE_SECTIONS } from "./words";
 
 export type Note = { title: string; claim: string; position: string; summaryLine: string; update: string };
 /* A contact: one card per person, the whole of what was said about them. */
-export type Person = { name: string; update: string; also: string[]; claim: string; position: string; summaryLine: string; date: string };
+/* A person as the filer sends them: who, the summary rewritten, and only
+   what this message adds to their file. */
+export type Person = { name: string; update: string; also: string[]; claim: string; position: string; summaryLine: string; date: string;
+  facts: any[]; events: any[]; links: any[]; open: any[] };
 export type Filed = { new: number; updated: number; titles: string[]; people?: string[] };
 /* "people" reads notes already held, for the people in them alone. */
-export type Kind = "chat" | "import" | "interview" | "people";
+/* "files" builds the files of people already held from their cards and mentions. */
+export type Kind = "chat" | "import" | "interview" | "people" | "files";
 
 /* A chat message files a few notes at most; an interview answer, a long
    story told aloud, files more; an import more again per piece. */
-const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 10, people: 0 };
+const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 10, people: 0, files: 0 };
 /* People are filed apart from notes, each on their own card. */
-const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, people: 12 };
+const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, people: 12, files: 6 };
 /* What one call reads: the message, the answer, and a piece of an import. */
-export const MAX_CHARS: Record<Kind, number> = { chat: 4000, interview: 8000, import: 8000, people: 12000 };
+export const MAX_CHARS: Record<Kind, number> = { chat: 4000, interview: 8000, import: 8000, people: 12000, files: 20000 };
 
 /** The tag a contact card carries. */
 export const CONTACT = "contact";
@@ -92,8 +96,9 @@ export function filerPrompt(kind: Kind, text: string, context: string, opened: a
   /* A contact named in the message is shown whole, so its card is rewritten
      from everything it holds; a note, from its opening. */
   const held = [
-    ...opened.map(c => `- ${isContact(c) ? "CONTACT " : ""}"${c.title}": ${String(c.position || c.summaryLine || "").slice(0, isContact(c) ? 3000 : 700)}` +
-      (c.evidence?.[0]?.date ? ` (last said ${c.evidence[0].date})` : "")),
+    ...opened.map(c => isContact(c)
+      ? `- CONTACT "${c.title}"\n  SUMMARY: ${String(c.position || c.summaryLine || "").slice(0, 1500)}${c.file ? `\n  ${fileText(c, 3500).replace(/\n/g, "\n  ")}` : ""}`
+      : `- "${c.title}": ${String(c.position || c.summaryLine || "").slice(0, 700)}` + (c.evidence?.[0]?.date ? ` (last said ${c.evidence[0].date})` : "")),
     ...others.filter(c => !isContact(c)).slice(0, 80).map(c => `- "${c.title}": ${String(c.summaryLine ?? "").slice(0, 160)}`),
   ].join("\n");
   const people = contacts.slice(0, 300).map(c => `- "${c.title}"${(c.aliases ?? []).length ? ` (also: ${c.aliases.join(", ")})` : ""}: ${String(c.summaryLine ?? "").slice(0, 120)}`).join("\n");
@@ -103,6 +108,8 @@ export function filerPrompt(kind: Kind, text: string, context: string, opened: a
     ? "its owner's answer to a question their personal brain asked in an interview, to know them better"
     : kind === "people"
     ? "notes already in their personal brain, each with its date. File ONLY the people in them, as contacts, and no note"
+    : kind === "files"
+    ? "the cards of people already in their personal brain, each with every dated thing they said about the person. Build each person's whole file from their card and their mentions: summary, facts, history, links and what is open. File ONLY these people, each with \"update\" set to their title, and no note"
     : "a memory export or notes its owner pasted in, from another assistant or a notes file";
   return [
     { role: "system" as const, content: "You file notes into a person's own knowledge base. You return JSON only." },
@@ -125,13 +132,19 @@ HOW TO FILE
 - Keep their language. No em-dashes.
 
 PEOPLE
-- Every person they mention gets a contact of their own: anyone named or named by role, friends, family, colleagues, clients, public figures, "my mother", "my boss".
-- One contact per person. When the person is already under CONTACTS NOW (the same name, a first name, a nickname or the same role), set "update" to its exact title. Never make a second contact for the same person.
+Each person has a FILE that only grows: lasting facts, the history of what happened, the people they are linked to, and what is still open. Send only what THE MESSAGE adds. The server folds it into the file and never loses what the file held.
+- Every person they mention gets a file of their own: anyone named or named by role, friends, family, colleagues, clients, public figures, "my mother", "my boss".
+- One file per person. When the person is already under CONTACTS NOW (the same name, a first name, a nickname or the same role), set "update" to its exact title. Never make a second file for the same person.
 - "name": the full name when known, else the first name, else the role ("Mother").
 - "also": the other names or roles they use for this person ("Marc", "my co-founder").
 - "claim": what they said about this person, in one sentence, in their own words and language.
-- "position": the whole card after this, written to them as "you": who the person is to you, how you met, their work and city, and everything you said about them, with dates. Keep every fact the card held and add what is new. When a fact changed, state the new one and the old one with its date ("Marc left Finary (${date}); he worked there since 2024."). End with any promise still open ("You owe him an intro to Paul.").
-- "summaryLine": who they are to you, under 15 words ("Your co-founder at Tasu, in Lisbon").
+- "summary": who the person is now, 3 to 6 sentences, written to them as "you": who they are to you, their work, where they live, what matters most about them now. Rewrite it from the file shown under HELD NOW plus this message.
+- "summaryLine": who they are to you, under 15 words ("Your co-founder, now at Revolut in London").
+- "facts": each lasting fact this message gives, one per entry: {"section","label","value"}. Sections: ${FILE_SECTIONS.map(x => x[0]).join(", ")}. identity: birthday, age, born in, lives in, nationality, languages, family status. contact: phone, email, address, social accounts. you: how you met, since when, how close, how often you see them. work: job, company, role, projects, money. tastes: likes, dislikes, character, habits, values, health. Keep every detail given: numbers, names, places. When the fact replaces an older one (they moved, changed job), add "replaces": true and "since": the date.
+- "events": the moments of this person's story, one entry per moment: {"date","text","seen"}. "date" is the real date, YYYY-MM-DD, YYYY-MM or YYYY, worked out from TODAY ("yesterday", "last summer", "in 2019"). "text" tells the moment as an anecdote, with every detail given: what happened, where, who was there, what was said, how it went, 1 to 4 sentences as "you". "seen": true when you were with them or spoke with them that day.
+- "links": the people linked to this person: {"name","rel"}, rel from this person's side ("his wife", "her boss", "his co-founder"). Each linked person also gets their own file.
+- "open": promises and things to follow up: {"text","done"}. "done": true when this message closes one already open.
+- Never repeat what the file already holds. An empty list is a correct answer.
 - At most ${MAX_PEOPLE[kind]} people.${kind === "people" ? `
 - "date": the date of the note it comes from.` : ""}
 ${context ? `
@@ -146,10 +159,10 @@ ${people || "(none yet)"}
 
 TODAY: ${date}
 
-${kind === "chat" ? "THE MESSAGE" : kind === "interview" ? "THE ANSWER" : kind === "people" ? "THE NOTES" : "THE PASTED TEXT"}
+${kind === "chat" ? "THE MESSAGE" : kind === "interview" ? "THE ANSWER" : kind === "people" ? "THE NOTES" : kind === "files" ? "THE CARDS" : "THE PASTED TEXT"}
 ${text}
 
-Return: {"notes":[{"title":"","update":"","claim":"","position":"","summaryLine":""}],"people":[{"name":"","update":"","also":[],"claim":"","position":"","summaryLine":""${kind === "people" ? ',"date":""' : ""}}]}` },
+Return: {"notes":[{"title":"","update":"","claim":"","position":"","summaryLine":""}],"people":[{"name":"","update":"","also":[],"claim":"","summary":"","summaryLine":"","facts":[{"section":"","label":"","value":""}],"events":[{"date":"","text":"","seen":false}],"links":[{"name":"","rel":""}],"open":[{"text":"","done":false}]${kind === "people" ? ',"date":""' : ""}}]}` },
   ];
 }
 
@@ -206,16 +219,20 @@ export function readPeople(raw: string, kind: Kind): Person[] {
     d = JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s);
   } catch { return []; }
   const clean = (t: any, n: number) => String(t ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, n);
+  const list = (v: any, n: number) => (Array.isArray(v) ? v : []).filter((y: any) => y && typeof y === "object").slice(0, n);
   return (Array.isArray(d?.people) ? d.people : []).map((x: any) => ({
     name: clean(x?.name || x?.update, 80),
     update: clean(x?.update, 80),
     also: (Array.isArray(x?.also) ? x.also : []).map((t: any) => clean(t, 60)).filter((t: string) => t.length >= 2).slice(0, 8),
     claim: clean(x?.claim, 600),
-    position: clean(x?.position, 3000),
+    /* The summary goes where a card's text always went; an older reply's "position" still reads. */
+    position: clean(x?.summary || x?.position, 3000),
     summaryLine: clean(x?.summaryLine, 160),
     date: /^\d{4}-\d{2}-\d{2}$/.test(String(x?.date ?? "")) ? String(x.date) : "",
-  })).filter((x: Person) => x.name.length >= 2 && x.claim.length >= 2)
-    .map((x: Person) => ({ ...x, position: x.position || x.claim, summaryLine: x.summaryLine || x.claim.slice(0, 120) }))
+    facts: list(x?.facts, 40), events: list(x?.events, 20), links: list(x?.links, 20), open: list(x?.open, 10),
+  })).filter((x: Person) => x.name.length >= 2 && (x.claim.length >= 2 || x.facts.length || x.events.length))
+    .map((x: Person) => ({ ...x, claim: x.claim || String(x.events[0]?.text ?? x.facts[0]?.value ?? "").slice(0, 600),
+      position: x.position || x.claim, summaryLine: x.summaryLine || x.claim.slice(0, 120) }))
     .slice(0, MAX_PEOPLE[kind]);
 }
 
@@ -241,7 +258,9 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
   if (!notes.length && !people.length && !missed.length) return out;
   const sid = `${brain}-${kind}-${date}`;
   const author = kind === "import" ? "You (imported)" : "You";
-  await ctx.runMutation(internal.store.writeSource, { space, doc: {
+  /* Building files from what is held adds no mention and no source. */
+  const quiet = kind === "files";
+  if (!quiet) await ctx.runMutation(internal.store.writeSource, { space, doc: {
     sid, link: "", linkKey: sid,
     title: kind === "chat" ? `Chat, ${date}` : kind === "interview" ? `Interview, ${date}` : kind === "people" ? `People in your notes, ${date}` : `Imported memory, ${date}`,
     author, date, location: "", brains: [brain],
@@ -251,10 +270,11 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
     const title = seen?.title ?? p.name;
     const aliases = [...new Set([...(seen?.aliases ?? []), ...p.also, ...(p.name !== title ? [p.name] : [])]
       .map(String).filter(t => t && !sameTitle(t, title)))].slice(0, 12);
-    await ctx.runMutation(internal.store.upsertConcept, {
-      brain, title, ...(seen?.slug ? { slug: seen.slug } : {}),
-      doc: { position: p.position, summaryLine: p.summaryLine, sources: [sid], tag: CONTACT, aliases,
-             evidence: [{ date: p.date || date, author, claim: p.claim, source: sid }] },
+    await ctx.runMutation(internal.store.fileContact, {
+      brain, title, ...(seen?.slug ? { slug: seen.slug } : {}), date,
+      doc: { position: p.position, summaryLine: p.summaryLine, aliases,
+             ...(quiet ? {} : { sources: [sid], evidence: [{ date: p.date || date, author, claim: p.claim, source: sid }] }) },
+      add: { facts: p.facts, events: p.events, links: p.links, open: p.open },
     });
     out.people!.push(title);
     /* A second mention in the same breath finds the card just made. */
@@ -301,8 +321,9 @@ export async function remember(ctx: any, o: {
   const contacts = held.filter(isContact), plain = held.filter(c => !isContact(c));
   const context = String(o.context ?? "").slice(0, 1500);
   /* The nearest notes whole, and every contact the message names, whole. */
-  const near = o.kind === "people" ? [] : nearest(plain, text);
-  const named = namedIn(contacts, `${text} ${context}`, o.kind === "people" ? 24 : 8);
+  const bulk = o.kind === "people" || o.kind === "files";
+  const near = bulk ? [] : nearest(plain, text);
+  const named = namedIn(contacts, `${text} ${context}`, bulk ? 24 : 8);
   const ids = [...near, ...named].map(idOf);
   const opened = ids.length ? await ctx.runQuery(internal.store.conceptsByIds, { space: o.space, ids }) : [];
   const others = plain.filter(c => !near.includes(c));
@@ -313,9 +334,9 @@ export async function remember(ctx: any, o: {
   const people = readPeople(raw, o.kind);
   /* A person already held, named in the message and missed by the filer,
      still gets the mention on their card. */
-  const missed = o.kind === "people" ? [] : properlyNamed(contacts, text)
+  const missed = bulk ? [] : properlyNamed(contacts, text)
     .filter(c => !people.some(p => [p.update, p.name].some(t => t && (sameTitle(t, c.title) || (c.aliases ?? []).some((a: string) => sameTitle(a, t))))));
-  return await fileNotes(ctx, o.space, o.brain, held, o.kind === "people" ? [] : readNotes(raw, o.kind), o.kind, o.date, people, missed, text);
+  return await fileNotes(ctx, o.space, o.brain, held, bulk ? [] : readNotes(raw, o.kind), o.kind, o.date, people, missed, text);
 }
 
 /** The rules a reply in a personal chat follows. */

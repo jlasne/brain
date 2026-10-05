@@ -515,6 +515,38 @@
   .fv-scan[hidden]{ display:none; }
   .fv-scan-say{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
   .fv-aka{ margin-top:6px; font:400 13.5px/1.45 var(--sans); color:var(--ink-3); }
+  /* A person's file: the summary, then what is open, facts, their people and the history. */
+  .pf-meta{ margin-top:6px; font:500 12px/1.4 var(--mono); color:var(--ink-4); }
+  .pf-open{ margin-top:18px; padding:12px 14px; border-radius:12px; background:var(--side); }
+  .pf-open h4{ margin-top:0; }
+  .pf-orow{ display:flex; align-items:center; gap:10px; padding:5px 0; font:400 14.5px/1.45 var(--sans); color:var(--ink); }
+  .pf-orow span{ flex:1; min-width:0; }
+  .pf-orow time{ font:400 11.5px/1 var(--mono); color:var(--ink-4); white-space:nowrap; }
+  .pf-tick{ flex:none; width:18px; height:18px; border:1.5px solid var(--ink-4); border-radius:5px; background:var(--surface); cursor:pointer; }
+  .pf-tick:hover{ border-color:var(--accent-solid); background:var(--accent-soft); }
+  .pf-sec{ margin-top:4px; }
+  .pf-fact{ position:relative; display:grid; grid-template-columns:minmax(0,150px) minmax(0,1fr) 22px; gap:4px 14px; align-items:baseline; padding:7px 0; border-top:1px solid var(--line); }
+  .pf-fact:first-of-type{ border-top:0; }
+  .pf-l{ font:500 13px/1.4 var(--sans); color:var(--ink-3); }
+  .pf-v{ font:400 14.5px/1.5 var(--sans); color:var(--ink); overflow-wrap:anywhere; }
+  .pf-was{ grid-column:2 / 3; font:400 12.5px/1.45 var(--sans); color:var(--ink-4); }
+  .pf-fact.gone .pf-v{ color:var(--ink-4); }
+  .pf-x{ width:22px; height:22px; border-radius:6px; font:400 15px/1 var(--sans); color:var(--ink-4); opacity:0; cursor:pointer; transition:opacity .15s ease; }
+  .pf-fact:hover .pf-x, .pf-ev:hover .pf-x, .pf-x:focus-visible{ opacity:1; }
+  .pf-x:hover{ background:var(--surface-2); color:var(--bad); }
+  @media (hover:none){ .pf-x{ opacity:.6; } }
+  .vw-link.pf-link i{ font-style:normal; margin-left:6px; padding:0; background:none; text-transform:none; letter-spacing:0; font:400 12.5px/1 var(--sans); color:var(--ink-4); }
+  .pf-hist{ margin-top:6px; }
+  .pf-year{ margin:16px 0 4px; font:600 11px/1 var(--mono); letter-spacing:.1em; color:var(--ink-4); }
+  .pf-ev{ position:relative; display:grid; grid-template-columns:62px minmax(0,1fr) 22px; gap:12px; padding:9px 0 9px 14px; border-left:2px solid var(--line); animation:tdIn .3s ease both; }
+  .pf-ev::before{ content:""; position:absolute; left:-5px; top:15px; width:8px; height:8px; border-radius:50%; background:var(--surface); border:2px solid var(--ink-4); }
+  .pf-ev.seen::before{ background:var(--accent-solid); border-color:var(--accent-solid); }
+  .pf-ev time{ font:500 12px/1.6 var(--mono); color:var(--ink-3); }
+  .pf-ev p{ font:400 14.5px/1.55 var(--sans); color:var(--ink); }
+  .pf-said{ margin-top:22px; }
+  .pf-said summary{ cursor:pointer; font:600 13px/1.4 var(--sans); color:var(--ink-3); }
+  .pf-said[open] summary{ margin-bottom:8px; }
+  @media (max-width:520px){ .pf-fact{ grid-template-columns:minmax(0,1fr) 22px; } .pf-v{ grid-column:1 / 2; } .pf-was{ grid-column:1 / -1; } .pf-x{ grid-row:1; grid-column:2; } }
   /* A person's card: edit it, or merge it with another card of the same person. */
   .ct-acts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
   .ct-pick{ margin-top:10px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--side); animation:tdIn .3s ease both; }
@@ -4825,6 +4857,19 @@ const IC_PATH = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="
 const IC_TIDY = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h11M4 12h7M4 17h5M15 13l2 2 4-4"/></svg>`;
 const IC_EDIT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 4.3a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L9 19.5 4 20l.5-5Z"/></svg>`;
 const dayOf = d => { const t = Date.parse(d); return isNaN(t) ? String(d || "") : new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
+/* A person's file: its sections, and its dates as people say them: a day, a month, or a year. */
+const FILE_SECTIONS = [["identity","Identity"], ["contact","Contact details"], ["you","You and them"], ["work","Work"], ["tastes","Tastes and character"], ["other","Other"]];
+function fileDay(d, noYear){
+  const s = String(d || "");
+  const M = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const m = s.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/);
+  if (!m) return s;
+  const [, y, mo, da] = m;
+  if (!mo) return y;
+  const month = M[Number(mo) - 1] || mo;
+  if (!da) return noYear ? month : `${month} ${y}`;
+  return noYear ? `${Number(da)} ${month}` : `${Number(da)} ${month} ${y}`;
+}
 
 /**
  * A folder in the main area: its name, scope and counts, its health and the
@@ -4924,18 +4969,18 @@ function openFolder(b, openId){
   };
   /* The people already in older notes, found once on a click. */
   const paintScan = () => {
-    const plain = cs.filter(c => !isPerson(c)).length;
-    scan.hidden = !self || S.demo || tab !== "people" || !plain;
+    const plain = cs.filter(c => !isPerson(c)).length, bare = cs.filter(c => isPerson(c) && !c.full).length;
+    scan.hidden = !self || S.demo || tab !== "people" || (!plain && !bare);
     if (scan.hidden || scan.dataset.busy) return;
     scan.innerHTML = "";
-    const go2 = el("button","mini","Find people in my notes"); go2.type = "button"; go2.id = "fvScan";
-    go2.title = `Reads your ${plain} notes once and gives each person they mention a card`;
+    const go2 = el("button","mini", plain ? "Find people in my notes" : "Build full files"); go2.type = "button"; go2.id = "fvScan";
+    go2.title = plain ? `Reads your ${plain} notes once and gives each person they mention a file` : `Writes a full file for the ${bare} people who have only a card`;
     const say = el("span","fv-scan-say");
     go2.onclick = async () => {
       scan.dataset.busy = "1"; go2.disabled = true;
       let at = 0, found = new Set();
       try {
-        for (let i = 0; i < 100; i++){
+        for (let i = 0; plain && i < 100; i++){
           say.textContent = `Reading your notes${at ? `: ${at} read` : ""}`;
           const r = await api("/api/personal/people", { brain: b.slug, at });
           for (const x of r.filed?.people || []) found.add(x);
@@ -4943,9 +4988,17 @@ function openFolder(b, openId){
           if (r.next == null) break;
           at = r.next;
         }
+        /* Then every person with only a card gets a full file, 5 at a time. */
+        for (let i = 0; i < 200; i++){
+          say.textContent = `Building full files${found.size ? ` · ${found.size} people so far` : ""}`;
+          const r = await api("/api/personal/people", { brain: b.slug, phase: "files" });
+          for (const x of r.filed?.people || []) found.add(x);
+          if (r.next == null) break;
+          say.textContent = `Building full files · ${r.left} to go`;
+        }
         delete scan.dataset.busy;
         await reload();
-        say.textContent = `Done: ${found.size} contact${found.size === 1 ? "" : "s"} from your notes.`;
+        say.textContent = `Done: ${found.size} ${found.size === 1 ? "person" : "people"} filed.`;
         go2.remove(); scan.hidden = false;
       } catch (e) { delete scan.dataset.busy; go2.disabled = false; say.textContent = e.message; }
     };
@@ -4990,7 +5043,7 @@ function openFolder(b, openId){
       r.append(el("b",null,c.title));
       if (c.summaryLine) r.append(el("span",null,c.summaryLine));
       r.append(el("small",null, isPerson(c)
-        ? `${c.ev || 0} mention${c.ev === 1 ? "" : "s"}${c.updated ? " · last " + dayOf(c.updated) : ""}`
+        ? `${c.ev || 0} mention${c.ev === 1 ? "" : "s"}${c.seen ? " · seen " + fileDay(c.seen) : c.updated ? " · last " + dayOf(c.updated) : ""}`
         : `${c.src || 0} source${c.src === 1 ? "" : "s"}${c.updated ? " · " + dayOf(c.updated) : ""}`));
       r.onclick = () => show(id);
       rows.append(r);
@@ -5007,11 +5060,11 @@ function openFolder(b, openId){
     cols.classList.add("reading");
     doc.innerHTML = ""; doc.scrollTop = 0;
     const inner = el("div","fv-in"); doc.append(inner);
-    const back = el("button","fv-back","← All concepts"); back.type = "button";
+    const back = el("button","fv-back", self ? (tab === "people" ? "← All people" : "← All notes") : "← All concepts"); back.type = "button";
     back.onclick = () => { cols.classList.remove("reading"); openNow = null; paint(); };
     inner.append(back, el("div","fv-none","Opening"));
-    let c, insights = [];
-    try { const got = await api("/api/concept", { id }); c = got.concept; insights = got.insights || []; }
+    let c, insights = [], linkedFrom = [];
+    try { const got = await api("/api/concept", { id }); c = got.concept; insights = got.insights || []; linkedFrom = got.linkedFrom || []; }
     catch (e) { inner.lastChild.textContent = e.message; return; }
     if (openNow !== id || S.folder !== b.slug) return;
     if (!c){ inner.lastChild.textContent = "This concept is no longer here."; return; }
@@ -5019,6 +5072,11 @@ function openFolder(b, openId){
     const person = c.tag === "contact";
     inner.append(el("div","fv-eye",`${person ? "Contact" : self ? "Note" : "Concept"} · ${b.name}`), el("h1",null,c.title));
     if (person && (c.aliases || []).length) inner.append(el("p","fv-aka",`Also: ${c.aliases.join(", ")}`));
+    if (person){
+      const n = (c.evidence || []).length, last = (c.evidence || []).map(e => e.date || "").sort().pop();
+      inner.append(el("p","pf-meta", [c.file?.seen ? `Last seen ${fileDay(c.file.seen)}` : "", last ? `last mentioned ${fileDay(last)}` : "",
+        `${n} mention${n === 1 ? "" : "s"}`].filter(Boolean).join(" · ")));
+    }
     inner.append(el("p","fv-pos", c.position || c.summaryLine || "No position yet."));
     /* A person's card is yours to correct: edit it, or merge it with the
        card of the same person under another name. */
@@ -5031,6 +5089,7 @@ function openFolder(b, openId){
       mg.onclick = () => { pick.hidden = !pick.hidden; if (!pick.hidden) mergePick(pick, c, id); };
       acts.append(ed, mg); inner.append(acts, pick);
     }
+    if (person) personFile(inner, c, id, linkedFrom);
     /* What to read first, from its "needs" links. */
     const first = needsOf(c);
     if (first.length){
@@ -5039,15 +5098,18 @@ function openFolder(b, openId){
       inner.append(lf);
     }
     const ev = (c.evidence || []).slice().sort((x, y) => (x.rollup ? 1 : 0) - (y.rollup ? 1 : 0) || String(y.date || y.to || "").localeCompare(String(x.date || x.to || "")));
-    inner.append(el("h4",null, person ? `What you said, newest first (${ev.length})` : ev.length ? `Evidence, newest first (${ev.length})` : "Evidence"));
-    if (!ev.length) inner.append(el("div","fv-li","None yet."));
+    /* A person's own words sit folded under the file; a concept's evidence is its body. */
+    const evBox = person ? el("details","pf-said") : inner;
+    if (person){ const sm = el("summary"); sm.id = "pfSaid"; sm.append(`Everything you said about them, as you said it · ${ev.length}`); evBox.append(sm); inner.append(evBox); }
+    else inner.append(el("h4",null, ev.length ? `Evidence, newest first (${ev.length})` : "Evidence"));
+    if (!ev.length) evBox.append(el("div","fv-li","None yet."));
     for (const e of ev){
       const row = el("div","fv-ev");
       row.append(el("time",null, e.rollup ? `${e.from || ""}${e.to && e.to !== e.from ? " to " + e.to : ""}` : (e.date || "")));
       const d = el("div");
       if (!e.rollup && e.author){ d.append(el("b",null,e.author + ". ")); }
       d.append(e.claim || "");
-      row.append(d); inner.append(row);
+      row.append(d); evBox.append(row);
     }
     if ((c.data || []).length){
       inner.append(el("h4",null,"Figures"));
@@ -5087,6 +5149,94 @@ function openFolder(b, openId){
     askIt.onclick = () => { $("input").value = `What does ${c.title} say, and why?`; sizeBox(); renderComposer(); $("input").focus(); };
     a2.append(askIt, el("span","fv-upd", c.updated ? `Updated ${c.updated}` : ""));
     inner.append(a2);
+  };
+
+  /**
+   * A person's file under the summary: what is still open, the facts by
+   * section with the ones that no longer hold, the people linked both ways,
+   * and the history, year by year, newest first. A line that is wrong comes
+   * out with its ×; a promise kept is ticked.
+   */
+  const personFile = (inner, c, id, linkedFrom) => {
+    const f = c.file;
+    if (!f){
+      inner.append(el("p","tw-key","This card has no full file yet. In People, Build full files writes one from everything you said about them."));
+      return;
+    }
+    const fix = (part, key, extra) => api("/api/personal/contact", { action: "part", id, part, key, ...(extra || {}) })
+      .then(() => show(id)).catch(e => alert2(e.message));
+    const alert2 = msg => inner.prepend(el("div","fv-li bad",msg));
+    const cut = (part, key, what) => { const x = el("button","pf-x","×"); x.type = "button"; x.title = `Take out ${what}`; x.setAttribute("aria-label", `Take out ${what}`);
+      x.onclick = () => fix(part, key); return x; };
+
+    const open = (f.open || []).filter(x => !x.done);
+    if (open.length){
+      const box = el("section","pf-open"); box.append(el("h4",null,`Still open (${open.length})`));
+      for (const x of open){
+        const r = el("div","pf-orow");
+        const tick = el("button","pf-tick"); tick.type = "button"; tick.title = "Done"; tick.setAttribute("aria-label", `Mark done: ${x.t}`);
+        tick.onclick = () => fix("open", x.k, { done: true });
+        r.append(tick, el("span",null,x.t), el("time",null,`since ${fileDay(x.at)}`));
+        box.append(r);
+      }
+      inner.append(box);
+    }
+
+    for (const [key, name] of FILE_SECTIONS){
+      const facts = (f.facts || []).filter(x => x.s === key);
+      if (!facts.length) continue;
+      const sec = el("section","pf-sec"); sec.append(el("h4",null,name));
+      const now = facts.filter(x => !x.until), past = facts.filter(x => x.until);
+      for (const x of now){
+        const r = el("div","pf-fact");
+        r.append(el("span","pf-l",x.l), el("span","pf-v", x.v + (x.since ? ` (since ${fileDay(x.since)})` : "")), cut("fact", x.k, x.l));
+        const before = past.filter(y => y.l.toLowerCase() === x.l.toLowerCase());
+        if (before.length) r.append(el("span","pf-was", "Before: " + before.map(y => `${y.v} (until ${fileDay(y.until)})`).join("; ")));
+        sec.append(r);
+      }
+      for (const y of past.filter(y => !now.some(x => x.l.toLowerCase() === y.l.toLowerCase()))){
+        const r = el("div","pf-fact gone");
+        r.append(el("span","pf-l",y.l), el("span","pf-v",`${y.v} (until ${fileDay(y.until)})`), cut("fact", y.k, y.l));
+        sec.append(r);
+      }
+      inner.append(sec);
+    }
+
+    const people = cs.filter(x => x.tag === "contact");
+    const find = n => people.find(x => [x.title, ...(x.aliases || [])].some(t => String(t).toLowerCase() === String(n).toLowerCase()));
+    if ((f.links || []).length || linkedFrom.length){
+      const sec = el("section","pf-sec"); sec.append(el("h4",null,"Their people"));
+      const row = el("div","fv-links");
+      for (const x of f.links || []){
+        const p = find(x.n);
+        const chip = el("button","vw-link pf-link"); chip.type = "button";
+        chip.append(x.n, x.r ? el("i",null,x.r) : "");
+        if (p) chip.onclick = () => show(`${p.brain}/${p.slug}`); else chip.disabled = true;
+        row.append(chip);
+      }
+      for (const x of linkedFrom.filter(x => !(f.links || []).some(l => find(l.n) && `${find(l.n).brain}/${find(l.n).slug}` === x.id))){
+        const chip = el("button","vw-link pf-link"); chip.type = "button";
+        chip.append(x.title, el("i",null, x.rel || "linked"));
+        chip.onclick = () => show(x.id);
+        row.append(chip);
+      }
+      sec.append(row); inner.append(sec);
+    }
+
+    const evs = (f.events || []);
+    const hist = el("section","pf-hist"); hist.id = "pfHist";
+    hist.append(el("h4",null, evs.length ? `History (${evs.length})` : "History"));
+    if (!evs.length) hist.append(el("div","fv-li","Nothing told yet. Every moment you mention lands here, dated."));
+    let year = "";
+    for (const x of evs){
+      const y = String(x.d).slice(0, 4);
+      if (y !== year){ year = y; hist.append(el("div","pf-year",y)); }
+      const r = el("div","pf-ev" + (x.seen ? " seen" : ""));
+      const when = el("time",null, fileDay(x.d, true)); if (x.seen) when.title = "You were together";
+      r.append(when, el("p",null,x.t), cut("event", x.k, "this moment"));
+      hist.append(r);
+    }
+    inner.append(hist);
   };
 
   /** A person's card, by hand: name, other names, line and card. */

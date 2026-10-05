@@ -123,6 +123,8 @@ export default defineSchema({
        names that person goes by. */
     tag: v.optional(v.string()),
     aliases: v.optional(v.array(v.string())),
+    /* A contact's file: facts by section, dated history, links, what is open. */
+    file: v.optional(v.any()),
     updated: v.string(),
   }).index("by_brain", ["brain"])
     .index("by_brain_slug", ["brain", "slug"]),
@@ -345,6 +347,8 @@ export default defineSchema({
     kinds: v.optional(v.array(v.object({ to: v.string(), type: v.string() }))),
     tag: v.optional(v.string()),
     aliases: v.optional(v.array(v.string())),
+    seen: v.optional(v.string()),
+    full: v.optional(v.boolean()),
     updated: v.string(),
   }).index("by_cid", ["cid"])
     .index("by_brain", ["brain"])

@@ -184,7 +184,7 @@ export function writeDossier(pool: any[], plan: ReturnType<typeof planDossier>, 
     const br = brainOf(c);
     const links = linksOf(c);
     return `### ${c.title} in ${br?.name ?? c.brain} [${br?.type ?? "subject"}]
-POSITION: ${c.position || "none"}${links ? `\nLINKS: ${links}` : ""}
+POSITION: ${c.position || "none"}${links ? `\nLINKS: ${links}` : ""}${c.file ? `\nTHE PERSON'S FILE\n${fileText(c, 4000)}` : ""}
 EVIDENCE: ${(c.evidence ?? []).map((e: any) => `${e.date ?? "?"} ${e.author ?? "?"}: ${e.claim ?? ""}`).join(" | ") || "none"}
 DATA: ${(c.data ?? []).join(" | ") || "none"}
 OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${x.b} (${x.bDate}), because ${x.why}`).join(" | ") || "none"}`;
@@ -484,6 +484,8 @@ export function cardOf(c: any) {
     kinds: kindsOf(c),
     ...(c.tag ? { tag: String(c.tag) } : {}),
     ...(Array.isArray(c.aliases) && c.aliases.length ? { aliases: c.aliases.slice(0, 12).map(String) } : {}),
+    /* A person's file: the last day you were with them, and whether it is built. */
+    ...(c.tag === "contact" ? { seen: String(c.file?.seen ?? ""), full: !!c.file } : {}),
     updated: String(c.updated ?? ""),
   };
 }
@@ -503,3 +505,92 @@ export function kindsOf(c: any): { to: string; type: string }[] {
     .filter((k: any) => k && held.has(String(k.to)) && (LINK_TYPES as readonly string[]).includes(String(k.type)) && !seen.has(k.to) && seen.add(k.to))
     .map((k: any) => ({ to: String(k.to), type: String(k.type) })).slice(0, 12);
 }
+
+/* ---------- a person's file ---------- */
+
+/**
+ * A contact in a personal brain is a file, not a summary rewritten each
+ * time: lasting facts by section, the person's history as dated moments,
+ * the people they are linked to, and what is still open. It only grows: a
+ * fact that changes keeps the old value with the day it ended, and a moment
+ * once told stays told.
+ */
+export const FILE_SECTIONS: [string, string][] = [
+  ["identity", "Identity"], ["contact", "Contact details"], ["you", "You and them"],
+  ["work", "Work"], ["tastes", "Tastes and character"], ["other", "Other"],
+];
+const SECTION_KEYS = new Set(FILE_SECTIONS.map(x => x[0]));
+const flat = (t: any) => String(t ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim();
+const same = (a: any, b: any) => flat(a).toLowerCase() === flat(b).toLowerCase();
+const dayOk = (d: any) => /^\d{4}(-\d{2}(-\d{2})?)?$/.test(String(d ?? "")) ? String(d) : "";
+const keyOf = (t: string) => { let h = 5381; for (const ch of t) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0; return h.toString(36); };
+
+/**
+ * A file with what a message adds folded in. Each part comes in either as
+ * the filer writes it ({section, label, value}) or as a file stores it
+ * ({s, l, v}), so two files merge the same way a message does.
+ */
+export function mergeFile(old: any, add: any, date: string) {
+  const f = {
+    v: 1,
+    facts: [...(old?.facts ?? [])].map((x: any) => ({ ...x })),
+    events: [...(old?.events ?? [])].map((x: any) => ({ ...x })),
+    links: [...(old?.links ?? [])].map((x: any) => ({ ...x })),
+    open: [...(old?.open ?? [])].map((x: any) => ({ ...x })),
+    seen: String(old?.seen ?? ""),
+  };
+  for (const x of Array.isArray(add?.facts) ? add.facts : []) {
+    const sec = String(x?.section ?? x?.s ?? "").toLowerCase();
+    const s = SECTION_KEYS.has(sec) ? sec : "other";
+    const l = flat(x?.label ?? x?.l).slice(0, 40), v = flat(x?.value ?? x?.v).slice(0, 400);
+    if (!l || !v) continue;
+    if (f.facts.some(y => y.s === s && same(y.l, l) && same(y.v, v) && !y.until)) continue;
+    const since = dayOk(x?.since), at = dayOk(x?.at) || date;
+    /* A value that replaces the old one closes it, on the day it changed. */
+    if (x?.replaces) for (const y of f.facts) if (y.s === s && same(y.l, l) && !y.until) y.until = since || date;
+    f.facts.push({ k: keyOf(`${s}|${l}|${v}|${at}`), s, l, v, ...(since ? { since } : {}), ...(dayOk(x?.until) ? { until: x.until } : {}), at });
+  }
+  for (const x of Array.isArray(add?.events) ? add.events : []) {
+    const t = flat(x?.text ?? x?.t).slice(0, 1500);
+    if (t.length < 3) continue;
+    const d = dayOk(x?.date ?? x?.d) || date;
+    if (f.events.some(y => y.d === d && same(y.t, t))) continue;
+    const seen = x?.seen === true;
+    f.events.push({ k: keyOf(`${d}|${t}`), d, t, ...(seen ? { seen: true } : {}), at: dayOk(x?.at) || date });
+    if (seen && d > f.seen) f.seen = d;
+  }
+  for (const x of Array.isArray(add?.links) ? add.links : []) {
+    const n = flat(x?.name ?? x?.n).slice(0, 80), r = flat(x?.rel ?? x?.r).slice(0, 60);
+    if (n.length < 2) continue;
+    const had = f.links.find(y => same(y.n, n));
+    if (had) { if (r && !same(had.r, r)) had.r = r; continue; }
+    f.links.push({ k: keyOf(`${n}|${r}`), n, r, at: dayOk(x?.at) || date });
+  }
+  for (const x of Array.isArray(add?.open) ? add.open : []) {
+    const t = flat(x?.text ?? x?.t).slice(0, 300);
+    if (t.length < 3) continue;
+    const had = f.open.find(y => same(y.t, t));
+    if (had) { if (x?.done) had.done = dayOk(x?.done) || date; continue; }
+    f.open.push({ k: keyOf(t), t, at: dayOk(x?.at) || date, ...(x?.done ? { done: dayOk(x?.done) || date } : {}) });
+  }
+  f.events.sort((a: any, b: any) => String(b.d).localeCompare(String(a.d)));
+  f.facts = f.facts.slice(-400); f.events = f.events.slice(0, 3000); f.links = f.links.slice(-200); f.open = f.open.slice(-100);
+  return f;
+}
+
+/** A person's file as a model reads it: the facts that hold, the past ones, links, what is open, then the history. */
+export function fileText(c: any, max = 3500) {
+  const f = c?.file;
+  if (!f) return "";
+  const name = (s: string) => FILE_SECTIONS.find(x => x[0] === s)?.[1] ?? s;
+  const facts = (f.facts ?? []).map((x: any) => `- ${name(x.s)}, ${x.l}: ${x.v}${x.since ? ` (since ${x.since})` : ""}${x.until ? ` (until ${x.until}, no longer true)` : ""}`);
+  const lines = [
+    facts.length ? `FACTS\n${facts.join("\n")}` : "",
+    (f.links ?? []).length ? `LINKED TO: ${f.links.map((x: any) => `${x.n}${x.r ? ` (${x.r})` : ""}`).join("; ")}` : "",
+    (f.open ?? []).filter((x: any) => !x.done).length ? `STILL OPEN: ${f.open.filter((x: any) => !x.done).map((x: any) => x.t).join("; ")}` : "",
+    f.seen ? `LAST SEEN: ${f.seen}` : "",
+    (f.events ?? []).length ? `HISTORY, NEWEST FIRST\n${f.events.map((x: any) => `- ${x.d}${x.seen ? " (together)" : ""}: ${x.t}`).join("\n")}` : "",
+  ].filter(Boolean).join("\n");
+  return lines.length > max ? lines.slice(0, max) + "\n(older history left out)" : lines;
+}
+

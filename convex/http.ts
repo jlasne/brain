@@ -483,7 +483,9 @@ route("/api/concept", async (ctx, _req, b) => {
   if (!c) return { error: "that concept is not in this space" };
   /* What follows from it and a concept of another folder, derived. */
   const insights = await ctx.runQuery(internal.graph.insightsFor, { space: who.space, ids: [`${c.brain}/${c.slug}`] });
-  return { concept: { ...c, kinds: kindsOf(c) }, insights };
+  /* A person's file also names the people whose files link to them. */
+  const linkedFrom = c.tag === "contact" ? await ctx.runQuery(internal.store.contactsLinking, { space: who.space, id: `${c.brain}/${c.slug}` }) : [];
+  return { concept: { ...c, kinds: kindsOf(c) }, insights, ...(c.tag === "contact" ? { linkedFrom } : {}) };
 });
 
 /** A folder's topics: its concepts that link to each other, named and summed up. */
@@ -1133,14 +1135,30 @@ route("/api/personal/people", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   const got = await personalOf(ctx, who.space, String(b.brain ?? ""));
   if (!got) return { error: "that is not a personal brain of this workspace" };
-  const all = (await wholeNotes(ctx, who.space, got.mine.slug)).filter((c: any) => c.tag !== "contact").sort((x: any, y: any) => (x.n ?? 0) - (y.n ?? 0));
+  const whole = await wholeNotes(ctx, who.space, got.mine.slug);
+  const mKey = keyFor(who), mName = modelFor(who, b);
+  const date = new Date().toISOString().slice(0, 10);
+  /* Second phase: the people held with no file yet get one, built from their
+     card and every dated mention, 5 people a call. */
+  if (b.phase === "files") {
+    const bare = whole.filter((c: any) => c.tag === "contact" && !c.file).sort((x: any, y: any) => (x.n ?? 0) - (y.n ?? 0));
+    const part = bare.slice(0, 5);
+    if (!part.length) return { filed: { new: 0, updated: 0, titles: [], people: [] }, next: null, left: 0 };
+    const text = part.map((c: any) => `- CONTACT "${c.title}"${(c.aliases ?? []).length ? ` (also: ${c.aliases.join(", ")})` : ""}\n  CARD: ${String(c.position || c.summaryLine || "").replace(/\s+/g, " ").slice(0, 2500)}\n  WHAT YOU SAID ABOUT THEM:\n` +
+      (c.evidence ?? []).slice(0, 60).map((e: any) => `  - ${e.date ?? "?"}: ${String(e.claim ?? "").replace(/\s+/g, " ").slice(0, 400)}`).join("\n")).join("\n\n");
+    const filed = await fileTwice(() => remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "files", date,
+      model: async m => (await ask(m, { json: true, maxTokens: 12000, key: mKey, model: mName, timeout: 150000 })).text }));
+    /* A person the model passed over gets an empty file, so the run moves on. */
+    for (const c of part) if (!(filed.people ?? []).some(t => t === c.title))
+      await ctx.runMutation(internal.store.fileContact, { brain: got.mine.slug, title: c.title, slug: c.slug, date, doc: {}, add: {} });
+    return { filed, next: bare.length > part.length ? 0 : null, left: Math.max(0, bare.length - part.length), total: bare.length };
+  }
+  const all = whole.filter((c: any) => c.tag !== "contact").sort((x: any, y: any) => (x.n ?? 0) - (y.n ?? 0));
   const at = Math.max(0, Math.floor(Number(b.at) || 0)), part = all.slice(at, at + 20);
   const next = at + 20 < all.length ? at + 20 : null;
   if (!part.length) return { filed: { new: 0, updated: 0, titles: [], people: [] }, next: null, read: all.length, total: all.length };
   const text = part.map((c: any) => `- ${c.title} (${c.evidence?.[0]?.date || c.updated || "?"}): ${String(c.position || c.summaryLine || "").replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
-  const mKey = keyFor(who), mName = modelFor(who, b);
-  const filed = await remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "people",
-    date: new Date().toISOString().slice(0, 10),
+  const filed = await remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "people", date,
     model: async m => (await ask(m, { json: true, maxTokens: 8000, key: mKey, model: mName, timeout: 150000 })).text });
   return { filed, next, read: Math.min(at + 20, all.length), total: all.length };
 });
@@ -1148,7 +1166,7 @@ route("/api/personal/people", async (ctx, _req, b) => {
 export const MERGE_RULES =
 `Below are the cards of one person, filed under different names, and every dated thing their owner said about them. Write one card.
 
-- "position": the whole card, written to the owner as "you": who the person is to you, how you met, their work and city, and everything you said about them, with dates. Keep every fact from both cards. When two facts disagree, state the newer one and the older one with its date. End with any promise still open.
+- "position": the person's summary, 3 to 6 sentences, written to the owner as "you": who the person is to you, how you met, their work and city, what matters most about them now. Their full history and facts stay in their file; this is the summary on top of it. When two facts disagree, state the newer one.
 - "summaryLine": who they are to you, under 15 words.
 - Only what the cards and the mentions say. Keep the owner's language. No em-dashes. Under 30 words per sentence.
 
@@ -1170,6 +1188,10 @@ route("/api/personal/contact", async (ctx, _req, b) => {
       ...(Array.isArray(b.aliases) ? { aliases: b.aliases.map(String).slice(0, 20) } : {}),
       ...(typeof b.position === "string" ? { position: b.position } : {}),
       ...(typeof b.summaryLine === "string" ? { summaryLine: b.summaryLine } : {}) });
+  }
+  if (b.action === "part") {
+    return await ctx.runMutation(internal.store.contactPart, { space: who.space, id: String(b.id ?? ""), part: String(b.part ?? ""),
+      key: String(b.key ?? ""), ...(typeof b.done === "boolean" ? { done: b.done } : {}) });
   }
   if (b.action === "merge") {
     const into = String(b.into ?? ""), from = (Array.isArray(b.from) ? b.from : []).map(String).filter((x: string) => x.split("/")[0] === brain).slice(0, 10);

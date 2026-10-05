@@ -79,8 +79,16 @@ accounts. Nothing reads them now. Run it once, then remove `KEY_SECRET`:
 npx convex run admin:forgetOldKeys --prod
 ```
 
-A personal brain keeps one contact per person its owner mentions, anyone,
-named or by role. The filer that reads each message files people apart from
+A personal brain keeps one file per person its owner mentions, anyone, named
+or by role. The file is the contact's `file` field: facts by section
+(identity, contact, you, work, tastes, other), the history as dated moments,
+links to other people, open items and the last day seen. The filer sends only
+what a message adds, and `mergeFile` folds it in: a fact that replaces one
+closes the old with the day it ended, a moment told twice stays once, a kept
+promise is marked done. The position holds the summary on top. A person
+whose card predates files gets one from Build full files
+(`/api/personal/people` with `phase: "files"`), from the card and every
+mention, with no new mention or source. The filer that reads each message files people apart from
 notes: a person already held is updated, matched by name, first name or any
 name they go by, and their card is shown to it whole so the rewrite keeps
 every fact; each mention is kept as dated evidence. No extra model call: the
@@ -270,7 +278,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/concept/rename` | Changes a concept's title. Its id and links stay | Yes, owner |
 | `/api/concept/rederive` | Writes positions again from the evidence each concept holds, eight per call | Yes |
 | `/api/brain/merge` | Merges one folder into another in the same workspace, then deletes the first. Owner only, never the personal folder | Yes |
-| `/api/personal/contact` | A person's card by hand: `edit` sets its name, other names, line and card (the old name stays as another name); `merge` folds other cards of the same person into it, then writes the joined card again as one | Owner |
+| `/api/personal/contact` | A person's file by hand: `edit` sets its name, other names, line and summary (the old name stays as another name); `part` takes one fact, moment or link out, or marks an open item done; `merge` folds other files of the same person into it, then writes the summary again | Owner |
 | `/api/personal/people` | The people in a personal brain's older notes, filed as contacts, 20 notes a call; the app calls again with `at` until `next` is null | Owner |
 | `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `answers` (the twin test, round 1 or the retest, never filed), `twin` (the twin answers the test from the notes alone), `score` (0 to 2 a question) and `profile` (the notes as 7 parts). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |

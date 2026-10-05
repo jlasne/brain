@@ -2100,15 +2100,25 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       { brain: "me", slug: "paul", n: 3, title: "Paul", summaryLine: "Someone you will introduce to Marc", tag: "contact", ev: 1, updated: "2026-10-02" }] };
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test");
-    window.__calls = [];
+    window.__calls = []; window.__parts = [];
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
       if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/personal/people")) return Response.json(body.phase === "files" ? { filed: { people: ["Marc Dupont"] }, next: null, left: 0, total: 1 }
+        : body.at ? { filed: { people: ["Lea"] }, next: null, read: 25, total: 25 } : { filed: { people: ["Paul", "Lea"] }, next: 20, read: 20, total: 25 });
+      if (s.includes("/api/personal/contact") && body.action === "part") { window.__parts.push(body); return Response.json({ ok: true }); }
       if (s.includes("/api/personal/contact")) return Response.json(body.action === "merge" ? { into: body.into, joined: 1, rewritten: true } : { id: body.id, title: body.title });
-      if (s.includes("/api/personal/people")) return Response.json(body.at ? { filed: { people: ["Lea"] }, next: null, read: 25, total: 25 } : { filed: { people: ["Paul", "Lea"] }, next: 20, read: 20, total: 25 });
       if (s.includes("/api/concept")) return Response.json({ concept: { brain: "me", slug: "marc", title: "Marc Dupont", tag: "contact", aliases: ["Marc", "my co-founder"],
         position: "Your co-founder. Joins Revolut in London (2026-10-04).", evidence: [{ date: "2026-10-04", author: "You", claim: "Marc joins Revolut" }, { date: "2026-09-30", author: "You", claim: "Marc raises 2M" }],
-        data: [], conflicts: [], sources: [], related: [] }, insights: [] });
+        data: [], conflicts: [], sources: [], related: [], file: { v: 1, seen: "2026-09-30",
+          facts: [{ k: "f1", s: "work", l: "Company", v: "Revolut", since: "2026-10-04", at: "2026-10-04" }, { k: "f0", s: "work", l: "Company", v: "His fintech in Lisbon", until: "2026-10-04", at: "2026-09-30" },
+                  { k: "f2", s: "contact", l: "Phone", v: "+44 7700 900123", at: "2026-10-04" }, { k: "f3", s: "identity", l: "Born in", v: "Lyon, 1993", at: "2026-09-12" }],
+          events: [{ k: "e1", d: "2026-10-04", t: "Marc left the fintech and joins Revolut in London.", at: "2026-10-04" },
+                   { k: "e2", d: "2026-09-30", t: "Lunch together at Kinugawa: he was raising 2M euros.", seen: true, at: "2026-09-30" },
+                   { k: "e3", d: "2023-03", t: "You met at Station F.", seen: true, at: "2026-09-12" }],
+          links: [{ k: "l1", n: "Paul", r: "an investor he will meet" }, { k: "l2", n: "Julie", r: "his wife" }],
+          open: [{ k: "o1", t: "Intro him to Paul Martin", at: "2026-09-30" }, { k: "o2", t: "Send the deck", at: "2026-09-01", done: "2026-09-02" }] } },
+        insights: [], linkedFrom: [{ id: "me/paul", title: "Paul", rel: "his future investor" }, { id: "me/clara", title: "Clara", rel: "her brother" }] });
       if (s.includes("/api/ask")) { const fail = window.__failNext; window.__failNext = false;
         return Response.json({ answer: "Noted.", sources: 0, level: "normal", personal: true,
           filed: fail ? { new: 0, updated: 0, titles: [], failed: true } : { new: 1, updated: 0, titles: ["Intros"], people: ["Marc Dupont", "Paul"] }, called: [] }); }
@@ -2150,8 +2160,26 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.fill("#fvFilter", "");
   await page.click(".fv-row"); await page.waitForTimeout(250);
   const card = await page.evaluate(() => ({ eye: document.querySelector(".fv-doc .fv-eye")?.textContent, aka: document.querySelector(".fv-doc .fv-aka")?.textContent,
-    h4: [...document.querySelectorAll(".fv-doc h4")].map(x => x.textContent)[0] }));
-  check("a contact opens as a card: its names, and everything you said, dated", card.eye === "Contact · Me" && card.aka === "Also: Marc, my co-founder" && card.h4 === "What you said, newest first (2)", JSON.stringify(card));
+    meta: document.querySelector(".fv-doc .pf-meta")?.textContent, pos: document.querySelector(".fv-doc .fv-pos")?.textContent }));
+  check("a contact opens as a file: its names, last seen and mentioned, then the summary", card.eye === "Contact · Me" && card.aka === "Also: Marc, my co-founder"
+    && card.meta === "Last seen 30 Sep 2026 · last mentioned 4 Oct 2026 · 2 mentions" && /^Your co-founder/.test(card.pos || ""), JSON.stringify(card));
+  const file = await page.evaluate(() => ({ open: [...document.querySelectorAll(".pf-open .pf-orow span")].map(x => x.textContent),
+    secs: [...document.querySelectorAll(".pf-sec h4")].map(x => x.textContent),
+    work: [...document.querySelectorAll(".pf-sec")].find(x => x.querySelector("h4").textContent === "Work")?.textContent,
+    people: [...document.querySelectorAll(".pf-link")].map(x => x.textContent),
+    years: [...document.querySelectorAll(".pf-year")].map(x => x.textContent), evs: [...document.querySelectorAll(".pf-ev")].map(x => x.textContent),
+    seen: document.querySelectorAll(".pf-ev.seen").length, said: document.getElementById("pfSaid")?.textContent, folded: !document.querySelector(".pf-said").open }));
+  check("what is still open comes first, a kept promise left out", JSON.stringify(file.open) === '["Intro him to Paul Martin"]', JSON.stringify(file.open));
+  check("facts sit by section, in a set order", JSON.stringify(file.secs) === '["Identity","Contact details","Work","Their people"]', JSON.stringify(file.secs));
+  check("a fact that changed shows what it was before, and until when", /Revolut \(since 4 Oct 2026\)×?Before: His fintech in Lisbon \(until 4 Oct 2026\)/.test(file.work || ""), file.work);
+  check("their people both ways: who they name, and who names them, each person once", JSON.stringify(file.people) === '["Paulan investor he will meet","Juliehis wife","Claraher brother"]', JSON.stringify(file.people));
+  check("the history goes year by year, newest first, the days together marked", JSON.stringify(file.years) === '["2026","2023"]' && /^4 Oct/.test(file.evs[0]) && /^Mar/.test(file.evs[2]) && file.seen === 2, JSON.stringify(file));
+  check("your own words sit folded under the file", file.said === "Everything you said about them, as you said it · 2" && file.folded, JSON.stringify(file.said));
+  await page.click(".pf-tick"); await page.waitForTimeout(200);
+  await page.evaluate(() => document.querySelector(".pf-ev .pf-x").click()); await page.waitForTimeout(200);
+  const parts = await page.evaluate(() => window.__parts);
+  check("a promise is ticked done, and a wrong moment taken out, one line at a time", JSON.stringify(parts.map(p => [p.part, p.key, p.done ?? null])) === '[["open","o1",true],["event","e1",null]]'
+    && parts.every(p => p.id === "me/marc"), JSON.stringify(parts));
   /* Edit it by hand. */
   await page.click("#ctEdit"); await page.waitForTimeout(150);
   const form = await page.evaluate(() => ({ name: document.getElementById("ctName")?.value, aka: document.getElementById("ctAka")?.value, pos: document.getElementById("ctPos")?.value }));
@@ -2174,8 +2202,9 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("the second merges that card into this one", merged?.into === "me/marc" && JSON.stringify(merged.from) === '["me/paul"]', JSON.stringify(merged));
   await page.click("#fvPeople"); await page.waitForTimeout(100);
   await page.click("#fvScan"); await page.waitForTimeout(400);
-  const scans = await page.evaluate(() => ({ at: window.__calls.filter(x => x.s.includes("/api/personal/people")).map(x => x.body.at), say: document.querySelector(".fv-scan-say")?.textContent }));
-  check("Find people in my notes reads them all, a batch at a time, and says how many people", JSON.stringify(scans.at) === "[0,20]" && /Done: 2 contacts from your notes/.test(scans.say || ""), JSON.stringify(scans));
+  const scans = await page.evaluate(() => ({ at: window.__calls.filter(x => x.s.includes("/api/personal/people")).map(x => x.body.at ?? null), say: document.querySelector(".fv-scan-say")?.textContent }));
+  check("Find people in my notes reads them all, a batch at a time, then builds the full files", JSON.stringify(scans.at) === "[0,20,null]"
+    && await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/personal/people")).pop()?.body.phase) === "files" && /Done: 3 people filed/.test(scans.say || ""), JSON.stringify(scans));
   check("nothing threw around contacts", !bad.length, bad.join(" | "));
   await page.close();
 }

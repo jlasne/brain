@@ -31,6 +31,7 @@ const store = await build("store");
 const personal = await build("personal");
 const space = await build("space");
 const twin = await build("twin");
+const words = await build("words");
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -343,10 +344,13 @@ const TODAY = "2026-09-30";
     && personal.namedIn([marc, mom], "Marcel came by").length === 0);
   const m = personal.filerPrompt("chat", "Marc left Finary", "", [{ ...marc, position: "Your co-founder. ".repeat(100), evidence: [{ date: "2026-10-01" }] }], [], TODAY, [marc, mom]);
   const u = m[1].content;
-  check("the filer is told every person gets one card, never two, kept whole", /Every person they mention gets a contact of their own/.test(u) && /Never make a second contact for the same person/.test(u)
-    && /Keep every fact the card held and add what is new/.test(u) && /the new one and the old one with its date/.test(u));
+  check("the filer is told every person gets one file, never two, and sends only what is new", /Every person they mention gets a file of their own/.test(u)
+    && /Never make a second file for the same person/.test(u) && /Send only what THE MESSAGE adds/.test(u) && /never loses what the file held/.test(u));
+  check("it is asked for facts by section, dated moments told as anecdotes, links and open items", /"facts": each lasting fact/.test(u) && /identity, contact, you, work, tastes, other/.test(u)
+    && /"text" tells the moment as an anecdote, with every detail given/.test(u) && /worked out from TODAY/.test(u) && /"links": the people linked to this person/.test(u)
+    && /"replaces": true/.test(u) && /"open": promises/.test(u));
   check("it sees every contact with the names they go by", /- "Marc Dupont" \(also: my co-founder\): Your co-founder/.test(u) && /- "Mother": Your mother/.test(u));
-  check("and the card of anyone named, whole", /- CONTACT "Marc Dupont": (Your co-founder\. ){50}/.test(u), u.slice(u.indexOf("CONTACT"), u.indexOf("CONTACT") + 80));
+  check("and the summary of anyone named, whole", /- CONTACT "Marc Dupont"\n  SUMMARY: (Your co-founder\. ){50}/.test(u), u.slice(u.indexOf("CONTACT"), u.indexOf("CONTACT") + 80));
   const ppl = personal.readPeople(JSON.stringify({ people: [{ name: "Paul — Graham", claim: "Paul invests early", also: ["PG", ""], position: "", date: "2026-02-30x" }, { name: "x", claim: "y" }] }), "chat");
   check("people are read clean: em-dashes out, empty names dropped, a bad date ignored", ppl.length === 1 && ppl[0].name === "Paul, Graham" && JSON.stringify(ppl[0].also) === '["PG"]'
     && ppl[0].position === "Paul invests early" && ppl[0].date === "", JSON.stringify(ppl));
@@ -375,7 +379,7 @@ const TODAY = "2026-09-30";
   check("a new fact updates the same card, never a second one", cards().length === 2 && /Revolut in London/.test(mc.position) && mc.evidence.length === 2
     && mc.evidence[0].date === "2026-10-04" && JSON.stringify(f2.people) === '["Marc"]', JSON.stringify(mc));
   check("the card keeps every name used for the person", mc.aliases.includes("Marc D.") && mc.aliases.includes("my co-founder"), JSON.stringify(mc.aliases));
-  check("the filer saw Marc's card whole before rewriting it", /- CONTACT "Marc": Your co-founder\. Raising 2M euros/.test(prompts[1]), prompts[1].slice(prompts[1].indexOf("HELD NOW"), prompts[1].indexOf("HELD NOW") + 300));
+  check("the filer saw Marc's card whole before writing to it", /- CONTACT "Marc"\n  SUMMARY: Your co-founder\. Raising 2M euros/.test(prompts[1]), prompts[1].slice(prompts[1].indexOf("HELD NOW"), prompts[1].indexOf("HELD NOW") + 300));
 
   const before = mc.position;
   await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: "2026-10-05", text: "Marc is tired lately",
@@ -441,6 +445,76 @@ const TODAY = "2026-09-30";
     && pm.evidence.length === 2 && pm.sources.includes("s-paul") && JSON.stringify(pm.aliases) === '["PM","Paul"]', JSON.stringify(pm));
   check("both cards' text is kept side by side until written again as one", pm.position === "Paul Martin's card.\n\nPaul's card.", JSON.stringify(pm.position));
   check("the list cards follow: the folded card's card is gone", !(T.cards ?? []).some(c => c.slug === "paul") && (T.cards ?? []).find(c => c.slug === "paul-martin")?.aliases?.includes("Paul"));
+}
+
+/* ---- a person's file: a summary on top, then everything, and it only grows ---- */
+{
+  const { T, ctx } = makeCtx();
+  T.brains = [{ _id: "b1", slug: "me", name: "Me", type: "personal", scope: "", space: "acme" }];
+  const prompts = [];
+  const model = reply => async m => { prompts.push(m[1].content); return JSON.stringify(reply); };
+  const load = async () => (await space.loadSpace(ctx, "acme", undefined, { personal: true })).cards;
+  await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: "2026-10-04",
+    text: "Today Maxime arrived from Lyon, we spend a week together. His number is 06 12 34 56 78. He still works at Airbus, his girlfriend Clara joins Friday.",
+    model: model({ notes: [], people: [
+      { name: "Maxime", claim: "Maxime arrived from Lyon, we spend a week together", summary: "Your friend from Lyon, an engineer at Airbus, staying with you this week.", summaryLine: "Your friend from Lyon, at Airbus",
+        facts: [{ section: "contact", label: "Phone", value: "06 12 34 56 78" }, { section: "work", label: "Company", value: "Airbus" }, { section: "identity", label: "Lives in", value: "Lyon" }],
+        events: [{ date: "2026-10-04", text: "Maxime arrived from Lyon to spend a week with you.", seen: true }],
+        links: [{ name: "Clara", rel: "his girlfriend" }], open: [{ text: "Pick up Clara on Friday" }] },
+      { name: "Clara", claim: "his girlfriend Clara joins Friday", summary: "Maxime's girlfriend.", summaryLine: "Maxime's girlfriend",
+        events: [{ date: "2026-10-09", text: "Clara joins you and Maxime." }], links: [{ name: "Maxime", rel: "her boyfriend" }] }] }) });
+  const mx = () => T.concepts.find(c => c.title === "Maxime");
+  const f = mx().file;
+  check("the summary sits on top, the file underneath", mx().position === "Your friend from Lyon, an engineer at Airbus, staying with you this week." && f.v === 1);
+  check("contact details, work and identity are kept as facts by section", f.facts.map(x => `${x.s}:${x.l}:${x.v}`).join("|") === "contact:Phone:06 12 34 56 78|work:Company:Airbus|identity:Lives in:Lyon", JSON.stringify(f.facts));
+  check("the moment is dated, and the day you were together is the last time seen", f.events[0].d === "2026-10-04" && f.seen === "2026-10-04"
+    && (await load()).find(c => c.title === "Maxime").seen === "2026-10-04", JSON.stringify(f.events));
+  check("the people linked to him, and what is open", f.links[0].n === "Clara" && f.links[0].r === "his girlfriend" && f.open[0].t === "Pick up Clara on Friday");
+  check("each linked person gets a file of their own", T.concepts.find(c => c.title === "Clara")?.file?.links[0]?.n === "Maxime");
+
+  await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "chat", date: "2026-10-06",
+    text: "Yesterday Maxime told me he quits Airbus for a startup in Paris, we had sushi at Kinugawa. I picked up Clara.",
+    model: model({ notes: [], people: [{ name: "Maxime", update: "Maxime", claim: "Maxime quits Airbus for a startup in Paris", summary: "Your friend from Lyon, leaving Airbus for a startup in Paris.", summaryLine: "Your friend, off to a Paris startup",
+      facts: [{ section: "work", label: "Company", value: "A startup in Paris", replaces: true, since: "2026-10-05" }, { section: "work", label: "Company", value: "A startup in Paris" }],
+      events: [{ date: "2026-10-05", text: "Over sushi at Kinugawa, Maxime told you he quits Airbus for a startup in Paris.", seen: true },
+               { date: "2026-10-04", text: "Maxime arrived from Lyon to spend a week with you.", seen: true }],
+      open: [{ text: "Pick up Clara on Friday", done: true }] }] }) });
+  const g = mx().file;
+  check("a changed fact keeps the old one, closed on the day it changed", g.facts.filter(x => x.l === "Company").map(x => `${x.v}${x.until ? " until " + x.until : ""}`).join("|") === "Airbus until 2026-10-05|A startup in Paris",
+    JSON.stringify(g.facts));
+  check("a new moment joins the history, newest first, and a moment told twice stays once", g.events.length === 2 && g.events[0].d === "2026-10-05" && /Kinugawa/.test(g.events[0].t) && g.seen === "2026-10-05");
+  check("a promise kept is marked done, never deleted", g.open.length === 1 && g.open[0].done === "2026-10-06");
+  check("facts given before stay: phone and city are still there", g.facts.some(x => x.l === "Phone") && g.facts.some(x => x.l === "Lives in" && !x.until));
+  check("the filer saw Maxime's whole file before adding to it", /- CONTACT "Maxime"\n  SUMMARY: Your friend from Lyon[\s\S]*Contact details, Phone: 06 12 34 56 78[\s\S]*LINKED TO: Clara \(his girlfriend\)[\s\S]*STILL OPEN: Pick up Clara on Friday[\s\S]*LAST SEEN: 2026-10-04[\s\S]*HISTORY, NEWEST FIRST\n  - 2026-10-04 \(together\): Maxime arrived/.test(prompts[1]),
+    prompts[1].slice(prompts[1].indexOf('CONTACT "Maxime"'), prompts[1].indexOf('CONTACT "Maxime"') + 600));
+
+  const merged = words.mergeFile({ facts: [{ k: "a", s: "work", l: "Company", v: "Airbus", at: "2026-01-01" }], events: [{ k: "e", d: "2025", t: "Met in Lyon", at: "2026-01-01" }] },
+    { facts: [{ s: "work", l: "Company", v: "Airbus", at: "2026-02-01" }, { s: "nonsense", l: "Shoe size", v: "44" }], events: [{ d: "2025", t: "met in lyon" }, { d: "bad", t: "Called him" }] }, "2026-10-06");
+  check("two files merge without doubles; an unknown section goes to Other, a bad date to the day told",
+    merged.facts.length === 2 && merged.facts[1].s === "other" && merged.events.length === 2 && merged.events.some(x => x.d === "2026-10-06" && x.t === "Called him"), JSON.stringify(merged));
+  check("the dossier an answer reads carries the person's file", /THE PERSON'S FILE\nFACTS/.test(words.fileText(mx(), 4000) ? `THE PERSON'S FILE\n${words.fileText(mx(), 4000)}` : ""));
+
+  /* Building files for people held before files existed: no new mention, no new source. */
+  T.concepts.push({ _id: "old1", brain: "me", slug: "lea", n: 9, title: "Lea", tag: "contact", position: "A friend you went to Porto with.", summaryLine: "A friend",
+    evidence: [{ date: "2026-03-02", author: "You", claim: "Went to Porto with Lea", source: "s" }], data: [], conflicts: [], sources: ["s"], related: [], updated: "2026-03-02" });
+  const before = { ev: 1, src: T.sources.length };
+  await personal.remember(ctx, { space: "acme", brain: "me", cards: await load(), kind: "files", date: "2026-10-06", text: '- CONTACT "Lea"\n  CARD: A friend you went to Porto with.',
+    model: model({ notes: [{ title: "Not filed", claim: "x" }], people: [{ name: "Lea", update: "Lea", claim: "Went to Porto with Lea", summary: "A friend you travelled to Porto with in March 2026.",
+      events: [{ date: "2026-03-02", text: "You went to Porto with Lea.", seen: true }] }] }) });
+  const lea = T.concepts.find(c => c.title === "Lea");
+  check("building a file from an old card adds the history, and no mention or source", lea.file?.events[0]?.d === "2026-03-02" && lea.evidence.length === before.ev
+    && T.sources.length === before.src && !T.concepts.some(c => c.title === "Not filed"), JSON.stringify({ lea, src: T.sources.length }));
+  check("files are asked for only for people held, by their title", /File ONLY these people, each with \\"update\\" set to their title/.test(prompts.at(-1)) || /File ONLY these people/.test(prompts.at(-1)));
+
+  /* By hand: a wrong line taken out, a promise reopened. */
+  const run = (name, args) => store[name].handler({ db: ctx.db }, args);
+  const ev = mx().file.events.find(x => /Kinugawa/.test(x.t));
+  await run("contactPart", { space: "acme", id: "me/maxime", part: "event", key: ev.k });
+  check("one wrong moment can be taken out, and the last time seen follows", mx().file.events.length === 1 && mx().file.seen === "2026-10-04");
+  await run("contactPart", { space: "acme", id: "me/maxime", part: "open", key: mx().file.open[0].k, done: false });
+  check("a promise can be opened again", !("done" in mx().file.open[0]));
+  const linking = await store.contactsLinking.handler({ db: ctx.db }, { space: "acme", id: "me/clara" });
+  check("a file knows who links to it", linking.length === 1 && linking[0].title === "Maxime" && linking[0].rel === "his girlfriend", JSON.stringify(linking));
 }
 
 rmSync(dir, { recursive: true, force: true });

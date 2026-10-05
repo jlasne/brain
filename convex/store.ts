@@ -2,7 +2,7 @@
 
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap, cardOf } from "./words";
+import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap, cardOf, mergeFile } from "./words";
 import { sha256, randomHex, today, slug, gateKey, readSpace, HOME, SPACE_RE, SPACES,
          SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, inSpace, isViewer, SPACE_NAME } from "./lib";
 
@@ -1553,11 +1553,92 @@ export const contactMerge = internalMutation({
       await ctx.db.patch(keep._id, {
         aliases: cleanNames([...(now.aliases ?? []), gone.title, ...(gone.aliases ?? [])], now.title),
         position: [now.position, gone.position].map((t: any) => String(t ?? "").trim()).filter(Boolean).join("\n\n").slice(0, 4000),
+        /* Both files join: every fact, moment, link and open item kept. */
+        ...(now.file || gone.file ? { file: mergeFile(now.file, gone.file ?? {}, today()) } : {}),
       });
       await joinConcept(ctx, await ctx.db.get(keep._id), gone);
       joined++;
     }
     return { into: a.into, joined };
+  },
+});
+
+/**
+ * A person's file written from one message: the summary and line replaced,
+ * the mention kept, and what the message adds folded into the file, never
+ * over it. Made when the person is new.
+ */
+export const fileContact = internalMutation({
+  args: { brain: v.string(), title: v.string(), slug: v.optional(v.string()), doc: v.any(), add: v.any(), date: v.string() },
+  handler: async (ctx, a) => {
+    const d = a.doc ?? {};
+    const known = a.slug ? await ctx.db.query("concepts")
+      .withIndex("by_brain_slug", q => q.eq("brain", a.brain).eq("slug", a.slug!)).unique() : null;
+    const seen = known ?? await byTitle(ctx, "concepts", a.brain, a.title);
+    const fields: any = { tag: "contact", updated: today() };
+    if (d.position) fields.position = String(d.position).slice(0, 4000);
+    if (d.summaryLine) fields.summaryLine = String(d.summaryLine).slice(0, 200);
+    if (Array.isArray(d.aliases)) fields.aliases = d.aliases.map(String).slice(0, 12);
+    if (seen) {
+      await ctx.db.patch(seen._id, {
+        ...fields,
+        ...(d.evidence ? { evidence: mergeEvidence(d.evidence, seen.evidence ?? []) } : {}),
+        ...(d.sources ? { sources: unionCap(seen.sources ?? [], d.sources, 1e9, String).slice(-2000) } : {}),
+        file: mergeFile(seen.file, a.add, a.date),
+      });
+      await syncCard(ctx, seen._id);
+      return seen._id;
+    }
+    const newest = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain)).order("desc").first();
+    const id = await ctx.db.insert("concepts", {
+      brain: a.brain, slug: conceptSlug(a.title), n: (newest?.n ?? 0) + 1, title: a.title,
+      position: "", summaryLine: "", evidence: d.evidence ?? [], data: [], conflicts: [], sources: d.sources ?? [], related: [],
+      ...fields, file: mergeFile(null, a.add, a.date),
+    });
+    await syncCard(ctx, id);
+    return id;
+  },
+});
+
+/** One line of a person's file taken out, or an open item marked done or open again. */
+export const contactPart = internalMutation({
+  args: { space: v.string(), id: v.string(), part: v.string(), key: v.string(), done: v.optional(v.boolean()) },
+  handler: async (ctx, a) => {
+    const c = await ownContact(ctx, readSpace(a.space), a.id);
+    if (!c) throw new Error("that person is not in your personal folder");
+    const parts: Record<string, string> = { fact: "facts", event: "events", link: "links", open: "open" };
+    const list = parts[a.part];
+    if (!list || !c.file) throw new Error("there is no such line in this file");
+    const file = { ...c.file, [list]: [...(c.file[list] ?? [])] };
+    const at = file[list].findIndex((x: any) => x.k === a.key);
+    if (at < 0) throw new Error("that line is already gone");
+    if (a.part === "open" && a.done != null) {
+      const { done: _was, ...rest } = file.open[at];
+      file.open[at] = a.done ? { ...rest, done: today() } : rest;
+    }
+    else file[list].splice(at, 1);
+    /* The last day together follows the history that is left. */
+    file.seen = (file.events ?? []).filter((x: any) => x.seen).map((x: any) => String(x.d)).sort().pop() ?? "";
+    await ctx.db.patch(c._id, { file, updated: today() });
+    await syncCard(ctx, c._id);
+    return { ok: true };
+  },
+});
+
+/** The other people whose files link to this one, by any name it goes by. */
+export const contactsLinking = internalQuery({
+  args: { space: v.string(), id: v.string() },
+  handler: async (ctx, a) => {
+    const c = await ownContact(ctx, readSpace(a.space), a.id);
+    if (!c) return [];
+    const names = [c.title, ...(c.aliases ?? [])];
+    const out: any[] = [];
+    for (const x of await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", c.brain)).collect()) {
+      if (x._id === c._id || x.tag !== "contact") continue;
+      const link = (x.file?.links ?? []).find((l: any) => names.some(n => sameTitle(String(l.n), n)));
+      if (link) out.push({ id: `${x.brain}/${x.slug}`, title: x.title, rel: link.r ?? "" });
+    }
+    return out.slice(0, 60);
   },
 });
 
