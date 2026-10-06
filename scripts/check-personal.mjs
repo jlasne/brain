@@ -95,6 +95,7 @@ const TODAY = "2026-09-30";
     [{ title: "Pricing", summaryLine: "20 euros" }], TODAY);
   const u = m[1].content;
   check("the filer is told to file only the owner's words, never a guess or a reply", /Never file a guess/.test(u) && /Never file what an assistant said/.test(u));
+  check("words that make no sense, or the same word again and again, are a speech engine's mistake and file nothing", /repeat the same word or phrase again and again/.test(u) && /file nothing/.test(u));
   check("it sees the notes held now, the nearest whole with their last date", /"Sleep": Aims for 8 hours\. \(last said 2026-09-12\)/.test(u) && /"Pricing": 20 euros/.test(u));
   check("the chat before is context only", /context only, never filed/.test(u) && /TODAY: 2026-09-30/.test(u));
   check("a note is written to its owner as you, while the claim keeps their own words", /written to them as "you"/.test(u) && /first person kept/.test(u));

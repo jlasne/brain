@@ -126,6 +126,7 @@ WHAT TO FILE
 - Only their own words and meaning. Never file a guess or an inference about them ("seems risk-averse"). Never file what an assistant said.
 - A plain request to look something up, a greeting or a thank-you files nothing: return {"notes": [], "people": []}.
 - A plain "yes" or "right" to notes read back files nothing. A correction to one updates that note.
+- Words that make no sense, or that repeat the same word or phrase again and again, are a speech engine's mistake: they file nothing, so return {"notes": [], "people": []}.
 - At most ${MAX_NOTES[kind]} notes. One note per topic: group what belongs together.
 - What is only about another person goes to that person's contact, not to a note.${kind === "import" ? `
 - EVERYTHING IN IT IS FILED: every fact, number, date, name, place, preference and plan, however small. A note's position carries all the details of its topic; leave none out.` : ""}${gaps ? `

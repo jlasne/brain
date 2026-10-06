@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1271 checks passing" src="https://img.shields.io/badge/checks-1271%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1277 checks passing" src="https://img.shields.io/badge/checks-1277%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -90,7 +90,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 - **A drop stores everything.** Every number, date and name of the source is looked for in what was read; the passages holding the ones left out are read again, and what is still missing goes in word for word. Every topic lands in a concept, opinions with nothing behind them included: one placed nowhere is filed once more, then becomes a concept of its own. A reply cut short is read again in halves, never kept half. The card says it in one line: "All of it kept: 7,020 words, 145 numbers, dates and names, 23 topics, filed into 18 concepts".
 - **Drop on its own screen.** Drop sits in the side panel and opens a screen with its own log. The chat waits as it was, one click away.
 - **New folder.** A folder is fed by Drop, and one switch says it holds one person's view. A personal folder is fed by what you say.
-- **Talk instead of typing.** Tap the mic and speak, in the language picked in Settings, Languages: English, French, Spanish, German, Italian or Portuguese. Nothing is guessed: a tap before one is picked opens Settings on it. It uses the free speech service in Safari on iPhone and Mac, Chrome and Edge. Elsewhere it points to the dictation your device already has.
+- **Talk instead of typing.** Tap the mic and speak, in the language picked in Settings, Languages: English, French, Spanish, German, Italian or Portuguese. Nothing is guessed: a tap before one is picked opens Settings on it. On Android it listens one phrase at a time, so nothing is said twice, and a word repeated 4 times or more keeps one. It uses the free speech service in Safari on iPhone and Mac, Chrome and Edge. Elsewhere it points to the dictation your device already has.
 - **Every drop grows the graph.** Each new idea finds its 6 nearest by meaning, in any language. Each link says how: needs, causes, supports, contradicts or example. Folders sort themselves into topics.
 - **What follows.** Two linked ideas from different folders can add up to a third. Each drop writes up to 5, marked as Tasu's own conclusion, never a source, and answers can use them.
 - **Learning path.** A folder's "needs" links set a reading order: the foundations first, then each step resting on the one before.
@@ -218,7 +218,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 ```
 app/            the landing, the app (one file), the white paper and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        1271 checks, the app driven in a real browser included
+scripts/        1277 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -232,7 +232,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-1271 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+1277 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 <br>
 

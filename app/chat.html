@@ -4158,6 +4158,24 @@ const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
 const VOICE_LANGS = [["en-US", "EN", "English"], ["fr-FR", "FR", "French"], ["es-ES", "ES", "Spanish"],
   ["de-DE", "DE", "German"], ["it-IT", "IT", "Italian"], ["pt-PT", "PT", "Portuguese"]];
 let rec = null, voiceBase = "";
+/* Chrome on Android listens badly in one long run: it hands back every partial of a phrase as a result of its own,
+   "my", "my god", "my god is small", and joined they read "mymy godmy god is small". It listens one phrase at a time instead. */
+const ANDROID = /Android/i.test(navigator.userAgent);
+/**
+ * What was heard, from the results of one run. A result that is only the start of the one after it is a partial of
+ * it and counts for nothing; a word or a short phrase said over and over, 4 times or more, keeps one.
+ */
+function heard(results){
+  const norm = t => t.toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, "").replace(/\s+/g, " ").trim();
+  const said = [...results].map(x => String(x?.[0]?.transcript ?? "").trim()).filter(Boolean);
+  const out = [];
+  for (let i = 0; i < said.length; i++){
+    const next = said[i + 1];
+    if (next !== undefined && norm(next).startsWith(norm(said[i]))) continue;
+    out.push(said[i]);
+  }
+  return out.join(" ").replace(/(?<![\p{L}\p{N}])((?:\p{L}+\s+){0,5}\p{L}+)(?:\s+\1(?![\p{L}\p{N}])){3,}/giu, "$1");
+}
 function systemDictation(){
   const ua = navigator.userAgent;
   if (/iPhone|iPad|iPod|Android/.test(ua)) return "Tap the mic on your keyboard to talk.";
@@ -4178,32 +4196,42 @@ function startVoice(){
   const r = new Speech();
   r.lang = voiceLang();
   r.interimResults = true;
-  r.continuous = true;
+  r.continuous = !ANDROID;
   /* What was typed stays; the words spoken follow it. */
   const typed = $("input").value.replace(/\s+$/, "");
   voiceBase = typed ? typed + " " : "";
+  /* On Android each run ends after a phrase and starts again while the mic is on; two runs in a row with nothing heard end it. */
+  let quiet = 0, spoke = false, broke = false;
   r.onresult = e => {
     if (!S.listening) return;
-    let said = "";
-    for (const x of e.results) said += x[0].transcript;
-    $("input").value = voiceBase + said.replace(/^\s+/, "");
+    spoke = true;
+    $("input").value = voiceBase + heard(e.results).replace(/^\s+/, "");
     sizeBox(); renderComposer();
   };
   r.onerror = e => {
     const why = e.error;
+    if (why !== "no-speech" && why !== "aborted") broke = true;
     S.voiceHint = why === "not-allowed" || why === "service-not-allowed" ? "Allow the microphone for this site, then tap the mic again."
       : why === "language-not-supported" ? `This browser cannot listen in ${voiceName()}. Pick another in Settings, Languages, or open it in Chrome.`
       : why === "network" ? "Voice input needs a connection."
       : why === "no-speech" || why === "aborted" ? "" : "Voice input stopped. Tap the mic to try again.";
   };
   r.onend = () => {
+    if (ANDROID && S.listening && rec === r && !r.userStopped && !broke){
+      quiet = spoke ? 0 : quiet + 1; spoke = false;
+      if (quiet < 2){
+        const typedNow = $("input").value.replace(/\s+$/, "");
+        voiceBase = typedNow ? typedNow + " " : "";
+        try { r.start(); return; } catch { /* the mic ends below */ }
+      }
+    }
     if (rec === r) rec = null;
     if (S.listening){ S.listening = false; renderMic(); renderComposer(); $("input").focus(); }
   };
   try { r.start(); } catch { return; }
   rec = r; S.listening = true; S.voiceHint = ""; renderMic(); renderComposer();
 }
-function stopVoice(){ try { rec?.stop(); } catch { /* it had stopped already */ } }
+function stopVoice(){ if (rec) rec.userStopped = true; try { rec?.stop(); } catch { /* it had stopped already */ } }
 /* The language the mic listens in, picked in Settings: the speech service
    hears one language at a time and cannot tell French from English by
    itself, so nothing is guessed. With none picked, the mic asks for one. The

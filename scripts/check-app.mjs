@@ -1744,6 +1744,51 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await ctx.close();
 }
 
+/* ---- talk on Android: no phrase said twice, and it listens one phrase at a time ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    Object.defineProperty(navigator, "userAgent", { get: () => "Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36" });
+    window.__voice = []; window.__hold = true;
+    /* Chrome on Android: every partial of a phrase comes back as a result of its own. The test sends what it hears by hand. */
+    window.SpeechRecognition = window.webkitSpeechRecognition = class {
+      start(){ window.__voice.push({ lang: this.lang, continuous: this.continuous }); window.__rec = this;
+        setTimeout(() => { if (!this.userStopped) this.onend?.(); }, window.__hold ? 60000 : 90); }
+      stop(){ setTimeout(() => this.onend?.(), 10); }
+    };
+    window.__say = list => window.__rec.onresult({ results: list.map(t => [{ transcript: t }]) });
+    window.fetch = async (u, opt) => { const s = String(u);
+      if (s.includes("/api/state")) return Response.json(state);
+      return Response.json({ chats: [] }); };
+  }, { ...STATE, models: { voice: "fr-FR" } });
+  await page.fill("#input", "Voici :");
+  await page.click("#micBtn"); await page.waitForTimeout(80);
+  const said = async list => { await page.evaluate(l => window.__say(l), list); return await page.inputValue("#input"); };
+  const chain = await said(["adjustement", "adjustement", "adjustement at", "adjustement at that my", "adjustement at that my god is small"]);
+  check("the partials of a phrase count for the longest alone, so nothing is said twice", chain === "Voici : adjustement at that my god is small", chain);
+  const two = await said(["Bonjour tout le monde.", "Comment ça va ?"]);
+  const accents = await said(["très", "très bien", "très bien, merci"]);
+  const stutter = await said(["je veux je veux je veux je veux je veux partir"]);
+  const twice = await said(["ok ok"]);
+  check("two phrases stay two, with their accents; a word or a phrase said 4 times or more keeps one, twice stays twice",
+    two === "Voici : Bonjour tout le monde. Comment ça va ?" && accents === "Voici : très bien, merci" && stutter === "Voici : je veux partir" && twice === "Voici : ok ok",
+    JSON.stringify({ two, accents, stutter, twice }));
+  await page.click("#micBtn"); await page.waitForTimeout(80);
+  await page.evaluate(() => { window.__hold = false; });
+  await page.fill("#input", "");
+  await page.click("#micBtn"); await page.evaluate(() => window.__say(["bonjour", "bonjour à tous"])); await page.waitForTimeout(700);
+  const run = await page.evaluate(() => ({ value: document.getElementById("input").value, starts: window.__voice.length, continuous: window.__voice.at(-1)?.continuous,
+    on: document.getElementById("micBtn").classList.contains("on") }));
+  check("on Android the mic listens one phrase at a time, again until two runs in a row hear nothing, and the words come out once",
+    run.value === "bonjour à tous" && run.continuous === false && run.starts === 4 && !run.on, JSON.stringify(run));
+  await page.click("#micBtn"); await page.waitForTimeout(40);
+  await page.click("#micBtn"); await page.waitForTimeout(250);
+  const stopped = await page.evaluate(() => ({ starts: window.__voice.length, on: document.getElementById("micBtn").classList.contains("on") }));
+  check("a tap on the mic stops it for good: it never starts again by itself", stopped.starts === 5 && !stopped.on, JSON.stringify(stopped));
+  check("nothing threw on the phone's mic", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- talk instead of typing: the browser's own speech service ---- */
 {
   const { page, bad } = await boot("/chat.html", state => {
