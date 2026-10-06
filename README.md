@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1254 checks passing" src="https://img.shields.io/badge/checks-1254%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1261 checks passing" src="https://img.shields.io/badge/checks-1261%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -114,7 +114,8 @@ A third kind of brain, next to subjects and experts. You talk to it, and it keep
 - **It files your words.** Each message becomes up to 3 notes, each claim dated and signed "You". Only your words get filed.
 - **A change of mind** rewrites the note: the new view, and the one it replaces with its date.
 - **Add memory.** In the bar of the personal chat, in the personal folder, or by dropping a file on the personal chat. Paste what another assistant knows about you, or add a PDF, Word, text or JSON file. It is checked like a drop: every number, date and name is looked for in what was filed, the passages holding the ones left out are filed again, and what is still missing is kept word for word. The result says "All of it kept". It files in the background: close it, and the inbox shows the piece it is on, then what it filed. One stopped by an error goes on from where it stopped.
-- **It talks to you as "you".** Its notes read "You want to move to Lisbon", and so do its replies.
+- **It answers as your twin.** Its notes read "You want to move to Lisbon". Its replies speak as you would: "I want Porto in 2027". It decides with your values and rules from the twin profile, and gives the rule: "I'd pass. I never trade learning for 20% more salary." It answers straight away, with no "based on what you told me" and no dates of notes.
+- **The interview ends at 100%.** Once every question is answered or known, the Interview button leaves the chat, the folder and the twin pane.
 - **It calls your other brains on its own.** When one holds something that bears on what you said, it brings it up and names it: "your Health brain says 3 to 5 g a day". A line under the reply shows which brains it called.
 - **A person is a folder.** Their page opens on an Overview (what is still open, the latest moments), then Facts, History a year at a time, Their people and Raw notes a month at a time. Each moment is stored on its own, so a person grows without a size limit, and the AI reads the moments that bear on what you say first, whatever their age.
 - **A file per person.** Each person you mention, by name or by role, gets a file: a short summary on top, then what is still open, their facts by section (identity, contact details, you and them, work, tastes), their people both ways, and their whole history, year by year, each moment dated and told with its details. It only grows: a changed fact keeps the old one with the day it ended, and after the history come its raw notes: every message you sent about them, word for word, dated, in the language you wrote it. The People tab lists them, the most recent first. Settings, Audit, finds the people in your older notes. Edit a card by hand, or merge two cards of the same person: the mentions and names join, and the card is written again as one.
@@ -217,7 +218,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 ```
 app/            the landing, the app (one file), the white paper and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        1254 checks, the app driven in a real browser included
+scripts/        1261 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -231,7 +232,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-1254 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+1261 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 <br>
 

@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal } from "./space";
-import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim } from "./personal";
+import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
 /* Projects are off in the app for now; their routes stay for when they come back. */
@@ -976,6 +976,14 @@ QUESTION: ${String(b.q ?? "")}` },
  * personal notes and every other brain, which is how a personal chat calls on
  * them; no other chat ever reads a personal brain. The reply never files.
  */
+/** Who the twin is: its profile, written to them as "you", for the twin to speak as "I". Empty before a profile is written. */
+function twinOf(row: any): string {
+  const parts = Array.isArray(row?.profile?.parts) ? row.profile.parts : [];
+  if (!parts.length) return "";
+  return `YOUR TWIN PROFILE: who you are, how you decide and how you speak. It is written to them as "you"; you speak it as "I".\n` +
+    parts.map((p: any) => `${p.title}: ${(p.points ?? []).join(" ")}`).join("\n").slice(0, 6000) + "\n\n";
+}
+
 async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any) {
   const mKey = keyFor(who), mName = modelFor(who, b);
   if (!String(b.q ?? "").trim()) return { error: "write something first" };
@@ -1010,7 +1018,7 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
     const earlier = history.map((h: any) => `They said: ${String(h.q ?? "").slice(0, 400)}\nYou replied: ${String(h.a ?? "").slice(0, 800)}`).join("\n\n");
     const { text } = await ask([
       { role: "system", content: REPLY_RULES + (who.models?.reply === "en" ? "\n- Reply in English, whatever language they write in." : "") },
-      { role: "user", content: `TODAY: ${date}\n\n${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}` +
+      { role: "user", content: `TODAY: ${date}\n\n${twinOf(row)}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}` +
         `THEIR OTHER BRAINS, yours to call on: ${others.map((x: any) => `${x.name} (${x.type})`).join(", ") || "none yet"}\n\n` +
         `WHAT THEIR NOTES AND BRAINS HOLD (entries "in ${mine.name}" are their own notes; every other entry comes from the brain it names)\n${pick.dossier}\n\n` +
         `${offer.length ? gapBlock(offer) + "\n\n" : ""}THEIR MESSAGE\n${q}` },
@@ -1018,7 +1026,8 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
     return text;
   })();
   const [said, filed] = await Promise.all([reply, filing]);
-  const { text: answer, asked } = readGap(said, offer);
+  const { text: gapless, asked } = readGap(said, offer);
+  const answer = plainReply(gapless);
   const called = calledBrains(answer, others);
 
   /* A question asked in passing counts as answered once the next message

@@ -5983,7 +5983,7 @@ function openFolder(b, openId, opts = {}){
     fillCard(S.iv[b.slug]);
     tw.onclick = () => twinPane();
     head.append(tw);
-    loadIv(b.slug).then(r => { if (r && S.folder === b.slug) fillCard(r.interview); });
+    loadIv(b.slug).then(r => { if (r && S.folder === b.slug){ fillCard(r.interview); if (ivDone(r.interview)) acts.querySelector("#fvIv")?.remove(); } });
   }
   const acts = el("div","fv-acts");
   const btn = (id, label, icon, fn, title) => {
@@ -5993,7 +5993,7 @@ function openFolder(b, openId, opts = {}){
   btn("fvChat", "Chat in it", IC_CHAT, () => { S.folder = null; newChat(); $("input").focus(); });
   if (self && !S.demo){
     btn("fvMem", "Add memory", IC_DROP, () => openMemorySheet(b.slug), "Paste, or add a PDF, Word or text file about you. It is read like a drop.");
-    btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
+    if (!ivDone(S.iv[b.slug])) btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
       "It asks you questions, one at a time, to know you better. Stop any time.");
     btn("fvTest", "Twin test", IC_TEST, () => testPane(), "30 questions that measure how well your twin knows you");
     btn("fvProfile", "Twin profile", IC_PROFILE, () => profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
@@ -6724,9 +6724,12 @@ function openFolder(b, openId, opts = {}){
       `It asks one at a time, and every answer is filed as notes here.`));
     /* The test and the profile sit in the folder's own actions, above. */
     const row = el("div","tw-acts");
-    const goB = el("button","go", iv.seen ? "Resume the interview" : "Start the interview"); goB.type = "button"; goB.id = "twGo";
-    goB.onclick = () => { S.folder = null; newChat(); startInterview(b.slug); };
-    row.append(goB, el("span","ts-say", iv.on ? "It is on: your next message answers it." : "About 15 questions a sitting. Stop any time."));
+    if (ivDone(iv)) row.append(el("span","ts-say","Interview complete: every question is answered or known from your notes."));
+    else {
+      const goB = el("button","go", iv.seen ? "Resume the interview" : "Start the interview"); goB.type = "button"; goB.id = "twGo";
+      goB.onclick = () => { S.folder = null; newChat(); startInterview(b.slug); };
+      row.append(goB, el("span","ts-say", iv.on ? "It is on: your next message answers it." : "About 15 questions a sitting. Stop any time."));
+    }
     inner.append(row);
     const t = iv.test;
     inner.append(el("div","tw-score", t.twinPct == null ? "Twin score: take the twin test to measure it."
@@ -7733,6 +7736,8 @@ function filedLine(f){
    chat bar starts it, shows where it stands, and stops it. */
 
 /** Where a personal brain's interview stands, read again from the server. */
+/** Every question answered or known: the interview has nothing left to ask. */
+function ivDone(iv){ return !!iv && !iv.on && (iv.pct >= 100 || (iv.total > 0 && iv.covered >= iv.total)); }
 async function loadIv(slug){
   try {
     const r = await api("/api/interview", { brain: slug });
@@ -7753,6 +7758,8 @@ function paintIv(){
   if (!show) return;
   if (!(slug in S.iv)){ S.iv[slug] = null; loadIv(slug); }
   const iv = S.iv[slug];
+  /* At 100% there is nothing left to ask, so the strip goes. */
+  if (ivDone(iv)){ bar.hidden = true; bar.innerHTML = ""; bar.dataset.key = ""; return; }
   /* The bar repaints on every focus change: a strip rebuilt under a click
      would lose it, so it is drawn again only when what it says changes. */
   const busy = chatBusy();

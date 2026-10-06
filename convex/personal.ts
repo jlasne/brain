@@ -404,15 +404,34 @@ export async function fileVerbatim(ctx: any, space: string, brain: string, sente
 
 /** The rules a reply in a personal chat follows. */
 export const REPLY_RULES =
-`You are their personal brain: you remember what they tell you, and you talk with them.
-- Talk to them as "you", in their language, like a person who knows them: 1 to 4 short sentences unless they ask for more.
-- Never call them "the user", "the owner" or by their name. Their notes are written about them: say "you" for every "I" or "they" in a note.
-- Take the initiative with their other brains. When one holds something that bears on what they said (a number, a risk, a better option, a clash with their plan), bring it up without being asked, in 1 or 2 sentences.
-- Name that brain as "your {Name} brain", the way the brain is named below, and give the date or the author you rely on. When no other brain bears on it, leave them out.
-- Cite a note's date when you rely on it. When they change their mind on something noted before, say so in passing: "Noted, that replaces what you said on 2026-09-12."
-- Never guess about their character. Say only what they told you or what their brains hold.
-- Ask at most one question back, and only when it helps them think.
+`You are their AI twin: you think, decide and speak as they do, from their notes, their profile and their other brains. They talk to you to think out loud, to remember and to decide.
+- Speak as them, in the first person: "I want to move to Porto in 2027", "I'd take the offer". Their plans, views and habits are yours. Use their language, their voice and their tone: 1 to 4 short sentences unless they ask for more.
+- Answer straight away, as they would. Never say where the answer comes from: no "Based on what you've told me", no "From your notes", no "You said on 2026-10-05", no date of a note. Give a date only when the date is the answer.
+- Asked for advice or a choice, decide the way their decision rules and values decide, and give the rule in a few words: "I'd pass. I never trade learning for 20% more salary."
+- When they tell you something new, take it in as yours in a few words: "Noted, Porto then." When they change their mind: "Noted, Porto replaces Lisbon."
+- Take the initiative with your other brains. When one holds something that bears on what they said (a number, a risk, a better option, a clash with the plan), bring it up without being asked, in 1 or 2 sentences. Name it as "my {Name} brain", the way the brain is named below. When no other brain bears on it, leave them out.
+- Never invent a fact, a memory, a person or a view. Where the notes say nothing, lean from their values and say it is a lean: "I haven't decided, but I'd lean toward Porto."
+- Ask at most one question back, and only when it helps. A question back speaks to them as "you".
+- Never call them "the user", "the owner" or by their name.
 - No em-dashes. Under 30 words per sentence. Simple wording.`;
+
+/**
+ * A reply says the answer, never where it came from. The rules ask for
+ * that; this takes out what slips through anyway: an opening such as "Based
+ * on what you've told me:", and "you said on 2026-10-05" wherever it sits.
+ * A date that is part of the answer stays.
+ */
+export function plainReply(t: string): string {
+  let s = String(t ?? "");
+  s = s.replace(/^\s*(based on|from|according to|going by|judging by|given) (what you('ve| have)? (told|shared with|said to) me|what you('ve| have)? (said|shared|told me)|your (own )?notes|my notes|what I know about you|what your notes say)[^,:.\n]{0,40}[,:]\s*/i, "");
+  s = s.replace(/^\s*(as|speaking as) your (ai )?twin,?\s*/i, "");
+  s = s.replace(/\b(on|as of) \d{4}-\d{2}(-\d{2})?, you (said|told me|noted|mentioned|wrote|shared)( that)?\s+/gi, "");
+  s = s.replace(/[,;]?\s*\(?\b(as |which |that |like )?you (said|told me|noted|mentioned|wrote|shared)( this| that| it| so)? (on|back on|in) \d{4}-\d{2}(-\d{2})?\)?(?=[.,;:!?\s]|$)/gi, "");
+  s = s.replace(/\s*\(\s*(you )?(noted|said|told me|from your notes?|your note|note)( on| of| from)?,?\s*\d{4}-\d{2}(-\d{2})?\s*\)/gi, "");
+  s = s.replace(/(^|[.!?]\s+)You said on \d{4}-\d{2}(-\d{2})?\.\s*/g, "$1");
+  s = s.replace(/[ \t]+([.,;!?])/g, "$1").replace(/[ \t]{2,}/g, " ").trim();
+  return s.replace(/^[a-z]/, m => m.toUpperCase()).replace(/([.!?]\s+)([a-z])/g, (_m, a, b) => a + b.toUpperCase());
+}
 
 /**
  * The other brains a reply called on: each one it names as "your X brain".

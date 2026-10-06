@@ -3110,6 +3110,64 @@ for (const space of ["octopus", "squidgy"]) {
   await page.close();
 }
 
+/* ---- a twin at 100%: no interview left to offer ---- */
+{
+  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "", owner: null, audit: { at: new Date().toISOString().slice(0, 10), sources: 0 } }],
+    concepts: [{ brain: "me", slug: "lyon", n: 1, title: "Born in Lyon", summaryLine: "You were born in Lyon." }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    const ch = [{ key: "A", title: "Life story", total: 28, answered: 20, known: 8, skipped: 0 }];
+    window.fetch = async (u) => {
+      const s = String(u);
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/interview")) return Response.json({ interview: { on: false, pct: 100, covered: 335, seen: 335, total: 335, chapter: null, chapters: ch, pending: null,
+        test: { mine: false, twin: false, again: false, twinPct: null, selfPct: null, target: 85 }, profile: null } });
+      return Response.json({ chats: [] });
+    };
+  }, mine);
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent)).click());
+  await page.waitForTimeout(300);
+  const bar = await page.evaluate(() => ({ hidden: document.getElementById("ivBar").hidden, go: !!document.getElementById("ivGo") }));
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent))?.querySelector(".ed.op")?.click());
+  await page.waitForTimeout(300);
+  const fv = await page.evaluate(() => ({ acts: [...document.querySelectorAll(".fv-acts .fv-b")].map(b => b.id), twin: document.getElementById("fvTwin")?.textContent }));
+  await page.click("#fvTwin"); await page.waitForTimeout(250);
+  const pane = await page.evaluate(() => ({ go: !!document.getElementById("twGo"), say: document.querySelector("#twinPane .tw-acts")?.textContent }));
+  check("at 100%, the interview leaves the chat bar, the folder's buttons and the twin pane", bar.hidden && !bar.go && !fv.acts.includes("fvIv") && /Twin 100% complete/.test(fv.twin || "")
+    && !pane.go && /Interview complete/.test(pane.say || ""), JSON.stringify({ bar, fv, pane }));
+  check("nothing threw with the twin complete", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- a twin at 100%: no interview left to offer ---- */
+{
+  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "", owner: null, audit: { at: new Date().toISOString().slice(0, 10), sources: 0 } }],
+    concepts: [{ brain: "me", slug: "lyon", n: 1, title: "Born in Lyon", summaryLine: "You were born in Lyon." }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    const ch = [{ key: "A", title: "Life story", total: 28, answered: 20, known: 8, skipped: 0 }];
+    window.fetch = async (u) => {
+      const s = String(u);
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/interview")) return Response.json({ interview: { on: false, pct: 100, covered: 335, seen: 335, total: 335, chapter: null, chapters: ch, pending: null,
+        test: { mine: false, twin: false, again: false, twinPct: null, selfPct: null, target: 85 }, profile: null } });
+      return Response.json({ chats: [] });
+    };
+  }, mine);
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent)).click());
+  await page.waitForTimeout(300);
+  const bar = await page.evaluate(() => ({ hidden: document.getElementById("ivBar").hidden, go: !!document.getElementById("ivGo") }));
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent))?.querySelector(".ed.op")?.click());
+  await page.waitForTimeout(300);
+  const fv = await page.evaluate(() => ({ acts: [...document.querySelectorAll(".fv-acts .fv-b")].map(b => b.id), twin: document.getElementById("fvTwin")?.textContent }));
+  await page.click("#fvTwin"); await page.waitForTimeout(250);
+  const pane = await page.evaluate(() => ({ go: !!document.getElementById("twGo"), say: document.querySelector("#twinPane .tw-acts")?.textContent }));
+  check("at 100%, the interview leaves the chat bar, the folder's buttons and the twin pane", bar.hidden && !bar.go && !fv.acts.includes("fvIv") && /Twin 100% complete/.test(fv.twin || "")
+    && !pane.go && /Interview complete/.test(pane.say || ""), JSON.stringify({ bar, fv, pane }));
+  check("nothing threw with the twin complete", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- decisions: every call waiting, each with a suggested one, grouped by topic, accepted in one tap ---- */
 {
   const today = new Date().toISOString().slice(0, 10);
