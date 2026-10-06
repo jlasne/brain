@@ -397,14 +397,6 @@ export function parseDoc(text: string): Section[] {
 
 export type PageKind = "summary" | "custom";
 
-/** A page from a question. One model call, and the bullets come back parsed. */
-export async function fromQuestion(
-  space: Space, brains: any[], concepts: any[], sources: any[],
-  q: string, key?: string, model?: string, load?: (ids: string[]) => Promise<any[]>,
-): Promise<Pager> {
-  return fromModel(space, brains, concepts, sources, { q, kind: "summary" }, key, model, load);
-}
-
 /**
  * A page the model writes: a summary of a question in bullets, or a document
  * of the type picked. With a question, it reads what bears on the question;

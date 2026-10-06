@@ -123,23 +123,29 @@ or is not a question, asks the bank's own words, so every reply ends on one
 question. Outside the interview, the chat
 asks one of the questions in passing every few messages, from the chapters
 covered least. About $0.002 an answer on GLM 5.3 Flash. A twin test is a round of 5
-questions from the bank, never asked in a test before: one to a chapter, from
-the chapters a twin can answer from who you are, the least covered first. The
-twin answers them from the notes alone, before your answers reach the notes.
-A model then compares each of your answers with the twin's and scores it 0, 1
-or 2. Your answers are filed as notes in one filing, and marked answered in
-the interview. Each round is kept in the `interviews` row, 50 at most.
+questions built from the notes, in one model call when the round opens: each
+asks for something the notes imply and never state, rests on one to three
+notes it names, and is never one asked before. A question whose notes do not
+exist, that is no question, or that repeats an earlier one is dropped. With
+fewer than 6 notes (contacts apart), or when the model sends nothing usable,
+the bank fills the round instead: never asked in a test before, one to a
+chapter, from the chapters a twin can answer from who you are, the least
+covered first. The round says which, with `note`. The twin answers them from
+the notes alone, before your answers reach the notes, and says which notes it
+used. A model then compares each of your answers with the twin's and scores it
+0, 1 or 2: the same choice for another reason is 1. Your answers are filed as
+notes in one filing, and the bank's questions among them marked answered in
+the interview. Each round is kept in the `interviews` row, 50 at most, with
+each question's text, notes, the twin's reason and the score.
 At 100% the profile is neither offered nor read by the chat: the notes and
 the contacts hold what it would say. Nothing but that
 brain's own folder and chat reads any of it.
 
-Projects are off in the app for now: the side panel shows Chats and Folders,
-and the Limited or Full switch left Settings with them. Their routes and
-tables stay, so they can come back, and nothing rebuilds a page after a drop.
-
-When projects come back: a project's page changes when its owner presses
-Build, and it is shown in a frame that runs no script, reaches no server and
-opens no window.
+Projects, saved one-pagers and the Limited or Full side panel are gone from
+the code. Their tables stay in `schema.ts` until emptied, so a deploy accepts
+the rows still there: run `npx convex run admin:clearRemoved --prod` until it
+says `runAgain: false`, then delete the definitions of `modes`, `projects`,
+`onepagers`, `pages`, `gaps` and `heat`.
 
 Link what is already stored. A drop links the concepts it writes, and these
 fill in the rest, in the background, both spaces:
@@ -176,10 +182,9 @@ What a drop adds, in the background after it links:
 | Topics | The folders it touched are grouped again by their links and shared sources. Only a new or reshaped group is named, 12 a folder at most | About $0.001 |
 
 A question is turned into numbers too, so a concept worded differently, or in
-another language, can still answer it. "Needs" links give each folder its
-Learning path: the concepts in steps, each resting on the ones before. All of
-it runs on the deployment's key, so a bring-your-own-key workspace and the demo
-skip it, the same as linking.
+another language, can still answer it. "Needs" links tell a concept what to
+learn first and what follows it. All of it runs on the deployment's key, so a
+bring-your-own-key workspace and the demo skip it, the same as linking.
 
 PowerShell strips the double quotes inside an argument, which leaves
 `{space:squidgy,...}` and a JSON5 error at 1:8. The CLI parses JSON5, so single
@@ -264,7 +269,6 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/export` | One brain's concepts whole, 100 a page, for the markdown export | Yes |
 | `/api/concept` | One concept whole, its links with their kinds, and what follows from it, for the brain viewer. A person of a personal folder also brings the people linking to them and their raw notes, the newest 300; the first open gathers those from the chats still kept | Yes |
 | `/api/topics` | One folder's topics: a title, a line and its concepts. Never a personal folder | Yes |
-| `/api/map` | Every folder, concept and link for the map, each link with its kind, and the heat: the questions each concept answered in 90 days. A personal brain is never counted | Yes |
 | `/api/scouts` | The feeds a folder follows, by `action`: `list`, `add` (finds the feed behind a YouTube channel or video, a feed, or a site, then keeps its 3 newest pieces of 21 days), `remove`, `check` (reads every feed now). No model call | Yes, owner |
 | `/api/finds` | What the scouts found, by `action`: `list` the ones waiting, `read` one against its folder once (one model call, on the workspace's key and its fetch allowance), `text` (what it read, so the drop reads it free), `skip`, `dropped` | Yes, owner |
 | `/api/conflicts` | The open conflicts that are real contradictions. Each clash is checked once and marked. With `hints`, each gets a suggested ruling and its reason, 20 clashes to a model call, kept on the clash so it is asked once; with no answer, the later date suggests one | Yes |
@@ -278,17 +282,9 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
 | `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
 | `/api/drop/merge` | Before storing: groups new titles that name one idea twice, joins a new idea to the concept already holding it, and gives a title not in English its English one | Yes |
-| `/api/ask` | The answer. With `project`, it reads that project's folders and follows its instructions, and the turn joins the project's chat. With `concept`, it reads that one concept alone; in a personal folder, what the message adds or corrects is written to the note or the person's file at once, and `changed` says what moved | Yes |
-| `/api/projects` | The workspace's projects and its kept one-pagers, newest first. The demo has no projects; each visitor sees their own one-pagers | Yes |
-| `/api/onepagers/get`, `/api/onepagers/remove` | A kept one-pager, opened again or deleted | Yes |
-| `/api/projects/get` | One project whole: settings, chat, versions, newest page | Owner |
-| `/api/projects/page` | One version of a project's page | Owner |
-| `/api/projects/save` | Creates a project or changes its settings. Its folders must be ones the workspace reads, never a personal one. A template holds 60 KB at most | Owner |
-| `/api/projects/queue` | Puts an answer from the project's chat aside for the next Build, or takes it back. 10 wait at most. Builds nothing | Owner |
-| `/api/projects/build` | Build: the next version of the page, from the folders and the answers that wait. The only way the app changes a page. The newest 10 versions are kept | Owner |
-| `/api/models` | The workspace's chat model and project model. `null` goes back to the default | Owner |
-| `/api/projects/clear`, `/api/projects/remove` | Clears a project's chat, or deletes the project and its pages | Owner |
-| `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Kept, the last 50 per workspace. Sends it too, when given an address | Yes |
+| `/api/ask` | The answer. With `concept`, it reads that one concept alone; in a personal folder, what the message adds or corrects is written to the note or the person's file at once, and `changed` says what moved | Yes |
+| `/api/models` | The workspace's model, and the languages of its answers and its mic. `null` goes back to the default | Owner |
+| `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Built, shown and never stored. Sends it too, when given an address | Yes |
 | `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |
 | `/api/usage` | What transcripts have cost, from both sides | Yes |
 | `/api/doc` | The connector page's words, served rather than published | Yes |
@@ -303,7 +299,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/personal/remember` | A memory or a message filed into a personal brain. It returns what it kept as text, so the app checks every number, date and name. With `gaps`, the passages a first filing left out; with `verbatim`, what two filings left out, kept word for word with no model call | Owner |
 | `/api/personal/page` | One page of a person: the moments of a `year`, or the raw notes of a `month` | Owner |
 | `/api/personal/people` | The people in a personal brain's older notes, filed as contacts, 20 notes a call; the app calls again with `at` until `next` is null | Owner |
-| `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `test` (the open round of 5 fresh questions, or `fresh: true` for another), `check` (your answers, and the twin answers the same from the notes alone), `score` (a model compares the two, 0 to 2 a question, and the round goes into the history), `learn` (your answers filed as notes) and `profile` (the notes as 7 parts, offered until the interview reaches 100%). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
+| `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `test` (the open round of 5 questions built from the notes, or `fresh: true` for another), `check` (your answers, and the twin answers the same from the notes alone, with its reasons), `score` (a model compares the two, 0 to 2 a question, and the round goes into the history), `learn` (your answers filed as notes) and `profile` (the notes as 7 parts, offered until the interview reaches 100%). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
 | `/api/feedback` | Send feedback: mails one error, where it happened, the workspace and the message to `FEEDBACK_TO`, else `DIGEST_TO`. Another workspace's personal message keeps its words out. 5 an hour per sender, 20 per workspace | Yes |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
 | `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
@@ -322,10 +318,9 @@ In the artifact build a stranger who opens the page spends their own credits, so
 ## Model choice
 
 One function wraps the call, so the model is a single line to change. Each
-workspace picks two in Settings, saved on the server: the chat model, which
-answers, reads drops and writes one-pagers, and the project model, which
-answers in projects and builds their pages. Both default to
-`z-ai/glm-5.3-flash`, in every workspace. The demo always runs on the defaults.
+workspace picks one in Settings, saved on the server: it answers, reads drops
+and writes one-pagers. It defaults to `z-ai/glm-5.3-flash`, in every
+workspace. The demo always runs on the defaults.
 
 Every call asks the model to skip thinking, which is cheaper and quicker. GLM
 5.3 Flash cannot skip it and refuses such a call, so it is asked again with
@@ -352,17 +347,13 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `candidates` | brain, title, mentions, count | brain and slug |
 | `scouts` | a feed a folder follows: the address given, the feed, its name, when it was last read, the newest piece seen, the last error | space |
 | `finds` | a piece a scout found: its link, title, day, author, status, what the read says, and the text read | space and status, link, scout |
-| `heat` | per workspace and concept: how many questions opened it, and the days, the last 60 | space, concept |
 | `config` | one space's gate salt, hash and attempt counter | key, one row per space |
 | `mcpHits` | the public endpoint's per address counter | address |
 | `accounts` | a member's name, a salted password hash, and optionally their sealed key | name slug |
 | `sessions` | the token, when it expires, its kind and its space | token |
 | `drafts` | a connector drop in progress | token |
 | `fetches` | one row per transcript fetch, so the pace is visible | time |
-| `projects` | name, folders, instructions, template, rebuild switch, out-of-date mark, its chat | space |
-| `pages` | each build of a project's page, the newest 10 | project, then version |
-| `models` | the chat model and the project model a workspace picked | space |
-| `onepagers` | every one-pager built, its page, text and what built it, the newest 50 per owner | space, then time |
+| `models` | the model a workspace picked, and the languages of its answers and its mic | space |
 | `vectors` | a concept's meaning as 1,024 numbers | concept, and a vector index by folder |
 | `topics` | a folder's topics: title, line, the concepts in each | folder |
 | `feedback` | each error report sent: workspace, sender in the demo, its first words, when. It counts the hour; the mail holds the rest. Cleared after a week | space, then time |

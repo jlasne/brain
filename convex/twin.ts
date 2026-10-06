@@ -629,24 +629,26 @@ export function readGap(answer: string, list: Question[]) {
 /* ---------- the twin test and the profile ---------- */
 
 export const TWIN_RULES =
-`Below are a person's own notes, filed from what they said. Answer each question as they would: their choice, their numbers, their voice, in the first person. Keep it short: the number or the choice asked for, or one or two sentences. Use what the notes say or clearly imply. Where they say nothing, give the answer most consistent with them.
+`Below are a person's own notes, filed from what they said, then questions put to them. Answer each as they would: their choice, their numbers, their voice, in the first person. Work it out from the notes: the values, habits, past choices and rules they show. Keep it short: the number or the choice asked for, then the reason, in one or two sentences. Use what the notes say or clearly imply. Where they say nothing that bears on it, give the answer most consistent with them.
 
-Reply with only JSON, one answer per question id: {"answers":{"C3":"","D1":""}}`;
+For each question give "a", the answer, and "because", the notes it rests on, by title, in one sentence.
+
+Reply with only JSON, one entry per question id: {"answers":{"T1":{"a":"","because":""},"C3":{"a":"","because":""}}}`;
 
 export const JUDGE_RULES =
 `Below are questions a person answered themselves (A), and the answer their AI twin gave from their notes (B). Score how well B matches A.
 
 SCORE
-- 2: same answer. The same choice, view or reason, or a number within 1 point on a scale of 10 or 5, or the same top 2 in a ranking, or a reply of the same tone and move.
-- 1: close. The same direction with a different degree, or a view sharing its main reason, or a reply with the same intent in another tone.
+- 2: same answer. The same choice or view for the same reason, or a number within 1 point on a scale of 10 or 5, or the same top 2 in a ranking, or a reply of the same tone and move.
+- 1: close. The same direction with a different degree, or the same choice for another reason, or a view sharing its main reason, or a reply with the same intent in another tone.
 - 0: different. The opposite choice or view, a number 3 or more points apart, or an answer they would not give.
 Judge the substance, never the wording. When A is vague, B may be as vague.
 
 Reply with only JSON, one score per question id: {"scores":{"C3":2,"D1":0}}`;
 
 /** The pairs the judge reads: each question with both answers, only where both exist. */
-export function pairsText(ids: string[], a: Record<string, string>, b: Record<string, string>): string {
-  return ids.filter(id => a[id] && b[id]).map(id => `${id}: ${questionOf(id)?.text ?? ""}\nA: ${String(a[id]).slice(0, 600)}\nB: ${String(b[id]).slice(0, 600)}`).join("\n\n");
+export function pairsText(qs: { id: string; q: string }[], a: Record<string, string>, b: Record<string, string>): string {
+  return qs.filter(x => a[x.id] && b[x.id]).map(x => `${x.id}: ${x.q}\nA: ${String(a[x.id]).slice(0, 600)}\nB: ${String(b[x.id]).slice(0, 600)}`).join("\n\n");
 }
 
 /** The judge's scores, only for the pairs it was given, and only 0, 1 or 2. */
@@ -689,17 +691,23 @@ export function notesText(concepts: any[], max = 60000) {
   return { text: out.trim(), used: n, total: lines.length };
 }
 
-/** The twin's answers out of its reply, one per question of the round it answered. */
-export function readAnswers(raw: string, ids: string[]): Record<string, string> {
+/** The twin's answers and its reasons out of its reply, one each per question of the round it answered. */
+export function readTwin(raw: string, ids: string[]): { answers: Record<string, string>; because: Record<string, string> } {
+  const answers: Record<string, string> = {}, because: Record<string, string> = {};
   let d: any;
   try { const s = String(raw ?? ""), a = s.indexOf("{"), b = s.lastIndexOf("}"); d = JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s); }
-  catch { return {}; }
-  const out: Record<string, string> = {};
+  catch { return { answers, because: {} }; }
+  const clean = (v: any, max: number) => String(v ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, max);
   for (const id of ids) {
-    const t = String(d?.answers?.[id] ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim();
-    if (t) out[id] = t.slice(0, 600);
+    const x = d?.answers?.[id];
+    /* A plain string is an answer with no reason. */
+    const a = clean(x && typeof x === "object" ? x.a ?? x.answer : x, 600);
+    if (!a) continue;
+    answers[id] = a;
+    const why = clean(x && typeof x === "object" ? x.because ?? d?.because?.[id] : d?.because?.[id], 400);
+    if (why) because[id] = why;
   }
-  return out;
+  return { answers, because };
 }
 
 /** The profile's parts out of its reply, in the order they are asked for. */
@@ -775,13 +783,75 @@ export function pickTest(marks: Marks, history: any[], seed: number): Question[]
   return out.slice(0, TEST_N);
 }
 
-/** The pieces of a round the app shows: its questions, your answers, the twin's, and the history. */
+/* ---------- a round built from the notes ---------- */
+
+/** Notes it takes to build questions from. Fewer, and the interview's bank asks them. */
+export const DEDUCE_MIN = 6;
+
+export const DEDUCE_RULES =
+`Below are a person's own notes, filed from what they said. Write ${TEST_N} questions that test whether an AI twin can deduce what this person would do or say.
+
+EACH QUESTION
+- A new situation, choice or trade-off the notes never state, whose answer follows from what they do say: a value, a habit, a past choice, a number, a rule.
+- Built on 2 notes when it can be, 1 at least. Name them in "basis", by their exact titles.
+- Asks for one decision or one short answer, with its reason: "What do you do, and why?" or "Which of the two, and why?"
+- About them, never about another person. Under 30 words, written to them as "you", in plain English. No em-dashes.
+- Never a fact a note already states word for word. Never a date, a place or a name.
+- ${TEST_N} different themes, the hardest deduction first.
+
+Reply with only JSON: {"questions":[{"q":"","basis":["",""]}]}`;
+
+/** A question of a round: its text, and the notes it was built from when it was built from notes. */
+export type RoundQ = { id: string; q: string; basis?: string[] };
+
+const plain = (t: any) => String(t ?? "").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * The questions the model wrote, kept when each rests on notes that exist, is
+ * not the same as one asked before, and reads as a question. Their ids are
+ * T1, T2 and so on, apart from the bank's.
+ */
+export function readQuestions(raw: string, titles: string[], asked: string[] = []): RoundQ[] {
+  let d: any;
+  try { const s = String(raw ?? ""), a = s.indexOf("{"), b = s.lastIndexOf("}"); d = JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s); }
+  catch { return []; }
+  const known = titles.map(t => ({ t: String(t), n: plain(t) })).filter(x => x.n);
+  const seen = asked.map(w => WORDS(w));
+  const same = (a: Set<string>, b: Set<string>) => { if (!a.size || !b.size) return false; let k = 0; for (const w of a) if (b.has(w)) k++; return k / Math.min(a.size, b.size) >= 0.8; };
+  const out: RoundQ[] = [];
+  for (const x of Array.isArray(d?.questions) ? d.questions : []) {
+    const q = String(x?.q ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim();
+    if (q.length < 20 || q.length > 300 || !/[?]\s*$/.test(q)) continue;
+    const basis: string[] = [];
+    for (const t of Array.isArray(x?.basis) ? x.basis : []) {
+      const n = plain(t);
+      const hit = known.find(k => k.n === n) ?? (n.length >= 4 ? known.find(k => k.n.length >= 4 && (k.n.includes(n) || n.includes(k.n))) : undefined);
+      if (hit && !basis.includes(hit.t)) basis.push(hit.t);
+    }
+    if (!basis.length) continue;
+    if (seen.some(s => same(WORDS(q), s))) continue;
+    out.push({ id: `T${out.length + 1}`, q, basis: basis.slice(0, 3) });
+    if (out.length >= TEST_N) break;
+  }
+  return out;
+}
+
+/** A round's questions. An older round holds bank ids only, and the bank has the words. */
+export function roundQs(r: any): RoundQ[] {
+  if (Array.isArray(r?.qs)) {
+    return r.qs.map((x: any) => ({ id: String(x?.id ?? ""), q: String(x?.q ?? ""),
+      ...(Array.isArray(x?.basis) && x.basis.length ? { basis: x.basis.map(String) } : {}) })).filter((x: RoundQ) => x.id && x.q);
+  }
+  return (Array.isArray(r?.ids) ? r.ids : []).map((id: string) => ({ id, q: questionOf(id)?.text ?? "" })).filter((x: RoundQ) => x.q);
+}
+
+/** The pieces of a round the app shows: its questions, your answers, the twin's with its reasons, and the history. */
 export function testView(row: any) {
   const t = row?.test ?? {};
   const r = t.round;
   return {
-    round: r ? { at: r.at, questions: (r.ids ?? []).map((id: string) => ({ id, text: questionOf(id)?.text ?? "" })).filter((q: any) => q.text),
-      mine: r.mine ?? {}, twin: r.twin ?? {} } : null,
+    round: r ? { at: r.at, questions: roundQs(r).map(x => ({ id: x.id, text: x.q, basis: x.basis ?? [] })),
+      mine: r.mine ?? {}, twin: r.twin ?? {}, because: r.because ?? {}, note: r.note ?? null } : null,
     history: (Array.isArray(t.history) ? t.history : []).slice(0, HISTORY_MAX),
   };
 }

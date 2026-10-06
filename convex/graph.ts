@@ -23,7 +23,7 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { ask, parseJson, readSpace, today } from "./lib";
-import { idOf, kindsOf, LINK_TYPES } from "./words";
+import { idOf } from "./words";
 
 /* ---------- embeddings ---------- */
 
@@ -81,22 +81,6 @@ export const vectorOwners = internalQuery({
       const row = await ctx.db.get(id);
       const c = row ? await ctx.db.get(row.cid) : null;
       out.push(c ? `${c.brain}/${c.slug}` : null);
-    }
-    return out;
-  },
-});
-
-/** The vectors held for some concepts, by brain/slug id. */
-export const vectorsOf = internalQuery({
-  args: { ids: v.array(v.string()) },
-  handler: async (ctx, a) => {
-    const out: Record<string, number[]> = {};
-    for (const id of a.ids.slice(0, 200)) {
-      const cut = id.indexOf("/");
-      const c = await ctx.db.query("concepts").withIndex("by_brain_slug", q => q.eq("brain", id.slice(0, cut)).eq("slug", id.slice(cut + 1))).unique();
-      if (!c) continue;
-      const row = await ctx.db.query("vectors").withIndex("by_cid", q => q.eq("cid", c._id)).unique();
-      if (row) out[id] = row.vec;
     }
     return out;
   },
@@ -343,17 +327,3 @@ ${job}` },
   }
 }
 
-/* ---------- reading the graph ---------- */
-
-/** A concept's typed links as one line, with the titles they name. */
-export function linkLine(c: any, titleOf: (id: string) => string | undefined): string {
-  const kinds = new Map(kindsOf(c).map(k => [k.to, k.type]));
-  const parts = (c.related ?? []).slice(0, 12).map((r: string) => {
-    const id = String(r).includes("/") ? String(r) : `${c.brain}/${r}`;
-    const t = titleOf(id);
-    return t ? `${kinds.get(id) ?? "related"}: ${t}` : "";
-  }).filter(Boolean);
-  return parts.join("; ");
-}
-
-export { LINK_TYPES };

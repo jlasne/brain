@@ -238,12 +238,6 @@ export const leaveBrain = internalMutation({
 
 /* ---------------- accounts ---------------- */
 
-export const findAccount = internalQuery({
-  args: { slug: v.string() },
-  handler: async (ctx, a) =>
-    await ctx.db.query("accounts").withIndex("by_slug", q => q.eq("slug", a.slug)).unique(),
-});
-
 /**
  * Each project has one connector address, held by one account of its own:
  * "owner" for Octopus, "owner-squidgy" for Squidgy. Before each project had
@@ -700,12 +694,6 @@ export async function mergeInto(ctx: any, a: { from: string; into: string; space
     if (write) await ctx.db.patch(ch._id, { brain: swap(ch.brain) });
   }
   if (write) {
-    for (const g of await ctx.db.query("gaps").withIndex("by_space_at", (q: any) => q.eq("space", space)).collect()) {
-      if ((g.brains ?? []).includes(a.from)) await ctx.db.patch(g._id, { brains: [...new Set(g.brains.map((x: string) => x === a.from ? a.into : x))] });
-    }
-    for (const p of await ctx.db.query("projects").withIndex("by_space", (q: any) => q.eq("space", space)).collect()) {
-      if ((p.brains ?? []).includes(a.from)) await ctx.db.patch(p._id, { brains: [...new Set(p.brains.map((x: string) => x === a.from ? a.into : x))] });
-    }
     await ctx.db.delete(bFrom._id);
   }
   return { from: a.from, into: a.into, fromName: bFrom.name, intoName: bInto.name, merged: write, ...done };
@@ -1369,114 +1357,38 @@ const brandRow = async (ctx: any, space: string) =>
 const brandView = (b: any) => b && (b.logo || b.accent || b.bg)
   ? { logo: b.logo ?? null, accent: b.accent ?? null, bg: b.bg ?? null } : null;
 
-/* ---------------- saved one-pagers ---------------- */
-
-export const PAGERS_KEPT = 50;
-const pagersOf = async (ctx: any, space: string, owner: string) =>
-  (await ctx.db.query("onepagers").withIndex("by_space_at", (q: any) => q.eq("space", space)).order("desc").collect())
-    .filter((p: any) => (p.owner ?? "") === owner);
-async function pagerIn(ctx: any, space: string, id: string, owner: string) {
-  const nid = typeof id === "string" ? ctx.db.normalizeId("onepagers", id) : null;
-  const p = nid ? await ctx.db.get(nid) : null;
-  return p && p.space === space && (p.owner ?? "") === owner ? p : null;
-}
-
-/** A one-pager just built, kept. Past the newest 50 of its owner, the oldest go. */
-export const pagerSave = internalMutation({
-  args: { space: v.string(), owner: v.optional(v.string()), page: v.any(), text: v.string(), ask: v.any() },
-  handler: async (ctx, a) => {
-    const space = readSpace(a.space), owner = a.owner ?? "";
-    const title = String(a.page?.title ?? "").replace(/\s+/g, " ").trim().slice(0, 120) || "One-pager";
-    const id = await ctx.db.insert("onepagers", { space, ...(owner ? { owner } : {}), title, page: a.page, text: a.text.slice(0, 200_000), ask: a.ask, at: Date.now() });
-    for (const old of (await pagersOf(ctx, space, owner)).slice(PAGERS_KEPT)) await ctx.db.delete(old._id);
-    return { id: String(id), title };
-  },
-});
-
-/** The saved one-pagers of this owner, newest first: titles only. */
-export const pagerList = internalQuery({
-  args: { space: v.string(), owner: v.optional(v.string()) },
-  handler: async (ctx, a) => (await pagersOf(ctx, readSpace(a.space), a.owner ?? ""))
-    .map((p: any) => ({ id: String(p._id), title: p.title, at: p.at })),
-});
-
-/** One saved one-pager whole. */
-export const pagerGet = internalQuery({
-  args: { space: v.string(), id: v.string(), owner: v.optional(v.string()) },
-  handler: async (ctx, a) => {
-    const p = await pagerIn(ctx, readSpace(a.space), a.id, a.owner ?? "");
-    return p ? { id: String(p._id), title: p.title, page: p.page, text: p.text, ask: p.ask, at: p.at } : null;
-  },
-});
-
-/** A saved one-pager, deleted. */
-export const pagerRemove = internalMutation({
-  args: { space: v.string(), id: v.string(), owner: v.optional(v.string()) },
-  handler: async (ctx, a) => {
-    const p = await pagerIn(ctx, readSpace(a.space), a.id, a.owner ?? "");
-    if (!p) return { error: "that one-pager is gone" };
-    await ctx.db.delete(p._id);
-    return { ok: true };
-  },
-});
-
 /* ---------------- the models a workspace picked ---------------- */
 
 const modelsRow = async (ctx: any, space: string) =>
   await ctx.db.query("models").withIndex("by_space", (q: any) => q.eq("space", space)).unique();
 
-/** The chat model and the project model a workspace picked, or null for the defaults. */
+/** The model a workspace picked, or null for the default, and its languages. */
 export const modelsOf = internalQuery({
   args: { space: v.string() },
   handler: async (ctx, a) => {
     const r = await modelsRow(ctx, readSpace(a.space));
-    return { chat: r?.chat ?? null, project: r?.project ?? null, reply: r?.reply === "en" ? "en" : "same", voice: VOICES.includes(r?.voice) ? r.voice : null };
+    return { chat: r?.chat ?? null, reply: r?.reply === "en" ? "en" : "same", voice: VOICES.includes(r?.voice) ? r.voice : null };
   },
 });
 
 /* The languages the mic may listen in. */
 export const VOICES = ["en-US", "fr-FR", "es-ES", "de-DE", "it-IT", "pt-PT"];
 
-/** A new pick for either one. null goes back to the default; absent leaves it. */
+/** A new pick. null goes back to the default; absent leaves it. */
 export const setModels = internalMutation({
-  args: { space: v.string(), chat: v.optional(v.union(v.string(), v.null())), project: v.optional(v.union(v.string(), v.null())),
+  args: { space: v.string(), chat: v.optional(v.union(v.string(), v.null())),
           reply: v.optional(v.string()), voice: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, a) => {
     const space = readSpace(a.space), row = await modelsRow(ctx, space), at = Date.now();
-    const next: any = { chat: row?.chat, project: row?.project, reply: row?.reply, voice: row?.voice };
+    const next: any = { chat: row?.chat, reply: row?.reply, voice: row?.voice };
     if (a.chat !== undefined) next.chat = a.chat ?? undefined;
-    if (a.project !== undefined) next.project = a.project ?? undefined;
     if (a.reply !== undefined) next.reply = a.reply === "en" ? "en" : "same";
     if (a.voice !== undefined) next.voice = VOICES.includes(a.voice as string) ? a.voice : undefined;
     for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
     if (row) await ctx.db.patch(row._id, { chat: undefined, project: undefined, voice: undefined, ...next, updated: at });
     else await ctx.db.insert("models", { space, ...next, updated: at });
-    return { chat: next.chat ?? null, project: next.project ?? null, reply: next.reply === "en" ? "en" : "same", voice: next.voice ?? null };
+    return { chat: next.chat ?? null, reply: next.reply === "en" ? "en" : "same", voice: next.voice ?? null };
   },
-});
-
-/* ---------------- the side panel's mode ---------------- */
-
-const modeRow = async (ctx: any, space: string) =>
-  await ctx.db.query("modes").withIndex("by_space", (q: any) => q.eq("space", space)).unique();
-
-/** Show Projects too, or Chats and Folders only. Settings and admin:setMode both write here. */
-export async function writeMode(ctx: any, space: string, full: boolean) {
-  const row = await modeRow(ctx, space), at = Date.now();
-  if (row) await ctx.db.patch(row._id, { full, updated: at });
-  else await ctx.db.insert("modes", { space, full, updated: at });
-  return { full };
-}
-
-/** Whether a workspace shows every folder. With no row it is limited. */
-export const modeOf = internalQuery({
-  args: { space: v.string() },
-  handler: async (ctx, a) => !!(await modeRow(ctx, a.space))?.full,
-});
-
-export const setMode = internalMutation({
-  args: { space: v.string(), full: v.boolean() },
-  handler: async (ctx, a) => await writeMode(ctx, a.space, a.full),
 });
 
 /** A workspace's logo and colours, or null for the look it wears by default. */
@@ -1951,33 +1863,5 @@ export const auditMark = internalMutation({
     const audit = { at: today(), sources };
     await ctx.db.patch(b._id, { audit });
     return { audit };
-  },
-});
-
-/** An ask opened these concepts: each counts one more question, on this day. */
-export const heatAdd = internalMutation({
-  args: { space: v.string(), ids: v.array(v.string()), d: v.string() },
-  handler: async (ctx, a) => {
-    for (const id of [...new Set<string>(a.ids)].slice(0, 6)) {
-      const cut = id.indexOf("/");
-      if (cut < 1) continue;
-      const brain = id.slice(0, cut), slug = id.slice(cut + 1);
-      const row = await ctx.db.query("heat").withIndex("by_concept", q => q.eq("space", a.space).eq("brain", brain).eq("slug", slug)).unique();
-      if (row) await ctx.db.patch(row._id, { n: row.n + 1, days: [...row.days, a.d].slice(-60) });
-      else await ctx.db.insert("heat", { space: a.space, brain, slug, n: 1, days: [a.d] });
-    }
-  },
-});
-
-/** The questions each concept of a space drew since a day, by brain/slug id. */
-export const heatOf = internalQuery({
-  args: { space: v.string(), since: v.string() },
-  handler: async (ctx, a) => {
-    const out: Record<string, number> = {};
-    for (const r of await ctx.db.query("heat").withIndex("by_space", q => q.eq("space", a.space)).collect()) {
-      const n = r.days.filter(d => d >= a.since).length;
-      if (n) out[`${r.brain}/${r.slug}`] = n;
-    }
-    return out;
   },
 });

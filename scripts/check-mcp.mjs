@@ -21,11 +21,11 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-mcp-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["mcp.ts", "drop.ts", "lib.ts", "words.ts", "space.ts", "onepager.ts", "route.ts", "projects.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["mcp.ts", "drop.ts", "lib.ts", "words.ts", "space.ts", "onepager.ts", "route.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => " +
   "new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
-/* drop.ts marks projects out of date, and projects.ts defines Convex functions. */
+/* Files that define Convex functions load against these stubs. */
 writeFileSync(join(dir, "_generated/server.ts"),
   "export const internalQuery = (d: any) => d;\nexport const internalMutation = (d: any) => d;\nexport const internalAction = (d: any) => d;\n");
 await esbuild.build({ entryPoints: [join(dir, "mcp.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],

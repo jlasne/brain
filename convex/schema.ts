@@ -188,8 +188,6 @@ export default defineSchema({
     updated: v.number(),
   }).index("by_space_updated", ["space", "updated"]),
 
-  /* Blind spots were removed. The table stays so rows written while they
-     existed still match the schema; nothing writes to it. */
   /**
    * A workspace's own look, set in Setup: a logo and two colours. Octopus and
    * Squidgy wear their own without one; every other workspace wears Brain's
@@ -206,20 +204,22 @@ export default defineSchema({
   }).index("by_space", ["space"]),
 
   /**
-   * A workspace's side panel. Limited shows Chats and Folders, full adds
-   * Projects. A workspace with no row is limited.
+   * REMOVED FEATURES. The tables modes, projects, onepagers and pages, with
+   * gaps and heat further down, are no longer written or read: Projects,
+   * saved one-pagers, the side panel's mode, the old blind-spot log and the
+   * map are gone. Their definitions stay only so a deploy accepts the rows
+   * still there. Run `npx convex run admin:clearRemoved --prod` until it
+   * says runAgain: false, then delete these six definitions.
    */
+
+  /* A workspace's side panel mode. Removed. */
   modes: defineTable({
     space: v.string(),
     full: v.boolean(),
     updated: v.number(),
   }).index("by_space", ["space"]),
 
-  /**
-   * A project: a chat that reads the folders it names, and one page it keeps
-   * up to date, in the owner's HTML template when it has one. A personal
-   * folder never joins one, and the demo has none.
-   */
+  /* A project: a chat and a page over some folders. Removed. */
   projects: defineTable({
     space: v.string(),
     name: v.string(),
@@ -243,10 +243,7 @@ export default defineSchema({
     updated: v.number(),
   }).index("by_space", ["space"]),
 
-  /**
-   * Every one-pager built, kept so it can be opened again from Projects. The
-   * newest 50 of each owner stay. In the demo, each visitor keeps their own.
-   */
+  /* Every one-pager built, kept to open again. Removed: a page is built, shown and mailed, never stored. */
   onepagers: defineTable({
     space: v.string(),
     owner: v.optional(v.string()),
@@ -258,7 +255,7 @@ export default defineSchema({
     at: v.number(),
   }).index("by_space_at", ["space", "at"]),
 
-  /* Each build of a project's page. The newest 10 are kept. */
+  /* Each build of a project's page. Removed. */
   pages: defineTable({
     project: v.id("projects"),
     v: v.number(),
@@ -274,6 +271,7 @@ export default defineSchema({
   models: defineTable({
     space: v.string(),
     chat: v.optional(v.string()),
+    /* The model projects used. Removed: left readable for rows written before, and dropped on the row's next save. */
     project: v.optional(v.string()),
     /* Languages. Files are always kept in English. How answers come back
        ("same" as asked, or "en"), and the language the mic listens in. The
@@ -284,6 +282,7 @@ export default defineSchema({
     updated: v.number(),
   }).index("by_space", ["space"]),
 
+  /* Questions the brains could not answer, once logged. Removed. */
   gaps: defineTable({
     space: v.string(),
     q: v.string(),
@@ -504,9 +503,8 @@ export default defineSchema({
     error: v.optional(v.string()),
   }).index("by_space", ["space", "status"]).index("by_key", ["space", "key"]).index("by_scout", ["scout"]),
 
-  /* Questions per concept, per workspace: how many asks opened it, and the
-     days they came, the last 60. The map's heat reads it. A personal brain
-     is never counted: no question it answers reaches this table. */
+  /* Removed with the map: nothing writes or reads it. It stays until
+     admin:clearRemoved has emptied it, then this definition goes. */
   heat: defineTable({
     space: v.string(),
     brain: v.string(),

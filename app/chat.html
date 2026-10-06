@@ -148,13 +148,6 @@
 
   .side-scroll{ flex:1; overflow-y:auto; padding:16px 12px; min-height:0; }
 
-  .side-h{
-    display:flex; align-items:center; gap:6px; margin:2px 0 7px; padding:0 3px;
-    font:400 10.5px/1.6 var(--mono); letter-spacing:.07em; text-transform:uppercase;
-    color:var(--ink-4);
-  }
-  .side-h b{ color:var(--accent); font-weight:500; margin-left:auto; }
-
   /* People, then Subjects. Quieter than the panel header above it, because it
      divides a list rather than naming the panel. */
   .group-h{
@@ -281,7 +274,6 @@
   .zero .try button:hover{ border-color:var(--accent-fill); transform:translateY(-1px); }
 
   /* Chats and Brains, each a group that folds, remembered per browser. */
-  .side-h.fold{ margin-top:12px; }
   .fold-t{ display:flex; align-items:center; gap:6px; flex:1; min-width:0; padding:3px 0; text-align:left;
     font:inherit; letter-spacing:inherit; text-transform:inherit; color:inherit; }
   .fold-t:hover{ color:var(--ink-2); }
@@ -337,94 +329,12 @@
     font:400 14px/1.5 var(--sans); color:var(--ink); }
   .hb-best b{ display:block; font:600 11px/1.4 var(--sans); letter-spacing:.04em; text-transform:uppercase; color:var(--accent); margin-bottom:3px; }
 
-  /* The map: one graph of every folder and concept, on a night ground, the way Obsidian draws a vault. */
-  .mapbox{ width:100%; max-width:1180px; height:92vh; display:flex; flex-direction:column; background:#141416; color:#e4e4e7;
-    border:1px solid #2a2a2f; border-radius:18px; overflow:hidden; box-shadow:0 30px 80px -20px rgba(0,0,0,.6); animation:rise .24s var(--ease) both; }
-  .mp-h{ display:flex; align-items:center; gap:10px; padding:10px 12px 10px 16px; border-bottom:1px solid #26262b; background:#18181b; }
-  .mp-h b{ font:400 20px/1.2 var(--serif); color:#fafafa; }
-  .mp-n{ font:400 11.5px/1.3 var(--mono); color:#8b8b93; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .mp-find{ margin-left:auto; width:200px; min-width:0; height:32px; padding:0 12px; border-radius:9px; border:1px solid #2f2f35;
-    background:#1f1f23; color:#e4e4e7; font:400 13px/1 var(--sans); outline:none; transition:border-color .15s ease, width .25s ease; }
-  .mp-find:focus{ border-color:#a78bfa; width:240px; }
-  .mp-find::placeholder{ color:#6b6b73; }
-  .mp-zoom{ display:flex; gap:4px; }
-  .mp-warm{ height:32px; padding:0 11px; border-radius:9px; border:1px solid #2f2f35; background:#1f1f23; color:#d4d4d8; font:500 12.5px/1 var(--sans); cursor:pointer; white-space:nowrap; }
-  .mp-warm:hover{ border-color:#f2994a; color:#fff; }
-  .mp-warm.on{ background:#f2994a; border-color:#f2994a; color:#18181b; }
-  .mp-blind{ border-color:#7dd3fc55; color:#7dd3fc; }
-  .mp-card p.mp-c-warm{ color:#f2c46b; }
-  .mp-card p.mp-c-blind{ color:#7dd3fc; }
-  .mp-zoom button{ min-width:32px; height:32px; padding:0 9px; border-radius:9px; border:1px solid #2f2f35;
-    font:500 14px/1 var(--sans); color:#d4d4d8; background:#1f1f23; }
-  .mp-zoom button:hover{ border-color:#a78bfa; color:#fff; }
-  .mapbox .dk-x{ color:#a1a1aa; background:transparent; border-color:#2f2f35; }
-  .mapbox .dk-x:hover{ color:#fff; }
-  .mp-stage{ position:relative; flex:1; min-height:0; background:radial-gradient(ellipse at 50% 42%, #1d1d22 0%, #141416 72%); }
-  .mp-stage canvas{ display:block; width:100%; height:100%; touch-action:none; cursor:grab; user-select:none; }
-  .mp-stage canvas.grabbing{ cursor:grabbing; }
-  .mp-key{ padding:9px 16px 11px; border-top:1px solid #26262b; background:#18181b; font:400 12px/1.5 var(--sans); color:#8b8b93; }
-  /* What a click picked: a glass card over the graph. */
-  .mp-card{ position:absolute; left:14px; bottom:14px; width:min(360px, calc(100% - 28px)); display:grid; gap:6px; padding:13px 15px 14px;
-    border:1px solid #2f2f35; border-radius:14px; background:rgba(24,24,27,.86); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
-    box-shadow:0 18px 40px -12px rgba(0,0,0,.6); animation:mpCard .26s cubic-bezier(.2,.85,.25,1) both; }
-  @keyframes mpCard{ from{ opacity:0; transform:translateY(8px) scale(.98); } to{ opacity:1; transform:none; } }
-  .mp-c-top{ display:flex; align-items:center; gap:7px; font:500 11px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:#8b8b93; }
-  .mp-c-top i{ width:9px; height:9px; border-radius:50%; }
-  .mp-card b{ font:600 15.5px/1.3 var(--sans); color:#fafafa; }
-  .mp-card p{ font:400 13px/1.5 var(--sans); color:#b4b4bb; }
-  .mp-c-acts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
-  .mp-c-acts button{ min-height:32px; padding:0 13px; border-radius:999px; border:1px solid #3a3a41; background:#232327;
-    font:600 12.5px/1 var(--sans); color:#f4f4f5; cursor:pointer; }
-  .mp-c-acts button:hover{ border-color:#a78bfa; }
-  .mp-c-acts button.bad{ border-color:rgba(248,113,113,.5); color:#fca5a5; }
-  @media (max-width:560px){
-    .map-veil.veil{ padding:0; }
-    .mapbox{ height:100%; max-width:none; border-radius:0; border:none; }
-    .mp-n{ display:none; }
-    .mp-find{ width:120px; } .mp-find:focus{ width:150px; }
-    .mp-zoom button, .mp-find, .mp-warm{ height:40px; }
-    .mp-zoom button{ min-width:40px; }
-    .mp-h{ flex-wrap:wrap; row-gap:8px; }
-    .mp-blind{ order:9; flex:1 1 100%; }
-  }
-
-  /* The brain viewer: a wide sheet, a list, then one concept. */
-  .sheet.viewer{ max-width:760px; max-height:88vh; display:flex; flex-direction:column; }
-  .viewer .vw-h{ position:relative; padding:18px 52px 14px 20px; border-bottom:1px solid var(--line); }
-  .viewer .vw-h p{ margin-top:6px; font-size:13.5px; line-height:1.5; color:var(--ink-3); }
-  .viewer .vw-x{ position:absolute; top:12px; right:12px; width:34px; height:34px; border-radius:9px;
-                 font:400 22px/1 var(--sans); color:var(--ink-3); }
-  .viewer .vw-x:hover{ background:var(--surface-2); color:var(--ink); }
-  .viewer .vw-back{ display:block; margin-bottom:8px; font:500 12.5px/1 var(--sans); color:var(--accent); }
-  .viewer .vw-bar{ display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--line); }
-  .viewer .vw-count{ font:400 12px/1 var(--mono); color:var(--ink-3); white-space:nowrap; }
-  .viewer .vw-filter{ margin-left:auto; width:min(260px, 50%); padding:8px 11px; border:1px solid var(--line-2);
-                      border-radius:9px; background:var(--surface); font:400 13.5px/1.2 var(--sans); color:var(--ink); }
-  .viewer .vw-list{ overflow-y:auto; padding:6px 10px 12px; }
-  .viewer .vw-row{ display:flex; align-items:flex-start; gap:14px; width:100%; text-align:left; padding:11px 10px;
-                   border-radius:10px; }
-  .viewer .vw-row:hover{ background:var(--surface-2); }
-  .viewer .vw-main{ flex:1; min-width:0; }
-  .viewer .vw-main b{ display:block; font:600 14px/1.35 var(--sans); color:var(--ink); }
-  .viewer .vw-sum{ display:block; margin-top:3px; font-size:13px; line-height:1.45; color:var(--ink-3); }
-  .viewer .vw-meta{ flex:none; margin-top:2px; font:400 11px/1.3 var(--mono); color:var(--ink-4); white-space:nowrap; }
-  .viewer .vw-none{ padding:22px 20px; color:var(--ink-3); font-size:14px; }
-  .viewer .vw-body{ overflow-y:auto; padding:6px 20px 18px; }
-  .viewer .vw-sec{ padding:14px 0 4px; border-bottom:1px solid var(--line); }
-  .viewer .vw-sec:last-of-type{ border-bottom:0; }
-  .viewer .vw-sec h4{ margin-bottom:8px; font:500 10.5px/1.5 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); }
-  .viewer .vw-sec p{ font-size:14.5px; line-height:1.6; color:var(--ink); }
-  .viewer .vw-ev, .viewer .vw-data{ margin:0; padding:0; list-style:none; }
-  .viewer .vw-ev li, .viewer .vw-data li{ padding:6px 0; font-size:13.5px; line-height:1.5; color:var(--ink-2); display:flex; gap:10px; }
-  .viewer .vw-date{ flex:none; width:84px; font:400 11.5px/1.7 var(--mono); color:var(--ink-4); }
-  .viewer .vw-links{ display:flex; flex-wrap:wrap; gap:6px; padding-bottom:8px; }
-  .viewer .vw-link, .fv-links .vw-link{ padding:6px 10px; border:1px solid var(--line-2); border-radius:999px; background:var(--surface);
+  /* A link to another concept, as a chip. */
+  .fv-links .vw-link{ padding:6px 10px; border:1px solid var(--line-2); border-radius:999px; background:var(--surface);
                     font:500 12.5px/1.2 var(--sans); color:var(--accent); }
-  .viewer .vw-link:hover, .fv-links .vw-link:hover{ border-color:var(--accent-fill); }
-  .viewer .vw-acts{ display:flex; align-items:center; gap:12px; padding-top:14px; }
-  .viewer .vw-upd{ margin-left:auto; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
+  .fv-links .vw-link:hover{ border-color:var(--accent-fill); }
 
-  /* The side panel: three things to do, then Chats, Folders and Projects,
+  /* The side panel: three things to do, then Chats and Folders,
      each a card of its own that folds. */
   .side-acts{ display:grid; gap:4px; margin:0 0 10px; }
   .side-acts .sa{
@@ -548,13 +458,6 @@
   .fv-top.on{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
   .fv-top.on i{ color:var(--accent-on); opacity:.75; }
   .fv-topline{ margin:0 16px 8px; font:400 13px/1.45 var(--sans); color:var(--ink-3); }
-  /* The learning path: steps down the page, each a short list. */
-  .lp-step{ margin-top:18px; display:grid; gap:4px; animation:tdIn .35s ease both; }
-  .lp-n{ font:600 11px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); margin-bottom:4px; }
-  .lp-row{ display:grid; gap:2px; text-align:left; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--surface); cursor:pointer; }
-  .lp-row:hover{ border-color:var(--ink-4); }
-  .lp-row b{ font:600 14.5px/1.35 var(--sans); color:var(--ink); }
-  .lp-row span{ font:400 13px/1.45 var(--sans); color:var(--ink-3); }
   .filed .keep{ margin-left:8px; min-height:24px; padding:2px 9px; font-size:11.5px; }
   /* A personal folder's two lists: notes, and one card per person. */
   .fv-tabs{ display:flex; gap:4px; margin:12px 16px 0; padding:3px; border-radius:10px; background:var(--surface-2); }
@@ -565,7 +468,6 @@
   .fv-tab.on{ background:var(--surface); color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.08); }
   .fv-scan{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 16px 8px; }
   .fv-scan[hidden]{ display:none; }
-  .fv-scan-say{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
   .fv-aka{ margin-top:6px; font:400 13.5px/1.45 var(--sans); color:var(--ink-3); }
   .ev-orig{ display:block; margin-top:3px; font:italic 400 13px/1.45 var(--sans); color:var(--ink-4); }
   .lang-row{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 14px; padding:6px 0; }
@@ -607,6 +509,7 @@
   .sheet.dc-sheet{ max-width:700px; }
   .dc-top{ display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; margin-top:12px; }
   .dc-top .go{ min-height:38px; padding:0 18px; }
+  .dc-top .ghost{ min-height:38px; padding:0 16px; }
   .dc-state{ font:400 13px/1.4 var(--sans); color:var(--ink-3); }
   .dc-g{ padding:6px 0 10px; }
   .dc-g + .dc-g{ border-top:1px solid var(--line); padding-top:14px; }
@@ -763,6 +666,9 @@
   .ts-pair small{ font:500 10.5px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); }
   .ts-pair p{ margin-top:4px; font:400 13.5px/1.5 var(--sans); color:var(--ink-2); overflow-wrap:anywhere; }
   .ts-card .ts-m{ display:inline-block; margin-top:10px; }
+  .ts-basis{ font:400 12px/1.4 var(--sans); color:var(--ink-4); }
+  .ts-card .ts-basis{ display:block; margin-top:4px; }
+  .ts-pair .ts-why{ font:400 12.5px/1.45 var(--sans); color:var(--ink-3); }
   .tt-now{ margin-top:18px; }
   .tt-hist{ margin-top:26px; }
   .tt-hist h4{ margin:0 0 4px; font:600 12px/1 var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); }
@@ -774,7 +680,6 @@
   .tt-h > summary b{ font-variant-numeric:tabular-nums; }
   .tt-h > summary small{ color:var(--ink-3); font:400 12.5px/1 var(--sans); }
   .tt-h[open] > summary{ margin-bottom:6px; }
-  .ts-total{ font:600 13.5px/1 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
   .pf-part{ margin-top:6px; animation:tdIn .35s ease both; }
   .pf-part ul{ display:grid; gap:6px; padding-left:18px; }
   .pf-part li{ font:400 14.5px/1.55 var(--sans); color:var(--ink-2); }
@@ -784,25 +689,10 @@
     .tw-ch .tw-bar{ grid-column:1 / -1; grid-row:2; }
     .ts-pair{ grid-template-columns:1fr; }
   }
-  .cf-err{ margin-top:8px; font:400 13px/1.45 var(--sans); color:var(--bad); }
-  /* Tidy all folders: one section per folder, the findings under its name. */
-  .tidy-all{ max-width:820px; }
-  .tidy-all header{ position:sticky; top:0; z-index:1; background:var(--surface); }
-  .ta-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:12px; }
-  .ta-bar .ghost{ margin-left:auto; }
-  .ta-body{ overflow-y:auto; padding:4px 20px 12px; }
   /* The sheet's own label and field rules stretch a radio across the card. */
   .sheet .td-opt{ display:flex; margin:0; font:inherit; }
   .sheet .td-opt input{ width:auto; flex:none; padding:0; margin-top:3px; border:0; background:none; }
   .sheet .td-ren .td-in{ width:auto; padding:0 10px; }
-  .sheet .ta-sec h4{ margin:14px 0 6px; font:600 13px/1 var(--sans); color:var(--ink-3); }
-  .ta-sec{ padding:14px 0 6px; border-top:1px solid var(--line); animation:tdIn .35s ease both; }
-  .ta-sec:first-child{ border-top:0; }
-  .ta-h{ display:flex; align-items:baseline; gap:10px; margin-bottom:4px; }
-  .ta-h b{ font:400 21px/1.2 var(--serif); letter-spacing:-.01em; color:var(--ink); }
-  .ta-n{ font:500 11.5px/1 var(--mono); color:var(--ink-4); }
-  .ta-sec.clean .ta-n{ color:var(--good); }
-  .ta-sec .td-wait{ margin-top:8px; }
   .td-say.ok{ color:var(--good); }
   .td-say.bad, .tidy .bad{ color:var(--bad); }
   .td-ren{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto; gap:8px; align-items:center; padding:6px 10px; }
@@ -856,7 +746,6 @@
   .p-ic svg{ width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
   .p-chat{ background:rgba(63,125,92,.12); color:var(--good); }
   .p-fold{ background:var(--accent-soft); color:var(--accent); }
-  .p-proj{ background:rgba(148,101,15,.12); color:var(--warn); }
   .panel .side-plus{ width:26px; height:26px; padding:0; display:grid; place-items:center; border-radius:7px; background:var(--surface-2); color:var(--ink-3); }
   .panel .side-plus:hover{ background:var(--accent-soft); color:var(--accent); }
   .panel .side-plus svg{ width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; }
@@ -939,18 +828,6 @@
   .pick-menu .pk-ct{ flex:none; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
 
 
-  .connect-row{
-    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
-    border-top:1px solid var(--line); padding:11px 20px;
-    font:500 12px/1.3 var(--sans); color:var(--ink-3);
-    transition:color .15s var(--ease), background .15s var(--ease);
-  }
-  .connect-row:hover{ color:var(--accent); background:var(--surface); text-decoration:none; }
-  .connect-row .go-out{ margin-left:auto; font-size:12px; color:var(--ink-4); }
-  .connect-row:hover .go-out{ color:var(--accent); }
-  .connect-row .dot{
-    width:6px; height:6px; border-radius:50%; background:var(--accent-fill); flex-shrink:0;
-  }
 
   /* Share brain: a row per brain, a chip per workspace it can go to. */
   .sh-row{ display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; padding:9px 0; border-top:1px solid var(--line); }
@@ -1022,20 +899,6 @@
   }
   #setModel.pick .val{ color:var(--accent); }
   .sheet .set-row{ display:grid; gap:7px; }
-  /* An open conflict: its two sides, each with the button that makes it hold. */
-  .cf-count{ font:500 11px/1 var(--mono); color:var(--accent); margin-left:6px; }
-  .cf-item{ border:1px solid var(--line-2); border-radius:10px; padding:12px; margin-bottom:10px; background:var(--surface); }
-  .cf-item.done{ border-style:dashed; }
-  .cf-top{ display:flex; align-items:baseline; gap:8px; margin-bottom:8px; font-size:14px; color:var(--ink); }
-  .cf-brain{ margin-left:auto; font:400 11px/1 var(--mono); color:var(--ink-4); white-space:nowrap; }
-  .cf-side{ display:grid; grid-template-columns:1fr auto; gap:2px 10px; align-items:center;
-            padding:8px 0; border-top:1px solid var(--line); }
-  .cf-claim{ font-size:13.5px; line-height:1.45; color:var(--ink-2); }
-  .cf-date{ grid-row:2; font:400 11px/1.4 var(--mono); color:var(--ink-4); }
-  .cf-go{ grid-row:1 / 3; grid-column:2; white-space:nowrap; }
-  .cf-why{ font-size:12.5px; color:var(--ink-3); padding:6px 0 8px; border-top:1px solid var(--line); }
-  .cf-deck-go{ margin:0 0 10px; }
-
   /* The conflict deck: one clash at a time, settled by a swipe or a key. */
   .deck{
     width:100%; max-width:640px; max-height:92vh; display:flex; flex-direction:column;
@@ -1088,8 +951,6 @@
     .dk-acts button{ min-height:44px; }
   }
   @media (prefers-reduced-motion:reduce){ .dk-card{ transition:none; } }
-  .foot-row{ display:flex; gap:7px; }
-  .foot-row .foot-btn{ justify-content:center; }
 
 
   .mlist{
@@ -1115,18 +976,6 @@
   .meter + .meter{ margin-top:4px; }
   .meter b{ color:var(--ink); font-weight:600; }
 
-  /* The three ways in, on the first screen of the door. */
-  .picks{ padding:16px 20px 2px; }
-  .pick-row{
-    display:block; width:100%; text-align:left; padding:13px 14px; margin-bottom:9px;
-    border:1px solid var(--line-2); border-radius:11px; background:var(--bg);
-    transition:border-color .15s var(--ease), background .15s var(--ease);
-  }
-  a.pick-row, a.pick-row:hover{ color:inherit; text-decoration:none; }
-  .pick-row:hover{ border-color:var(--accent-fill); background:var(--surface-2); text-decoration:none; }
-  .pick-row b{ display:block; font:600 14.5px/1.35 var(--sans); color:var(--ink); }
-  .pick-row span{ display:block; margin-top:4px; font:400 13px/1.5 var(--sans); color:var(--ink-3); }
-  .pick-row em{ font-style:normal; color:var(--accent); }
   .sheet .home{
     margin-right:auto; font:400 13px/1 var(--sans); color:var(--ink-3);
     text-decoration:underline; text-underline-offset:2px; align-self:center;
@@ -1696,7 +1545,7 @@
     .brain-row .ed{ padding:8px 9px; }
     .foot-btn, .side-acts .sa{ min-height:44px; }
     .panel .side-plus{ width:36px; height:36px; }
-    .side-h, .group-h, .foot-btn .lbl{ font-size:12px; }
+    .group-h, .foot-btn .lbl{ font-size:12px; }
     .foot-btn .val{ font-size:12.5px; }
 
     /* In the thread. */
@@ -1761,7 +1610,6 @@
     .brain-row .ed::before{ content:""; width:16px; height:16px; background:currentColor;
       -webkit-mask:var(--ic) center/contain no-repeat; mask:var(--ic) center/contain no-repeat; }
     .brain-row .ed.op{ --ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7Zm0 3.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z'/%3E%3C/svg%3E"); }
-    .brain-row .ed.edt{ --ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M15.2 4.3a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L9 19.5 4 20l.5-5Z'/%3E%3C/svg%3E"); }
     .card-grid{ grid-template-columns:1fr; gap:4px 0; }
     .card-grid dt{ margin-top:8px; }
     .cf{ grid-template-columns:1fr; gap:4px; }
@@ -2010,7 +1858,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>Drop</button>
         <button class="sa" id="pagerBtn" type="button" title="A folder, a group, or a question, as bullets on one page">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>One-pager</button>
-        <button class="sa" id="keyBtn" type="button" title="The model, the export, the map, open conflicts, the MCP address and the transcript service">
+        <button class="sa" id="keyBtn" type="button" title="The model, the export, the audit and its decisions, the MCP address and the transcript service">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>Settings</button>
       </div>
       <section class="panel" id="chatsPanel">
@@ -2056,7 +1904,7 @@
 
     <div class="demo-bar" id="demoBar" hidden>
       <span class="db-t"><b>Live demo.</b> Every visitor shares 30 drops and 300 questions a month.<span class="db-more"> Your chats stay yours.</span></span>
-      <span class="db-acts"><button class="db-b" id="demoMap" type="button">Open the map</button><button class="db-b" id="demoSettle" type="button">Settle a clash</button><a class="db-b main" href="/#create">Make your own</a></span>
+      <span class="db-acts"><button class="db-b" id="demoSettle" type="button">Settle a clash</button><a class="db-b main" href="/#create">Make your own</a></span>
     </div>
     <div class="drop-head" id="dropHead" hidden><div class="col">
       <div><h2>Drop</h2><p>A link, a PDF, a Word file, a video or a transcript. It is read once, filed under the right folders, and each clash waits for your call.</p></div>
@@ -2148,7 +1996,6 @@ const S = {
   picks: [],
   /* The folder open in the main area, or null for the chat. */
   folder: null,
-  /* The projects, the one open (its id, then the whole of it), and its last turns. */
   /* The last few turns of the current thread. It travels with each question so
      a follow-up means something, and it is never written down: closing the tab
      ends it. */
@@ -2417,8 +2264,8 @@ async function refresh(){
   const d = await api("/api/state");
   S.brains = d.brains || []; S.concepts = d.concepts || []; S.sources = d.sources || [];
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
-  /* The chat model and the project model in use, and their defaults. */
-  S.models = d.models || { chat: S.model, project: "", chatDefault: S.model, projectDefault: "" };
+  /* The model in use, and its default. */
+  S.models = d.models || { chat: S.model, chatDefault: S.model };
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
   S.demo = !!d.demo; S.byok = !!d.byok;
   applyLook(d.brand || null);
@@ -2428,8 +2275,7 @@ async function refresh(){
   loadHealth(); loadChats(); loadFinds(); autoAudit();
 }
 
-/** Each brain's health, then the rings repaint, and an open map with them. */
-var mapRepaint = null;
+/** Each brain's health, then the rings repaint. */
 async function loadHealth(){
   try {
     const d = await api("/api/health");
@@ -2437,14 +2283,13 @@ async function loadHealth(){
     S.conflicted = new Set(d.conflicted || []);
   } catch { return; }
   renderSide(); paintInbox();
-  if (mapRepaint) mapRepaint();
   loadClashes();
 }
 /** The open clashes, each with its suggested ruling, for the inbox's decisions. */
 async function loadClashes(){
   if (S.demo) return;
   if (!openClashes()){ S.clashes = []; paintInbox(); return; }
-  try { const r = await api("/api/conflicts", { hints: true }); if (Array.isArray(r.conflicts)) S.clashes = r.conflicts; } catch { return; }
+  try { const r = await api("/api/conflicts", { hints: true }); if (Array.isArray(r.conflicts)) { S.clashes = r.conflicts; S.clashOthers = r.others || 0; } } catch { return; }
   paintInbox(); paintDecide();
 }
 async function loadChats(){
@@ -2708,7 +2553,6 @@ function folds(){
   if (!folds.v){ try { folds.v = JSON.parse(localStorage.getItem("octopus.fold") || "{}") || {}; } catch { folds.v = {}; } }
   return folds.v;
 }
-/* Projects come next, so their panel starts shut until it is opened once. */
 function paintFolds(){
   for (const k of ["chats","brains"]){
     const shut = !!folds()[k];
@@ -2950,7 +2794,7 @@ function openHealthSheet(b){
 }
 
 /**
- * The conflict deck, opened from the map or a health sheet: this concept's
+ * The conflict deck, opened from a health sheet or the Decisions: this concept's
  * clashes first, or this brain's.
  */
 async function settleFrom(id, brain){
@@ -2996,8 +2840,8 @@ function renderSide(){
 }
 
 /** A model in use, as Settings names it: short on the button, whole in its title. */
-function modelLabel(which = "chat"){
-  const m = S.models || {}, live = m[which] || (which === "chat" ? S.model : ""), def = m[which + "Default"] || "";
+function modelLabel(){
+  const m = S.models || {}, live = m.chat || S.model, def = m.chatDefault || "";
   const picked = !!live && !!def && live !== def;
   return {
     val: live ? live.split("/").pop() : "default", picked,
@@ -3732,6 +3576,13 @@ function decisions(){
   return out.filter(d => !later.has(d.key));
 }
 function decisionCount(){ return S.demo ? openClashes() : decisions().length + (S.clashes ? 0 : openClashes()); }
+/** What waits, by kind: "2 clashes · 3 filed twice". */
+function decisionLine(){
+  const ds = decisions(), n = k => ds.filter(d => d.kind === k).length;
+  const part = (k, one, many) => n(k) ? `${n(k)} ${n(k) === 1 ? one : many}` : "";
+  return [part("clash", "clash", "clashes"), part("same", "filed twice", "filed twice"), part("rename", "title", "titles"),
+    part("blank", "empty position", "empty positions"), part("person", "same person", "same people")].filter(Boolean).join(" \u00b7 ") || `${decisionCount()} waiting`;
+}
 function paintDecide(){ if (S.dcPaint) S.dcPaint(); }
 /** One decision made: the call it was given, sent. Says what changed, or throws. */
 async function applyDecision(d, pick){
@@ -3837,18 +3688,23 @@ async function openDecide(){
   veil.innerHTML = `
     <div class="sheet dc-sheet" role="dialog" aria-modal="true" aria-label="Decisions">
       <header><h3>Decisions</h3><p id="dcSay"></p>
-        <div class="dc-top"><button class="go" id="dcAll" type="button"></button><span class="dc-state" id="dcState" role="status"></span></div></header>
+        <div class="dc-top"><button class="go" id="dcAll" type="button"></button><button class="ghost" id="dcSwipe" type="button" hidden>Swipe the clashes</button><span class="dc-state" id="dcState" role="status"></span></div></header>
       <div class="f" id="dcList"></div>
       <footer><button class="ghost" id="dcDone" type="button">Done</button></footer>
     </div>`;
   document.body.append(veil);
-  const list = veil.querySelector("#dcList"), say = veil.querySelector("#dcSay"), all = veil.querySelector("#dcAll"), state = veil.querySelector("#dcState");
+  const list = veil.querySelector("#dcList"), say = veil.querySelector("#dcSay"), all = veil.querySelector("#dcAll"), state = veil.querySelector("#dcState"), swipe = veil.querySelector("#dcSwipe");
   const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
   const shut = () => { document.removeEventListener("keydown", onKey); S.dcPaint = null; veil.remove(); };
   document.addEventListener("keydown", onKey);
   veil.querySelector("#dcDone").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
   all.onclick = () => acceptAll();
+  /* The clashes one card at a time, each with its suggested call: a swipe or a key rules it. */
+  swipe.onclick = () => {
+    const cs = decisions().filter(d => d.kind === "clash").map(d => d.c);
+    if (cs.length && !S.dcRun) openConflictDeck(cs, S.clashOthers || 0);
+  };
   const said = new Map();       // what each one did, while this sheet is open
   /* Topics name the groups: one fetch per folder, kept for the session. */
   S.topicsOf ||= {};
@@ -3861,6 +3717,7 @@ async function openDecide(){
       : "Nothing waiting. Clashes, things filed twice and audit findings land here.";
     all.hidden = !ds.length && !run;
     all.disabled = !!run;
+    swipe.hidden = !!run || !ds.some(d => d.kind === "clash");
     all.textContent = run ? `Applying ${run.done} of ${run.total}` : `Accept all ${ds.length}`;
     state.textContent = run ? "You can close this: it goes on." : S.dcLast || "";
     list.innerHTML = "";
@@ -4331,405 +4188,6 @@ $("lockBtn").onclick = async () => {
 };
 
 /**
- * The map: every folder and every concept as one graph, the way Obsidian
- * draws a vault. A folder is a large node carrying its health, a concept a
- * dot in its folder's colour, bigger with more sources, and a line a link
- * between two concepts. The layout settles by itself and stays live: drag a
- * dot and the graph follows.
- *
- * Point at a dot to light it and its neighbours. Click it to read it, or to
- * settle its open conflict, ringed in red. Drag the background to move, and
- * the wheel, two fingers or the buttons to zoom. The search lights matches.
- *
- * Drawn on a canvas, so a workspace of a thousand concepts stays smooth. The
- * stage keeps a small handle on the graph, which the checks read.
- */
-async function openMap(){
-  const veil = el("div","veil map-veil");
-  veil.innerHTML = `
-    <div class="mapbox" role="dialog" aria-modal="true" aria-label="Map of the folders">
-      <header class="mp-h"><b>Map</b><span class="mp-n" id="mpN"></span>
-        <input class="mp-find" id="mpFind" type="search" placeholder="Find a concept" autocomplete="off" spellcheck="false" aria-label="Find a concept">
-        <button class="mp-warm" id="mpWarm" type="button" aria-pressed="false" title="Colour each concept by the questions it drew in 90 days">Heat</button>
-        <button class="mp-warm mp-blind" id="mpBlind" type="button" hidden></button>
-        <div class="mp-zoom"><button id="mpIn" aria-label="Zoom in">+</button><button id="mpOut" aria-label="Zoom out">&minus;</button><button id="mpFit">Fit</button></div>
-        <button class="dk-x" id="mpX" aria-label="Close">&times;</button></header>
-      <div class="mp-stage" id="mpStage"><canvas id="mpCanvas" aria-label="The folders and their concepts, as a graph"></canvas>
-        <div class="mp-card" id="mpCard" hidden></div></div>
-      <div class="mp-key" id="mpKey">Big node: a folder, its health around it. Dot: a concept, bigger with more sources. Red ring: an open conflict. Point to light the links: <b style="color:#f2c46b">needs</b> · <b style="color:#c4b5fd">causes</b> · <b style="color:#6fcf97">supports</b> · <b style="color:#f87171">contradicts</b> · <b style="color:#7dd3fc">example</b>.</div>
-    </div>`;
-  document.body.append(veil);
-  const stage = veil.querySelector("#mpStage"), cv = veil.querySelector("#mpCanvas"), card = veil.querySelector("#mpCard");
-  const g = cv.getContext("2d");
-  let alive = true, raf = 0;
-  const onKey = e => {
-    if (e.key !== "Escape" || veil !== [...document.querySelectorAll(".veil")].pop()) return;
-    if (!card.hidden){ pick(null); return; }
-    shut();
-  };
-  const shut = () => { alive = false; window.cancelAnimationFrame(raf); ro.disconnect(); document.removeEventListener("keydown", onKey); mapRepaint = null; veil.remove(); };
-  document.addEventListener("keydown", onKey);
-  veil.querySelector("#mpX").onclick = shut;
-
-  let links = [], ASKED = {};
-  try { const r = await api("/api/map", {}); links = r.links || []; ASKED = r.heat || {}; } catch { links = []; }
-  if (!veil.isConnected) return;
-  /* Heat: each concept coloured by the questions that opened it in 90 days.
-     Asked 3 times or more and held by 2 sources or fewer, it is a blind spot:
-     what you ask about, fed thin. */
-  let warm = false, blindAt = 0;
-  const KEY = veil.querySelector("#mpKey").innerHTML;
-  const WARM_KEY = `Heat: the questions each concept answered in 90 days. <b style="color:#71717a">Grey</b>: none · <b style="color:#f2c46b">1 to 2</b> · <b style="color:#f2994a">3 to 9</b> · <b style="color:#ff5c4d">10 or more</b>. <b style="color:#7dd3fc">Dashed ring</b>: a blind spot, asked 3 times or more and held by 2 sources or fewer. Feed it.`;
-  const heatInk = k => k >= 10 ? "#ff5c4d" : k >= 3 ? "#f2994a" : k >= 1 ? "#f2c46b" : "#3f3f46";
-
-  /* A lit link takes its kind's colour: what to read first, what it drives,
-     what backs it, what disagrees, what it is a case of. */
-  const LINK_INK = { needs: "#f2c46b", causes: "#c4b5fd", supports: "#6fcf97", contradicts: "#f87171", example: "#7dd3fc", related: "rgba(167,139,250,.85)" };
-  /* Folder colours: muted, distinct on the dark ground, one per folder. */
-  const HUES = ["#8b9cf7", "#6fcf97", "#f2a65a", "#e07ab8", "#56ccf2", "#c9a7f5", "#f2d16b", "#7fd6c2", "#f28b82", "#a5b4c8", "#b5d66f", "#f5a3c7"];
-  const N = [], byId = new Map(), E = [];
-  let W = 0, H = 0, dpr = 1;
-  const view = { x: 0, y: 0, k: 1 }, goal = { x: 0, y: 0, k: 1 };
-  let heat = 1, hover = null, sel = null, drag = null, query = "";
-
-  const build = () => {
-    const keep = new Map(N.map(n => [n.id, n]));
-    N.length = 0; byId.clear(); E.length = 0;
-    const folders = ordered().filter(b => b.type !== "personal");
-    const R = 120 + 26 * folders.length;
-    folders.forEach((b, i) => {
-      const a = -Math.PI / 2 + i * 2 * Math.PI / Math.max(1, folders.length);
-      const old = keep.get("@" + b.slug);
-      const hub = { id: "@" + b.slug, hub: true, b, color: HUES[i % HUES.length], r: 13 + Math.min(10, Math.sqrt(conceptsOf(b.slug).length) * 1.4),
-        x: old?.x ?? Math.cos(a) * R, y: old?.y ?? Math.sin(a) * R, vx: 0, vy: 0, label: b.name, deg: 0 };
-      N.push(hub); byId.set(hub.id, hub);
-      for (const c of conceptsOf(b.slug)){
-        const id = `${c.brain}/${c.slug}`, was = keep.get(id);
-        const asked = ASKED[id] || 0;
-        const n = { id, c, b, color: hub.color, r: 2.6 + 1.5 * Math.sqrt(Math.max(1, c.src || 0)), label: c.title,
-          x: was?.x ?? hub.x + (Math.random() - .5) * 90, y: was?.y ?? hub.y + (Math.random() - .5) * 90, vx: 0, vy: 0,
-          bad: S.conflicted.has(id), deg: 0, asked, thin: asked >= 3 && (c.src || 0) <= 2 };
-        hub.asked = (hub.asked || 0) + asked;
-        N.push(n); byId.set(id, n);
-        E.push({ a: hub, b: n, hub: true });
-      }
-    });
-    for (const [a, b, type] of links){
-      const p = byId.get(a), q = byId.get(b);
-      if (p && q && p !== q){ E.push({ a: p, b: q, cross: p.b !== q.b, type: type || "related" }); p.deg++; q.deg++; }
-    }
-    paintCount();
-  };
-  const blinds = () => N.filter(n => n.thin).sort((x, y) => y.asked - x.asked);
-  const paintCount = () => {
-    const cross = E.filter(e => e.cross).length, bad = N.filter(n => n.bad).length, nc = N.filter(n => !n.hub).length;
-    const asked = N.filter(n => !n.hub && n.asked).length, bl = blinds().length;
-    veil.querySelector("#mpN").textContent = warm
-      ? `${asked} of ${nc} concepts asked about in 90 days · ${bl} blind spot${bl === 1 ? "" : "s"}`
-      : `${folders().length} folder${folders().length === 1 ? "" : "s"} · ${nc} concepts · ` +
-        `${E.filter(e => !e.hub).length} links, ${cross} between folders · ${bad} with an open conflict`;
-    const bb = veil.querySelector("#mpBlind");
-    bb.hidden = !warm || !bl; bb.textContent = `Next blind spot · ${bl}`;
-  };
-  const folders = () => N.filter(n => n.hub);
-  const warmB = veil.querySelector("#mpWarm");
-  warmB.onclick = () => {
-    warm = !warm; warmB.classList.toggle("on", warm); warmB.setAttribute("aria-pressed", String(warm));
-    veil.querySelector("#mpKey").innerHTML = warm ? WARM_KEY : KEY;
-    paintCount(); dirty = true; if (sel) pick(sel);
-  };
-  veil.querySelector("#mpBlind").onclick = () => {
-    const list = blinds(); if (!list.length) return;
-    const n = list[blindAt++ % list.length];
-    goal.x = n.x; goal.y = n.y; goal.k = Math.max(goal.k, 1.8); pick(n);
-  };
-
-  /* ---- the physics: links pull, dots push apart, all drift to the middle ---- */
-  const CELL = 90;
-  const tick = () => {
-    const a = heat;
-    /* Repulsion on a grid, so a thousand dots cost what forty would. */
-    const grid = new Map();
-    for (const n of N){ const k = `${Math.floor(n.x / CELL)},${Math.floor(n.y / CELL)}`; (grid.get(k) || grid.set(k, []).get(k)).push(n); }
-    for (const n of N){
-      const cx = Math.floor(n.x / CELL), cy = Math.floor(n.y / CELL);
-      for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++){
-        for (const m of grid.get(`${cx + i},${cy + j}`) || []){
-          if (m === n) continue;
-          let dx = n.x - m.x, dy = n.y - m.y, d2 = dx * dx + dy * dy;
-          if (d2 > CELL * CELL) continue;
-          if (d2 < .01){ dx = Math.random() - .5; dy = Math.random() - .5; d2 = .25; }
-          const f = (n.hub || m.hub ? 900 : 260) * a / d2;
-          n.vx += dx * f; n.vy += dy * f;
-        }
-      }
-    }
-    /* Folders keep their distance from each other at any range. */
-    const hubs = N.filter(n => n.hub);
-    for (let i = 0; i < hubs.length; i++) for (let j = i + 1; j < hubs.length; j++){
-      const p = hubs[i], q = hubs[j], dx = p.x - q.x, dy = p.y - q.y, d2 = Math.max(100, dx * dx + dy * dy), f = 26000 * a / d2;
-      p.vx += dx * f / Math.sqrt(d2); p.vy += dy * f / Math.sqrt(d2); q.vx -= dx * f / Math.sqrt(d2); q.vy -= dy * f / Math.sqrt(d2);
-    }
-    for (const e of E){
-      const dx = e.b.x - e.a.x, dy = e.b.y - e.a.y, d = Math.hypot(dx, dy) || 1;
-      const rest = e.hub ? 46 + e.a.r * 2 : e.cross ? 150 : 60, k = (e.hub ? .05 : e.cross ? .012 : .03) * a;
-      const f = (d - rest) * k / d;
-      e.a.vx += dx * f; e.a.vy += dy * f; e.b.vx -= dx * f; e.b.vy -= dy * f;
-    }
-    for (const n of N){
-      n.vx -= n.x * .0016 * a; n.vy -= n.y * .0016 * a;
-      if (n === drag?.n){ n.vx = n.vy = 0; continue; }
-      n.vx *= .82; n.vy *= .82;
-      n.x += Math.max(-30, Math.min(30, n.vx)); n.y += Math.max(-30, Math.min(30, n.vy));
-    }
-    heat = Math.max(.012, heat * .985);
-  };
-
-  /* ---- the camera ---- */
-  const bounds = () => {
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (const n of N){ x0 = Math.min(x0, n.x - n.r); y0 = Math.min(y0, n.y - n.r); x1 = Math.max(x1, n.x + n.r); y1 = Math.max(y1, n.y + n.r); }
-    return N.length ? { x0, y0, x1, y1 } : { x0: -100, y0: -100, x1: 100, y1: 100 };
-  };
-  const fitGoal = () => {
-    const b = bounds(), pad = 60;
-    goal.k = Math.max(.15, Math.min(2.2, Math.min(W / (b.x1 - b.x0 + pad * 2), H / (b.y1 - b.y0 + pad * 2))));
-    goal.x = (b.x0 + b.x1) / 2; goal.y = (b.y0 + b.y1) / 2;
-  };
-  const toWorld = (sx, sy) => [(sx - W / 2) / view.k + view.x, (sy - H / 2) / view.k + view.y];
-  const toScreen = (x, y) => [(x - view.x) * view.k + W / 2, (y - view.y) * view.k + H / 2];
-  const zoomAt = (f, sx = W / 2, sy = H / 2) => {
-    const [wx, wy] = toWorld(sx, sy);
-    goal.k = Math.max(.12, Math.min(6, goal.k * f));
-    /* The point under the pointer stays under it. */
-    goal.x = wx - (sx - W / 2) / goal.k; goal.y = wy - (sy - H / 2) / goal.k;
-  };
-  const at = (sx, sy) => {
-    const [wx, wy] = toWorld(sx, sy);
-    let best = null, bd = Infinity;
-    for (const n of N){
-      const d = Math.hypot(n.x - wx, n.y - wy), reach = n.r + 6 / view.k;
-      if (d < reach && d < bd){ best = n; bd = d; }
-    }
-    return best;
-  };
-
-  /* ---- what is lit: the pointed or picked dot and its neighbours, or matches ---- */
-  const near = n => {
-    const s = new Set([n]);
-    for (const e of E) if (e.a === n) s.add(e.b); else if (e.b === n) s.add(e.a);
-    return s;
-  };
-  const litSet = () => {
-    const focus = hover || sel;
-    if (focus) return near(focus);
-    if (query) return new Set(N.filter(n => n.label.toLowerCase().includes(query)));
-    return null;
-  };
-
-  /* ---- drawing ---- */
-  const draw = () => {
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.clearRect(0, 0, W, H);
-    g.save();
-    g.translate(W / 2, H / 2); g.scale(view.k, view.k); g.translate(-view.x, -view.y);
-    const lit = litSet();
-    const dim = n => lit && !lit.has(n);
-    /* Lines first, faint, then the lit ones on top in the accent. */
-    g.lineWidth = 1 / view.k;
-    for (const e of E){
-      if (lit && (lit.has(e.a) && lit.has(e.b) && (e.a === (hover || sel) || e.b === (hover || sel) || query))) continue;
-      g.strokeStyle = e.hub ? "rgba(255,255,255,.05)" : e.cross ? "rgba(255,255,255,.16)" : "rgba(255,255,255,.10)";
-      if (lit) g.strokeStyle = "rgba(255,255,255,.03)";
-      g.beginPath(); g.moveTo(e.a.x, e.a.y); g.lineTo(e.b.x, e.b.y); g.stroke();
-    }
-    if (lit){
-      g.lineWidth = 1.6 / view.k;
-      for (const e of E){
-        if (!(lit.has(e.a) && lit.has(e.b))) continue;
-        if (!query && e.a !== (hover || sel) && e.b !== (hover || sel)) continue;
-        g.strokeStyle = e.hub ? "rgba(255,255,255,.28)" : (LINK_INK[e.type] || "rgba(167,139,250,.85)");
-        g.beginPath(); g.moveTo(e.a.x, e.a.y); g.lineTo(e.b.x, e.b.y); g.stroke();
-      }
-    }
-    for (const n of N){
-      g.globalAlpha = dim(n) ? .14 : 1;
-      if (n.hub){
-        /* A folder: a soft halo, the node, its health as an arc around it. */
-        const h = S.health[n.b.slug];
-        g.fillStyle = n.color + "22"; g.beginPath(); g.arc(n.x, n.y, n.r + 9, 0, 7); g.fill();
-        g.fillStyle = n.color; g.beginPath(); g.arc(n.x, n.y, n.r, 0, 7); g.fill();
-        g.lineWidth = 3 / Math.max(.6, view.k); g.strokeStyle = "rgba(255,255,255,.12)";
-        g.beginPath(); g.arc(n.x, n.y, n.r + 5, 0, 7); g.stroke();
-        if (h){ g.strokeStyle = "rgba(255,255,255,.85)"; g.beginPath(); g.arc(n.x, n.y, n.r + 5, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * h.score / 10); g.stroke(); }
-      } else if (warm){
-        /* Heat: a warm glow that grows with the questions, a dashed ring on a blind spot. */
-        const ink = heatInk(n.asked);
-        if (n.asked){ g.fillStyle = ink + "33"; g.beginPath(); g.arc(n.x, n.y, n.r + 3 + Math.min(12, n.asked * 1.2), 0, 7); g.fill(); }
-        g.fillStyle = n === hover || n === sel ? "#ffffff" : ink;
-        g.beginPath(); g.arc(n.x, n.y, n.r, 0, 7); g.fill();
-        if (n.thin){
-          g.lineWidth = 1.6 / Math.max(.7, view.k); g.strokeStyle = "#7dd3fc"; g.setLineDash([3 / view.k, 2.4 / view.k]);
-          g.beginPath(); g.arc(n.x, n.y, n.r + 4, 0, 7); g.stroke(); g.setLineDash([]);
-        }
-      } else {
-        g.fillStyle = n === hover || n === sel ? "#ffffff" : n.color;
-        g.beginPath(); g.arc(n.x, n.y, n.r, 0, 7); g.fill();
-        if (n.bad){ g.lineWidth = 1.8 / Math.max(.7, view.k); g.strokeStyle = "#f87171"; g.beginPath(); g.arc(n.x, n.y, n.r + 2.6, 0, 7); g.stroke(); }
-      }
-    }
-    g.globalAlpha = 1;
-    /* Labels: folders always, concepts once close enough, and whatever is lit. */
-    g.textAlign = "center"; g.textBaseline = "top";
-    const fz = 11 / view.k;
-    for (const n of N){
-      const show = n.hub || (lit ? lit.has(n) : view.k > 1.5);
-      if (!show) continue;
-      const big = n.hub;
-      /* The same size on screen at any zoom, the way Obsidian keeps them. */
-      const size = big ? 13 / view.k : fz;
-      g.font = `${big ? 600 : 400} ${size}px Geist, ui-sans-serif, system-ui, sans-serif`;
-      const t = n.label.length > 42 && !big ? n.label.slice(0, 40) + "…" : n.label;
-      const ty = n.y + n.r + (big ? 10 : 4) / view.k;
-      /* A dark halo under each label, so it reads over dots and lines. */
-      if (!dim(n)){ g.lineWidth = 3.5 / view.k; g.strokeStyle = "rgba(20,20,22,.9)"; g.lineJoin = "round"; g.strokeText(t, n.x, ty); }
-      g.fillStyle = dim(n) ? "rgba(255,255,255,.18)" : big ? "rgba(255,255,255,.95)" : "rgba(255,255,255,.78)";
-      g.fillText(t, n.x, ty);
-    }
-    g.restore();
-  };
-
-  /* ---- the loop: settle, ease the camera, draw ---- */
-  /* Drawn only while something moves or changed, so a still map costs nothing. */
-  let dirty = true, seen = "";
-  const frame = () => {
-    if (!alive) return;
-    const settling = heat > .013 || !!drag;
-    if (settling) tick();
-    const e = .18, moving = Math.abs(goal.x - view.x) + Math.abs(goal.y - view.y) > .05 / view.k || Math.abs(goal.k - view.k) > .0005;
-    view.x += (goal.x - view.x) * e; view.y += (goal.y - view.y) * e; view.k += (goal.k - view.k) * e;
-    const now = `${hover?.id}|${sel?.id}|${query}|${W}x${H}|${warm}`;
-    if (settling || moving || dirty || now !== seen){ draw(); dirty = false; seen = now; }
-    raf = window.requestAnimationFrame(frame);
-  };
-
-  /* ---- the card: what a click picked ---- */
-  const pick = n => {
-    sel = n;
-    card.hidden = !n; card.innerHTML = "";
-    if (!n) return;
-    const h = n.hub ? S.health[n.b.slug] : null;
-    const top = el("div","mp-c-top");
-    const dot = el("i"); dot.style.background = n.color;
-    top.append(dot, el("span",null, n.hub ? (n.b.type === "person" ? "Person" : "Folder") : n.b.name));
-    card.append(top, el("b",null, n.label));
-    if (n.hub) card.append(el("p",null, `${conceptsOf(n.b.slug).length} concepts${h ? ` · health ${fmtScore(h.score)}/10` : ""}${n.b.scope ? ` · ${n.b.scope}` : ""}`));
-    else card.append(el("p",null, `${n.c.summaryLine || "No position yet."} · ${n.c.src || 0} source${n.c.src === 1 ? "" : "s"} · ${n.deg} link${n.deg === 1 ? "" : "s"}`));
-    if (warm){
-      const k = n.asked || 0, times = `${k} question${k === 1 ? "" : "s"} in 90 days`;
-      card.append(el("p", n.thin ? "mp-c-blind" : "mp-c-warm", n.hub ? `${times} across this folder.`
-        : n.thin ? `Blind spot: ${times}, held by ${n.c.src || 0} source${n.c.src === 1 ? "" : "s"}. Drop more on it.` : `${times}.`));
-    }
-    const acts = el("div","mp-c-acts");
-    const btn = (t, fn, cls = "") => { const x = el("button", cls, t); x.type = "button"; x.onclick = fn; acts.append(x); return x; };
-    if (n.hub){
-      btn("Open the folder", () => { shut(); openFolder(n.b); });
-      if (h) btn("Health", () => openHealthSheet(n.b));
-    } else {
-      btn("Read it", () => openBrainView(n.b, n.id));
-      if (warm && n.thin && !readOnly(n.b)) btn("Feed it", () => { shut(); setPicks([n.b.slug]); openDrop(); });
-      if (n.bad) btn("Settle the conflict", () => settleFrom(n.id, n.b.slug), "bad");
-    }
-    card.append(acts);
-  };
-
-  /* ---- pointer: hover, drag a dot, pan, pinch, click ---- */
-  const pts = new Map(); let pinch = null, down = null;
-  const local = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-  cv.addEventListener("pointerdown", e => {
-    cv.setPointerCapture(e.pointerId);
-    const p = local(e); pts.set(e.pointerId, p);
-    if (pts.size === 2){ const [a, b] = [...pts.values()]; pinch = Math.hypot(a[0] - b[0], a[1] - b[1]); drag = null; return; }
-    const n = at(...p);
-    down = { p, t: Date.now(), n, moved: false };
-    drag = n ? { n } : { pan: true, last: p };
-    cv.classList.add("grabbing");
-  });
-  cv.addEventListener("pointermove", e => {
-    const p = local(e);
-    if (!pts.has(e.pointerId)){
-      const n = at(...p);
-      if (n !== hover){ hover = n; cv.style.cursor = n ? "pointer" : "grab"; }
-      return;
-    }
-    pts.set(e.pointerId, p);
-    if (pts.size === 2 && pinch){
-      const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
-      zoomAt(d / pinch, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); view.k = goal.k; view.x = goal.x; view.y = goal.y; pinch = d; return;
-    }
-    if (down && Math.hypot(p[0] - down.p[0], p[1] - down.p[1]) > 4) down.moved = true;
-    if (drag?.n){
-      const [wx, wy] = toWorld(...p); drag.n.x = wx; drag.n.y = wy; heat = Math.max(heat, .3);
-    } else if (drag?.pan){
-      goal.x -= (p[0] - drag.last[0]) / view.k; goal.y -= (p[1] - drag.last[1]) / view.k;
-      view.x = goal.x; view.y = goal.y; drag.last = p;
-    }
-  });
-  const up = e => {
-    if (!pts.has(e.pointerId)) return;
-    pts.delete(e.pointerId); if (pts.size < 2) pinch = null;
-    if (pts.size) return;
-    cv.classList.remove("grabbing");
-    if (e.type === "pointerup" && down && !down.moved) pick(down.n);
-    drag = null; down = null;
-  };
-  cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
-  cv.addEventListener("pointerleave", () => { if (!pts.size) hover = null; });
-  cv.addEventListener("wheel", e => { e.preventDefault(); const p = local(e); zoomAt(Math.exp(-e.deltaY * .0015), ...p); }, { passive: false });
-  cv.addEventListener("dblclick", e => { const n = at(...local(e)); if (n && !n.hub) openBrainView(n.b, n.id); else if (n) { shut(); openFolder(n.b); } });
-
-  veil.querySelector("#mpIn").onclick = () => zoomAt(1.35);
-  veil.querySelector("#mpOut").onclick = () => zoomAt(1 / 1.35);
-  veil.querySelector("#mpFit").onclick = () => fitGoal();
-  const find = veil.querySelector("#mpFind");
-  find.oninput = () => { query = find.value.trim().toLowerCase(); };
-  find.onkeydown = e => {
-    if (e.key !== "Enter") return;
-    const n = N.find(x => query && x.label.toLowerCase().includes(query));
-    if (n){ goal.x = n.x; goal.y = n.y; goal.k = Math.max(goal.k, 1.8); pick(n); }
-  };
-
-  /* ---- size ---- */
-  const size = () => {
-    const r = stage.getBoundingClientRect();
-    dpr = Math.min(2, window.devicePixelRatio || 1); W = Math.max(1, r.width); H = Math.max(1, r.height);
-    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
-    cv.style.width = W + "px"; cv.style.height = H + "px";
-  };
-  const ro = new ResizeObserver(() => { size(); dirty = true; });
-  ro.observe(stage);
-  size();
-
-  build();
-  /* A first settle before the first frame, so the map opens near its shape. */
-  for (let i = 0; i < 120; i++) tick();
-  fitGoal(); Object.assign(view, goal);
-  raf = window.requestAnimationFrame(frame);
-
-  /* What the checks read: the nodes, where one sits on screen, and the camera. */
-  stage.graph = {
-    nodes: () => N.map(n => ({ id: n.id, hub: !!n.hub, r: n.r, bad: !!n.bad, label: n.label, asked: n.asked || 0, thin: !!n.thin })),
-    links: () => E.filter(e => !e.hub).map(e => [e.a.id, e.b.id, e.type]),
-    screen: id => { const n = byId.get(id); return n ? toScreen(n.x, n.y) : null; },
-    lit: () => [...(litSet() || [])].map(n => n.id),
-    zoom: () => goal.k,
-  };
-
-  /* A settled conflict or a new ring redraws the map where it stands. */
-  mapRepaint = () => { if (veil.isConnected){ build(); heat = Math.max(heat, .2); dirty = true; } };
-}
-
-/**
  * The conflict deck: one open clash at a time, settled with a swipe.
  *
  * Left keeps A, right keeps B, up says both hold, down leaves it for later.
@@ -4936,22 +4394,20 @@ async function openSetupSheet(opts = {}){
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Settings</h3>
-      <p>${S.demo ? `The demo runs on the default model. Export its brains, open the map, and settle open conflicts.`
-        : `The models that answer, the export of every ${esc(S.spaceName)} brain, the map of
-        them all, the open conflicts to settle${ownerWs() ? ", and the MCP address for Claude" : ""}.`}</p></header>
+      <p>${S.demo ? `The demo runs on the default model. Export its brains and pick the language of the mic.`
+        : `The model that answers, the export of every ${esc(S.spaceName)} brain, the audit with the clashes and the decisions it leaves${ownerWs() ? ", and the MCP address for Claude" : ""}.`}</p></header>
 
       <div class="f set-row">
-        <button class="foot-btn${modelLabel("chat").picked ? " pick" : ""}" id="setModel" title="${esc(modelLabel("chat").title)}">
-          <span class="lbl">Model</span><span class="val">${esc(modelLabel("chat").val)}</span></button>
+        <button class="foot-btn${modelLabel().picked ? " pick" : ""}" id="setModel" title="${esc(modelLabel().title)}">
+          <span class="lbl">Model</span><span class="val">${esc(modelLabel().val)}</span></button>
         <button class="foot-btn" id="setExport" title="Every brain of this workspace, as one markdown file">
           <span class="lbl">Export</span><span class="val">markdown</span></button>
-        <button class="foot-btn" id="setMap" title="Every brain as an arm of the octopus: its concepts, the links between brains and the open conflicts">
-          <span class="lbl">Map</span><span class="val">open</span></button>
       </div>
 
       <details class="f sh-fold" id="auditBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${S.demo ? "hidden" : ""}>
         <summary><span>Audit</span><b id="auditSum" class="sh-count"></b></summary>
-        <div class="hint" style="margin:8px 0 10px">Finds what is filed twice, titles not in English and empty positions, and in your personal folder the people not filed yet and the same person twice. You decide each one. Due after 50 sources dropped, and every week for the personal folder: the inbox says when.</div>
+        <div class="hint" style="margin:8px 0 10px">Finds what is filed twice, titles not in English and empty positions, and in your personal folder the people not filed yet and the same person twice. A drop that contradicts what you hold joins them. You decide each one. Due after 50 sources dropped, and every week for the personal folder: the inbox says when.</div>
+        <div class="au-row" id="auditDecide"></div>
         <div id="auditList"></div>
       </details>
 
@@ -4968,12 +4424,6 @@ async function openSetupSheet(opts = {}){
             <button type="button" role="radio" data-v="de-DE">German</button><button type="button" role="radio" data-v="it-IT">Italian</button>
             <button type="button" role="radio" data-v="pt-PT">Portuguese</button></div></div>
         <div class="hint" id="langMsg" role="status" style="margin-top:6px"></div>
-      </details>
-
-      <details class="f sh-fold" id="cfBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px">
-        <summary><span>Open conflicts</span><b id="cfCount" class="sh-count"></b></summary>
-        <div class="hint" style="margin:8px 0 8px">Contradictions a drop left on "keep both". Rule on each one here.</div>
-        <div id="cfSlot"></div>
       </details>
 
       <details class="f sh-fold" id="lookBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${S.demo ? "hidden" : ""}>
@@ -5165,8 +4615,7 @@ async function openSetupSheet(opts = {}){
 
   /* ---- the model and the export ---- */
   veil.querySelector("#setModel").hidden = S.demo;
-  veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet("chat"); };
-  veil.querySelector("#setMap").onclick = () => { shut(); openMap(); };
+  veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet(); };
   /* Audit: one row per folder this workspace holds, the last run and what came since. */
   const al = veil.querySelector("#auditList");
   for (const b of auditFolders()){
@@ -5181,7 +4630,13 @@ async function openSetupSheet(opts = {}){
   if (!al.children.length) al.append(el("div","hint","No folder to audit yet."));
   /* Each fold says where it stands while closed. */
   const dueN = auditFolders().filter(b => auditDue(b)).length;
-  veil.querySelector("#auditSum").textContent = dueN ? `${dueN} due` : "";
+  /* The decisions an audit or a drop left: one row, and a button into them. */
+  const dn = decisionCount(), dRow = veil.querySelector("#auditDecide");
+  const dt = el("div","au-t"); dt.append(el("b",null,"Decisions"), el("span",null, dn ? decisionLine() : "Nothing waiting."));
+  const dGo = el("button", dn ? "mini au-due" : "mini", dn ? "Decide" : "Open"); dGo.type = "button";
+  dGo.onclick = () => { shut(); openDecide(); };
+  dRow.append(dt, dGo);
+  veil.querySelector("#auditSum").textContent = [dueN ? `${dueN} due` : "", dn ? `${dn} to decide` : ""].filter(Boolean).join(" \u00b7 ");
   const langSum = () => {
     const v = voiceLang(), name = v ? (VOICE_LANGS.find(x => x[0] === v) || [])[2] || v : "";
     veil.querySelector("#langSum").textContent = [S.demo ? "" : S.models?.reply === "en" ? "answers in English" : "answers as you write",
@@ -5228,77 +4683,6 @@ async function openSetupSheet(opts = {}){
     catch (e) { v.textContent = "failed"; msg.className = "bad"; msg.textContent = e.message; }
     finally { exp.disabled = false; setTimeout(() => { v.textContent = "markdown"; }, 2000); }
   };
-
-  /* ---- open conflicts: only the real contradictions, each one settled here ---- */
-  const cfSlot = veil.querySelector("#cfSlot"), cfCount = veil.querySelector("#cfCount");
-  const brainName = slug => S.brains.find(x => x.slug === slug)?.name || slug;
-  let left = 0, others = 0, openList = [];
-  const paintCount = () => { cfCount.textContent = left ? String(left) : ""; };
-  const none = () => el("div","hint", others
-    ? `None to settle. ${others} recorded clash${others === 1 ? " adds" : "es add"} detail rather than contradict${others === 1 ? "s" : ""}, so ${others === 1 ? "it stays" : "they stay"} off this list.`
-    : "None to settle.");
-  const conflictRow = c => {
-    const box = el("div","cf-item");
-    const top = el("div","cf-top");
-    top.append(el("b",null,c.title), el("span","cf-brain",brainName(c.brain)));
-    box.append(top);
-    const settle = async (pick, btn) => {
-      openList = openList.filter(x => x !== c);
-      box.querySelectorAll("button").forEach(x => x.disabled = true);
-      btn.textContent = pick === "both" ? "Clearing" : "Rewriting";
-      try {
-        const r = await api("/api/conflicts/settle", { id: c.id, a: c.a, b: c.b, pick });
-        if (r.error || r.ok === false) throw new Error(r.error || r.why);
-        box.innerHTML = "";
-        box.classList.add("done");
-        box.append(el("b",null,c.title), el("div","hint", pick === "both"
-          ? "Both hold. It is off the list, and the position is as it was."
-          : `Settled. The position now reads: ${r.summaryLine || r.position}`));
-        left--; paintCount();
-        const deck = cfSlot.querySelector("#cfDeck");
-        if (deck){ if (left) deck.textContent = `Review one by one: ${left}`; else deck.remove(); }
-        if (!left) cfSlot.append(none());
-        refresh();
-      } catch (e) {
-        openList.push(c);
-        box.querySelectorAll("button").forEach(x => x.disabled = false);
-        btn.textContent = pick === "both" ? "Both hold" : "This holds";
-        /* On the card itself: the sheet's own line sits out of sight, and the
-           button only went back to what it said, so a failure looked like nothing. */
-        let err = box.querySelector(".cf-err");
-        if (!err){ err = el("div","cf-err bad"); err.setAttribute("role","alert"); box.append(err); }
-        err.textContent = `Not settled: ${e.message}`;
-      }
-    };
-    for (const [pick, claim, date] of [["a", c.a, c.aDate], ["b", c.b, c.bDate]]){
-      const side = el("div","cf-side");
-      side.append(el("div","cf-claim", claim), el("div","cf-date", date || "undated"));
-      const go = el("button","ghost cf-go","This holds");
-      go.onclick = () => settle(pick, go);
-      side.append(go);
-      box.append(side);
-    }
-    if (c.why) box.append(el("div","cf-why", "They differ because " + c.why.replace(/^[A-Z]/, m => m.toLowerCase())));
-    const both = el("button","mini","Both hold");
-    both.onclick = () => settle("both", both);
-    box.append(both);
-    return box;
-  };
-  cfSlot.innerHTML = `<div class="hint">Checking</div>`;
-  api("/api/conflicts", {}).then(r => {
-    cfSlot.innerHTML = "";
-    const list = r.conflicts || [];
-    left = list.length; others = r.others || 0; paintCount();
-    if (!list.length){ cfSlot.append(none()); return; }
-    /* One at a time, full screen: the quick way through a long list. */
-    openList = list.slice();
-    const deck = el("button","go cf-deck-go", `Review one by one: ${list.length}`);
-    deck.id = "cfDeck";
-    deck.onclick = () => { shut(); openConflictDeck(openList.slice(), others); };
-    cfSlot.append(deck);
-    for (const c of list) cfSlot.append(conflictRow(c));
-    if (others) cfSlot.append(el("div","hint", `${others} more add detail rather than contradict, so they are not listed.`));
-  }).catch(e => { cfSlot.innerHTML = `<div class="hint">${esc(e.message)}</div>`; });
 
   /* ---- the address ---- */
   const paint = (st) => {
@@ -5432,20 +4816,17 @@ const money = n => n === 0 ? "free" : n < 1 ? "$" + n.toFixed(3).replace(/0+$/,"
 const ctxOf = n => n >= 1000000 ? Math.round(n/1000000) + "M" : n >= 1000 ? Math.round(n/1000) + "k" : String(n);
 
 /**
- * Pick a model for the whole workspace: the chat's, which also reads Drop and
- * writes one-pagers, or the projects'. Use the default goes back to the one
- * this deployment runs for it.
+ * Pick a model for the whole workspace: it answers in the chat, reads Drop and
+ * writes one-pagers. Use the default goes back to the one this deployment runs.
  */
-function openModelSheet(which = "chat"){
+function openModelSheet(){
   closeSide();
-  const proj = which === "project";
-  const def = S.models?.[which + "Default"] || (proj ? "" : S.model);
+  const def = S.models?.chatDefault || S.model;
   const veil = el("div","veil");
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
-      <header><h3>${proj ? "Project model" : "Model"}</h3>
-      <p>${proj ? "The model that answers in a project's chat and builds its page, the rebuilds after a drop included."
-                : "The model that answers in the chat, reads and files what you drop, and writes one-pagers."}
+      <header><h3>Model</h3>
+      <p>The model that answers in the chat, reads and files what you drop, and writes one-pagers.
       It applies to everyone in this workspace. ${S.byok ? "Your own key pays for every call." : "This deployment's key pays for every call."}
       Prices are per million tokens, read from OpenRouter.</p></header>
       <div class="f"><label for="mQ">Search</label><input id="mQ" autocomplete="off" spellcheck="false" placeholder="claude, gemini, free, ...">
@@ -5465,7 +4846,7 @@ function openModelSheet(which = "chat"){
   veil.querySelector("#mCancel").onclick = shut;
   veil.onclick = e => { if(e.target===veil) shut(); };
 
-  let chosen = S.models?.[which] || def || "";
+  let chosen = S.models?.chat || def || "";
   let all = [];
 
   const paint = () => {
@@ -5496,9 +4877,9 @@ function openModelSheet(which = "chat"){
   const keep = async model => {
     save.disabled = true; msg.textContent = "";
     let r;
-    try { r = await api("/api/models", { [which]: model }); }
+    try { r = await api("/api/models", { chat: model }); }
     catch (e) { save.disabled = false; msg.className = "bad"; msg.textContent = e.message; return; }
-    S.models = { ...(S.models || {}), chat: r.chat, project: r.project, ...(r.reply ? { reply: r.reply, voice: r.voice } : {}) };
+    S.models = { ...(S.models || {}), chat: r.chat, ...(r.reply ? { reply: r.reply, voice: r.voice } : {}) };
     S.model = r.chat;
     shut(); render(); openSetupSheet();
   };
@@ -5782,7 +5163,6 @@ function openMemorySheet(slug, file){
   if (!veil.querySelector("#memIn1").hidden) setTimeout(() => t.focus(), 30);
 }
 $("memBtn").onclick = openMemorySheet;
-$("demoMap").onclick = () => openMap();
 /* The clashes the demo holds, one card at a time; a line in the thread when there are none. */
 $("demoSettle").onclick = async () => {
   const b = $("demoSettle"); b.disabled = true; b.textContent = "Looking";
@@ -5807,139 +5187,6 @@ function nearest(scope){
   return bestN>=2 ? best : null;
 }
 
-/* ============ inside a brain ============ */
-
-/**
- * What a brain holds: its concepts, each with the evidence under it.
- *
- * The list comes from what the app already has, names and summary lines. A
- * concept is read whole only when it is opened. Its links open the concept
- * they point at, in this brain or another one.
- */
-function openBrainView(b, openId){
-  closeSide();
-  const veil = el("div","veil");
-  const sheet = el("div","sheet viewer");
-  sheet.setAttribute("role","dialog"); sheet.setAttribute("aria-modal","true");
-  veil.append(sheet); document.body.append(veil);
-  /* Escape is heard on the page: each view repaints the sheet, which can drop
-     focus out of it. */
-  const onKey = e => { if (e.key === "Escape" && !pickMenu) shut(); };
-  const shut = () => { document.removeEventListener("keydown", onKey); veil.remove(); };
-  document.addEventListener("keydown", onKey);
-  veil.onclick = e => { if (e.target === veil) shut(); };
-  veil.tabIndex = -1;
-  let brain = b, filter = "";
-
-  const nameOf = slug => S.brains.find(x => x.slug === slug)?.name || slug;
-  const head = (title, sub, back) => {
-    const h = el("header","vw-h");
-    if (back){ const bk = el("button","vw-back","\u2190 " + nameOf(brain.slug)); bk.onclick = back; h.append(bk); }
-    h.append(el("h3",null,title));
-    if (sub) h.append(el("p",null,sub));
-    const x = el("button","vw-x","\u00d7"); x.setAttribute("aria-label","Close"); x.onclick = shut;
-    h.append(x);
-    return h;
-  };
-
-  const list = () => {
-    sheet.innerHTML = "";
-    const cs = conceptsOf(brain.slug);
-    const reads = sourcesOf(brain.slug).length;
-    sheet.append(head(brain.name, `${brain.scope || ""}`));
-    const bar = el("div","vw-bar");
-    bar.append(el("span","vw-count",`${cs.length} concept${cs.length===1?"":"s"} \u00b7 ${reads} source${reads===1?"":"s"}`));
-    const f = el("input","vw-filter"); f.placeholder = "Filter concepts"; f.value = filter;
-    bar.append(f);
-    /* Its name and scope line, for a folder this workspace may change. */
-    if (!S.demo && !readOnly(brain)){
-      const ed = el("button","mini","Edit");
-      ed.id = "vwEdit"; ed.type = "button"; ed.title = "Its name and the line that decides what goes in";
-      ed.onclick = () => { shut(); openBrainSheet(brain); };
-      bar.append(ed);
-    }
-    sheet.append(bar);
-    const box = el("div","vw-list");
-    const paint = () => {
-      box.innerHTML = "";
-      const t = filter.trim().toLowerCase();
-      const shown = t ? cs.filter(c => (c.title + " " + (c.summaryLine||"")).toLowerCase().includes(t)) : cs;
-      if (!shown.length){ box.append(el("div","vw-none", cs.length ? "No concept matches that." : "Nothing yet. Drop a source to feed it.")); return; }
-      for (const c of shown){
-        const r = el("button","vw-row");
-        const main = el("span","vw-main");
-        main.append(el("b",null,c.title));
-        if (c.summaryLine) main.append(el("span","vw-sum",c.summaryLine));
-        r.append(main, el("span","vw-meta",`${c.ev||0} ev \u00b7 ${c.src||0} src`));
-        r.onclick = () => detail(`${c.brain}/${c.slug}`);
-        box.append(r);
-      }
-    };
-    f.oninput = () => { filter = f.value; paint(); };
-    paint();
-    sheet.append(box);
-    setTimeout(() => f.focus(), 30);
-  };
-
-  const detail = async id => {
-    const slug = id.split("/")[0];
-    brain = S.brains.find(x => x.slug === slug) || brain;
-    sheet.innerHTML = "";
-    sheet.append(head("Opening", "", list));
-    let c;
-    let insights = [];
-    try { const got = await api("/api/concept", { id }); c = got.concept; insights = got.insights || []; }
-    catch (e) { sheet.append(el("div","vw-none", e.message)); return; }
-    sheet.innerHTML = "";
-    sheet.append(head(c.title, c.summaryLine || "", list));
-    const body = el("div","vw-body");
-    const sec = (label, node) => { const d = el("section","vw-sec"); d.append(el("h4",null,label), node); body.append(d); };
-    sec("Position", el("p",null, c.position || "No position yet."));
-    const ev = el("ul","vw-ev");
-    for (const e of c.evidence || []){
-      const li = el("li");
-      li.append(el("span","vw-date", e.rollup ? `${e.from || ""}${e.to && e.to !== e.from ? " to " + e.to : ""}` : (e.date || "")));
-      li.append(el("span",null, e.rollup ? e.claim : `${e.author ? e.author + ": " : ""}${e.claim || ""}`));
-      ev.append(li);
-    }
-    if (!ev.children.length) ev.append(el("li",null,"None yet."));
-    sec(`Evidence (${(c.evidence || []).length})`, ev);
-    if ((c.data || []).length){
-      const d = el("ul","vw-data"); for (const x of c.data) d.append(el("li",null,x));
-      sec("Figures", d);
-    }
-    if ((c.conflicts || []).length){
-      const d = el("ul","vw-ev");
-      for (const x of c.conflicts) d.append(el("li",null,`${x.a || ""} (${x.aDate || "?"}) against ${x.b || ""} (${x.bDate || "?"})${x.why ? ". " + x.why : ""}`));
-      sec("Open conflicts", d);
-    }
-    if ((c.related || []).length){
-      const d = el("div","vw-links");
-      for (const r of c.related) d.append(linkChip(c, r, detail, nameOf));
-      sec("Linked to", d);
-    }
-    if (insights.length) sec("What follows", insightsBlock(insights, id, detail, nameOf));
-    const srcs = (c.sources || []).map(sid => S.sources.find(x => x.sid === sid)).filter(Boolean);
-    if (srcs.length){
-      const d = el("ul","vw-ev");
-      for (const x of srcs.slice(-12).reverse()) d.append(el("li",null,`${x.date || ""} \u00b7 ${x.title || x.sid}${x.author ? " \u00b7 " + x.author : ""}`));
-      sec(`Sources (${(c.sources || []).length})`, d);
-    }
-    const acts = el("div","vw-acts");
-    const askIt = el("button","fresh","Ask about it");
-    askIt.onclick = () => {
-      shut(); S.mode = "ask"; S.scope = c.brain; S.into = [c.brain]; render();
-      $("input").value = `What does ${c.title} say, and why?`; $("input").focus(); renderComposer();
-    };
-    acts.append(askIt, el("span","vw-upd", `Updated ${c.updated || ""}`));
-    body.append(acts);
-    sheet.append(body);
-  };
-
-  if (openId) detail(openId); else list();
-  veil.focus();
-}
-
 /* ============ a folder, open ============ */
 const IC_CHAT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg>`;
 const IC_DROP = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>`;
@@ -5956,7 +5203,6 @@ function pctRing(pct){
   return r;
 }
 const IC_SCOUT = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/></svg>`;
-const IC_PATH = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h5a3 3 0 0 0 3-3V8"/></svg>`;
 const IC_EDIT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 4.3a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L9 19.5 4 20l.5-5Z"/></svg>`;
 const dayOf = d => { const t = Date.parse(d); return isNaN(t) ? String(d || "") : new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
 /* A person's file: its sections, and its dates as people say them: a day, a month, or a year. */
@@ -6035,14 +5281,13 @@ function openFolder(b, openId, opts = {}){
     btn("fvMem", "Add memory", IC_DROP, () => openMemorySheet(b.slug), "Paste, or add a PDF, Word or text file about you. It is read like a drop.");
     if (!ivDone(S.iv[b.slug])) btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
       "It asks you questions, one at a time, to know you better. Stop any time.");
-    btn("fvTest", "Twin test", IC_TEST, () => testPane(), "5 fresh questions each time: your twin answers first, then the two are compared, and your answers go into your notes");
+    btn("fvTest", "Twin test", IC_TEST, () => testPane(), "5 new questions built from your notes, each asking what they imply: your twin answers first, then the two are compared, and your answers go into your notes");
     /* At 100% the notes and the contacts hold all of it: the profile would only repeat them. */
     if (!ivFull(S.iv[b.slug])) btn("fvProfile", "Twin profile", IC_PROFILE, () => profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
   }
   if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
   if (!self && !ro && !S.demo) btn("fvScout", "Scouts", IC_SCOUT, () => scoutPane(), "The feeds this folder follows: YouTube channels, newsletters, blogs");
   if (!S.demo && !ro && !self) btn("fvEdit", "Edit", IC_EDIT, () => openBrainSheet(b), "Its name and the line that decides what goes in");
-  if (!self && learningPath(b.slug).length) btn("fvPath", "Learning path", IC_PATH, () => pathPane(), "Its concepts in the order to read them, foundations first");
   const x = btn("fvClose", "×", "", () => { S.folder = null; render(); $("input").focus(); }, "Back to the chat");
   x.classList.add("fv-x"); x.setAttribute("aria-label","Back to the chat");
   head.append(acts);
@@ -6492,33 +5737,6 @@ function openFolder(b, openId, opts = {}){
     cs = sorted(); if (self) paintTabs(); paint();
   };
 
-  /** The learning path: the concepts in the order to read them, a step at a time. */
-  const pathPane = () => {
-    openNow = null; paint();
-    cols.classList.add("reading");
-    doc.innerHTML = ""; doc.scrollTop = 0;
-    const inner = el("div","fv-in lp"); inner.id = "pathPane"; doc.append(inner);
-    const back = el("button","fv-back","← All concepts"); back.type = "button";
-    back.onclick = () => { cols.classList.remove("reading"); paint(); };
-    const steps = learningPath(b.slug), n = steps.reduce((t, x) => t + x.length, 0);
-    inner.append(back, el("div","fv-eye",`Learning path · ${b.name}`), el("h1",null,"Read it in this order"),
-      el("p","fv-pos",`${n} concepts in ${steps.length} step${steps.length === 1 ? "" : "s"}, each resting on the ones before it.`));
-    steps.forEach((list3, i) => {
-      const st = el("section","lp-step");
-      st.append(el("div","lp-n", i === 0 ? "Step 1 · Foundations" : `Step ${i + 1}`));
-      for (const c of list3){
-        const r = el("button","lp-row"); r.type = "button";
-        const pre = needsOf(c).map(id => cardById(id)?.title).filter(Boolean);
-        r.append(el("b",null,c.title));
-        if (pre.length) r.append(el("span",null,`after ${pre.join(", ")}`));
-        else if (c.summaryLine) r.append(el("span",null,c.summaryLine));
-        r.onclick = () => show(`${c.brain}/${c.slug}`);
-        st.append(r);
-      }
-      inner.append(st);
-    });
-  };
-
   /**
    * Tidy: what this folder holds twice, titles not in English, and concepts
    * with no position. It proposes; each finding waits for a click.
@@ -6750,7 +5968,6 @@ function openFolder(b, openId, opts = {}){
     return inner;
   };
   const waitIn = inner => { const w = el("div","td-wait"); w.append(el("i"), el("i"), el("i")); inner.append(w); return w; };
-  const pctOr = (n, none) => n == null ? none : `${n}%`;
 
   /** How well it knows you: the share covered, each chapter, the test and the profile. */
   const twinPane = async () => {
@@ -6804,8 +6021,8 @@ function openFolder(b, openId, opts = {}){
   /** The twin test: your answers, never filed, the twin's from your notes, and a score for each. */
   const testPane = async (just) => {
     const inner = pane("testPane", "Twin test", "Does your twin know you?");
-    inner.append(el("p","fv-pos","5 new questions each time, never the same twice. Your twin answers first, from your notes alone. " +
-      "Then its answers are compared with yours, and yours are added to your notes."));
+    inner.append(el("p","fv-pos","5 new questions each time, built from your own notes. Each asks for something your notes imply and never state. " +
+      "Answer with your choice and why. Your twin answers first, from your notes alone. Then its answers are compared with yours, and yours are added to your notes."));
     const now = el("div","tt-now"), histBox = el("div","tt-hist");
     inner.append(now, histBox);
     const say = el("div","ts-say"); say.setAttribute("role","status");
@@ -6827,14 +6044,19 @@ function openFolder(b, openId, opts = {}){
     const pairCard = it => {
       const card = el("div","ts-card");
       card.append(el("div","ts-qt",it.q));
+      if ((it.basis || []).length) card.append(el("small","ts-basis","Built from: " + it.basis.join(" · ")));
       const pair = el("div","ts-pair");
       const one = el("div"); one.append(el("small",null,"You"), el("p",null,it.mine));
       const two = el("div"); two.append(el("small",null,"Your twin"), el("p",null,it.twin || "No answer"));
+      if (it.because) two.append(el("p","ts-why","Because: " + it.because));
       pair.append(one, two); card.append(pair);
       if (it.score !== null && it.score !== undefined){ const m = el("span","ts-m m" + it.score, MATCH[it.score]); m.dataset.n = String(it.score); card.append(m); }
       return card;
     };
     const total = e => el("div","tw-score", `Your twin matched you ${e.pct}% on ${e.items.length} question${e.items.length === 1 ? "" : "s"}`);
+    /* What it did not deduce, and where that goes: your answers become notes, so the next test starts from more. */
+    const missed = e => { const n = e.items.filter(i => typeof i.score === "number" && i.score < 2).length;
+      return n ? el("p","tw-key",`${n} of ${e.items.length} missed or half right. Each answer you gave is now a note, so your twin can deduce it next time.`) : null; };
 
     /* The three steps after your answers: the twin answers, the two are compared, yours go into your notes. */
     const STEPS = { check: "Your twin is answering from your notes", score: "Comparing the answers", learn: "Adding your answers to your notes" };
@@ -6859,6 +6081,7 @@ function openFolder(b, openId, opts = {}){
     if (just){
       now.append(total(just.entry));
       for (const it of just.entry.items) now.append(pairCard(it));
+      const ms = missed(just.entry); if (ms) now.append(ms);
       const fl = just.filed && (just.filed.new || just.filed.updated || (just.filed.people || []).length);
       now.append(el("p","tw-key", fl ? `Your answers are in your notes. ${filedLine(just.filed)}.` : "Your answers are in your notes."));
       const more = el("button","go","Take another test"); more.type = "button"; more.id = "tsMore"; more.onclick = () => testPane();
@@ -6875,9 +6098,14 @@ function openFolder(b, openId, opts = {}){
       const row = el("div","tw-acts"); row.append(rb, say); now.append(row);
     } else if (round){
       const f = el("div","ts-form"), boxes = {};
+      /* A round the notes could not make comes from the interview's bank, and says why. */
+      if (round.note) now.append(el("p","tw-key", round.note === "thin"
+        ? "Your notes hold few ideas yet, so these come from the interview. With 6 notes or more, each test is built from what you said."
+        : "The questions built from your notes did not come back, so these come from the interview. Other questions tries again."));
       for (const q of round.questions){
         const lab = el("label","ts-q"); lab.append(el("span",null,q.text));
-        const ta = el("textarea"); ta.rows = 2; ta.dataset.id = q.id;
+        if ((q.basis || []).length) lab.append(el("small","ts-basis","Built from: " + q.basis.join(" · ")));
+        const ta = el("textarea"); ta.rows = 2; ta.dataset.id = q.id; ta.placeholder = "Your choice, and why";
         lab.append(ta); f.append(lab); boxes[q.id] = ta;
       }
       now.append(f);
@@ -7068,24 +6296,13 @@ function tidyCards(inner, r, onChange, tally = {}){
   return runs;
 }
 
-/** How many findings a tidy read holds. */
-const tidyCount = r => r.same.length + r.english.length + r.blank.length;
-
-/**
- * Tidy every folder at once, from Settings, with no click per finding: each
- * folder is read, then its twins merge into the clearest title, its titles
- * go into English and its empty positions are written from the evidence held.
- * Three folders at a time, each one's steps in order. Every step shows what
- * it did, and one that fails says why and keeps its button.
- */
-/* The source line keeps its link, and the box below takes the pasted text or
-   transcript: one box for everything a source says. */
+/** The Drop screen with the cursor in its box, for a source pasted by hand. */
 function pasteHere(){
   if (S.mode !== "drop") openDrop();
   $("input").focus();
 }
 
-/* ============ the graph: kinds of link, what follows, learning paths ============ */
+/* ============ the graph: kinds of link and what follows ============ */
 
 /* What a link says, read from the concept holding it to the one it names. */
 const LINK_LABEL = { needs: "needs", causes: "causes", supports: "supports", contradicts: "contradicts", example: "example of" };
@@ -7121,32 +6338,6 @@ function insightsBlock(list, id, onOpen, nameOf){
   }
   box.append(el("div","ins-note","Drawn by Tasu from two linked concepts. It is a conclusion, not a source."));
   return box;
-}
-
-/**
- * A folder's learning path: its concepts in the order they are best read,
- * from the "needs" links. A concept sits one step after the furthest concept
- * it needs, so the first step holds the foundations. A loop is cut where it
- * closes. Concepts with no "needs" link either way are left out.
- */
-function learningPath(slug){
-  const own = S.concepts.filter(c => c.brain === slug);
-  const ids = new Set(own.map(c => `${c.brain}/${c.slug}`));
-  const pre = new Map(own.map(c => [`${c.brain}/${c.slug}`, needsOf(c).filter(t => ids.has(t))]));
-  const inPath = new Set();
-  for (const [id, ns] of pre) if (ns.length){ inPath.add(id); ns.forEach(n => inPath.add(n)); }
-  const level = new Map(), busy = new Set();
-  const depth = id => {
-    if (level.has(id)) return level.get(id);
-    if (busy.has(id)) return 0;
-    busy.add(id);
-    const d = Math.max(-1, ...(pre.get(id) || []).map(depth)) + 1;
-    busy.delete(id); level.set(id, d);
-    return d;
-  };
-  const steps = [];
-  for (const id of [...inPath].sort()) { const d = depth(id); (steps[d] = steps[d] || []).push(id); }
-  return steps.filter(Boolean).map(ids => ids.map(cardById).filter(Boolean).sort((a, b) => a.title.localeCompare(b.title)));
 }
 
 /* ============ one page ============ */

@@ -17,7 +17,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-store-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "projects.ts", "tidy.ts", "graph.ts", "scouts.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "tidy.ts", "graph.ts", "scouts.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 /* A query or mutation is its definition, so a test can call its handler. */
@@ -36,9 +36,6 @@ await esbuild.build({ entryPoints: [join(dir, "conflicts.ts")], bundle: true, fo
   platform: "node", outfile: join(dir, "conflicts.mjs"), logLevel: "silent" });
 const conflicts = await import(pathToFileURL(join(dir, "conflicts.mjs")).href);
 
-await esbuild.build({ entryPoints: [join(dir, "projects.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
-  platform: "node", outfile: join(dir, "projects.mjs"), logLevel: "silent" });
-const projects = await import(pathToFileURL(join(dir, "projects.mjs")).href);
 
 await esbuild.build({ entryPoints: [join(dir, "scouts.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "scouts.mjs"), logLevel: "silent" });
@@ -594,17 +591,6 @@ function seed() {
     && !["keyCipher", "keyIv", "keyHash", "keyHint", "keySavedAt"].some(k => T.accounts[0][k] !== undefined) && T.accounts[0].name === "Old", JSON.stringify(T.accounts[0]));
 }
 
-/* ---- a workspace's side panel: limited until switched ---- */
-{
-  const { T, ctx } = seed();
-  check("a workspace starts limited", (await run(store.modeOf, ctx, { space: "acme" })) === false);
-  await run(store.setMode, ctx, { space: "acme", full: true });
-  check("full is kept, for that workspace alone", (await run(store.modeOf, ctx, { space: "acme" })) === true
-    && (await run(store.modeOf, ctx, { space: "octopus" })) === false);
-  await run(store.setMode, ctx, { space: "acme", full: false });
-  check("and limited again, on the same row", (await run(store.modeOf, ctx, { space: "acme" })) === false && T.modes.length === 1);
-}
-
 /* ---- a shared brain: one brain, seen from two workspaces ---- */
 {
   const { T, ctx } = seed();
@@ -725,84 +711,23 @@ function seed() {
   check("the new one holds, with the attempt count back to zero", g.hash === "h2" && g.salt === "s2" && g.attempts === 0, JSON.stringify(g));
 }
 
-/* ---- projects: kept to their workspace, ten versions, out of date when a source lands ---- */
+/* ---- the model and the languages are picked per workspace ---- */
 {
-  const { T, ctx } = seed();
-  const base = { space: "octopus", name: "Gold thesis", brains: ["wealth"], instructions: "Where my sources stand on gold.", auto: true };
-  check("a project needs a name and a folder", /needs a name/.test((await run(projects.save, ctx, { ...base, name: "  " })).error || "")
-    && /at least one folder/.test((await run(projects.save, ctx, { ...base, brains: [] })).error || ""));
-  check("a template past 60 KB is refused", /60 KB/.test((await run(projects.save, ctx, { ...base, template: "<p>" + "x".repeat(61000) })).error || ""));
-  const made = await run(projects.save, ctx, { ...base, template: "<html><body><h1>{{title}}</h1></body></html>", templateName: "gold.html" });
-  check("a project is made with its template", !!made.id && T.projects[0].templateName === "gold.html" && T.projects[0].turns.length === 0, JSON.stringify(made));
-  check("another workspace never reads it", (await run(projects.get, ctx, { space: "squidgy", id: made.id })) === null);
-  check("nor deletes it", /gone/.test((await run(projects.remove, ctx, { space: "squidgy", id: made.id })).error || "") && T.projects.length === 1);
-  await run(projects.save, ctx, { ...base, id: made.id, name: "Gold" });
-  check("new settings keep the template when none is sent", T.projects[0].name === "Gold" && /title/.test(T.projects[0].template));
-  await run(projects.save, ctx, { ...base, id: made.id, template: null });
-  check("and drop it when asked", T.projects[0].template === undefined);
-
-  for (let i = 0; i < 12; i++) await run(projects.addVersion, ctx, { space: "octopus", id: made.id, html: `<html>v${i + 1}</html>`, why: "Rebuilt" });
-  const one = await run(projects.get, ctx, { space: "octopus", id: made.id });
-  check("the newest 10 versions are kept, the newest on top", one.versions.length === 10 && one.version === 12 && one.versions[0].v === 12
-    && one.versions[9].v === 3 && one.page === "<html>v12</html>", JSON.stringify(one.versions.map(x => x.v)));
-  check("an old version opens by its number", (await run(projects.page, ctx, { space: "octopus", id: made.id, v: 5 }))?.html === "<html>v5</html>");
-
-  for (let i = 0; i < 45; i++) await run(projects.turn, ctx, { space: "octopus", id: made.id, turn: { q: "q" + i, a: "a" } });
-  check("its chat keeps the last 40 turns", T.projects[0].turns.length === 40 && T.projects[0].turns[0].q === "q5");
-  await run(projects.clear, ctx, { space: "octopus", id: made.id });
-  check("and clears, leaving the page", T.projects[0].turns.length === 0 && T.pages.length === 10);
-
-  const other = await run(projects.save, ctx, { ...base, name: "Dogs", brains: ["dogs"], auto: false });
-  const quiet = await run(projects.markStale, ctx, { space: "octopus", brains: ["wealth"], claim: false });
-  check("a source landing marks the projects reading that folder out of date", T.projects[0].stale === true && !T.projects[1].stale && !quiet.length
-    && T.projects[0].building === undefined, JSON.stringify(quiet));
-  const due = await run(projects.markStale, ctx, { space: "octopus", brains: ["wealth", "dogs"], claim: true });
-  check("the ones set to rebuild are started once", JSON.stringify(due) === JSON.stringify([made.id]) && !!T.projects[0].building && T.projects[1].stale === true);
-  check("and a second drop minutes later does not start another", (await run(projects.markStale, ctx, { space: "octopus", brains: ["wealth"], claim: true })).length === 0);
-  check("a source in another workspace marks none of these", (await run(projects.markStale, ctx, { space: "squidgy", brains: ["wealth"], claim: true })).length === 0);
-  await run(projects.addVersion, ctx, { space: "octopus", id: made.id, html: "<html>v13</html>", why: "A source landed" });
-  check("a new version clears the mark", T.projects[0].stale === false && T.projects[0].building === undefined);
-
-  for (let i = 0; i < 18; i++) await run(projects.save, ctx, { ...base, name: "P" + i });
-  check("20 projects is the most a workspace holds", /20 projects/.test((await run(projects.save, ctx, { ...base, name: "One more" })).error || ""));
-  await run(projects.remove, ctx, { space: "octopus", id: made.id });
-  check("deleting a project deletes its pages", !T.projects.some(p => p._id === made.id) && !T.pages.some(p => p.project === made.id));
-  check("the page comes back as the document alone", projects.cleanHtml("Here it is:\n```html\n<!doctype html><html><body>x</body></html>\n```") === "<!doctype html><html><body>x</body></html>");
-  void other;
-}
-
-/* ---- answers wait for Build; models are picked per workspace ---- */
-{
-  const { T, ctx } = seed();
-  const made = await run(projects.save, ctx, { space: "octopus", name: "Gold", brains: ["wealth"], instructions: "", auto: false });
-  check("a project's page builds only on demand unless its owner turns that on", T.projects[0].auto === false);
-  await run(projects.queue, ctx, { space: "octopus", id: made.id, q: "Sell?", a: "Two signals." });
-  await run(projects.queue, ctx, { space: "octopus", id: made.id, q: "Sell?", a: "Two signals." });
-  await run(projects.queue, ctx, { space: "octopus", id: made.id, q: "Hold?", a: "Yes." });
-  check("an added answer waits once, however often it is added", T.projects[0].pending.map(x => x.q).join(",") === "Sell?,Hold?" && !T.pages?.length);
-  check("another workspace cannot add to it", /gone/.test((await run(projects.queue, ctx, { space: "squidgy", id: made.id, q: "x", a: "y" })).error || ""));
-  await run(projects.queue, ctx, { space: "octopus", id: made.id, q: "Hold?", a: "Yes.", remove: true });
-  check("and it can be taken back", T.projects[0].pending.map(x => x.q).join(",") === "Sell?");
-  for (let i = 0; i < 9; i++) await run(projects.queue, ctx, { space: "octopus", id: made.id, q: "q" + i, a: "a" });
-  check("10 answers wait at most", /10 answers/.test((await run(projects.queue, ctx, { space: "octopus", id: made.id, q: "one more", a: "a" })).error || ""));
-  const got = await run(projects.get, ctx, { space: "octopus", id: made.id });
-  check("the project says what waits", got.waiting === 10 && got.pending.length === 10);
-  await run(projects.addVersion, ctx, { space: "octopus", id: made.id, html: "<html>v1</html>", why: "Built", took: 8 });
-  check("a build clears what it read, and keeps an answer added while it ran", T.projects[0].pending.map(x => x.q).join(",") === "q7,q8", JSON.stringify(T.projects[0].pending.map(x => x.q)));
-
-  check("a workspace starts on the default models, kept in English, answered as asked", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"project":null,"reply":"same","voice":null}');
-  await run(store.setModels, ctx, { space: "octopus", project: "z-ai/glm-5.3" });
-  const one = await run(store.modelsOf, ctx, { space: "octopus" });
-  check("a project model picked leaves the chat model alone", one.project === "z-ai/glm-5.3" && one.chat === null, JSON.stringify(one));
+  const { ctx } = seed();
+  check("a workspace starts on the default model, kept in English, answered as asked", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"reply":"same","voice":null}');
   await run(store.setModels, ctx, { space: "octopus", chat: "openai/gpt-5" });
-  check("and the other way round", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":"z-ai/glm-5.3","reply":"same","voice":null}');
-  check("another workspace keeps its own", JSON.stringify(await run(store.modelsOf, ctx, { space: "squidgy" })) === '{"chat":null,"project":null,"reply":"same","voice":null}');
-  await run(store.setModels, ctx, { space: "octopus", project: null });
-  check("null goes back to the default", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":null,"reply":"same","voice":null}');
+  check("a model picked is kept", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","reply":"same","voice":null}');
+  check("another workspace keeps its own", JSON.stringify(await run(store.modelsOf, ctx, { space: "squidgy" })) === '{"chat":null,"reply":"same","voice":null}');
   await run(store.setModels, ctx, { space: "octopus", reply: "en", voice: "fr-FR" });
-  check("the answer and voice languages are saved apart, and the models stay", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","project":null,"reply":"en","voice":"fr-FR"}');
+  check("the answer and voice languages are saved apart, and the model stays", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","reply":"en","voice":"fr-FR"}');
   await run(store.setModels, ctx, { space: "octopus", chat: null, voice: "xx-YY" });
-  check("an unknown voice goes back to the browser's, and a model change leaves the reply alone", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"project":null,"reply":"en","voice":null}');
+  check("an unknown voice goes back to the browser's, and a model change leaves the reply alone", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"reply":"en","voice":null}');
+  /* A row written when projects had a model of their own keeps working, and loses that field on the next save. */
+  const old = seed();
+  old.T.models = [{ _id: "m1", space: "octopus", chat: "x/y", project: "z/old", reply: "en", updated: 1 }];
+  check("a row from before, with a project model, still reads", JSON.stringify(await run(store.modelsOf, old.ctx, { space: "octopus" })) === '{"chat":"x/y","reply":"en","voice":null}');
+  await run(store.setModels, old.ctx, { space: "octopus", voice: "fr-FR" });
+  check("and the old field goes on its next save", old.T.models[0].project === undefined && old.T.models[0].chat === "x/y");
 }
 
 /* ---- one folder merged into another ---- */
@@ -882,49 +807,6 @@ function seed() {
   const doors = await run(store.doorsAll, ctx, {});
   check("the landing reads every door with a passphrase, the owner's two first", doors.map(d => d.space).join(",") === "octopus,squidgy,acme", JSON.stringify(doors.map(d => d.space)));
   check("and never the door of a workspace that is gone", !doors.some(d => d.space === "gone"));
-}
-
-/* ---- every one-pager is kept, by owner, the newest 50 ---- */
-{
-  const { T, ctx } = seed();
-  const page = { title: "Deep dive: Wealth", sections: [] };
-  const one = await run(store.pagerSave, ctx, { space: "octopus", page, text: "x", ask: { pick: "wealth" } });
-  check("a one-pager built is kept by its title", one.title === "Deep dive: Wealth" && T.onepagers.length === 1);
-  check("it opens again whole", (await run(store.pagerGet, ctx, { space: "octopus", id: one.id }))?.page?.title === "Deep dive: Wealth");
-  check("never from another workspace", (await run(store.pagerGet, ctx, { space: "squidgy", id: one.id })) === null
-    && /gone/.test((await run(store.pagerRemove, ctx, { space: "squidgy", id: one.id })).error || ""));
-  await run(store.pagerSave, ctx, { space: "demo", owner: "v1", page: { title: "Mine" }, text: "x", ask: {} });
-  await run(store.pagerSave, ctx, { space: "demo", owner: "v2", page: { title: "Theirs" }, text: "x", ask: {} });
-  const v1 = await run(store.pagerList, ctx, { space: "demo", owner: "v1" });
-  check("a demo visitor lists only their own", v1.map(x => x.title).join(",") === "Mine", JSON.stringify(v1));
-  for (let i = 0; i < 52; i++) await run(store.pagerSave, ctx, { space: "octopus", page: { title: "P" + i }, text: "x", ask: {} });
-  const kept = await run(store.pagerList, ctx, { space: "octopus" });
-  check("the newest 50 stay", kept.length === 50 && kept[0].title === "P51" && !kept.some(x => x.title === "Deep dive: Wealth"), String(kept.length));
-  await run(store.pagerRemove, ctx, { space: "octopus", id: kept[0].id });
-  check("and one can be deleted", (await run(store.pagerList, ctx, { space: "octopus" })).length === 49);
-}
-
-/* ---- a rebuild runs on the deployment's key only ---- */
-{
-  const landed = async (who, ws) => {
-    const { T, ctx } = seed();
-    const sched = [];
-    const actx = { ...ctx, scheduler: { runAfter: async (_ms, fn, args) => { sched.push([fn, args]); } },
-      runMutation: (fn, args) => run(projects[String(fn).split(".")[1]], ctx, args),
-      runQuery: async () => ws };
-    const space = who.space;
-    await run(projects.save, ctx, { space, name: "Gold", brains: ["wealth"], instructions: "", auto: true });
-    await projects.sourceLanded(actx, who, ["wealth"], { rebuild: true });
-    return { sched, stale: !!T.projects[0].stale, building: !!T.projects[0].building };
-  };
-  const own = await landed({ space: "octopus" }, null);
-  check("in the owner's workspace a landed source starts the rebuild", own.sched.length === 1 && own.sched[0][0] === "projects.rebuild" && own.stale, JSON.stringify(own));
-  const byok = await landed({ space: "acme", byok: true }, { kind: "byok" });
-  check("on a visitor's own key it only marks the page out of date", !byok.sched.length && byok.stale && !byok.building, JSON.stringify(byok));
-  const sneaky = await landed({ space: "acme" }, { kind: "byok" });
-  check("even when the caller does not say whose key it runs on", !sneaky.sched.length && sneaky.stale, JSON.stringify(sneaky));
-  const demo = await landed({ space: "demo", demo: true }, { kind: "demo" });
-  check("and the demo, which has no projects, marks nothing", !demo.sched.length && !demo.stale, JSON.stringify(demo));
 }
 
 /* ---- a model that cannot answer without thinking is asked again, with a little ---- */
@@ -1012,21 +894,6 @@ function seed() {
   const wealth = T.brains.find(b => b.slug === "wealth"), dogs = T.brains.find(b => b.slug === "dogs");
   check("an audit's findings are kept on its folder, and one ruled out leaves for good, in its own workspace only",
     r.ok && JSON.stringify(wealth.findings.english) === '[{"id":"wealth/silver","to":"Silver"}]' && !dogs.findings, JSON.stringify([wealth.findings, dogs.findings]));
-}
-
-/* ---- the map's heat: questions per concept, per workspace ---- */
-{
-  const { T, ctx } = seed();
-  await run(store.heatAdd, ctx, { space: "octopus", ids: ["wealth/gold", "wealth/silver", "wealth/gold"], d: "2026-09-01" });
-  await run(store.heatAdd, ctx, { space: "octopus", ids: ["wealth/gold"], d: "2026-10-01" });
-  await run(store.heatAdd, ctx, { space: "squidgy", ids: ["wealth/gold"], d: "2026-10-01" });
-  await run(store.heatAdd, ctx, { space: "octopus", ids: ["a/1", "a/2", "a/3", "a/4", "a/5", "a/6", "a/7"], d: "2026-10-01" });
-  const all = await run(store.heatOf, ctx, { space: "octopus", since: "2026-01-01" });
-  const recent = await run(store.heatOf, ctx, { space: "octopus", since: "2026-09-15" });
-  check("each question counts once per concept it opened, per workspace", all["wealth/gold"] === 2 && all["wealth/silver"] === 1
-    && (await run(store.heatOf, ctx, { space: "squidgy", since: "2026-01-01" }))["wealth/gold"] === 1, JSON.stringify(all));
-  check("the heat reads the days asked, so 90 days back drops older questions", recent["wealth/gold"] === 1 && !recent["wealth/silver"], JSON.stringify(recent));
-  check("a question counts 6 concepts at most", T.heat.filter(r => r.brain === "a").length === 6);
 }
 
 /* ---- scouts: feeds read, what is new kept once, never a source already held ---- */

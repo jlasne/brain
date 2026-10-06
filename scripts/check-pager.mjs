@@ -21,7 +21,7 @@ for (const f of ["onepager.ts", "lib.ts", "words.ts", "route.ts"]) copyFileSync(
 writeFileSync(join(dir, "_generated/api.ts"), "export const internal = {};\n");
 await esbuild.build({ entryPoints: [join(dir, "onepager.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { assemble, fromQuestion, fromModel, asText, asHtml, looksLikeMail, bulletText, addedLine, parseDoc, translatePage, langOf } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { assemble, fromModel, asText, asHtml, looksLikeMail, bulletText, addedLine, parseDoc, translatePage, langOf } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -149,7 +149,7 @@ const sources = [
          "Sources: A (2026-03-01), B (2026-05-04)"].join("\n");
     return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
   };
-  const p = await fromQuestion("octopus", brains, concepts, sources, "What lifts retention?", "k");
+  const p = await fromModel("octopus", brains, concepts, sources, { q: "What lifts retention?", kind: "summary" }, "k");
   globalThis.fetch = real;
   const bs = p.sections[0].bullets;
   check("a question's bullets name a concept, then say it",

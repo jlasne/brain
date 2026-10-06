@@ -76,8 +76,6 @@ const STATE = {
   concepts: [], sources: [], model: "test/model", chunk: 18000, mentions: 1,
   account: null, kind: "owner", owner: true, space: "octopus", spaceName: "Octopus",
   hasKey: false, keyHint: "",
-  /* Most checks below look at the folder list, so they run in full mode. */
-  full: true,
 };
 
 let failures = 0;
@@ -450,7 +448,7 @@ async function boot(path, init, arg) {
   await page.waitForTimeout(150);
   const setup = await page.evaluate(() => ({ model: document.querySelector("#setModel .val")?.textContent,
     exp: !!document.getElementById("setExport"), order: [...document.querySelectorAll(".sheet .set-row button")].map(b => b.id).join(",") }));
-  check("Settings holds the model, the export and the map; Audit has its own section", setup.order === "setModel,setExport,setMap" && setup.model === "model"
+  check("Settings holds the model and the export; Audit has its own section", setup.order === "setModel,setExport" && setup.model === "model"
     && await page.evaluate(() => !!document.getElementById("auditBlock") && !document.getElementById("setTidy")), JSON.stringify(setup));
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#setExport")]);
   const { readFileSync } = await import("node:fs");
@@ -485,7 +483,7 @@ async function boot(path, init, arg) {
 /* ---- the model, saved for the workspace ---- */
 {
   const withModels = { ...STATE, model: "deepseek/deepseek-v4-flash-0731",
-    models: { chat: "deepseek/deepseek-v4-flash-0731", project: "z-ai/glm-5.3-flash", chatDefault: "deepseek/deepseek-v4-flash-0731", projectDefault: "z-ai/glm-5.3-flash" } };
+    models: { chat: "deepseek/deepseek-v4-flash-0731", chatDefault: "deepseek/deepseek-v4-flash-0731" } };
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test");
     localStorage.setItem("octopus.model", "openai/gpt-5");
@@ -498,16 +496,15 @@ async function boot(path, init, arg) {
         { id: "z-ai/glm-5.3-flash", name: "Z.ai: GLM 5.3 Flash", pricing: { prompt: "0.00000015", completion: "0.0000005" }, context_length: 1048576, supported_parameters: ["response_format"] },
         { id: "z-ai/glm-5.3", name: "Z.ai: GLM 5.3", pricing: { prompt: "0.0000014", completion: "0.0000044" }, context_length: 1048576, supported_parameters: ["response_format"] }] });
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/models")) return Response.json({ chat: body.chat === undefined ? state.models.chat : body.chat || state.models.chatDefault,
-        project: body.project === undefined ? state.models.project : body.project || state.models.projectDefault });
+      if (s.includes("/api/models")) return Response.json({ chat: body.chat === undefined ? state.models.chat : body.chat || state.models.chatDefault });
       if (s.includes("/api/ask")) return Response.json({ answer: "One line.", sources: 3, level: "normal" });
       return Response.json({});
     };
   }, withModels);
   check("a model picked in this browser before is dropped: the workspace's pick rules", await page.evaluate(() => localStorage.getItem("octopus.model")) === null);
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(150);
-  const rows = await page.evaluate(() => ({ chat: document.querySelector("#setModel .val")?.textContent, proj: !!document.getElementById("setProjModel") }));
-  check("Settings shows one model, DeepSeek by default", rows.chat === "deepseek-v4-flash-0731" && !rows.proj, JSON.stringify(rows));
+  const rows = await page.evaluate(() => ({ chat: document.querySelector("#setModel .val")?.textContent }));
+  check("Settings shows one model, DeepSeek by default", rows.chat === "deepseek-v4-flash-0731", JSON.stringify(rows));
   await page.click("#setModel"); await page.waitForTimeout(200);
   const sheet = await page.evaluate(() => ({ title: document.querySelector(".sheet h3")?.textContent, first: document.querySelector("#mList .mrow span")?.textContent,
     on: document.querySelector("#mList .mrow.on b")?.textContent }));
@@ -516,7 +513,7 @@ async function boot(path, init, arg) {
   await page.click('#mList .mrow:has(b:text-is("Z.ai: GLM 5.3"))'); await page.click("#mSave"); await page.waitForTimeout(150);
   const saved = await page.evaluate(() => ({ body: window.__calls.filter(c => c.s.includes("/api/models")).pop()?.body,
     val: document.querySelector("#setModel .val")?.textContent, pick: document.getElementById("setModel")?.classList.contains("pick") }));
-  check("a pick is saved for the workspace, and Settings shows it", saved.body?.chat === "z-ai/glm-5.3" && !("project" in saved.body) && saved.val === "glm-5.3" && saved.pick, JSON.stringify(saved));
+  check("a pick is saved for the workspace, and Settings shows it", saved.body?.chat === "z-ai/glm-5.3" && saved.val === "glm-5.3" && saved.pick, JSON.stringify(saved));
   await page.click("#setModel"); await page.waitForTimeout(150);
   await page.click("#mReset"); await page.waitForTimeout(150);
   const reset = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/models")).pop()?.body);
@@ -1111,52 +1108,52 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
-/* ---- Setup: the real open conflicts, each settled in place ---- */
+/* ---- Settings: Audit holds the clashes and what an audit found, in one fold ---- */
 {
+  const st = { ...STATE, concepts: [{ brain: "content", slug: "ai-rates", n: 1, title: "Financing AI", summaryLine: "Rates", src: 2, ev: 2 }] };
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test");
-    window.__settles = [];
+    window.__calls = [];
     window.fetch = async (u, opt) => {
-      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/conflicts/settle")) { window.__settles.push(body);
-        if (body.id === "content/paywall" && body.pick === "a") return Response.json({ error: "the model host refused it" });
-        return Response.json(body.pick === "both" ? { ok: true } : { ok: true, position: "Rates fell around AI releases.", summaryLine: "Long rates fell around AI releases." }); }
+      if (s.includes("/api/health")) return Response.json({ conflicted: ["content/ai-rates", "content/paywall"], health: [{ slug: "content", score: 7, open: 2, best: "x", parts: {} }] });
       if (s.includes("/api/conflicts")) return Response.json({ others: 8, conflicts: [
-        { id: "content/ai-rates", brain: "content", title: "Financing AI", a: "AI pushes rates up", aDate: "", b: "Rates fell around AI releases", bDate: "2026-09-01", why: "Crowding out implies higher rates" },
-        { id: "content/paywall", brain: "content", title: "Scaling at $10k MRR", a: "A hard paywall wins", aDate: "", b: "Growth runs on referrals", bDate: "", why: "" } ] });
+        { id: "content/ai-rates", brain: "content", title: "Financing AI", a: "AI pushes rates up", aDate: "", b: "Rates fell around AI releases", bDate: "2026-09-01",
+          why: "Crowding out implies higher rates", hint: { pick: "b", why: "The later claim: 2026-09-01" } },
+        { id: "content/paywall", brain: "content", title: "Scaling at $10k MRR", a: "A hard paywall wins", aDate: "", b: "Growth runs on referrals", bDate: "",
+          why: "", hint: { pick: "both", why: "Nothing dates either" } }] });
       return Response.json({});
     };
-  }, STATE);
+  }, st);
+  await page.waitForTimeout(500);
+  const asked = () => page.evaluate(() => window.__calls.filter(x => x.s.endsWith("/api/conflicts")).length);
+  const before = await asked();
   await page.evaluate(() => document.getElementById("keyBtn").click());
   await page.waitForTimeout(250);
-  const shown = await page.evaluate(() => ({ count: document.getElementById("cfCount").textContent,
-    items: [...document.querySelectorAll(".cf-item")].map(x => ({ title: x.querySelector(".cf-top b").textContent,
-      sides: [...x.querySelectorAll(".cf-claim")].map(c => c.textContent), holds: x.querySelectorAll(".cf-go").length })),
-    note: [...document.querySelectorAll("#cfSlot > .hint")].map(h => h.textContent).join(" ") }));
-  check("Setup lists the real conflicts, each with both sides and a button on each",
-    shown.count === "2" && shown.items.length === 2 && shown.items[0].sides.join("|") === "AI pushes rates up|Rates fell around AI releases"
-    && shown.items.every(i => i.holds === 2), JSON.stringify(shown));
-  check("and says how many were additions, not contradictions", /8 more add detail/.test(shown.note), shown.note);
-  const folds = await page.evaluate(() => ["auditBlock", "langBlock", "cfBlock", "lookBlock", "passBlock"].map(id => document.getElementById(id)).map(d => `${d.id}:${d.tagName}:${d.open}`));
-  check("Settings folds Audit, Languages, Open conflicts, Look and Passphrase shut, the conflicts' count on its fold",
-    folds.every(f => /:DETAILS:false$/.test(f)) && await page.evaluate(() => document.querySelector("#cfBlock > summary").textContent) === "Open conflicts2", JSON.stringify(folds));
-  await page.click("#cfBlock > summary");
-  await page.click(".cf-item >> nth=0 >> .cf-go >> nth=1"); await page.waitForTimeout(200);
-  const one = await page.evaluate(() => ({ sent: window.__settles[0], text: document.querySelector(".cf-item.done")?.textContent,
-    count: document.getElementById("cfCount").textContent }));
-  check("This holds settles on that side and shows the new position", one.sent?.pick === "b" && one.sent?.id === "content/ai-rates"
-    && /Settled\. The position now reads: Long rates fell/.test(one.text || "") && one.count === "1", JSON.stringify(one));
-  await page.click(".cf-item:not(.done) .cf-go >> nth=0"); await page.waitForTimeout(200);
-  const failed = await page.evaluate(() => ({ err: document.querySelector(".cf-item:not(.done) .cf-err")?.textContent,
-    btn: document.querySelector(".cf-item:not(.done) .cf-go")?.textContent, count: document.getElementById("cfCount").textContent }));
-  check("a ruling that fails says why on its own card, and stays to be settled", failed.err === "Not settled: the model host refused it"
-    && failed.btn === "This holds" && failed.count === "1", JSON.stringify(failed));
-  await page.click(".cf-item:not(.done) .mini"); await page.waitForTimeout(200);
-  const two = await page.evaluate(() => ({ sent: window.__settles[2], count: document.getElementById("cfCount").textContent,
-    none: /None to settle\. 8 recorded clashes add detail/.test(document.getElementById("cfSlot").textContent) }));
-  check("Both hold clears the last one, and the list says none are left", two.sent?.pick === "both" && two.count === "" && two.none, JSON.stringify(two));
-  check("nothing threw settling conflicts", !bad.length, bad.join(" | "));
+  const set = await page.evaluate(() => ({
+    folds: ["auditBlock", "langBlock", "lookBlock", "passBlock"].map(id => document.getElementById(id)).map(d => `${d.id}:${d.tagName}:${d.open}`),
+    gone: !document.getElementById("cfBlock") && !document.getElementById("cfSlot") && !document.getElementById("cfDeck"),
+    sum: document.getElementById("auditSum").textContent, title: document.querySelector("#auditDecide b").textContent,
+    say: document.querySelector("#auditDecide span").textContent, btn: document.querySelector("#auditDecide button").textContent,
+    folder: document.querySelector("#auditList .au-row b")?.textContent }));
+  check("Settings folds Audit, Languages, Look and Passphrase shut, and the open conflicts are no fold of their own",
+    set.folds.every(f => /:DETAILS:false$/.test(f)) && set.gone, JSON.stringify(set));
+  check("the Audit fold says what waits, the clashes counted as decisions, and still lists each folder to audit",
+    set.sum === "2 to decide" && set.title === "Decisions" && set.say === "2 clashes" && set.btn === "Decide" && set.folder === "Content", JSON.stringify(set));
+  check("opening Settings asks the server for no clash list: the inbox holds them already", (await asked()) === before, `${before} -> ${await asked()}`);
+  await page.click("#auditBlock > summary");
+  await page.click("#auditDecide button"); await page.waitForTimeout(300);
+  const dec = await page.evaluate(() => ({ settings: !!document.getElementById("auditBlock"), sheet: !!document.querySelector(".dc-sheet"),
+    rows: [...document.querySelectorAll(".dc-row")].map(r => r.querySelector(".dc-t").textContent), swipe: document.getElementById("dcSwipe").hidden }));
+  check("Decide opens the decisions, the clashes among them, with a button to swipe through them",
+    !dec.settings && dec.sheet && dec.rows.join("|") === "Financing AI|Scaling at $10k MRR" && !dec.swipe, JSON.stringify(dec));
+  await page.click("#dcSwipe"); await page.waitForTimeout(200);
+  const deck = await page.evaluate(() => ({ title: document.querySelector(".dk-card:not(.gone) h4")?.textContent, n: document.getElementById("dkN").textContent,
+    hint: document.querySelector(".dk-card:not(.gone) .dk-hint")?.textContent }));
+  check("Swipe the clashes opens the deck on the first one, with its suggested call, and asks the server for nothing",
+    deck.title === "Financing AI" && deck.n === "1 of 2" && deck.hint === "Suggested: B holds. The later claim: 2026-09-01" && (await asked()) === before, JSON.stringify(deck));
+  check("nothing threw in Settings", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -1168,6 +1165,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}");
       if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/health")) return Response.json({ conflicted: ["content/ai-rates", "content/paywall"], health: [{ slug: "content", score: 7, open: 2, best: "x", parts: {} }] });
       if (s.includes("/api/conflicts/settle")) { window.__settles.push(body);
         return Response.json(body.pick === "both" ? { ok: true } : { ok: true, position: "P.", summaryLine: "S." }); }
       if (s.includes("/api/conflicts")) return Response.json({ others: 3, conflicts: [
@@ -1176,11 +1174,11 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       return Response.json({});
     };
   }, STATE);
-  await page.evaluate(() => document.getElementById("keyBtn").click());
-  await page.waitForTimeout(250);
-  check("Setup offers the conflicts one by one", (await page.textContent("#cfDeck")) === "Review one by one: 2", await page.textContent("#cfDeck"));
-  await page.click("#cfBlock > summary");
-  await page.click("#cfDeck"); await page.waitForTimeout(150);
+  await page.waitForTimeout(500);
+  await page.click("#inboxBtn"); await page.waitForTimeout(80);
+  await page.click("#inbox .ib-it >> text=2 decisions ready"); await page.waitForTimeout(250);
+  check("the decisions offer the clashes one by one", (await page.textContent("#dcSwipe")) === "Swipe the clashes");
+  await page.click("#dcSwipe"); await page.waitForTimeout(150);
   const card = () => page.evaluate(() => {
     const c = document.querySelector(".dk-card:not(.gone)");
     return { title: c?.querySelector("h4")?.textContent || "", n: document.getElementById("dkN").textContent,
@@ -1189,7 +1187,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   });
   const first = await card();
   check("the deck opens on the first clash, both sides shown", first.title === "Financing AI" && first.n === "1 of 2"
-    && first.sides.join("|") === "AI pushes rates up|Rates fell around AI releases" && !(await page.$(".sheet")), JSON.stringify(first));
+    && first.sides.join("|") === "AI pushes rates up|Rates fell around AI releases" && !!(await page.$(".deck")), JSON.stringify(first));
 
   await page.keyboard.press("ArrowRight"); await page.waitForTimeout(250);
   const after = await card();
@@ -1380,103 +1378,6 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("the best brain says it sets the bar, and a person skips variety", /The best brain here/.test(person.p) && /Variety\s*not counted/.test(person.v)
     && /one voice/.test(person.v), JSON.stringify(person));
   check("nothing threw on health", !bad.length, bad.join(" | "));
-  await page.close();
-}
-
-/* ---- the map: arms, suckers, links, conflicts ---- */
-{
-  const two = { ...STATE, brains: [...STATE.brains, { slug: "gave", name: "Charles Gave", type: "person", scope: "Gave", owner: null }],
-    concepts: [{ brain: "content", slug: "offer", n: 1, title: "Offer first", summaryLine: "", src: 4, ev: 3, links: 1 },
-               { brain: "content", slug: "brand", n: 2, title: "Personal brand", summaryLine: "", src: 1, ev: 1, links: 0 },
-               { brain: "gave", slug: "gold", n: 1, title: "Gold", summaryLine: "", src: 2, ev: 2, links: 1 }] };
-  const { page, bad } = await boot("/chat.html", state => {
-    sessionStorage.setItem("octopus.token.v1", "test");
-    window.__calls = [];
-    window.fetch = async (u, opt) => {
-      const s = String(u); window.__calls.push(s);
-      if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/health")) return Response.json({ conflicted: ["content/offer"], health: [
-        { slug: "content", score: 8, open: 1, best: "x", parts: {} }, { slug: "gave", score: 3, open: 0, best: "y", parts: {} }] });
-      if (s.includes("/api/map")) return Response.json({ links: [["content/offer", "gave/gold"], ["content/offer", "content/brand"]], heat: { "content/offer": 12, "content/brand": 4 } });
-      if (s.includes("/api/concept")) return Response.json({ concept: { brain: "content", slug: "offer", n: 1, title: "Offer first", summaryLine: "S.",
-        position: "P.", evidence: [], data: [], conflicts: [], sources: [], related: [] } });
-      if (s.includes("/api/conflicts")) return Response.json({ others: 0, conflicts: [
-        { id: "content/offer", brain: "content", title: "Offer first", a: "A", aDate: "", b: "B", bDate: "", why: "" }] });
-      return Response.json({});
-    };
-  }, two);
-  await page.waitForTimeout(200);
-  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
-  await page.click("#setMap"); await page.waitForTimeout(600);
-  const G = () => page.evaluate(() => { const g = document.querySelector("#mpStage").graph;
-    return { nodes: g.nodes(), links: g.links(), zoom: g.zoom(), lit: g.lit(), n: document.getElementById("mpN").textContent }; });
-  const drawn = await G();
-  const node = id => drawn.nodes.find(x => x.id === id);
-  check("the map draws a node per folder and a dot per concept, on a canvas", !!(await page.$("#mpCanvas"))
-    && drawn.nodes.filter(x => x.hub).map(x => x.label).join("|") === "Content|Charles Gave" && drawn.nodes.filter(x => !x.hub).length === 3, JSON.stringify(drawn.nodes));
-  check("with every link, inside a folder and between folders, and the count of each",
-    drawn.links.length === 2 && /2 folders · 3 concepts · 2 links, 1 between folders · 1 with an open conflict/.test(drawn.n), JSON.stringify(drawn));
-  check("a dot grows with its sources, and an open conflict is marked", node("content/offer").r > node("content/brand").r
-    && node("content/offer").bad && !node("content/brand").bad, JSON.stringify(drawn.nodes));
-
-  /* Pointing at a dot lights it and its neighbours. */
-  const spot = async id => { const [x, y] = await page.evaluate(i => document.querySelector("#mpStage").graph.screen(i), id);
-    const r = await page.evaluate(() => { const b = document.getElementById("mpCanvas").getBoundingClientRect(); return [b.left, b.top]; });
-    return [r[0] + x, r[1] + y]; };
-  const [ox, oy] = await spot("content/offer");
-  await page.mouse.move(ox, oy); await page.waitForTimeout(120);
-  const lit = (await G()).lit.sort().join(",");
-  check("pointing at a dot lights it, its folder and its neighbours", lit === "@content,content/brand,content/offer,gave/gold", lit);
-  const z0 = (await G()).zoom;
-  await page.click("#mpIn"); const z1 = (await G()).zoom;
-  await page.click("#mpFit"); const z2 = (await G()).zoom;
-  check("zoom in narrows the view and Fit brings it back", z1 > z0 && Math.abs(z2 - z0) < 0.02, `${z0} -> ${z1} -> ${z2}`);
-  await page.waitForTimeout(500);
-
-  /* A click picks it: a card to read it, or settle its conflict. */
-  const [cx, cy] = await spot("content/offer");
-  await page.mouse.click(cx, cy); await page.waitForTimeout(200);
-  const cardSeen = await page.evaluate(() => ({ hidden: document.getElementById("mpCard").hidden, title: document.querySelector("#mpCard b")?.textContent,
-    acts: [...document.querySelectorAll("#mpCard button")].map(b => b.textContent) }));
-  check("a click opens the dot's card, with Read it and Settle the conflict", !cardSeen.hidden && cardSeen.title === "Offer first"
-    && cardSeen.acts.join("|") === "Read it|Settle the conflict", JSON.stringify(cardSeen));
-  await page.click("#mpCard button >> nth=0"); await page.waitForTimeout(250);
-  check("Read it opens the concept, over the map", await page.evaluate(() => !!document.querySelector(".viewer") && !!document.querySelector(".mapbox")));
-  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
-  check("Escape closes the concept first, the map stays", await page.evaluate(() => !document.querySelector(".viewer") && !!document.querySelector(".mapbox")));
-
-  await page.click("#mpCard button >> nth=1"); await page.waitForTimeout(300);
-  const deck = await page.evaluate(() => ({ title: document.querySelector(".dk-card h4")?.textContent }));
-  check("Settle the conflict opens the swipe deck on it", deck.title === "Offer first", JSON.stringify(deck));
-  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
-  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
-  check("Escape clears the card, then a second one closes the map", !!(await page.$(".mapbox")) && await page.evaluate(() => document.getElementById("mpCard").hidden));
-  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
-  check("and the map is gone", !(await page.$(".mapbox")));
-
-  /* Heat: the questions each concept answered, and the blind spots. */
-  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
-  await page.click("#setMap"); await page.waitForTimeout(500);
-  const cold = await page.evaluate(() => ({ blind: document.getElementById("mpBlind").hidden, key: document.getElementById("mpKey").textContent }));
-  await page.click("#mpWarm"); await page.waitForTimeout(150);
-  const hot = await G();
-  const warmKey = await page.evaluate(() => ({ key: document.getElementById("mpKey").textContent, blind: document.getElementById("mpBlind").textContent,
-    on: document.getElementById("mpWarm").getAttribute("aria-pressed") }));
-  const hn = id => hot.nodes.find(x => x.id === id);
-  check("Heat colours each concept by the questions it answered in 90 days, and counts the blind spots",
-    cold.blind && /^Big node/.test(cold.key) && warmKey.on === "true" && hn("content/offer").asked === 12 && hn("gave/gold").asked === 0
-    && /^2 of 3 concepts asked about in 90 days · 1 blind spot$/.test(hot.n) && /^Heat: the questions/.test(warmKey.key), JSON.stringify({ hot, warmKey }));
-  check("a blind spot is asked 3 times or more and held by 2 sources or fewer", hn("content/brand").thin && !hn("content/offer").thin && !hn("gave/gold").thin,
-    JSON.stringify(hot.nodes));
-  await page.click("#mpBlind"); await page.waitForTimeout(250);
-  const bc = await page.evaluate(() => ({ title: document.querySelector("#mpCard b")?.textContent, say: document.querySelector("#mpCard .mp-c-blind")?.textContent,
-    acts: [...document.querySelectorAll("#mpCard button")].map(b => b.textContent) }));
-  check("Next blind spot picks it: what it drew, what holds it, and Feed it",
-    bc.title === "Personal brand" && bc.say === "Blind spot: 4 questions in 90 days, held by 1 source. Drop more on it." && bc.acts.join("|") === "Read it|Feed it", JSON.stringify(bc));
-  await page.click("#mpCard button >> text=Feed it"); await page.waitForTimeout(250);
-  const fed = await page.evaluate(() => ({ map: !!document.querySelector(".mapbox"), view: document.querySelector("main").dataset.view, picks: [...document.querySelectorAll("#brains .brain-row.on .nm")].map(x => x.textContent).join(",") }));
-  check("Feed it opens Drop on that folder", !fed.map && fed.view === "drop" && fed.picks === "Content", JSON.stringify(fed));
-  check("nothing threw on the map", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -1689,7 +1590,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
-/* ---- the demo shows what to try: questions, the map, a clash ---- */
+/* ---- the demo shows what to try: questions and a clash ---- */
 {
   const demo = { ...STATE, space: "demo", spaceName: "Demo", demo: true,
     brains: [{ slug: "health", name: "Health", type: "subject", scope: "s" }, { slug: "social", name: "Social", type: "subject", scope: "s" }],
@@ -1716,8 +1617,6 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("the demo wears the landing's type", /^"?Geist/.test(font), font);
   await page.click("#demoSettle"); await page.waitForTimeout(250);
   check("Settle a clash says when there is none to settle", /No open clash in the demo/.test(await page.textContent("#thread")));
-  await page.click("#demoMap"); await page.waitForTimeout(300);
-  check("Open the map opens it from the demo bar", await page.evaluate(() => !!document.querySelector(".mapbox")));
   check("nothing threw trying the demo", !bad.length, bad.join(" | "));
   await page.close();
 }
@@ -1804,7 +1703,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     };
     window.fetch = async (u, opt) => { const s = String(u), body = JSON.parse(opt?.body || "{}");
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/models")) return Response.json({ chat: "m/x", project: "m/x", reply: "same", voice: body.voice ?? null });
+      if (s.includes("/api/models")) return Response.json({ chat: "m/x", reply: "same", voice: body.voice ?? null });
       return Response.json({ chats: [] }); };
   }, STATE);
   await page.fill("#input", "Quick one:");
@@ -1936,7 +1835,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
-/* ---- the graph: kinds of link, what follows, topics, the learning path ---- */
+/* ---- the graph: kinds of link, what follows, topics ---- */
 {
   const st = { ...STATE, brains: [...STATE.brains, { slug: "macro", name: "Macro", type: "subject", scope: "m" }],
     concepts: [
@@ -1980,17 +1879,14 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     && /thenSafety stock/.test(pane.links), pane.links);
   check("what follows is shown, marked as drawn by Tasu, not a source", pane.ins === "Higher rates shrink orders" && /not a source/.test(pane.note || ""), JSON.stringify(pane));
 
-  await page.click("#fvPath"); await page.waitForTimeout(200);
-  const path = await page.evaluate(() => [...document.querySelectorAll(".lp-step")].map(s => s.querySelector(".lp-n").textContent + ":" + [...s.querySelectorAll(".lp-row b")].map(b => b.textContent).join(",")));
-  check("the learning path reads foundations first, each step after what it needs", JSON.stringify(path) ===
-    JSON.stringify(["Step 1 · Foundations:Holding cost,Ordering cost", "Step 2:Economic order quantity", "Step 3:Safety stock"]), JSON.stringify(path));
+  check("and a folder offers no learning path of its own", !(await page.$("#fvPath")) && !(await page.$(".lp-step")));
   check("nothing threw on the graph", !bad.length, bad.join(" | "));
   await page.close();
 }
 
 /* ---- the side panel: Chats and Folders, a personal folder first ---- */
 {
-  const lim = { ...STATE, full: undefined, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "What I say", owner: null },
+  const lim = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "What I say", owner: null },
     { slug: "health", name: "Health", type: "subject", scope: "h", owner: null }] };
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test"); window.__calls = [];
@@ -2151,7 +2047,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     const iv = on => ({ on, pct: 4, covered: 14, seen: 14, total: 335, chapter: { key: "A", title: "Life story", total: 28, at: 12 }, chapters: ch, pending: on ? "q" : null,
       test: tsum(), profile: null });
     let profile = null, on = false;
-    const view = () => ({ interview: iv(on), test: { round: tst.round && { at: "2026-10-06", questions: tst.round.ids.map(id => ({ id, text: tst.round.text[id] })), mine: tst.round.mine || {}, twin: tst.round.twin || {} },
+    const view = () => ({ interview: iv(on), test: { round: tst.round && { at: "2026-10-06", questions: tst.round.ids.map(id => ({ id, text: tst.round.text[id], basis: tst.round.basis[id] || [] })),
+      mine: tst.round.mine || {}, twin: tst.round.twin || {}, because: tst.round.because || {}, note: tst.round.note || null },
       history: tst.history }, profile });
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
@@ -2160,12 +2057,16 @@ for (const found of ["Charles Gave", "", "youtube"]) {
         const a = body.action || "state";
         if (a === "start") { on = true; return Response.json({ answer: "One question at a time. Who raised you?", interview: iv(true), chat: "c9", personal: true, filed: { new: 0, updated: 0, titles: [] }, called: [] }); }
         if (a === "stop") { on = false; return Response.json({ ...view(), answer: "Paused at Life story, 12 of 28. Your twin is 4% complete. Tap Interview to pick up where you left off." }); }
-        if (a === "test" && (!tst.round || body.fresh)) { const ids = ["C", "D", "E", "G", "I"].map(c => c + (++tst.n)); tst.round = { ids, text: Object.fromEntries(ids.map(id => [id, `Test question ${id}?`])) }; }
-        if (a === "check") { tst.round.mine = body.answers; tst.round.twin = Object.fromEntries(Object.keys(body.answers).map(id => [id, "Twin says " + id])); }
+        /* The first round comes from the bank, as when the notes are few. The others are built from the notes: the first 3 name theirs. */
+        if (a === "test" && (!tst.round || body.fresh)) { const ids = ["C", "D", "E", "G", "I"].map(c => c + (++tst.n)), built = tst.n > 5;
+          tst.round = { ids, text: Object.fromEntries(ids.map(id => [id, `Test question ${id}?`])), note: built ? null : "thin",
+            basis: built ? { [ids[0]]: ["Sundays are free", "Cash buffer"], [ids[1]]: ["Prefers shipping small"], [ids[2]]: ["Turned down the agency deal"] } : {} }; }
+        if (a === "check") { tst.round.mine = body.answers; tst.round.twin = Object.fromEntries(Object.keys(body.answers).map(id => [id, "Twin says " + id]));
+          tst.round.because = Object.fromEntries(Object.keys(body.answers).map(id => [id, "your notes hold " + id])); }
         /* A model compares the two: the first answer matches, the second is close, the third differs. */
         if (a === "score") { const ids = Object.keys(tst.round.mine), sc = ids.map((id, i) => [2, 1, 0, 2, 2][i]);
           tst.history.unshift({ at: "2026-10-06", pct: Math.round(100 * sc.reduce((n, x) => n + x, 0) / (2 * sc.length)), learned: false,
-            items: ids.map((id, i) => ({ id, q: tst.round.text[id], mine: tst.round.mine[id], twin: tst.round.twin[id], score: sc[i] })) }); tst.round = null; }
+            items: ids.map((id, i) => ({ id, q: tst.round.text[id], mine: tst.round.mine[id], twin: tst.round.twin[id], because: tst.round.because[id], basis: tst.round.basis[id] || [], score: sc[i] })) }); tst.round = null; }
         if (a === "learn") { if (tst.history[0]) tst.history[0].learned = true; return Response.json({ ...view(), filed: { new: 2, updated: 1, titles: ["A", "B"], people: [] } }); }
         if (a === "profile") profile = { at: "2026-10-04", notes: 40, parts: ["Identity","Values","Beliefs","Decision rules","Voice","Knowledge","Boundaries"].map(t => ({ title: t, points: [`A point on ${t}.`] })) };
         return Response.json(view());
@@ -2213,9 +2114,19 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     hist: !!document.querySelector("#testPane .tt-hist h4") }));
   check("the twin test opens on 5 fresh questions, and says what happens to the answers", form.qs.length === 5 && /5 new questions each time/.test(form.pos || "")
     && /yours are added to your notes/.test(form.pos || "") && !form.hist, JSON.stringify(form));
+  check("it says they are built from your notes, ask what the notes imply, and want a choice with its reason", /built from your own notes/.test(form.pos || "")
+    && /imply and never state/.test(form.pos || "") && /choice and why/.test(form.pos || ""), form.pos);
+  const thin = await page.evaluate(() => ({ note: document.querySelector("#testPane .ts-form")?.previousElementSibling?.textContent, basis: document.querySelectorAll("#testPane .ts-q .ts-basis").length,
+    ph: [...document.querySelectorAll("#testPane .ts-q textarea")].map(x => x.placeholder) }));
+  check("with few notes the questions come from the interview, and it says so; each box asks for the choice and why",
+    /Your notes hold few ideas yet.*6 notes or more/.test(thin.note || "") && thin.basis === 0 && thin.ph.length === 5 && thin.ph.every(x => x === "Your choice, and why"), JSON.stringify(thin));
   await page.click("#tsOther"); await page.waitForTimeout(300);
   const other = await page.evaluate(() => [...document.querySelectorAll("#testPane .ts-q span")].map(x => x.textContent));
   check("Other questions picks 5 others", other.length === 5 && other.every(q => !form.qs.includes(q)), JSON.stringify(other));
+  const built = await page.evaluate(() => ({ basis: [...document.querySelectorAll("#testPane .ts-q")].map(l => l.querySelector(".ts-basis")?.textContent || ""),
+    note: document.querySelector("#testPane .ts-form")?.previousElementSibling?.className }));
+  check("built from the notes, a question names the notes it rests on, and no line says otherwise",
+    JSON.stringify(built.basis) === '["Built from: Sundays are free · Cash buffer","Built from: Prefers shipping small","Built from: Turned down the agency deal","",""]' && !/tw-key/.test(built.note || ""), JSON.stringify(built));
   await page.evaluate(() => { const t = [...document.querySelectorAll("#testPane .ts-q textarea")]; t.slice(0, 2).forEach((x, i) => { x.value = "Answer " + (i + 1); }); });
   await page.click("#tsSave"); await page.waitForTimeout(200);
   check("fewer than 3 answers asks for more, and sends nothing", /at least 3 of the 5/.test(await page.textContent("#testPane .ts-say")) && !(await page.evaluate(() => window.__calls.some(x => x.body.action === "check"))));
@@ -2231,6 +2142,11 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("each pair says same, close or different, and nothing is scored by hand; the total is the share matched", res.chips === 0 && JSON.stringify(res.marks) === '["Same","Close","Different","Same"]'
     && res.score === "Your twin matched you 63% on 4 questions", JSON.stringify(res));
   check("it says the answers are in your notes, and what was filed", /Your answers are in your notes\. Filed: 2 new notes, 1 note updated\./.test(res.notes) && res.more, res.notes);
+  const why = await page.evaluate(() => ({ because: [...document.querySelectorAll("#testPane .ts-card")].map(c => c.querySelector(".ts-why")?.textContent || ""),
+    basis: [...document.querySelectorAll("#testPane .ts-card")].map(c => c.querySelector(".ts-basis")?.textContent || "") }));
+  check("each pair says why the twin answered so, and the notes the question rests on",
+    JSON.stringify(why.because.slice(0, 2)) === '["Because: your notes hold C6","Because: your notes hold D7"]' && why.basis[0] === "Built from: Sundays are free · Cash buffer" && why.basis[3] === "", JSON.stringify(why));
+  check("it says how many the twin missed, and that the answers are now notes it can deduce from", /2 of 4 missed or half right\. Each answer you gave is now a note, so your twin can deduce it next time\./.test(res.notes), res.notes);
   await page.click("#tsMore"); await page.waitForTimeout(400);
   const next = await page.evaluate(() => ({ qs: [...document.querySelectorAll("#testPane .ts-q span")].map(x => x.textContent), hist: document.querySelector("#testPane .tt-hist h4")?.textContent,
     trend: document.querySelector("#testPane .tt-trend")?.textContent, rows: [...document.querySelectorAll("#testPane .tt-h summary")].map(x => x.textContent) }));
@@ -2410,10 +2326,10 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/models")) return Response.json({ chat: "z-ai/glm-5.3-flash", project: "z-ai/glm-5.3-flash", reply: body.reply ?? "same", voice: "voice" in body ? body.voice : null });
+      if (s.includes("/api/models")) return Response.json({ chat: "z-ai/glm-5.3-flash", reply: body.reply ?? "same", voice: "voice" in body ? body.voice : null });
       return Response.json({ chats: [] });
     };
-  }, { ...STATE, models: { chat: "z-ai/glm-5.3-flash", project: "z-ai/glm-5.3-flash", chatDefault: "z-ai/glm-5.3-flash", projectDefault: "z-ai/glm-5.3-flash", reply: "same", voice: null } });
+  }, { ...STATE, models: { chat: "z-ai/glm-5.3-flash", chatDefault: "z-ai/glm-5.3-flash", reply: "same", voice: null } });
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
   const lang = await page.evaluate(() => ({ shown: !document.getElementById("langBlock").hidden, store: !!document.getElementById("langStore"),
     hint: document.querySelector("#langBlock .hint").textContent,
@@ -3246,10 +3162,10 @@ for (const space of ["octopus", "squidgy"]) {
   check("the inbox gathers every call waiting as decisions: a clash, things filed twice, titles, empty positions, the same person twice",
     JSON.stringify(hinted) === "[true]" && ib.item === "6 decisions readyEach with a suggested call. Accept them all in one tap" && ib.badge === "6", JSON.stringify({ hinted, ib }));
   await page.click("#inbox .ib-it >> text=6 decisions ready"); await page.waitForTimeout(300);
-  const sheet = await page.evaluate(() => ({ groups: [...document.querySelectorAll(".dc-g h4")].map(h => h.textContent), all: document.getElementById("dcAll").textContent,
+  const sheet = await page.evaluate(() => ({ groups: [...document.querySelectorAll(".dc-g h4")].map(h => h.textContent), all: document.getElementById("dcAll").textContent, swipe: document.getElementById("dcSwipe").hidden,
     rows: [...document.querySelectorAll(".dc-row")].map(r => `${r.querySelector(".dc-tag").textContent}|${r.querySelector(".dc-t").textContent}|${r.querySelector(".dc-hint").textContent}|${[...r.querySelectorAll(".dc-acts button")].map(b => b.textContent).join("/")}`) }));
   check("grouped by folder and topic, each with its suggested call and the reason",
-    JSON.stringify(sheet.groups) === '["Content · Offers · 2","Content · 3","Me · People · 1"]' && sheet.all === "Accept all 6"
+    JSON.stringify(sheet.groups) === '["Content · Offers · 2","Content · 3","Me · People · 1"]' && sheet.all === "Accept all 6" && sheet.swipe === false
     && sheet.rows[0] === "Clash|Offer first|Suggested: B holds. The later claim: 2026-03-01 over 2025-01-01.|Accept/A holds/Both hold/Later"
     && sheet.rows[1] === 'Filed twice|Offer first and Offer before audience|Suggested: Merge into "Offer first". One idea filed 2 times, and this title reads clearest.|Accept/Keep apart/Later'
     && sheet.rows[2] === 'Title|Ancrage des prix|Suggested: Rename to "Price anchoring". Its title is not in English.|Accept/Keep this title/Later'
@@ -3262,9 +3178,10 @@ for (const space of ["octopus", "squidgy"]) {
     && kept.left === 5 && JSON.stringify(kept.said) === '["Ancrage des prix: Title kept."]', JSON.stringify(kept));
   await page.click("#dcAll"); await page.waitForTimeout(900);
   const after = await page.evaluate(() => ({ calls: window.__calls.filter(x => /conflicts\/settle|concept\/merge|concept\/rename|concept\/rederive|personal\/contact/.test(x.s)).map(x => x.s.split("/api/")[1] + ":" + JSON.stringify(x.body.pick ?? x.body.into ?? x.body.title ?? x.body.ids)),
-    say: document.getElementById("dcSay").textContent, state: document.getElementById("dcState").textContent, badge: document.getElementById("inboxN").hidden }));
+    say: document.getElementById("dcSay").textContent, state: document.getElementById("dcState").textContent, badge: document.getElementById("inboxN").hidden,
+    swipe: document.getElementById("dcSwipe").hidden }));
   check("Accept all applies every suggestion, then the inbox lets go", JSON.stringify(after.calls) === JSON.stringify(['conflicts/settle:"b"', 'concept/merge:"content/a"', 'concept/rename:"Brand voice"', 'personal/contact:"me/marc-dupont"', 'concept/rederive:["content/d"]'])
-    && /^Nothing waiting/.test(after.say) && after.state === "5 of 5 done." && after.badge, JSON.stringify(after));
+    && /^Nothing waiting/.test(after.say) && after.state === "5 of 5 done." && after.badge && after.swipe, JSON.stringify(after));
   check("nothing threw around the decisions", !bad.length, bad.join(" | "));
   await page.close();
 }

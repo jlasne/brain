@@ -14,7 +14,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { today, sha256, randomHex, gateKey, readSpace, slugOfName, SPACE_RE, SPACES, ask, parseJson } from "./lib";
 import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle, kindsOf } from "./words";
-import { syncCard, writeMode, mergeInto } from "./store";
+import { syncCard, mergeInto } from "./store";
 import { loadSpace } from "./space";
 import { rederive, needsPosition, REDERIVE_MAX } from "./tidy";
 import { embedConcepts, nearest, writeInsights, buildTopics } from "./graph";
@@ -146,17 +146,25 @@ export const forgetOldKeys = internalMutation({
 });
 
 /**
- * A workspace's side panel from the command line, for the demo above all,
- * whose visitors cannot reach the switch in Settings:
+ * What the app no longer keeps: Projects and their pages, saved one-pagers,
+ * the side panel's mode, the old blind-spot log and the map's question counts. Their code is gone;
+ * this empties their tables, 300 rows each a call. Run it until it says
+ * "runAgain": false, then the tables can leave schema.ts.
  *
- *     npx convex run admin:setMode '{"space":"demo","full":true}' --prod
+ *     npx convex run admin:clearRemoved --prod
  */
-export const setMode = internalMutation({
-  args: { space: v.string(), full: v.boolean() },
-  handler: async (ctx, a) => {
-    const space = a.space.trim().toLowerCase();
-    if (!SPACE_RE.test(space)) throw new Error("that is not a workspace name");
-    return await writeMode(ctx, space, a.full);
+export const clearRemoved = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const deleted: Record<string, number> = {};
+    let runAgain = false;
+    for (const t of ["pages", "projects", "onepagers", "modes", "gaps", "heat"]) {
+      const rows = await (ctx.db as any).query(t).take(300);
+      for (const r of rows) await ctx.db.delete(r._id);
+      deleted[t] = rows.length;
+      if (rows.length === 300) runAgain = true;
+    }
+    return { deleted, runAgain };
   },
 });
 

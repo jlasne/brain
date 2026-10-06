@@ -10,7 +10,7 @@ import { internal } from "./_generated/api";
 import {
   ask, json, cors, sha256, slug, randomHex, isOpen, parseJson,
   readSpace, SPACE_NAME, HOME, spaceName, slugOfName, SPACE_RE, SPACES,
-  MODEL, PROJECT_MODEL, CHUNK,
+  MODEL, CHUNK,
   canDrop,
 } from "./lib";
 import type { Who } from "./lib";
@@ -25,15 +25,15 @@ import { loadSpace, withoutPersonal } from "./space";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
-/* Projects are off in the app for now; their routes stay for when they come back. */
-import { buildPage, TEMPLATE_MAX } from "./projects";
 import { rederive, tidyScan } from "./tidy";
 import { resolveFeed, sweep, readFind } from "./scouts";
 import { embed, nearest } from "./graph";
 import {
-  ahead, gaps, gapBlock, readGap, interviewStep, pausedLine, summary, notesText, readAnswers, readProfile,
+  ahead, gaps, gapBlock, readGap, interviewStep, pausedLine, summary, notesText, readTwin, readProfile,
   cleanAnswers, TWIN_RULES, PROFILE_RULES, NATURAL_GAP, JUDGE_RULES, pairsText, readScores, interviewFull, pickTest, testView, scorePct, questionOf, TEST_N, HISTORY_MAX,
+  DEDUCE_MIN, DEDUCE_RULES, readQuestions, roundQs,
 } from "./twin";
+import type { RoundQ } from "./twin";
 import type { Marks } from "./twin";
 
 const router = httpRouter();
@@ -54,7 +54,7 @@ const router = httpRouter();
 type Caller = Who & { demo: boolean; byok: boolean; key?: string; visitor: string | null; wsName: string;
   /* The models this workspace picked in Settings, or null for the defaults,
      and its languages: what the personal folder keeps, how answers come back. */
-  models: { chat: string | null; project: string | null; reply?: string; voice?: string | null } };
+  models: { chat: string | null; reply?: string; voice?: string | null } };
 const KEY_RE = /^sk-or-[A-Za-z0-9_-]{20,200}$/;
 const owners = SPACES as readonly string[];
 
@@ -73,7 +73,7 @@ async function gate(ctx: any, body: any, opts: { ownerOnly?: boolean } = {}): Pr
   const byok = ws?.kind === "byok";
   const k = String(body?.key ?? "").trim();
   /* The demo always runs on the defaults. */
-  const models = demo ? { chat: null, project: null, reply: "same", voice: null } : await ctx.runQuery(internal.store.modelsOf, { space: who.space });
+  const models = demo ? { chat: null, reply: "same", voice: null } : await ctx.runQuery(internal.store.modelsOf, { space: who.space });
   return { ...who, kind: "owner", demo, byok, models, visitor: demo ? who.visitor : null, wsName: ws?.name ?? spaceName(who.space),
     key: byok ? (KEY_RE.test(k) ? k : undefined) : ws?.kind === "demo" ? (process.env.DEMO_OPENROUTER_API_KEY || undefined) : undefined };
 }
@@ -89,12 +89,11 @@ function keyFor(who: Caller): string | undefined {
 
 /**
  * The model: the default for a demo visitor. Otherwise the one the workspace
- * picked in Settings, for the chat or for projects. A chat call that still
- * names a model, from an app open since before, keeps it.
+ * picked in Settings. A call that still names a model, from an app open since
+ * before, keeps it.
  */
-const modelFor = (who: Caller, b: any, use: "chat" | "project" = "chat") => {
-  if (who.demo) return use === "project" ? PROJECT_MODEL : undefined;
-  if (use === "project") return who.models?.project || PROJECT_MODEL;
+const modelFor = (who: Caller, b: any) => {
+  if (who.demo) return undefined;
   const chat = who.models?.chat;
   return modelName(b) ?? (chat && chat !== MODEL ? chat : undefined);
 };
@@ -408,54 +407,42 @@ route("/api/state", async (ctx, _req, b) => {
   /* The app lists and counts concepts, so it gets their names and summary
      lines. The whole concept travels only for the export. */
   const s = { brains, sources, concepts: cards.map((c: any) => {
-    /* Typed links only: "needs" makes the learning paths, the rest colour the map. */
+    /* Typed links only: "needs" says what to learn first and what follows. */
     const kinds = kindsOf(c);
     return { brain: c.brain, slug: c.slug, n: c.n, title: c.title, summaryLine: c.summaryLine, updated: c.updated,
       ev: c.ev ?? 0, src: c.src ?? 0, links: (c.related ?? []).length, ...(kinds.length ? { kinds } : {}),
       ...(c.tag ? { tag: c.tag } : {}), ...(c.aliases?.length ? { aliases: c.aliases } : {}) };
   }) };
   const brand = await ctx.runQuery(internal.store.brandOf, { space: who.space });
-  const full = await ctx.runQuery(internal.store.modeOf, { space: who.space });
-  /* The models in use, and the defaults Settings offers to go back to. */
-  const models = { chat: who.models.chat || MODEL, project: who.models.project || PROJECT_MODEL, chatDefault: MODEL, projectDefault: PROJECT_MODEL,
+  /* The model in use, and the default Settings offers to go back to. */
+  const models = { chat: who.models.chat || MODEL, chatDefault: MODEL,
     reply: who.models.reply === "en" ? "en" : "same", voice: who.models.voice ?? null };
   return { ...s, model: models.chat, models, chunk: CHUNK,
-           space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand, full };
+           space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand };
 });
 
 /**
- * The models, picked in Settings for the whole workspace: one for the chat,
- * Drop and one-pagers, one for projects. null goes back to the default.
+ * The model, picked in Settings for the whole workspace: it answers, reads
+ * Drop and writes one-pagers. null goes back to the default.
  */
 route("/api/models", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  const one = (k: "chat" | "project") => {
+  const one = (k: "chat") => {
     if (!(k in b)) return undefined;
     const m = String(b[k] ?? "").trim();
     if (!m) return null;
     if (m.length > 80 || !MODEL_ID.test(m)) throw new Error(`"${m.slice(0, 40)}" is not a model id. They read vendor/model, like ${MODEL}.`);
     return m;
   };
-  const chat = one("chat"), project = one("project");
+  const chat = one("chat");
   /* The languages: how answers come back, and the one the mic listens in. */
   const reply = "reply" in b ? (b.reply === "en" ? "en" : "same") : undefined;
   const voice = "voice" in b ? (b.voice ? String(b.voice) : null) : undefined;
-  if (chat === undefined && project === undefined && !reply && voice === undefined) return { error: "say which model or language to change" };
+  if (chat === undefined && !reply && voice === undefined) return { error: "say which model or language to change" };
   const r = await ctx.runMutation(internal.store.setModels, { space: who.space,
     ...(chat !== undefined ? { chat: chat === MODEL ? null : chat } : {}),
-    ...(project !== undefined ? { project: project === PROJECT_MODEL ? null : project } : {}),
     ...(reply ? { reply } : {}), ...(voice !== undefined ? { voice } : {}) });
-  return { chat: r.chat || MODEL, project: r.project || PROJECT_MODEL, reply: r.reply, voice: r.voice };
-});
-
-/**
- * The side panel: limited shows Chats and Folders, full adds Projects.
- * A workspace starts limited, and whoever opens it switches it in Settings.
- */
-route("/api/mode", async (ctx, _req, b) => {
-  const who = await gate(ctx, b, { ownerOnly: true });
-  if (typeof b.full !== "boolean") return { error: "say full or limited" };
-  return await ctx.runMutation(internal.store.setMode, { space: who.space, full: b.full });
+  return { chat: r.chat || MODEL, reply: r.reply, voice: r.voice };
 });
 
 /**
@@ -784,20 +771,16 @@ route("/api/ask", async (ctx, _req, b) => {
   /* Every brain in this space answers questions, whoever is asking. A personal
      brain answers in its own chat only, and no other chat reads it. */
   const every = await loadSpace(ctx, who.space, undefined, { personal: true });
-  /* A project's chat reads the project's folders, with its instructions. */
-  const proj = b.project ? await ctx.runQuery(internal.projects.get, { space: who.space, id: String(b.project) }) : null;
-  if (b.project && !proj) return { error: "that project is gone" };
-  const only = !proj && b.brain && b.brain !== "all" ? String(b.brain) : null;
+  const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
   const mine = only ? every.brains.find((x: any) => x.slug === only && x.type === "personal") : null;
   if (mine) return await personalChat(ctx, who, b, mine, every);
   const { brains, cards: concepts, sources } = withoutPersonal(every);
   /* Folders ticked in the side panel: two or more travel as a list, and the
      question reads those alone. A personal brain never joins it. */
-  const ticked = proj ? proj.brains : Array.isArray(b.brains) ? [...new Set(b.brains.map(String))].slice(0, 60) : [];
-  const many = ticked.length > 1 || !!proj;
+  const ticked = Array.isArray(b.brains) ? [...new Set(b.brains.map(String))].slice(0, 60) : [];
+  const many = ticked.length > 1;
   const pool = many ? brains.filter((x: any) => ticked.includes(x.slug))
     : only ? brains.filter((x: any) => x.slug === only) : brains;
-  if (proj && !pool.length) return { answer: "None of this project's folders is here any more. Pick others in its settings." };
   if (many && !pool.length) return { answer: "None of the ticked folders is here any more. Tick others, or ask them all." };
   if (!pool.length) return { answer: "No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
 
@@ -811,7 +794,7 @@ route("/api/ask", async (ctx, _req, b) => {
    * budget, and the next ones are named by title so the answer knows what else
    * is held. A follow-up borrows the words of the question before it.
    */
-  const mKey = keyFor(who), mName = modelFor(who, b, proj ? "project" : "chat");
+  const mKey = keyFor(who), mName = modelFor(who, b);
   await demoCount(ctx, who, "ask");
   const t0 = Date.now();
   const route = await routeQuestion(pool, concepts, String(b.q ?? ""), b.history, mKey, mName);
@@ -838,12 +821,6 @@ route("/api/ask", async (ctx, _req, b) => {
       derived.slice(0, 6).map((x: any) => `- ${x.title}: ${x.text}`).join("\n")
     : "");
   const reading = pool.filter((x: any) => pick.opened.some((c: any) => c.brain === x.slug));
-  /* The map's heat: the concepts this question opened lead, six at most. A
-     failed count costs the map one question, never the answer. */
-  if (pick.opened.length) {
-    try { await ctx.runMutation(internal.store.heatAdd, { space: who.space, ids: pick.opened.slice(0, 6).map(idOf), d: new Date().toISOString().slice(0, 10) }); }
-    catch { /* the answer goes on */ }
-  }
   const isPerson = reading.length === 1 && reading[0].type === "person";
   const nSources = new Set(sources.filter((s: any) => s.brains.some((x: string) => reading.some((c: any) => c.slug === x))).map((s: any) => s.sid)).size;
 
@@ -896,11 +873,7 @@ route("/api/ask", async (ctx, _req, b) => {
     { role: "system", content: `You are the user's own knowledge base, answering from what it holds. ${who.models?.reply === "en" ? "You answer in English, whatever language the question is written in." : "You answer in the language the question is written in."}` },
     { role: "user", content:
 `Answer the question from the stored knowledge below.
-${proj ? `
-PROJECT: ${proj.name}
-THE OWNER'S INSTRUCTIONS FOR THIS PROJECT (they set the focus and the form of the answer; they are never a source)
-${String(proj.instructions || "none").slice(0, 2000)}
-` : ""}
+
 ${SHAPE[level]}
 
 HOW TO WRITE THE ANSWER
@@ -949,13 +922,6 @@ QUESTION: ${String(b.q ?? "")}` },
 
   /* The app keeps its conversations: a question sent with "chat" joins that
      chat, or starts one. A failed save is only a chat that does not list it. */
-  if (proj) {
-    try {
-      await ctx.runMutation(internal.projects.turn, { space: who.space, id: proj.id,
-        turn: { q: String(b.q ?? "").slice(0, 2000), a: text, level, sources: nSources, at: Date.now() } });
-    } catch { /* the answer still goes out */ }
-    return { answer: text, sources: nSources, level, project: proj.id };
-  }
   let chat: string | undefined;
   if ("chat" in b) {
     try {
@@ -1229,8 +1195,10 @@ async function wholeNotes(ctx: any, space: string, brain: string) {
  *   start     on, and the next question (or the first)
  *   stop      off, where it stands
  *   restart   every question asked again
- *   test      a round of 5 fresh questions, the open one when there is one; `fresh: true` starts another
- *   check     your answers to the round, and the twin answers the same from the notes alone
+ *   test      a round of 5 fresh questions, the open one when there is one; `fresh: true` starts another.
+ *             Built from your notes, each asking for something they imply and never state: one model call.
+ *             The interview's bank asks what the notes cannot make
+ *   check     your answers to the round, and the twin answers the same from the notes alone, with its reasons
  *   score     a model compares the twin's answers with yours, 0 to 2 each; the round goes into the history
  *   learn     your answers filed as notes, and the questions marked answered in the interview
  *   profile   the notes written as 7 parts, offered until the interview reaches 100%
@@ -1267,32 +1235,49 @@ route("/api/interview", async (ctx, _req, b) => {
       /* The seed is what came before: the same history gives the same round, a new one a new round. */
       const seed = history.length * 7919 + Number(today.replace(/-/g, "")) + (b.fresh === true && t.round ? 1 : 0);
       /* A round put aside counts as asked, so the new one never repeats it. */
-      const seen = t.round ? [{ items: (t.round.ids ?? []).map((id: string) => ({ id })) }, ...history] : history;
-      const round = { at: today, ids: pickTest(row?.marks ?? {}, seen, seed).map(q => q.id) };
-      return view(await save({ test: { history, round } }));
+      const put = t.round ? roundQs(t.round) : [];
+      const seen = t.round ? [{ items: put.map(x => ({ id: x.id })) }, ...history] : history;
+      /* The questions come from what you said: each asks for something the notes imply and never state.
+         One model call, only when a round opens. Too few notes, or no answer from the model, and the bank asks them. */
+      const asked = [...put.map(x => x.q), ...history.flatMap((h: any) => (h.items ?? []).map((i: any) => String(i.q ?? "")))].filter(Boolean).slice(0, 40);
+      const held = (await wholeNotes(ctx, who.space, mine.slug)).filter((c: any) => c.tag !== "contact");
+      let qs: RoundQ[] = [], note: string | null = held.length < DEDUCE_MIN ? "thin" : null;
+      if (!note) {
+        try {
+          const { text } = await ask([
+            { role: "system", content: "You write questions that test whether an AI twin can deduce a person's answers from their notes. You reply with JSON only." },
+            { role: "user", content: `${DEDUCE_RULES}\n\nTHEIR NOTES\n${notesText(held, 40000).text}${asked.length ? `\n\nALREADY ASKED, never again\n${asked.map(q => `- ${q}`).join("\n")}` : ""}` },
+          ], { json: true, maxTokens: 1500, key: keyFor(who), model: modelFor(who, b), timeout: 100000, temperature: 0.7 });
+          qs = readQuestions(text, held.map((c: any) => String(c.title)), asked);
+        } catch { /* the bank asks them */ }
+        if (!qs.length) note = "failed";
+      }
+      for (const q of pickTest(row?.marks ?? {}, seen, seed)) { if (qs.length >= TEST_N) break; qs.push({ id: q.id, q: q.text }); }
+      return view(await save({ test: { history, round: { at: today, qs, ...(note ? { note } : {}) } } }));
     }
     case "check": {
       const t = test as any, round = t.round;
       if (!round) return { error: "start a test first" };
-      const answers = cleanAnswers(b.answers, round.ids);
+      const qs = roundQs(round);
+      const answers = cleanAnswers(b.answers, qs.map(x => x.id));
       if (Object.keys(answers).length < 3) return { error: `answer at least 3 of the ${TEST_N} questions first` };
       const notes = notesText(await wholeNotes(ctx, who.space, mine.slug));
       if (notes.used < 5) return { error: "your twin needs at least 5 notes to answer. Talk to it or run the interview first." };
-      const ids = Object.keys(answers);
+      const ids = Object.keys(answers), asked = qs.filter(x => answers[x.id]);
       const { text, finish } = await ask([
         { role: "system", content: "You answer as one person would, from their own notes. You reply with JSON only." },
-        { role: "user", content: `${TWIN_RULES}\n\nTHEIR NOTES\n${notes.text}\n\nQUESTIONS\n${ids.map(id => `${id}: ${questionOf(id)?.text ?? ""}`).join("\n")}` },
-      ], { json: true, maxTokens: 2500, key: keyFor(who), model: modelFor(who, b), timeout: 150000, temperature: 0.3 });
-      const twin = readAnswers(text, ids);
+        { role: "user", content: `${TWIN_RULES}\n\nTHEIR NOTES\n${notes.text}\n\nQUESTIONS\n${asked.map(x => `${x.id}: ${x.q}`).join("\n")}` },
+      ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), timeout: 150000, temperature: 0.3 });
+      const { answers: twin, because } = readTwin(text, ids);
       if (Object.keys(twin).length < Math.min(3, ids.length)) return { error: finish === "length" ? "the answer ran out of room. Try again." : "your twin could not answer this time. Try again." };
-      return view(await save({ test: { history: t.history ?? [], round: { ...round, mine: answers, twin } } }));
+      return view(await save({ test: { history: t.history ?? [], round: { ...round, qs, mine: answers, twin, because } } }));
     }
     case "score": {
       /* A model compares the two answers to each question: no one scores their own twin. */
       const t = test as any, round = t.round;
       if (!round?.mine || !round?.twin) return { error: "let your twin answer first" };
-      const ids: string[] = Object.keys(round.mine);
-      const pairs = pairsText(ids, round.mine, round.twin);
+      const qs = roundQs(round), ids: string[] = qs.map(x => x.id).filter(id => round.mine[id]);
+      const pairs = pairsText(qs, round.mine, round.twin);
       if (!pairs) return { error: "let your twin answer first" };
       const { text, finish } = await ask([
         { role: "system", content: "You compare two answers to the same question and score how well they match. You reply with JSON only." },
@@ -1301,7 +1286,8 @@ route("/api/interview", async (ctx, _req, b) => {
       const scores = readScores(text, round.twin);
       if (!Object.keys(scores).length) return { error: finish === "length" ? "the comparison ran out of room. Try again." : "the answers could not be compared this time. Try again." };
       const entry = { at: today, pct: scorePct(scores), learned: false,
-        items: ids.map(id => ({ id, q: questionOf(id)?.text ?? "", mine: round.mine[id], twin: round.twin[id] ?? "", score: scores[id] ?? null })) };
+        items: qs.filter(x => round.mine[x.id]).map(x => ({ id: x.id, q: x.q, mine: round.mine[x.id], twin: round.twin[x.id] ?? "",
+          ...(round.because?.[x.id] ? { because: round.because[x.id] } : {}), ...(x.basis?.length ? { basis: x.basis } : {}), score: scores[x.id] ?? null })) };
       return view(await save({ test: { history: [entry, ...(t.history ?? [])].slice(0, HISTORY_MAX), round: null } }));
     }
     case "learn": {
@@ -1317,7 +1303,7 @@ route("/api/interview", async (ctx, _req, b) => {
         model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: tm })).text });
       const filed = await fileTwice(run);
       const marks: any = { ...(row?.marks ?? {}) };
-      for (const i of items) marks[i.id] = "a";
+      for (const i of items) if (questionOf(i.id)) marks[i.id] = "a";
       const next = [{ ...entry, learned: true }, ...history.slice(1)];
       return { ...view(await save({ marks, test: { history: next, round: t.round ?? null } })), filed };
     }
@@ -1558,105 +1544,7 @@ route("/api/chats/edit", async (ctx, _req, b) => {
     ...(b.remove === true ? { remove: true } : {}) });
 });
 
-/* ---------- projects ---------- */
-
-/**
- * What Projects lists: the projects, newest first, and every one-pager kept.
- * The demo has no projects; each visitor sees the one-pagers they built.
- */
-route("/api/projects", async (ctx, _req, b) => {
-  const who = await gate(ctx, b);
-  const pagers = await ctx.runQuery(internal.store.pagerList, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}) });
-  if (who.demo) return { projects: [], pagers, demo: true };
-  return { projects: await ctx.runQuery(internal.projects.list, { space: who.space }), pagers };
-});
-
-/** A kept one-pager, to open again. */
-route("/api/onepagers/get", async (ctx, _req, b) => {
-  const who = await gate(ctx, b);
-  const p = await ctx.runQuery(internal.store.pagerGet, { space: who.space, id: String(b.id ?? ""), ...(who.visitor ? { owner: who.visitor } : {}) });
-  return p ? { pager: p } : { error: "that one-pager is gone" };
-});
-
-/** A kept one-pager, deleted. */
-route("/api/onepagers/remove", async (ctx, _req, b) => {
-  const who = await gate(ctx, b);
-  return await ctx.runMutation(internal.store.pagerRemove, { space: who.space, id: String(b.id ?? ""), ...(who.visitor ? { owner: who.visitor } : {}) });
-});
-
-/** One project whole: settings, chat, versions, and its newest page. */
-route("/api/projects/get", async (ctx, _req, b) => {
-  const who = await gate(ctx, b, { ownerOnly: true });
-  const p = await ctx.runQuery(internal.projects.get, { space: who.space, id: String(b.id ?? "") });
-  return p ? { project: p } : { error: "that project is gone" };
-});
-
-/** One version of a project's page. */
-route("/api/projects/page", async (ctx, _req, b) => {
-  const who = await gate(ctx, b, { ownerOnly: true });
-  const p = await ctx.runQuery(internal.projects.page, { space: who.space, id: String(b.id ?? ""), v: Number(b.v) || 0 });
-  return p ? { page: p } : { error: "that version is gone" };
-});
-
-/**
- * A new project, or new settings for one. Its folders must be ones this
- * workspace reads, and never a personal one.
- */
-route("/api/projects/save", async (ctx, _req, b) => {
-  const who = await gate(ctx, b, { ownerOnly: true });
-  const { brains } = withoutPersonal(await ctx.runQuery(internal.store.spaceHead, { space: who.space }));
-  const here = new Set(brains.map((x: any) => x.slug));
-  const picked = [...new Set<string>((Array.isArray(b.brains) ? b.brains : []).map(String))].filter(x => here.has(x));
-  let template: string | null | undefined;
-  if (b.template === null) template = null;
-  else if (typeof b.template === "string") {
-    if (b.template.length > TEMPLATE_MAX) return { error: `a template holds ${Math.round(TEMPLATE_MAX / 1000)} KB at most` };
-    if (!/<[a-z!]/i.test(b.template)) return { error: "that template is not HTML" };
-    template = b.template;
-  }
-  return await ctx.runMutation(internal.projects.save, { space: who.space, ...(b.id ? { id: String(b.id) } : {}),
-    name: String(b.name ?? ""), brains: picked, instructions: String(b.instructions ?? ""), auto: b.auto === true,
-    ...(template !== undefined ? { template } : {}),
-    ...(typeof b.templateName === "string" ? { templateName: b.templateName.replace(/[^\w .()-]/g, "").slice(0, 80) } : {}) });
-});
-
-/** A project and its pages, deleted. */
-route("/api/projects/remove", async (ctx, _req, b) => {
-  const who = await gate(ctx, b, { ownerOnly: true });
-  return await ctx.runMutation(internal.projects.remove, { space: who.space, id: String(b.id ?? "") });
-});
-
-/** The project's chat, cleared. Its page stays. */
-route("/api/projects/clear", async (ctx, _req, b) => {
-  const who = await gate(ctx, b, { ownerOnly: true });
-  return await ctx.runMutation(internal.projects.clear, { space: who.space, id: String(b.id ?? "") });
-});
-
-/** An answer from the chat, held for the next Build, or taken back. Nothing is built here. */
-route("/api/projects/queue", async (ctx, _req, b) => {
-  const who = await gate(ctx, b, { ownerOnly: true });
-  const q = String(b.q ?? "").trim(), a = String(b.a ?? "").trim();
-  if (!q || !a) return { error: "an answer to add needs its question and its answer" };
-  return await ctx.runMutation(internal.projects.queue, { space: who.space, id: String(b.id ?? ""), q, a, remove: b.remove === true });
-});
-
-/**
- * Build: the next version of the page, from the folders as they stand and
- * the answers that wait for it. The only way a page changes from the app.
- */
-route("/api/projects/build", async (ctx, _req, b) => {
-  const who = await gate(ctx, b, { ownerOnly: true });
-  const id = String(b.id ?? "");
-  const p = await ctx.runQuery(internal.projects.get, { space: who.space, id });
-  if (!p) return { error: "that project is gone" };
-  const n = (p.pending ?? []).length;
-  const r = await buildPage(ctx, who.space, id, {
-    why: n ? `Built with ${n} answer${n === 1 ? "" : "s"} added` : "Built",
-    key: keyFor(who), model: modelFor(who, b, "project") });
-  return { v: r.v, at: r.at, html: r.html };
-});
-
-/* ---------- health and the map ---------- */
+/* ---------- health ---------- */
 
 /** Open conflicts per brain, and the concepts holding one. No model call:
     a clash the check has not read yet counts as open. */
@@ -1685,35 +1573,6 @@ route("/api/health", async (ctx, _req, b) => {
   const { brains, cards, sources } = await loadSpace(ctx, who.space);
   const { open, conflicted } = await openConflicts(ctx, who.space, brains);
   return { health: healthOf(brains, cards, sources, open), conflicted };
-});
-
-/** The links between concepts of different brains, each pair once, for the map. */
-/** Every link between two concepts, inside a folder and across folders, for the map. */
-route("/api/map", async (ctx, _req, b) => {
-  const who = await gate(ctx, b);
-  const { cards } = await loadSpace(ctx, who.space);
-  const known = new Set(cards.map((c: any) => `${c.brain}/${c.slug}`));
-  const seen = new Map<string, number>(), links: [string, string, string][] = [];
-  for (const c of cards) {
-    const from = `${c.brain}/${c.slug}`;
-    const kinds = new Map(kindsOf(c).map(k => [k.to, k.type]));
-    for (const r of c.related ?? []) {
-      const to = linkId(String(r), c.brain);
-      if (!known.has(to) || to === from) continue;
-      const key = [from, to].sort().join("|"), type = kinds.get(to) ?? "related";
-      /* One line per pair: the reading that says the most wins. */
-      const at = seen.get(key);
-      if (at !== undefined) { if (links[at][2] === "related" && type !== "related") links[at] = [from, to, type]; continue; }
-      seen.set(key, links.length); links.push([from, to, type]);
-    }
-  }
-  /* The heat: questions per concept in the last 90 days, for the concepts
-     the map shows. A personal brain is never among them. */
-  const since = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-  const all: Record<string, number> = await ctx.runQuery(internal.store.heatOf, { space: who.space, since });
-  const heat: Record<string, number> = {};
-  for (const id of Object.keys(all)) if (known.has(id)) heat[id] = all[id];
-  return { links, heat };
 });
 
 /* ---------- one page ---------- */
@@ -1775,38 +1634,25 @@ route("/api/onepager", async (ctx, _req, b) => {
   if (!hasBody(page)) {
     return { error: "those brains hold no positions yet, so the page would be empty" };
   }
-  /* Every page built is kept, and listed under Projects by its title. A page
-     built again only to be mailed is the one kept already. A failed save is
-     only a page the list does not show. */
-  let saved: string | undefined;
-  if (b.keep !== false) {
-    try {
-      const ask = { pick, q, kind, ...(kind === "custom" ? { doc } : {}), ...(note ? { note } : {}), ...(lang !== "English" ? { lang } : {}) };
-      saved = (await ctx.runMutation(internal.store.pagerSave, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
-        page, text: asText(page), ask })).id;
-    } catch { /* the page still goes out */ }
-  }
-  const keptAs = saved ? { saved } : {};
-
   /* The language the page came back in, and why it is English when another
      one was asked for, so the app never shows the wrong one without saying so. */
   const said = { lang: page.untranslated ? "English" : lang,
     ...(page.untranslated ? { warning: `The ${lang} translation did not come back after two tries, so this page is in English. Build it again to retry.` } : {}) };
-  if (!to) return { page, text: asText(page), ...said, ...keptAs };
+  if (!to) return { page, text: asText(page), ...said };
   /* A page that built and failed to send is still a page. It comes back with the
      reason, so a question already paid for is not thrown away with the mail. */
   /* Thirty mails a day per space, so this address cannot be used to spam. */
   const quota = await ctx.runMutation(internal.store.mcpRate,
     { who: "mail:" + who.space, max: 30, windowMs: 24 * 60 * 60 * 1000 });
   if (!quota.allowed) {
-    return { page, text: asText(page), sent: false, to, ...said, ...keptAs,
+    return { page, text: asText(page), sent: false, to, ...said,
              mailError: `30 pages were mailed today. Mail opens again in ${Math.ceil(quota.retryAfter / 3600)} hours.` };
   }
   try {
     const sent = await mail(to, page, who.space);
-    return { page, text: asText(page), sent: true, to, id: sent.id, ...said, ...keptAs };
+    return { page, text: asText(page), sent: true, to, id: sent.id, ...said };
   } catch (e: any) {
-    return { page, text: asText(page), sent: false, to, ...said, ...keptAs, mailError: String(e?.message ?? e).slice(0, 300) };
+    return { page, text: asText(page), sent: false, to, ...said, mailError: String(e?.message ?? e).slice(0, 300) };
   }
 });
 
