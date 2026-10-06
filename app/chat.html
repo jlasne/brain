@@ -599,6 +599,30 @@
   .sc-t span.bad{ color:var(--bad); }
   .sc-none{ padding:10px 0; font:400 14px/1.5 var(--sans); color:var(--ink-3); }
   #scCheck{ margin-top:8px; }
+  /* Decisions: grouped by folder and topic, each with its suggested call. */
+  .sheet.dc-sheet{ max-width:700px; }
+  .dc-top{ display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; margin-top:12px; }
+  .dc-top .go{ min-height:38px; padding:0 18px; }
+  .dc-state{ font:400 13px/1.4 var(--sans); color:var(--ink-3); }
+  .dc-g{ padding:6px 0 10px; }
+  .dc-g + .dc-g{ border-top:1px solid var(--line); padding-top:14px; }
+  .dc-g h4{ margin:0 0 8px; font:600 11.5px/1.3 var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); }
+  .dc-row{ display:grid; gap:5px; padding:11px 0 13px; border-top:1px solid var(--line); }
+  .dc-g h4 + .dc-row{ border-top:0; padding-top:2px; }
+  .dc-head{ display:flex; align-items:baseline; gap:8px; min-width:0; }
+  .dc-tag{ flex:none; font:500 10.5px/1 var(--mono); letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); padding:4px 6px; border-radius:6px; background:var(--side); }
+  .dc-row[data-kind="clash"] .dc-tag{ color:var(--bad); }
+  .dc-t{ font:600 14.5px/1.35 var(--sans); color:var(--ink); overflow-wrap:anywhere; }
+  .dc-l{ font:400 13.5px/1.5 var(--sans); color:var(--ink-2); padding-left:10px; border-left:2px solid var(--line-2); overflow-wrap:anywhere; }
+  .dc-hint{ font:400 13.5px/1.5 var(--sans); color:var(--ink-3); }
+  .dc-hint b{ font-weight:600; color:var(--accent); }
+  .dc-msg{ font:400 13px/1.4 var(--sans); color:var(--ink-3); }
+  .dc-msg:empty{ display:none; }
+  .dc-msg.bad{ color:var(--bad); }
+  .dc-acts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:3px; }
+  .dc-acts button{ min-height:34px; padding:0 14px; font-size:13.5px; }
+  .dc-done{ font:400 13.5px/1.5 var(--sans); color:var(--good); padding:3px 0; }
+  .dk-hint{ margin-top:10px; font:500 13.5px/1.45 var(--sans); color:var(--accent); }
   /* What the scouts found, a card each. */
   .sheet.fd-sheet{ max-width:640px; }
   .fd-card{ display:grid; gap:7px; padding:14px 0 16px; border-top:1px solid var(--line); transition:opacity .2s ease, transform .2s ease; }
@@ -2389,7 +2413,7 @@ async function refresh(){
   paintWorkspace();
   render();
   /* The rings, the chats and the scouts' finds follow, so the brains never wait on them. */
-  loadHealth(); loadChats(); loadFinds();
+  loadHealth(); loadChats(); loadFinds(); autoAudit();
 }
 
 /** Each brain's health, then the rings repaint, and an open map with them. */
@@ -2402,6 +2426,14 @@ async function loadHealth(){
   } catch { return; }
   renderSide(); paintInbox();
   if (mapRepaint) mapRepaint();
+  loadClashes();
+}
+/** The open clashes, each with its suggested ruling, for the inbox's decisions. */
+async function loadClashes(){
+  if (S.demo) return;
+  if (!openClashes()){ S.clashes = []; paintInbox(); return; }
+  try { const r = await api("/api/conflicts", { hints: true }); if (Array.isArray(r.conflicts)) S.clashes = r.conflicts; } catch { return; }
+  paintInbox(); paintDecide();
 }
 async function loadChats(){
   try { S.chats = (await api("/api/chats")).chats || []; } catch { return; }
@@ -3533,9 +3565,9 @@ function paintInbox(){
   const a = S.auditRun, auditing = a?.state === "running";
   const auditWaits = a && !auditing && !a.seen ? 1 : 0;
   const dueAudits = S.demo ? [] : (S.brains || []).filter(b => auditDue(b) && !(auditing && a.slug === b.slug));
-  const n = unread + dropWaits + memWaits + auditWaits + dueAudits.length + openClashes() + (S.finds || []).length;
+  const n = unread + dropWaits + memWaits + auditWaits + dueAudits.length + decisionCount() + (S.finds || []).length;
   $("inboxN").hidden = !n; $("inboxN").textContent = n > 99 ? "99+" : String(n);
-  btn.classList.toggle("run", running > 0 || (!!d && ["running", "storing"].includes(d.state)) || m?.state === "running" || auditing || !!S.findAt);
+  btn.classList.toggle("run", running > 0 || (!!d && ["running", "storing"].includes(d.state)) || m?.state === "running" || auditing || !!S.findAt || !!S.dcRun);
   btn.setAttribute("aria-label", n ? `Inbox, ${n} waiting` : "Inbox");
   if (!$("inbox").hidden) paintInboxPanel();
 }
@@ -3587,8 +3619,11 @@ function paintInboxPanel(){
       a.state === "running" ? `${a.step} · ${ago(a.at)}` : a.state === "failed" ? "Stopped on an error" : `Finished · ${a.summary}`, () => runAudit(ab, true))]);
   const due = S.demo ? [] : S.brains.filter(b => auditDue(b) && !(a?.state === "running" && a.slug === b.slug));
   if (due.length) group("Cleaning needed", due.map(b => item("clash", `Audit ${b.name}`, auditDue(b), () => runAudit(b))));
-  const clash = openClashes();
-  if (clash) group("Conflicts", [item("clash", `${clash} open clash${clash === 1 ? "" : "es"} to settle`, "One card at a time: keep a side, or both", () => settleFrom(null, null))]);
+  const clash = openClashes(), dn = decisionCount();
+  if (S.demo){ if (clash) group("Conflicts", [item("clash", `${clash} open clash${clash === 1 ? "" : "es"} to settle`, "One card at a time: keep a side, or both", () => settleFrom(null, null))]); }
+  else if (dn || S.dcRun) group("Decisions", [item(S.dcRun ? "run" : "clash",
+    S.dcRun ? `Applying ${S.dcRun.done} of ${S.dcRun.total}` : `${dn} decision${dn === 1 ? "" : "s"} ready`,
+    S.dcRun ? "It goes on while you look elsewhere" : "Each with a suggested call. Accept them all in one tap", () => openDecide())]);
   if (box.children.length === 1) box.append(el("p","ib-none","Nothing waiting. A question you send keeps running here while you look elsewhere."));
 }
 
@@ -3627,6 +3662,239 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("inbox"
    titles not in English, empty positions, and in the personal folder the
    people not filed and the same person twice. Due after 50 sources dropped
    since the last one; the personal folder, every week. The inbox says when. */
+
+/* ============ decisions: the self-driving inbox ============ */
+/**
+ * Everything waiting on a call, each with a suggested one and its reason:
+ * the open clashes, what an audit found (concepts filed twice, titles not in
+ * English, positions never written), and the people filed twice in the
+ * personal folder. Accept one, pick another call, or accept them all.
+ */
+const DC_TAG = { clash: "Clash", same: "Filed twice", rename: "Title", blank: "No position", person: "Same person" };
+const pairsOf = ids => { const k = []; for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) k.push([ids[i], ids[j]].sort().join("|")); return k; };
+function decisions(){
+  if (S.demo) return [];
+  const out = [], have = new Map(S.concepts.map(c => [`${c.brain}/${c.slug}`, c])), later = S.dcLater || new Set();
+  for (const c of S.clashes || []){
+    const h = c.hint || { pick: "both", why: "" };
+    out.push({ key: `clash|${c.id}|${c.a}|${c.b}`, kind: "clash", brain: c.brain, ids: [c.id], title: c.title, c,
+      lines: [`A${c.aDate ? `, ${c.aDate}` : ""}: ${c.a}`, `B${c.bDate ? `, ${c.bDate}` : ""}: ${c.b}`],
+      pick: h.pick, say: { a: "A holds", b: "B holds", both: "Both hold" }[h.pick] || "Both hold", why: h.why || "" });
+  }
+  for (const b of S.brains){
+    if (!auditable(b)) continue;
+    const apart = new Set(b.apart || []);
+    if (b.type === "personal"){
+      for (const g of samePeople(conceptsOf(b.slug).filter(c => c.tag === "contact"), b.apart || [])){
+        const keep = g.slice().sort((x, y) => y.title.length - x.title.length || (y.ev || 0) - (x.ev || 0))[0];
+        const n = g.reduce((t, c) => t + (c.ev || 0), 0);
+        out.push({ key: `person|${g.map(c => c.slug).sort().join("|")}`, kind: "person", brain: b.slug, ids: g.map(c => `${c.brain}/${c.slug}`),
+          title: g.map(c => c.title).join(" and "), lines: [], pick: "merge", say: `Merge into ${keep.title}`,
+          why: `the fuller name, ${n} mention${n === 1 ? "" : "s"} together`, keep: `${keep.brain}/${keep.slug}` });
+      }
+      continue;
+    }
+    const f = b.findings;
+    if (!f) continue;
+    for (const g of f.same || []){
+      const ids = g.map(x => x.id);
+      if (!ids.every(id => have.has(id)) || pairsOf(ids).every(k => apart.has(k))) continue;
+      const keep = have.get(ids[0]);
+      out.push({ key: `same|${ids.slice().sort().join("|")}`, kind: "same", brain: b.slug, ids, title: ids.map(id => have.get(id).title).join(" and "),
+        lines: g.map(x => `${have.get(x.id).title}: ${have.get(x.id).summaryLine || "no position yet"}`), pick: "merge",
+        say: `Merge into "${keep.title}"`, why: `one idea filed ${ids.length} times, and this title reads clearest`, keep: ids[0] });
+    }
+    for (const e of f.english || []){
+      const c = have.get(e.id);
+      if (!c || c.title !== e.title) continue;
+      out.push({ key: `rename|${e.id}`, kind: "rename", brain: b.slug, ids: [e.id], title: c.title, lines: [], pick: "rename",
+        say: `Rename to "${e.to}"`, why: "its title is not in English", to: e.to });
+    }
+    for (const x of f.blank || []){
+      const c = have.get(x.id);
+      if (!c || (c.summaryLine || "") !== (x.line || "")) continue;
+      out.push({ key: `blank|${x.id}`, kind: "blank", brain: b.slug, ids: [x.id], title: c.title, lines: [], pick: "write",
+        say: "Write its position", why: `it holds ${c.ev || 0} evidence line${c.ev === 1 ? "" : "s"} and no position` });
+    }
+  }
+  return out.filter(d => !later.has(d.key));
+}
+function decisionCount(){ return S.demo ? openClashes() : decisions().length + (S.clashes ? 0 : openClashes()); }
+function paintDecide(){ if (S.dcPaint) S.dcPaint(); }
+/** One decision made: the call it was given, sent. Says what changed, or throws. */
+async function applyDecision(d, pick){
+  const b = S.brains.find(x => x.slug === d.brain);
+  const title = id => S.concepts.find(c => `${c.brain}/${c.slug}` === id)?.title || id;
+  if (pick === "later"){ (S.dcLater ||= new Set()).add(d.key); return "Left for later."; }
+  if (pick === "apart"){
+    const r = await api("/api/brain/audit", { brain: d.brain, action: "apart", ids: d.ids });
+    if (r.error) throw new Error(r.error);
+    if (b) b.apart = [...new Set([...(b.apart || []), ...pairsOf(d.ids)])];
+    return "Kept apart. No audit asks again.";
+  }
+  if (d.kind === "clash"){
+    const r = await api("/api/conflicts/settle", { id: d.c.id, a: d.c.a, b: d.c.b, pick });
+    if (r.error || r.ok === false) throw new Error(r.error || r.why);
+    S.clashes = (S.clashes || []).filter(c => c !== d.c);
+    if (S.health[d.brain]) S.health[d.brain].open = Math.max(0, (S.health[d.brain].open || 0) - 1);
+    return { a: "A holds. Position written again.", b: "B holds. Position written again.", both: "Both hold." }[pick] || "Settled.";
+  }
+  if (d.kind === "same" || d.kind === "person"){
+    const from = d.ids.filter(x => x !== d.keep);
+    const r = d.kind === "same" ? await api("/api/concept/merge", { into: d.keep, from }) : await api("/api/personal/contact", { action: "merge", into: d.keep, from });
+    if (r.error) throw new Error(r.error);
+    const kept = title(d.keep);
+    S.concepts = S.concepts.filter(c => !from.includes(`${c.brain}/${c.slug}`));
+    return `Merged into ${kept}.`;
+  }
+  if (d.kind === "rename"){
+    if (pick === "keep"){
+      const r = await api("/api/brain/audit", { brain: d.brain, action: "dismiss", kind: "english", id: d.ids[0] });
+      if (r.error) throw new Error(r.error);
+      if (b?.findings) b.findings.english = (b.findings.english || []).filter(x => x.id !== d.ids[0]);
+      return "Title kept.";
+    }
+    const r = await api("/api/concept/rename", { id: d.ids[0], title: d.to });
+    if (r.error) throw new Error(r.error);
+    const c = S.concepts.find(x => `${x.brain}/${x.slug}` === d.ids[0]); if (c) c.title = d.to;
+    return `Renamed to ${d.to}.`;
+  }
+  if (d.kind === "blank"){
+    const r = await api("/api/concept/rederive", { ids: d.ids });
+    if (r.error) throw new Error(r.error);
+    if (!(r.written || []).length) throw new Error("its evidence gave no position. Drop a source on it.");
+    if (b?.findings) b.findings.blank = (b.findings.blank || []).filter(x => !d.ids.includes(x.id));
+    return "Position written from its evidence.";
+  }
+  throw new Error("nothing to do");
+}
+/** Every decision waiting, accepted as suggested, one after the other, in the background. */
+async function acceptAll(){
+  const ds = decisions();
+  if (!ds.length || S.dcRun) return;
+  S.dcRun = { done: 0, total: ds.length, ok: 0 }; S.dcErr = new Map();
+  paintInbox(); paintDecide();
+  const gone = new Set(), blanks = [];
+  for (const d of ds){
+    if (d.ids.some(id => gone.has(id))){ S.dcRun.done++; continue; }
+    if (d.kind === "blank"){ blanks.push(d); continue; }
+    try { await applyDecision(d, d.pick); S.dcRun.ok++; if (d.keep) d.ids.filter(x => x !== d.keep).forEach(x => gone.add(x)); }
+    catch (e) { S.dcErr.set(d.key, e.message); }
+    S.dcRun.done++; paintInbox(); paintDecide();
+  }
+  /* Positions are written 8 to a call. */
+  for (let i = 0; i < blanks.length; i += 8){
+    const part = blanks.slice(i, i + 8);
+    try {
+      const r = await api("/api/concept/rederive", { ids: part.map(d => d.ids[0]) });
+      const wrote = new Set(r.written || []);
+      for (const d of part){
+        if (wrote.has(d.ids[0])){ S.dcRun.ok++; const b = S.brains.find(x => x.slug === d.brain); if (b?.findings) b.findings.blank = (b.findings.blank || []).filter(x => x.id !== d.ids[0]); }
+        else S.dcErr.set(d.key, "its evidence gave no position. Drop a source on it.");
+      }
+    } catch (e) { for (const d of part) S.dcErr.set(d.key, e.message); }
+    S.dcRun.done += part.length; paintInbox(); paintDecide();
+  }
+  const ran = S.dcRun; S.dcRun = null;
+  S.dcLast = `${ran.ok} of ${ran.total} done${S.dcErr.size ? `, ${S.dcErr.size} need${S.dcErr.size === 1 ? "s" : ""} a look` : ""}.`;
+  try { await refresh(); } catch { /* the lists catch up on the next load */ }
+  paintInbox(); paintDecide();
+}
+/** A folder due for an audit is read in the background, once a session: what it finds waits in the inbox as decisions. */
+async function autoAudit(){
+  if (S.demo || S.autoAudited) return;
+  const b = S.brains.find(x => x.type !== "personal" && auditDue(x));
+  if (!b) return;
+  S.autoAudited = true;
+  try {
+    const r = await api("/api/brain/tidy", { brain: b.slug });
+    if (r.error) return;
+    const x = S.brains.find(y => y.slug === b.slug);
+    if (x) x.findings = { same: r.same || [], english: r.english || [], blank: (r.blank || []).slice(0, 40) };
+    await auditDone(b);
+  } catch { /* it stays due: Settings, Audit runs it by hand */ }
+  paintInbox(); paintDecide();
+}
+/**
+ * The decisions, grouped by folder and topic, each with its suggested call
+ * and the reason. Accept, pick another call, or leave it for later.
+ */
+async function openDecide(){
+  closeInbox();
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet dc-sheet" role="dialog" aria-modal="true" aria-label="Decisions">
+      <header><h3>Decisions</h3><p id="dcSay"></p>
+        <div class="dc-top"><button class="go" id="dcAll" type="button"></button><span class="dc-state" id="dcState" role="status"></span></div></header>
+      <div class="f" id="dcList"></div>
+      <footer><button class="ghost" id="dcDone" type="button">Done</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const list = veil.querySelector("#dcList"), say = veil.querySelector("#dcSay"), all = veil.querySelector("#dcAll"), state = veil.querySelector("#dcState");
+  const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
+  const shut = () => { document.removeEventListener("keydown", onKey); S.dcPaint = null; veil.remove(); };
+  document.addEventListener("keydown", onKey);
+  veil.querySelector("#dcDone").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  all.onclick = () => acceptAll();
+  const said = new Map();       // what each one did, while this sheet is open
+  /* Topics name the groups: one fetch per folder, kept for the session. */
+  S.topicsOf ||= {};
+  const topicOf = id => { const t = (S.topicsOf[id.split("/")[0]] || []).find(t => t.members.includes(id)); return t ? t.title : ""; };
+  const ALT = { clash: [["a", "A holds"], ["b", "B holds"], ["both", "Both hold"]], same: [["apart", "Keep apart"]], person: [["apart", "Keep apart"]],
+    rename: [["keep", "Keep this title"]], blank: [] };
+  const paint = () => {
+    const ds = decisions(), run = S.dcRun;
+    say.textContent = ds.length ? `${ds.length} waiting, each with a suggested call and its reason. Accept one, pick another call, or accept them all.`
+      : "Nothing waiting. Clashes, things filed twice and audit findings land here.";
+    all.hidden = !ds.length && !run;
+    all.disabled = !!run;
+    all.textContent = run ? `Applying ${run.done} of ${run.total}` : `Accept all ${ds.length}`;
+    state.textContent = run ? "You can close this: it goes on." : S.dcLast || "";
+    list.innerHTML = "";
+    const groups = new Map();
+    for (const d of ds){
+      const name = S.brains.find(b => b.slug === d.brain)?.name || d.brain;
+      const g = d.kind === "person" ? `${name} · People` : [name, topicOf(d.ids[0])].filter(Boolean).join(" · ");
+      (groups.get(g) || groups.set(g, []).get(g)).push(d);
+    }
+    for (const [g, rows] of groups){
+      const sec = el("section","dc-g"); sec.append(el("h4",null,`${g} · ${rows.length}`));
+      for (const d of rows){
+        const row = el("div","dc-row"); row.dataset.key = d.key; row.dataset.kind = d.kind;
+        const top = el("div","dc-head"); top.append(el("span","dc-tag",DC_TAG[d.kind]), el("b","dc-t",d.title)); row.append(top);
+        for (const l of d.lines) row.append(el("p","dc-l",l));
+        const hint = el("p","dc-hint"); hint.append(el("b",null,`Suggested: ${d.say}`), d.why ? `. ${d.why[0].toUpperCase()}${d.why.slice(1)}${/[.!?]$/.test(d.why) ? "" : "."}` : ""); row.append(hint);
+        const msg = el("p","dc-msg"); if (S.dcErr?.has(d.key)){ msg.textContent = S.dcErr.get(d.key); msg.classList.add("bad"); } row.append(msg);
+        const acts = el("div","dc-acts");
+        const act = (label, pick, cls) => {
+          const x = el("button", cls, label); x.type = "button"; x.disabled = !!run;
+          x.onclick = async () => {
+            acts.querySelectorAll("button").forEach(y => y.disabled = true); msg.className = "dc-msg"; msg.textContent = "Working";
+            try { said.set(d.key, `${d.title}: ${await applyDecision(d, pick)}`); S.dcErr?.delete(d.key); paintInbox(); paint(); if (pick !== "later") refresh().catch(() => {}); }
+            catch (e) { msg.className = "dc-msg bad"; msg.textContent = e.message; acts.querySelectorAll("button").forEach(y => y.disabled = false); }
+          };
+          acts.append(x);
+        };
+        act("Accept", d.pick, "go dc-ok");
+        for (const [p, label] of ALT[d.kind] || []) if (p !== d.pick) act(label, p, "ghost");
+        act("Later", "later", "ghost");
+        row.append(acts); sec.append(row);
+      }
+      list.append(sec);
+    }
+    if (said.size){
+      const sec = el("section","dc-g dc-said"); sec.append(el("h4",null,`Done here · ${said.size}`));
+      for (const t of [...said.values()].reverse()) sec.append(el("p","dc-done",t));
+      list.append(sec);
+    }
+  };
+  S.dcPaint = paint;
+  paint();
+  const need = [...new Set(decisions().map(d => d.brain))].filter(slug => !S.topicsOf[slug] && S.brains.find(b => b.slug === slug)?.type !== "personal");
+  await Promise.all(need.map(slug => api("/api/topics", { brain: slug }).then(r => { S.topicsOf[slug] = r.topics || []; }).catch(() => { S.topicsOf[slug] = []; })));
+  if (veil.isConnected) paint();
+}
 
 /* ============ scouts ============ */
 /**
@@ -4554,6 +4822,7 @@ function openConflictDeck(list, others){
         <div class="dk-side" data-s="b"><span class="dk-tag">B &rarr;</span><p>${esc(c.b)}</p><time>${esc(c.bDate || "undated")}</time></div>
       </div>
       ${c.why ? `<div class="dk-why">They differ because ${esc(c.why.replace(/^[A-Z]/, m => m.toLowerCase()))}</div>` : ""}
+      ${c.hint ? `<div class="dk-hint">Suggested: ${esc(LABEL[c.hint.pick] || c.hint.pick)}${c.hint.why ? `. ${esc(c.hint.why)}` : ""}</div>` : ""}
       <div class="dk-stamp"></div>`;
     drag(n);
     stage.append(n); card = n;
@@ -6232,6 +6501,8 @@ function openFolder(b, openId, opts = {}){
     try { r = await api("/api/brain/tidy", { brain: b.slug }); if (r.error) throw new Error(r.error); }
     catch (e) { load.end(false); inner.append(el("div","fv-li bad",e.message), feedbackButton(e.message, { where: "audit", scope: b.slug })); return; }
     auditDone(b);
+    const kept = S.brains.find(y => y.slug === b.slug);
+    if (kept) kept.findings = { same: r.same, english: r.english, blank: r.blank.slice(0, 40) };
     const found = r.same.length + r.english.length + r.blank.length;
     load.end(true, found ? `${found} to decide` : "all clean");
     n.textContent = `${r.total} concepts read${r.read < r.total ? `, the newest ${r.read}` : ""}. ` +
@@ -6653,7 +6924,12 @@ function tidyCards(inner, r, onChange, tally = {}){
       const say = el("span","td-say");
       acts.append(go, no, say); card.append(acts);
       /* Kept apart for good: the next audit never proposes them again. */
-      no.onclick = () => { card.classList.add("gone"); api("/api/brain/audit", { brain: r.brain, action: "apart", ids: g.map(c => c.id) }).catch(() => {}); };
+      no.onclick = () => {
+        card.classList.add("gone"); api("/api/brain/audit", { brain: r.brain, action: "apart", ids: g.map(c => c.id) }).catch(() => {});
+        const kept = S.brains.find(y => y.slug === r.brain);
+        if (kept) kept.apart = [...new Set([...(kept.apart || []), ...pairsOf(g.map(c => c.id))])];
+        paintInbox();
+      };
       const merge = async () => {
         if (card.classList.contains("done") || card.classList.contains("gone")) return true;
         const keep = card.querySelector("input:checked")?.value || g[0].id;

@@ -2888,8 +2888,8 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#inboxBtn"); await page.waitForTimeout(80);
   const panel = await page.evaluate(() => ({ open: !document.getElementById("inbox").hidden, groups: [...document.querySelectorAll("#inbox .ib-g h4")].map(x => x.textContent),
     items: [...document.querySelectorAll("#inbox .ib-t")].map(x => x.textContent) }));
-  check("the bubble opens a panel: answers ready, then the clashes", panel.open && JSON.stringify(panel.groups) === '["Answers ready","Conflicts"]'
-    && panel.items[0] === "slow one" && panel.items[1] === "3 open clashes to settle", JSON.stringify(panel));
+  check("the bubble opens a panel: answers ready, then the decisions, the clashes among them", panel.open && JSON.stringify(panel.groups) === '["Answers ready","Decisions"]'
+    && panel.items[0] === "slow one" && panel.items[1] === "3 decisions ready", JSON.stringify(panel));
   await page.click("#inbox .ib-it.new"); await page.waitForTimeout(200);
   const opened = await page.evaluate(() => ({ get: window.__gets.pop(), text: document.getElementById("thread").textContent, closed: document.getElementById("inbox").hidden }));
   check("an answer ready opens its chat, and counts as read", opened.get === "c-slow" && /Answer to slow one/.test(opened.text) && opened.closed && await badge() === "3", JSON.stringify(opened));
@@ -3050,13 +3050,11 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#inboxBtn"); await page.waitForTimeout(80);
   const due = await page.evaluate(() => ({ badge: document.getElementById("inboxN").textContent,
     items: [...document.querySelectorAll("#inbox .ib-g")].filter(g => g.querySelector("h4").textContent === "Cleaning needed").flatMap(g => [...g.querySelectorAll(".ib-it")].map(x => x.textContent)) }));
-  check("the inbox asks for an audit: a folder with 50 sources since its last one, the personal folder after a week, never a folder shared in",
-    JSON.stringify(due.items) === '["Audit Content58 sources dropped since the last audit","Audit Melast audit 9 days ago"]' && due.badge === "2", JSON.stringify(due));
-  await page.click("#inbox .ib-it >> text=Audit Content"); await page.waitForTimeout(300);
-  const ran = await page.evaluate(() => ({ pane: !!document.getElementById("tidyPane"), stamp: window.__calls.filter(x => x.s.includes("/api/brain/audit")).pop()?.body,
-    badge: document.getElementById("inboxN").hidden ? "" : document.getElementById("inboxN").textContent }));
-  check("a tap runs that folder's audit, and once stamped it leaves the inbox", ran.pane && ran.stamp?.brain === "content" && ran.badge === "1", JSON.stringify(ran));
-  await page.click("#inboxBtn"); await page.waitForTimeout(80);
+  const auto = await page.evaluate(() => ({ tidy: window.__calls.filter(x => x.s.includes("/api/brain/tidy")).map(x => x.body.brain),
+    stamp: window.__calls.filter(x => x.s.includes("/api/brain/audit")).map(x => x.body.brain) }));
+  check("a folder with 50 sources since its last audit is audited on its own, once, and leaves the inbox; never a folder shared in",
+    JSON.stringify(auto.tidy) === '["content"]' && JSON.stringify(auto.stamp) === '["content"]', JSON.stringify(auto));
+  check("the personal folder, due after a week, waits in the inbox: its people need you", JSON.stringify(due.items) === '["Audit Melast audit 9 days ago"]' && due.badge === "2", JSON.stringify(due));
   await page.click("#inbox .ib-it >> text=Audit Me"); await page.waitForTimeout(400);
   const me = await page.evaluate(() => ({ pairs: [...document.querySelectorAll("#auditPane .td-card")].map(c => [...c.querySelectorAll(".td-opt b")].map(b => b.textContent).join("+")),
     fin: document.querySelector("#auditPane .au-fin")?.textContent, load: !!document.querySelector("#auditPane .au-load") }));
@@ -3071,7 +3069,7 @@ for (const space of ["octopus", "squidgy"]) {
 
 /* ---- an audit shows it runs, and says when it finished, here or in the inbox ---- */
 {
-  const st = { ...STATE, brains: [{ slug: "content", name: "Content", type: "subject", scope: "c" }],
+  const st = { ...STATE, brains: [{ slug: "content", name: "Content", type: "subject", scope: "c", audit: { at: new Date().toISOString().slice(0, 10), sources: 60 } }],
     concepts: [{ brain: "content", slug: "a", n: 1, title: "A" }, { brain: "content", slug: "b", n: 2, title: "B" }],
     sources: Array.from({ length: 60 }, (_, i) => ({ sid: "s" + i, brains: ["content"] })) };
   const { page, bad } = await boot("/chat.html", state => {
@@ -3087,8 +3085,9 @@ for (const space of ["octopus", "squidgy"]) {
     };
   }, st);
   await page.waitForTimeout(200);
-  await page.click("#inboxBtn"); await page.waitForTimeout(80);
-  await page.click("#inbox .ib-it >> text=Audit Content"); await page.waitForTimeout(1300);
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
+  await page.click("#auditBlock > summary");
+  await page.click('#auditList .au-row[data-slug="content"] button'); await page.waitForTimeout(1300);
   const run = await page.evaluate(() => ({ spin: !!document.querySelector("#tidyPane .au-load .spinner"), step: document.querySelector("#tidyPane .au-step")?.textContent,
     time: document.querySelector("#tidyPane .au-time")?.textContent, ring: document.getElementById("inboxBtn").classList.contains("run") }));
   check("a running audit shows the turning mark, its step and the time it has run, and the inbox ring turns",
@@ -3108,6 +3107,72 @@ for (const space of ["octopus", "squidgy"]) {
   check("a tap brings its pane back, finished, with no second run, and the inbox lets go",
     /^Audit finished in \d+s\.$/.test(back.fin || "") && !back.spin && /^All clean/.test(back.clean || "") && back.badge && back.tidies === 1, JSON.stringify(back));
   check("nothing threw around a running audit", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- decisions: every call waiting, each with a suggested one, grouped by topic, accepted in one tap ---- */
+{
+  const today = new Date().toISOString().slice(0, 10);
+  const st = { ...STATE, brains: [
+      { slug: "content", name: "Content", type: "subject", scope: "c", audit: { at: today, sources: 0 },
+        findings: { same: [[{ id: "content/a", title: "Offer first", ev: 5 }, { id: "content/b", title: "Offer before audience", ev: 2 }]],
+          english: [{ id: "content/c", title: "Ancrage des prix", to: "Price anchoring" }, { id: "content/e", title: "Marque", to: "Brand voice" }], blank: [{ id: "content/d", title: "Pricing", line: "" }] } },
+      { slug: "me", name: "Me", type: "personal", scope: "", audit: { at: today, sources: 0 } }],
+    concepts: [{ brain: "content", slug: "a", n: 1, title: "Offer first", summaryLine: "An offer beats an audience", ev: 5 },
+      { brain: "content", slug: "b", n: 2, title: "Offer before audience", summaryLine: "Sell first", ev: 2 },
+      { brain: "content", slug: "c", n: 3, title: "Ancrage des prix", summaryLine: "Anchor high", ev: 1 },
+      { brain: "content", slug: "e", n: 5, title: "Marque", summaryLine: "One voice", ev: 1 },
+      { brain: "content", slug: "d", n: 4, title: "Pricing", summaryLine: "", ev: 3 },
+      { brain: "me", slug: "marc", n: 1, title: "Marc", tag: "contact", ev: 6 }, { brain: "me", slug: "marc-dupont", n: 2, title: "Marc Dupont", tag: "contact", ev: 2 }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    let open = 1;
+    const drop = ids => { state.concepts = state.concepts.filter(c => !ids.includes(`${c.brain}/${c.slug}`)); };
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/health")) return Response.json({ conflicted: open ? ["content/a"] : [], health: [{ slug: "content", score: 7, open, best: "x", parts: {} }] });
+      if (s.includes("/api/conflicts/settle")){ open = 0; return Response.json({ ok: true }); }
+      if (s.includes("/api/conflicts")) return Response.json({ others: 0, conflicts: open ? [{ id: "content/a", brain: "content", title: "Offer first", a: "Offers win", aDate: "2025-01-01",
+        b: "Audience wins", bDate: "2026-03-01", why: "", hint: { pick: "b", why: "The later claim: 2026-03-01 over 2025-01-01" } }] : [] });
+      if (s.includes("/api/topics")) return Response.json({ topics: [{ title: "Offers", members: ["content/a", "content/b"] }] });
+      if (s.includes("/api/concept/merge")){ drop(body.from); return Response.json({ ok: true }); }
+      if (s.includes("/api/personal/contact")){ drop(body.from); return Response.json({ ok: true }); }
+      if (s.includes("/api/concept/rename")){ state.concepts.find(c => `${c.brain}/${c.slug}` === body.id).title = body.title; return Response.json({ ok: true }); }
+      if (s.includes("/api/concept/rederive")){ for (const id of body.ids) state.concepts.find(c => `${c.brain}/${c.slug}` === id).summaryLine = "Price on value"; return Response.json({ written: body.ids }); }
+      if (s.includes("/api/brain/audit")){ if (body.action === "dismiss") state.brains[0].findings.english = state.brains[0].findings.english.filter(x => x.id !== body.id); return Response.json({ ok: true }); }
+      return Response.json({ chats: [] });
+    };
+  }, st);
+  await page.waitForTimeout(500);
+  const hinted = await page.evaluate(() => window.__calls.filter(x => x.s.endsWith("/api/conflicts")).map(x => x.body.hints));
+  await page.click("#inboxBtn"); await page.waitForTimeout(80);
+  const ib = await page.evaluate(() => ({ badge: document.getElementById("inboxN").textContent,
+    item: [...document.querySelectorAll("#inbox .ib-g")].find(g => g.querySelector("h4").textContent === "Decisions")?.querySelector(".ib-it")?.textContent }));
+  check("the inbox gathers every call waiting as decisions: a clash, things filed twice, titles, empty positions, the same person twice",
+    JSON.stringify(hinted) === "[true]" && ib.item === "6 decisions readyEach with a suggested call. Accept them all in one tap" && ib.badge === "6", JSON.stringify({ hinted, ib }));
+  await page.click("#inbox .ib-it >> text=6 decisions ready"); await page.waitForTimeout(300);
+  const sheet = await page.evaluate(() => ({ groups: [...document.querySelectorAll(".dc-g h4")].map(h => h.textContent), all: document.getElementById("dcAll").textContent,
+    rows: [...document.querySelectorAll(".dc-row")].map(r => `${r.querySelector(".dc-tag").textContent}|${r.querySelector(".dc-t").textContent}|${r.querySelector(".dc-hint").textContent}|${[...r.querySelectorAll(".dc-acts button")].map(b => b.textContent).join("/")}`) }));
+  check("grouped by folder and topic, each with its suggested call and the reason",
+    JSON.stringify(sheet.groups) === '["Content · Offers · 2","Content · 3","Me · People · 1"]' && sheet.all === "Accept all 6"
+    && sheet.rows[0] === "Clash|Offer first|Suggested: B holds. The later claim: 2026-03-01 over 2025-01-01.|Accept/A holds/Both hold/Later"
+    && sheet.rows[1] === 'Filed twice|Offer first and Offer before audience|Suggested: Merge into "Offer first". One idea filed 2 times, and this title reads clearest.|Accept/Keep apart/Later'
+    && sheet.rows[2] === 'Title|Ancrage des prix|Suggested: Rename to "Price anchoring". Its title is not in English.|Accept/Keep this title/Later'
+    && sheet.rows[4] === "No position|Pricing|Suggested: Write its position. It holds 3 evidence lines and no position.|Accept/Later"
+    && sheet.rows[5] === "Same person|Marc and Marc Dupont|Suggested: Merge into Marc Dupont. The fuller name, 8 mentions together.|Accept/Keep apart/Later", JSON.stringify(sheet));
+  await page.click('.dc-row[data-key="rename|content/c"] button >> text=Keep this title'); await page.waitForTimeout(300);
+  const kept = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s.includes("/api/brain/audit")).pop()?.body, left: document.querySelectorAll(".dc-row").length,
+    said: [...document.querySelectorAll(".dc-done")].map(x => x.textContent) }));
+  check("another call is one tap: the title kept, for good, and said under Done here", kept.call?.action === "dismiss" && kept.call?.kind === "english" && kept.call?.id === "content/c"
+    && kept.left === 5 && JSON.stringify(kept.said) === '["Ancrage des prix: Title kept."]', JSON.stringify(kept));
+  await page.click("#dcAll"); await page.waitForTimeout(900);
+  const after = await page.evaluate(() => ({ calls: window.__calls.filter(x => /conflicts\/settle|concept\/merge|concept\/rename|concept\/rederive|personal\/contact/.test(x.s)).map(x => x.s.split("/api/")[1] + ":" + JSON.stringify(x.body.pick ?? x.body.into ?? x.body.title ?? x.body.ids)),
+    say: document.getElementById("dcSay").textContent, state: document.getElementById("dcState").textContent, badge: document.getElementById("inboxN").hidden }));
+  check("Accept all applies every suggestion, then the inbox lets go", JSON.stringify(after.calls) === JSON.stringify(['conflicts/settle:"b"', 'concept/merge:"content/a"', 'concept/rename:"Brand voice"', 'personal/contact:"me/marc-dupont"', 'concept/rederive:["content/d"]'])
+    && /^Nothing waiting/.test(after.say) && after.state === "5 of 5 done." && after.badge, JSON.stringify(after));
+  check("nothing threw around the decisions", !bad.length, bad.join(" | "));
   await page.close();
 }
 

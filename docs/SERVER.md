@@ -261,7 +261,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/map` | Every folder, concept and link for the map, each link with its kind, and the heat: the questions each concept answered in 90 days. A personal brain is never counted | Yes |
 | `/api/scouts` | The feeds a folder follows, by `action`: `list`, `add` (finds the feed behind a YouTube channel or video, a feed, or a site, then keeps its 3 newest pieces of 21 days), `remove`, `check` (reads every feed now). No model call | Yes, owner |
 | `/api/finds` | What the scouts found, by `action`: `list` the ones waiting, `read` one against its folder once (one model call, on the workspace's key and its fetch allowance), `text` (what it read, so the drop reads it free), `skip`, `dropped` | Yes, owner |
-| `/api/conflicts` | The open conflicts that are real contradictions. Each clash is checked once and marked | Yes |
+| `/api/conflicts` | The open conflicts that are real contradictions. Each clash is checked once and marked. With `hints`, each gets a suggested ruling and its reason, 20 clashes to a model call, kept on the clash so it is asked once; with no answer, the later date suggests one | Yes |
 | `/api/conflicts/settle` | Settles one: the side that holds rewrites the position, or both hold and it only leaves the list | Yes |
 | `/api/passphrase` | Changes the workspace's passphrase: the current one is checked against the same 8 tries an hour, the others are signed out | Owner |
 | `/api/share` | Share brain: the owner of a brain's workspace puts it in one more workspace, or takes it back, one workspace at a time. The owner's other workspace can feed it; the demo only reads it. A workspace can leave a brain it was given. Never a personal brain | Owner |
@@ -287,8 +287,8 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/usage` | What transcripts have cost, from both sides | Yes |
 | `/api/doc` | The connector page's words, served rather than published | Yes |
 | `/api/lock` | Drops the session | Yes |
-| `/api/brain/tidy` | Reads one folder for concepts filed twice, titles not in English and concepts with no position. Proposes only | Yes, owner |
-| `/api/brain/audit` | Stamps a folder's last audit: its date and its source count. With `action: "apart"`, keeps a pair of concepts or people apart, so no audit proposes them again | Yes, owner |
+| `/api/brain/tidy` | Reads one folder for concepts filed twice, titles not in English and concepts with no position. Proposes only, and keeps what it found on the folder, for the inbox's decisions | Yes, owner |
+| `/api/brain/audit` | Stamps a folder's last audit: its date and its source count. With `action: "apart"`, keeps a pair of concepts or people apart, so no audit proposes them again. With `action: "dismiss"`, takes one finding off the folder: a title kept, a position left empty | Yes, owner |
 | `/api/concept/merge` | Folds concepts of one folder into the one kept, then writes its position again from the joined evidence | Yes, owner |
 | `/api/concept/rename` | Changes a concept's title. Its id and links stay | Yes, owner |
 | `/api/concept/rederive` | Writes positions again from the evidence each concept holds, eight per call | Yes |
@@ -339,7 +339,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 
 | Table | Holds | Indexed by |
 |---|---|---|
-| `brains` | name, type, scope, created, visibility, owner, space; `audit`, the last audit's date and source count; `apart`, the pairs kept apart | slug |
+| `brains` | name, type, scope, created, visibility, owner, space; `audit`, the last audit's date and source count; `apart`, the pairs kept apart; `findings`, what the last audit found | slug |
 | `concepts` | brain, title, position, summaryLine, evidence, data, conflicts, sources, links and their kinds; in a personal brain, `tag: "contact"` and the other names a person goes by | brain, then slug |
 | `sources` | id, link, date, author, location, brains | link, and the normalised link |
 | `notes` | the six note sections | source id |

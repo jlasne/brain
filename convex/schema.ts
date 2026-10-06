@@ -105,6 +105,9 @@ export default defineSchema({
     audit: v.optional(v.object({ at: v.string(), sources: v.number() })),
     /* Pairs of concepts or people you said to keep apart, so an audit never asks again. */
     apart: v.optional(v.array(v.string())),
+    /* What the last audit found, for the inbox to offer: concepts filed twice,
+       titles not in English, concepts with no position. */
+    findings: v.optional(v.any()),
   }).index("by_slug", ["slug"]),
 
   concepts: defineTable({

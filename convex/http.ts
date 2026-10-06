@@ -523,7 +523,7 @@ route("/api/topics", async (ctx, _req, b) => {
 route("/api/conflicts", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   await demoCount(ctx, who, "step");
-  return await listConflicts(ctx, who.space, modelFor(who, b), keyFor(who));
+  return await listConflicts(ctx, who.space, modelFor(who, b), keyFor(who), { hints: b.hints === true && !who.demo });
 });
 
 /** Settle one conflict: a side holds and the position is rewritten, or both hold. */
@@ -569,7 +569,11 @@ route("/api/brain/merge", async (ctx, _req, b) => {
  */
 route("/api/brain/tidy", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  return await tidyScan(ctx, who, String(b.brain ?? ""), keyFor(who), modelFor(who, b));
+  const r: any = await tidyScan(ctx, who, String(b.brain ?? ""), keyFor(who), modelFor(who, b));
+  /* Kept on the folder, so the inbox offers each finding until it is decided. */
+  if (!r.error) await ctx.runMutation(internal.store.findingsSet, { space: who.space, brain: r.brain,
+    findings: { at: new Date().toISOString().slice(0, 10), same: r.same, english: r.english, blank: r.blank.slice(0, 40) } });
+  return r;
 });
 
 /** Concepts of one folder holding one idea, joined into the first, its position written again. */
@@ -1376,6 +1380,12 @@ route("/api/brain/audit", async (ctx, _req, b) => {
     const ids = (Array.isArray(b.ids) ? b.ids : []).map(String).filter((x: string) => x.startsWith(brain.slug + "/"));
     if (ids.length < 2) return { error: "name two concepts to keep apart" };
     return await ctx.runMutation(internal.store.auditMark, { space: who.space, brain: brain.slug, apart: ids });
+  }
+  /* A finding you ruled out: a title kept as it is, a position left empty. */
+  if (b.action === "dismiss") {
+    const kind = String(b.kind ?? "");
+    if (!["english", "blank"].includes(kind)) return { error: "say english or blank" };
+    return await ctx.runMutation(internal.store.findingsDrop, { space: who.space, brain: brain.slug, kind, id: String(b.id ?? "") });
   }
   return await ctx.runMutation(internal.store.auditMark, { space: who.space, brain: brain.slug });
 });

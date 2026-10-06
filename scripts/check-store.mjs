@@ -372,6 +372,15 @@ function seed() {
   const again = await conflicts.listConflicts(actx, "octopus");
   check("so a second look calls no model", calls === 1 && again.conflicts.length === 1, `${calls} calls`);
 
+  reply = '{"hints":[{"pick":"b","why":"The later claim, September 2026, with a number"}]}';
+  const hinted = await conflicts.listConflicts(actx, "octopus", undefined, undefined, { hints: true });
+  check("asked for them, each clash gets a suggested ruling and its reason, kept on the concept", calls === 2 && hinted.conflicts[0].hint?.pick === "b"
+    && T.concepts[0].conflicts[0].hint?.why === "The later claim, September 2026, with a number", JSON.stringify(hinted.conflicts[0]));
+  const hintedAgain = await conflicts.listConflicts(actx, "octopus", undefined, undefined, { hints: true });
+  check("so the next look asks no model for it", calls === 2 && hintedAgain.conflicts[0].hint?.pick === "b", `${calls} calls`);
+  check("with no model answer, the dates suggest one: the later claim holds, or both",
+    conflicts.ruleHint({ a: "x", aDate: "2025-01-01", b: "y", bDate: "2026-01-01" }).pick === "b" && conflicts.ruleHint({ a: "x", aDate: "", b: "y", bDate: "" }).pick === "both");
+
   reply = '{"position":"NEW: Gold lost 20% since January 2025, a correction. An earlier view held that gold keeps its value (2026-01-01).","summaryLine":"Gold fell 20% since January 2025, a correction."}';
   const c0 = first.conflicts[0];
   const r = await conflicts.settleConflict(actx, "octopus", { id: c0.id, a: c0.a, b: c0.b, pick: "b" });
@@ -992,6 +1001,17 @@ function seed() {
   check("good JSON reads as it is", good.a === 'say "hi"' && good.b[1].c === null, JSON.stringify(good));
   check("a reply cut by the token budget still says so", /cut off by the token budget/.test(read('{"a":', "length").error || ""));
   check("prose with no JSON still fails, and says what came back", /held no JSON/.test(read("I could not read this source.").error || ""));
+}
+
+/* ---- what an audit found stays on the folder until it is decided ---- */
+{
+  const { T, ctx } = seed();
+  await run(store.findingsSet, ctx, { space: "octopus", brain: "wealth", findings: { at: "2026-10-06", same: [], english: [{ id: "wealth/gold", to: "Gold" }, { id: "wealth/silver", to: "Silver" }], blank: [] } });
+  await run(store.findingsSet, ctx, { space: "octopus", brain: "dogs", findings: { english: [{ id: "x" }] } });
+  const r = await run(store.findingsDrop, ctx, { space: "octopus", brain: "wealth", kind: "english", id: "wealth/gold" });
+  const wealth = T.brains.find(b => b.slug === "wealth"), dogs = T.brains.find(b => b.slug === "dogs");
+  check("an audit's findings are kept on its folder, and one ruled out leaves for good, in its own workspace only",
+    r.ok && JSON.stringify(wealth.findings.english) === '[{"id":"wealth/silver","to":"Silver"}]' && !dogs.findings, JSON.stringify([wealth.findings, dogs.findings]));
 }
 
 /* ---- the map's heat: questions per concept, per workspace ---- */

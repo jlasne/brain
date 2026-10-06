@@ -1056,6 +1056,47 @@ export const flagConflicts = internalMutation({
   },
 });
 
+/** The ruling suggested for each clash, kept so it is asked once. */
+export const hintConflicts = internalMutation({
+  args: { space: v.optional(v.string()), hints: v.array(v.object({ id: v.string(), a: v.string(), b: v.string(), pick: v.string(), why: v.string() })) },
+  handler: async (ctx, a) => {
+    const by = new Map<string, typeof a.hints>();
+    for (const h of a.hints) by.set(h.id, [...(by.get(h.id) ?? []), h]);
+    for (const [id, hs] of by) {
+      const c = await conceptIn(ctx, a.space, id);
+      if (!c) continue;
+      const next = (c.conflicts ?? []).map((x: any) => {
+        const h = hs.find(y => sameClash(x, y.a, y.b));
+        return h ? { ...x, hint: { pick: h.pick, why: h.why } } : x;
+      });
+      await ctx.db.patch(c._id, { conflicts: next });
+      await syncCard(ctx, c._id);
+    }
+  },
+});
+
+/** One finding taken off a folder's list, for good. */
+export const findingsDrop = internalMutation({
+  args: { space: v.string(), brain: v.string(), kind: v.string(), id: v.string() },
+  handler: async (ctx, a) => {
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.brain)).unique();
+    if (!b || !inSpace(b, readSpace(a.space)) || !b.findings) return { ok: false };
+    const f: any = b.findings, list = Array.isArray(f[a.kind]) ? f[a.kind] : [];
+    await ctx.db.patch(b._id, { findings: { ...f, [a.kind]: list.filter((x: any) => x?.id !== a.id) } });
+    return { ok: true };
+  },
+});
+
+/** What an audit of a folder found, kept on the folder for the inbox. */
+export const findingsSet = internalMutation({
+  args: { space: v.string(), brain: v.string(), findings: v.any() },
+  handler: async (ctx, a) => {
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.brain)).unique();
+    if (!b || !inSpace(b, readSpace(a.space))) return;
+    await ctx.db.patch(b._id, { findings: a.findings });
+  },
+});
+
 /**
  * Settle one open conflict: it leaves the list, and when the owner picked a
  * side, the position rewritten around it replaces the old one.

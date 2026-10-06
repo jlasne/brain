@@ -44,10 +44,29 @@ RULES
 
 Reply with only JSON: {"position":"","summaryLine":""}`;
 
-export type Clash = { id: string; brain: string; title: string; a: string; aDate: string; b: string; bDate: string; why: string; real?: boolean };
+export type Hint = { pick: string; why: string; rule?: boolean };
+export type Clash = { id: string; brain: string; title: string; a: string; aDate: string; b: string; bDate: string; why: string; real?: boolean; hint?: Hint };
+
+const HINT_RULES = `Each item below is two claims on one concept of a knowledge base that contradict. Suggest the ruling a careful analyst would make.
+
+RULES
+- "a" or "b": that side holds. Between two claims on the same measure, the later date holds. A claim with a number and a date beats a vague one.
+- "both": they speak of different times, places, cases or horizons, so both hold.
+- why: under 14 words, naming the date, the number or the difference that decides. English. No em-dashes.
+
+Reply with only JSON, one answer per item, in order: {"hints":[{"pick":"b","why":""}]}`;
+
+/** The ruling the dates alone suggest, when no model answered: the later one holds, or both. */
+export function ruleHint(c: Clash): Hint {
+  if (c.aDate && c.bDate && c.aDate !== c.bDate) {
+    const b = c.bDate > c.aDate;
+    return { pick: b ? "b" : "a", why: `The later claim: ${b ? c.bDate : c.aDate} over ${b ? c.aDate : c.bDate}`, rule: true };
+  }
+  return { pick: "both", why: "Neither side is dated later, so both stay until a source settles it", rule: true };
+}
 
 /** Every open conflict of a space, each marked real or not, the unmarked ones checked once. */
-export async function listConflicts(ctx: any, space: string, model?: string, key?: string): Promise<{ conflicts: Clash[]; others: number }> {
+export async function listConflicts(ctx: any, space: string, model?: string, key?: string, opts: { hints?: boolean } = {}): Promise<{ conflicts: Clash[]; others: number }> {
   const head = await ctx.runQuery(internal.store.spaceHead, { space });
   const all: Clash[] = [];
   for (const br of head.brains) {
@@ -57,7 +76,8 @@ export async function listConflicts(ctx: any, space: string, model?: string, key
       for (const c of p.items) for (const x of c.conflicts ?? []) {
         all.push({ id: c.id, brain: c.brain, title: c.title, a: String(x?.a ?? ""), aDate: String(x?.aDate ?? ""),
                    b: String(x?.b ?? ""), bDate: String(x?.bDate ?? ""), why: String(x?.why ?? ""),
-                   ...(typeof x?.real === "boolean" ? { real: x.real } : {}) });
+                   ...(typeof x?.real === "boolean" ? { real: x.real } : {}),
+                   ...(x?.hint?.pick ? { hint: { pick: String(x.hint.pick), why: String(x.hint.why ?? "") } } : {}) });
       }
       if (!p.next) break;
       cursor = p.next;
@@ -84,6 +104,33 @@ export async function listConflicts(ctx: any, space: string, model?: string, key
   }
 
   const shown = all.filter(c => c.real !== false);
+
+  /* A suggested ruling for each, 20 to a call, kept so none is asked twice.
+     A call that fails leaves the dates to suggest one, unkept. */
+  if (opts.hints) {
+    const want = shown.filter(c => !c.hint);
+    for (let i = 0; i < want.length; i += 20) {
+      const part = want.slice(i, i + 20);
+      try {
+        const { text } = await ask([
+          { role: "system", content: "You suggest how to settle contradictions in a knowledge base. You reply with JSON only." },
+          { role: "user", content: `${HINT_RULES}\n\n` + part.map((c, k) =>
+            `${k + 1}. Concept: ${c.title.slice(0, 120)} | A (${c.aDate || "undated"}): "${c.a.slice(0, 300)}" | B (${c.bDate || "undated"}): "${c.b.slice(0, 300)}" | recorded because: ${c.why.slice(0, 200)}`).join("\n") },
+        ], { json: true, maxTokens: 1200, timeout: 60000, model, key });
+        const got = parseJson(text)?.hints;
+        if (!Array.isArray(got) || got.length !== part.length) continue;
+        const keep: any[] = [];
+        part.forEach((c, k) => {
+          const pick = String(got[k]?.pick ?? "");
+          if (!["a", "b", "both"].includes(pick)) return;
+          c.hint = { pick, why: plainClaim(String(got[k]?.why ?? "")).slice(0, 160) };
+          keep.push({ id: c.id, a: c.a, b: c.b, pick, why: c.hint.why });
+        });
+        if (keep.length) await ctx.runMutation(internal.store.hintConflicts, { space, hints: keep });
+      } catch { /* the dates suggest one, below */ }
+    }
+    for (const c of shown) if (!c.hint) c.hint = ruleHint(c);
+  }
   return { conflicts: shown, others: all.length - shown.length };
 }
 
