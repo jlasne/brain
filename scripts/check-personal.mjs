@@ -174,7 +174,7 @@ const TODAY = "2026-09-30";
 
 /* ---- the interview: its questions ---- */
 {
-  check("335 questions in 17 chapters, and a test of 30 kept apart", twin.QUESTIONS.length === 335 && twin.CHAPTERS.length === 17 && twin.TEST.length === 30,
+  check("335 questions in 17 chapters, and a test of 10 kept apart", twin.QUESTIONS.length === 335 && twin.CHAPTERS.length === 17 && twin.TEST.length === 10,
     `${twin.QUESTIONS.length} ${twin.CHAPTERS.length} ${twin.TEST.length}`);
   check("each question has its own id, from A1 to Q12", new Set(twin.QUESTIONS.map(q => q.id)).size === 335 && twin.QUESTIONS[0].id === "A1" && twin.QUESTIONS.at(-1).id === "Q12");
   check("written for anyone: no one person's bank, school, apps or creators", !twin.QUESTIONS.concat(twin.TEST.map(t => ({ text: t })))
@@ -337,13 +337,26 @@ const TODAY = "2026-09-30";
 
 /* ---- the twin test and the profile ---- */
 {
-  check("the test keeps only its own questions' answers", JSON.stringify(twin.cleanAnswers({ Z1: "  7 ", Z31: "x", A1: "y", Z2: "" })) === '{"Z1":"7"}');
-  check("a score is 0, 1 or 2, nothing else", JSON.stringify(twin.cleanScores({ Z1: 2, Z2: "1", Z3: 5, Z4: -1, Z5: 0 })) === '{"Z1":2,"Z2":1,"Z5":0}');
-  check("a score is a share of the most it could reach", twin.scorePct({ Z1: 2, Z2: 1, Z3: 0, Z4: 2 }) === 63 && twin.scorePct({}) === null);
-  const sm = twin.summary({ test: { mine: { Z1: "a" }, twinScore: { Z1: 2, Z2: 1 }, selfScore: { Z1: 2, Z2: 2 } } });
+  check("the test keeps only its own questions' answers", JSON.stringify(twin.cleanAnswers({ T1: "  7 ", T11: "x", Z1: "old", A1: "y", T2: "" })) === '{"T1":"7"}');
+  check("a score is 0, 1 or 2, nothing else", JSON.stringify(twin.cleanScores({ T1: 2, T2: "1", T3: 5, T4: -1, T5: 0 })) === '{"T1":2,"T2":1,"T5":0}');
+  check("a score is a share of the most it could reach", twin.scorePct({ T1: 2, T2: 1, T3: 0, T4: 2 }) === 63 && twin.scorePct({}) === null);
+  const sm = twin.summary({ test: { mine: { T1: "a" }, twinScore: { T1: 2, T2: 1 }, selfScore: { T1: 2, T2: 2 } } });
   check("the target is 85% of your own retest", sm.test.twinPct === 75 && sm.test.selfPct === 100 && sm.test.target === 85);
+  const old = twin.summary({ test: { mine: { Z1: "a", Z2: "b" }, twin: { Z1: "c" }, twinScore: { Z1: 2, Z2: 2 } } });
+  check("answers and scores kept under the first test's 30 ids belong to questions that are gone: none counts", !old.test.mine && !old.test.twin && old.test.twinPct === null
+    && JSON.stringify(twin.ownOf({ Z1: "a", T3: "b" })) === '{"T3":"b"}', JSON.stringify(old.test));
+  const given = { T1: "7", T2: "the job", T3: "speed" };
+  const pr = twin.pairsText(given, { T1: "6", T3: "quality", T9: "x" });
+  check("the comparison reads each question with both answers, only where both exist", /^T1: On a scale of 1 to 10[^\n]*\nA: 7\nB: 6\n\nT3: Pick one[^\n]*\nA: speed\nB: quality$/.test(pr), pr);
+  check("it says what a match is: same, close or different, by substance and never wording", /2: same answer/.test(twin.JUDGE_RULES) && /1: close/.test(twin.JUDGE_RULES) && /0: different/.test(twin.JUDGE_RULES)
+    && /never the wording/.test(twin.JUDGE_RULES));
+  check("the scores it returns are kept for the pairs it was given, 0, 1 or 2 only",
+    JSON.stringify(twin.readScores('Sure: {"scores":{"T1":2,"T3":"1","T2":2,"T9":2,"T4":7}}', { T1: "6", T3: "quality", T4: "x" })) === '{"T1":2,"T3":1}'
+    && JSON.stringify(twin.readScores("no json", { T1: "a" })) === "{}");
+  check("a full interview has nothing left to ask", twin.interviewFull({ pct: 100, covered: 335, total: 335 }) && twin.interviewFull({ pct: 99, covered: 335, total: 335 })
+    && !twin.interviewFull({ pct: 99, covered: 300, total: 335 }) && !twin.interviewFull(null));
   check("the twin answers in their voice from the notes alone", /Use what the notes say or clearly imply/.test(twin.TWIN_RULES) && /first person/.test(twin.TWIN_RULES));
-  check("its answers are read by question, em-dashes out", JSON.stringify(twin.readAnswers('{"answers":{"Z1":"7 — maybe","Z40":"x"}}')) === '{"Z1":"7, maybe"}');
+  check("its answers are read by question, em-dashes out", JSON.stringify(twin.readAnswers('{"answers":{"T1":"7 — maybe","T40":"x"}}')) === '{"T1":"7, maybe"}');
   const parts = twin.readProfile(JSON.stringify({ parts: [{ title: "Voice", points: ["Short — direct"] }, { title: "Identity", points: ["Builder", ""] }, { title: "Other", points: ["x"] }] }));
   check("the profile comes back in its 7 parts' order, empty and unknown parts out", parts.map(p => p.title).join() === "Identity,Voice" && parts[1].points[0] === "Short, direct", JSON.stringify(parts));
   check("the profile names its 7 parts and says which chapters fill an empty one", /Identity, Values, Beliefs, Decision rules, Voice, Knowledge, Boundaries/.test(twin.PROFILE_RULES) && /Voice G/.test(twin.PROFILE_RULES));

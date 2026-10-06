@@ -2101,7 +2101,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     const ch = titles.map((title, i) => ({ key: String.fromCharCode(65 + i), title, total: 20, answered: i === 0 ? 9 : 0, known: i === 0 ? 3 : i === 1 ? 2 : 0, skipped: 0 }));
     const iv = on => ({ on, pct: 4, covered: 14, seen: 14, total: 335, chapter: { key: "A", title: "Life story", total: 28, at: 12 }, chapters: ch, pending: on ? "q" : null,
       test: { mine: false, twin: false, again: false, twinPct: null, selfPct: null, target: 85 }, profile: null });
-    const Q = Array.from({ length: 30 }, (_, i) => ({ id: `Z${i + 1}`, text: `Test question ${i + 1}?` }));
+    const Q = Array.from({ length: 10 }, (_, i) => ({ id: `T${i + 1}`, text: `Test question ${i + 1}?` }));
     const test = { questions: Q, mine: {}, again: {}, twin: {}, twinScore: {}, selfScore: {}, mineAt: null, againAt: null, twinAt: null, retestFrom: null };
     let profile = null, on = false;
     const view = () => ({ interview: { ...iv(on), test: { mine: !!Object.keys(test.mine).length, twin: !!Object.keys(test.twin).length, again: false,
@@ -2115,7 +2115,9 @@ for (const found of ["Charles Gave", "", "youtube"]) {
         if (a === "stop") { on = false; return Response.json({ ...view(), answer: "Paused at Life story, 12 of 28. Your twin is 4% complete. Tap Interview to pick up where you left off." }); }
         if (a === "answers") { test.mine = body.answers; test.mineAt = "2026-10-04"; test.retestFrom = "2026-10-18"; }
         if (a === "twin") for (const id in test.mine) test.twin[id] = "Twin says " + id;
-        if (a === "score") test.twinScore = body.scores;
+        /* A model compares the two: the first answer matches, the second is close. */
+        if (a === "score") { const ids = Object.keys(body.kind === "self" ? test.again : test.twin); const sc = {}; ids.forEach((id, i) => { if (i < 2) sc[id] = 2 - i; });
+          if (body.kind === "self") test.selfScore = sc; else test.twinScore = sc; }
         if (a === "profile") profile = { at: "2026-10-04", notes: 40, parts: ["Identity","Values","Beliefs","Decision rules","Voice","Knowledge","Boundaries"].map(t => ({ title: t, points: [`A point on ${t}.`] })) };
         return Response.json(view());
       }
@@ -2159,22 +2161,21 @@ for (const found of ["Charles Gave", "", "youtube"]) {
 
   await page.click("#fvTest"); await page.waitForTimeout(250);
   const form = await page.evaluate(() => ({ boxes: document.querySelectorAll("#testPane .ts-q textarea").length, pos: document.querySelector("#testPane .fv-pos")?.textContent }));
-  check("the twin test asks its 30 questions, and says the answers are never filed", form.boxes === 30 && /never filed/.test(form.pos || ""), JSON.stringify(form));
-  await page.evaluate(() => { const t = [...document.querySelectorAll("#testPane .ts-q textarea")]; t.slice(0, 12).forEach((x, i) => { x.value = "Answer " + (i + 1); }); });
+  check("the twin test asks its 10 questions, and says the answers are never filed", form.boxes === 10 && /never filed/.test(form.pos || "") && /compared for you/.test(form.pos || ""), JSON.stringify(form));
+  await page.evaluate(() => { const t = [...document.querySelectorAll("#testPane .ts-q textarea")]; t.slice(0, 8).forEach((x, i) => { x.value = "Answer " + (i + 1); }); });
   await page.click("#tsSave"); await page.waitForTimeout(300);
   const saved = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/interview") && x.body.action === "answers").pop()?.body);
-  check("your answers are saved as round 1", saved?.round === 1 && Object.keys(saved.answers).length === 12 && saved.answers.Z1 === "Answer 1", JSON.stringify(saved));
-  await page.click("#tsTwin"); await page.waitForTimeout(300);
+  check("your answers are saved as round 1", saved?.round === 1 && Object.keys(saved.answers).length === 8 && saved.answers.T1 === "Answer 1", JSON.stringify(saved));
+  await page.click("#tsTwin"); await page.waitForTimeout(400);
   const cards = await page.evaluate(() => ({ n: document.querySelectorAll("#testPane .ts-card").length, first: document.querySelector("#testPane .ts-card")?.textContent,
+    marks: [...document.querySelectorAll("#testPane .ts-card .ts-m")].map(x => x.textContent), chips: document.querySelectorAll("#testPane .ts-s").length,
+    total: document.querySelector("#testPane .ts-total")?.textContent, score: document.querySelector("#testPane .tw-score")?.textContent,
     retest: [...document.querySelectorAll("#testPane .tw-key")].map(x => x.textContent).join(" ") }));
-  check("your twin answers, each beside yours with a score of 0, 1 or 2", cards.n === 12 && /Answer 1/.test(cards.first) && /Twin says Z1/.test(cards.first), JSON.stringify(cards));
+  check("your twin answers, each beside yours", cards.n === 8 && /Answer 1/.test(cards.first) && /Twin says T1/.test(cards.first), JSON.stringify(cards));
+  const flow = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/interview") && x.body.action).map(x => x.body.action + (x.body.kind ? ":" + x.body.kind : "")).slice(-3));
+  check("one tap makes the twin answer, then the two answers are compared for you: no score to give by hand", JSON.stringify(flow) === '["answers","twin","score:twin"]' && cards.chips === 0
+    && JSON.stringify(cards.marks) === '["Same","Close"]' && cards.total === "75% match on 2 questions" && /Twin score 75%/.test(cards.score), JSON.stringify({ flow, cards }));
   check("the retest waits 2 weeks", /The retest opens on 2026-10-18/.test(cards.retest), cards.retest);
-  await page.evaluate(() => { document.querySelector('#testPane .ts-card .ts-s[data-n="2"]').click(); document.querySelectorAll("#testPane .ts-card")[1].querySelector('.ts-s[data-n="1"]').click(); });
-  const tot = await page.evaluate(() => document.querySelector("#testPane .ts-total")?.textContent);
-  check("the score adds up as you go", tot === "75% on 2 scored", tot);
-  await page.click("#tsScore"); await page.waitForTimeout(300);
-  const sc = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/interview") && x.body.action === "score").pop()?.body);
-  check("the scores are saved against the twin", sc?.kind === "twin" && sc.scores.Z1 === 2 && sc.scores.Z2 === 1, JSON.stringify(sc));
 
   await page.click("#fvProfile"); await page.waitForTimeout(250);
   await page.click("#pfGo"); await page.waitForTimeout(300);
@@ -3133,36 +3134,8 @@ for (const space of ["octopus", "squidgy"]) {
   const fv = await page.evaluate(() => ({ acts: [...document.querySelectorAll(".fv-acts .fv-b")].map(b => b.id), twin: document.getElementById("fvTwin")?.textContent }));
   await page.click("#fvTwin"); await page.waitForTimeout(250);
   const pane = await page.evaluate(() => ({ go: !!document.getElementById("twGo"), say: document.querySelector("#twinPane .tw-acts")?.textContent }));
-  check("at 100%, the interview leaves the chat bar, the folder's buttons and the twin pane", bar.hidden && !bar.go && !fv.acts.includes("fvIv") && /Twin 100% complete/.test(fv.twin || "")
-    && !pane.go && /Interview complete/.test(pane.say || ""), JSON.stringify({ bar, fv, pane }));
-  check("nothing threw with the twin complete", !bad.length, bad.join(" | "));
-  await page.close();
-}
-
-/* ---- a twin at 100%: no interview left to offer ---- */
-{
-  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "", owner: null, audit: { at: new Date().toISOString().slice(0, 10), sources: 0 } }],
-    concepts: [{ brain: "me", slug: "lyon", n: 1, title: "Born in Lyon", summaryLine: "You were born in Lyon." }] };
-  const { page, bad } = await boot("/chat.html", state => {
-    sessionStorage.setItem("octopus.token.v1", "test");
-    const ch = [{ key: "A", title: "Life story", total: 28, answered: 20, known: 8, skipped: 0 }];
-    window.fetch = async (u) => {
-      const s = String(u);
-      if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/interview")) return Response.json({ interview: { on: false, pct: 100, covered: 335, seen: 335, total: 335, chapter: null, chapters: ch, pending: null,
-        test: { mine: false, twin: false, again: false, twinPct: null, selfPct: null, target: 85 }, profile: null } });
-      return Response.json({ chats: [] });
-    };
-  }, mine);
-  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent)).click());
-  await page.waitForTimeout(300);
-  const bar = await page.evaluate(() => ({ hidden: document.getElementById("ivBar").hidden, go: !!document.getElementById("ivGo") }));
-  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent))?.querySelector(".ed.op")?.click());
-  await page.waitForTimeout(300);
-  const fv = await page.evaluate(() => ({ acts: [...document.querySelectorAll(".fv-acts .fv-b")].map(b => b.id), twin: document.getElementById("fvTwin")?.textContent }));
-  await page.click("#fvTwin"); await page.waitForTimeout(250);
-  const pane = await page.evaluate(() => ({ go: !!document.getElementById("twGo"), say: document.querySelector("#twinPane .tw-acts")?.textContent }));
-  check("at 100%, the interview leaves the chat bar, the folder's buttons and the twin pane", bar.hidden && !bar.go && !fv.acts.includes("fvIv") && /Twin 100% complete/.test(fv.twin || "")
+  check("at 100%, the interview and the profile leave the chat bar, the folder's buttons and the twin pane; the test stays", bar.hidden && !bar.go && !fv.acts.includes("fvIv") && !fv.acts.includes("fvProfile")
+    && fv.acts.includes("fvTest") && /Twin 100% complete/.test(fv.twin || "")
     && !pane.go && /Interview complete/.test(pane.say || ""), JSON.stringify({ bar, fv, pane }));
   check("nothing threw with the twin complete", !bad.length, bad.join(" | "));
   await page.close();

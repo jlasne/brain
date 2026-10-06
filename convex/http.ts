@@ -32,7 +32,7 @@ import { resolveFeed, sweep, readFind } from "./scouts";
 import { embed, nearest } from "./graph";
 import {
   ahead, gaps, gapBlock, readGap, interviewStep, pausedLine, summary, notesText, readAnswers, readProfile,
-  cleanAnswers, cleanScores, TEST, TEST_IDS, TWIN_RULES, PROFILE_RULES, NATURAL_GAP, RETEST_DAYS,
+  cleanAnswers, TEST, TEST_IDS, TWIN_RULES, PROFILE_RULES, NATURAL_GAP, RETEST_DAYS, JUDGE_RULES, pairsText, readScores, ownOf, interviewFull,
 } from "./twin";
 import type { Marks } from "./twin";
 
@@ -978,6 +978,8 @@ QUESTION: ${String(b.q ?? "")}` },
  */
 /** Who the twin is: its profile, written to them as "you", for the twin to speak as "I". Empty before a profile is written. */
 function twinOf(row: any): string {
+  /* At 100% the notes and the contacts hold everything the profile would say, and a profile written earlier would only be stale. */
+  if (interviewFull(summary(row))) return "";
   const parts = Array.isArray(row?.profile?.parts) ? row.profile.parts : [];
   if (!parts.length) return "";
   return `YOUR TWIN PROFILE: who you are, how you decide and how you speak. It is written to them as "you"; you speak it as "I".\n` +
@@ -1225,8 +1227,8 @@ async function wholeNotes(ctx: any, space: string, brain: string) {
 function testView(row: any) {
   const t = row?.test ?? {};
   const from = t.mineAt ? new Date(Date.parse(t.mineAt) + RETEST_DAYS * 86400000).toISOString().slice(0, 10) : null;
-  return { questions: TEST.map((text, i) => ({ id: TEST_IDS[i], text })), mine: t.mine ?? {}, again: t.again ?? {}, twin: t.twin ?? {},
-           twinScore: t.twinScore ?? {}, selfScore: t.selfScore ?? {}, mineAt: t.mineAt ?? null, againAt: t.againAt ?? null,
+  return { questions: TEST.map((text, i) => ({ id: TEST_IDS[i], text })), mine: ownOf(t.mine), again: ownOf(t.again), twin: ownOf(t.twin),
+           twinScore: ownOf(t.twinScore), selfScore: ownOf(t.selfScore), mineAt: t.mineAt ?? null, againAt: t.againAt ?? null,
            twinAt: t.twinAt ?? null, retestFrom: from };
 }
 
@@ -1238,7 +1240,7 @@ function testView(row: any) {
  *   restart   every question unasked again; the notes stay
  *   answers   the owner's test answers, round 1 or the retest; never filed
  *   twin      the twin answers the test from the notes alone
- *   score     0 to 2 per question: the twin against round 1, or round 2 against round 1
+ *   score     0 to 2 per question, by a model comparing the two answers: the twin against round 1, or with `kind: "self"` round 2 against round 1
  *   profile   the notes written as 7 parts
  * Only the owner, and only their personal brain: nothing else reads it.
  */
@@ -1270,7 +1272,7 @@ route("/api/interview", async (ctx, _req, b) => {
     case "answers": {
       const round = Number(b.round) === 2 ? 2 : 1;
       const answers = cleanAnswers(b.answers);
-      if (Object.keys(answers).length < 10) return { error: "answer at least 10 of the 30 questions first" };
+      if (Object.keys(answers).length < 5) return { error: "answer at least 5 of the 10 questions first" };
       /* New answers make the old scores against them meaningless. */
       if (round === 1) Object.assign(test, { mine: answers, mineAt: today, twinScore: {}, selfScore: {} });
       else Object.assign(test, { again: answers, againAt: today, selfScore: {} });
@@ -1284,13 +1286,23 @@ route("/api/interview", async (ctx, _req, b) => {
         { role: "user", content: `${TWIN_RULES}\n\nTHEIR NOTES\n${notes.text}\n\nQUESTIONS\n${TEST.map((t, i) => `${TEST_IDS[i]}: ${t}`).join("\n")}` },
       ], { json: true, maxTokens: 4000, key: keyFor(who), model: modelFor(who, b), timeout: 150000, temperature: 0.3 });
       const twin = readAnswers(text);
-      if (Object.keys(twin).length < 10) return { error: finish === "length" ? "the answer ran out of room. Try again." : "your twin could not answer this time. Try again." };
+      if (Object.keys(twin).length < 5) return { error: finish === "length" ? "the answer ran out of room. Try again." : "your twin could not answer this time. Try again." };
       Object.assign(test, { twin, twinAt: today, twinScore: {} });
       return view(await save({ test }));
     }
     case "score": {
+      /* A model compares the two answers to each question: no one scores their own twin. */
       const self = b.kind === "self";
-      Object.assign(test, self ? { selfScore: cleanScores(b.scores) } : { twinScore: cleanScores(b.scores) });
+      const left = ownOf<string>(test.mine), right = ownOf<string>(self ? test.again : test.twin);
+      const pairs = pairsText(left, right);
+      if (!pairs) return { error: self ? "answer the test again first" : "let your twin answer first" };
+      const { text, finish } = await ask([
+        { role: "system", content: "You compare two answers to the same question and score how well they match. You reply with JSON only." },
+        { role: "user", content: `${JUDGE_RULES}\n\nQUESTIONS\n${pairs}` },
+      ], { json: true, maxTokens: 1500, key: keyFor(who), model: modelFor(who, b), timeout: 120000, temperature: 0 });
+      const scores = readScores(text, right);
+      if (!Object.keys(scores).length) return { error: finish === "length" ? "the comparison ran out of room. Try again." : "the answers could not be compared this time. Try again." };
+      Object.assign(test, self ? { selfScore: scores } : { twinScore: scores });
       return view(await save({ test }));
     }
     case "profile": {

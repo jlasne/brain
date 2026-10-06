@@ -584,6 +584,10 @@
   .au-t span{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
   .mini.au-due{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
   .au-row.run .au-t span{ color:var(--ink-2); }
+  .ts-m{ justify-self:start; padding:4px 10px; border-radius:999px; font:600 12px/1 var(--sans); background:var(--side); color:var(--ink-3); }
+  .ts-m.m2{ background:color-mix(in srgb, var(--good) 14%, transparent); color:var(--good); }
+  .ts-m.m0{ background:color-mix(in srgb, var(--bad) 12%, transparent); color:var(--bad); }
+  .ts-m.m1{ background:var(--accent-soft); color:var(--accent); }
   /* Scouts: the feeds a folder follows. */
   .sc-add{ display:flex; gap:8px; margin-top:16px; }
   .sc-add input{ flex:1; min-width:0; height:42px; padding:0 13px; border:1px solid var(--line); border-radius:12px; background:var(--surface); color:var(--ink); font:400 14.5px/1 var(--sans); }
@@ -758,10 +762,7 @@
   .ts-pair{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px; }
   .ts-pair small{ font:500 10.5px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); }
   .ts-pair p{ margin-top:4px; font:400 13.5px/1.5 var(--sans); color:var(--ink-2); overflow-wrap:anywhere; }
-  .ts-chips{ display:flex; gap:6px; margin-top:10px; }
-  .ts-s{ width:38px; height:32px; border:1px solid var(--line-2); border-radius:8px; background:var(--surface); font:600 13px/1 var(--mono); color:var(--ink-3); cursor:pointer; }
-  .ts-s:hover{ border-color:var(--ink-4); color:var(--ink); }
-  .ts-s.on{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
+  .ts-card .ts-m{ display:inline-block; margin-top:10px; }
   .ts-total{ font:600 13.5px/1 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
   .pf-part{ margin-top:6px; animation:tdIn .35s ease both; }
   .pf-part ul{ display:grid; gap:6px; padding-left:18px; }
@@ -5983,7 +5984,7 @@ function openFolder(b, openId, opts = {}){
     fillCard(S.iv[b.slug]);
     tw.onclick = () => twinPane();
     head.append(tw);
-    loadIv(b.slug).then(r => { if (r && S.folder === b.slug){ fillCard(r.interview); if (ivDone(r.interview)) acts.querySelector("#fvIv")?.remove(); } });
+    loadIv(b.slug).then(r => { if (r && S.folder === b.slug){ fillCard(r.interview); if (ivDone(r.interview)) acts.querySelector("#fvIv")?.remove(); if (ivFull(r.interview)) acts.querySelector("#fvProfile")?.remove(); } });
   }
   const acts = el("div","fv-acts");
   const btn = (id, label, icon, fn, title) => {
@@ -5995,8 +5996,9 @@ function openFolder(b, openId, opts = {}){
     btn("fvMem", "Add memory", IC_DROP, () => openMemorySheet(b.slug), "Paste, or add a PDF, Word or text file about you. It is read like a drop.");
     if (!ivDone(S.iv[b.slug])) btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
       "It asks you questions, one at a time, to know you better. Stop any time.");
-    btn("fvTest", "Twin test", IC_TEST, () => testPane(), "30 questions that measure how well your twin knows you");
-    btn("fvProfile", "Twin profile", IC_PROFILE, () => profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
+    btn("fvTest", "Twin test", IC_TEST, () => testPane(), "10 questions that measure how well your twin knows you, compared for you");
+    /* At 100% the notes and the contacts hold all of it: the profile would only repeat them. */
+    if (!ivFull(S.iv[b.slug])) btn("fvProfile", "Twin profile", IC_PROFILE, () => profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
   }
   if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
   if (!self && !ro && !S.demo) btn("fvScout", "Scouts", IC_SCOUT, () => scoutPane(), "The feeds this folder follows: YouTube channels, newsletters, blogs");
@@ -6762,9 +6764,9 @@ function openFolder(b, openId, opts = {}){
 
   /** The twin test: your answers, never filed, the twin's from your notes, and a score for each. */
   const testPane = async (edit) => {
-    const inner = pane("testPane", "Twin test", "Score your twin");
-    inner.append(el("p","fv-pos","30 questions. Your answers stay here and are never filed, so they can measure your twin. " +
-      "Your twin answers from your notes alone. You score each answer: 0 wrong, 1 close, 2 same as you."));
+    const inner = pane("testPane", "Twin test", "Does your twin know you?");
+    inner.append(el("p","fv-pos","10 questions. Your answers stay here and are never filed, so they can measure your twin. " +
+      "Your twin answers from your notes alone, then the two are compared for you."));
     const w = waitIn(inner);
     const r = await loadIv(b.slug);
     w.remove();
@@ -6772,7 +6774,10 @@ function openFolder(b, openId, opts = {}){
     if (!r?.test || !r.interview){ inner.append(el("div","fv-li bad","The test could not be read. Try again.")); return; }
     const t = r.test, iv = r.interview;
     const say = el("div","ts-say"); say.setAttribute("role","status");
+    const tell = (text, cls = "") => { say.textContent = text; say.className = "ts-say " + cls; };
     const round = edit === 2 ? 2 : 1;
+    /* The two answers compared by a model, a score of 0, 1 or 2 each. */
+    const compare = async kind => { await api("/api/interview", { action: "score", brain: b.slug, kind }); };
     const form = (prev) => {
       inner.append(el("h4",null, round === 2 ? "Answer again, without looking back" : "Your answers"));
       const f = el("div","ts-form");
@@ -6786,22 +6791,22 @@ function openFolder(b, openId, opts = {}){
       const save = el("button","go", round === 2 ? "Save my retest" : "Save my answers"); save.type = "button"; save.id = "tsSave";
       save.onclick = async () => {
         const answers = {}; for (const id in boxes) if (boxes[id].value.trim()) answers[id] = boxes[id].value.trim();
-        save.disabled = true; say.textContent = "Saving";
-        try { await api("/api/interview", { action: "answers", brain: b.slug, round, answers }); testPane(); }
-        catch (e) { save.disabled = false; say.textContent = e.message; say.className = "ts-say bad"; }
+        save.disabled = true; tell("Saving");
+        try {
+          await api("/api/interview", { action: "answers", brain: b.slug, round, answers });
+          if (round === 2){ tell("Comparing your two rounds"); await compare("self"); }
+          testPane();
+        } catch (e) { save.disabled = false; tell(e.message, "bad"); }
       };
       const row = el("div","tw-acts"); row.append(save, say); inner.append(row);
     };
     if (edit || !Object.keys(t.mine).length){ form(edit === 2 ? {} : t.mine); return; }
 
-    inner.append(el("div","tw-score", `Twin score ${pctOr(iv.test.twinPct, "not scored yet")} · your own retest ${pctOr(iv.test.selfPct, "not yet")} · target ${iv.test.target}%`));
-    /* Scores as chips, 0 to 2, saved as a set. */
-    const scorer = (kind, left, right, now) => {
-      const scores = { ...now };
-      const total = el("b","ts-total");
-      const paintTotal = () => {
-        const v = Object.values(scores); total.textContent = v.length ? `${Math.round(100 * v.reduce((a, n) => a + n, 0) / (2 * v.length))}% on ${v.length} scored` : "Nothing scored yet";
-      };
+    inner.append(el("div","tw-score", `Twin score ${pctOr(iv.test.twinPct, "not compared yet")} · your own retest ${pctOr(iv.test.selfPct, "not yet")} · target ${iv.test.target}%`));
+    /* Each pair, with how the comparison read it. Nothing to score by hand. */
+    const MATCH = ["Different", "Close", "Same"];
+    const pairs = (kind, left, right, now) => {
+      const v = Object.values(now);
       for (const q of t.questions){
         if (!left[q.id] || !right[q.id]) continue;
         const card = el("div","ts-card");
@@ -6810,47 +6815,43 @@ function openFolder(b, openId, opts = {}){
         const one = el("div"); one.append(el("small",null, kind === "twin" ? "You" : "You then"), el("p",null,left[q.id]));
         const two = el("div"); two.append(el("small",null, kind === "twin" ? "Your twin" : "You now"), el("p",null,right[q.id]));
         pair.append(one, two); card.append(pair);
-        const chips = el("div","ts-chips");
-        for (const n of [0, 1, 2]){
-          const c = el("button","ts-s" + (scores[q.id] === n ? " on" : ""), String(n)); c.type = "button"; c.dataset.n = String(n); c.dataset.id = q.id;
-          c.title = ["Wrong", "Close", "Same as you"][n];
-          c.onclick = () => { scores[q.id] = n; for (const x of chips.children) x.classList.toggle("on", x === c); paintTotal(); };
-          chips.append(c);
-        }
-        card.append(chips);
+        if (now[q.id] !== undefined){ const m = el("span","ts-m m" + now[q.id], MATCH[now[q.id]]); m.dataset.n = String(now[q.id]); card.append(m); }
         inner.append(card);
       }
-      const save = el("button","go","Save scores"); save.type = "button"; save.id = kind === "twin" ? "tsScore" : "tsSelf";
-      const msg = el("span","ts-say");
-      save.onclick = async () => {
-        save.disabled = true; msg.textContent = "Saving";
-        try { await api("/api/interview", { action: "score", brain: b.slug, kind, scores }); testPane(); }
-        catch (e) { save.disabled = false; msg.textContent = e.message; }
+      const row = el("div","tw-acts");
+      const again = el("button","ghost", v.length ? "Compare again" : "Compare the answers"); again.type = "button"; again.id = kind === "twin" ? "tsScore" : "tsSelf";
+      again.onclick = async () => {
+        again.disabled = true; tell("Comparing the answers");
+        try { await compare(kind); testPane(); } catch (e) { again.disabled = false; tell(e.message, "bad"); }
       };
-      paintTotal();
-      const row = el("div","tw-acts"); row.append(save, total, msg); inner.append(row);
+      row.append(el("b","ts-total", v.length ? `${Math.round(100 * v.reduce((a, n) => a + n, 0) / (2 * v.length))}% match on ${v.length} question${v.length === 1 ? "" : "s"}` : "Not compared yet"), again);
+      inner.append(row);
     };
 
     inner.append(el("h4",null,"Your twin's answers"));
     const ask2 = el("button", Object.keys(t.twin).length ? "ghost" : "go", Object.keys(t.twin).length ? "Let it answer again" : "Let your twin answer");
     ask2.type = "button"; ask2.id = "tsTwin";
     ask2.onclick = async () => {
-      ask2.disabled = true; say.textContent = "Your twin is answering from your notes";
-      try { await api("/api/interview", { action: "twin", brain: b.slug }); testPane(); }
-      catch (e) { ask2.disabled = false; say.textContent = e.message; say.className = "ts-say bad"; }
+      ask2.disabled = true; tell("Your twin is answering from your notes", "spin");
+      try {
+        await api("/api/interview", { action: "twin", brain: b.slug });
+        tell("Comparing the answers", "spin");
+        await compare("twin");
+        testPane();
+      } catch (e) { ask2.disabled = false; tell(e.message, "bad"); }
     };
     const row = el("div","tw-acts"); row.append(ask2, say); inner.append(row);
-    if (Object.keys(t.twin).length) scorer("twin", t.mine, t.twin, t.twinScore);
+    if (Object.keys(t.twin).length) pairs("twin", t.mine, t.twin, t.twinScore);
 
     inner.append(el("h4",null,"Your own ceiling"));
     const today = new Date().toISOString().slice(0, 10);
     if (Object.keys(t.again).length){
       inner.append(el("p","tw-key","Your first answers against your retest. You rarely match yourself fully: this is the score your twin aims for."));
-      scorer("self", t.mine, t.again, t.selfScore);
+      pairs("self", t.mine, t.again, t.selfScore);
     } else if (t.retestFrom && today >= t.retestFrom){
       const again = el("button","go","Answer again"); again.type = "button"; again.id = "tsAgain";
       again.onclick = () => testPane(2);
-      inner.append(el("p","tw-key","Two weeks on: answer the 30 again, without looking back. Then score yourself."), again);
+      inner.append(el("p","tw-key","Two weeks on: answer the 10 again, without looking back. They are compared with your first answers for you."), again);
     } else inner.append(el("p","tw-key",`The retest opens on ${t.retestFrom || "the day 2 weeks after your answers"}. Answering again then sets the score your twin aims for.`));
     const change = el("button","mini","Change my answers"); change.type = "button"; change.id = "tsEdit";
     change.title = "New answers clear the scores given against them";
@@ -7737,7 +7738,8 @@ function filedLine(f){
 
 /** Where a personal brain's interview stands, read again from the server. */
 /** Every question answered or known: the interview has nothing left to ask. */
-function ivDone(iv){ return !!iv && !iv.on && (iv.pct >= 100 || (iv.total > 0 && iv.covered >= iv.total)); }
+function ivFull(iv){ return !!iv && (iv.pct >= 100 || (iv.total > 0 && iv.covered >= iv.total)); }
+function ivDone(iv){ return ivFull(iv) && !iv.on; }
 async function loadIv(slug){
   try {
     const r = await api("/api/interview", { brain: slug });

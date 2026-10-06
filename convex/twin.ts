@@ -16,7 +16,7 @@
  *              when the talk leaves room for it, chosen from the chapters
  *              the notes cover least.
  *
- * The twin test is apart: 30 questions answered once and never filed. The
+ * The twin test is apart: 10 questions answered once and never filed. The
  * twin answers them from the notes, the owner scores each 0 to 2, and a
  * retest 2 weeks later sets the owner's own ceiling. The twin profile is the
  * notes written as 7 parts. Both stay in the personal folder: nothing else
@@ -404,41 +404,29 @@ export const CHAPTERS: Chapter[] = [
 
 /* The test set: answered once, never filed, so it can measure the twin. */
 export const TEST: string[] = [
-  "On a scale of 1 to 10, how much do you trust the government?",
   "On a scale of 1 to 10, how risky are you with money?",
   "Would you rather earn 5,000 euros a month in a job or 3,000 in your own business?",
   "Pick one: speed, quality, price. Which do you drop first?",
-  "Do you agree: \"Most people are good.\" 1 to 5.",
   "Do you agree: \"AI will create more jobs than it destroys.\" 1 to 5.",
-  "Do you agree: \"Degrees still matter.\" 1 to 5.",
-  "Do you agree: \"Social media does more harm than good.\" 1 to 5.",
-  "Would you take a 50/50 bet: win 2,000 euros or lose 1,000?",
-  "Would you take a 50/50 bet: win 20,000 euros or lose 10,000?",
   "100 euros today or 150 euros in 6 months?",
   "Paris, Dubai, Lisbon or New York for 5 years?",
-  "Bitcoin, gold, stocks or real estate for 10 years? Rank them.",
-  "Write a 2-line reply to a prospect who says \"not interested\".",
-  "Write a tweet about your week.",
-  "Write a 3-line pitch for your main project.",
+  "Rank: family, freedom, money, health, reputation.",
+  "A project is 80% done and boring. Finish or pivot?",
   "A friend cancels dinner at the last minute. Reply by text.",
   "Your morning: what do you do in the first 30 minutes?",
-  "What would you do with a free Saturday?",
-  "Name a book you would give a 20-year-old.",
-  "Rank: family, freedom, money, health, reputation.",
-  "Do you prefer working alone or in a team? 1 to 5.",
-  "A project is 80% done and boring. Finish or pivot?",
-  "A client asks for a 30% discount. Your answer?",
-  "Would you sell your main project for 3 times its yearly revenue?",
-  "How many hours a week do you want to work in 5 years?",
-  "What do you say when someone asks \"what do you do?\"",
-  "Coffee or tea? Morning or night person?",
-  "Your view in one sentence: is hard work overrated?",
-  "Your view in one sentence: should everyone start a business?",
 ];
 
 export type Question = { id: string; ch: string; text: string };
 export const QUESTIONS: Question[] = CHAPTERS.flatMap(c => c.questions.map((text, i) => ({ id: `${c.key}${i + 1}`, ch: c.key, text })));
-export const TEST_IDS = TEST.map((_, i) => `Z${i + 1}`);
+/* T, not Z: the first test had 30 questions under Z1 to Z30, and answers kept
+   under those ids belong to questions that are gone. */
+export const TEST_IDS = TEST.map((_, i) => `T${i + 1}`);
+/** What a stored set holds under this test's own ids, nothing else. */
+export function ownOf<T>(o: Record<string, T> | undefined): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const id of TEST_IDS) if (o && o[id] !== undefined) out[id] = o[id];
+  return out;
+}
 const BY_ID = new Map(QUESTIONS.map(q => [q.id, q]));
 export const questionOf = (id: string) => BY_ID.get(String(id));
 
@@ -665,7 +653,38 @@ export function readGap(answer: string, list: Question[]) {
 export const TWIN_RULES =
 `Below are a person's own notes, filed from what they said. Answer each question as they would: their choice, their numbers, their voice, in the first person. Keep it short: the number or the choice asked for, or one or two sentences. Use what the notes say or clearly imply. Where they say nothing, give the answer most consistent with them.
 
-Reply with only JSON: {"answers":{"Z1":"","Z2":""}}`;
+Reply with only JSON: {"answers":{"T1":"","T2":""}}`;
+
+export const JUDGE_RULES =
+`Below are questions a person answered themselves (A), and the answer their AI twin gave from their notes (B). Score how well B matches A.
+
+SCORE
+- 2: same answer. The same choice, or a number within 1 point on a scale of 10 or 5, or the same top 2 in a ranking, or a reply of the same tone and move.
+- 1: close. The same direction with a different degree, or a ranking sharing its first item, or a reply with the same intent in another tone.
+- 0: different. The opposite choice, a number 3 or more points apart, or a reply that says something they would not.
+Judge the substance, never the wording. When A is vague, B may be as vague.
+
+Reply with only JSON, one score per question id: {"scores":{"T1":2,"T2":0}}`;
+
+/** The pairs the judge reads: each question with both answers, only where both exist. */
+export function pairsText(a: Record<string, string>, b: Record<string, string>): string {
+  return TEST.map((q, i) => ({ id: TEST_IDS[i], q })).filter(x => a[x.id] && b[x.id])
+    .map(x => `${x.id}: ${x.q}\nA: ${String(a[x.id]).slice(0, 600)}\nB: ${String(b[x.id]).slice(0, 600)}`).join("\n\n");
+}
+
+/** The judge's scores, only for the pairs it was given, and only 0, 1 or 2. */
+export function readScores(raw: string, given: Record<string, any>): Record<string, number> {
+  let d: any;
+  try { const s = String(raw ?? ""), x = s.indexOf("{"), y = s.lastIndexOf("}"); d = JSON.parse(x >= 0 && y > x ? s.slice(x, y + 1) : s); }
+  catch { return {}; }
+  const out: Record<string, number> = {};
+  for (const id of TEST_IDS) {
+    if (!given[id]) continue;
+    const n = Number(d?.scores?.[id]);
+    if (n === 0 || n === 1 || n === 2) out[id] = n;
+  }
+  return out;
+}
 
 export const PROFILE_PARTS = [
   { title: "Identity", from: "A, B" }, { title: "Values", from: "C" }, { title: "Beliefs", from: "D" },
@@ -750,6 +769,9 @@ export function scorePct(scores: Record<string, number> | undefined) {
 /* The retest waits this long after the first answers. */
 export const RETEST_DAYS = 14;
 
+/** Every question answered or known: the interview has nothing left to ask, and the notes and contacts hold what the profile would say. */
+export const interviewFull = (s: any) => !!s && (s.pct >= 100 || (s.total > 0 && s.covered >= s.total));
+
 /** The interview as the app shows it. */
 export function summary(row: any) {
   const marks: Marks = row?.marks ?? {};
@@ -757,7 +779,7 @@ export function summary(row: any) {
   const next = ahead(marks, 1, "")[0];
   const at = next ? CHAPTERS.find(c => c.key === next.ch)! : null;
   const t = row?.test ?? {};
-  const twin = scorePct(t.twinScore), self = scorePct(t.selfScore);
+  const twin = scorePct(ownOf(t.twinScore)), self = scorePct(ownOf(t.selfScore));
   return {
     on: !!row?.on,
     pct: cov.pct, covered: cov.covered, seen: cov.seen, total: cov.total,
@@ -766,9 +788,9 @@ export function summary(row: any) {
     chapters: cov.chapters,
     pending: row?.pending?.kind ?? null,
     test: {
-      mine: !!t.mine && Object.keys(t.mine).length > 0, mineAt: t.mineAt ?? null,
-      again: !!t.again && Object.keys(t.again).length > 0, againAt: t.againAt ?? null,
-      twin: !!t.twin && Object.keys(t.twin).length > 0, twinAt: t.twinAt ?? null,
+      mine: Object.keys(ownOf(t.mine)).length > 0, mineAt: t.mineAt ?? null,
+      again: Object.keys(ownOf(t.again)).length > 0, againAt: t.againAt ?? null,
+      twin: Object.keys(ownOf(t.twin)).length > 0, twinAt: t.twinAt ?? null,
       twinPct: twin, selfPct: self, target: self != null ? Math.round(self * 0.85) : 85,
     },
     profile: row?.profile?.at ? { at: row.profile.at } : null,
