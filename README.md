@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1215 checks passing" src="https://img.shields.io/badge/checks-1215%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1245 checks passing" src="https://img.shields.io/badge/checks-1245%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -72,7 +72,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 <tr>
 <td width="50%" valign="top">
 <img src="docs/img/map.jpg" alt="The map of every brain">
-<br><b>It draws itself.</b> One graph, the way Obsidian draws a vault: each folder a node ringed by its health, each concept a dot in its colour, each line a link. Point to light the neighbours, each link coloured by its kind, drag to rearrange, click to read.
+<br><b>It draws itself.</b> One graph, the way Obsidian draws a vault: each folder a node ringed by its health, each concept a dot in its colour, each line a link. Point to light the neighbours, each link coloured by its kind, drag to rearrange, click to read. Heat colours each concept by the questions it answered in 90 days, and rings the blind spots: asked 3 times or more, held by 2 sources or fewer.
 </td>
 <td width="50%" valign="top">
 <img src="docs/img/personal.jpg" alt="A personal brain filing what you say">
@@ -99,6 +99,8 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 - **Questions run in the background.** Ask, then open another chat, a folder or Drop: the answer lands in its own chat. A drop reads on while you chat.
 - **An error says what to do.** A dropped connection or a timeout offers Try again, which sends the same message once more in place. Every error offers Send feedback, which mails the error, where it happened and the message behind it, 5 an hour at most.
 - **An inbox, top right.** A bubble counts what waits for you and opens a panel: answers ready and unread, questions on their way, a drop not finished, folders due for an audit, and the open clashes to settle. A ring turns on it while something runs.
+- **Scouts.** A folder follows the YouTube channels, Substacks and blogs it learns from. Every morning the scouts read each feed. A new piece is read against its folder, then waits in the inbox: what it contradicts, what it backs, the ideas it adds. Drop it, from the text already read, or skip it. A first follow keeps the 3 newest pieces of the last 3 weeks. The authors a folder already reads are one tap away.
+- **Settings, folded.** Audit, Languages, Open conflicts, Look and Passphrase each fold shut and say where they stand: "2 due", "mic in French", "default".
 - **Audit, in Settings.** One list for every folder you own, each with the date of its last audit. A folder's audit finds concepts filed twice, titles not in English and empty positions. The personal folder's audit files the people in your older notes and finds the cards of one person. You decide each pair: Merge, or Keep apart, and a pair kept apart never comes back. While it runs, it shows the step it is on, a bar and the time it has run, then "Audit finished in 1 min 04s". Leave it, and the inbox shows its step, then that it finished. The inbox says "Cleaning needed" after 50 new sources in a folder, and every 7 days for the personal folder.
 - **Chat about one concept.** Chat about it, from any concept, opens a chat that reads that concept alone.
 - **Greys, and your look.** Tasu wears greys and near-black. Octopus keeps its orange and Squidgy its brown. Each workspace can set a logo, an accent and a page colour, previewed as you pick them.
@@ -214,7 +216,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 ```
 app/            the landing, the app (one file), the white paper and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        1215 checks, the app driven in a real browser included
+scripts/        1245 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -228,7 +230,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-1215 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+1245 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 <br>
 

@@ -17,7 +17,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-store-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "projects.ts", "tidy.ts", "graph.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "projects.ts", "tidy.ts", "graph.ts", "scouts.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 /* A query or mutation is its definition, so a test can call its handler. */
@@ -39,6 +39,10 @@ const conflicts = await import(pathToFileURL(join(dir, "conflicts.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "projects.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "projects.mjs"), logLevel: "silent" });
 const projects = await import(pathToFileURL(join(dir, "projects.mjs")).href);
+
+await esbuild.build({ entryPoints: [join(dir, "scouts.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
+  platform: "node", outfile: join(dir, "scouts.mjs"), logLevel: "silent" });
+const scouts = await import(pathToFileURL(join(dir, "scouts.mjs")).href);
 
 await esbuild.build({ entryPoints: [join(dir, "lib.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "lib.mjs"), logLevel: "silent" });
@@ -988,6 +992,89 @@ function seed() {
   check("good JSON reads as it is", good.a === 'say "hi"' && good.b[1].c === null, JSON.stringify(good));
   check("a reply cut by the token budget still says so", /cut off by the token budget/.test(read('{"a":', "length").error || ""));
   check("prose with no JSON still fails, and says what came back", /held no JSON/.test(read("I could not read this source.").error || ""));
+}
+
+/* ---- the map's heat: questions per concept, per workspace ---- */
+{
+  const { T, ctx } = seed();
+  await run(store.heatAdd, ctx, { space: "octopus", ids: ["wealth/gold", "wealth/silver", "wealth/gold"], d: "2026-09-01" });
+  await run(store.heatAdd, ctx, { space: "octopus", ids: ["wealth/gold"], d: "2026-10-01" });
+  await run(store.heatAdd, ctx, { space: "squidgy", ids: ["wealth/gold"], d: "2026-10-01" });
+  await run(store.heatAdd, ctx, { space: "octopus", ids: ["a/1", "a/2", "a/3", "a/4", "a/5", "a/6", "a/7"], d: "2026-10-01" });
+  const all = await run(store.heatOf, ctx, { space: "octopus", since: "2026-01-01" });
+  const recent = await run(store.heatOf, ctx, { space: "octopus", since: "2026-09-15" });
+  check("each question counts once per concept it opened, per workspace", all["wealth/gold"] === 2 && all["wealth/silver"] === 1
+    && (await run(store.heatOf, ctx, { space: "squidgy", since: "2026-01-01" }))["wealth/gold"] === 1, JSON.stringify(all));
+  check("the heat reads the days asked, so 90 days back drops older questions", recent["wealth/gold"] === 1 && !recent["wealth/silver"], JSON.stringify(recent));
+  check("a question counts 6 concepts at most", T.heat.filter(r => r.brain === "a").length === 6);
+}
+
+/* ---- scouts: feeds read, what is new kept once, never a source already held ---- */
+{
+  const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>Gave &amp; Co</title>
+    <item><title><![CDATA[Gold & the dollar]]></title><link>https://gave.substack.com/p/gold</link><pubDate>Mon, 05 Oct 2026 08:00:00 GMT</pubDate><dc:creator>Charles Gave</dc:creator></item>
+    <item><title>Old one</title><link>https://gave.substack.com/p/old</link><pubDate>Tue, 01 Jul 2025 08:00:00 GMT</pubDate></item>
+    <item><title>No address</title><link>/p/relative</link></item></channel></rss>`;
+  const atom = `<feed xmlns="http://www.w3.org/2005/Atom"><title>Macro Channel</title><author><name>Macro Channel</name></author>
+    <entry><title>Rates in 2027</title><link rel="alternate" href="https://www.youtube.com/watch?v=abc123"/><published>2026-10-04T10:00:00+00:00</published><author><name>Macro Channel</name></author></entry>
+    <entry><title>Oil</title><link href="https://www.youtube.com/watch?v=def456" rel="alternate"/><published>2026-10-02T10:00:00+00:00</published></entry></feed>`;
+  const r = scouts.parseFeed(rss), a = scouts.parseFeed(atom);
+  check("an RSS feed reads: its name, each piece's address, title, day and author, newest first",
+    r.name === "Gave & Co" && r.items.length === 2 && r.items[0].title === "Gold & the dollar" && r.items[0].author === "Charles Gave"
+    && r.items[0].date.startsWith("2026-10-05") && r.items[1].title === "Old one", JSON.stringify(r));
+  check("an Atom feed reads too, the YouTube kind included", a.name === "Macro Channel" && a.items.map(i => i.link).join(",") === "https://www.youtube.com/watch?v=abc123,https://www.youtube.com/watch?v=def456"
+    && a.items[0].author === "Macro Channel", JSON.stringify(a));
+  check("a page that is not a feed is not read as one", scouts.parseFeed("<html><body>hi</body></html>") === null);
+  const now = Date.parse("2026-10-06T00:00:00Z");
+  const many = Array.from({ length: 8 }, (_, i) => ({ link: `https://x.com/${i}`, title: `${i}`, author: "", date: new Date(now - i * 86400000).toISOString() }));
+  check("a first read keeps the 3 newest of the last 21 days, never a channel's whole past", scouts.freshOf(many, undefined, now).map(i => i.title).join(",") === "0,1,2");
+  check("a later read keeps what came after the newest seen", scouts.freshOf(many, many[4].date, now).map(i => i.title).join(",") === "0,1,2,3");
+
+  const { T, ctx } = seed();
+  const one = await run(scouts.scoutAdd, ctx, { space: "octopus", brain: "wealth", url: "https://youtube.com/@macro", feed: "https://f/1", name: "Macro", kind: "youtube", d: "2026-10-06" });
+  const twice = await run(scouts.scoutAdd, ctx, { space: "octopus", brain: "wealth", url: "https://youtube.com/@macro", feed: "https://f/1", name: "Macro", kind: "youtube", d: "2026-10-06" });
+  check("a folder follows a feed once", !!one.scout?.id && /already follows Macro/.test(twice.error || ""), JSON.stringify(twice));
+  T.sources.push({ _id: "s9", sid: "yt-dQw4w9WgXcQ", link: "https://youtu.be/dQw4w9WgXcQ", linkKey: "yt:dQw4w9WgXcQ", title: "Held", author: "A",
+    date: "2026-10-01", location: "", brains: ["wealth"], stored: "2026-10-01" });
+  const items = [{ link: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "Held", date: "2026-10-05", author: "A" },
+    { link: "https://www.youtube.com/watch?v=NEWvideo001", title: "New", date: "2026-10-05", author: "A" }];
+  const n1 = await run(scouts.findsAdd, ctx, { space: "octopus", brain: "wealth", scout: one.scout.id, d: "2026-10-06", items });
+  const n2 = await run(scouts.findsAdd, ctx, { space: "octopus", brain: "wealth", scout: one.scout.id, d: "2026-10-06", items });
+  check("a piece the folder already holds as a source is never a find, and a find is kept once", n1 === 1 && n2 === 0 && T.finds.length === 1, JSON.stringify(T.finds));
+  const waiting = await run(scouts.findsOf, ctx, { space: "octopus" });
+  check("the finds waiting come back without their text, and never to another workspace", waiting.length === 1 && waiting[0].title === "New" && !("text" in waiting[0])
+    && (await run(scouts.findsOf, ctx, { space: "squidgy" })).length === 0
+    && (await run(scouts.findGet, ctx, { space: "squidgy", id: waiting[0].id })) === null, JSON.stringify(waiting));
+  await run(scouts.findSet, ctx, { space: "octopus", id: waiting[0].id, status: "read", read: { summary: "S", touches: [] }, text: "the words" });
+  const got = await run(scouts.findGet, ctx, { space: "octopus", id: waiting[0].id });
+  check("a read find keeps what it read and its text, for the drop", got.status === "read" && got.read.summary === "S" && got.text === "the words", JSON.stringify(got));
+  await run(scouts.findsAdd, ctx, { space: "octopus", brain: "wealth", scout: one.scout.id, d: "2026-10-06", items: [{ link: "https://x.com/kept", title: "Kept", date: "2026-10-05", author: "" }] });
+  const kept = T.finds.find(f => f.title === "Kept");
+  await run(scouts.findSet, ctx, { space: "octopus", id: kept._id, status: "dropped" });
+  const gone = await run(scouts.scoutRemove, ctx, { space: "squidgy", id: one.scout.id });
+  await run(scouts.scoutRemove, ctx, { space: "octopus", id: one.scout.id });
+  check("removing a scout takes the finds still waiting, keeps the ones dropped, and only from its own workspace",
+    /gone/.test(gone.error || "") && !T.scouts.length && T.finds.map(f => f.title).join(",") === "Kept", JSON.stringify(T.finds));
+
+  /* Finding the feed behind an address: a YouTube handle, or a site whose page names it. */
+  const real = globalThis.fetch;
+  const pages = {
+    "https://www.youtube.com/@macro": `<html><link rel="canonical" href="https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv"></html>`,
+    "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv": atom,
+    "https://gave.example.com/p/a-post": `<html><head><link rel="alternate" type="application/rss+xml" href="/feed"></head><body>post</body></html>`,
+    "https://gave.example.com/feed": rss,
+    "https://nofeed.example.com/": `<html><body>nothing</body></html>`,
+  };
+  globalThis.fetch = async u => { const b = pages[String(u)]; return b === undefined ? new Response("no", { status: 404 }) : new Response(b, { status: 200, headers: { "content-type": "text/html" } }); };
+  try {
+    const yt = await scouts.resolveFeed("https://www.youtube.com/@macro");
+    check("a YouTube handle leads to its channel's feed", yt.kind === "youtube" && yt.feed === "https://www.youtube.com/feeds/videos.xml?channel_id=UCabcdefghijklmnopqrstuv" && yt.name === "Macro Channel", JSON.stringify(yt));
+    const site = await scouts.resolveFeed("https://gave.example.com/p/a-post");
+    check("an article leads to its site's feed, named on its page", site.feed === "https://gave.example.com/feed" && site.name === "Gave & Co" && site.items.length === 2, JSON.stringify(site));
+    const none = await throws(scouts.resolveFeed("https://nofeed.example.com/"));
+    const inside = await throws(scouts.resolveFeed("https://localhost/feed"));
+    check("a site with no feed says so, and a private address is never fetched", /has no feed to follow/.test(none) && /not a public https address/.test(inside), `${none} | ${inside}`);
+  } finally { globalThis.fetch = real; }
 }
 
 rmSync(dir, { recursive: true, force: true });

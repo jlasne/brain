@@ -258,7 +258,9 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/export` | One brain's concepts whole, 100 a page, for the markdown export | Yes |
 | `/api/concept` | One concept whole, its links with their kinds, and what follows from it, for the brain viewer. A person of a personal folder also brings the people linking to them and their raw notes, the newest 300; the first open gathers those from the chats still kept | Yes |
 | `/api/topics` | One folder's topics: a title, a line and its concepts. Never a personal folder | Yes |
-| `/api/map` | Every folder, concept and link for the map, each link with its kind | Yes |
+| `/api/map` | Every folder, concept and link for the map, each link with its kind, and the heat: the questions each concept answered in 90 days. A personal brain is never counted | Yes |
+| `/api/scouts` | The feeds a folder follows, by `action`: `list`, `add` (finds the feed behind a YouTube channel or video, a feed, or a site, then keeps its 3 newest pieces of 21 days), `remove`, `check` (reads every feed now). No model call | Yes, owner |
+| `/api/finds` | What the scouts found, by `action`: `list` the ones waiting, `read` one against its folder once (one model call, on the workspace's key and its fetch allowance), `text` (what it read, so the drop reads it free), `skip`, `dropped` | Yes, owner |
 | `/api/conflicts` | The open conflicts that are real contradictions. Each clash is checked once and marked | Yes |
 | `/api/conflicts/settle` | Settles one: the side that holds rewrites the position, or both hold and it only leaves the list | Yes |
 | `/api/passphrase` | Changes the workspace's passphrase: the current one is checked against the same 8 tries an hour, the others are signed out | Owner |
@@ -342,6 +344,9 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `sources` | id, link, date, author, location, brains | link, and the normalised link |
 | `notes` | the six note sections | source id |
 | `candidates` | brain, title, mentions, count | brain and slug |
+| `scouts` | a feed a folder follows: the address given, the feed, its name, when it was last read, the newest piece seen, the last error | space |
+| `finds` | a piece a scout found: its link, title, day, author, status, what the read says, and the text read | space and status, link, scout |
+| `heat` | per workspace and concept: how many questions opened it, and the days, the last 60 | space, concept |
 | `config` | one space's gate salt, hash and attempt counter | key, one row per space |
 | `mcpHits` | the public endpoint's per address counter | address |
 | `accounts` | a member's name, a salted password hash, and optionally their sealed key | name slug |
@@ -370,6 +375,7 @@ The duplicate check reads `sources` by normalised link, so it stays an index loo
 | Every model call | The key would be readable |
 | The settle write | Positions must be rewritten in one pass, atomically |
 | The weekly digest | It runs on a schedule, with no browser open. `crons.ts` calls `digest:send` every Monday at 06:00 UTC and mails `DIGEST_TO` |
+| The scouts | `crons.ts` calls `scouts:sweepAll` every day at 05:17 UTC: each feed is read, six at once, with no model call. The app reads each new find against its folder when it next opens |
 
 Reading brains and rendering the card can stay client side, because that data is already yours.
 

@@ -464,6 +464,54 @@ export default defineSchema({
     updated: v.number(),
   }).index("by_brain", ["space", "brain"]),
 
+  /* A feed a folder follows: a YouTube channel, a Substack, a blog. Read
+     once a day with no model call; what is new becomes a find. */
+  scouts: defineTable({
+    space: v.string(),
+    brain: v.string(),
+    /* The address you gave, and the RSS or Atom feed it led to. */
+    url: v.string(),
+    feed: v.string(),
+    name: v.string(),
+    kind: v.string(),          // "youtube" | "feed"
+    added: v.string(),
+    /* When it was last read, the newest piece it has seen, and why the last read failed. */
+    checked: v.optional(v.string()),
+    seen: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }).index("by_space", ["space"]),
+
+  /* A piece a scout found. The app reads it once against its folder and
+     keeps what it would change; you drop it or skip it. */
+  finds: defineTable({
+    space: v.string(),
+    brain: v.string(),
+    scout: v.string(),
+    link: v.string(),
+    key: v.string(),
+    title: v.string(),
+    date: v.string(),
+    author: v.string(),
+    status: v.string(),        // "new" | "read" | "failed" | "dropped" | "skipped"
+    found: v.string(),
+    /* What the read says: a summary, the concepts it bears on and how, the ideas it adds. */
+    read: v.optional(v.any()),
+    /* The text read, so dropping it reads it again for free. */
+    text: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }).index("by_space", ["space", "status"]).index("by_key", ["space", "key"]).index("by_scout", ["scout"]),
+
+  /* Questions per concept, per workspace: how many asks opened it, and the
+     days they came, the last 60. The map's heat reads it. A personal brain
+     is never counted: no question it answers reaches this table. */
+  heat: defineTable({
+    space: v.string(),
+    brain: v.string(),
+    slug: v.string(),
+    n: v.number(),
+    days: v.array(v.string()),
+  }).index("by_space", ["space"]).index("by_concept", ["space", "brain", "slug"]),
+
   candidates: defineTable({
     brain: v.string(),
     slug: v.string(),

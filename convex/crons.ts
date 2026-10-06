@@ -12,4 +12,7 @@ const crons = cronJobs();
 
 crons.weekly("weekly digest", { dayOfWeek: "monday", hourUTC: 6, minuteUTC: 0 }, internal.digest.send, {});
 
+/* The scouts read every feed once a day, before the morning in Europe. No model call. */
+crons.daily("scouts", { hourUTC: 5, minuteUTC: 17 }, internal.scouts.sweepAll, {});
+
 export default crons;

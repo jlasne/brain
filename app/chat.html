@@ -348,6 +348,12 @@
   .mp-find:focus{ border-color:#a78bfa; width:240px; }
   .mp-find::placeholder{ color:#6b6b73; }
   .mp-zoom{ display:flex; gap:4px; }
+  .mp-warm{ height:32px; padding:0 11px; border-radius:9px; border:1px solid #2f2f35; background:#1f1f23; color:#d4d4d8; font:500 12.5px/1 var(--sans); cursor:pointer; white-space:nowrap; }
+  .mp-warm:hover{ border-color:#f2994a; color:#fff; }
+  .mp-warm.on{ background:#f2994a; border-color:#f2994a; color:#18181b; }
+  .mp-blind{ border-color:#7dd3fc55; color:#7dd3fc; }
+  .mp-card p.mp-c-warm{ color:#f2c46b; }
+  .mp-card p.mp-c-blind{ color:#7dd3fc; }
   .mp-zoom button{ min-width:32px; height:32px; padding:0 9px; border-radius:9px; border:1px solid #2f2f35;
     font:500 14px/1 var(--sans); color:#d4d4d8; background:#1f1f23; }
   .mp-zoom button:hover{ border-color:#a78bfa; color:#fff; }
@@ -376,8 +382,10 @@
     .mapbox{ height:100%; max-width:none; border-radius:0; border:none; }
     .mp-n{ display:none; }
     .mp-find{ width:120px; } .mp-find:focus{ width:150px; }
-    .mp-zoom button, .mp-find{ height:40px; }
+    .mp-zoom button, .mp-find, .mp-warm{ height:40px; }
     .mp-zoom button{ min-width:40px; }
+    .mp-h{ flex-wrap:wrap; row-gap:8px; }
+    .mp-blind{ order:9; flex:1 1 100%; }
   }
 
   /* The brain viewer: a wide sheet, a list, then one concept. */
@@ -576,6 +584,41 @@
   .au-t span{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
   .mini.au-due{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
   .au-row.run .au-t span{ color:var(--ink-2); }
+  /* Scouts: the feeds a folder follows. */
+  .sc-add{ display:flex; gap:8px; margin-top:16px; }
+  .sc-add input{ flex:1; min-width:0; height:42px; padding:0 13px; border:1px solid var(--line); border-radius:12px; background:var(--surface); color:var(--ink); font:400 14.5px/1 var(--sans); }
+  .sc-add input:focus{ outline:none; border-color:var(--accent-line); box-shadow:0 0 0 3px var(--accent-soft); }
+  .sc-say{ min-height:1.2em; margin-top:8px; font:400 13.5px/1.5 var(--sans); color:var(--ink-3); }
+  .sc-say.ok{ color:var(--good); } .sc-say.bad{ color:var(--bad); }
+  .sc h4{ margin:22px 0 4px; font:600 12px/1 var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); }
+  .sc-row{ display:flex; align-items:center; gap:8px 12px; padding:10px 0; border-top:1px solid var(--line); }
+  .sc-list .sc-row:first-child, .sc-sugg h4 + .sc-row{ border-top:0; }
+  .sc-t{ flex:1; min-width:0; display:grid; gap:2px; }
+  .sc-t b{ font:500 14.5px/1.35 var(--sans); color:var(--ink); overflow-wrap:anywhere; }
+  .sc-t span{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); overflow-wrap:anywhere; }
+  .sc-t span.bad{ color:var(--bad); }
+  .sc-none{ padding:10px 0; font:400 14px/1.5 var(--sans); color:var(--ink-3); }
+  #scCheck{ margin-top:8px; }
+  /* What the scouts found, a card each. */
+  .sheet.fd-sheet{ max-width:640px; }
+  .fd-card{ display:grid; gap:7px; padding:14px 0 16px; border-top:1px solid var(--line); transition:opacity .2s ease, transform .2s ease; }
+  .fd-card:first-child{ border-top:0; padding-top:4px; }
+  .fd-card.gone{ opacity:0; transform:translateX(12px); }
+  .fd-title{ font:600 15.5px/1.35 var(--sans); color:var(--ink); text-decoration:none; overflow-wrap:anywhere; }
+  .fd-title:hover{ color:var(--accent); }
+  .fd-meta{ font:400 12px/1.4 var(--mono); color:var(--ink-4); }
+  .fd-sum{ font:400 14px/1.55 var(--sans); color:var(--ink-2); }
+  .fd-wait{ display:flex; align-items:center; gap:8px; font:400 13.5px/1.4 var(--sans); color:var(--ink-3); }
+  .fd-wait .spinner{ width:22px; height:22px; }
+  .fd-err{ font:400 13.5px/1.5 var(--sans); color:var(--bad); }
+  .fd-touch{ display:grid; gap:5px; margin:0; padding:0; list-style:none; }
+  .fd-touch li{ font:400 13.5px/1.45 var(--sans); color:var(--ink-2); padding-left:10px; border-left:3px solid var(--line-2); }
+  .fd-touch b{ font-weight:600; }
+  .fd-touch .fd-contradicts{ border-color:var(--bad); } .fd-touch .fd-contradicts b{ color:var(--bad); }
+  .fd-touch .fd-supports{ border-color:var(--good); } .fd-touch .fd-supports b{ color:var(--good); }
+  .fd-touch .fd-new{ border-color:var(--accent); } .fd-touch .fd-new b{ color:var(--accent); }
+  .fd-acts{ display:flex; gap:8px; margin-top:4px; }
+  .fd-acts button{ min-height:36px; padding:0 16px; }
   /* A running audit: the turning mark, the step, a bar when the count is known, the time it has run. */
   .au-load{ display:grid; gap:10px; margin-top:18px; padding:14px 16px; border-radius:14px; background:var(--side); }
   .au-top{ display:flex; align-items:center; gap:10px; min-width:0; }
@@ -2054,7 +2097,7 @@ const TOKEN_KEY = "octopus.token.v1";
    copy of it. */
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
   "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle",
-  "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview", "/api/personal/people"]);
+  "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview", "/api/personal/people", "/api/finds"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -2345,8 +2388,8 @@ async function refresh(){
   applyLook(d.brand || null);
   paintWorkspace();
   render();
-  /* The rings and the chats follow, so the brains never wait on them. */
-  loadHealth(); loadChats();
+  /* The rings, the chats and the scouts' finds follow, so the brains never wait on them. */
+  loadHealth(); loadChats(); loadFinds();
 }
 
 /** Each brain's health, then the rings repaint, and an open map with them. */
@@ -2734,7 +2777,7 @@ function renderChats(){
   closeChatMenu();
   const box = $("chats"); box.innerHTML = "";
   $("ccount").textContent = S.chats.length || "";
-  if (!S.chats.length){ box.append(el("div","empty-side","No chat yet. Ask a question and it lands here.")); return; }
+  if (!S.chats.length){ box.append(el("div","empty-side","No chat")); return; }
   for (const c of S.chats) box.append(chatRow(c));
 }
 
@@ -3490,9 +3533,9 @@ function paintInbox(){
   const a = S.auditRun, auditing = a?.state === "running";
   const auditWaits = a && !auditing && !a.seen ? 1 : 0;
   const dueAudits = S.demo ? [] : (S.brains || []).filter(b => auditDue(b) && !(auditing && a.slug === b.slug));
-  const n = unread + dropWaits + memWaits + auditWaits + dueAudits.length + openClashes();
+  const n = unread + dropWaits + memWaits + auditWaits + dueAudits.length + openClashes() + (S.finds || []).length;
   $("inboxN").hidden = !n; $("inboxN").textContent = n > 99 ? "99+" : String(n);
-  btn.classList.toggle("run", running > 0 || (!!d && ["running", "storing"].includes(d.state)) || m?.state === "running" || auditing);
+  btn.classList.toggle("run", running > 0 || (!!d && ["running", "storing"].includes(d.state)) || m?.state === "running" || auditing || !!S.findAt);
   btn.setAttribute("aria-label", n ? `Inbox, ${n} waiting` : "Inbox");
   if (!$("inbox").hidden) paintInboxPanel();
 }
@@ -3527,6 +3570,17 @@ function paintInboxPanel(){
       m.state === "running" ? `Filing piece ${Math.min(m.done + 1, n)} of ${n}` : m.state === "failed" ? `Stopped at piece ${m.done + 1} of ${n}` : "Done: see what it filed",
       () => openMemorySheet(m.brain))]);
   }
+  /* What the scouts found, by folder: how many pieces, and what they would change. */
+  const byBrain = new Map();
+  for (const f of S.finds || []) (byBrain.get(f.brain) || byBrain.set(f.brain, []).get(f.brain)).push(f);
+  group("From your scouts", [...byBrain].map(([slug, fs]) => {
+    const name = S.brains.find(x => x.slug === slug)?.name || slug;
+    const count = st => fs.reduce((k, f) => k + (f.read?.touches || []).filter(t => t.stance === st).length, 0);
+    const clash = count("contradicts"), backs = count("supports"), reading = fs.some(f => f.id === S.findAt);
+    const sub = [reading ? "reading one now" : "", clash ? `${clash} clash${clash === 1 ? "" : "es"}` : "", backs ? `${backs} back${backs === 1 ? "s" : ""} what it holds` : ""]
+      .filter(Boolean).join(" · ") || "drop it or skip it";
+    return item(reading ? "run" : clash ? "clash" : "new", `${name}: ${fs.length} new piece${fs.length === 1 ? "" : "s"}`, sub, () => openFinds(slug));
+  }));
   const a = S.auditRun, ab = a && S.brains.find(x => x.slug === a.slug);
   if (ab && (a.state === "running" || !a.seen))
     group("Audit", [item(a.state === "running" ? "run" : a.state === "failed" ? "bad" : "new", `Audit ${a.name}`,
@@ -3573,6 +3627,112 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("inbox"
    titles not in English, empty positions, and in the personal folder the
    people not filed and the same person twice. Due after 50 sources dropped
    since the last one; the personal folder, every week. The inbox says when. */
+
+/* ============ scouts ============ */
+/**
+ * What the scouts found: loaded with the state, then each new find read once
+ * against its folder, one at a time, in the background. Six a run at most,
+ * so a day with many new pieces spreads its cost.
+ */
+async function loadFinds(){
+  if (S.demo) return;
+  let got;
+  try { got = (await api("/api/finds", { action: "list" })).finds; } catch { return; }
+  if (!Array.isArray(got)) return;
+  const was = new Map((S.finds || []).map(f => [f.id, f]));
+  S.finds = got.map(f => ({ ...f, tried: was.get(f.id)?.tried }));
+  paintInbox(); paintFinds();
+  readFinds();
+}
+async function readFinds(){
+  if (S.findBusy) return;
+  S.findBusy = true;
+  try {
+    for (let i = 0; i < 6; i++){
+      const f = (S.finds || []).find(x => x.status === "new" && !x.tried);
+      if (!f) break;
+      f.tried = true; S.findAt = f.id; paintInbox(); paintFinds();
+      try {
+        const r = await api("/api/finds", { action: "read", id: f.id });
+        if (r.read){ f.read = r.read; f.status = "read"; f.error = ""; }
+        else if (r.error){ f.error = r.error; if (!/allowance/.test(r.error)) f.status = "failed"; }
+      } catch (e) { f.error = e.message; }
+    }
+  } finally { S.findBusy = false; S.findAt = null; paintInbox(); paintFinds(); }
+}
+function paintFinds(){ if (S.findsPaint) S.findsPaint(); }
+/**
+ * What the scouts found, a card each: what it says, the positions it
+ * contradicts, backs or adds to, the ideas the folder lacks. Drop it or Skip.
+ */
+function openFinds(slug){
+  closeInbox();
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet fd-sheet" role="dialog" aria-modal="true" aria-label="New from your scouts">
+      <header><h3>New from your scouts</h3><p id="fdSay"></p></header>
+      <div class="f" id="fdList"></div>
+      <footer><button class="go" id="fdDone">Done</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const list = veil.querySelector("#fdList"), say = veil.querySelector("#fdSay");
+  const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
+  const shut = () => { document.removeEventListener("keydown", onKey); S.findsPaint = null; veil.remove(); };
+  document.addEventListener("keydown", onKey);
+  veil.querySelector("#fdDone").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  const clashes = f => (f.read?.touches || []).filter(t => t.stance === "contradicts").length;
+  const LABEL = { contradicts: "Contradicts", supports: "Backs", adds: "Adds to" };
+  const paint = () => {
+    const fs = (S.finds || []).filter(f => !slug || f.brain === slug).sort((x, y) => clashes(y) - clashes(x) || String(y.date).localeCompare(String(x.date)));
+    say.textContent = fs.length ? `${fs.length} piece${fs.length === 1 ? "" : "s"} waiting. Each one is read against its folder: what it contradicts, what it backs, what it adds.`
+      : "Nothing waiting. The scouts read every feed once a day.";
+    list.innerHTML = "";
+    for (const f of fs){
+      const card = el("div","fd-card"); card.dataset.id = f.id;
+      const a = el("a","fd-title", f.title); a.href = f.link; a.target = "_blank"; a.rel = "noopener";
+      const name = S.brains.find(x => x.slug === f.brain)?.name || f.brain;
+      card.append(a, el("div","fd-meta", [f.author, f.date ? fileDay(String(f.date).slice(0, 10)) : "", name].filter(Boolean).join(" · ")));
+      if (f.id === S.findAt){
+        const w = el("div","fd-wait"), m = el("span","spinner"); m.setAttribute("aria-hidden","true");
+        w.append(m, el("span",null,"Reading it against the folder")); card.append(w);
+      } else if (!f.read) card.append(el("p", f.status === "failed" ? "fd-err" : "fd-wait", f.status === "failed" ? `Not read: ${f.error}` : f.error ? `Waiting: ${f.error}` : "Waiting to be read."));
+      if (f.read){
+        if (f.read.summary) card.append(el("p","fd-sum", f.read.summary));
+        const ul = el("ul","fd-touch");
+        for (const t of f.read.touches || []){ const li = el("li","fd-" + t.stance); li.append(el("b",null,LABEL[t.stance] || t.stance), el("span",null,` ${t.title}: ${t.why}`)); ul.append(li); }
+        for (const x of f.read.fresh || []){ const li = el("li","fd-new"); li.append(el("b",null,"New"), el("span",null,` ${x}`)); ul.append(li); }
+        if (ul.children.length) card.append(ul);
+      }
+      const acts = el("div","fd-acts");
+      const dropB = el("button","go","Drop it"); dropB.type = "button";
+      const skipB = el("button","ghost","Skip"); skipB.type = "button";
+      dropB.onclick = () => { shut(); dropFind(f); };
+      skipB.onclick = () => {
+        S.finds = (S.finds || []).filter(x => x.id !== f.id); paintInbox();
+        api("/api/finds", { action: "skip", id: f.id }).catch(() => {});
+        card.classList.add("gone"); setTimeout(() => { if (veil.isConnected) paint(); }, 200);
+      };
+      acts.append(dropB, skipB); card.append(acts);
+      list.append(card);
+    }
+  };
+  S.findsPaint = paint;
+  paint();
+}
+/** A find dropped: its folder ticked, the text it already read in the box, then the usual drop and its card. */
+async function dropFind(f){
+  setPicks([f.brain]); openDrop();
+  if (S.dropBusy){ dpush("ai", b => { b.innerHTML = rich("A drop is still running. This piece waits in the inbox: drop it once this one ends."); }); return; }
+  let text = "";
+  try { text = (await api("/api/finds", { action: "text", id: f.id })).text || ""; } catch { /* the drop opens the link itself */ }
+  S.finds = (S.finds || []).filter(x => x.id !== f.id); paintInbox();
+  api("/api/finds", { action: "dropped", id: f.id }).catch(() => {});
+  $("srcInput").value = f.link;
+  $("input").value = text ? `${f.title}\nBy ${f.author || "unknown"}${f.date ? `, ${String(f.date).slice(0, 10)}` : ""}\n\n${text}` : "";
+  renderComposer();
+  go();
+}
 
 /** A folder this workspace holds and may change, never one shared in. */
 function auditable(b){ return !!b && !S.demo && !readOnly(b) && (b.space || "octopus") === S.space; }
@@ -3882,11 +4042,13 @@ async function openMap(){
     <div class="mapbox" role="dialog" aria-modal="true" aria-label="Map of the folders">
       <header class="mp-h"><b>Map</b><span class="mp-n" id="mpN"></span>
         <input class="mp-find" id="mpFind" type="search" placeholder="Find a concept" autocomplete="off" spellcheck="false" aria-label="Find a concept">
+        <button class="mp-warm" id="mpWarm" type="button" aria-pressed="false" title="Colour each concept by the questions it drew in 90 days">Heat</button>
+        <button class="mp-warm mp-blind" id="mpBlind" type="button" hidden></button>
         <div class="mp-zoom"><button id="mpIn" aria-label="Zoom in">+</button><button id="mpOut" aria-label="Zoom out">&minus;</button><button id="mpFit">Fit</button></div>
         <button class="dk-x" id="mpX" aria-label="Close">&times;</button></header>
       <div class="mp-stage" id="mpStage"><canvas id="mpCanvas" aria-label="The folders and their concepts, as a graph"></canvas>
         <div class="mp-card" id="mpCard" hidden></div></div>
-      <div class="mp-key">Big node: a folder, its health around it. Dot: a concept, bigger with more sources. Red ring: an open conflict. Point to light the links: <b style="color:#f2c46b">needs</b> · <b style="color:#c4b5fd">causes</b> · <b style="color:#6fcf97">supports</b> · <b style="color:#f87171">contradicts</b> · <b style="color:#7dd3fc">example</b>.</div>
+      <div class="mp-key" id="mpKey">Big node: a folder, its health around it. Dot: a concept, bigger with more sources. Red ring: an open conflict. Point to light the links: <b style="color:#f2c46b">needs</b> · <b style="color:#c4b5fd">causes</b> · <b style="color:#6fcf97">supports</b> · <b style="color:#f87171">contradicts</b> · <b style="color:#7dd3fc">example</b>.</div>
     </div>`;
   document.body.append(veil);
   const stage = veil.querySelector("#mpStage"), cv = veil.querySelector("#mpCanvas"), card = veil.querySelector("#mpCard");
@@ -3901,9 +4063,16 @@ async function openMap(){
   document.addEventListener("keydown", onKey);
   veil.querySelector("#mpX").onclick = shut;
 
-  let links = [];
-  try { links = (await api("/api/map", {})).links || []; } catch { links = []; }
+  let links = [], ASKED = {};
+  try { const r = await api("/api/map", {}); links = r.links || []; ASKED = r.heat || {}; } catch { links = []; }
   if (!veil.isConnected) return;
+  /* Heat: each concept coloured by the questions that opened it in 90 days.
+     Asked 3 times or more and held by 2 sources or fewer, it is a blind spot:
+     what you ask about, fed thin. */
+  let warm = false, blindAt = 0;
+  const KEY = veil.querySelector("#mpKey").innerHTML;
+  const WARM_KEY = `Heat: the questions each concept answered in 90 days. <b style="color:#71717a">Grey</b>: none · <b style="color:#f2c46b">1 to 2</b> · <b style="color:#f2994a">3 to 9</b> · <b style="color:#ff5c4d">10 or more</b>. <b style="color:#7dd3fc">Dashed ring</b>: a blind spot, asked 3 times or more and held by 2 sources or fewer. Feed it.`;
+  const heatInk = k => k >= 10 ? "#ff5c4d" : k >= 3 ? "#f2994a" : k >= 1 ? "#f2c46b" : "#3f3f46";
 
   /* A lit link takes its kind's colour: what to read first, what it drives,
      what backs it, what disagrees, what it is a case of. */
@@ -3928,9 +4097,11 @@ async function openMap(){
       N.push(hub); byId.set(hub.id, hub);
       for (const c of conceptsOf(b.slug)){
         const id = `${c.brain}/${c.slug}`, was = keep.get(id);
+        const asked = ASKED[id] || 0;
         const n = { id, c, b, color: hub.color, r: 2.6 + 1.5 * Math.sqrt(Math.max(1, c.src || 0)), label: c.title,
           x: was?.x ?? hub.x + (Math.random() - .5) * 90, y: was?.y ?? hub.y + (Math.random() - .5) * 90, vx: 0, vy: 0,
-          bad: S.conflicted.has(id), deg: 0 };
+          bad: S.conflicted.has(id), deg: 0, asked, thin: asked >= 3 && (c.src || 0) <= 2 };
+        hub.asked = (hub.asked || 0) + asked;
         N.push(n); byId.set(id, n);
         E.push({ a: hub, b: n, hub: true });
       }
@@ -3939,9 +4110,30 @@ async function openMap(){
       const p = byId.get(a), q = byId.get(b);
       if (p && q && p !== q){ E.push({ a: p, b: q, cross: p.b !== q.b, type: type || "related" }); p.deg++; q.deg++; }
     }
+    paintCount();
+  };
+  const blinds = () => N.filter(n => n.thin).sort((x, y) => y.asked - x.asked);
+  const paintCount = () => {
     const cross = E.filter(e => e.cross).length, bad = N.filter(n => n.bad).length, nc = N.filter(n => !n.hub).length;
-    veil.querySelector("#mpN").textContent = `${folders.length} folder${folders.length === 1 ? "" : "s"} · ${nc} concepts · ` +
-      `${E.filter(e => !e.hub).length} links, ${cross} between folders · ${bad} with an open conflict`;
+    const asked = N.filter(n => !n.hub && n.asked).length, bl = blinds().length;
+    veil.querySelector("#mpN").textContent = warm
+      ? `${asked} of ${nc} concepts asked about in 90 days · ${bl} blind spot${bl === 1 ? "" : "s"}`
+      : `${folders().length} folder${folders().length === 1 ? "" : "s"} · ${nc} concepts · ` +
+        `${E.filter(e => !e.hub).length} links, ${cross} between folders · ${bad} with an open conflict`;
+    const bb = veil.querySelector("#mpBlind");
+    bb.hidden = !warm || !bl; bb.textContent = `Next blind spot · ${bl}`;
+  };
+  const folders = () => N.filter(n => n.hub);
+  const warmB = veil.querySelector("#mpWarm");
+  warmB.onclick = () => {
+    warm = !warm; warmB.classList.toggle("on", warm); warmB.setAttribute("aria-pressed", String(warm));
+    veil.querySelector("#mpKey").innerHTML = warm ? WARM_KEY : KEY;
+    paintCount(); dirty = true; if (sel) pick(sel);
+  };
+  veil.querySelector("#mpBlind").onclick = () => {
+    const list = blinds(); if (!list.length) return;
+    const n = list[blindAt++ % list.length];
+    goal.x = n.x; goal.y = n.y; goal.k = Math.max(goal.k, 1.8); pick(n);
   };
 
   /* ---- the physics: links pull, dots push apart, all drift to the middle ---- */
@@ -4062,6 +4254,16 @@ async function openMap(){
         g.lineWidth = 3 / Math.max(.6, view.k); g.strokeStyle = "rgba(255,255,255,.12)";
         g.beginPath(); g.arc(n.x, n.y, n.r + 5, 0, 7); g.stroke();
         if (h){ g.strokeStyle = "rgba(255,255,255,.85)"; g.beginPath(); g.arc(n.x, n.y, n.r + 5, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * h.score / 10); g.stroke(); }
+      } else if (warm){
+        /* Heat: a warm glow that grows with the questions, a dashed ring on a blind spot. */
+        const ink = heatInk(n.asked);
+        if (n.asked){ g.fillStyle = ink + "33"; g.beginPath(); g.arc(n.x, n.y, n.r + 3 + Math.min(12, n.asked * 1.2), 0, 7); g.fill(); }
+        g.fillStyle = n === hover || n === sel ? "#ffffff" : ink;
+        g.beginPath(); g.arc(n.x, n.y, n.r, 0, 7); g.fill();
+        if (n.thin){
+          g.lineWidth = 1.6 / Math.max(.7, view.k); g.strokeStyle = "#7dd3fc"; g.setLineDash([3 / view.k, 2.4 / view.k]);
+          g.beginPath(); g.arc(n.x, n.y, n.r + 4, 0, 7); g.stroke(); g.setLineDash([]);
+        }
       } else {
         g.fillStyle = n === hover || n === sel ? "#ffffff" : n.color;
         g.beginPath(); g.arc(n.x, n.y, n.r, 0, 7); g.fill();
@@ -4098,7 +4300,7 @@ async function openMap(){
     if (settling) tick();
     const e = .18, moving = Math.abs(goal.x - view.x) + Math.abs(goal.y - view.y) > .05 / view.k || Math.abs(goal.k - view.k) > .0005;
     view.x += (goal.x - view.x) * e; view.y += (goal.y - view.y) * e; view.k += (goal.k - view.k) * e;
-    const now = `${hover?.id}|${sel?.id}|${query}|${W}x${H}`;
+    const now = `${hover?.id}|${sel?.id}|${query}|${W}x${H}|${warm}`;
     if (settling || moving || dirty || now !== seen){ draw(); dirty = false; seen = now; }
     raf = window.requestAnimationFrame(frame);
   };
@@ -4115,6 +4317,11 @@ async function openMap(){
     card.append(top, el("b",null, n.label));
     if (n.hub) card.append(el("p",null, `${conceptsOf(n.b.slug).length} concepts${h ? ` · health ${fmtScore(h.score)}/10` : ""}${n.b.scope ? ` · ${n.b.scope}` : ""}`));
     else card.append(el("p",null, `${n.c.summaryLine || "No position yet."} · ${n.c.src || 0} source${n.c.src === 1 ? "" : "s"} · ${n.deg} link${n.deg === 1 ? "" : "s"}`));
+    if (warm){
+      const k = n.asked || 0, times = `${k} question${k === 1 ? "" : "s"} in 90 days`;
+      card.append(el("p", n.thin ? "mp-c-blind" : "mp-c-warm", n.hub ? `${times} across this folder.`
+        : n.thin ? `Blind spot: ${times}, held by ${n.c.src || 0} source${n.c.src === 1 ? "" : "s"}. Drop more on it.` : `${times}.`));
+    }
     const acts = el("div","mp-c-acts");
     const btn = (t, fn, cls = "") => { const x = el("button", cls, t); x.type = "button"; x.onclick = fn; acts.append(x); return x; };
     if (n.hub){
@@ -4122,6 +4329,7 @@ async function openMap(){
       if (h) btn("Health", () => openHealthSheet(n.b));
     } else {
       btn("Read it", () => openBrainView(n.b, n.id));
+      if (warm && n.thin && !readOnly(n.b)) btn("Feed it", () => { shut(); setPicks([n.b.slug]); openDrop(); });
       if (n.bad) btn("Settle the conflict", () => settleFrom(n.id, n.b.slug), "bad");
     }
     card.append(acts);
@@ -4202,7 +4410,7 @@ async function openMap(){
 
   /* What the checks read: the nodes, where one sits on screen, and the camera. */
   stage.graph = {
-    nodes: () => N.map(n => ({ id: n.id, hub: !!n.hub, r: n.r, bad: !!n.bad, label: n.label })),
+    nodes: () => N.map(n => ({ id: n.id, hub: !!n.hub, r: n.r, bad: !!n.bad, label: n.label, asked: n.asked || 0, thin: !!n.thin })),
     links: () => E.filter(e => !e.hub).map(e => [e.a.id, e.b.id, e.type]),
     screen: id => { const n = byId.get(id); return n ? toScreen(n.x, n.y) : null; },
     lit: () => [...(litSet() || [])].map(n => n.id),
@@ -4432,15 +4640,15 @@ async function openSetupSheet(opts = {}){
           <span class="lbl">Map</span><span class="val">open</span></button>
       </div>
 
-      <div class="f" id="auditBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${S.demo ? "hidden" : ""}>
-        <label>Audit</label>
-        <div class="hint" style="margin:0 0 10px">Finds what is filed twice, titles not in English and empty positions, and in your personal folder the people not filed yet and the same person twice. You decide each one. Due after 50 sources dropped, and every week for the personal folder: the inbox says when.</div>
+      <details class="f sh-fold" id="auditBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${S.demo ? "hidden" : ""}>
+        <summary><span>Audit</span><b id="auditSum" class="sh-count"></b></summary>
+        <div class="hint" style="margin:8px 0 10px">Finds what is filed twice, titles not in English and empty positions, and in your personal folder the people not filed yet and the same person twice. You decide each one. Due after 50 sources dropped, and every week for the personal folder: the inbox says when.</div>
         <div id="auditList"></div>
-      </div>
+      </details>
 
-      <div class="f" id="langBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
-        <label>Languages</label>
-        <div class="hint" style="margin:0 0 10px">${S.demo ? "The language the mic listens in, kept in this browser." : "Write and talk in any language. Every note and file is kept in English, your own words beside each line."}</div>
+      <details class="f sh-fold" id="langBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px">
+        <summary><span>Languages</span><b id="langSum" class="sh-count"></b></summary>
+        <div class="hint" style="margin:8px 0 10px">${S.demo ? "The language the mic listens in, kept in this browser." : "Write and talk in any language. Every note and file is kept in English, your own words beside each line."}</div>
         <div class="lang-row" ${S.demo ? "hidden" : ""}><span>Answers in the chat</span>
           <div class="seg" id="langReply" role="radiogroup" aria-label="The language answers come back in">
             <button type="button" role="radio" data-v="same">As you write</button><button type="button" role="radio" data-v="en">In English</button></div></div>
@@ -4451,17 +4659,17 @@ async function openSetupSheet(opts = {}){
             <button type="button" role="radio" data-v="de-DE">German</button><button type="button" role="radio" data-v="it-IT">Italian</button>
             <button type="button" role="radio" data-v="pt-PT">Portuguese</button></div></div>
         <div class="hint" id="langMsg" role="status" style="margin-top:6px"></div>
-      </div>
+      </details>
 
-      <div class="f" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px">
-        <label>Open conflicts <b id="cfCount" class="cf-count"></b></label>
-        <div class="hint" style="margin:0 0 8px">Contradictions a drop left on "keep both". Rule on each one here.</div>
+      <details class="f sh-fold" id="cfBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px">
+        <summary><span>Open conflicts</span><b id="cfCount" class="sh-count"></b></summary>
+        <div class="hint" style="margin:8px 0 8px">Contradictions a drop left on "keep both". Rule on each one here.</div>
         <div id="cfSlot"></div>
-      </div>
+      </details>
 
-      <div class="f" id="lookBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${S.demo ? "hidden" : ""}>
-        <label>Look</label>
-        <div class="hint" style="margin:0 0 10px">Your logo and colours, on every page of ${esc(S.spaceName)} and on the page that asks for its passphrase.</div>
+      <details class="f sh-fold" id="lookBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${S.demo ? "hidden" : ""}>
+        <summary><span>Look</span><b id="lookSum" class="sh-count"></b></summary>
+        <div class="hint" style="margin:8px 0 10px">Your logo and colours, on every page of ${esc(S.spaceName)} and on the page that asks for its passphrase.</div>
         <div class="look">
           <button class="look-logo" id="lookLogo" type="button" title="Pick a logo: a square image reads best"><img id="lookImg" alt=""><span>Logo</span></button>
           <label class="look-c" title="The colour of buttons, rings and links"><input type="color" id="lookAccent"><span>Accent</span></label>
@@ -4470,16 +4678,16 @@ async function openSetupSheet(opts = {}){
         </div>
         <div class="look-acts"><button class="mini" id="lookReset" type="button">Back to the default</button><button class="go" id="lookSave" type="button" disabled>Save the look</button></div>
         <div class="hint" id="lookMsg" role="status"></div>
-      </div>
+      </details>
 
-      <div class="f" id="passBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:16px" ${S.demo ? "hidden" : ""}>
-        <label for="passCur">Passphrase</label>
-        <div class="hint" style="margin:0 0 10px">Change the passphrase that opens ${esc(S.spaceName)}. Anyone else signed in here is signed out.</div>
-        <input id="passCur" type="password" autocomplete="current-password" placeholder="Current passphrase" style="margin-bottom:8px">
-        <input id="passNew" type="password" autocomplete="new-password" placeholder="New passphrase, 8 characters or more">
+      <details class="f sh-fold" id="passBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${S.demo ? "hidden" : ""}>
+        <summary><span>Passphrase</span></summary>
+        <div class="hint" style="margin:8px 0 10px">Change the passphrase that opens ${esc(S.spaceName)}. Anyone else signed in here is signed out.</div>
+        <input id="passCur" type="password" autocomplete="current-password" placeholder="Current passphrase" aria-label="Current passphrase" style="margin-bottom:8px">
+        <input id="passNew" type="password" autocomplete="new-password" placeholder="New passphrase, 8 characters or more" aria-label="New passphrase">
         <div class="look-acts"><button class="go" id="passGo" type="button">Change it</button></div>
         <div class="hint" id="passMsg" role="status"></div>
-      </div>
+      </details>
 
       <details class="f sh-fold" id="shareBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${ownerWs() ? "" : "hidden"}>
         <summary><span>Share brain</span><b id="shareCount" class="sh-count"></b></summary>
@@ -4552,6 +4760,7 @@ async function openSetupSheet(opts = {}){
     try {
       const r = await api("/api/brand", { logo: draft.logo ?? null, accent: draft.accent ?? null, bg: draft.bg ?? null });
       draft = null; applyLook(r.brand || null); paintLookInputs();
+      veil.querySelector("#lookSum").textContent = r.brand ? "your own" : "default";
       lookMsg.textContent = "Saved. Every page of this workspace wears it now.";
     } catch (e) { lookSave.disabled = false; lookMsg.textContent = e.message; }
   };
@@ -4560,6 +4769,7 @@ async function openSetupSheet(opts = {}){
     try {
       await api("/api/brand", { reset: true });
       draft = null; applyLook(null); paintLookInputs(); lookSave.disabled = true;
+      veil.querySelector("#lookSum").textContent = "default";
       lookMsg.textContent = "Back to the default look.";
     } catch (e) { lookMsg.textContent = e.message; }
   };
@@ -4660,6 +4870,16 @@ async function openSetupSheet(opts = {}){
     r.append(t, go); al.append(r);
   }
   if (!al.children.length) al.append(el("div","hint","No folder to audit yet."));
+  /* Each fold says where it stands while closed. */
+  const dueN = auditFolders().filter(b => auditDue(b)).length;
+  veil.querySelector("#auditSum").textContent = dueN ? `${dueN} due` : "";
+  const langSum = () => {
+    const v = voiceLang(), name = v ? (VOICE_LANGS.find(x => x[0] === v) || [])[2] || v : "";
+    veil.querySelector("#langSum").textContent = [S.demo ? "" : S.models?.reply === "en" ? "answers in English" : "answers as you write",
+      Speech ? (name ? `mic in ${name}` : "mic not set") : ""].filter(Boolean).join(" · ");
+  };
+  langSum();
+  veil.querySelector("#lookSum").textContent = S.brand ? "your own" : "default";
   /* Languages: saved for the workspace on a tap. The demo keeps its voice
      language in this browser, since its settings are shared by every visitor. */
   const langSeg = (id, key, def, said) => {
@@ -4671,12 +4891,12 @@ async function openSetupSheet(opts = {}){
     seg.onclick = async e => {
       const x = e.target.closest("button[data-v]");
       if (!x || x.dataset.v === now()) return;
-      if (key === "voice" && S.demo){ setLocalVoice(x.dataset.v); paint(); msg.textContent = said(x.dataset.v); return; }
+      if (key === "voice" && S.demo){ setLocalVoice(x.dataset.v); paint(); langSum(); msg.textContent = said(x.dataset.v); return; }
       msg.textContent = "Saving";
       try {
         const r = await api("/api/models", { [key]: x.dataset.v || null });
         S.models = { ...(S.models || {}), reply: r.reply, voice: r.voice };
-        paint(); msg.textContent = said(x.dataset.v);
+        paint(); langSum(); msg.textContent = said(x.dataset.v);
       } catch (err) { msg.textContent = err.message; }
     };
   };
@@ -4684,6 +4904,7 @@ async function openSetupSheet(opts = {}){
   langSeg("langVoice", "voice", "", v => `Saved. The mic listens in ${(VOICE_LANGS.find(x => x[0] === v) || [])[2] || v}${S.demo ? ", in this browser" : ", on every device of this workspace"}. Tap the mic to talk.`);
   /* The mic, tapped with no language picked, sends you here to pick one. */
   if (opts.voice){
+    veil.querySelector("#langBlock").open = true;
     const row = veil.querySelector("#langVoice").closest(".lang-row");
     row.classList.add("ask");
     veil.querySelector("#langMsg").textContent = "Pick the language the mic listens in. It hears one language at a time.";
@@ -5425,6 +5646,7 @@ function pctRing(pct){
     <text x="12" y="12.4">${Math.round(pct || 0)}</text></svg>`;
   return r;
 }
+const IC_SCOUT = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/></svg>`;
 const IC_PATH = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h5a3 3 0 0 0 3-3V8"/></svg>`;
 const IC_EDIT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 4.3a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L9 19.5 4 20l.5-5Z"/></svg>`;
 const dayOf = d => { const t = Date.parse(d); return isNaN(t) ? String(d || "") : new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
@@ -5508,6 +5730,7 @@ function openFolder(b, openId, opts = {}){
     btn("fvProfile", "Twin profile", IC_PROFILE, () => profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
   }
   if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
+  if (!self && !ro && !S.demo) btn("fvScout", "Scouts", IC_SCOUT, () => scoutPane(), "The feeds this folder follows: YouTube channels, newsletters, blogs");
   if (!S.demo && !ro && !self) btn("fvEdit", "Edit", IC_EDIT, () => openBrainSheet(b), "Its name and the line that decides what goes in");
   if (!self && learningPath(b.slug).length) btn("fvPath", "Learning path", IC_PATH, () => pathPane(), "Its concepts in the order to read them, foundations first");
   const x = btn("fvClose", "×", "", () => { S.folder = null; render(); $("input").focus(); }, "Back to the chat");
@@ -6088,6 +6311,108 @@ function openFolder(b, openId, opts = {}){
         } catch (e) { go.disabled = no.disabled = false; msg.className = "td-say bad"; msg.textContent = e.message; }
       };
     }
+  };
+
+  /* Scouts: the feeds this folder follows, the authors it already reads, and Check now. */
+  const scoutPane = async () => {
+    openNow = null; paint();
+    cols.classList.add("reading");
+    doc.innerHTML = ""; doc.scrollTop = 0;
+    const inner = el("div","fv-in sc"); inner.id = "scoutPane"; doc.append(inner);
+    const back = el("button","fv-back","← All concepts"); back.type = "button";
+    back.onclick = () => { cols.classList.remove("reading"); paint(); };
+    inner.append(back, el("div","fv-eye",`Scouts · ${b.name}`), el("h1",null,"What this folder follows"),
+      el("p","fv-pos","Every day the scouts read the feeds below. Each new piece is read against this folder, then waits in the inbox for you to drop it or skip it."));
+    const form = el("form","sc-add");
+    const inp = el("input"); inp.type = "url"; inp.id = "scUrl"; inp.required = true; inp.autocomplete = "off";
+    inp.placeholder = "A YouTube channel, a Substack, a blog or an RSS address";
+    const add = el("button","go","Follow"); add.type = "submit"; add.id = "scGo";
+    form.append(inp, add);
+    const say = el("p","sc-say"); say.id = "scSay";
+    const list = el("div","sc-list"); list.id = "scList";
+    const sugg = el("div","sc-sugg"); sugg.id = "scSugg";
+    const check = el("button","mini","Check every feed now"); check.type = "button"; check.id = "scCheck";
+    inner.append(form, say, el("h4",null,"Followed"), list, check, sugg);
+    let scouts = [];
+    const tell = (t, cls = "") => { say.textContent = t; say.className = "sc-say " + cls; };
+    const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
+    const paintList = () => {
+      list.innerHTML = "";
+      const mine = scouts.filter(x => x.brain === b.slug);
+      check.hidden = !mine.length;
+      if (!mine.length) list.append(el("div","sc-none","No feed yet. Follow the people this folder learns from."));
+      for (const x of mine){
+        const row = el("div","sc-row");
+        const t = el("div","sc-t");
+        t.append(el("b",null,x.name), el("span", x.error ? "bad" : null, x.error ? `Last read failed: ${x.error}`
+          : `${x.kind === "youtube" ? "YouTube" : "Feed"} · ${x.checked ? `read ${ago(Date.parse(x.checked))} ago` : "not read yet"}`));
+        row.append(t);
+        const n = (S.finds || []).filter(f => f.scout === x.id).length;
+        if (n){ const k = el("button","mini au-due",`${n} new`); k.type = "button"; k.onclick = () => openFinds(b.slug); row.append(k); }
+        const rm = el("button","mini","Remove"); rm.type = "button";
+        rm.onclick = async () => {
+          rm.disabled = true;
+          try {
+            const r = await api("/api/scouts", { action: "remove", id: x.id });
+            if (r.error) throw new Error(r.error);
+            scouts = r.scouts || []; S.finds = (S.finds || []).filter(f => f.scout !== x.id);
+            paintInbox(); paintList(); paintSugg(); tell(`${x.name} is no longer followed.`);
+          } catch (e) { rm.disabled = false; tell(e.message, "bad"); }
+        };
+        row.append(rm); list.append(row);
+      }
+    };
+    /* The authors this folder already reads, most sources first: one tap follows them. */
+    const paintSugg = () => {
+      sugg.innerHTML = "";
+      const followed = new Set(scouts.filter(x => x.brain === b.slug).flatMap(x => [x.name.toLowerCase(), hostOf(x.url)]));
+      const by = new Map();
+      for (const src of sourcesOf(b.slug)){
+        const who = String(src.author || "").trim(), link = String(src.link || "");
+        if (!who || !/^https:\/\//.test(link)) continue;
+        const k = who.toLowerCase();
+        if (followed.has(k) || (!/youtu/.test(link) && followed.has(hostOf(link)))) continue;
+        const x = by.get(k) || { who, link, n: 0 }; x.n++; by.set(k, x);
+      }
+      const top = [...by.values()].sort((x, y) => y.n - x.n).slice(0, 5);
+      if (!top.length) return;
+      sugg.append(el("h4",null,"Follow who this folder already reads"));
+      for (const x of top){
+        const row = el("div","sc-row");
+        const t = el("div","sc-t"); t.append(el("b",null,x.who), el("span",null,`${x.n} source${x.n === 1 ? "" : "s"} here · ${hostOf(x.link)}`));
+        const f = el("button","mini","Follow"); f.type = "button"; f.onclick = () => follow(x.link, f);
+        row.append(t, f); sugg.append(row);
+      }
+    };
+    const follow = async (url, from) => {
+      if (from) from.disabled = true;
+      add.disabled = true; tell("Finding its feed and reading it", "spin");
+      try {
+        const r = await api("/api/scouts", { action: "add", brain: b.slug, url });
+        if (r.error) throw new Error(r.error);
+        scouts = r.scouts || scouts; inp.value = "";
+        tell(`Following ${r.scout.name}. ` + (r.found ? `${r.found} recent piece${r.found === 1 ? "" : "s"} found: they wait in the inbox.` : "Nothing new in the last 3 weeks. It reads the feed every day."), "ok");
+        await loadFinds();
+      } catch (e) { tell(e.message, "bad"); if (from) from.disabled = false; }
+      finally { add.disabled = false; if (inner.isConnected){ paintList(); paintSugg(); } }
+    };
+    form.onsubmit = e => { e.preventDefault(); const u = inp.value.trim(); if (u) follow(u); };
+    check.onclick = async () => {
+      check.disabled = true; tell("Reading every feed", "spin");
+      try {
+        const r = await api("/api/scouts", { action: "check" });
+        if (r.error) throw new Error(r.error);
+        scouts = r.scouts || scouts;
+        tell(r.found ? `${r.found} new piece${r.found === 1 ? "" : "s"} found: they wait in the inbox.` : "Nothing new since the last read.", "ok");
+        await loadFinds();
+      } catch (e) { tell(e.message, "bad"); }
+      finally { check.disabled = false; if (inner.isConnected){ paintList(); paintSugg(); } }
+    };
+    const w = waitIn(inner);
+    try { const r = await api("/api/scouts", {}); if (r.error) throw new Error(r.error); scouts = r.scouts || []; }
+    catch (e) { tell(e.message, "bad"); }
+    w.remove();
+    paintList(); paintSugg();
   };
 
   /* An audit you left, back where it is: still running, or ended. */

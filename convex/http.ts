@@ -28,6 +28,7 @@ import { healthOf } from "./health";
 /* Projects are off in the app for now; their routes stay for when they come back. */
 import { buildPage, TEMPLATE_MAX } from "./projects";
 import { rederive, tidyScan } from "./tidy";
+import { resolveFeed, sweep, readFind } from "./scouts";
 import { embed, nearest } from "./graph";
 import {
   ahead, gaps, gapBlock, readGap, interviewStep, pausedLine, summary, notesText, readAnswers, readProfile,
@@ -614,19 +615,86 @@ route("/api/brain/rename", async (ctx, _req, b) => {
  * Nothing fetched is stored. The text goes back to the caller, who reads it
  * once, and only the extraction ever reaches a brain.
  */
+/**
+ * The transcript service is the owner's, so other workspaces get a few a
+ * day each, and one allowance among them all, however many there are. An
+ * error line when today's is used, else "".
+ */
+async function fetchAllowed(ctx: any, who: Caller): Promise<string> {
+  if (owners.includes(who.space)) return "";
+  const day = 24 * 60 * 60 * 1000;
+  let r = await ctx.runMutation(internal.store.mcpRate, who.demo
+    ? { who: "fetch:demo", max: DEMO_DROPS + 10, windowMs: MONTH }
+    : { who: "fetch:" + who.space, max: 20, windowMs: day });
+  if (r.allowed && !who.demo) r = await ctx.runMutation(internal.store.mcpRate, { who: "fetch:others", max: OTHERS_FETCH_DAY, windowMs: day });
+  return r.allowed ? "" : "today's allowance of fetched pages and transcripts is used. Paste the text instead.";
+}
+
 route("/api/fetch", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  /* The transcript service is the owner's, so other workspaces get a few a
-     day each, and one allowance among them all, however many there are. */
-  if (!owners.includes(who.space)) {
-    const day = 24 * 60 * 60 * 1000;
-    let r = await ctx.runMutation(internal.store.mcpRate, who.demo
-      ? { who: "fetch:demo", max: DEMO_DROPS + 10, windowMs: MONTH }
-      : { who: "fetch:" + who.space, max: 20, windowMs: day });
-    if (r.allowed && !who.demo) r = await ctx.runMutation(internal.store.mcpRate, { who: "fetch:others", max: OTHERS_FETCH_DAY, windowMs: day });
-    if (!r.allowed) return { error: "today's allowance of fetched pages and transcripts is used. Paste the text instead." };
-  }
+  const no = await fetchAllowed(ctx, who);
+  if (no) return { error: no };
   return await fetchPage(ctx, String(b.url ?? ""));
+});
+
+/**
+ * Scouts: the feeds a folder follows. "list" by default, "add" a feed to a
+ * folder you can drop into (and read it once, keeping its 3 newest pieces),
+ * "remove" one, or "check" every feed of the workspace now.
+ */
+route("/api/scouts", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  if (who.demo) return { error: "the demo follows no feeds" };
+  const action = String(b.action ?? "list");
+  const list = async () => await ctx.runQuery(internal.scouts.scoutsOf, { space: who.space });
+  if (action === "add") {
+    const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
+    const brain = head.brains.find((x: any) => x.slug === String(b.brain ?? ""));
+    if (!brain || brain.type === "personal" || !canDrop(brain, who)) return { error: "that folder is not one you can feed" };
+    let got;
+    try { got = await resolveFeed(String(b.url ?? "")); } catch (e: any) { return { error: String(e?.message ?? e) }; }
+    const r = await ctx.runMutation(internal.scouts.scoutAdd, { space: who.space, brain: brain.slug, url: String(b.url).trim().slice(0, 500),
+      feed: got.feed, name: got.name.slice(0, 120), kind: got.kind, d: new Date().toISOString().slice(0, 10) });
+    if (r.error) return r;
+    const found = await sweep(ctx, who.space, r.scout);
+    return { scout: r.scout, found, scouts: await list() };
+  }
+  if (action === "remove") {
+    const r = await ctx.runMutation(internal.scouts.scoutRemove, { space: who.space, id: String(b.id ?? "") });
+    return r.error ? r : { scouts: await list() };
+  }
+  if (action === "check") {
+    const all: any[] = await list();
+    let at = 0, found = 0;
+    const one = async () => { while (at < all.length) found += await sweep(ctx, who.space, all[at++]); };
+    await Promise.all([one(), one(), one(), one(), one(), one()]);
+    return { found, scouts: await list() };
+  }
+  return { scouts: await list() };
+});
+
+/**
+ * What the scouts found. "list" the ones waiting on a call; "read" one
+ * against its folder, once, on the workspace's key; "text" hands back what it
+ * read, so dropping it fetches nothing again; "skip" and "dropped" close it.
+ */
+route("/api/finds", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  if (who.demo) return { finds: [] };
+  const action = String(b.action ?? "list");
+  if (action === "list") return { finds: await ctx.runQuery(internal.scouts.findsOf, { space: who.space }) };
+  const f = await ctx.runQuery(internal.scouts.findGet, { space: who.space, id: String(b.id ?? "") });
+  if (!f) return { error: "that find is gone" };
+  if (action === "skip" || action === "dropped")
+    return await ctx.runMutation(internal.scouts.findSet, { space: who.space, id: f.id, status: action === "skip" ? "skipped" : "dropped" });
+  if (action === "text") return { link: f.link, title: f.title, author: f.author, date: f.date, text: f.text };
+  if (action === "read") {
+    if (f.status === "read") return { read: f.read };
+    const no = await fetchAllowed(ctx, who);
+    if (no) return { error: no };
+    return await readFind(ctx, who.space, f, keyFor(who), modelFor(who, b));
+  }
+  return { error: "say list, read, text, skip or dropped" };
 });
 
 /** R1.2 runs before anything expensive, so a repeat costs zero pasting. */
@@ -766,6 +834,12 @@ route("/api/ask", async (ctx, _req, b) => {
       derived.slice(0, 6).map((x: any) => `- ${x.title}: ${x.text}`).join("\n")
     : "");
   const reading = pool.filter((x: any) => pick.opened.some((c: any) => c.brain === x.slug));
+  /* The map's heat: the concepts this question opened lead, six at most. A
+     failed count costs the map one question, never the answer. */
+  if (pick.opened.length) {
+    try { await ctx.runMutation(internal.store.heatAdd, { space: who.space, ids: pick.opened.slice(0, 6).map(idOf), d: new Date().toISOString().slice(0, 10) }); }
+    catch { /* the answer goes on */ }
+  }
   const isPerson = reading.length === 1 && reading[0].type === "person";
   const nSources = new Set(sources.filter((s: any) => s.brains.some((x: string) => reading.some((c: any) => c.slug === x))).map((s: any) => s.sid)).size;
 
@@ -1586,7 +1660,13 @@ route("/api/map", async (ctx, _req, b) => {
       seen.set(key, links.length); links.push([from, to, type]);
     }
   }
-  return { links };
+  /* The heat: questions per concept in the last 90 days, for the concepts
+     the map shows. A personal brain is never among them. */
+  const since = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+  const all: Record<string, number> = await ctx.runQuery(internal.store.heatOf, { space: who.space, since });
+  const heat: Record<string, number> = {};
+  for (const id of Object.keys(all)) if (known.has(id)) heat[id] = all[id];
+  return { links, heat };
 });
 
 /* ---------- one page ---------- */

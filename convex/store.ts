@@ -1912,3 +1912,31 @@ export const auditMark = internalMutation({
     return { audit };
   },
 });
+
+/** An ask opened these concepts: each counts one more question, on this day. */
+export const heatAdd = internalMutation({
+  args: { space: v.string(), ids: v.array(v.string()), d: v.string() },
+  handler: async (ctx, a) => {
+    for (const id of [...new Set<string>(a.ids)].slice(0, 6)) {
+      const cut = id.indexOf("/");
+      if (cut < 1) continue;
+      const brain = id.slice(0, cut), slug = id.slice(cut + 1);
+      const row = await ctx.db.query("heat").withIndex("by_concept", q => q.eq("space", a.space).eq("brain", brain).eq("slug", slug)).unique();
+      if (row) await ctx.db.patch(row._id, { n: row.n + 1, days: [...row.days, a.d].slice(-60) });
+      else await ctx.db.insert("heat", { space: a.space, brain, slug, n: 1, days: [a.d] });
+    }
+  },
+});
+
+/** The questions each concept of a space drew since a day, by brain/slug id. */
+export const heatOf = internalQuery({
+  args: { space: v.string(), since: v.string() },
+  handler: async (ctx, a) => {
+    const out: Record<string, number> = {};
+    for (const r of await ctx.db.query("heat").withIndex("by_space", q => q.eq("space", a.space)).collect()) {
+      const n = r.days.filter(d => d >= a.since).length;
+      if (n) out[`${r.brain}/${r.slug}`] = n;
+    }
+    return out;
+  },
+});

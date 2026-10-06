@@ -1138,6 +1138,10 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     shown.count === "2" && shown.items.length === 2 && shown.items[0].sides.join("|") === "AI pushes rates up|Rates fell around AI releases"
     && shown.items.every(i => i.holds === 2), JSON.stringify(shown));
   check("and says how many were additions, not contradictions", /8 more add detail/.test(shown.note), shown.note);
+  const folds = await page.evaluate(() => ["auditBlock", "langBlock", "cfBlock", "lookBlock", "passBlock"].map(id => document.getElementById(id)).map(d => `${d.id}:${d.tagName}:${d.open}`));
+  check("Settings folds Audit, Languages, Open conflicts, Look and Passphrase shut, the conflicts' count on its fold",
+    folds.every(f => /:DETAILS:false$/.test(f)) && await page.evaluate(() => document.querySelector("#cfBlock > summary").textContent) === "Open conflicts2", JSON.stringify(folds));
+  await page.click("#cfBlock > summary");
   await page.click(".cf-item >> nth=0 >> .cf-go >> nth=1"); await page.waitForTimeout(200);
   const one = await page.evaluate(() => ({ sent: window.__settles[0], text: document.querySelector(".cf-item.done")?.textContent,
     count: document.getElementById("cfCount").textContent }));
@@ -1175,6 +1179,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.evaluate(() => document.getElementById("keyBtn").click());
   await page.waitForTimeout(250);
   check("Setup offers the conflicts one by one", (await page.textContent("#cfDeck")) === "Review one by one: 2", await page.textContent("#cfDeck"));
+  await page.click("#cfBlock > summary");
   await page.click("#cfDeck"); await page.waitForTimeout(150);
   const card = () => page.evaluate(() => {
     const c = document.querySelector(".dk-card:not(.gone)");
@@ -1392,7 +1397,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       if (s.includes("/api/state")) return Response.json(state);
       if (s.includes("/api/health")) return Response.json({ conflicted: ["content/offer"], health: [
         { slug: "content", score: 8, open: 1, best: "x", parts: {} }, { slug: "gave", score: 3, open: 0, best: "y", parts: {} }] });
-      if (s.includes("/api/map")) return Response.json({ links: [["content/offer", "gave/gold"], ["content/offer", "content/brand"]] });
+      if (s.includes("/api/map")) return Response.json({ links: [["content/offer", "gave/gold"], ["content/offer", "content/brand"]], heat: { "content/offer": 12, "content/brand": 4 } });
       if (s.includes("/api/concept")) return Response.json({ concept: { brain: "content", slug: "offer", n: 1, title: "Offer first", summaryLine: "S.",
         position: "P.", evidence: [], data: [], conflicts: [], sources: [], related: [] } });
       if (s.includes("/api/conflicts")) return Response.json({ others: 0, conflicts: [
@@ -1448,6 +1453,29 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("Escape clears the card, then a second one closes the map", !!(await page.$(".mapbox")) && await page.evaluate(() => document.getElementById("mpCard").hidden));
   await page.keyboard.press("Escape"); await page.waitForTimeout(100);
   check("and the map is gone", !(await page.$(".mapbox")));
+
+  /* Heat: the questions each concept answered, and the blind spots. */
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
+  await page.click("#setMap"); await page.waitForTimeout(500);
+  const cold = await page.evaluate(() => ({ blind: document.getElementById("mpBlind").hidden, key: document.getElementById("mpKey").textContent }));
+  await page.click("#mpWarm"); await page.waitForTimeout(150);
+  const hot = await G();
+  const warmKey = await page.evaluate(() => ({ key: document.getElementById("mpKey").textContent, blind: document.getElementById("mpBlind").textContent,
+    on: document.getElementById("mpWarm").getAttribute("aria-pressed") }));
+  const hn = id => hot.nodes.find(x => x.id === id);
+  check("Heat colours each concept by the questions it answered in 90 days, and counts the blind spots",
+    cold.blind && /^Big node/.test(cold.key) && warmKey.on === "true" && hn("content/offer").asked === 12 && hn("gave/gold").asked === 0
+    && /^2 of 3 concepts asked about in 90 days · 1 blind spot$/.test(hot.n) && /^Heat: the questions/.test(warmKey.key), JSON.stringify({ hot, warmKey }));
+  check("a blind spot is asked 3 times or more and held by 2 sources or fewer", hn("content/brand").thin && !hn("content/offer").thin && !hn("gave/gold").thin,
+    JSON.stringify(hot.nodes));
+  await page.click("#mpBlind"); await page.waitForTimeout(250);
+  const bc = await page.evaluate(() => ({ title: document.querySelector("#mpCard b")?.textContent, say: document.querySelector("#mpCard .mp-c-blind")?.textContent,
+    acts: [...document.querySelectorAll("#mpCard button")].map(b => b.textContent) }));
+  check("Next blind spot picks it: what it drew, what holds it, and Feed it",
+    bc.title === "Personal brand" && bc.say === "Blind spot: 4 questions in 90 days, held by 1 source. Drop more on it." && bc.acts.join("|") === "Read it|Feed it", JSON.stringify(bc));
+  await page.click("#mpCard button >> text=Feed it"); await page.waitForTimeout(250);
+  const fed = await page.evaluate(() => ({ map: !!document.querySelector(".mapbox"), view: document.querySelector("main").dataset.view, picks: [...document.querySelectorAll("#brains .brain-row.on .nm")].map(x => x.textContent).join(",") }));
+  check("Feed it opens Drop on that folder", !fed.map && fed.view === "drop" && fed.picks === "Content", JSON.stringify(fed));
   check("nothing threw on the map", !bad.length, bad.join(" | "));
   await page.close();
 }
@@ -1512,7 +1540,9 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("a saved look is worn: the accent, its darker shades, and the logo as the mark", worn.fill === "#ff6600" && worn.solid !== "#ff6600"
     && worn.mark === "data:image/png;base64," && worn.zero === "data:image/png;base64," && worn.logo === "1" && /ff6600/.test(worn.kept || ""), JSON.stringify(worn));
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(250);
-  check("Setup offers the look to set", await page.isVisible("#lookBlock") && await page.isDisabled("#lookSave"));
+  check("Setup offers the look to set", await page.isVisible("#lookBlock") && await page.isDisabled("#lookSave")
+    && await page.evaluate(() => document.querySelector("#lookBlock > summary").textContent) === "Lookyour own");
+  await page.click("#lookBlock > summary");
   await page.$eval("#lookAccent", i => { i.value = "#00aa55"; i.dispatchEvent(new Event("input", { bubbles: true })); });
   await page.$eval("#lookBg", i => { i.value = "#223344"; i.dispatchEvent(new Event("input", { bubbles: true })); });
   const pv = await page.evaluate(() => ({ fill: document.documentElement.style.getPropertyValue("--accent-fill"), bg: getComputedStyle(document.body).backgroundColor,
@@ -1593,6 +1623,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("and the choice stays on the demo after the list repaints", await page.inputValue("#shareTo") === "demo");
 
   /* The passphrase. */
+  await page.click("#passBlock > summary");
   await page.click("#passGo"); await page.waitForTimeout(60);
   check("it asks for the current passphrase first", /current passphrase/.test(await page.textContent("#passMsg")) && !(await page.evaluate(() => window.__calls.some(c => c.s.includes("/api/passphrase")))));
   await page.fill("#passCur", "right one"); await page.fill("#passNew", "short");
@@ -1754,6 +1785,9 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   /* French: set once in Settings, then the mic in the folded bar. */
   check("the bar carries no language chip: the voice language lives in Settings", await page.evaluate(() => !document.getElementById("voiceLang")));
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(150);
+  check("closed, Languages says where it stands", await page.evaluate(() => document.querySelector("#langBlock > summary").textContent) === "Languagesanswers as you write · mic in English",
+    await page.evaluate(() => document.querySelector("#langBlock > summary").textContent));
+  await page.click("#langBlock > summary");
   await page.click('#langVoice button[data-v="fr-FR"]'); await page.waitForTimeout(150);
   check("Settings, Languages, Voice input: French saved for the workspace", await page.evaluate(() => document.querySelector("#langVoice .on")?.textContent) === "French");
   await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelector(".veil")?.remove());
@@ -1831,6 +1865,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
   const rows = await page.evaluate(() => [...document.querySelectorAll("#auditList .au-row")].map(r => `${r.querySelector("b").textContent}:${r.querySelector("span").textContent}`));
   check("Settings, Audit lists each folder held, with its last audit and the sources since", rows.some(r => /^Content:Never audited · \d+ sources? since$/.test(r)), JSON.stringify(rows));
+  await page.click("#auditBlock > summary");
   await page.click('#auditList .au-row[data-slug="content"] button'); await page.waitForTimeout(300);
   const pane = await page.evaluate(() => ({ heads: [...document.querySelectorAll("#tidyPane h4")].map(h => h.textContent).join("|"),
     opts: [...document.querySelectorAll("#tidyPane .td-opt b")].map(b => b.textContent).join(","),
@@ -1979,7 +2014,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click(".composer .box"); await page.click("#memBtn"); await page.waitForTimeout(100);
   const para = "I like long walks and I plan my week on Sundays. ".repeat(40);
   await page.fill("#memText", Array.from({ length: 7 }, () => para).join("\n\n"));
-  await page.evaluate(() => { window.__memSlow = 200; });
+  await page.evaluate(() => { window.__memSlow = 700; });
   await page.click("#memGo"); await page.waitForTimeout(100);
   const run = await page.evaluate(() => ({ say: document.getElementById("memSay")?.textContent, box: document.getElementById("memIn1").hidden,
     close: document.getElementById("memClose")?.textContent, ring: document.getElementById("inboxBtn").classList.contains("run") }));
@@ -1991,7 +2026,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     item: [...document.querySelectorAll("#inbox .ib-g")].find(g => g.querySelector("h4").textContent === "Memory")?.textContent || "" }));
   check("closed, it keeps filing, and the inbox shows the piece it is on", !away.sheet && /Add memory to Me/.test(away.item) && /Filing piece \d of 3/.test(away.item), JSON.stringify(away));
   await page.keyboard.press("Escape");
-  await page.waitForTimeout(800);
+  await page.waitForFunction(() => !document.getElementById("inboxBtn").classList.contains("run"), null, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(150);
   const m = await page.evaluate(() => ({ calls: window.__calls.filter(x => x.s.includes("/api/personal/remember")).map(x => ({ b: x.body.brain, n: x.body.text.length })),
     said: [...document.querySelectorAll(".msg.ai")].pop()?.textContent, badge: document.getElementById("inboxN").hidden ? "" : document.getElementById("inboxN").textContent,
     ring: document.getElementById("inboxBtn").classList.contains("run") }));
@@ -2291,6 +2327,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const merged = await page.evaluate(() => window.__calls.filter(x => x.body?.action === "merge").pop()?.body);
   check("the second merges that card into this one", merged?.into === "me/marc" && JSON.stringify(merged.from) === '["me/paul"]', JSON.stringify(merged));
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
+  await page.click("#auditBlock > summary");
   await page.click('#auditList .au-row[data-slug="me"] button'); await page.waitForTimeout(500);
   const scans = await page.evaluate(() => ({ at: window.__calls.filter(x => x.s.includes("/api/personal/people")).map(x => x.body.at ?? null), say: document.getElementById("auditSay")?.textContent,
     clean: document.querySelector("#auditPane .td-clean")?.textContent, stamp: window.__calls.filter(x => x.s.includes("/api/brain/audit")).pop()?.body }));
@@ -2320,6 +2357,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     reply: [...document.querySelectorAll("#langReply button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")) }));
   check("Settings, Languages: files always in English, answers as you write by default", lang.shown && !lang.store && /Every note and file is kept in English/.test(lang.hint)
     && JSON.stringify(lang.reply) === '["As you write*","In English"]', JSON.stringify(lang));
+  await page.click("#langBlock > summary");
   await page.click('#langReply button[data-v="en"]'); await page.waitForTimeout(150);
   const saved = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/models")).pop()?.body, on: document.querySelector("#langReply .on")?.textContent,
     msg: document.getElementById("langMsg").textContent }));
@@ -3070,6 +3108,75 @@ for (const space of ["octopus", "squidgy"]) {
   check("a tap brings its pane back, finished, with no second run, and the inbox lets go",
     /^Audit finished in \d+s\.$/.test(back.fin || "") && !back.spin && /^All clean/.test(back.clean || "") && back.badge && back.tidies === 1, JSON.stringify(back));
   check("nothing threw around a running audit", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- scouts: feeds a folder follows, what they found read against it, dropped or skipped from the inbox ---- */
+{
+  const st = { ...STATE, concepts: [{ brain: "content", slug: "a", n: 1, title: "Rates", summaryLine: "Rates hold at 2%", src: 3, ev: 3 }],
+    sources: [{ sid: "s1", brains: ["content"], author: "Bob TV", link: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+      { sid: "s2", brains: ["content"], author: "Bob TV", link: "https://www.youtube.com/watch?v=aaaaaaaaaaa" },
+      { sid: "s3", brains: ["content"], author: "Ann", link: "https://ann.example.com/p/one" }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    const finds = [
+      { id: "f2", brain: "content", scout: "sc1", link: "https://ann.example.com/p/two", title: "Calm markets", date: "2026-10-05T08:00:00Z", author: "Ann", status: "new", read: null, error: "" },
+      { id: "f1", brain: "content", scout: "sc1", link: "https://ann.example.com/p/rates", title: "Rates to 4%", date: "2026-10-04T08:00:00Z", author: "Ann", status: "read",
+        read: { summary: "Rates reach 4% by 2027.", touches: [{ id: "content/a", title: "Rates", stance: "contradicts", why: "says 4% by 2027, not 2%" }], fresh: ["Term premium"] }, error: "" }];
+    const scouts = [{ id: "sc1", brain: "content", name: "Ann's notes", kind: "feed", url: "https://ann.example.com", checked: new Date(Date.now() - 3600e3).toISOString(), error: "" }];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/finds")){
+        if (body.action === "list") return Response.json({ finds });
+        if (body.action === "read") return Response.json({ read: { summary: "Markets stay calm.", touches: [{ id: "content/a", title: "Rates", stance: "supports", why: "backs 2%" }], fresh: [] } });
+        if (body.action === "text") return Response.json({ text: "The full words of the piece about rates." });
+        return Response.json({ ok: true });
+      }
+      if (s.includes("/api/scouts")){
+        if (body.action === "add") return Response.json({ scout: { id: "sc2", brain: "content", name: "Bob TV", kind: "youtube", url: body.url }, found: 2,
+          scouts: [...scouts, { id: "sc2", brain: "content", name: "Bob TV", kind: "youtube", url: body.url, checked: new Date().toISOString(), error: "" }] });
+        return Response.json({ scouts });
+      }
+      if (s.includes("/api/drop/check")) return Response.json({ duplicate: true, sid: "x", date: "2026-10-01", brains: ["content"] });
+      return Response.json({ chats: [] });
+    };
+  }, st);
+  await page.waitForTimeout(500);
+  const reads = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/finds") && x.body.action === "read").map(x => x.body.id));
+  await page.click("#inboxBtn"); await page.waitForTimeout(80);
+  const ib = await page.evaluate(() => ({ badge: document.getElementById("inboxN").textContent,
+    items: [...document.querySelectorAll("#inbox .ib-g")].filter(g => g.querySelector("h4").textContent === "From your scouts").flatMap(g => [...g.querySelectorAll(".ib-it")].map(x => x.textContent)) }));
+  check("a new find is read against its folder in the background, once", JSON.stringify(reads) === '["f2"]', JSON.stringify(reads));
+  check("the inbox says what the scouts found, by folder, and what it would change", JSON.stringify(ib.items) === '["Content: 2 new pieces1 clash · 1 backs what it holds"]' && ib.badge === "2", JSON.stringify(ib));
+  await page.click("#inbox .ib-it >> text=Content: 2 new pieces"); await page.waitForTimeout(150);
+  const sheet = await page.evaluate(() => [...document.querySelectorAll(".fd-card")].map(c => ({ t: c.querySelector(".fd-title").textContent, sum: c.querySelector(".fd-sum")?.textContent,
+    touch: [...c.querySelectorAll(".fd-touch li")].map(l => l.textContent) })));
+  check("each find shows what it says, what it contradicts, backs or adds, the clashes first", sheet.length === 2 && sheet[0].t === "Rates to 4%"
+    && JSON.stringify(sheet[0].touch) === '["Contradicts Rates: says 4% by 2027, not 2%","New Term premium"]' && sheet[1].sum === "Markets stay calm.", JSON.stringify(sheet));
+  await page.click('.fd-card[data-id="f2"] .ghost'); await page.waitForTimeout(300);
+  const skipped = await page.evaluate(() => ({ cards: document.querySelectorAll(".fd-card").length, call: window.__calls.filter(x => x.s.includes("/api/finds") && x.body.action === "skip").pop()?.body.id,
+    badge: document.getElementById("inboxN").textContent }));
+  check("Skip closes it for good", skipped.cards === 1 && skipped.call === "f2" && skipped.badge === "1", JSON.stringify(skipped));
+  await page.click('.fd-card[data-id="f1"] .go'); await page.waitForTimeout(400);
+  const dropped = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, check: window.__calls.filter(x => x.s.includes("/api/drop/check")).pop()?.body,
+    marked: window.__calls.filter(x => x.s.includes("/api/finds") && x.body.action === "dropped").pop()?.body.id, inbox: document.getElementById("inboxN").hidden }));
+  check("Drop it drops it into its folder, from the text already read, and the inbox lets go", dropped.view === "drop" && dropped.check?.link === "https://ann.example.com/p/rates"
+    && dropped.marked === "f1" && dropped.inbox, JSON.stringify(dropped));
+
+  /* The folder's own pane: what it follows, and the authors it already reads. */
+  await page.hover(".brain-row"); await page.click(".brain-row .ed >> text=open"); await page.waitForTimeout(150);
+  await page.click("#fvScout"); await page.waitForTimeout(200);
+  const pane = await page.evaluate(() => ({ list: [...document.querySelectorAll("#scList .sc-t b")].map(b => b.textContent), sugg: [...document.querySelectorAll("#scSugg .sc-t")].map(t => t.textContent) }));
+  check("Scouts lists what the folder follows, and offers the authors it already reads, most sources first", JSON.stringify(pane.list) === '["Ann\'s notes"]'
+    && JSON.stringify(pane.sugg) === '["Bob TV2 sources here · youtube.com"]', JSON.stringify(pane));
+  await page.click("#scSugg .sc-row button"); await page.waitForTimeout(250);
+  const followed = await page.evaluate(() => ({ add: window.__calls.filter(x => x.s.includes("/api/scouts") && x.body.action === "add").pop()?.body, say: document.getElementById("scSay").textContent,
+    list: [...document.querySelectorAll("#scList .sc-t b")].map(b => b.textContent) }));
+  check("Follow reads that author's feed, from one of their pieces, and says what it found", followed.add?.brain === "content" && followed.add?.url === "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    && followed.say === "Following Bob TV. 2 recent pieces found: they wait in the inbox." && followed.list.join(",") === "Ann's notes,Bob TV", JSON.stringify(followed));
+  check("nothing threw around the scouts", !bad.length, bad.join(" | "));
   await page.close();
 }
 

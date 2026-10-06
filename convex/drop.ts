@@ -190,7 +190,7 @@ const PRIVATE_HOST =
   /^(localhost|127\.|0\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|\[|::1$)/i;
 
 /** A host a fetch may reach: named, public, never this network's own. */
-function publicHost(host: string): boolean {
+export function publicHost(host: string): boolean {
   if (PRIVATE_HOST.test(host) || host.endsWith(".internal") || host.endsWith(".local") || !host.includes(".")) return false;
   /* The shared address range carriers use inside their own networks. */
   if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host)) return false;
