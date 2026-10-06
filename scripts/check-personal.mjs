@@ -174,12 +174,11 @@ const TODAY = "2026-09-30";
 
 /* ---- the interview: its questions ---- */
 {
-  check("335 questions in 17 chapters, and a test of 10 kept apart", twin.QUESTIONS.length === 335 && twin.CHAPTERS.length === 17 && twin.TEST.length === 10,
-    `${twin.QUESTIONS.length} ${twin.CHAPTERS.length} ${twin.TEST.length}`);
+  check("335 questions in 17 chapters", twin.QUESTIONS.length === 335 && twin.CHAPTERS.length === 17, `${twin.QUESTIONS.length} ${twin.CHAPTERS.length}`);
   check("each question has its own id, from A1 to Q12", new Set(twin.QUESTIONS.map(q => q.id)).size === 335 && twin.QUESTIONS[0].id === "A1" && twin.QUESTIONS.at(-1).id === "Q12");
-  check("written for anyone: no one person's bank, school, apps or creators", !twin.QUESTIONS.concat(twin.TEST.map(t => ({ text: t })))
+  check("written for anyone: no one person's bank, school, apps or creators", !twin.QUESTIONS
     .some(q => /\b(the bank|engineering|a creator with|your best app|selling an app)\b/i.test(q.text)));
-  check("no em-dash in any question", !twin.QUESTIONS.some(q => /—/.test(q.text)) && !twin.TEST.some(t => /—/.test(t)));
+  check("no em-dash in any question", !twin.QUESTIONS.some(q => /—/.test(q.text)));
   const a = twin.ahead({});
   check("the interview opens on the life story, in order", a.length === twin.AHEAD && a[0].id === "A1" && a[1].id === "A2");
   check("questions answered, known or skipped are passed, and the one being answered too",
@@ -337,26 +336,41 @@ const TODAY = "2026-09-30";
 
 /* ---- the twin test and the profile ---- */
 {
-  check("the test keeps only its own questions' answers", JSON.stringify(twin.cleanAnswers({ T1: "  7 ", T11: "x", Z1: "old", A1: "y", T2: "" })) === '{"T1":"7"}');
-  check("a score is 0, 1 or 2, nothing else", JSON.stringify(twin.cleanScores({ T1: 2, T2: "1", T3: 5, T4: -1, T5: 0 })) === '{"T1":2,"T2":1,"T5":0}');
-  check("a score is a share of the most it could reach", twin.scorePct({ T1: 2, T2: 1, T3: 0, T4: 2 }) === 63 && twin.scorePct({}) === null);
-  const sm = twin.summary({ test: { mine: { T1: "a" }, twinScore: { T1: 2, T2: 1 }, selfScore: { T1: 2, T2: 2 } } });
-  check("the target is 85% of your own retest", sm.test.twinPct === 75 && sm.test.selfPct === 100 && sm.test.target === 85);
-  const old = twin.summary({ test: { mine: { Z1: "a", Z2: "b" }, twin: { Z1: "c" }, twinScore: { Z1: 2, Z2: 2 } } });
-  check("answers and scores kept under the first test's 30 ids belong to questions that are gone: none counts", !old.test.mine && !old.test.twin && old.test.twinPct === null
-    && JSON.stringify(twin.ownOf({ Z1: "a", T3: "b" })) === '{"T3":"b"}', JSON.stringify(old.test));
-  const given = { T1: "7", T2: "the job", T3: "speed" };
-  const pr = twin.pairsText(given, { T1: "6", T3: "quality", T9: "x" });
-  check("the comparison reads each question with both answers, only where both exist", /^T1: On a scale of 1 to 10[^\n]*\nA: 7\nB: 6\n\nT3: Pick one[^\n]*\nA: speed\nB: quality$/.test(pr), pr);
+  const ids = ["C1", "D2", "E3"];
+  check("a round keeps only its own questions' answers", JSON.stringify(twin.cleanAnswers({ C1: "  7 ", D2: "", E3: "x", A1: "y", Z1: "old" }, ids)) === '{"C1":"7","E3":"x"}');
+  check("a score is a share of the most it could reach", twin.scorePct({ C1: 2, D2: 1, E3: 0, F1: 2 }) === 63 && twin.scorePct({}) === null);
+  const pr = twin.pairsText(["C1", "D2", "E3"], { C1: "7", D2: "the job", E3: "speed" }, { C1: "6", E3: "quality" });
+  check("the comparison reads each question with both answers, only where both exist", pr.startsWith(`C1: ${twin.questionOf("C1").text}\nA: 7\nB: 6\n\nE3: ${twin.questionOf("E3").text}\nA: speed\nB: quality`) && !/D2/.test(pr), pr);
   check("it says what a match is: same, close or different, by substance and never wording", /2: same answer/.test(twin.JUDGE_RULES) && /1: close/.test(twin.JUDGE_RULES) && /0: different/.test(twin.JUDGE_RULES)
     && /never the wording/.test(twin.JUDGE_RULES));
   check("the scores it returns are kept for the pairs it was given, 0, 1 or 2 only",
-    JSON.stringify(twin.readScores('Sure: {"scores":{"T1":2,"T3":"1","T2":2,"T9":2,"T4":7}}', { T1: "6", T3: "quality", T4: "x" })) === '{"T1":2,"T3":1}'
-    && JSON.stringify(twin.readScores("no json", { T1: "a" })) === "{}");
+    JSON.stringify(twin.readScores('Sure: {"scores":{"C1":2,"E3":"1","D2":2,"E9":2,"F1":7}}', { C1: "6", E3: "quality", F1: "x" })) === '{"C1":2,"E3":1}'
+    && JSON.stringify(twin.readScores("no json", { C1: "a" })) === "{}");
+
+  /* A round: 5 questions never asked in a test before, from chapters a twin can answer, one to a chapter. */
+  const r1 = twin.pickTest({}, [], 1), again = twin.pickTest({}, [], 1), r2 = twin.pickTest({}, [], 2);
+  check("a round is 5 questions, one to a chapter, from the chapters a twin can answer from who you are", r1.length === 5 && new Set(r1.map(q => q.ch)).size === 5
+    && r1.every(q => "CDEGIJLMNOPQ".includes(q.ch)), JSON.stringify(r1.map(q => q.id)));
+  check("the same history gives the same round, another seed another one", JSON.stringify(r1) === JSON.stringify(again) && JSON.stringify(r1.map(q => q.id)) !== JSON.stringify(r2.map(q => q.id)));
+  const hist = [{ items: r1.map(q => ({ id: q.id })) }];
+  const r3 = twin.pickTest({}, hist, 1);
+  check("a question asked in a test is never asked again while the bank has others", r3.length === 5 && !r3.some(q => r1.some(x => x.id === q.id)), JSON.stringify(r3.map(q => q.id)));
+  const mk = Object.fromEntries(twin.QUESTIONS.filter(q => q.ch === "C").slice(0, 19).map(q => [q.id, "a"]));
+  const r4 = twin.pickTest(mk, [], 5);
+  check("a question the interview has not covered comes before one it has", r4.filter(q => q.ch === "C").every(q => !mk[q.id]), JSON.stringify(r4.map(q => q.id)));
+  const all = twin.QUESTIONS.map(q => ({ id: q.id }));
+  const r5 = twin.pickTest({}, [{ items: all }, { items: all }], 3);
+  check("a bank used up is asked again rather than leaving a round short", r5.length === 5);
+  const row = { test: { round: { at: "2026-10-06", ids: ["C1", "D2"], mine: { C1: "a" }, twin: { C1: "b" } },
+    history: [{ at: "2026-10-01", pct: 80, learned: true, items: [] }, { at: "2026-09-20", pct: 60, learned: false, items: [] }, { at: "2026-09-10", pct: 70, learned: true, items: [] }, { at: "2026-09-01", pct: null, items: [] }] } };
+  const tv = twin.testView(row), sm = twin.summary(row);
+  check("the app sees the open round's questions with your answers and the twin's, and the history", tv.round.questions.map(q => q.id).join() === "C1,D2" && tv.round.mine.C1 === "a" && tv.round.twin.C1 === "b" && tv.history.length === 4);
+  check("the score is the latest test's, and the average of the last 3 scored", sm.test.count === 4 && sm.test.last.pct === 80 && sm.test.recent === 70 && sm.test.open === true, JSON.stringify(sm.test));
+  check("with no test taken there is no score", twin.summary({}).test.last === null && twin.summary({}).test.count === 0 && twin.testView({}).round === null);
   check("a full interview has nothing left to ask", twin.interviewFull({ pct: 100, covered: 335, total: 335 }) && twin.interviewFull({ pct: 99, covered: 335, total: 335 })
     && !twin.interviewFull({ pct: 99, covered: 300, total: 335 }) && !twin.interviewFull(null));
   check("the twin answers in their voice from the notes alone", /Use what the notes say or clearly imply/.test(twin.TWIN_RULES) && /first person/.test(twin.TWIN_RULES));
-  check("its answers are read by question, em-dashes out", JSON.stringify(twin.readAnswers('{"answers":{"T1":"7 — maybe","T40":"x"}}')) === '{"T1":"7, maybe"}');
+  check("its answers are read by question, em-dashes out", JSON.stringify(twin.readAnswers('{"answers":{"C1":"7 — maybe","T40":"x"}}', ["C1", "D2"])) === '{"C1":"7, maybe"}');
   const parts = twin.readProfile(JSON.stringify({ parts: [{ title: "Voice", points: ["Short — direct"] }, { title: "Identity", points: ["Builder", ""] }, { title: "Other", points: ["x"] }] }));
   check("the profile comes back in its 7 parts' order, empty and unknown parts out", parts.map(p => p.title).join() === "Identity,Voice" && parts[1].points[0] === "Short, direct", JSON.stringify(parts));
   check("the profile names its 7 parts and says which chapters fill an empty one", /Identity, Values, Beliefs, Decision rules, Voice, Knowledge, Boundaries/.test(twin.PROFILE_RULES) && /Voice G/.test(twin.PROFILE_RULES));

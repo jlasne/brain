@@ -32,7 +32,7 @@ import { resolveFeed, sweep, readFind } from "./scouts";
 import { embed, nearest } from "./graph";
 import {
   ahead, gaps, gapBlock, readGap, interviewStep, pausedLine, summary, notesText, readAnswers, readProfile,
-  cleanAnswers, TEST, TEST_IDS, TWIN_RULES, PROFILE_RULES, NATURAL_GAP, RETEST_DAYS, JUDGE_RULES, pairsText, readScores, ownOf, interviewFull,
+  cleanAnswers, TWIN_RULES, PROFILE_RULES, NATURAL_GAP, JUDGE_RULES, pairsText, readScores, interviewFull, pickTest, testView, scorePct, questionOf, TEST_N, HISTORY_MAX,
 } from "./twin";
 import type { Marks } from "./twin";
 
@@ -1223,25 +1223,17 @@ async function wholeNotes(ctx: any, space: string, brain: string) {
   return out;
 }
 
-/** The twin test as the app shows it: the questions, both rounds, the twin's answers and the scores. */
-function testView(row: any) {
-  const t = row?.test ?? {};
-  const from = t.mineAt ? new Date(Date.parse(t.mineAt) + RETEST_DAYS * 86400000).toISOString().slice(0, 10) : null;
-  return { questions: TEST.map((text, i) => ({ id: TEST_IDS[i], text })), mine: ownOf(t.mine), again: ownOf(t.again), twin: ownOf(t.twin),
-           twinScore: ownOf(t.twinScore), selfScore: ownOf(t.selfScore), mineAt: t.mineAt ?? null, againAt: t.againAt ?? null,
-           twinAt: t.twinAt ?? null, retestFrom: from };
-}
-
 /**
  * A personal brain's interview, and its twin test and profile, by action:
  *   state     where it stands, the test and the profile
  *   start     on, and the next question (or the first)
- *   stop      paused where it stands
- *   restart   every question unasked again; the notes stay
- *   answers   the owner's test answers, round 1 or the retest; never filed
- *   twin      the twin answers the test from the notes alone
- *   score     0 to 2 per question, by a model comparing the two answers: the twin against round 1, or with `kind: "self"` round 2 against round 1
- *   profile   the notes written as 7 parts
+ *   stop      off, where it stands
+ *   restart   every question asked again
+ *   test      a round of 5 fresh questions, the open one when there is one; `fresh: true` starts another
+ *   check     your answers to the round, and the twin answers the same from the notes alone
+ *   score     a model compares the twin's answers with yours, 0 to 2 each; the round goes into the history
+ *   learn     your answers filed as notes, and the questions marked answered in the interview
+ *   profile   the notes written as 7 parts, offered until the interview reaches 100%
  * Only the owner, and only their personal brain: nothing else reads it.
  */
 route("/api/interview", async (ctx, _req, b) => {
@@ -1269,41 +1261,65 @@ route("/api/interview", async (ctx, _req, b) => {
       return { ...view(r), answer: pausedLine(summary(r)) };
     }
     case "restart": return view(await save({ on: false, marks: {}, pending: null, sinceCheck: 0, sinceAsk: 0 }));
-    case "answers": {
-      const round = Number(b.round) === 2 ? 2 : 1;
-      const answers = cleanAnswers(b.answers);
-      if (Object.keys(answers).length < 5) return { error: "answer at least 5 of the 10 questions first" };
-      /* New answers make the old scores against them meaningless. */
-      if (round === 1) Object.assign(test, { mine: answers, mineAt: today, twinScore: {}, selfScore: {} });
-      else Object.assign(test, { again: answers, againAt: today, selfScore: {} });
-      return view(await save({ test }));
+    case "test": {
+      const t = test as any, history = Array.isArray(t.history) ? t.history : [];
+      if (t.round && b.fresh !== true) return view(row);
+      /* The seed is what came before: the same history gives the same round, a new one a new round. */
+      const seed = history.length * 7919 + Number(today.replace(/-/g, "")) + (b.fresh === true && t.round ? 1 : 0);
+      /* A round put aside counts as asked, so the new one never repeats it. */
+      const seen = t.round ? [{ items: (t.round.ids ?? []).map((id: string) => ({ id })) }, ...history] : history;
+      const round = { at: today, ids: pickTest(row?.marks ?? {}, seen, seed).map(q => q.id) };
+      return view(await save({ test: { history, round } }));
     }
-    case "twin": {
+    case "check": {
+      const t = test as any, round = t.round;
+      if (!round) return { error: "start a test first" };
+      const answers = cleanAnswers(b.answers, round.ids);
+      if (Object.keys(answers).length < 3) return { error: `answer at least 3 of the ${TEST_N} questions first` };
       const notes = notesText(await wholeNotes(ctx, who.space, mine.slug));
       if (notes.used < 5) return { error: "your twin needs at least 5 notes to answer. Talk to it or run the interview first." };
+      const ids = Object.keys(answers);
       const { text, finish } = await ask([
         { role: "system", content: "You answer as one person would, from their own notes. You reply with JSON only." },
-        { role: "user", content: `${TWIN_RULES}\n\nTHEIR NOTES\n${notes.text}\n\nQUESTIONS\n${TEST.map((t, i) => `${TEST_IDS[i]}: ${t}`).join("\n")}` },
-      ], { json: true, maxTokens: 4000, key: keyFor(who), model: modelFor(who, b), timeout: 150000, temperature: 0.3 });
-      const twin = readAnswers(text);
-      if (Object.keys(twin).length < 5) return { error: finish === "length" ? "the answer ran out of room. Try again." : "your twin could not answer this time. Try again." };
-      Object.assign(test, { twin, twinAt: today, twinScore: {} });
-      return view(await save({ test }));
+        { role: "user", content: `${TWIN_RULES}\n\nTHEIR NOTES\n${notes.text}\n\nQUESTIONS\n${ids.map(id => `${id}: ${questionOf(id)?.text ?? ""}`).join("\n")}` },
+      ], { json: true, maxTokens: 2500, key: keyFor(who), model: modelFor(who, b), timeout: 150000, temperature: 0.3 });
+      const twin = readAnswers(text, ids);
+      if (Object.keys(twin).length < Math.min(3, ids.length)) return { error: finish === "length" ? "the answer ran out of room. Try again." : "your twin could not answer this time. Try again." };
+      return view(await save({ test: { history: t.history ?? [], round: { ...round, mine: answers, twin } } }));
     }
     case "score": {
       /* A model compares the two answers to each question: no one scores their own twin. */
-      const self = b.kind === "self";
-      const left = ownOf<string>(test.mine), right = ownOf<string>(self ? test.again : test.twin);
-      const pairs = pairsText(left, right);
-      if (!pairs) return { error: self ? "answer the test again first" : "let your twin answer first" };
+      const t = test as any, round = t.round;
+      if (!round?.mine || !round?.twin) return { error: "let your twin answer first" };
+      const ids: string[] = Object.keys(round.mine);
+      const pairs = pairsText(ids, round.mine, round.twin);
+      if (!pairs) return { error: "let your twin answer first" };
       const { text, finish } = await ask([
         { role: "system", content: "You compare two answers to the same question and score how well they match. You reply with JSON only." },
         { role: "user", content: `${JUDGE_RULES}\n\nQUESTIONS\n${pairs}` },
-      ], { json: true, maxTokens: 1500, key: keyFor(who), model: modelFor(who, b), timeout: 120000, temperature: 0 });
-      const scores = readScores(text, right);
+      ], { json: true, maxTokens: 1200, key: keyFor(who), model: modelFor(who, b), timeout: 120000, temperature: 0 });
+      const scores = readScores(text, round.twin);
       if (!Object.keys(scores).length) return { error: finish === "length" ? "the comparison ran out of room. Try again." : "the answers could not be compared this time. Try again." };
-      Object.assign(test, self ? { selfScore: scores } : { twinScore: scores });
-      return view(await save({ test }));
+      const entry = { at: today, pct: scorePct(scores), learned: false,
+        items: ids.map(id => ({ id, q: questionOf(id)?.text ?? "", mine: round.mine[id], twin: round.twin[id] ?? "", score: scores[id] ?? null })) };
+      return view(await save({ test: { history: [entry, ...(t.history ?? [])].slice(0, HISTORY_MAX), round: null } }));
+    }
+    case "learn": {
+      /* The answers just given go into the notes, the way an interview answer does, and count as answered. */
+      const t = test as any, history: any[] = Array.isArray(t.history) ? t.history : [];
+      const entry = history[0];
+      if (!entry || entry.learned !== false) return { ...view(row), filed: { new: 0, updated: 0, titles: [], people: [] } };
+      const items = (entry.items ?? []).filter((i: any) => i.mine);
+      const mKey = keyFor(who), mName = modelFor(who, b);
+      const text = items.map((i: any, n: number) => `${n + 1}. ${i.mine}`).join("\n");
+      const context = `Each numbered answer below replies to the question with the same number:\n${items.map((i: any, n: number) => `${n + 1}. ${i.q}`).join("\n")}`;
+      const run = (tm: number) => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date: today, lang: storeLang(who),
+        model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: tm })).text });
+      const filed = await fileTwice(run);
+      const marks: any = { ...(row?.marks ?? {}) };
+      for (const i of items) marks[i.id] = "a";
+      const next = [{ ...entry, learned: true }, ...history.slice(1)];
+      return { ...view(await save({ marks, test: { history: next, round: t.round ?? null } })), filed };
     }
     case "profile": {
       const notes = notesText(await wholeNotes(ctx, who.space, mine.slug));

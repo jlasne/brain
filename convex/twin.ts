@@ -16,11 +16,12 @@
  *              when the talk leaves room for it, chosen from the chapters
  *              the notes cover least.
  *
- * The twin test is apart: 10 questions answered once and never filed. The
- * twin answers them from the notes, the owner scores each 0 to 2, and a
- * retest 2 weeks later sets the owner's own ceiling. The twin profile is the
- * notes written as 7 parts. Both stay in the personal folder: nothing else
- * reads a personal brain.
+ * The twin test is a round of 5 fresh questions, never the same twice. The
+ * twin answers them from the notes first, then a model compares its answers
+ * with the owner's, and the owner's answers are filed as notes, so each test
+ * also teaches the brain. Every round is kept as history. The twin profile is
+ * the notes written as 7 parts, until the interview reaches 100%. Both stay
+ * in the personal folder: nothing else reads a personal brain.
  *
  * The questions are written for anyone. The model asks each in its own words,
  * fitted to what the notes say: "your first job" becomes "the bank".
@@ -402,31 +403,8 @@ export const CHAPTERS: Chapter[] = [
   ] },
 ];
 
-/* The test set: answered once, never filed, so it can measure the twin. */
-export const TEST: string[] = [
-  "On a scale of 1 to 10, how risky are you with money?",
-  "Would you rather earn 5,000 euros a month in a job or 3,000 in your own business?",
-  "Pick one: speed, quality, price. Which do you drop first?",
-  "Do you agree: \"AI will create more jobs than it destroys.\" 1 to 5.",
-  "100 euros today or 150 euros in 6 months?",
-  "Paris, Dubai, Lisbon or New York for 5 years?",
-  "Rank: family, freedom, money, health, reputation.",
-  "A project is 80% done and boring. Finish or pivot?",
-  "A friend cancels dinner at the last minute. Reply by text.",
-  "Your morning: what do you do in the first 30 minutes?",
-];
-
 export type Question = { id: string; ch: string; text: string };
 export const QUESTIONS: Question[] = CHAPTERS.flatMap(c => c.questions.map((text, i) => ({ id: `${c.key}${i + 1}`, ch: c.key, text })));
-/* T, not Z: the first test had 30 questions under Z1 to Z30, and answers kept
-   under those ids belong to questions that are gone. */
-export const TEST_IDS = TEST.map((_, i) => `T${i + 1}`);
-/** What a stored set holds under this test's own ids, nothing else. */
-export function ownOf<T>(o: Record<string, T> | undefined): Record<string, T> {
-  const out: Record<string, T> = {};
-  for (const id of TEST_IDS) if (o && o[id] !== undefined) out[id] = o[id];
-  return out;
-}
 const BY_ID = new Map(QUESTIONS.map(q => [q.id, q]));
 export const questionOf = (id: string) => BY_ID.get(String(id));
 
@@ -653,23 +631,22 @@ export function readGap(answer: string, list: Question[]) {
 export const TWIN_RULES =
 `Below are a person's own notes, filed from what they said. Answer each question as they would: their choice, their numbers, their voice, in the first person. Keep it short: the number or the choice asked for, or one or two sentences. Use what the notes say or clearly imply. Where they say nothing, give the answer most consistent with them.
 
-Reply with only JSON: {"answers":{"T1":"","T2":""}}`;
+Reply with only JSON, one answer per question id: {"answers":{"C3":"","D1":""}}`;
 
 export const JUDGE_RULES =
 `Below are questions a person answered themselves (A), and the answer their AI twin gave from their notes (B). Score how well B matches A.
 
 SCORE
-- 2: same answer. The same choice, or a number within 1 point on a scale of 10 or 5, or the same top 2 in a ranking, or a reply of the same tone and move.
-- 1: close. The same direction with a different degree, or a ranking sharing its first item, or a reply with the same intent in another tone.
-- 0: different. The opposite choice, a number 3 or more points apart, or a reply that says something they would not.
+- 2: same answer. The same choice, view or reason, or a number within 1 point on a scale of 10 or 5, or the same top 2 in a ranking, or a reply of the same tone and move.
+- 1: close. The same direction with a different degree, or a view sharing its main reason, or a reply with the same intent in another tone.
+- 0: different. The opposite choice or view, a number 3 or more points apart, or an answer they would not give.
 Judge the substance, never the wording. When A is vague, B may be as vague.
 
-Reply with only JSON, one score per question id: {"scores":{"T1":2,"T2":0}}`;
+Reply with only JSON, one score per question id: {"scores":{"C3":2,"D1":0}}`;
 
 /** The pairs the judge reads: each question with both answers, only where both exist. */
-export function pairsText(a: Record<string, string>, b: Record<string, string>): string {
-  return TEST.map((q, i) => ({ id: TEST_IDS[i], q })).filter(x => a[x.id] && b[x.id])
-    .map(x => `${x.id}: ${x.q}\nA: ${String(a[x.id]).slice(0, 600)}\nB: ${String(b[x.id]).slice(0, 600)}`).join("\n\n");
+export function pairsText(ids: string[], a: Record<string, string>, b: Record<string, string>): string {
+  return ids.filter(id => a[id] && b[id]).map(id => `${id}: ${questionOf(id)?.text ?? ""}\nA: ${String(a[id]).slice(0, 600)}\nB: ${String(b[id]).slice(0, 600)}`).join("\n\n");
 }
 
 /** The judge's scores, only for the pairs it was given, and only 0, 1 or 2. */
@@ -678,8 +655,7 @@ export function readScores(raw: string, given: Record<string, any>): Record<stri
   try { const s = String(raw ?? ""), x = s.indexOf("{"), y = s.lastIndexOf("}"); d = JSON.parse(x >= 0 && y > x ? s.slice(x, y + 1) : s); }
   catch { return {}; }
   const out: Record<string, number> = {};
-  for (const id of TEST_IDS) {
-    if (!given[id]) continue;
+  for (const id of Object.keys(given)) {
     const n = Number(d?.scores?.[id]);
     if (n === 0 || n === 1 || n === 2) out[id] = n;
   }
@@ -713,13 +689,13 @@ export function notesText(concepts: any[], max = 60000) {
   return { text: out.trim(), used: n, total: lines.length };
 }
 
-/** The twin's answers out of its reply, one per test question it answered. */
-export function readAnswers(raw: string): Record<string, string> {
+/** The twin's answers out of its reply, one per question of the round it answered. */
+export function readAnswers(raw: string, ids: string[]): Record<string, string> {
   let d: any;
   try { const s = String(raw ?? ""), a = s.indexOf("{"), b = s.lastIndexOf("}"); d = JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s); }
   catch { return {}; }
   const out: Record<string, string> = {};
-  for (const id of TEST_IDS) {
+  for (const id of ids) {
     const t = String(d?.answers?.[id] ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim();
     if (t) out[id] = t.slice(0, 600);
   }
@@ -740,22 +716,12 @@ export function readProfile(raw: string) {
   }).filter(p => p.points.length);
 }
 
-/** Answers given in the app, kept to the test's questions and a sane length. */
-export function cleanAnswers(a: any): Record<string, string> {
+/** Answers given in the app, kept to the round's questions and a sane length. */
+export function cleanAnswers(a: any, ids: string[]): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const id of TEST_IDS) {
+  for (const id of ids) {
     const t = String(a?.[id] ?? "").replace(/\s+/g, " ").trim();
     if (t) out[id] = t.slice(0, 600);
-  }
-  return out;
-}
-
-/** Scores of 0, 1 or 2 per question, nothing else. */
-export function cleanScores(a: any): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const id of TEST_IDS) {
-    const n = Number(a?.[id]);
-    if (n === 0 || n === 1 || n === 2) out[id] = n;
   }
   return out;
 }
@@ -766,8 +732,59 @@ export function scorePct(scores: Record<string, number> | undefined) {
   return v.length ? Math.round(100 * v.reduce((s, n) => s + n, 0) / (2 * v.length)) : null;
 }
 
-/* The retest waits this long after the first answers. */
-export const RETEST_DAYS = 14;
+/* ---------- a round of the twin test ---------- */
+
+/** Questions in a round. */
+export const TEST_N = 5;
+/* The chapters whose questions a twin can answer from who you are: values, beliefs, decisions, voice, money,
+   routines, the inner world, tastes, scenarios, contradictions, the future and your own rules. The facts of a
+   life (where you were born, who raised you) cannot be guessed, and the interview asks them. */
+const GUESSABLE = "CDEGIJLMNOPQ";
+/* Rounds kept as history. */
+export const HISTORY_MAX = 50;
+
+/** A seeded run of numbers between 0 and 1, so a round is a pure function of what came before it. */
+function seeded(seed: number) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+/**
+ * The next round: 5 questions never asked in a test before, one to a chapter,
+ * from the chapters the notes cover least first, a question the interview
+ * has not covered before one it has. A bank used up is asked again, oldest first.
+ */
+export function pickTest(marks: Marks, history: any[], seed: number): Question[] {
+  const rnd = seeded(seed);
+  const order = (history ?? []).flatMap(h => (h.items ?? []).map((i: any) => String(i.id)));
+  const asked = new Set(order);
+  const cov = new Map(coverage(marks ?? {}).chapters.map(c => [c.key, (c.answered + c.known + c.skipped) / c.total]));
+  const out: Question[] = [];
+  const take = (q: Question) => { if (!out.some(x => x.id === q.id)) out.push(q); };
+  const chapters = [...GUESSABLE].map(k => ({ k, w: (1 - (cov.get(k) ?? 0)) + rnd() * 0.6 })).sort((a, b) => b.w - a.w).map(x => x.k);
+  for (const k of chapters) {
+    if (out.length >= TEST_N) break;
+    const fresh = QUESTIONS.filter(q => q.ch === k && !asked.has(q.id));
+    const open = fresh.filter(q => !(marks ?? {})[q.id]);
+    const from = open.length ? open : fresh;
+    if (from.length) take(from[Math.floor(rnd() * from.length)]);
+  }
+  /* Every guessable question asked once: the rest of the bank, then the oldest asked again. */
+  for (const q of QUESTIONS) { if (out.length >= TEST_N) break; if (!asked.has(q.id)) take(q); }
+  for (const id of [...order].reverse()) { if (out.length >= TEST_N) break; const q = questionOf(id); if (q) take(q); }
+  return out.slice(0, TEST_N);
+}
+
+/** The pieces of a round the app shows: its questions, your answers, the twin's, and the history. */
+export function testView(row: any) {
+  const t = row?.test ?? {};
+  const r = t.round;
+  return {
+    round: r ? { at: r.at, questions: (r.ids ?? []).map((id: string) => ({ id, text: questionOf(id)?.text ?? "" })).filter((q: any) => q.text),
+      mine: r.mine ?? {}, twin: r.twin ?? {} } : null,
+    history: (Array.isArray(t.history) ? t.history : []).slice(0, HISTORY_MAX),
+  };
+}
 
 /** Every question answered or known: the interview has nothing left to ask, and the notes and contacts hold what the profile would say. */
 export const interviewFull = (s: any) => !!s && (s.pct >= 100 || (s.total > 0 && s.covered >= s.total));
@@ -779,7 +796,8 @@ export function summary(row: any) {
   const next = ahead(marks, 1, "")[0];
   const at = next ? CHAPTERS.find(c => c.key === next.ch)! : null;
   const t = row?.test ?? {};
-  const twin = scorePct(ownOf(t.twinScore)), self = scorePct(ownOf(t.selfScore));
+  const hist: any[] = Array.isArray(t.history) ? t.history : [];
+  const scored = hist.filter(h => typeof h.pct === "number");
   return {
     on: !!row?.on,
     pct: cov.pct, covered: cov.covered, seen: cov.seen, total: cov.total,
@@ -788,10 +806,9 @@ export function summary(row: any) {
     chapters: cov.chapters,
     pending: row?.pending?.kind ?? null,
     test: {
-      mine: Object.keys(ownOf(t.mine)).length > 0, mineAt: t.mineAt ?? null,
-      again: Object.keys(ownOf(t.again)).length > 0, againAt: t.againAt ?? null,
-      twin: Object.keys(ownOf(t.twin)).length > 0, twinAt: t.twinAt ?? null,
-      twinPct: twin, selfPct: self, target: self != null ? Math.round(self * 0.85) : 85,
+      count: hist.length, last: scored[0] ? { at: scored[0].at, pct: scored[0].pct } : null,
+      recent: scored.length ? Math.round(scored.slice(0, 3).reduce((n, h) => n + h.pct, 0) / Math.min(3, scored.length)) : null,
+      open: !!t.round, learn: hist[0] && hist[0].learned === false ? true : false,
     },
     profile: row?.profile?.at ? { at: row.profile.at } : null,
   };

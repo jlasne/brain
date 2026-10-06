@@ -122,10 +122,13 @@ acknowledgement and its question apart, and a turn whose question is missing,
 or is not a question, asks the bank's own words, so every reply ends on one
 question. Outside the interview, the chat
 asks one of the questions in passing every few messages, from the chapters
-covered least. About $0.002 an answer on GLM 5.3 Flash. The twin test's 10
-answers are kept in the `interviews` row, never filed, so they can measure the
-twin; the twin and the profile read the notes alone. A model compares each of
-your answers with the twin's and scores it 0, 1 or 2, one call a comparison.
+covered least. About $0.002 an answer on GLM 5.3 Flash. A twin test is a round of 5
+questions from the bank, never asked in a test before: one to a chapter, from
+the chapters a twin can answer from who you are, the least covered first. The
+twin answers them from the notes alone, before your answers reach the notes.
+A model then compares each of your answers with the twin's and scores it 0, 1
+or 2. Your answers are filed as notes in one filing, and marked answered in
+the interview. Each round is kept in the `interviews` row, 50 at most.
 At 100% the profile is neither offered nor read by the chat: the notes and
 the contacts hold what it would say. Nothing but that
 brain's own folder and chat reads any of it.
@@ -300,7 +303,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/personal/remember` | A memory or a message filed into a personal brain. It returns what it kept as text, so the app checks every number, date and name. With `gaps`, the passages a first filing left out; with `verbatim`, what two filings left out, kept word for word with no model call | Owner |
 | `/api/personal/page` | One page of a person: the moments of a `year`, or the raw notes of a `month` | Owner |
 | `/api/personal/people` | The people in a personal brain's older notes, filed as contacts, 20 notes a call; the app calls again with `at` until `next` is null | Owner |
-| `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `answers` (the twin test, round 1 or the retest, never filed), `twin` (the twin answers the 10 test questions from the notes alone), `score` (a model compares the twin's answers with yours, or with `kind: "self"` your retest with your first answers, 0 to 2 a question) and `profile` (the notes as 7 parts, offered until the interview reaches 100%). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
+| `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `test` (the open round of 5 fresh questions, or `fresh: true` for another), `check` (your answers, and the twin answers the same from the notes alone), `score` (a model compares the two, 0 to 2 a question, and the round goes into the history), `learn` (your answers filed as notes) and `profile` (the notes as 7 parts, offered until the interview reaches 100%). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
 | `/api/feedback` | Send feedback: mails one error, where it happened, the workspace and the message to `FEEDBACK_TO`, else `DIGEST_TO`. Another workspace's personal message keeps its words out. 5 an hour per sender, 20 per workspace | Yes |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
 | `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
