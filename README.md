@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1255 checks passing" src="https://img.shields.io/badge/checks-1255%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1268 checks passing" src="https://img.shields.io/badge/checks-1268%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -92,7 +92,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 - **Questions run in the background.** Ask, then open another chat, a folder or Drop: the answer lands in its own chat. A drop reads on while you chat.
 - **An error says what to do.** A dropped connection or a timeout offers Try again, which sends the same message once more in place. Every error offers Send feedback, which mails the error, where it happened and the message behind it, 5 an hour at most.
 - **An inbox, top right.** A bubble counts what waits for you and opens a panel: answers ready and unread, questions on their way, a drop not finished, the personal folder's weekly audit, and the decisions. A ring turns on it while something runs.
-- **Decisions, with a call ready.** Every call waiting sits in one list, grouped by folder and topic: clashes, concepts filed twice, titles not in English, empty positions, the same person on two cards. Each comes with a suggested call and its reason: "B holds. The later claim: September 2026 over February 2026". Accept one, pick another call, or Accept all in one tap. It runs on while you look elsewhere. "Swipe the clashes" opens the conflict deck, which shows the same suggestion on each card.
+- **Decisions, with a call ready.** Every call waiting sits in one list, grouped by folder and topic: clashes, concepts filed twice, titles not in English, empty positions, the same person on two cards. Each comes with a suggested call and its reason: "B holds. The later claim: September 2026 over February 2026". Accept one, pick another call, or Accept all in one tap. It runs on while you look elsewhere. "Swipe the clashes" opens the conflict deck, which shows the same suggestion on each card. A same-person call shows both people side by side: mentions, open lines, last day seen, who they are to you, the facts that tell people apart (email, phone, city, job) and their latest moments. The call can be to merge into either name.
 - **Settings, folded.** Audit, Languages, Look and Passphrase each fold shut and say where they stand: "2 due · 3 to decide", "mic in French", "default".
 - **Audit, in Settings.** One fold for audits and clashes. It lists every folder you own, each with the date of its last audit, and one Decisions row counts what waits and opens the list. A folder's audit finds concepts filed twice, titles not in English and empty positions. The personal folder's audit files the people in your older notes and finds the cards of one person. You decide each pair: Merge, or Keep apart, and a pair kept apart never comes back. While it runs, it shows the step it is on, a bar and the time it has run, then "Audit finished in 1 min 04s". Leave it, and the inbox shows its step, then that it finished. After 50 new sources, a folder is audited on its own the next time you open Tasu, and what it finds waits as decisions. The personal folder asks every 7 days, since its people need you.
 - **Chat about one concept.** Chat about it, from any concept, opens a chat that reads that concept alone.
@@ -211,7 +211,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 ```
 app/            the landing, the app (one file), the white paper and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        1255 checks, the app driven in a real browser included
+scripts/        1268 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -225,7 +225,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-1255 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+1268 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 <br>
 

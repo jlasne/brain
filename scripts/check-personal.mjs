@@ -859,6 +859,30 @@ const TODAY = "2026-09-30";
     && /MORE HISTORY, NEWEST FIRST\n- 2024-03: You met at Station F/.test(text), text);
 }
 
+/* ---- two cards that may be one person, side by side ---- */
+{
+  const card = {
+    brain: "me", slug: "maxime-paul", title: "Maxime Paul", aliases: ["Max", "M. Paul"], summaryLine: "Runs a design studio in Lyon", position: "You met him at a launch party in 2023.\nHe designs brand identities.",
+    evidence: [{ claim: "a" }, { claim: "b" }, { claim: "c" }], updated: "2026-10-01",
+    file: { seen: "2026-09-12",
+      facts: [{ s: "work", l: "Job", v: "Founder, Studio Paul" }, { s: "tastes", l: "Likes", v: "Padel" }, { s: "identity", l: "Lives in", v: "Lyon" },
+        { s: "contact", l: "Email", v: "max@paul.studio" }, { s: "contact", l: "Phone", v: "+33 6 12 34 56 78" }, { s: "identity", l: "Lived in", v: "Paris", until: "2022-01-01" },
+        { s: "you", l: "Met", v: "At a launch party" }, { s: "other", l: "Shoe size", v: "44" }, { s: "work", l: "Team", v: "Four people" }],
+      events: [{ d: "2026-09-12", t: "Dinner in Lyon" }, { d: "2026-07-03", t: "Sent the invoice" }, { d: "2026-01-01", t: "New year call" }],
+      open: [{ k: "k1", t: "Send the deck", at: "2026-09-01" }, { k: "k2", t: "Old", at: "2026-08-01", done: true }, { k: "k3", t: "Book Lyon", at: "2026-09-10" }] } };
+  const p = personal.personPeek(card);
+  check("a person is read in a few lines: id, names, line, summary on one line, mentions, open lines, last seen",
+    p.id === "me/maxime-paul" && p.title === "Maxime Paul" && p.aliases.join() === "Max,M. Paul" && p.line === "Runs a design studio in Lyon"
+    && p.summary === "You met him at a launch party in 2023. He designs brand identities." && p.mentions === 3 && p.open === 2 && p.seen === "2026-09-12", JSON.stringify(p));
+  check("the facts that tell people apart come first, the ones that ended are left out, and 6 at most",
+    p.facts.length === 6 && p.facts.slice(0, 2).map(f => f.label).join() === "Email,Phone" && !p.facts.some(f => f.label === "Lived in")
+    && p.facts[2].label === "Lives in" && JSON.stringify(p.facts.map(f => f.label)) === '["Email","Phone","Lives in","Met","Job","Team"]', JSON.stringify(p.facts));
+  check("the 2 latest moments", JSON.stringify(p.moments) === '[{"d":"2026-09-12","t":"Dinner in Lyon"},{"d":"2026-07-03","t":"Sent the invoice"}]', JSON.stringify(p.moments));
+  const bare = personal.personPeek({ brain: "me", slug: "paul", title: "Paul" });
+  check("a card with no file reads as empty, never as an error", bare.facts.length === 0 && bare.moments.length === 0 && bare.mentions === 0 && bare.open === 0 && bare.seen === "" && bare.line === "", JSON.stringify(bare));
+  check("no em-dash and nothing long gets through", !/—/.test(JSON.stringify(personal.personPeek({ ...card, position: "a — b ".repeat(200) }))) && personal.personPeek({ ...card, position: "x".repeat(900) }).summary.length === 320);
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe personal brain files what it should, for its owner only");
 process.exit(failures ? 1 : 0);

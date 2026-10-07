@@ -570,6 +570,33 @@ export function openByPerson(held: any[], brain: string) {
   return out.sort((a, b) => a.items[0].at.localeCompare(b.items[0].at) || a.title.localeCompare(b.title)).slice(0, 200);
 }
 
+/* ---------- two cards that may be one person, side by side ---------- */
+
+/* The facts that tell two cards apart come first: how to reach them, who they are, how you know them. */
+const PEEK_ORDER = ["contact", "identity", "you", "work", "tastes", "other"];
+
+/**
+ * A person's file in a few lines, so a call on two cards can be made by looking:
+ * their names, who they are to you, what is known of them (the facts that still
+ * hold, the ones that tell people apart first), their latest moments, how many
+ * mentions and open lines, and when you last saw them. Read only.
+ */
+export function personPeek(c: any) {
+  const f = c?.file ?? {};
+  const rank = (x: any) => { const i = PEEK_ORDER.indexOf(String(x.s)); return i < 0 ? PEEK_ORDER.length : i; };
+  const facts = (Array.isArray(f.facts) ? f.facts : []).filter((x: any) => x && x.l && x.v && !x.until)
+    .map((x: any, i: number) => ({ x, i })).sort((a: any, b: any) => rank(a.x) - rank(b.x) || a.i - b.i).slice(0, 6)
+    .map(({ x }: any) => ({ label: oneLine(x.l, 40), value: oneLine(x.v, 120) }));
+  const moments = (Array.isArray(f.events) ? f.events : []).filter((x: any) => x && x.t).slice(0, 2)
+    .map((x: any) => ({ d: String(x.d ?? ""), t: oneLine(x.t, 160) }));
+  return {
+    id: `${c.brain}/${c.slug}`, title: String(c.title ?? ""), aliases: (Array.isArray(c.aliases) ? c.aliases : []).map((a: any) => oneLine(a, 60)).slice(0, 6),
+    line: oneLine(c.summaryLine, 160), summary: oneLine(c.position, 320), facts, moments,
+    mentions: (c.evidence ?? []).length, open: (f.open ?? []).filter((x: any) => x && !x.done).length,
+    seen: String(f.seen ?? ""), updated: String(c.updated ?? ""),
+  };
+}
+
 export const OPEN_RULES =
 `Below are open items from the files of people the owner knows: a promise or a follow-up. Each is numbered and carries the owner's comment on it. Decide what each comment does to its item.
 

@@ -3246,6 +3246,11 @@ for (const space of ["octopus", "squidgy"]) {
         b: "Audience wins", bDate: "2026-03-01", why: "", hint: { pick: "b", why: "The later claim: 2026-03-01 over 2025-01-01" } }] : [] });
       if (s.includes("/api/topics")) return Response.json({ topics: [{ title: "Offers", members: ["content/a", "content/b"] }] });
       if (s.includes("/api/concept/merge")){ drop(body.from); return Response.json({ ok: true }); }
+      if (s.includes("/api/personal/contact") && body.action === "peek") return Response.json({ people: body.ids.map(id => ({
+        "me/marc": { id: "me/marc", title: "Marc", aliases: [], line: "Your co-founder", summary: "Marc runs the company with you.", facts: [{ label: "Email", value: "marc@acme.co" }, { label: "Lives in", value: "Lyon" }],
+          moments: [{ d: "2026-09-12", t: "Dinner in Lyon" }, { d: "2026-08-01", t: "Signed the lease" }], mentions: 6, open: 2, seen: "2026-09-12", updated: "2026-10-01" },
+        "me/marc-dupont": { id: "me/marc-dupont", title: "Marc Dupont", aliases: ["M. Dupont"], line: "Your co-founder, now at Revolut", summary: "", facts: [{ label: "Email", value: "marc@acme.co" }], moments: [], mentions: 2, open: 0, seen: "", updated: "2026-09-02" },
+      }[id])) });
       if (s.includes("/api/personal/contact")){ drop(body.from); return Response.json({ ok: true }); }
       if (s.includes("/api/concept/rename")){ state.concepts.find(c => `${c.brain}/${c.slug}` === body.id).title = body.title; return Response.json({ ok: true }); }
       if (s.includes("/api/concept/rederive")){ for (const id of body.ids) state.concepts.find(c => `${c.brain}/${c.slug}` === id).summaryLine = "Price on value"; return Response.json({ written: body.ids }); }
@@ -3269,20 +3274,75 @@ for (const space of ["octopus", "squidgy"]) {
     && sheet.rows[1] === 'Filed twice|Offer first and Offer before audience|Suggested: Merge into "Offer first". One idea filed 2 times, and this title reads clearest.|Accept/Keep apart/Later'
     && sheet.rows[2] === 'Title|Ancrage des prix|Suggested: Rename to "Price anchoring". Its title is not in English.|Accept/Keep this title/Later'
     && sheet.rows[4] === "No position|Pricing|Suggested: Write its position. It holds 3 evidence lines and no position.|Accept/Later"
-    && sheet.rows[5] === "Same person|Marc and Marc Dupont|Suggested: Merge into Marc Dupont. The fuller name, 8 mentions together.|Accept/Keep apart/Later", JSON.stringify(sheet));
+    && sheet.rows[5] === "Same person|Marc and Marc Dupont|Suggested: Merge into Marc Dupont. The fuller name, 8 mentions together.|Accept/Merge into Marc/Keep apart/Later", JSON.stringify(sheet));
+  const who = await page.evaluate(() => ({ peeks: window.__calls.filter(x => x.body.action === "peek").map(x => x.body.ids),
+    blocks: [...document.querySelectorAll('.dc-row[data-kind="person"] .dc-p')].map(b => ({ id: b.dataset.id, text: b.innerText.replace(/\s+/g, " ").trim(), keep: !!b.querySelector(".dc-keep") })),
+    other: [...document.querySelectorAll('.dc-row:not([data-kind="person"]) .dc-p')].length }));
+  check("a same-person call shows both people side by side, read in one call, with the one the call keeps marked",
+    JSON.stringify(who.peeks) === '[["me/marc","me/marc-dupont"]]' && who.blocks.length === 2 && who.other === 0
+    && who.blocks[0].id === "me/marc" && !who.blocks[0].keep && who.blocks[1].id === "me/marc-dupont" && who.blocks[1].keep, JSON.stringify(who));
+  check("each shows its mentions, open lines and last day seen, its line, its facts and its latest moments",
+    /Marc Open file 6 mentions · 2 open · seen /.test(who.blocks[0].text) && /Your co-founder/.test(who.blocks[0].text) && /Email: marc@acme\.co Lives in: Lyon/.test(who.blocks[0].text)
+    && /Dinner in Lyon/.test(who.blocks[0].text) && /Signed the lease/.test(who.blocks[0].text) && /Marc runs the company with you\./.test(who.blocks[0].text)
+    && /2 mentions · 0 open/.test(who.blocks[1].text) && /Also called M\. Dupont/.test(who.blocks[1].text) && /suggested to keep/i.test(who.blocks[1].text) && /Email: marc@acme\.co/.test(who.blocks[1].text), JSON.stringify(who.blocks));
   await page.click('.dc-row[data-key="rename|content/c"] button >> text=Keep this title'); await page.waitForTimeout(300);
   const kept = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s.includes("/api/brain/audit")).pop()?.body, left: document.querySelectorAll(".dc-row").length,
     said: [...document.querySelectorAll(".dc-done")].map(x => x.textContent) }));
   check("another call is one tap: the title kept, for good, and said under Done here", kept.call?.action === "dismiss" && kept.call?.kind === "english" && kept.call?.id === "content/c"
     && kept.left === 5 && JSON.stringify(kept.said) === '["Ancrage des prix: Title kept."]', JSON.stringify(kept));
   await page.click("#dcAll"); await page.waitForTimeout(900);
-  const after = await page.evaluate(() => ({ calls: window.__calls.filter(x => /conflicts\/settle|concept\/merge|concept\/rename|concept\/rederive|personal\/contact/.test(x.s)).map(x => x.s.split("/api/")[1] + ":" + JSON.stringify(x.body.pick ?? x.body.into ?? x.body.title ?? x.body.ids)),
+  const after = await page.evaluate(() => ({ calls: window.__calls.filter(x => /conflicts\/settle|concept\/merge|concept\/rename|concept\/rederive|personal\/contact/.test(x.s) && x.body.action !== "peek").map(x => x.s.split("/api/")[1] + ":" + JSON.stringify(x.body.pick ?? x.body.into ?? x.body.title ?? x.body.ids)),
     say: document.getElementById("dcSay").textContent, state: document.getElementById("dcState").textContent, badge: document.getElementById("inboxN").hidden,
     swipe: document.getElementById("dcSwipe").hidden }));
   check("Accept all applies every suggestion, then the inbox lets go", JSON.stringify(after.calls) === JSON.stringify(['conflicts/settle:"b"', 'concept/merge:"content/a"', 'concept/rename:"Brand voice"', 'personal/contact:"me/marc-dupont"', 'concept/rederive:["content/d"]'])
     && /^Nothing waiting/.test(after.say) && after.state === "5 of 5 done." && after.badge && after.swipe, JSON.stringify(after));
   check("nothing threw around the decisions", !bad.length, bad.join(" | "));
   await page.close();
+}
+
+/* ---- a same-person call: see both, merge into either, on a phone too ---- */
+{
+  const today = new Date().toISOString().slice(0, 10);
+  const st = { ...STATE, brains: [{ slug: "me", name: "Me", type: "personal", scope: "", audit: { at: today, sources: 0 } }],
+    concepts: [{ brain: "me", slug: "paul", n: 1, title: "Paul", tag: "contact", ev: 9, summaryLine: "Your brother" },
+      { brain: "me", slug: "paul-martin", n: 2, title: "Paul Martin", tag: "contact", ev: 2, summaryLine: "A client in Nantes" }] };
+  const init = state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/health")) return Response.json({ conflicted: [], health: [] });
+      if (s.includes("/api/personal/contact") && body.action === "peek") return Response.json({ people: body.ids.slice(0, 1).map(id => ({ id, title: "Paul", aliases: [], line: "Your brother", summary: "", facts: [{ label: "Born in", value: "Brest" }], moments: [], mentions: 9, open: 1, seen: "", updated: "" })) });
+      if (s.includes("/api/personal/contact")){ state.concepts = state.concepts.filter(c => !body.from.includes(`${c.brain}/${c.slug}`)); return Response.json({ into: body.into, joined: 1 }); }
+      return Response.json({ chats: [] });
+    };
+  };
+  const open = async (w, h, mobile) => {
+    const page = await hermetic(); const bad = [];
+    await page.setViewportSize({ width: w, height: h }); page.on("pageerror", e => bad.push(e.message));
+    await page.addInitScript(init, JSON.parse(JSON.stringify(st)));
+    await page.goto(ORIGIN + "/chat.html", { waitUntil: "domcontentloaded" }); await page.waitForTimeout(600);
+    await page.click("#inboxBtn"); await page.click("#inbox .ib-it"); await page.waitForTimeout(400);
+    return { page, bad };
+  };
+  const ph = await open(390, 844, true);
+  const m = await ph.page.evaluate(() => { const bs = [...document.querySelectorAll(".dc-p")].map(b => b.getBoundingClientRect()), o = document.querySelector(".dc-open").getBoundingClientRect();
+    return { n: bs.length, stacked: bs.length === 2 && Math.abs(bs[0].left - bs[1].left) < 2 && bs[1].top >= bs[0].bottom - 1, inside: bs.every(b => b.left >= 0 && b.right <= innerWidth), wide: document.documentElement.scrollWidth > innerWidth, open: Math.round(o.height) }; });
+  check("on a phone the two people stack, inside the screen, with a tap target to open each file", m.n === 2 && m.stacked && m.inside && !m.wide && m.open >= 40, JSON.stringify(m));
+  check("a card the server could not give keeps the lists' own lines, and says so", await ph.page.evaluate(() => [...document.querySelectorAll(".dc-p")].map(b => b.textContent).some(t => /Paul Martin/.test(t) && /A client in Nantes/.test(t) && /could not be read/.test(t))));
+  await ph.page.close();
+
+  const d = await open(1280, 800, false);
+  const side = await d.page.evaluate(() => { const bs = [...document.querySelectorAll(".dc-p")].map(b => b.getBoundingClientRect()); return { side: bs.length === 2 && Math.abs(bs[0].top - bs[1].top) < 2 && bs[1].left > bs[0].right - 1 }; });
+  check("on a desktop they sit side by side", side.side, JSON.stringify(side));
+  const row = await d.page.evaluate(() => [...document.querySelectorAll(".dc-acts button")].map(b => b.textContent).join("/"));
+  check("the call can be to merge into either one, by name", row === "Accept/Merge into Paul/Keep apart/Later", row);
+  await d.page.click(".dc-acts button >> text=Merge into Paul"); await d.page.waitForTimeout(400);
+  const done = await d.page.evaluate(() => ({ call: window.__calls.filter(x => x.body.action === "merge").pop()?.body, said: [...document.querySelectorAll(".dc-done")].map(x => x.textContent) }));
+  check("it merges the suggested name into the other card, and says so", done.call?.into === "me/paul" && JSON.stringify(done.call?.from) === '["me/paul-martin"]' && JSON.stringify(done.said) === '["Paul and Paul Martin: Merged into Paul."]', JSON.stringify(done));
+  check("nothing threw seeing both people", !d.bad.length && !ph.bad.length, d.bad.concat(ph.bad).join(" | "));
+  await d.page.close();
 }
 
 await browser.close();

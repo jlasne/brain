@@ -516,6 +516,23 @@
   .dc-acts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:3px; }
   .dc-acts button{ min-height:34px; padding:0 14px; font-size:13.5px; }
   .dc-done{ font:400 13.5px/1.5 var(--sans); color:var(--good); padding:3px 0; }
+  /* The cards of a "same person" call, side by side, so the call is made by looking. */
+  .dc-who{ display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px; margin:6px 0 4px; }
+  .dc-p{ min-width:0; display:flex; flex-direction:column; gap:4px; padding:11px 12px 12px; border:1px solid var(--line-2); border-radius:11px; background:var(--surface-2); }
+  .dc-ph{ display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 8px; }
+  .dc-ph b{ min-width:0; font:600 14.5px/1.3 var(--sans); color:var(--ink); overflow-wrap:anywhere; }
+  .dc-keep{ font:500 10px/1 var(--mono); letter-spacing:.05em; text-transform:uppercase; color:var(--accent); }
+  .dc-open{ margin-left:auto; min-height:32px; padding:0 4px; font:500 12.5px/1 var(--sans); color:var(--ink-4); cursor:pointer; }
+  .dc-open:hover{ color:var(--accent); }
+  .dc-pm{ font:400 12.5px/1.4 var(--sans); color:var(--ink-4); font-variant-numeric:tabular-nums; }
+  .dc-pa{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); overflow-wrap:anywhere; }
+  .dc-pl{ font:500 13.5px/1.45 var(--sans); color:var(--ink-2); overflow-wrap:anywhere; }
+  .dc-ps{ font:400 13px/1.5 var(--sans); color:var(--ink-3); overflow-wrap:anywhere; }
+  .dc-pf{ display:grid; gap:2px; margin:2px 0 0; padding:0; list-style:none; font:400 13px/1.45 var(--sans); color:var(--ink-2); overflow-wrap:anywhere; }
+  .dc-pf li span{ color:var(--ink-4); }
+  .dc-pmo{ padding-left:8px; border-left:2px solid var(--line-2); font:400 12.5px/1.45 var(--sans); color:var(--ink-3); overflow-wrap:anywhere; }
+  .dc-pw{ font:400 12.5px/1.4 var(--sans); color:var(--ink-4); }
+  @media (max-width:560px){ .dc-open{ min-height:40px; } }
   .dk-hint{ margin-top:10px; font:500 13.5px/1.45 var(--sans); color:var(--accent); }
   /* A running audit: the turning mark, the step, a bar when the count is known, the time it has run. */
   .au-load{ display:grid; gap:10px; margin-top:18px; padding:14px 16px; border-radius:14px; background:var(--side); }
@@ -3715,11 +3732,14 @@ async function applyDecision(d, pick){
     return { a: "A holds. Position written again.", b: "B holds. Position written again.", both: "Both hold." }[pick] || "Settled.";
   }
   if (d.kind === "same" || d.kind === "person"){
-    const from = d.ids.filter(x => x !== d.keep);
-    const r = d.kind === "same" ? await api("/api/concept/merge", { into: d.keep, from }) : await api("/api/personal/contact", { action: "merge", into: d.keep, from });
+    /* The suggested card keeps its name, unless the call is to merge into another one of them. */
+    const keep = String(pick).startsWith("into:") && d.ids.includes(String(pick).slice(5)) ? String(pick).slice(5) : d.keep;
+    const from = d.ids.filter(x => x !== keep);
+    const r = d.kind === "same" ? await api("/api/concept/merge", { into: keep, from }) : await api("/api/personal/contact", { action: "merge", into: keep, from });
     if (r.error) throw new Error(r.error);
-    const kept = title(d.keep);
+    const kept = title(keep);
     S.concepts = S.concepts.filter(c => !from.includes(`${c.brain}/${c.slug}`));
+    if (S.peek) delete S.peek[keep];
     return `Merged into ${kept}.`;
   }
   if (d.kind === "rename"){
@@ -3818,6 +3838,31 @@ async function openDecide(){
     if (cs.length && !S.dcRun) openConflictDeck(cs, S.clashOthers || 0);
   };
   const said = new Map();       // what each one did, while this sheet is open
+  /* The people of the "same person" calls: each one's file in a few lines, read once for this sheet. */
+  S.peek = {};
+  const cardOf = id => S.concepts.find(c => `${c.brain}/${c.slug}` === id);
+  const personBlock = (d, id) => {
+    const p = S.peek[id], c = cardOf(id) || {};
+    const box = el("div","dc-p"); box.dataset.id = id;
+    const head = el("div","dc-ph"); head.append(el("b",null,p?.title || c.title || id));
+    if (id === d.keep) head.append(el("span","dc-keep","Suggested to keep"));
+    const open = el("button","dc-open","Open file"); open.type = "button"; open.title = "Open their file";
+    open.onclick = () => { const pb = S.brains.find(b => b.slug === d.brain); if (pb){ shut(); openFolder(pb, id); } };
+    head.append(open); box.append(head);
+    const n = p?.mentions ?? c.ev ?? 0, o = p?.open ?? c.open ?? 0;
+    box.append(el("small","dc-pm",[`${n} mention${n === 1 ? "" : "s"}`, `${o} open`, p?.seen ? `seen ${fileDay(p.seen)}` : ""].filter(Boolean).join(" \u00b7 ")));
+    const names = p?.aliases?.length ? p.aliases : c.aliases || [];
+    if (names.length) box.append(el("p","dc-pa",`Also called ${names.join(", ")}`));
+    const line = p?.line || c.summaryLine;
+    box.append(el("p","dc-pl", line || "No line yet."));
+    if (!p){ box.append(el("p","dc-pw","Loading their file")); return box; }
+    if (p.none){ box.append(el("p","dc-pw","Their file could not be read.")); return box; }
+    if (p.summary && p.summary !== line) box.append(el("p","dc-ps",p.summary));
+    if (p.facts.length){ const ul = el("ul","dc-pf"); for (const f of p.facts){ const li = el("li"); li.append(el("span",null,`${f.label}:`), ` ${f.value}`); ul.append(li); } box.append(ul); }
+    for (const m of p.moments) box.append(el("p","dc-pmo",`${m.d ? fileDay(m.d) + " \u00b7 " : ""}${m.t}`));
+    if (!p.facts.length && !p.moments.length) box.append(el("p","dc-pw","Nothing else in their file yet."));
+    return box;
+  };
   /* Topics name the groups: one fetch per folder, kept for the session. */
   S.topicsOf ||= {};
   const topicOf = id => { const t = (S.topicsOf[id.split("/")[0]] || []).find(t => t.members.includes(id)); return t ? t.title : ""; };
@@ -3845,6 +3890,7 @@ async function openDecide(){
         const row = el("div","dc-row"); row.dataset.key = d.key; row.dataset.kind = d.kind;
         const top = el("div","dc-head"); top.append(el("span","dc-tag",DC_TAG[d.kind]), el("b","dc-t",d.title)); row.append(top);
         for (const l of d.lines) row.append(el("p","dc-l",l));
+        if (d.kind === "person"){ const who = el("div","dc-who"); for (const id of d.ids) who.append(personBlock(d, id)); row.append(who); }
         const hint = el("p","dc-hint"); hint.append(el("b",null,`Suggested: ${d.say}`), d.why ? `. ${d.why[0].toUpperCase()}${d.why.slice(1)}${/[.!?]$/.test(d.why) ? "" : "."}` : ""); row.append(hint);
         const msg = el("p","dc-msg"); if (S.dcErr?.has(d.key)){ msg.textContent = S.dcErr.get(d.key); msg.classList.add("bad"); } row.append(msg);
         const acts = el("div","dc-acts");
@@ -3858,7 +3904,9 @@ async function openDecide(){
           acts.append(x);
         };
         act("Accept", d.pick, "go dc-ok");
-        for (const [p, label] of ALT[d.kind] || []) if (p !== d.pick) act(label, p, "ghost");
+        /* Two cards of one person: merge into either, by name. */
+        const alts = d.kind === "person" ? [...d.ids.filter(x => x !== d.keep).map(x => [`into:${x}`, `Merge into ${cardOf(x)?.title || x}`]), ["apart", "Keep apart"]] : ALT[d.kind] || [];
+        for (const [p, label] of alts) if (p !== d.pick) act(label, p, "ghost");
         act("Later", "later", "ghost");
         row.append(acts); sec.append(row);
       }
@@ -3872,6 +3920,21 @@ async function openDecide(){
   };
   S.dcPaint = paint;
   paint();
+  /* One call for every person in these calls. A card it could not read keeps what the lists hold. */
+  const peeks = async () => {
+    const byBrain = new Map();
+    for (const d of decisions().filter(x => x.kind === "person")) for (const id of d.ids) if (!S.peek[id]) (byBrain.get(d.brain) || byBrain.set(d.brain, new Set()).get(d.brain)).add(id);
+    for (const ids of byBrain.values()){
+      const want = [...ids];
+      for (let i = 0; i < want.length; i += 20){
+        const part = want.slice(i, i + 20);
+        try { for (const p of (await api("/api/personal/contact", { action: "peek", ids: part })).people || []) S.peek[p.id] = p; } catch { /* the lists' own lines stay */ }
+        for (const id of part) if (!S.peek[id]) S.peek[id] = { none: true };
+      }
+    }
+    if (veil.isConnected) paint();
+  };
+  peeks();
   const need = [...new Set(decisions().map(d => d.brain))].filter(slug => !S.topicsOf[slug] && S.brains.find(b => b.slug === slug)?.type !== "personal");
   await Promise.all(need.map(slug => api("/api/topics", { brain: slug }).then(r => { S.topicsOf[slug] = r.topics || []; }).catch(() => { S.topicsOf[slug] = []; })));
   if (veil.isConnected) paint();

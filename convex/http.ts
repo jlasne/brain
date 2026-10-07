@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal } from "./space";
-import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine } from "./personal";
+import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
 import { rederive, tidyScan } from "./tidy";
@@ -1478,9 +1478,15 @@ Reply with only JSON: {"position":"","summaryLine":""}`;
  */
 route("/api/personal/contact", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  const brain = String(b.id ?? b.into ?? "").split("/")[0];
+  const brain = String(b.id ?? b.into ?? (Array.isArray(b.ids) ? b.ids[0] : "") ?? "").split("/")[0];
   const got = await personalOf(ctx, who.space, brain);
   if (!got) return { error: "that is not a personal brain of this workspace" };
+  /* Up to 20 cards of this brain, each as a short file, so a call on two of them is made by looking. */
+  if (b.action === "peek") {
+    const ids = (Array.isArray(b.ids) ? b.ids : []).map(String).filter((x: string) => x.split("/")[0] === brain).slice(0, 20);
+    const cards = ids.length ? await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids }) : [];
+    return { people: cards.filter((c: any) => c.tag === "contact").map(personPeek) };
+  }
   if (b.action === "edit") {
     return await ctx.runMutation(internal.store.contactEdit, { space: who.space, id: String(b.id ?? ""),
       ...(typeof b.title === "string" ? { title: b.title } : {}),
