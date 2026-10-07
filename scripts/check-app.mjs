@@ -2047,7 +2047,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     const iv = on => ({ on, pct: 4, covered: 14, seen: 14, total: 335, chapter: { key: "A", title: "Life story", total: 28, at: 12 }, chapters: ch, pending: on ? "q" : null,
       test: tsum(), profile: null });
     let profile = null, on = false;
-    const view = () => ({ interview: iv(on), test: { round: tst.round && { at: "2026-10-06", questions: tst.round.ids.map(id => ({ id, text: tst.round.text[id], basis: tst.round.basis[id] || [] })),
+    const view = () => ({ interview: iv(on), test: { round: tst.round && { at: "2026-10-06", questions: tst.round.ids.map(id => ({ id, text: tst.round.text[id], ...(tst.round.reply[id] ? { reply: true } : {}) })),
       mine: tst.round.mine || {}, twin: tst.round.twin || {}, because: tst.round.because || {}, note: tst.round.note || null },
       history: tst.history }, profile });
     window.fetch = async (u, opt) => {
@@ -2057,16 +2057,16 @@ for (const found of ["Charles Gave", "", "youtube"]) {
         const a = body.action || "state";
         if (a === "start") { on = true; return Response.json({ answer: "One question at a time. Who raised you?", interview: iv(true), chat: "c9", personal: true, filed: { new: 0, updated: 0, titles: [] }, called: [] }); }
         if (a === "stop") { on = false; return Response.json({ ...view(), answer: "Paused at Life story, 12 of 28. Your twin is 4% complete. Tap Interview to pick up where you left off." }); }
-        /* The first round comes from the bank, as when the notes are few. The others are built from the notes: the first 3 name theirs. */
+        /* The first round comes from the bank, as when the notes are few. The others are built from the notes: the first 3 are messages to reply to. */
         if (a === "test" && (!tst.round || body.fresh)) { const ids = ["C", "D", "E", "G", "I"].map(c => c + (++tst.n)), built = tst.n > 5;
           tst.round = { ids, text: Object.fromEntries(ids.map(id => [id, `Test question ${id}?`])), note: built ? null : "thin",
-            basis: built ? { [ids[0]]: ["Sundays are free", "Cash buffer"], [ids[1]]: ["Prefers shipping small"], [ids[2]]: ["Turned down the agency deal"] } : {} }; }
+            reply: built ? { [ids[0]]: true, [ids[1]]: true, [ids[2]]: true } : {} }; }
         if (a === "check") { tst.round.mine = body.answers; tst.round.twin = Object.fromEntries(Object.keys(body.answers).map(id => [id, "Twin says " + id]));
           tst.round.because = Object.fromEntries(Object.keys(body.answers).map(id => [id, "your notes hold " + id])); }
         /* A model compares the two: the first answer matches, the second is close, the third differs. */
         if (a === "score") { const ids = Object.keys(tst.round.mine), sc = ids.map((id, i) => [2, 1, 0, 2, 2][i]);
           tst.history.unshift({ at: "2026-10-06", pct: Math.round(100 * sc.reduce((n, x) => n + x, 0) / (2 * sc.length)), learned: false,
-            items: ids.map((id, i) => ({ id, q: tst.round.text[id], mine: tst.round.mine[id], twin: tst.round.twin[id], because: tst.round.because[id], basis: tst.round.basis[id] || [], score: sc[i] })) }); tst.round = null; }
+            items: ids.map((id, i) => ({ id, q: tst.round.text[id], mine: tst.round.mine[id], twin: tst.round.twin[id], because: tst.round.because[id], score: sc[i] })) }); tst.round = null; }
         if (a === "learn") { if (tst.history[0]) tst.history[0].learned = true; return Response.json({ ...view(), filed: { new: 2, updated: 1, titles: ["A", "B"], people: [] } }); }
         if (a === "profile") profile = { at: "2026-10-04", notes: 40, parts: ["Identity","Values","Beliefs","Decision rules","Voice","Knowledge","Boundaries"].map(t => ({ title: t, points: [`A point on ${t}.`] })) };
         return Response.json(view());
@@ -2112,21 +2112,24 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click("#fvTest"); await page.waitForTimeout(250);
   const form = await page.evaluate(() => ({ qs: [...document.querySelectorAll("#testPane .ts-q span")].map(x => x.textContent), pos: document.querySelector("#testPane .fv-pos")?.textContent,
     hist: !!document.querySelector("#testPane .tt-hist h4") }));
-  check("the twin test opens on 5 fresh questions, and says what happens to the answers", form.qs.length === 5 && /5 new questions each time/.test(form.pos || "")
+  check("the twin test opens on 5 fresh items, and says what happens to the answers", form.qs.length === 5 && /5 new situations each time/.test(form.pos || "")
     && /yours are added to your notes/.test(form.pos || "") && !form.hist, JSON.stringify(form));
-  check("it says they are built from your notes, ask what the notes imply, and want a choice with its reason", /built from your own notes/.test(form.pos || "")
-    && /imply and never state/.test(form.pos || "") && /choice and why/.test(form.pos || ""), form.pos);
-  const thin = await page.evaluate(() => ({ note: document.querySelector("#testPane .ts-form")?.previousElementSibling?.textContent, basis: document.querySelectorAll("#testPane .ts-q .ts-basis").length,
+  check("it says they are messages built from your notes, that the notes imply the reply and never state it, and that the twin learns to answer as you",
+    /5 new situations each time, built from your own notes: a message lands and you reply/.test(form.pos || "") && /imply each reply and never state it/.test(form.pos || "")
+    && /compared on the decision and the voice/.test(form.pos || "") && /learns to answer as you/.test(form.pos || ""), form.pos);
+  const thin = await page.evaluate(() => ({ note: document.querySelector("#testPane .ts-form")?.previousElementSibling?.textContent, msgs: document.querySelectorAll("#testPane .ts-q.msg").length,
     ph: [...document.querySelectorAll("#testPane .ts-q textarea")].map(x => x.placeholder) }));
-  check("with few notes the questions come from the interview, and it says so; each box asks for the choice and why",
-    /Your notes hold few ideas yet.*6 notes or more/.test(thin.note || "") && thin.basis === 0 && thin.ph.length === 5 && thin.ph.every(x => x === "Your choice, and why"), JSON.stringify(thin));
+  check("with few notes the questions come from the interview, and it says so; each box asks for an answer",
+    /Your notes hold few ideas yet.*6 notes or more/.test(thin.note || "") && thin.msgs === 0 && thin.ph.length === 5 && thin.ph.every(x => x === "Your answer, in your own words"), JSON.stringify(thin));
   await page.click("#tsOther"); await page.waitForTimeout(300);
   const other = await page.evaluate(() => [...document.querySelectorAll("#testPane .ts-q span")].map(x => x.textContent));
   check("Other questions picks 5 others", other.length === 5 && other.every(q => !form.qs.includes(q)), JSON.stringify(other));
-  const built = await page.evaluate(() => ({ basis: [...document.querySelectorAll("#testPane .ts-q")].map(l => l.querySelector(".ts-basis")?.textContent || ""),
+  const built = await page.evaluate(() => ({ msgs: [...document.querySelectorAll("#testPane .ts-q")].map(l => l.classList.contains("msg")),
+    ph: [...document.querySelectorAll("#testPane .ts-q textarea")].map(x => x.placeholder), built: document.body.innerText.includes("Built from"),
     note: document.querySelector("#testPane .ts-form")?.previousElementSibling?.className }));
-  check("built from the notes, a question names the notes it rests on, and no line says otherwise",
-    JSON.stringify(built.basis) === '["Built from: Sundays are free · Cash buffer","Built from: Prefers shipping small","Built from: Turned down the agency deal","",""]' && !/tw-key/.test(built.note || ""), JSON.stringify(built));
+  check("built from the notes, a message shows as a message and asks for the reply you would send; no line says what it was built from",
+    JSON.stringify(built.msgs) === "[true,true,true,false,false]" && JSON.stringify(built.ph.slice(2, 4)) === '["Your reply, as you would send it","Your answer, in your own words"]'
+    && !built.built && !/tw-key/.test(built.note || ""), JSON.stringify(built));
   await page.evaluate(() => { const t = [...document.querySelectorAll("#testPane .ts-q textarea")]; t.slice(0, 2).forEach((x, i) => { x.value = "Answer " + (i + 1); }); });
   await page.click("#tsSave"); await page.waitForTimeout(200);
   check("fewer than 3 answers asks for more, and sends nothing", /at least 3 of the 5/.test(await page.textContent("#testPane .ts-say")) && !(await page.evaluate(() => window.__calls.some(x => x.body.action === "check"))));
@@ -2142,11 +2145,10 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("each pair says same, close or different, and nothing is scored by hand; the total is the share matched", res.chips === 0 && JSON.stringify(res.marks) === '["Same","Close","Different","Same"]'
     && res.score === "Your twin matched you 63% on 4 questions", JSON.stringify(res));
   check("it says the answers are in your notes, and what was filed", /Your answers are in your notes\. Filed: 2 new notes, 1 note updated\./.test(res.notes) && res.more, res.notes);
-  const why = await page.evaluate(() => ({ because: [...document.querySelectorAll("#testPane .ts-card")].map(c => c.querySelector(".ts-why")?.textContent || ""),
-    basis: [...document.querySelectorAll("#testPane .ts-card")].map(c => c.querySelector(".ts-basis")?.textContent || "") }));
-  check("each pair says why the twin answered so, and the notes the question rests on",
-    JSON.stringify(why.because.slice(0, 2)) === '["Because: your notes hold C6","Because: your notes hold D7"]' && why.basis[0] === "Built from: Sundays are free · Cash buffer" && why.basis[3] === "", JSON.stringify(why));
-  check("it says how many the twin missed, and that the answers are now notes it can deduce from", /2 of 4 missed or half right\. Each answer you gave is now a note, so your twin can deduce it next time\./.test(res.notes), res.notes);
+  const why = await page.evaluate(() => ({ because: [...document.querySelectorAll("#testPane .ts-card")].map(c => c.querySelector(".ts-why")?.textContent || ""), built: document.body.innerText.includes("Built from") }));
+  check("each pair says why the twin answered so, and no pair says what the question was built from",
+    JSON.stringify(why.because.slice(0, 2)) === '["Because: your notes hold C6","Because: your notes hold D7"]' && !why.built, JSON.stringify(why));
+  check("it says how many the twin missed, and that the replies are now notes it can answer from", /2 of 4 missed or half right\. Each reply you gave is now a note, so your twin can answer the same next time\./.test(res.notes), res.notes);
   await page.click("#tsMore"); await page.waitForTimeout(400);
   const next = await page.evaluate(() => ({ qs: [...document.querySelectorAll("#testPane .ts-q span")].map(x => x.textContent), hist: document.querySelector("#testPane .tt-hist h4")?.textContent,
     trend: document.querySelector("#testPane .tt-trend")?.textContent, rows: [...document.querySelectorAll("#testPane .tt-h summary")].map(x => x.textContent) }));
@@ -3183,75 +3185,6 @@ for (const space of ["octopus", "squidgy"]) {
   check("Accept all applies every suggestion, then the inbox lets go", JSON.stringify(after.calls) === JSON.stringify(['conflicts/settle:"b"', 'concept/merge:"content/a"', 'concept/rename:"Brand voice"', 'personal/contact:"me/marc-dupont"', 'concept/rederive:["content/d"]'])
     && /^Nothing waiting/.test(after.say) && after.state === "5 of 5 done." && after.badge && after.swipe, JSON.stringify(after));
   check("nothing threw around the decisions", !bad.length, bad.join(" | "));
-  await page.close();
-}
-
-/* ---- scouts: feeds a folder follows, what they found read against it, dropped or skipped from the inbox ---- */
-{
-  const st = { ...STATE, concepts: [{ brain: "content", slug: "a", n: 1, title: "Rates", summaryLine: "Rates hold at 2%", src: 3, ev: 3 }],
-    sources: [{ sid: "s1", brains: ["content"], author: "Bob TV", link: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
-      { sid: "s2", brains: ["content"], author: "Bob TV", link: "https://www.youtube.com/watch?v=aaaaaaaaaaa" },
-      { sid: "s3", brains: ["content"], author: "Ann", link: "https://ann.example.com/p/one" }] };
-  const { page, bad } = await boot("/chat.html", state => {
-    sessionStorage.setItem("octopus.token.v1", "test");
-    window.__calls = [];
-    const finds = [
-      { id: "f2", brain: "content", scout: "sc1", link: "https://ann.example.com/p/two", title: "Calm markets", date: "2026-10-05T08:00:00Z", author: "Ann", status: "new", read: null, error: "" },
-      { id: "f1", brain: "content", scout: "sc1", link: "https://ann.example.com/p/rates", title: "Rates to 4%", date: "2026-10-04T08:00:00Z", author: "Ann", status: "read",
-        read: { summary: "Rates reach 4% by 2027.", touches: [{ id: "content/a", title: "Rates", stance: "contradicts", why: "says 4% by 2027, not 2%" }], fresh: ["Term premium"] }, error: "" }];
-    const scouts = [{ id: "sc1", brain: "content", name: "Ann's notes", kind: "feed", url: "https://ann.example.com", checked: new Date(Date.now() - 3600e3).toISOString(), error: "" }];
-    window.fetch = async (u, opt) => {
-      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
-      if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/finds")){
-        if (body.action === "list") return Response.json({ finds });
-        if (body.action === "read") return Response.json({ read: { summary: "Markets stay calm.", touches: [{ id: "content/a", title: "Rates", stance: "supports", why: "backs 2%" }], fresh: [] } });
-        if (body.action === "text") return Response.json({ text: "The full words of the piece about rates." });
-        return Response.json({ ok: true });
-      }
-      if (s.includes("/api/scouts")){
-        if (body.action === "add") return Response.json({ scout: { id: "sc2", brain: "content", name: "Bob TV", kind: "youtube", url: body.url }, found: 2,
-          scouts: [...scouts, { id: "sc2", brain: "content", name: "Bob TV", kind: "youtube", url: body.url, checked: new Date().toISOString(), error: "" }] });
-        return Response.json({ scouts });
-      }
-      if (s.includes("/api/drop/check")) return Response.json({ duplicate: true, sid: "x", date: "2026-10-01", brains: ["content"] });
-      return Response.json({ chats: [] });
-    };
-  }, st);
-  await page.waitForTimeout(500);
-  const reads = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/finds") && x.body.action === "read").map(x => x.body.id));
-  await page.click("#inboxBtn"); await page.waitForTimeout(80);
-  const ib = await page.evaluate(() => ({ badge: document.getElementById("inboxN").textContent,
-    items: [...document.querySelectorAll("#inbox .ib-g")].filter(g => g.querySelector("h4").textContent === "From your scouts").flatMap(g => [...g.querySelectorAll(".ib-it")].map(x => x.textContent)) }));
-  check("a new find is read against its folder in the background, once", JSON.stringify(reads) === '["f2"]', JSON.stringify(reads));
-  check("the inbox says what the scouts found, by folder, and what it would change", JSON.stringify(ib.items) === '["Content: 2 new pieces1 clash · 1 backs what it holds"]' && ib.badge === "2", JSON.stringify(ib));
-  await page.click("#inbox .ib-it >> text=Content: 2 new pieces"); await page.waitForTimeout(150);
-  const sheet = await page.evaluate(() => [...document.querySelectorAll(".fd-card")].map(c => ({ t: c.querySelector(".fd-title").textContent, sum: c.querySelector(".fd-sum")?.textContent,
-    touch: [...c.querySelectorAll(".fd-touch li")].map(l => l.textContent) })));
-  check("each find shows what it says, what it contradicts, backs or adds, the clashes first", sheet.length === 2 && sheet[0].t === "Rates to 4%"
-    && JSON.stringify(sheet[0].touch) === '["Contradicts Rates: says 4% by 2027, not 2%","New Term premium"]' && sheet[1].sum === "Markets stay calm.", JSON.stringify(sheet));
-  await page.click('.fd-card[data-id="f2"] .ghost'); await page.waitForTimeout(300);
-  const skipped = await page.evaluate(() => ({ cards: document.querySelectorAll(".fd-card").length, call: window.__calls.filter(x => x.s.includes("/api/finds") && x.body.action === "skip").pop()?.body.id,
-    badge: document.getElementById("inboxN").textContent }));
-  check("Skip closes it for good", skipped.cards === 1 && skipped.call === "f2" && skipped.badge === "1", JSON.stringify(skipped));
-  await page.click('.fd-card[data-id="f1"] .go'); await page.waitForTimeout(400);
-  const dropped = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, check: window.__calls.filter(x => x.s.includes("/api/drop/check")).pop()?.body,
-    marked: window.__calls.filter(x => x.s.includes("/api/finds") && x.body.action === "dropped").pop()?.body.id, inbox: document.getElementById("inboxN").hidden }));
-  check("Drop it drops it into its folder, from the text already read, and the inbox lets go", dropped.view === "drop" && dropped.check?.link === "https://ann.example.com/p/rates"
-    && dropped.marked === "f1" && dropped.inbox, JSON.stringify(dropped));
-
-  /* The folder's own pane: what it follows, and the authors it already reads. */
-  await page.hover(".brain-row"); await page.click(".brain-row .ed >> text=open"); await page.waitForTimeout(150);
-  await page.click("#fvScout"); await page.waitForTimeout(200);
-  const pane = await page.evaluate(() => ({ list: [...document.querySelectorAll("#scList .sc-t b")].map(b => b.textContent), sugg: [...document.querySelectorAll("#scSugg .sc-t")].map(t => t.textContent) }));
-  check("Scouts lists what the folder follows, and offers the authors it already reads, most sources first", JSON.stringify(pane.list) === '["Ann\'s notes"]'
-    && JSON.stringify(pane.sugg) === '["Bob TV2 sources here · youtube.com"]', JSON.stringify(pane));
-  await page.click("#scSugg .sc-row button"); await page.waitForTimeout(250);
-  const followed = await page.evaluate(() => ({ add: window.__calls.filter(x => x.s.includes("/api/scouts") && x.body.action === "add").pop()?.body, say: document.getElementById("scSay").textContent,
-    list: [...document.querySelectorAll("#scList .sc-t b")].map(b => b.textContent) }));
-  check("Follow reads that author's feed, from one of their pieces, and says what it found", followed.add?.brain === "content" && followed.add?.url === "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-    && followed.say === "Following Bob TV. 2 recent pieces found: they wait in the inbox." && followed.list.join(",") === "Ann's notes,Bob TV", JSON.stringify(followed));
-  check("nothing threw around the scouts", !bad.length, bad.join(" | "));
   await page.close();
 }
 

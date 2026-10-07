@@ -26,7 +26,6 @@ import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRul
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
 import { rederive, tidyScan } from "./tidy";
-import { resolveFeed, sweep, readFind } from "./scouts";
 import { embed, nearest } from "./graph";
 import {
   ahead, gaps, gapBlock, readGap, interviewStep, pausedLine, summary, notesText, readTwin, readProfile,
@@ -628,66 +627,6 @@ route("/api/fetch", async (ctx, _req, b) => {
   return await fetchPage(ctx, String(b.url ?? ""));
 });
 
-/**
- * Scouts: the feeds a folder follows. "list" by default, "add" a feed to a
- * folder you can drop into (and read it once, keeping its 3 newest pieces),
- * "remove" one, or "check" every feed of the workspace now.
- */
-route("/api/scouts", async (ctx, _req, b) => {
-  const who = await gate(ctx, b, { ownerOnly: true });
-  if (who.demo) return { error: "the demo follows no feeds" };
-  const action = String(b.action ?? "list");
-  const list = async () => await ctx.runQuery(internal.scouts.scoutsOf, { space: who.space });
-  if (action === "add") {
-    const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
-    const brain = head.brains.find((x: any) => x.slug === String(b.brain ?? ""));
-    if (!brain || brain.type === "personal" || !canDrop(brain, who)) return { error: "that folder is not one you can feed" };
-    let got;
-    try { got = await resolveFeed(String(b.url ?? "")); } catch (e: any) { return { error: String(e?.message ?? e) }; }
-    const r = await ctx.runMutation(internal.scouts.scoutAdd, { space: who.space, brain: brain.slug, url: String(b.url).trim().slice(0, 500),
-      feed: got.feed, name: got.name.slice(0, 120), kind: got.kind, d: new Date().toISOString().slice(0, 10) });
-    if (r.error) return r;
-    const found = await sweep(ctx, who.space, r.scout);
-    return { scout: r.scout, found, scouts: await list() };
-  }
-  if (action === "remove") {
-    const r = await ctx.runMutation(internal.scouts.scoutRemove, { space: who.space, id: String(b.id ?? "") });
-    return r.error ? r : { scouts: await list() };
-  }
-  if (action === "check") {
-    const all: any[] = await list();
-    let at = 0, found = 0;
-    const one = async () => { while (at < all.length) found += await sweep(ctx, who.space, all[at++]); };
-    await Promise.all([one(), one(), one(), one(), one(), one()]);
-    return { found, scouts: await list() };
-  }
-  return { scouts: await list() };
-});
-
-/**
- * What the scouts found. "list" the ones waiting on a call; "read" one
- * against its folder, once, on the workspace's key; "text" hands back what it
- * read, so dropping it fetches nothing again; "skip" and "dropped" close it.
- */
-route("/api/finds", async (ctx, _req, b) => {
-  const who = await gate(ctx, b, { ownerOnly: true });
-  if (who.demo) return { finds: [] };
-  const action = String(b.action ?? "list");
-  if (action === "list") return { finds: await ctx.runQuery(internal.scouts.findsOf, { space: who.space }) };
-  const f = await ctx.runQuery(internal.scouts.findGet, { space: who.space, id: String(b.id ?? "") });
-  if (!f) return { error: "that find is gone" };
-  if (action === "skip" || action === "dropped")
-    return await ctx.runMutation(internal.scouts.findSet, { space: who.space, id: f.id, status: action === "skip" ? "skipped" : "dropped" });
-  if (action === "text") return { link: f.link, title: f.title, author: f.author, date: f.date, text: f.text };
-  if (action === "read") {
-    if (f.status === "read") return { read: f.read };
-    const no = await fetchAllowed(ctx, who);
-    if (no) return { error: no };
-    return await readFind(ctx, who.space, f, keyFor(who), modelFor(who, b));
-  }
-  return { error: "say list, read, text, skip or dropped" };
-});
-
 /** R1.2 runs before anything expensive, so a repeat costs zero pasting. */
 route("/api/drop/check", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
@@ -1195,10 +1134,10 @@ async function wholeNotes(ctx: any, space: string, brain: string) {
  *   start     on, and the next question (or the first)
  *   stop      off, where it stands
  *   restart   every question asked again
- *   test      a round of 5 fresh questions, the open one when there is one; `fresh: true` starts another.
- *             Built from your notes, each asking for something they imply and never state: one model call.
- *             The interview's bank asks what the notes cannot make
- *   check     your answers to the round, and the twin answers the same from the notes alone, with its reasons
+ *   test      a round of 5 fresh messages to reply to, the open one when there is one; `fresh: true` starts another.
+ *             Built from your notes and the people in them: a message you could receive, whose reply they imply and never state.
+ *             One model call. The interview's bank asks what the notes cannot make
+ *   check     your replies to the round, and the twin replies the same from the notes alone, with its reasons
  *   score     a model compares the twin's answers with yours, 0 to 2 each; the round goes into the history
  *   learn     your answers filed as notes, and the questions marked answered in the interview
  *   profile   the notes written as 7 parts, offered until the interview reaches 100%
@@ -1237,17 +1176,18 @@ route("/api/interview", async (ctx, _req, b) => {
       /* A round put aside counts as asked, so the new one never repeats it. */
       const put = t.round ? roundQs(t.round) : [];
       const seen = t.round ? [{ items: put.map(x => ({ id: x.id })) }, ...history] : history;
-      /* The questions come from what you said: each asks for something the notes imply and never state.
+      /* The items are messages you could receive, built from what you said: the notes imply the reply and never state it.
          One model call, only when a round opens. Too few notes, or no answer from the model, and the bank asks them. */
       const asked = [...put.map(x => x.q), ...history.flatMap((h: any) => (h.items ?? []).map((i: any) => String(i.q ?? "")))].filter(Boolean).slice(0, 40);
-      const held = (await wholeNotes(ctx, who.space, mine.slug)).filter((c: any) => c.tag !== "contact");
-      let qs: RoundQ[] = [], note: string | null = held.length < DEDUCE_MIN ? "thin" : null;
+      const held = await wholeNotes(ctx, who.space, mine.slug);
+      const own = held.filter((c: any) => c.tag !== "contact"), people = held.filter((c: any) => c.tag === "contact");
+      let qs: RoundQ[] = [], note: string | null = own.length < DEDUCE_MIN ? "thin" : null;
       if (!note) {
         try {
           const { text } = await ask([
-            { role: "system", content: "You write questions that test whether an AI twin can deduce a person's answers from their notes. You reply with JSON only." },
-            { role: "user", content: `${DEDUCE_RULES}\n\nTHEIR NOTES\n${notesText(held, 40000).text}${asked.length ? `\n\nALREADY ASKED, never again\n${asked.map(q => `- ${q}`).join("\n")}` : ""}` },
-          ], { json: true, maxTokens: 1500, key: keyFor(who), model: modelFor(who, b), timeout: 100000, temperature: 0.7 });
+            { role: "system", content: "You write situations that test whether an AI twin could reply to a person's emails and messages from their notes. You reply with JSON only." },
+            { role: "user", content: `${DEDUCE_RULES}\n\nTHEIR NOTES\n${notesText(own, 28000).text}${people.length ? `\n\nTHE PEOPLE THEY KNOW\n${notesText(people, 10000).text}` : ""}${asked.length ? `\n\nALREADY ASKED, never again\n${asked.map(q => `- ${q}`).join("\n")}` : ""}` },
+          ], { json: true, maxTokens: 2000, key: keyFor(who), model: modelFor(who, b), timeout: 100000, temperature: 0.7 });
           qs = readQuestions(text, held.map((c: any) => String(c.title)), asked);
         } catch { /* the bank asks them */ }
         if (!qs.length) note = "failed";
@@ -1287,7 +1227,7 @@ route("/api/interview", async (ctx, _req, b) => {
       if (!Object.keys(scores).length) return { error: finish === "length" ? "the comparison ran out of room. Try again." : "the answers could not be compared this time. Try again." };
       const entry = { at: today, pct: scorePct(scores), learned: false,
         items: qs.filter(x => round.mine[x.id]).map(x => ({ id: x.id, q: x.q, mine: round.mine[x.id], twin: round.twin[x.id] ?? "",
-          ...(round.because?.[x.id] ? { because: round.because[x.id] } : {}), ...(x.basis?.length ? { basis: x.basis } : {}), score: scores[x.id] ?? null })) };
+          ...(round.because?.[x.id] ? { because: round.because[x.id] } : {}), score: scores[x.id] ?? null })) };
       return view(await save({ test: { history: [entry, ...(t.history ?? [])].slice(0, HISTORY_MAX), round: null } }));
     }
     case "learn": {
@@ -1298,7 +1238,7 @@ route("/api/interview", async (ctx, _req, b) => {
       const items = (entry.items ?? []).filter((i: any) => i.mine);
       const mKey = keyFor(who), mName = modelFor(who, b);
       const text = items.map((i: any, n: number) => `${n + 1}. ${i.mine}`).join("\n");
-      const context = `Each numbered answer below replies to the question with the same number:\n${items.map((i: any, n: number) => `${n + 1}. ${i.q}`).join("\n")}`;
+      const context = `Each numbered answer below is the owner's own reply to the message or question with the same number. File what it shows: the decision, the numbers, the rule behind it, and how they write to that person.\n${items.map((i: any, n: number) => `${n + 1}. ${i.q}`).join("\n")}`;
       const run = (tm: number) => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date: today, lang: storeLang(who),
         model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: tm })).text });
       const filed = await fileTwice(run);

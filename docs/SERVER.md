@@ -123,29 +123,32 @@ or is not a question, asks the bank's own words, so every reply ends on one
 question. Outside the interview, the chat
 asks one of the questions in passing every few messages, from the chapters
 covered least. About $0.002 an answer on GLM 5.3 Flash. A twin test is a round of 5
-questions built from the notes, in one model call when the round opens: each
-asks for something the notes imply and never state, rests on one to three
-notes it names, and is never one asked before. A question whose notes do not
-exist, that is no question, or that repeats an earlier one is dropped. With
-fewer than 6 notes (contacts apart), or when the model sends nothing usable,
-the bank fills the round instead: never asked in a test before, one to a
-chapter, from the chapters a twin can answer from who you are, the least
-covered first. The round says which, with `note`. The twin answers them from
-the notes alone, before your answers reach the notes, and says which notes it
-used. A model then compares each of your answers with the twin's and scores it
-0, 1 or 2: the same choice for another reason is 1. Your answers are filed as
-notes in one filing, and the bank's questions among them marked answered in
-the interview. Each round is kept in the `interviews` row, 50 at most, with
-each question's text, notes, the twin's reason and the score.
+situations built from the notes and the people in them, in one model call when
+the round opens: a message the person could receive (an email, a text, a chat),
+from someone in their notes or a plausible sender, whose reply the notes imply
+and never state. It ends on "Write your reply." Each rests on one or more notes
+it names to the model, so a made-up sender or a generic message is dropped, as
+is one that repeats an earlier one. With fewer than 6 notes (contacts apart),
+or when the model sends nothing usable, the bank fills the round instead: never
+asked in a test before, one to a chapter, from the chapters a twin can answer
+from who you are, the least covered first. The round says which, with `note`.
+The twin writes the reply the person would send, from the notes alone, before
+the replies reach the notes, and says which notes it used. A model then
+compares each reply with the twin's on the move, the facts and the voice
+(length, warmth, formality, language), and scores it 0, 1 or 2: the opposite
+move is 0, a voice clearly not theirs is 1. Your replies are filed as notes in
+one filing, and the bank's questions among them marked answered in the
+interview. Each round is kept in the `interviews` row, 50 at most, with
+each item's text, the twin's reason and the score. A reply or answer keeps 700 characters.
 At 100% the profile is neither offered nor read by the chat: the notes and
 the contacts hold what it would say. Nothing but that
 brain's own folder and chat reads any of it.
 
-Projects, saved one-pagers and the Limited or Full side panel are gone from
+Projects, saved one-pagers, the Limited or Full side panel, the map and the scouts are gone from
 the code. Their tables stay in `schema.ts` until emptied, so a deploy accepts
 the rows still there: run `npx convex run admin:clearRemoved --prod` until it
 says `runAgain: false`, then delete the definitions of `modes`, `projects`,
-`onepagers`, `pages`, `gaps` and `heat`.
+`onepagers`, `pages`, `gaps`, `heat`, `scouts` and `finds`.
 
 Link what is already stored. A drop links the concepts it writes, and these
 fill in the rest, in the background, both spaces:
@@ -269,8 +272,6 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/export` | One brain's concepts whole, 100 a page, for the markdown export | Yes |
 | `/api/concept` | One concept whole, its links with their kinds, and what follows from it, for the brain viewer. A person of a personal folder also brings the people linking to them and their raw notes, the newest 300; the first open gathers those from the chats still kept | Yes |
 | `/api/topics` | One folder's topics: a title, a line and its concepts. Never a personal folder | Yes |
-| `/api/scouts` | The feeds a folder follows, by `action`: `list`, `add` (finds the feed behind a YouTube channel or video, a feed, or a site, then keeps its 3 newest pieces of 21 days), `remove`, `check` (reads every feed now). No model call | Yes, owner |
-| `/api/finds` | What the scouts found, by `action`: `list` the ones waiting, `read` one against its folder once (one model call, on the workspace's key and its fetch allowance), `text` (what it read, so the drop reads it free), `skip`, `dropped` | Yes, owner |
 | `/api/conflicts` | The open conflicts that are real contradictions. Each clash is checked once and marked. With `hints`, each gets a suggested ruling and its reason, 20 clashes to a model call, kept on the clash so it is asked once; with no answer, the later date suggests one | Yes |
 | `/api/conflicts/settle` | Settles one: the side that holds rewrites the position, or both hold and it only leaves the list | Yes |
 | `/api/passphrase` | Changes the workspace's passphrase: the current one is checked against the same 8 tries an hour, the others are signed out | Owner |
@@ -299,7 +300,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/personal/remember` | A memory or a message filed into a personal brain. It returns what it kept as text, so the app checks every number, date and name. With `gaps`, the passages a first filing left out; with `verbatim`, what two filings left out, kept word for word with no model call | Owner |
 | `/api/personal/page` | One page of a person: the moments of a `year`, or the raw notes of a `month` | Owner |
 | `/api/personal/people` | The people in a personal brain's older notes, filed as contacts, 20 notes a call; the app calls again with `at` until `next` is null | Owner |
-| `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `test` (the open round of 5 questions built from the notes, or `fresh: true` for another), `check` (your answers, and the twin answers the same from the notes alone, with its reasons), `score` (a model compares the two, 0 to 2 a question, and the round goes into the history), `learn` (your answers filed as notes) and `profile` (the notes as 7 parts, offered until the interview reaches 100%). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
+| `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `test` (the open round of 5 messages to reply to, built from the notes, or `fresh: true` for another), `check` (your replies, and the twin replies the same from the notes alone, with its reasons), `score` (a model compares the two, 0 to 2 a question, and the round goes into the history), `learn` (your answers filed as notes) and `profile` (the notes as 7 parts, offered until the interview reaches 100%). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
 | `/api/feedback` | Send feedback: mails one error, where it happened, the workspace and the message to `FEEDBACK_TO`, else `DIGEST_TO`. Another workspace's personal message keeps its words out. 5 an hour per sender, 20 per workspace | Yes |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
 | `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
@@ -345,8 +346,6 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `sources` | id, link, date, author, location, brains | link, and the normalised link |
 | `notes` | the six note sections | source id |
 | `candidates` | brain, title, mentions, count | brain and slug |
-| `scouts` | a feed a folder follows: the address given, the feed, its name, when it was last read, the newest piece seen, the last error | space |
-| `finds` | a piece a scout found: its link, title, day, author, status, what the read says, and the text read | space and status, link, scout |
 | `config` | one space's gate salt, hash and attempt counter | key, one row per space |
 | `mcpHits` | the public endpoint's per address counter | address |
 | `accounts` | a member's name, a salted password hash, and optionally their sealed key | name slug |
@@ -372,7 +371,6 @@ The duplicate check reads `sources` by normalised link, so it stays an index loo
 | Every model call | The key would be readable |
 | The settle write | Positions must be rewritten in one pass, atomically |
 | The weekly digest | It runs on a schedule, with no browser open. `crons.ts` calls `digest:send` every Monday at 06:00 UTC and mails `DIGEST_TO` |
-| The scouts | `crons.ts` calls `scouts:sweepAll` every day at 05:17 UTC: each feed is read, six at once, with no model call. The app reads each new find against its folder when it next opens |
 
 Reading brains and rendering the card can stay client side, because that data is already yours.
 

@@ -344,7 +344,9 @@ const TODAY = "2026-09-30";
   check("the comparison reads each question with both answers, only where both exist", pr.startsWith(`C1: ${twin.questionOf("C1").text}\nA: 7\nB: 6\n\nE3: ${twin.questionOf("E3").text}\nA: speed\nB: quality`) && !/D2/.test(pr), pr);
   check("it says what a match is: same, close or different, by substance and never wording", /2: same answer/.test(twin.JUDGE_RULES) && /1: close/.test(twin.JUDGE_RULES) && /0: different/.test(twin.JUDGE_RULES)
     && /never the wording/.test(twin.JUDGE_RULES));
-  check("the same choice for another reason is only close", /same choice for another reason/.test(twin.JUDGE_RULES) && /same choice or view for the same reason/.test(twin.JUDGE_RULES));
+  check("the same choice for another reason is only close", /same choice for another reason/.test(twin.JUDGE_RULES) && /same decision or choice for the same reason/.test(twin.JUDGE_RULES));
+  check("a reply is judged on its move, its facts and its voice: the other move is different, a voice not theirs is only close",
+    /For a reply: the same move and the same facts, in a voice close to theirs/.test(twin.JUDGE_RULES) && /clearly not theirs/.test(twin.JUDGE_RULES) && /accepts what they refuse/.test(twin.JUDGE_RULES));
   check("the scores it returns are kept for the pairs it was given, 0, 1 or 2 only",
     JSON.stringify(twin.readScores('Sure: {"scores":{"C1":2,"E3":"1","D2":2,"E9":2,"F1":7}}', { C1: "6", E3: "quality", F1: "x" })) === '{"C1":2,"E3":1}'
     && JSON.stringify(twin.readScores("no json", { C1: "a" })) === "{}");
@@ -373,6 +375,8 @@ const TODAY = "2026-09-30";
     && !twin.interviewFull({ pct: 99, covered: 300, total: 335 }) && !twin.interviewFull(null));
   check("the twin answers in their voice from the notes alone, works the answer out, and says which notes it used",
     /Use what the notes say or clearly imply/.test(twin.TWIN_RULES) && /first person/.test(twin.TWIN_RULES) && /Work it out from the notes/.test(twin.TWIN_RULES) && /"because"/.test(twin.TWIN_RULES));
+  check("to a message it writes the reply they would send, ready to send, and invents no fact", /write the reply they would send, ready to send/.test(twin.TWIN_RULES)
+    && /greeting and sign-off/.test(twin.TWIN_RULES) && /Never invent a fact about them/.test(twin.TWIN_RULES));
   const tw = twin.readTwin('{"answers":{"C1":"7 — maybe","T1":{"a":"I refuse — Sundays are free","because":"Your notes say you keep Sundays free."},"T9":"x","D2":{"a":""}}}', ["C1", "T1", "D2"]);
   check("its answers are read by question with their reasons, em-dashes out, and an empty one is no answer",
     JSON.stringify(tw) === '{"answers":{"C1":"7, maybe","T1":"I refuse, Sundays are free"},"because":{"T1":"Your notes say you keep Sundays free."}}', JSON.stringify(tw));
@@ -384,41 +388,41 @@ const TODAY = "2026-09-30";
   check("notes are read newest first, within a cap", nt.text === "- New: new" && nt.used === 1 && nt.total === 2, JSON.stringify(nt));
 }
 
-/* ---- the twin test: questions built from the notes, to deduce rather than recall ---- */
+/* ---- the twin test: messages to reply to, built from the notes, to deduce rather than recall ---- */
 {
-  check("it asks for 5 deductions, built on named notes, never a fact a note states", /Write 5 questions/.test(twin.DEDUCE_RULES) && /never state/.test(twin.DEDUCE_RULES)
-    && /"basis"/.test(twin.DEDUCE_RULES) && /Never a fact a note already states word for word/.test(twin.DEDUCE_RULES) && /never about another person/.test(twin.DEDUCE_RULES)
-    && /No em-dashes/.test(twin.DEDUCE_RULES) && twin.DEDUCE_MIN === 6);
-  const titles = ["Sundays are free", "Turned down the agency deal", "Cash buffer of 8 months", "Prefers shipping small"];
+  check("it asks for 5 situations: a message that lands, whose reply the notes imply and never state", /Write 5 situations/.test(twin.DEDUCE_RULES) && /emails and messages/.test(twin.DEDUCE_RULES)
+    && /never say how they would reply|never say how/.test(twin.DEDUCE_RULES) && /End with "Write your reply\."/.test(twin.DEDUCE_RULES) && /"basis"/.test(twin.DEDUCE_RULES)
+    && /Never a situation a note already answers word for word/.test(twin.DEDUCE_RULES) && /No em-dashes/.test(twin.DEDUCE_RULES) && twin.DEDUCE_MIN === 6);
+  check("the senders may be the people in the notes, and the language is the one the sender uses with them", /someone in their notes/.test(twin.DEDUCE_RULES) && /language its sender uses/.test(twin.DEDUCE_RULES));
+  const titles = ["Sundays are free", "Turned down the agency deal", "Cash buffer of 8 months", "Prefers shipping small", "Marc Dupont"];
+  const msg = (who, text) => `${who} writes: "${text}" Write your reply.`;
   const raw = JSON.stringify({ questions: [
-    { q: "A client offers 20,000 euros for 3 weeks of work that needs your Sundays. Do you take it, and why?", basis: ["Sundays are free", "Cash buffer of 8 months"] },
-    { q: "You can launch Friday with 3 of 5 features, or wait a month. Which, and why?", basis: ["prefers shipping small"] },
-    { q: "Where were you born, and why does it matter to you?", basis: ["Nothing like this note"] },
-    { q: "Tell me about your childhood home.", basis: ["Sundays are free"] },
-    { q: "An agency asks you to join for a steady salary. What do you answer — and why?", basis: ["Turned down the agency"] },
+    { q: msg("A client by email", "Can you take a rush job of 3 weeks for 20,000 euros? It needs your Sundays."), basis: ["Sundays are free", "Cash buffer of 8 months"] },
+    { q: msg("Marc Dupont by text", "Can we move Friday's call to Monday? Client dinner came up."), basis: ["marc dupont"] },
+    { q: msg("A founder in chat", "Would you join us full time? Steady salary, equity, no more freelance."), basis: ["Turned down the agency"] },
+    { q: msg("A friend", "Beers Saturday night, you in?"), basis: ["Nothing like this note"] },
     { q: "Too short?", basis: ["Sundays are free"] },
-    { q: "A friend asks you to lend 5,000 euros from your buffer. Do you, and why?", basis: ["Cash buffer of 8 months"] },
-    { q: "Your agency offer repeats a Sunday weekend job. Do you accept, and why?", basis: ["Sundays are free", "Sundays are free"] },
+    { q: msg("A recruiter", "Open to a senior role in Paris? Up to 120k — fintech."), basis: ["Prefers shipping small"] },
+    { q: msg("A client by email", "Can you take a rush job of 3 weeks for 20,000 euros? It needs your Sundays."), basis: ["Sundays are free"] },
   ] });
-  const qs = twin.readQuestions(raw, titles, ["A client offers 20,000 euros for 3 weeks of work that needs your Sundays. Do you take it?"]);
-  check("a question stays when it rests on a real note, even loosely named, and reads as a question",
-    qs.map(x => x.q.slice(0, 28)).join("|") === "You can launch Friday with 3|An agency asks you to join f|A friend asks you to lend 5,|Your agency offer repeats a ", JSON.stringify(qs));
-  check("it drops one whose notes do not exist, one that is no question, one too short, and one asked before",
-    !qs.some(x => /born|childhood|Too short|20,000/.test(x.q)));
-  check("its notes are named by their own titles, once each, and the ids are T1, T2, T3, T4", JSON.stringify(qs.map(x => [x.id, x.basis])) ===
-    '[["T1",["Prefers shipping small"]],["T2",["Turned down the agency deal"]],["T3",["Cash buffer of 8 months"]],["T4",["Sundays are free"]]]', JSON.stringify(qs));
-  check("em-dashes are taken out of a question", !/—/.test(qs[1].q) && /answer, and why\?$/.test(qs[1].q), qs[1].q);
+  const qs = twin.readQuestions(raw, titles, [msg("A client by email", "Can you take a rush job of 3 weeks for 20,000 euros? It needs your Sundays.")]);
+  check("a situation stays when it rests on a real note or person, even loosely named", qs.map(x => x.q.split(" ")[0] + " " + x.q.split(" ")[1]).join("|") === "Marc Dupont|A founder|A recruiter", JSON.stringify(qs));
+  check("it drops one whose notes do not exist, one too short, and one asked before", !qs.some(x => /Beers|Too short|rush job/.test(x.q)));
+  check("each is marked as a reply, numbered T1, T2, T3, and keeps no notes list", JSON.stringify(qs.map(x => [x.id, x.reply, "basis" in x])) === '[["T1",true,false],["T2",true,false],["T3",true,false]]', JSON.stringify(qs));
+  check("em-dashes are taken out of a message", !/—/.test(qs[2].q) && /120k, fintech/.test(qs[2].q), qs[2].q);
   const themes = ["holidays", "salary", "mentors", "deadlines", "contracts", "hiring", "travel", "pricing", "feedback"];
   check("a round holds 5 at most, and a reply that is no JSON holds none", twin.readQuestions(JSON.stringify({ questions: themes.map(t =>
-    ({ q: `Facing a hard choice about ${t} this week, what do you do, and why?`, basis: ["Sundays are free"] })) }), titles).length === 5 && twin.readQuestions("no", titles).length === 0);
+    ({ q: `A client writes about ${t} this week and wants an answer today. Write your reply.`, basis: ["Sundays are free"] })) }), titles).length === 5 && twin.readQuestions("no", titles).length === 0);
 
   check("an older round holds bank ids, and the bank has the words", JSON.stringify(twin.roundQs({ ids: ["C1", "Z9"] })) === JSON.stringify([{ id: "C1", q: twin.questionOf("C1").text }]));
-  const built = { at: "2026-10-06", qs: [{ id: "T1", q: "Do you take it, and why?", basis: ["Sundays are free"] }, { id: "C1", q: twin.questionOf("C1").text }], note: "failed",
-    mine: { T1: "No, Sundays are free" }, twin: { T1: "No" }, because: { T1: "Your notes say Sundays are free" } };
-  check("a round keeps the text of what was built, and the notes it rests on", JSON.stringify(twin.roundQs(built)) === JSON.stringify([{ id: "T1", q: "Do you take it, and why?", basis: ["Sundays are free"] }, { id: "C1", q: twin.questionOf("C1").text }]));
+  const built = { at: "2026-10-06", qs: [{ id: "T1", q: "Marc writes: can we move? Write your reply.", reply: true, basis: ["old"] }, { id: "C1", q: twin.questionOf("C1").text }], note: "failed",
+    mine: { T1: "Monday works." }, twin: { T1: "Sure, Monday." }, because: { T1: "Your notes say you move calls without fuss" } };
+  check("a round keeps the text of what was built, and which are messages", JSON.stringify(twin.roundQs(built)) === JSON.stringify([{ id: "T1", q: "Marc writes: can we move? Write your reply.", reply: true }, { id: "C1", q: twin.questionOf("C1").text }]));
   const v = twin.testView({ test: { round: built, history: [] } });
-  check("the app sees each question's notes, the twin's reasons and why a round came from the bank",
-    v.round.questions[0].basis[0] === "Sundays are free" && v.round.questions[1].basis.length === 0 && v.round.because.T1 === "Your notes say Sundays are free" && v.round.note === "failed", JSON.stringify(v.round));
+  check("the app sees which items are messages, the twin's reasons and why a round came from the bank, and no list of notes",
+    v.round.questions[0].reply === true && !("reply" in v.round.questions[1]) && !("basis" in v.round.questions[0]) && v.round.because.T1 === "Your notes say you move calls without fuss" && v.round.note === "failed", JSON.stringify(v.round));
+  const long = "x".repeat(900);
+  check("a reply keeps up to 700 characters", twin.cleanAnswers({ T1: long }, ["T1"]).T1.length === 700 && twin.readTwin(JSON.stringify({ answers: { T1: { a: long, because: "y" } } }), ["T1"]).answers.T1.length === 700);
 }
 
 /* ---- contacts: one card per person, the whole of what was said ---- */

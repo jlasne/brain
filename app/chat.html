@@ -490,21 +490,6 @@
   .ts-m.m2{ background:color-mix(in srgb, var(--good) 14%, transparent); color:var(--good); }
   .ts-m.m0{ background:color-mix(in srgb, var(--bad) 12%, transparent); color:var(--bad); }
   .ts-m.m1{ background:var(--accent-soft); color:var(--accent); }
-  /* Scouts: the feeds a folder follows. */
-  .sc-add{ display:flex; gap:8px; margin-top:16px; }
-  .sc-add input{ flex:1; min-width:0; height:42px; padding:0 13px; border:1px solid var(--line); border-radius:12px; background:var(--surface); color:var(--ink); font:400 14.5px/1 var(--sans); }
-  .sc-add input:focus{ outline:none; border-color:var(--accent-line); box-shadow:0 0 0 3px var(--accent-soft); }
-  .sc-say{ min-height:1.2em; margin-top:8px; font:400 13.5px/1.5 var(--sans); color:var(--ink-3); }
-  .sc-say.ok{ color:var(--good); } .sc-say.bad{ color:var(--bad); }
-  .sc h4{ margin:22px 0 4px; font:600 12px/1 var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); }
-  .sc-row{ display:flex; align-items:center; gap:8px 12px; padding:10px 0; border-top:1px solid var(--line); }
-  .sc-list .sc-row:first-child, .sc-sugg h4 + .sc-row{ border-top:0; }
-  .sc-t{ flex:1; min-width:0; display:grid; gap:2px; }
-  .sc-t b{ font:500 14.5px/1.35 var(--sans); color:var(--ink); overflow-wrap:anywhere; }
-  .sc-t span{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); overflow-wrap:anywhere; }
-  .sc-t span.bad{ color:var(--bad); }
-  .sc-none{ padding:10px 0; font:400 14px/1.5 var(--sans); color:var(--ink-3); }
-  #scCheck{ margin-top:8px; }
   /* Decisions: grouped by folder and topic, each with its suggested call. */
   .sheet.dc-sheet{ max-width:700px; }
   .dc-top{ display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; margin-top:12px; }
@@ -530,26 +515,6 @@
   .dc-acts button{ min-height:34px; padding:0 14px; font-size:13.5px; }
   .dc-done{ font:400 13.5px/1.5 var(--sans); color:var(--good); padding:3px 0; }
   .dk-hint{ margin-top:10px; font:500 13.5px/1.45 var(--sans); color:var(--accent); }
-  /* What the scouts found, a card each. */
-  .sheet.fd-sheet{ max-width:640px; }
-  .fd-card{ display:grid; gap:7px; padding:14px 0 16px; border-top:1px solid var(--line); transition:opacity .2s ease, transform .2s ease; }
-  .fd-card:first-child{ border-top:0; padding-top:4px; }
-  .fd-card.gone{ opacity:0; transform:translateX(12px); }
-  .fd-title{ font:600 15.5px/1.35 var(--sans); color:var(--ink); text-decoration:none; overflow-wrap:anywhere; }
-  .fd-title:hover{ color:var(--accent); }
-  .fd-meta{ font:400 12px/1.4 var(--mono); color:var(--ink-4); }
-  .fd-sum{ font:400 14px/1.55 var(--sans); color:var(--ink-2); }
-  .fd-wait{ display:flex; align-items:center; gap:8px; font:400 13.5px/1.4 var(--sans); color:var(--ink-3); }
-  .fd-wait .spinner{ width:22px; height:22px; }
-  .fd-err{ font:400 13.5px/1.5 var(--sans); color:var(--bad); }
-  .fd-touch{ display:grid; gap:5px; margin:0; padding:0; list-style:none; }
-  .fd-touch li{ font:400 13.5px/1.45 var(--sans); color:var(--ink-2); padding-left:10px; border-left:3px solid var(--line-2); }
-  .fd-touch b{ font-weight:600; }
-  .fd-touch .fd-contradicts{ border-color:var(--bad); } .fd-touch .fd-contradicts b{ color:var(--bad); }
-  .fd-touch .fd-supports{ border-color:var(--good); } .fd-touch .fd-supports b{ color:var(--good); }
-  .fd-touch .fd-new{ border-color:var(--accent); } .fd-touch .fd-new b{ color:var(--accent); }
-  .fd-acts{ display:flex; gap:8px; margin-top:4px; }
-  .fd-acts button{ min-height:36px; padding:0 16px; }
   /* A running audit: the turning mark, the step, a bar when the count is known, the time it has run. */
   .au-load{ display:grid; gap:10px; margin-top:18px; padding:14px 16px; border-radius:14px; background:var(--side); }
   .au-top{ display:flex; align-items:center; gap:10px; min-width:0; }
@@ -666,8 +631,7 @@
   .ts-pair small{ font:500 10.5px/1 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); }
   .ts-pair p{ margin-top:4px; font:400 13.5px/1.5 var(--sans); color:var(--ink-2); overflow-wrap:anywhere; }
   .ts-card .ts-m{ display:inline-block; margin-top:10px; }
-  .ts-basis{ font:400 12px/1.4 var(--sans); color:var(--ink-4); }
-  .ts-card .ts-basis{ display:block; margin-top:4px; }
+  .ts-q.msg > span{ padding:10px 12px; border-left:3px solid var(--accent-line); border-radius:0 10px 10px 0; background:var(--side); font-weight:400; color:var(--ink); }
   .ts-pair .ts-why{ font:400 12.5px/1.45 var(--sans); color:var(--ink-3); }
   .tt-now{ margin-top:18px; }
   .tt-hist{ margin-top:26px; }
@@ -1981,7 +1945,7 @@ const TOKEN_KEY = "octopus.token.v1";
    copy of it. */
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
   "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle",
-  "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview", "/api/personal/people", "/api/finds"]);
+  "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview", "/api/personal/people"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -2271,8 +2235,8 @@ async function refresh(){
   applyLook(d.brand || null);
   paintWorkspace();
   render();
-  /* The rings, the chats and the scouts' finds follow, so the brains never wait on them. */
-  loadHealth(); loadChats(); loadFinds(); autoAudit();
+  /* The rings and the chats follow, so the brains never wait on them. */
+  loadHealth(); loadChats(); autoAudit();
 }
 
 /** Each brain's health, then the rings repaint. */
@@ -3421,9 +3385,9 @@ function paintInbox(){
   const a = S.auditRun, auditing = a?.state === "running";
   const auditWaits = a && !auditing && !a.seen ? 1 : 0;
   const dueAudits = S.demo ? [] : (S.brains || []).filter(b => auditDue(b) && !(auditing && a.slug === b.slug));
-  const n = unread + dropWaits + memWaits + auditWaits + dueAudits.length + decisionCount() + (S.finds || []).length;
+  const n = unread + dropWaits + memWaits + auditWaits + dueAudits.length + decisionCount();
   $("inboxN").hidden = !n; $("inboxN").textContent = n > 99 ? "99+" : String(n);
-  btn.classList.toggle("run", running > 0 || (!!d && ["running", "storing"].includes(d.state)) || m?.state === "running" || auditing || !!S.findAt || !!S.dcRun);
+  btn.classList.toggle("run", running > 0 || (!!d && ["running", "storing"].includes(d.state)) || m?.state === "running" || auditing || !!S.dcRun);
   btn.setAttribute("aria-label", n ? `Inbox, ${n} waiting` : "Inbox");
   if (!$("inbox").hidden) paintInboxPanel();
 }
@@ -3458,17 +3422,6 @@ function paintInboxPanel(){
       m.state === "running" ? `Filing piece ${Math.min(m.done + 1, n)} of ${n}` : m.state === "failed" ? `Stopped at piece ${m.done + 1} of ${n}` : "Done: see what it filed",
       () => openMemorySheet(m.brain))]);
   }
-  /* What the scouts found, by folder: how many pieces, and what they would change. */
-  const byBrain = new Map();
-  for (const f of S.finds || []) (byBrain.get(f.brain) || byBrain.set(f.brain, []).get(f.brain)).push(f);
-  group("From your scouts", [...byBrain].map(([slug, fs]) => {
-    const name = S.brains.find(x => x.slug === slug)?.name || slug;
-    const count = st => fs.reduce((k, f) => k + (f.read?.touches || []).filter(t => t.stance === st).length, 0);
-    const clash = count("contradicts"), backs = count("supports"), reading = fs.some(f => f.id === S.findAt);
-    const sub = [reading ? "reading one now" : "", clash ? `${clash} clash${clash === 1 ? "" : "es"}` : "", backs ? `${backs} back${backs === 1 ? "s" : ""} what it holds` : ""]
-      .filter(Boolean).join(" · ") || "drop it or skip it";
-    return item(reading ? "run" : clash ? "clash" : "new", `${name}: ${fs.length} new piece${fs.length === 1 ? "" : "s"}`, sub, () => openFinds(slug));
-  }));
   const a = S.auditRun, ab = a && S.brains.find(x => x.slug === a.slug);
   if (ab && (a.state === "running" || !a.seen))
     group("Audit", [item(a.state === "running" ? "run" : a.state === "failed" ? "bad" : "new", `Audit ${a.name}`,
@@ -3763,112 +3716,6 @@ async function openDecide(){
   const need = [...new Set(decisions().map(d => d.brain))].filter(slug => !S.topicsOf[slug] && S.brains.find(b => b.slug === slug)?.type !== "personal");
   await Promise.all(need.map(slug => api("/api/topics", { brain: slug }).then(r => { S.topicsOf[slug] = r.topics || []; }).catch(() => { S.topicsOf[slug] = []; })));
   if (veil.isConnected) paint();
-}
-
-/* ============ scouts ============ */
-/**
- * What the scouts found: loaded with the state, then each new find read once
- * against its folder, one at a time, in the background. Six a run at most,
- * so a day with many new pieces spreads its cost.
- */
-async function loadFinds(){
-  if (S.demo) return;
-  let got;
-  try { got = (await api("/api/finds", { action: "list" })).finds; } catch { return; }
-  if (!Array.isArray(got)) return;
-  const was = new Map((S.finds || []).map(f => [f.id, f]));
-  S.finds = got.map(f => ({ ...f, tried: was.get(f.id)?.tried }));
-  paintInbox(); paintFinds();
-  readFinds();
-}
-async function readFinds(){
-  if (S.findBusy) return;
-  S.findBusy = true;
-  try {
-    for (let i = 0; i < 6; i++){
-      const f = (S.finds || []).find(x => x.status === "new" && !x.tried);
-      if (!f) break;
-      f.tried = true; S.findAt = f.id; paintInbox(); paintFinds();
-      try {
-        const r = await api("/api/finds", { action: "read", id: f.id });
-        if (r.read){ f.read = r.read; f.status = "read"; f.error = ""; }
-        else if (r.error){ f.error = r.error; if (!/allowance/.test(r.error)) f.status = "failed"; }
-      } catch (e) { f.error = e.message; }
-    }
-  } finally { S.findBusy = false; S.findAt = null; paintInbox(); paintFinds(); }
-}
-function paintFinds(){ if (S.findsPaint) S.findsPaint(); }
-/**
- * What the scouts found, a card each: what it says, the positions it
- * contradicts, backs or adds to, the ideas the folder lacks. Drop it or Skip.
- */
-function openFinds(slug){
-  closeInbox();
-  const veil = el("div","veil");
-  veil.innerHTML = `
-    <div class="sheet fd-sheet" role="dialog" aria-modal="true" aria-label="New from your scouts">
-      <header><h3>New from your scouts</h3><p id="fdSay"></p></header>
-      <div class="f" id="fdList"></div>
-      <footer><button class="go" id="fdDone">Done</button></footer>
-    </div>`;
-  document.body.append(veil);
-  const list = veil.querySelector("#fdList"), say = veil.querySelector("#fdSay");
-  const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
-  const shut = () => { document.removeEventListener("keydown", onKey); S.findsPaint = null; veil.remove(); };
-  document.addEventListener("keydown", onKey);
-  veil.querySelector("#fdDone").onclick = shut;
-  veil.onclick = e => { if (e.target === veil) shut(); };
-  const clashes = f => (f.read?.touches || []).filter(t => t.stance === "contradicts").length;
-  const LABEL = { contradicts: "Contradicts", supports: "Backs", adds: "Adds to" };
-  const paint = () => {
-    const fs = (S.finds || []).filter(f => !slug || f.brain === slug).sort((x, y) => clashes(y) - clashes(x) || String(y.date).localeCompare(String(x.date)));
-    say.textContent = fs.length ? `${fs.length} piece${fs.length === 1 ? "" : "s"} waiting. Each one is read against its folder: what it contradicts, what it backs, what it adds.`
-      : "Nothing waiting. The scouts read every feed once a day.";
-    list.innerHTML = "";
-    for (const f of fs){
-      const card = el("div","fd-card"); card.dataset.id = f.id;
-      const a = el("a","fd-title", f.title); a.href = f.link; a.target = "_blank"; a.rel = "noopener";
-      const name = S.brains.find(x => x.slug === f.brain)?.name || f.brain;
-      card.append(a, el("div","fd-meta", [f.author, f.date ? fileDay(String(f.date).slice(0, 10)) : "", name].filter(Boolean).join(" · ")));
-      if (f.id === S.findAt){
-        const w = el("div","fd-wait"), m = el("span","spinner"); m.setAttribute("aria-hidden","true");
-        w.append(m, el("span",null,"Reading it against the folder")); card.append(w);
-      } else if (!f.read) card.append(el("p", f.status === "failed" ? "fd-err" : "fd-wait", f.status === "failed" ? `Not read: ${f.error}` : f.error ? `Waiting: ${f.error}` : "Waiting to be read."));
-      if (f.read){
-        if (f.read.summary) card.append(el("p","fd-sum", f.read.summary));
-        const ul = el("ul","fd-touch");
-        for (const t of f.read.touches || []){ const li = el("li","fd-" + t.stance); li.append(el("b",null,LABEL[t.stance] || t.stance), el("span",null,` ${t.title}: ${t.why}`)); ul.append(li); }
-        for (const x of f.read.fresh || []){ const li = el("li","fd-new"); li.append(el("b",null,"New"), el("span",null,` ${x}`)); ul.append(li); }
-        if (ul.children.length) card.append(ul);
-      }
-      const acts = el("div","fd-acts");
-      const dropB = el("button","go","Drop it"); dropB.type = "button";
-      const skipB = el("button","ghost","Skip"); skipB.type = "button";
-      dropB.onclick = () => { shut(); dropFind(f); };
-      skipB.onclick = () => {
-        S.finds = (S.finds || []).filter(x => x.id !== f.id); paintInbox();
-        api("/api/finds", { action: "skip", id: f.id }).catch(() => {});
-        card.classList.add("gone"); setTimeout(() => { if (veil.isConnected) paint(); }, 200);
-      };
-      acts.append(dropB, skipB); card.append(acts);
-      list.append(card);
-    }
-  };
-  S.findsPaint = paint;
-  paint();
-}
-/** A find dropped: its folder ticked, the text it already read in the box, then the usual drop and its card. */
-async function dropFind(f){
-  setPicks([f.brain]); openDrop();
-  if (S.dropBusy){ dpush("ai", b => { b.innerHTML = rich("A drop is still running. This piece waits in the inbox: drop it once this one ends."); }); return; }
-  let text = "";
-  try { text = (await api("/api/finds", { action: "text", id: f.id })).text || ""; } catch { /* the drop opens the link itself */ }
-  S.finds = (S.finds || []).filter(x => x.id !== f.id); paintInbox();
-  api("/api/finds", { action: "dropped", id: f.id }).catch(() => {});
-  $("srcInput").value = f.link;
-  $("input").value = text ? `${f.title}\nBy ${f.author || "unknown"}${f.date ? `, ${String(f.date).slice(0, 10)}` : ""}\n\n${text}` : "";
-  renderComposer();
-  go();
 }
 
 /** A folder this workspace holds and may change, never one shared in. */
@@ -5202,7 +5049,6 @@ function pctRing(pct){
     <text x="12" y="12.4">${Math.round(pct || 0)}</text></svg>`;
   return r;
 }
-const IC_SCOUT = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/></svg>`;
 const IC_EDIT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 4.3a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L9 19.5 4 20l.5-5Z"/></svg>`;
 const dayOf = d => { const t = Date.parse(d); return isNaN(t) ? String(d || "") : new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
 /* A person's file: its sections, and its dates as people say them: a day, a month, or a year. */
@@ -5281,12 +5127,11 @@ function openFolder(b, openId, opts = {}){
     btn("fvMem", "Add memory", IC_DROP, () => openMemorySheet(b.slug), "Paste, or add a PDF, Word or text file about you. It is read like a drop.");
     if (!ivDone(S.iv[b.slug])) btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
       "It asks you questions, one at a time, to know you better. Stop any time.");
-    btn("fvTest", "Twin test", IC_TEST, () => testPane(), "5 new questions built from your notes, each asking what they imply: your twin answers first, then the two are compared, and your answers go into your notes");
+    btn("fvTest", "Twin test", IC_TEST, () => testPane(), "5 messages to reply to, built from your notes: your twin replies first, from your notes alone, then the two replies are compared, and yours go into your notes");
     /* At 100% the notes and the contacts hold all of it: the profile would only repeat them. */
     if (!ivFull(S.iv[b.slug])) btn("fvProfile", "Twin profile", IC_PROFILE, () => profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
   }
   if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
-  if (!self && !ro && !S.demo) btn("fvScout", "Scouts", IC_SCOUT, () => scoutPane(), "The feeds this folder follows: YouTube channels, newsletters, blogs");
   if (!S.demo && !ro && !self) btn("fvEdit", "Edit", IC_EDIT, () => openBrainSheet(b), "Its name and the line that decides what goes in");
   const x = btn("fvClose", "×", "", () => { S.folder = null; render(); $("input").focus(); }, "Back to the chat");
   x.classList.add("fv-x"); x.setAttribute("aria-label","Back to the chat");
@@ -5843,108 +5688,6 @@ function openFolder(b, openId, opts = {}){
     }
   };
 
-  /* Scouts: the feeds this folder follows, the authors it already reads, and Check now. */
-  const scoutPane = async () => {
-    openNow = null; paint();
-    cols.classList.add("reading");
-    doc.innerHTML = ""; doc.scrollTop = 0;
-    const inner = el("div","fv-in sc"); inner.id = "scoutPane"; doc.append(inner);
-    const back = el("button","fv-back","← All concepts"); back.type = "button";
-    back.onclick = () => { cols.classList.remove("reading"); paint(); };
-    inner.append(back, el("div","fv-eye",`Scouts · ${b.name}`), el("h1",null,"What this folder follows"),
-      el("p","fv-pos","Every day the scouts read the feeds below. Each new piece is read against this folder, then waits in the inbox for you to drop it or skip it."));
-    const form = el("form","sc-add");
-    const inp = el("input"); inp.type = "url"; inp.id = "scUrl"; inp.required = true; inp.autocomplete = "off";
-    inp.placeholder = "A YouTube channel, a Substack, a blog or an RSS address";
-    const add = el("button","go","Follow"); add.type = "submit"; add.id = "scGo";
-    form.append(inp, add);
-    const say = el("p","sc-say"); say.id = "scSay";
-    const list = el("div","sc-list"); list.id = "scList";
-    const sugg = el("div","sc-sugg"); sugg.id = "scSugg";
-    const check = el("button","mini","Check every feed now"); check.type = "button"; check.id = "scCheck";
-    inner.append(form, say, el("h4",null,"Followed"), list, check, sugg);
-    let scouts = [];
-    const tell = (t, cls = "") => { say.textContent = t; say.className = "sc-say " + cls; };
-    const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
-    const paintList = () => {
-      list.innerHTML = "";
-      const mine = scouts.filter(x => x.brain === b.slug);
-      check.hidden = !mine.length;
-      if (!mine.length) list.append(el("div","sc-none","No feed yet. Follow the people this folder learns from."));
-      for (const x of mine){
-        const row = el("div","sc-row");
-        const t = el("div","sc-t");
-        t.append(el("b",null,x.name), el("span", x.error ? "bad" : null, x.error ? `Last read failed: ${x.error}`
-          : `${x.kind === "youtube" ? "YouTube" : "Feed"} · ${x.checked ? `read ${ago(Date.parse(x.checked))} ago` : "not read yet"}`));
-        row.append(t);
-        const n = (S.finds || []).filter(f => f.scout === x.id).length;
-        if (n){ const k = el("button","mini au-due",`${n} new`); k.type = "button"; k.onclick = () => openFinds(b.slug); row.append(k); }
-        const rm = el("button","mini","Remove"); rm.type = "button";
-        rm.onclick = async () => {
-          rm.disabled = true;
-          try {
-            const r = await api("/api/scouts", { action: "remove", id: x.id });
-            if (r.error) throw new Error(r.error);
-            scouts = r.scouts || []; S.finds = (S.finds || []).filter(f => f.scout !== x.id);
-            paintInbox(); paintList(); paintSugg(); tell(`${x.name} is no longer followed.`);
-          } catch (e) { rm.disabled = false; tell(e.message, "bad"); }
-        };
-        row.append(rm); list.append(row);
-      }
-    };
-    /* The authors this folder already reads, most sources first: one tap follows them. */
-    const paintSugg = () => {
-      sugg.innerHTML = "";
-      const followed = new Set(scouts.filter(x => x.brain === b.slug).flatMap(x => [x.name.toLowerCase(), hostOf(x.url)]));
-      const by = new Map();
-      for (const src of sourcesOf(b.slug)){
-        const who = String(src.author || "").trim(), link = String(src.link || "");
-        if (!who || !/^https:\/\//.test(link)) continue;
-        const k = who.toLowerCase();
-        if (followed.has(k) || (!/youtu/.test(link) && followed.has(hostOf(link)))) continue;
-        const x = by.get(k) || { who, link, n: 0 }; x.n++; by.set(k, x);
-      }
-      const top = [...by.values()].sort((x, y) => y.n - x.n).slice(0, 5);
-      if (!top.length) return;
-      sugg.append(el("h4",null,"Follow who this folder already reads"));
-      for (const x of top){
-        const row = el("div","sc-row");
-        const t = el("div","sc-t"); t.append(el("b",null,x.who), el("span",null,`${x.n} source${x.n === 1 ? "" : "s"} here · ${hostOf(x.link)}`));
-        const f = el("button","mini","Follow"); f.type = "button"; f.onclick = () => follow(x.link, f);
-        row.append(t, f); sugg.append(row);
-      }
-    };
-    const follow = async (url, from) => {
-      if (from) from.disabled = true;
-      add.disabled = true; tell("Finding its feed and reading it", "spin");
-      try {
-        const r = await api("/api/scouts", { action: "add", brain: b.slug, url });
-        if (r.error) throw new Error(r.error);
-        scouts = r.scouts || scouts; inp.value = "";
-        tell(`Following ${r.scout.name}. ` + (r.found ? `${r.found} recent piece${r.found === 1 ? "" : "s"} found: they wait in the inbox.` : "Nothing new in the last 3 weeks. It reads the feed every day."), "ok");
-        await loadFinds();
-      } catch (e) { tell(e.message, "bad"); if (from) from.disabled = false; }
-      finally { add.disabled = false; if (inner.isConnected){ paintList(); paintSugg(); } }
-    };
-    form.onsubmit = e => { e.preventDefault(); const u = inp.value.trim(); if (u) follow(u); };
-    check.onclick = async () => {
-      check.disabled = true; tell("Reading every feed", "spin");
-      try {
-        const r = await api("/api/scouts", { action: "check" });
-        if (r.error) throw new Error(r.error);
-        scouts = r.scouts || scouts;
-        tell(r.found ? `${r.found} new piece${r.found === 1 ? "" : "s"} found: they wait in the inbox.` : "Nothing new since the last read.", "ok");
-        await loadFinds();
-      } catch (e) { tell(e.message, "bad"); }
-      finally { check.disabled = false; if (inner.isConnected){ paintList(); paintSugg(); } }
-    };
-    const w = waitIn(inner);
-    try { const r = await api("/api/scouts", {}); if (r.error) throw new Error(r.error); scouts = r.scouts || []; }
-    catch (e) { tell(e.message, "bad"); }
-    w.remove();
-    paintList(); paintSugg();
-  };
-
   /* An audit you left, back where it is: still running, or ended. */
   const backToAudit = () => {
     openNow = null; paint();
@@ -6020,9 +5763,9 @@ function openFolder(b, openId, opts = {}){
 
   /** The twin test: your answers, never filed, the twin's from your notes, and a score for each. */
   const testPane = async (just) => {
-    const inner = pane("testPane", "Twin test", "Does your twin know you?");
-    inner.append(el("p","fv-pos","5 new questions each time, built from your own notes. Each asks for something your notes imply and never state. " +
-      "Answer with your choice and why. Your twin answers first, from your notes alone. Then its answers are compared with yours, and yours are added to your notes."));
+    const inner = pane("testPane", "Twin test", "Could your twin reply for you?");
+    inner.append(el("p","fv-pos","5 new situations each time, built from your own notes: a message lands and you reply. Your notes imply each reply and never state it. " +
+      "Write the reply you would send. Your twin replies first, from your notes alone. Then the two are compared on the decision and the voice, and yours are added to your notes, so it learns to answer as you."));
     const now = el("div","tt-now"), histBox = el("div","tt-hist");
     inner.append(now, histBox);
     const say = el("div","ts-say"); say.setAttribute("role","status");
@@ -6044,7 +5787,6 @@ function openFolder(b, openId, opts = {}){
     const pairCard = it => {
       const card = el("div","ts-card");
       card.append(el("div","ts-qt",it.q));
-      if ((it.basis || []).length) card.append(el("small","ts-basis","Built from: " + it.basis.join(" · ")));
       const pair = el("div","ts-pair");
       const one = el("div"); one.append(el("small",null,"You"), el("p",null,it.mine));
       const two = el("div"); two.append(el("small",null,"Your twin"), el("p",null,it.twin || "No answer"));
@@ -6056,7 +5798,7 @@ function openFolder(b, openId, opts = {}){
     const total = e => el("div","tw-score", `Your twin matched you ${e.pct}% on ${e.items.length} question${e.items.length === 1 ? "" : "s"}`);
     /* What it did not deduce, and where that goes: your answers become notes, so the next test starts from more. */
     const missed = e => { const n = e.items.filter(i => typeof i.score === "number" && i.score < 2).length;
-      return n ? el("p","tw-key",`${n} of ${e.items.length} missed or half right. Each answer you gave is now a note, so your twin can deduce it next time.`) : null; };
+      return n ? el("p","tw-key",`${n} of ${e.items.length} missed or half right. Each reply you gave is now a note, so your twin can answer the same next time.`) : null; };
 
     /* The three steps after your answers: the twin answers, the two are compared, yours go into your notes. */
     const STEPS = { check: "Your twin is answering from your notes", score: "Comparing the answers", learn: "Adding your answers to your notes" };
@@ -6104,8 +5846,9 @@ function openFolder(b, openId, opts = {}){
         : "The questions built from your notes did not come back, so these come from the interview. Other questions tries again."));
       for (const q of round.questions){
         const lab = el("label","ts-q"); lab.append(el("span",null,q.text));
-        if ((q.basis || []).length) lab.append(el("small","ts-basis","Built from: " + q.basis.join(" · ")));
-        const ta = el("textarea"); ta.rows = 2; ta.dataset.id = q.id; ta.placeholder = "Your choice, and why";
+        /* A message is shown as the message it is, and asks for the reply you would send. */
+        if (q.reply) lab.classList.add("msg");
+        const ta = el("textarea"); ta.rows = q.reply ? 3 : 2; ta.dataset.id = q.id; ta.placeholder = q.reply ? "Your reply, as you would send it" : "Your answer, in your own words";
         lab.append(ta); f.append(lab); boxes[q.id] = ta;
       }
       now.append(f);

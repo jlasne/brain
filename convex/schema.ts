@@ -205,11 +205,11 @@ export default defineSchema({
 
   /**
    * REMOVED FEATURES. The tables modes, projects, onepagers and pages, with
-   * gaps and heat further down, are no longer written or read: Projects,
-   * saved one-pagers, the side panel's mode, the old blind-spot log and the
-   * map are gone. Their definitions stay only so a deploy accepts the rows
-   * still there. Run `npx convex run admin:clearRemoved --prod` until it
-   * says runAgain: false, then delete these six definitions.
+   * gaps, scouts, finds and heat further down, are no longer written or read:
+   * Projects, saved one-pagers, the side panel's mode, the old blind-spot log,
+   * the scouts and the map are gone. Their definitions stay only so a deploy
+   * accepts the rows still there. Run `npx convex run admin:clearRemoved --prod`
+   * until it says runAgain: false, then delete these eight definitions.
    */
 
   /* A workspace's side panel mode. Removed. */
@@ -466,8 +466,9 @@ export default defineSchema({
     updated: v.number(),
   }).index("by_brain", ["space", "brain"]),
 
-  /* A feed a folder follows: a YouTube channel, a Substack, a blog. Read
-     once a day with no model call; what is new becomes a find. */
+  /* Removed with the scouts: nothing writes or reads these two. They stay until
+     admin:clearRemoved has emptied them, then these definitions go. A feed a
+     folder followed, and a piece a scout found. */
   scouts: defineTable({
     space: v.string(),
     brain: v.string(),
@@ -483,8 +484,6 @@ export default defineSchema({
     error: v.optional(v.string()),
   }).index("by_space", ["space"]),
 
-  /* A piece a scout found. The app reads it once against its folder and
-     keeps what it would change; you drop it or skip it. */
   finds: defineTable({
     space: v.string(),
     brain: v.string(),
