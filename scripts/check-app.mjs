@@ -2372,7 +2372,9 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("a comment makes Send updates available", await page.evaluate(() => !document.getElementById("opSend").disabled));
   const vp = page.viewportSize();
   for (const [w, h] of [[390, 844], [360, 640]]) {
-    await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(150);
+    await page.setViewportSize({ width: w, height: h });
+    /* The sheet is still settling after the resize: look until its bar is down, for a second at most. */
+    await page.waitForFunction(() => { const f = document.querySelector(".op-sheet > footer"); return !!f && Math.abs(f.getBoundingClientRect().bottom - innerHeight) < 2; }, null, { timeout: 1500 }).catch(() => {});
     const ph = await page.evaluate(() => { const f = document.querySelector(".op-sheet > footer").getBoundingClientRect(), s = document.getElementById("stillBtn").getBoundingClientRect(),
       i = document.getElementById("inboxBtn").getBoundingClientRect(), t = document.querySelector(".op-row .pf-tick").getBoundingClientRect(), n = document.querySelector(".op-row .op-in");
       return { wide: document.documentElement.scrollWidth > innerWidth, pinned: Math.abs(f.bottom - innerHeight) < 2, apart: s.right <= i.left, size: Math.min(s.width, s.height, i.width, i.height),
@@ -2413,6 +2415,158 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await none.page.waitForTimeout(500);
   check("with nothing open there is no icon and no read", await none.page.evaluate(() => document.getElementById("stillBtn").hidden && !window.__calls.some(x => x.s.includes("/api/personal/open"))));
   await none.page.close();
+}
+
+/* ---- the lab: twin calls between the personal folders of Octopus and PandAAAHH, run from a right-hand column ---- */
+{
+  const state = (extra = {}) => ({ ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "", owner: null }],
+    concepts: [{ brain: "me", slug: "marc", n: 1, title: "Marc Dupont", summaryLine: "Client", tag: "contact", ev: 1, updated: "2026-10-04", open: 2 }], space: "octopus", spaceName: "Octopus", ...extra });
+  const boot3 = (st, w = 1280, h = 800, mobile = false) => bootSized(st, w, h, mobile);
+  /* A call the server runs: each look at it while it runs lets one more turn land, as the server's own timer would. */
+  const init = (st) => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    const now = Date.now();
+    let n = 0;
+    const calls = [], turns = {};
+    const folders = [{ space: "octopus", name: "Octopus", brain: "me", notes: 42, people: 9, open: 24, profile: true, newest: ["Pricing", "Tone"], model: null },
+      { space: "pandaaahh", name: "PandAAAHH", brain: "pa-me", notes: 2, people: 0, open: 0, profile: false, newest: ["Launch"], model: null }];
+    const view = c => ({ id: c.id, title: c.title, topic: c.topic, status: c.status, turns: c.turns, until: c.until, starter: c.starter, note: c.note ?? null, error: c.error ?? null, created: c.created, updated: c.updated });
+    const land = c => {
+      if (c.status !== "running") return;
+      const from = c.turns % 2 === 0 ? c.starter : (c.starter === "octopus" ? "pandaaahh" : "octopus");
+      const t = { n: (turns[c.id].at(-1)?.n ?? 0) + 1, from, text: `Turn ${c.turns + 1} from ${from}.`, because: `Note ${c.turns + 1}`, at: Date.now() };
+      turns[c.id].push(t); c.turns++; c.updated = Date.now();
+      if (c.turns >= c.until) { c.status = "paused"; c.note = `${c.turns} turns so far. Go on, or step one at a time.`; }
+    };
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(st);
+      if (s.includes("/api/lab")) {
+        const c = calls.find(x => x.id === body.id);
+        switch (body.action) {
+          case "state": return Response.json({ me: "octopus", topic: "Meet. Say in two sentences who your person is.", labs: calls.map(view).reverse(), folders });
+          case "new": { const k = { id: "labs" + ++n, title: (body.topic || "Meet.").slice(0, 56), topic: body.topic || "Meet.", status: "idle", turns: 0, until: 0, starter: body.starter, created: now, updated: now };
+            calls.push(k); turns[k.id] = []; return Response.json({ call: view(k) }); }
+          case "get": { if (!c) return Response.json({ error: "that call is gone" }); land(c); return Response.json({ ...view(c), turnRows: turns[c.id].filter(t => t.n > (body.after || 0)) }); }
+          case "go": case "step": if (c.status === "ended") return Response.json({ error: "that call is over. Start a new one." });
+            c.status = "running"; c.until = c.turns + (body.action === "step" ? 1 : 10); c.note = null; c.updated = Date.now(); return Response.json({ call: view(c) });
+          case "pause": c.status = "paused"; c.note = "Paused by you."; return Response.json({ call: view(c) });
+          case "stop": c.status = "ended"; c.note = "Stopped by you."; return Response.json({ call: view(c) });
+          case "say": { const t = { n: (turns[c.id].at(-1)?.n ?? 0) + 1, from: "admin", text: body.text, at: Date.now() }; turns[c.id].push(t); return Response.json({ turn: t }); }
+          case "delete": calls.splice(calls.indexOf(c), 1); return Response.json({ ok: true });
+        }
+      }
+      return Response.json({ chats: [] });
+    };
+  };
+  const bootSized = async (st, w, h, mobile) => {
+    const page = await hermetic(); const bad = [];
+    await page.setViewportSize({ width: w, height: h });
+    page.on("pageerror", e => bad.push(e.message));
+    await page.addInitScript(init, st);
+    await page.goto(ORIGIN + "/chat.html", { waitUntil: "domcontentloaded" }); await page.waitForTimeout(600);
+    return { page, bad };
+  };
+  const { page, bad } = await boot3(state({ lab: true }));
+  const icon = await page.evaluate(() => ({ hidden: document.getElementById("labBtn").hidden, label: document.getElementById("labBtn").getAttribute("aria-label"),
+    left: document.getElementById("labBtn").getBoundingClientRect().right <= document.getElementById("stillBtn").getBoundingClientRect().left,
+    shut: document.getElementById("labSide").hidden, calls: window.__calls.filter(x => x.s.includes("/api/lab")).map(x => x.body.action) }));
+  check("the server says the lab is there, so an icon sits left of the other two, the column shut", !icon.hidden && /Twin calls/.test(icon.label) && icon.left && icon.shut, JSON.stringify(icon));
+  check("it reads the calls once, to know whether one runs", JSON.stringify(icon.calls) === '["state"]', JSON.stringify(icon.calls));
+  await page.click("#labBtn"); await page.waitForTimeout(300);
+  const open = await page.evaluate(() => { const r = id => document.getElementById(id).getBoundingClientRect(); return { cols: getComputedStyle(document.getElementById("app")).gridTemplateColumns.split(" ").length,
+    col: Math.round(r("labSide").width), right: Math.round(r("labSide").right), vw: innerWidth, inboxRight: Math.round(r("inboxBtn").right), labLeft: Math.round(r("labSide").left),
+    tab: document.getElementById("labTabCalls").getAttribute("aria-selected"), empty: /No call yet/.test(document.getElementById("labBody").textContent) }; });
+  check("the icon opens a third column on the right, beside the chat, and the icons step left of it", open.cols === 3 && open.col === 400 && open.right === open.vw && open.inboxRight < open.labLeft && open.tab === "true" && open.empty, JSON.stringify(open));
+
+  await page.click("#labTabFolders"); await page.waitForTimeout(250);
+  const fold = await page.evaluate(() => [...document.querySelectorAll(".lab-fold")].map(f => f.dataset.space + ":" + f.textContent.replace(/\s+/g, " ")));
+  check("the Folders tab shows both personal folders: counts, the profile, and the one too thin to speak",
+    fold.length === 2 && /42 notes · 9 people · 24 open lines/.test(fold[0]) && /This workspace/.test(fold[0]) && /profile is written/.test(fold[0]) && /Open this folder/.test(fold[0])
+    && /2 notes/.test(fold[1]) && /Fewer than 3 notes/.test(fold[1]) && !/Open this folder/.test(fold[1]), JSON.stringify(fold));
+  await page.click("#labTabCalls"); await page.waitForTimeout(150);
+
+  await page.click("#labNew"); await page.waitForTimeout(150);
+  await page.fill(".lab-form textarea", "Plan a launch together");
+  await page.selectOption(".lab-form select", "pandaaahh");
+  await page.click(".lab-form .go"); await page.waitForTimeout(500);
+  const made = await page.evaluate(() => ({ made: window.__calls.filter(x => x.s.includes("/api/lab") && ["new", "go"].includes(x.body.action)).map(x => x.body.action + ":" + (x.body.starter || "") + ":" + (x.body.topic || "")),
+    title: document.querySelector(".lab-ct")?.textContent, chip: document.querySelector(".lab-chip")?.textContent, turns: document.querySelectorAll(".lab-t").length,
+    go: document.querySelector(".lab-btns button").textContent }));
+  check("a call is made with its goal and the twin that opens it, started, and opened on screen",
+    made.made.join("|") === "new:pandaaahh:Plan a launch together|go::" && made.title === "Plan a launch together" && made.chip === "Running" && made.go === "Pause", JSON.stringify(made));
+  await page.waitForTimeout(2900);
+  const live = await page.evaluate(() => ({ turns: [...document.querySelectorAll(".lab-t")].map(t => t.className.replace("lab-t ", "") + ":" + t.querySelector(".lab-who b").textContent + ":" + t.querySelector(".lab-say").textContent),
+    why: document.querySelector(".lab-why")?.textContent, typing: document.querySelector(".lab-typing").textContent, typingShown: !document.querySelector(".lab-typing").hidden,
+    gets: window.__calls.filter(x => x.body.action === "get").length }));
+  check("the turns land as the server makes them, each by its twin with the notes it leaned on, and who writes next",
+    live.turns.length >= 2 && live.turns[0] === "b:PandAAAHH twin:Turn 1 from pandaaahh." && live.turns[1].startsWith("a:Octopus twin:") && /^Leaned on: Note 1/.test(live.why) && live.typingShown && /twin is writing/.test(live.typing), JSON.stringify(live));
+  check("the page asks for what is new, not the whole call again", await page.evaluate(() => window.__calls.filter(x => x.body.action === "get").slice(1).every(x => x.body.after > 0)));
+
+  await page.click(".lab-btns button >> nth=0"); await page.waitForTimeout(500);
+  const paused = await page.evaluate(() => ({ chip: document.querySelector(".lab-chip").textContent, note: document.querySelector(".lab-info").textContent, go: document.querySelector(".lab-btns button").textContent,
+    step: document.querySelectorAll(".lab-btns button")[1].disabled, typing: document.querySelector(".lab-typing").hidden, last: window.__calls.filter(x => ["pause", "go", "step", "stop"].includes(x.body.action)).pop().body.action }));
+  check("Pause stops it at once: the chip, the note, Go on in its place, one turn allowed, nobody writing", paused.last === "pause" && paused.chip === "Paused" && /Paused by you/.test(paused.note) && paused.go === "Go on" && !paused.step && paused.typing, JSON.stringify(paused));
+  const count = await page.evaluate(() => document.querySelectorAll(".lab-t").length);
+  await page.waitForTimeout(2800);
+  check("a paused call gains no turn", await page.evaluate(n => document.querySelectorAll(".lab-t").length === n, count));
+
+  await page.click(".lab-btns button >> nth=1"); await page.waitForTimeout(500);
+  const stepped = await page.evaluate(() => ({ n: document.querySelectorAll(".lab-t").length, chip: document.querySelector(".lab-chip").textContent, note: document.querySelector(".lab-info").textContent }));
+  check("One turn lets exactly one through, then waits again", stepped.n === count + 1 && stepped.chip === "Paused" && /turns so far/.test(stepped.note), JSON.stringify(stepped));
+
+  await page.fill(".lab-line input", "Talk about the price now.");
+  await page.click(".lab-line button"); await page.waitForTimeout(300);
+  const said = await page.evaluate(() => ({ body: window.__calls.filter(x => x.body.action === "say").pop()?.body, last: document.querySelector(".lab-t:last-of-type, .lab-t.adm")?.className, adm: document.querySelector(".lab-t.adm .lab-say")?.textContent,
+    empty: document.querySelector(".lab-line input").value, send: document.querySelector(".lab-line button").disabled }));
+  check("a line from the admin goes in, shows as theirs, and the box empties", said.body.text === "Talk about the price now." && said.adm === "Talk about the price now." && said.empty === "" && said.send, JSON.stringify(said));
+
+  await page.click(".lab-btns button >> nth=2"); await page.waitForTimeout(400);
+  const ended = await page.evaluate(() => ({ chip: document.querySelector(".lab-chip").textContent, note: document.querySelector(".lab-info").textContent,
+    btns: [...document.querySelectorAll(".lab-btns button")].map(b => b.hidden), say: document.querySelector(".lab-line input").disabled, ph: document.querySelector(".lab-line input").placeholder }));
+  check("Stop ends it for good: no button left, the writing line shut", ended.chip === "Ended" && /Stopped by you/.test(ended.note) && ended.btns.every(Boolean) && ended.say && /over/.test(ended.ph), JSON.stringify(ended));
+  const idle = await page.evaluate(() => window.__calls.filter(x => x.body.action === "get").length);
+  await page.waitForTimeout(2800);
+  check("the page keeps looking while the column is open", await page.evaluate(n => window.__calls.filter(x => x.body.action === "get").length > n, idle));
+
+  await page.click(".lab-back"); await page.waitForTimeout(300);
+  const row = await page.evaluate(() => [...document.querySelectorAll(".lab-row")].map(r => r.textContent.replace(/\s+/g, " ")));
+  check("back on the list, the call says how it ended", row.length === 1 && /Plan a launch together/.test(row[0]) && /Ended/.test(row[0]) && /PandAAAHH opens/.test(row[0]), JSON.stringify(row));
+  await page.click(".lab-row"); await page.waitForTimeout(400);
+  check("opening it again reads every turn back", await page.evaluate(() => document.querySelectorAll(".lab-t").length) === stepped.n + 1);
+  await page.click(".lab-del"); await page.waitForTimeout(100);
+  check("Delete asks twice", await page.evaluate(() => /Sure/.test(document.querySelector(".lab-del").textContent) && !window.__calls.some(x => x.body.action === "delete")));
+  await page.click(".lab-del"); await page.waitForTimeout(400);
+  check("and the call is gone from the list", await page.evaluate(() => !document.querySelector(".lab-row") && /No call yet/.test(document.getElementById("labBody").textContent)));
+
+  await page.click("#labClose"); await page.waitForTimeout(200);
+  const shut = await page.evaluate(() => ({ cols: getComputedStyle(document.getElementById("app")).gridTemplateColumns.split(" ").length, hidden: document.getElementById("labSide").hidden }));
+  check("closed, the column leaves and the chat has its width back", shut.cols === 2 && shut.hidden, JSON.stringify(shut));
+  const calm = await page.evaluate(() => window.__calls.length);
+  await page.waitForTimeout(3000);
+  check("with the column shut and nothing running, it asks for nothing more", await page.evaluate(n => window.__calls.length === n, calm));
+  check("nothing threw in the lab", !bad.length, bad.join(" | "));
+  await page.close();
+
+  /* A phone: the column is the whole screen, the buttons and the box reach a thumb, nothing scrolls sideways. */
+  const ph = await boot3(state({ lab: true }), 390, 844, true);
+  await ph.page.click("#labBtn"); await ph.page.waitForTimeout(250);
+  await ph.page.click("#labNew"); await ph.page.fill(".lab-form textarea", "x"); await ph.page.click(".lab-form .go"); await ph.page.waitForTimeout(500);
+  const m = await ph.page.evaluate(() => { const L = document.getElementById("labSide").getBoundingClientRect(), c = document.querySelector(".lab-ctl").getBoundingClientRect(), b = document.querySelector(".lab-btns button").getBoundingClientRect();
+    return { full: L.left === 0 && L.top === 0 && Math.round(L.width) === innerWidth && Math.round(L.height) === innerHeight, bottom: Math.abs(c.bottom - innerHeight) < 2, btn: Math.round(b.height),
+      font: parseFloat(getComputedStyle(document.querySelector(".lab-line input")).fontSize), wide: document.documentElement.scrollWidth > innerWidth }; });
+  check("on a phone the column is the whole screen, its controls stay at the bottom, 46px tall, the box at 16px, no sideways scroll",
+    m.full && m.bottom && m.btn >= 46 && m.font >= 16 && !m.wide, JSON.stringify(m));
+  check("nothing threw on a phone", !ph.bad.length, ph.bad.join(" | "));
+  await ph.page.close();
+
+  /* Everywhere else: no icon, no call. */
+  for (const [what, st] of [["a workspace the server does not open it to", state()], ["the demo", state({ lab: true, demo: true, space: "demo", spaceName: "Demo" })]]) {
+    const o = await boot3(st);
+    check(`${what} has no icon, no column, and asks the lab nothing`, await o.page.evaluate(() => document.getElementById("labBtn").hidden && !document.body.classList.contains("has-lab") && !window.__calls.some(x => x.s.includes("/api/lab"))));
+    await o.page.close();
+  }
 }
 
 /* ---- languages in Settings: what the personal folder keeps, how answers come back ---- */

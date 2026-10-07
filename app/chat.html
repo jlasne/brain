@@ -169,7 +169,7 @@
   .composer-wrap.compact .about{ flex:0 1 auto; max-width:42%; padding:0 0 0 16px; border:0; }
 
   /* The inbox: a bubble top right, with what waits for you counted on it. */
-  .inbox-btn{ position:fixed; top:13px; right:16px; z-index:31; display:grid; place-items:center; width:34px; height:34px; border-radius:50%;
+  .inbox-btn{ position:fixed; top:13px; right:calc(16px + var(--labw, 0px)); z-index:31; display:grid; place-items:center; width:34px; height:34px; border-radius:50%;
     border:1px solid var(--line-2); background:var(--surface); color:var(--ink-3); cursor:pointer;
     box-shadow:0 2px 8px -2px rgba(0,0,0,.12); transition:color .15s var(--ease), border-color .15s var(--ease); }
   .inbox-btn:hover, .inbox-btn[aria-expanded="true"]{ color:var(--accent); border-color:var(--accent-fill); }
@@ -180,9 +180,9 @@
   .ib-n{ position:absolute; top:-5px; right:-6px; min-width:18px; height:18px; padding:0 5px; border-radius:9px;
     background:var(--accent-solid); color:var(--accent-on); font:600 11px/18px var(--sans); text-align:center; font-variant-numeric:tabular-nums; }
   .ib-n[hidden]{ display:none; }
-  .still-btn{ right:58px; }
+  .still-btn{ right:calc(58px + var(--labw, 0px)); }
   .still-btn[hidden]{ display:none; }
-  .inbox{ position:fixed; top:56px; right:16px; z-index:45; width:min(360px, calc(100vw - 32px)); max-height:min(70vh, 560px); overflow-y:auto;
+  .inbox{ position:fixed; top:56px; right:calc(16px + var(--labw, 0px)); z-index:45; width:min(360px, calc(100vw - 32px)); max-height:min(70vh, 560px); overflow-y:auto;
     padding:14px 8px 8px; border:1px solid var(--line-2); border-radius:14px; background:var(--surface);
     box-shadow:0 18px 50px -12px rgba(0,0,0,.25), 0 2px 6px rgba(0,0,0,.06); animation:pbOpen .18s ease both; }
   .inbox[hidden]{ display:none; }
@@ -204,6 +204,95 @@
   /* The bubble keeps the folder and Drop headers clear of it. */
   @media (min-width:861px){ main .fv-h, main .drop-head .col{ padding-right:64px; } body.has-still main .fv-h, body.has-still main .drop-head .col{ padding-right:106px; } }
   @media (max-width:860px){ .inbox-btn{ top:4px; right:10px; width:40px; height:40px; } .still-btn{ right:56px; } .inbox{ top:50px; right:12px; } }
+
+  /* The lab, for the two workspaces that have it: an icon beside the others, and a
+     third column on the right, beside the chat. On a phone the column is the whole screen. */
+  .lab-btn{ right:calc(58px + var(--labw, 0px)); }
+  body.has-still .lab-btn{ right:calc(100px + var(--labw, 0px)); }
+  .lab-btn[hidden]{ display:none; }
+  @media (max-width:860px){ .lab-btn{ right:56px; } body.has-still .lab-btn{ right:102px; } }
+  @media (min-width:861px){
+    body.lab-open{ --labw:400px; }
+    .app.lab-open{ grid-template-columns:264px 1fr 400px; }
+    .app.nav-closed.lab-open{ grid-template-columns:0 1fr 400px; }
+    body.has-lab main .fv-h, body.has-lab main .drop-head .col{ padding-right:106px; }
+    body.has-lab.has-still main .fv-h, body.has-lab.has-still main .drop-head .col{ padding-right:148px; }
+  }
+  .lab{ display:none; flex-direction:column; min-height:0; min-width:0; border-left:1px solid var(--line); background:var(--surface-2); }
+  .app.lab-open .lab{ display:flex; }
+  .lab-h{ flex:none; display:flex; align-items:center; gap:10px; padding:12px 12px 10px 16px; border-bottom:1px solid var(--line); }
+  .lab-h h2{ margin-right:auto; font:600 15px/1.2 var(--sans); color:var(--ink); }
+  .lab-tabs{ display:inline-flex; padding:2px; border-radius:9px; background:var(--surface-3); }
+  .lab-tabs button{ padding:7px 12px; border-radius:7px; font:500 13px/1 var(--sans); color:var(--ink-3); cursor:pointer; }
+  .lab-tabs button[aria-selected="true"]{ background:var(--surface); color:var(--ink); box-shadow:var(--shadow); }
+  .lab-x{ flex:none; width:32px; height:32px; border-radius:8px; font:400 21px/1 var(--sans); color:var(--ink-3); cursor:pointer; }
+  .lab-x:hover{ background:var(--surface-3); color:var(--ink); }
+  #labBody{ display:flex; flex-direction:column; flex:1; min-height:0; }
+  .lab-scroll{ flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:14px 16px 18px; }
+  .lab-empty{ font:400 13.5px/1.55 var(--sans); color:var(--ink-3); }
+  .lab-new{ align-self:flex-start; }
+  .lab-form{ display:flex; flex-direction:column; gap:8px; padding:12px; border:1px solid var(--line-2); border-radius:12px; background:var(--surface); }
+  .lab-form textarea, .lab-form select{ width:100%; padding:9px 11px; border:1px solid var(--line-2); border-radius:9px; background:var(--surface); font:400 14px/1.45 var(--sans); color:var(--ink); }
+  .lab-form textarea{ resize:vertical; min-height:72px; }
+  .lab-form .lab-btns{ flex-wrap:wrap; }
+  .lab-form .lab-btns button{ min-height:42px; }
+  .lab-form .lab-btns .go{ flex:1 0 100%; }
+  .lab-form .lab-state:empty{ display:none; }
+  .lab-row{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px 10px; width:100%; padding:10px 12px; border:1px solid var(--line-2); border-radius:11px; background:var(--surface); text-align:left; cursor:pointer; }
+  .lab-row:hover{ border-color:var(--accent-fill); }
+  .lab-row b{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:500 14px/1.35 var(--sans); color:var(--ink); }
+  .lab-row small{ grid-column:1 / 3; font:400 12.5px/1.35 var(--sans); color:var(--ink-4); }
+  .lab-chip{ align-self:center; flex:none; padding:3px 8px; border-radius:99px; border:1px solid var(--line-2); font:500 10.5px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-4); white-space:nowrap; }
+  .lab-chip.running, .lab-chip.run{ border-color:var(--accent-line); background:var(--accent-soft); color:var(--accent); }
+  .lab-chip.paused{ border-color:var(--warn); color:var(--warn); }
+  .lab-callh{ flex:none; display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--line); }
+  .lab-back{ flex:none; padding:6px 9px; margin-left:-6px; border-radius:7px; font:500 13px/1 var(--sans); color:var(--ink-3); cursor:pointer; }
+  .lab-back:hover{ background:var(--surface-3); color:var(--ink); }
+  .lab-ct{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:600 14px/1.3 var(--sans); color:var(--ink); }
+  .lab-del{ flex:none; padding:6px 8px; border-radius:7px; font:500 12px/1 var(--sans); color:var(--ink-4); cursor:pointer; }
+  .lab-del:hover, .lab-del.sure{ color:var(--bad); }
+  .lab-info{ flex:none; padding:8px 14px 0; font:400 12.5px/1.5 var(--sans); color:var(--ink-3); }
+  .lab-info p + p{ margin-top:2px; }
+  .lab-info .bad, .lab-note.bad{ color:var(--bad); }
+  .lab-note{ font:400 12.5px/1.5 var(--sans); color:var(--ink-3); }
+  .lab-talk{ flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:12px 14px; }
+  .lab-t{ max-width:92%; padding:9px 12px 10px; border:1px solid var(--line-2); border-radius:12px; background:var(--surface); }
+  .lab-t.b{ align-self:flex-end; border-color:var(--accent-line); background:var(--accent-soft); }
+  .lab-t.adm{ align-self:center; max-width:100%; border-style:dashed; background:transparent; }
+  .lab-who{ display:flex; align-items:baseline; gap:8px; font:500 10.5px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-4); }
+  .lab-who b{ font-weight:600; color:var(--ink-3); }
+  .lab-say{ margin-top:6px; font:400 14.5px/1.5 var(--sans); color:var(--ink); white-space:pre-wrap; overflow-wrap:anywhere; }
+  .lab-why{ margin-top:6px; font:italic 400 12.5px/1.45 var(--sans); color:var(--ink-4); overflow-wrap:anywhere; }
+  .lab-typing{ align-self:flex-start; font:400 12.5px/1 var(--mono); color:var(--ink-4); }
+  .lab-typing::after{ content:""; display:inline-block; width:12px; height:12px; margin-left:8px; vertical-align:-2px; border:2px solid var(--line-2); border-top-color:var(--accent-solid); border-radius:50%; animation:turn 1s linear infinite; }
+  .lab-typing[hidden]{ display:none; }
+  .lab-ctl{ flex:none; display:flex; flex-direction:column; gap:8px; padding:10px 14px calc(12px + env(safe-area-inset-bottom, 0px)); border-top:1px solid var(--line); background:var(--surface-2); }
+  .lab-btns{ display:flex; gap:8px; }
+  .lab-btns button{ flex:1; min-height:42px; padding:0 12px; }
+  .lab-btns button[hidden]{ display:none; }
+  .lab-btns .ghost[disabled]{ opacity:.4; cursor:default; }
+  .lab-line{ display:flex; gap:8px; }
+  .lab-line input{ flex:1; min-width:0; height:42px; padding:0 12px; border:1px solid var(--line-2); border-radius:9px; background:var(--surface); font:400 14px/1 var(--sans); color:var(--ink); }
+  .lab-line button{ flex:none; min-height:42px; padding:0 14px; }
+  .lab-line button[disabled]{ opacity:.4; cursor:default; }
+  .lab-state{ min-height:1.2em; font:400 12.5px/1.35 var(--sans); color:var(--ink-3); }
+  .lab-state.bad{ color:var(--bad); }
+  .lab-fold{ padding:12px 14px; border:1px solid var(--line-2); border-radius:12px; background:var(--surface); display:flex; flex-direction:column; gap:6px; }
+  .lab-fh{ display:flex; align-items:center; gap:8px; }
+  .lab-fh b{ font:600 14.5px/1.3 var(--sans); color:var(--ink); }
+  .lab-stats{ font:400 13.5px/1.4 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
+  .lab-k{ margin-top:4px; font:500 10.5px/1 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--ink-4); }
+  .lab-fold ul{ margin:0; padding-left:18px; font:400 13px/1.5 var(--sans); color:var(--ink-3); }
+  .lab-fold .ghost{ align-self:flex-start; margin-top:4px; }
+  @media (max-width:860px){
+    .lab{ position:fixed; inset:0; z-index:46; border-left:0; background:var(--bg); padding-top:env(safe-area-inset-top, 0px); }
+    .lab-x{ width:40px; height:40px; }
+    .lab-tabs button{ min-height:40px; }
+    .lab-btns button, .lab-line button, .lab-form .lab-btns button{ min-height:46px; }
+    .lab-line input{ height:46px; font-size:16px; }
+    .lab-form textarea, .lab-form select{ font-size:16px; }
+    .lab-t{ max-width:94%; }
+  }
 
   .dropsrc{
     display:flex; align-items:center; gap:10px;
@@ -1893,6 +1982,10 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10"/><path d="M3.5 6l1.3 1.3L7 5M3.5 12l1.3 1.3L7 11M3.5 18l1.3 1.3L7 17"/></svg>
       <span class="ib-n" id="stillN"></span>
     </button>
+    <!-- The lab, for Octopus and PandAAAHH: the twins of their personal folders on a call, run from here. -->
+    <button class="inbox-btn lab-btn" id="labBtn" type="button" aria-label="Twin calls" aria-controls="labSide" aria-expanded="false" title="Twin calls: the personal folders talk to each other, and you run it" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.500 4h8A1.500 1.500 0 0 1 15 5.500v4A1.500 1.500 0 0 1 13.500 11H9l-3 2.500V11h-.5A1.500 1.500 0 0 1 4 9.500z"/><path d="M15 8.500h3.500A1.500 1.500 0 0 1 20 10v5a1.500 1.500 0 0 1-1.500 1.500H18V19l-3-2.500h-4A1.500 1.500 0 0 1 9.500 15v-1"/></svg>
+    </button>
     <button class="inbox-btn" id="inboxBtn" type="button" aria-label="Inbox" aria-haspopup="dialog" aria-expanded="false" title="What is running and what waits for you">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 5.4A2 2 0 0 1 7.5 4h9a2 2 0 0 1 1.9 1.4L21 13.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg>
       <span class="ib-n" id="inboxN" hidden></span>
@@ -1972,6 +2065,19 @@
       <div class="foot-note" id="footNote"></div>
     </div>
   </main>
+
+  <!-- The lab's column, on the right: the calls, and the two folders. -->
+  <div class="lab" id="labSide" role="complementary" aria-label="Twin calls" hidden>
+    <div class="lab-h">
+      <h2>Twin calls</h2>
+      <div class="lab-tabs" role="tablist" aria-label="The lab">
+        <button type="button" role="tab" id="labTabCalls" aria-selected="true">Calls</button>
+        <button type="button" role="tab" id="labTabFolders" aria-selected="false" tabindex="-1">Folders</button>
+      </div>
+      <button class="lab-x" id="labClose" type="button" aria-label="Close twin calls">&times;</button>
+    </div>
+    <div id="labBody"></div>
+  </div>
 </div>
 <script>
 (() => {
@@ -2010,6 +2116,8 @@ const S = {
   health: {}, conflicted: new Set(),
   /* Where each personal brain's interview stands, by slug, and its test and profile. */
   iv: {}, ivFull: {},
+  /* The lab, for the two workspaces that have it: the calls, the folders, the one open. */
+  lab: false, labCalls: [], labFolders: [], labOpen: false, labTab: "calls", labCur: null, labTurns: [], labTopic: "", labNew: false, labUI: null, labMsg: "",
   /* The demo, or a workspace on the visitor's own key. */
   demo: false, byok: false,
   /* The workspace's own look, as saved, and the logo on the page now. */
@@ -2272,6 +2380,8 @@ async function refresh(){
   S.models = d.models || { chat: S.model, chatDefault: S.model };
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
   S.demo = !!d.demo; S.byok = !!d.byok;
+  S.lab = !!d.lab && !S.demo; paintLab();
+  if (S.lab && !S.labLoaded){ S.labLoaded = true; labLoad().then(labSchedule); }
   applyLook(d.brand || null);
   paintWorkspace();
   render();
@@ -3629,6 +3739,266 @@ async function openStill(){
   catch (e) { list.innerHTML = ""; list.append(el("div","hint",e.message)); return; }
   if (!veil.isConnected) return;
   paintList();
+}
+
+/* ============ the lab: twin calls, run by the admin ============ */
+/**
+ * For Octopus and PandAAAHH, which the server says in /api/state. A column on the
+ * right, beside the chat: the calls between the twin of one workspace's personal
+ * folder and the other's, and the two folders. The admin starts, pauses, stops or
+ * steps a call, says a word of their own, and reads each turn as it lands with the
+ * notes it leaned on. Every turn is one model call, made on the server: this page
+ * only asks and reads, and stops asking when nothing runs and the column is shut.
+ */
+const LAB_WHO = { octopus: "Octopus", pandaaahh: "PandAAAHH" };
+const labWho = s => LAB_WHO[s] || String(s);
+const LAB_STATE = { idle: "Not started", running: "Running", paused: "Paused", ended: "Ended" };
+const LAB_STALE = 2 * 60 * 1000;
+let labTimer = null;
+const labCall = () => S.labCalls.find(c => c.id === S.labCur) || null;
+const labRunning = () => S.labCalls.some(c => c.status === "running");
+const labStalled = c => c.status === "running" && Date.now() - c.updated > LAB_STALE;
+const labNext = c => (c.turns % 2 === 0 ? c.starter : c.starter === "octopus" ? "pandaaahh" : "octopus");
+const labClock = t => { try { return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); } catch { return ""; } };
+const labPlural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/** The icon beside the inbox: there for the two workspaces, turning while a call runs. */
+function paintLab(){
+  const b = $("labBtn"); if (!b) return;
+  const on = !!S.lab && !S.demo, run = on && labRunning();
+  b.hidden = !on; document.body.classList.toggle("has-lab", on);
+  b.classList.toggle("run", run);
+  b.setAttribute("aria-expanded", S.labOpen ? "true" : "false");
+  b.setAttribute("aria-label", run ? "Twin calls, one is running" : "Twin calls");
+}
+function paintLabShell(){
+  $("app").classList.toggle("lab-open", S.labOpen); document.body.classList.toggle("lab-open", S.labOpen);
+  $("labSide").hidden = !S.labOpen; paintLab(); paintLabBody();
+}
+function openLab(){ if (!S.lab) return; closeInbox(); S.labOpen = true; paintLabShell(); labLoad(); labSchedule(); }
+function closeLab(){ S.labOpen = false; paintLabShell(); labSchedule(); }
+$("labBtn").onclick = () => (S.labOpen ? closeLab() : openLab());
+$("labClose").onclick = () => { closeLab(); $("labBtn").focus(); };
+$("labTabCalls").onclick = () => { S.labTab = "calls"; paintLabBody(); };
+$("labTabFolders").onclick = () => { S.labTab = "folders"; paintLabBody(); labLoad(); };
+
+/** The calls and the folders. */
+async function labLoad(){
+  try {
+    const r = await api("/api/lab", { action: "state" });
+    if (r.error) throw new Error(r.error);
+    S.labCalls = r.labs || []; S.labFolders = r.folders || []; if (r.topic) S.labTopic = r.topic; S.labMsg = "";
+  } catch (e) { S.labMsg = e.message; }
+  paintLab();
+  if (S.labOpen) S.labUI ? syncLabCall() : paintLabBody();
+}
+/** The open call, and the turns after the last one on screen. */
+async function labPollCall(){
+  const id = S.labCur; if (!id) return;
+  const after = S.labTurns.length ? S.labTurns[S.labTurns.length - 1].n : 0;
+  let r; try { r = await api("/api/lab", { action: "get", id, after }); } catch { return; }
+  if (id !== S.labCur) return;
+  if (r.error){ S.labCur = null; S.labTurns = []; paintLabBody(); labLoad(); return; }
+  const { turnRows, ...call } = r;
+  const i = S.labCalls.findIndex(c => c.id === id);
+  if (i >= 0) S.labCalls[i] = { ...S.labCalls[i], ...call }; else S.labCalls.unshift(call);
+  const fresh = (turnRows || []).filter(t => !S.labTurns.some(x => x.n === t.n));
+  S.labTurns.push(...fresh);
+  paintLab(); syncLabCall(); appendLabTurns(fresh);
+}
+/** Asks again while the column is open, or a call runs: every 2.5 seconds on screen, every 10 off it. */
+function labSchedule(){
+  clearTimeout(labTimer); labTimer = null;
+  if (!S.lab || S.demo || !(S.labOpen || labRunning())) return;
+  labTimer = setTimeout(async () => {
+    if (!document.hidden) { if (S.labOpen && S.labCur) await labPollCall(); else await labLoad(); }
+    labSchedule();
+  }, S.labOpen ? 2500 : 10000);
+}
+
+function paintLabBody(){
+  if (!S.labOpen) return;
+  const calls = S.labTab === "calls";
+  for (const [id, on] of [["labTabCalls", calls], ["labTabFolders", !calls]]){ $(id).setAttribute("aria-selected", String(on)); $(id).tabIndex = on ? 0 : -1; }
+  const box = $("labBody"); box.innerHTML = ""; S.labUI = null;
+  if (!calls) return paintLabFolders(box);
+  if (S.labCur && labCall()) return buildLabCall(box);
+  S.labCur = null; S.labTurns = [];
+  paintLabList(box);
+}
+
+/* ---- the calls ---- */
+function paintLabList(box){
+  const sc = el("div","lab-scroll");
+  if (S.labMsg) sc.append(el("p","lab-note bad", S.labMsg));
+  if (!S.labNew){
+    const nb = el("button","go lab-new","New call"); nb.type = "button"; nb.id = "labNew";
+    nb.onclick = () => { S.labNew = true; paintLabBody(); sc.querySelector("textarea")?.focus(); };
+    sc.append(nb);
+  } else sc.append(labForm());
+  if (!S.labCalls.length && !S.labNew) sc.append(el("p","lab-empty","No call yet. Make one: the twin of each personal folder talks to the other, and you steer it."));
+  for (const c of S.labCalls){
+    const b = el("button","lab-row"); b.type = "button"; b.dataset.id = c.id;
+    const st = labStalled(c) ? "Stalled" : LAB_STATE[c.status] || c.status;
+    b.append(el("b",null,c.title), el("span","lab-chip " + (labStalled(c) ? "paused" : c.status), st),
+      el("small",null,`${labPlural(c.turns, "turn", "turns")} · ${labWho(c.starter)} opens · ${ago(c.updated)} ago`));
+    b.onclick = () => openLabCall(c.id);
+    sc.append(b);
+  }
+  box.append(sc);
+}
+function labForm(){
+  const f = el("form","lab-form"); f.noValidate = true;
+  const topic = el("textarea"); topic.rows = 3; topic.maxLength = 300; topic.placeholder = S.labTopic || "What should the call reach?";
+  topic.setAttribute("aria-label","The goal of the call");
+  const opens = el("select"); opens.setAttribute("aria-label","Which twin opens");
+  for (const k of Object.keys(LAB_WHO)) opens.append(new Option(`${labWho(k)} opens`, k));
+  opens.value = S.space === "pandaaahh" ? "pandaaahh" : "octopus";
+  const row = el("div","lab-btns");
+  const start = el("button","go","Start the call"), make = el("button","ghost","Only make it"), no = el("button","ghost","Cancel");
+  for (const b of [start, make, no]) b.type = "button";
+  const state = el("p","lab-state"); state.setAttribute("role","status");
+  const create = async go => {
+    start.disabled = make.disabled = true; state.className = "lab-state"; state.textContent = go ? "Starting" : "Making it";
+    try {
+      const r = await api("/api/lab", { action: "new", topic: topic.value.trim(), starter: opens.value });
+      if (r.error) throw new Error(r.error);
+      let call = r.call; S.labCalls.unshift(call); S.labNew = false;
+      if (go){ const g = await api("/api/lab", { action: "go", id: call.id }); if (g.call) S.labCalls[0] = call = g.call; }
+      await openLabCall(call.id); labSchedule();
+    } catch (e) { state.className = "lab-state bad"; state.textContent = e.message; start.disabled = make.disabled = false; }
+  };
+  start.onclick = () => create(true); make.onclick = () => create(false);
+  no.onclick = () => { S.labNew = false; paintLabBody(); };
+  f.onsubmit = e => e.preventDefault();
+  row.append(start, make, no); f.append(topic, opens, row, state);
+  return f;
+}
+async function openLabCall(id){
+  S.labCur = id; S.labTurns = []; S.labTab = "calls"; paintLabBody();
+  await labPollCall(); labSchedule();
+}
+function labTurnNode(t){
+  const adm = t.from === "admin";
+  const d = el("div","lab-t " + (adm ? "adm" : t.from === "octopus" ? "a" : "b")); d.dataset.n = t.n;
+  const who = el("div","lab-who"); who.append(el("b",null, adm ? "You, the admin" : `${labWho(t.from)} twin`), el("time",null,labClock(t.at)));
+  d.append(who, el("p","lab-say",t.text));
+  if (t.because) d.append(el("p","lab-why","Leaned on: " + t.because));
+  if (t.done) d.append(el("p","lab-why","Said the call is done."));
+  return d;
+}
+function appendLabTurns(list){
+  const L = S.labUI; if (!L || !list.length) return;
+  const near = L.talk.scrollHeight - L.talk.scrollTop - L.talk.clientHeight < 90 || !L.talk.querySelector(".lab-t");
+  for (const t of list) L.talk.insertBefore(labTurnNode(t), L.typing);
+  if (near) L.talk.scrollTop = L.talk.scrollHeight;
+}
+function labTell(text, cls = ""){ if (S.labUI){ S.labUI.state.textContent = text; S.labUI.state.className = "lab-state " + cls; } }
+/** One press: ask, then read the call again at once rather than wait for the next look. */
+async function labAct(action){
+  const id = S.labCur; if (!id) return;
+  try {
+    const r = await api("/api/lab", { action, id });
+    if (r.error) throw new Error(r.error);
+    if (r.call){ const i = S.labCalls.findIndex(c => c.id === id); if (i >= 0) S.labCalls[i] = { ...S.labCalls[i], ...r.call }; }
+    labTell("");
+  } catch (e) { labTell(e.message, "bad"); }
+  await labPollCall(); labSchedule();
+}
+function buildLabCall(box){
+  const L = S.labUI = {};
+  const head = el("div","lab-callh");
+  const back = el("button","lab-back","‹ Calls"); back.type = "button";
+  back.onclick = () => { S.labCur = null; S.labTurns = []; paintLabBody(); labLoad(); };
+  L.title = el("b","lab-ct"); L.chip = el("span","lab-chip");
+  const del = el("button","lab-del","Delete"); del.type = "button";
+  del.onclick = async () => {
+    if (!del.classList.contains("sure")){ del.classList.add("sure"); del.textContent = "Sure? Delete"; setTimeout(() => { del.classList.remove("sure"); del.textContent = "Delete"; }, 3000); return; }
+    const id = S.labCur;
+    try { const r = await api("/api/lab", { action: "delete", id }); if (r.error) throw new Error(r.error);
+      S.labCalls = S.labCalls.filter(x => x.id !== id); S.labCur = null; S.labTurns = []; paintLab(); paintLabBody(); labSchedule(); }
+    catch (e) { labTell(e.message, "bad"); }
+  };
+  head.append(back, L.title, L.chip, del);
+  const info = el("div","lab-info"); L.goal = el("p"); L.note = el("p"); info.append(L.goal, L.note);
+  L.talk = el("div","lab-talk"); L.talk.tabIndex = 0; L.talk.setAttribute("role","log"); L.talk.setAttribute("aria-label","The call");
+  L.typing = el("div","lab-typing"); L.typing.hidden = true; L.talk.append(L.typing);
+  const ctl = el("div","lab-ctl"), row = el("div","lab-btns");
+  L.go = el("button","go"); L.step = el("button","ghost","One turn"); L.stop = el("button","ghost","Stop");
+  for (const b of [L.go, L.step, L.stop]) b.type = "button";
+  L.go.onclick = () => labAct(L.go.dataset.act || "go"); L.step.onclick = () => labAct("step"); L.stop.onclick = () => labAct("stop");
+  row.append(L.go, L.step, L.stop);
+  const line = el("div","lab-line");
+  L.say = el("input"); L.say.type = "text"; L.say.maxLength = 600; L.say.autocomplete = "off"; L.say.setAttribute("aria-label","Say something to the twins");
+  L.send = el("button","ghost","Send"); L.send.type = "button";
+  const speak = async () => {
+    const text = L.say.value.trim(); if (!text || L.send.disabled) return;
+    L.send.disabled = true;
+    try {
+      const r = await api("/api/lab", { action: "say", id: S.labCur, text });
+      if (r.error) throw new Error(r.error);
+      L.say.value = ""; labTell("");
+      if (r.turn && !S.labTurns.some(x => x.n === r.turn.n)){ S.labTurns.push(r.turn); appendLabTurns([r.turn]); }
+    } catch (e) { labTell(e.message, "bad"); }
+    syncLabCall();
+  };
+  L.say.oninput = () => syncLabCall(); L.say.onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); speak(); } };
+  L.send.onclick = speak;
+  line.append(L.say, L.send);
+  L.state = el("p","lab-state"); L.state.setAttribute("role","status");
+  ctl.append(row, line, L.state);
+  box.append(head, info, L.talk, ctl);
+  for (const t of S.labTurns) L.talk.insertBefore(labTurnNode(t), L.typing);
+  L.talk.scrollTop = L.talk.scrollHeight;
+  syncLabCall();
+}
+/** The header, the note, the buttons and the writing line, from the call as it stands. */
+function syncLabCall(){
+  const L = S.labUI, c = labCall(); if (!L || !c) return;
+  const stalled = labStalled(c), over = c.status === "ended";
+  L.title.textContent = c.title; L.title.title = c.topic;
+  L.chip.textContent = stalled ? "Stalled" : LAB_STATE[c.status] || c.status; L.chip.className = "lab-chip " + (stalled ? "paused" : c.status);
+  L.goal.textContent = `Goal: ${c.topic}`;
+  const note = c.error ? c.error : c.note ? c.note : c.status === "idle" ? `Not started. ${labWho(c.starter)}'s twin opens.`
+    : stalled ? "No turn for 2 minutes. Wake it to go on." : c.status === "running" ? `${labPlural(c.turns, "turn", "turns")} so far, up to ${c.until}.` : "";
+  L.note.textContent = note; L.note.className = c.error ? "bad" : "";
+  const pausing = c.status === "running" && !stalled;
+  L.go.dataset.act = pausing ? "pause" : "go";
+  L.go.textContent = pausing ? "Pause" : stalled ? "Wake it" : c.status === "idle" ? "Start" : "Go on";
+  L.go.className = pausing ? "ghost" : "go";
+  L.go.hidden = L.step.hidden = L.stop.hidden = over;
+  L.step.disabled = pausing;
+  L.say.disabled = over; L.send.disabled = over || !L.say.value.trim();
+  L.say.placeholder = over ? "This call is over" : "Say something to the twins";
+  L.typing.hidden = !pausing;
+  if (pausing) L.typing.textContent = `${labWho(labNext(c))}'s twin is writing`;
+}
+
+/* ---- the folders ---- */
+function paintLabFolders(box){
+  const sc = el("div","lab-scroll");
+  if (S.labMsg) sc.append(el("p","lab-note bad", S.labMsg));
+  if (!S.labFolders.length && !S.labMsg) sc.append(el("p","lab-empty","Loading"));
+  for (const f of S.labFolders){
+    const card = el("section","lab-fold"); card.dataset.space = f.space;
+    const h = el("div","lab-fh"); h.append(el("b",null,f.name));
+    if (f.space === S.space) h.append(el("span","lab-chip run","This workspace"));
+    card.append(h);
+    if (!f.brain) card.append(el("p","lab-note bad","No personal folder yet, so its twin cannot speak."));
+    else {
+      card.append(el("p","lab-stats",`${labPlural(f.notes, "note", "notes")} · ${labPlural(f.people, "person", "people")} · ${labPlural(f.open, "open line", "open lines")}`),
+        el("p","lab-note", f.profile ? "Its twin profile is written." : "No twin profile yet."));
+      if (f.notes < 3) card.append(el("p","lab-note bad","Fewer than 3 notes: its twin cannot speak yet."));
+      if (f.newest.length){ card.append(el("p","lab-k","Newest notes")); const ul = el("ul"); for (const t of f.newest) ul.append(el("li",null,t)); card.append(ul); }
+      if (f.space === S.space){
+        const o = el("button","ghost","Open this folder"); o.type = "button";
+        o.onclick = () => { const pb = personalOfSpace(); if (!pb) return; closeLab(); openFolder(pb); };
+        card.append(o);
+      }
+    }
+    sc.append(card);
+  }
+  box.append(sc);
 }
 
 /* ============ decisions: the self-driving inbox ============ */

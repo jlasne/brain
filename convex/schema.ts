@@ -514,6 +514,43 @@ export default defineSchema({
     days: v.array(v.string()),
   }).index("by_space", ["space"]).index("by_concept", ["space", "brain", "slug"]),
 
+  /* The lab: a call between the twins of two workspaces, run by the admin.
+     One row a call, and one row a turn. Open to Octopus and PandAAAHH only. */
+  labs: defineTable({
+    title: v.string(),
+    topic: v.string(),
+    /* The two workspaces on the call, and the one whose twin opens it. */
+    a: v.string(),
+    b: v.string(),
+    starter: v.string(),
+    /* idle, running, paused or ended. */
+    status: v.string(),
+    /* Twin turns so far, how many the call may reach before it waits, and the
+       number of its last row. A pause or a stop moves the run number on, so a
+       turn still being written for the old run is dropped when it lands. */
+    turns: v.number(),
+    until: v.number(),
+    last: v.number(),
+    gen: v.number(),
+    /* Why it waits or ended, in words, and the error that stopped it. */
+    note: v.optional(v.string()),
+    error: v.optional(v.string()),
+    created: v.number(),
+    updated: v.number(),
+  }),
+
+  labTurns: defineTable({
+    lab: v.id("labs"),
+    n: v.number(),
+    /* A workspace slug for a twin, or "admin". */
+    from: v.string(),
+    text: v.string(),
+    /* What the twin leaned on. Only the admin reads it. */
+    because: v.optional(v.string()),
+    done: v.optional(v.boolean()),
+    at: v.number(),
+  }).index("by_lab", ["lab", "n"]),
+
   candidates: defineTable({
     brain: v.string(),
     slug: v.string(),

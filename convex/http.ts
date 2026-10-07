@@ -25,6 +25,7 @@ import { loadSpace, withoutPersonal } from "./space";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
+import { inLab, LAB_SPACES, folderOf, LAB_TOPIC } from "./lab";
 import { rederive, tidyScan } from "./tidy";
 import { embed, nearest } from "./graph";
 import {
@@ -418,7 +419,8 @@ route("/api/state", async (ctx, _req, b) => {
   const models = { chat: who.models.chat || MODEL, chatDefault: MODEL,
     reply: who.models.reply === "en" ? "en" : "same", voice: who.models.voice ?? null };
   return { ...s, model: models.chat, models, chunk: CHUNK,
-           space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand };
+           space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand,
+           ...(!who.demo && inLab(who.space) ? { lab: true } : {}) };
 });
 
 /**
@@ -1518,6 +1520,43 @@ route("/api/personal/contact", async (ctx, _req, b) => {
     return { into, joined: r.joined, rewritten };
   }
   return { error: "that is not something a contact does" };
+});
+
+/* ---------- the lab ---------- */
+
+/**
+ * The lab, open to two workspaces and to their owners alone: a call between
+ * the twins of the Octopus and PandAAAHH personal folders, run from a panel.
+ *   state    every call, the newest first, and the two folders as the twins see them
+ *   get      one call and its turns after turn `after`, so a poll carries only what is new
+ *   new      a call with a goal and the twin that opens it, not started
+ *   go       on, for the next 10 turns (or a stalled call woken)
+ *   step     on, for one turn
+ *   pause    off, to go on from there
+ *   stop     off for good
+ *   say      a line from the admin, read by the next twin to speak
+ *   delete   the call and its turns
+ * No call here runs a model: each turn is one, started on the server by go and step.
+ */
+route("/api/lab", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  if (!inLab(who.space)) return { error: "the lab is not open in this workspace" };
+  const id = String(b.id ?? "");
+  switch (String(b.action ?? "state")) {
+    /* The other workspace's folder is shown as counts alone: its note titles stay in its own workspace. */
+    case "state": return { me: who.space, topic: LAB_TOPIC, labs: await ctx.runQuery(internal.lab.list, {}),
+      folders: (await Promise.all(LAB_SPACES.map(s => folderOf(ctx, s)))).map(f => f.space === who.space ? f : { ...f, newest: [] }) };
+    case "get": {
+      const r = await ctx.runQuery(internal.lab.read, { id, after: Math.max(0, Math.floor(Number(b.after) || 0)) });
+      return r ?? { error: "that call is gone" };
+    }
+    case "new": return { call: await ctx.runMutation(internal.lab.make, { topic: String(b.topic ?? ""), starter: String(b.starter ?? who.space) }) };
+    case "go": case "step": case "pause": case "stop":
+      return { call: await ctx.runMutation(internal.lab.control, { id, action: String(b.action) }) };
+    case "say": return { turn: await ctx.runMutation(internal.lab.say, { id, text: String(b.text ?? "") }) };
+    case "delete": await ctx.runMutation(internal.lab.control, { id, action: "stop" }).catch(() => {}); return await ctx.runMutation(internal.lab.remove, { id });
+    default: return { error: "that is not something the lab does" };
+  }
 });
 
 /* ---------- error reports ---------- */
