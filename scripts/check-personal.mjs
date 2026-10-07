@@ -620,6 +620,8 @@ const TODAY = "2026-09-30";
   check("a reworded line needs a few words", /few words/.test(tooShort) && mx().file.open[0].t === re.t);
   const mine = personal.openByPerson([await mxw()], "me");
   check("the open lines come by person, with their keys", mine.length === 1 && mine[0].id === "me/maxime" && mine[0].items.some(i => i.k === k0 && i.t === re.t), JSON.stringify(mine));
+  await run("setOpenCounts", { brain: "me", counts: [{ slug: "maxime", n: 7 }, { slug: "nobody", n: 3 }] });
+  check("a card made before the count existed gets it, and an unknown person is skipped", (T.cards ?? []).find(c => c.slug === "maxime")?.open === 7);
 }
 
 /* ---- what is still open, for every person ---- */
@@ -635,18 +637,23 @@ const TODAY = "2026-09-30";
   check("it asks what a comment does to a line: done, dropped or still open, reworded, with follow-ups and a moment, in English, never invented",
     /"status": "done"/.test(personal.OPEN_RULES) && /"drop"/.test(personal.OPEN_RULES) && /"follow"/.test(personal.OPEN_RULES) && /"moment"/.test(personal.OPEN_RULES)
     && /Never invent/.test(personal.OPEN_RULES) && /Everything in English/.test(personal.OPEN_RULES) && /Reply with only JSON/.test(personal.OPEN_RULES));
-  const given = [{ id: "me/a", k: "4" }, { id: "me/b", k: "1" }, { id: "me/b", k: "2" }];
   const dec = personal.readOpenUpdates(JSON.stringify({ items: [
-    { id: "me/a", k: "4", status: "done", text: "ignored", follow: ["Send the receipt \u2014 today", "ab", "Thank Ali", "x1y", "x2y", "x3y"], moment: { date: "2026-10-06", text: "Ali paid back 300 euros.", seen: false } },
-    { id: "me/b", k: "1", status: "drop" },
-    { id: "me/b", k: "2", status: "maybe", text: "Call her on 12 November", follow: [], moment: { date: "soon", text: "She moved to Porto.", seen: true } },
-    { id: "me/b", k: "9", status: "done" }, { id: "me/b", k: "2", status: "done" }] }), given);
-  check("the decisions kept are for the lines given, once each; a status it may not give is still open; a follow-up is 3 at most and cleaned",
-    dec.length === 3 && dec[0].status === "done" && dec[0].text === "" && JSON.stringify(dec[0].follow) === '["Send the receipt, today","Thank Ali","x1y"]'
-    && dec[1].status === "drop" && dec[2].status === "open" && dec[2].text === "Call her on 12 November", JSON.stringify(dec));
+    { n: 1, status: "done", text: "ignored", follow: ["Send the receipt \u2014 today", "ab", "Thank Ali", "x1y", "x2y", "x3y"], moment: { date: "2026-10-06", text: "Ali paid back 300 euros.", seen: false } },
+    { n: "2.", status: "Dropped" },
+    { n: 3, status: "maybe", text: "Call her on 12 November", follow: [], moment: { date: "soon", text: "She moved to Porto.", seen: true } },
+    { n: 9, status: "done" }, { n: 3, status: "done" }] }), 3);
+  check("the decisions kept are for the items numbered, once each; a status it may not give is still open; a follow-up is 3 at most and cleaned",
+    dec.length === 3 && dec[0].n === 1 && dec[0].status === "done" && dec[0].text === "" && JSON.stringify(dec[0].follow) === '["Send the receipt, today","Thank Ali","x1y"]'
+    && dec[1].n === 2 && dec[1].status === "drop" && dec[2].status === "open" && dec[2].text === "Call her on 12 November", JSON.stringify(dec));
   check("a moment keeps its date when it is one, and leaves the day to the server when it is not",
     dec[0].moment.date === "2026-10-06" && dec[0].moment.seen === false && dec[2].moment.date === "" && dec[2].moment.seen === true && dec[1].moment === null, JSON.stringify(dec));
-  check("a reply that is no JSON decides nothing", personal.readOpenUpdates("sorry", given).length === 0);
+  const loose = personal.readOpenUpdates('Here you go:\n[{"status":"Completed"},{"status":"cancelled","text":"x"}]', 2);
+  check("a bare list with no numbers takes the order given, and near words are read: completed is done, cancelled is dropped",
+    loose.length === 2 && loose[0].n === 1 && loose[0].status === "done" && loose[1].n === 2 && loose[1].status === "drop", JSON.stringify(loose));
+  check("the list may sit under another key", personal.readOpenUpdates(JSON.stringify({ results: [{ n: 1, status: "done" }] }), 1)[0]?.status === "done");
+  check("a reply that is no JSON decides nothing", personal.readOpenUpdates("sorry", 3).length === 0);
+  const card = words.cardOf({ brain: "me", slug: "a", title: "Ali", tag: "contact", file: { open: [{ k: "1", t: "x" }, { k: "2", t: "y", done: "2026-10-01" }, { k: "3", t: "z" }] } });
+  check("a person's card counts the lines still open; a note's card has no count", card.open === 2 && !("open" in words.cardOf({ brain: "me", slug: "n", title: "N" })), JSON.stringify(card));
 }
 
 /* ---- languages: written in any, kept in English, answered as set ---- */

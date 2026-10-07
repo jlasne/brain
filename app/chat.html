@@ -180,6 +180,8 @@
   .ib-n{ position:absolute; top:-5px; right:-6px; min-width:18px; height:18px; padding:0 5px; border-radius:9px;
     background:var(--accent-solid); color:var(--accent-on); font:600 11px/18px var(--sans); text-align:center; font-variant-numeric:tabular-nums; }
   .ib-n[hidden]{ display:none; }
+  .still-btn{ right:58px; }
+  .still-btn[hidden]{ display:none; }
   .inbox{ position:fixed; top:56px; right:16px; z-index:45; width:min(360px, calc(100vw - 32px)); max-height:min(70vh, 560px); overflow-y:auto;
     padding:14px 8px 8px; border:1px solid var(--line-2); border-radius:14px; background:var(--surface);
     box-shadow:0 18px 50px -12px rgba(0,0,0,.25), 0 2px 6px rgba(0,0,0,.06); animation:pbOpen .18s ease both; }
@@ -200,8 +202,8 @@
   .cr-dot{ flex:none; width:8px; height:8px; border-radius:50%; background:var(--accent-solid); }
   .cr-dot.run{ background:none; width:10px; height:10px; border:2px solid var(--line-2); border-top-color:var(--accent-solid); animation:turn 1s linear infinite; }
   /* The bubble keeps the folder and Drop headers clear of it. */
-  @media (min-width:861px){ main .fv-h, main .drop-head .col{ padding-right:64px; } }
-  @media (max-width:860px){ .inbox-btn{ top:6px; right:12px; width:34px; height:34px; } .inbox{ top:50px; right:12px; } }
+  @media (min-width:861px){ main .fv-h, main .drop-head .col{ padding-right:64px; } body.has-still main .fv-h, body.has-still main .drop-head .col{ padding-right:106px; } }
+  @media (max-width:860px){ .inbox-btn{ top:6px; right:12px; width:34px; height:34px; } .still-btn{ right:54px; } .inbox{ top:50px; right:12px; } }
 
   .dropsrc{
     display:flex; align-items:center; gap:10px;
@@ -640,9 +642,9 @@
   .op-h:hover b{ color:var(--accent); }
   .op-row{ padding:6px 0 10px; border-top:1px solid var(--line); }
   .op-h + .op-row{ border-top:0; }
-  .op-in{ display:block; width:calc(100% - 28px); height:36px; margin:3px 0 0 28px; padding:0 11px; border:1px solid var(--line-2); border-radius:9px;
+  .op-row .op-in{ display:block; width:calc(100% - 28px); height:36px; margin:3px 0 0 28px; padding:0 11px; border:1px solid var(--line-2); border-radius:9px;
     background:var(--bg); font:400 13.5px/1 var(--sans); color:var(--ink); }
-  .op-in:focus{ outline:none; border-color:var(--ink-4); }
+  .op-row .op-in:focus{ outline:none; border-color:var(--ink-4); }
   .ts-q.msg > span{ padding:10px 12px; border-left:3px solid var(--accent-line); border-radius:0 10px 10px 0; background:var(--side); font-weight:400; color:var(--ink); }
   .ts-pair .ts-why{ font:400 12.5px/1.45 var(--sans); color:var(--ink-3); }
   .tt-now{ margin-top:18px; }
@@ -1865,6 +1867,10 @@
     </button>
     <!-- What runs and what waits: answers unread, questions on their way, a drop
          not finished, open clashes. -->
+    <button class="inbox-btn still-btn" id="stillBtn" type="button" aria-label="Still open" aria-haspopup="dialog" title="What is still open in your people's files" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10"/><path d="M3.5 6l1.3 1.3L7 5M3.5 12l1.3 1.3L7 11M3.5 18l1.3 1.3L7 17"/></svg>
+      <span class="ib-n" id="stillN"></span>
+    </button>
     <button class="inbox-btn" id="inboxBtn" type="button" aria-label="Inbox" aria-haspopup="dialog" aria-expanded="false" title="What is running and what waits for you">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 5.4A2 2 0 0 1 7.5 4h9a2 2 0 0 1 1.9 1.4L21 13.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg>
       <span class="ib-n" id="inboxN" hidden></span>
@@ -2248,7 +2254,7 @@ async function refresh(){
   paintWorkspace();
   render();
   /* The rings and the chats follow, so the brains never wait on them. */
-  loadHealth(); loadChats(); autoAudit();
+  loadHealth(); loadChats(); autoAudit(); healOpen();
 }
 
 /** Each brain's health, then the rings repaint. */
@@ -3388,6 +3394,7 @@ function ago(t){ const s = Math.max(0, Math.round((Date.now() - t) / 1000)); ret
 /** The bubble's count, and the panel when it is open. */
 function paintInbox(){
   const btn = $("inboxBtn"); if (!btn) return;
+  paintStill();
   const unread = S.jobs.filter(j => j.status !== "running" && !j.seen).length;
   const running = S.jobs.filter(j => j.status === "running").length;
   const d = S.dropJob;
@@ -3483,6 +3490,126 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("inbox"
    titles not in English, empty positions, and in the personal folder the
    people not filed and the same person twice. Due after 50 sources dropped
    since the last one; the personal folder, every week. The inbox says when. */
+
+/* ============ still open: what waits in your people's files ============ */
+/**
+ * The personal folder's open lines, counted on an icon beside the inbox.
+ * Each person's card carries its count, so the icon reads no file. Cards made
+ * before the count existed read it once from the files, in the background.
+ */
+function personalOfSpace(){ return S.brains.find(b => b.type === "personal" && !readOnly(b) && (b.space || "octopus") === S.space); }
+function openLines(pb){ return S.concepts.reduce((n, c) => n + (c.brain === pb.slug && c.tag === "contact" ? (c.open || 0) : 0), 0); }
+function paintStill(){
+  const btn = $("stillBtn"); if (!btn) return;
+  const pb = S.demo ? null : personalOfSpace(), n = pb ? openLines(pb) : 0;
+  btn.hidden = !n; document.body.classList.toggle("has-still", !!n);
+  $("stillN").hidden = !n; $("stillN").textContent = n > 99 ? "99+" : String(n);
+  btn.setAttribute("aria-label", n ? `Still open: ${n} line${n === 1 ? "" : "s"}` : "Still open");
+}
+/** The counts, from the list the server just read: each person's card, and the icon. */
+function setOpen(pb, people){
+  const by = new Map(people.map(p => [p.id, p.items.length]));
+  for (const c of S.concepts) if (c.brain === pb.slug && c.tag === "contact") c.open = by.get(`${c.brain}/${c.slug}`) || 0;
+  paintStill();
+}
+async function healOpen(){
+  const pb = S.demo ? null : personalOfSpace();
+  if (!pb || S.openTried || !S.concepts.some(c => c.brain === pb.slug && c.tag === "contact" && c.open === undefined)) return;
+  S.openTried = true;
+  try { const r = await api("/api/personal/open", { brain: pb.slug }); if (r.people) setOpen(pb, r.people); }
+  catch { /* the icon waits for the next visit */ }
+}
+$("stillBtn").onclick = () => openStill();
+/**
+ * Every open line of every person, by person, the oldest first. A tick closes
+ * a line at once. A comment says what changed, and one send updates every line
+ * commented: closed, dropped or reworded, with a follow-up or a moment of
+ * their history when the comment tells one.
+ */
+async function openStill(){
+  const pb = personalOfSpace(); if (!pb) return;
+  closeInbox();
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet dc-sheet" role="dialog" aria-modal="true" aria-label="Still open">
+      <header><h3>Still open</h3><p>Every promise and follow-up in your people's files, the oldest first. Tick a line that is done.
+        Or write under it what changed: done, a new date, a next step. One send updates every line you commented.</p>
+        <div class="dc-top"><button class="go" id="opSend" type="button" disabled>Send updates</button><span class="dc-state" id="opSay" role="status"></span></div></header>
+      <div class="f" id="opList"><div class="hint">Loading</div></div>
+      <footer><button class="ghost" id="opDone" type="button">Done</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const list = veil.querySelector("#opList"), say = veil.querySelector("#opSay"), send = veil.querySelector("#opSend");
+  const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
+  const shut = () => { document.removeEventListener("keydown", onKey); veil.remove(); };
+  document.addEventListener("keydown", onKey);
+  veil.querySelector("#opDone").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  const tell = (text, cls = "") => { say.textContent = text; say.className = "dc-state " + cls; };
+  let data = [];
+  const drafts = new Map();          // "person|line" to the comment typed, kept while the list repaints
+  const sendable = () => { send.disabled = ![...drafts.values()].some(v => v.trim()); };
+  const paintList = () => {
+    list.innerHTML = "";
+    setOpen(pb, data);
+    if (!data.length){ list.append(el("p","tw-key","Nothing open. A promise or a follow-up you tell your twin about someone lands here.")); return; }
+    const n = data.reduce((t, p) => t + p.items.length, 0);
+    list.append(el("h4","op-n",`${n} open line${n === 1 ? "" : "s"}, ${data.length} ${data.length === 1 ? "person" : "people"}`));
+    for (const p of data){
+      const sec = el("section","op-p"); sec.dataset.id = p.id;
+      const head = el("button","op-h"); head.type = "button"; head.append(el("b",null,p.title));
+      if (p.line) head.append(el("small",null,p.line));
+      head.title = "Open their file";
+      head.onclick = () => { shut(); openFolder(pb, p.id); };
+      sec.append(head);
+      for (const x of p.items){
+        const key = `${p.id}|${x.k}`;
+        const row = el("div","op-row"); row.dataset.k = x.k;
+        const top = el("div","pf-orow");
+        const tick = el("button","pf-tick"); tick.type = "button"; tick.title = "Done"; tick.setAttribute("aria-label", `Mark done: ${x.t}`);
+        tick.onclick = async () => {
+          tick.disabled = true;
+          try {
+            await api("/api/personal/contact", { action: "part", id: p.id, part: "open", key: x.k, done: true });
+            drafts.delete(key); p.items = p.items.filter(y => y.k !== x.k); data = data.filter(q => q.items.length);
+            paintList(); sendable(); refresh().catch(() => {});
+          } catch (e) { tick.disabled = false; tell(e.message, "bad"); }
+        };
+        top.append(tick, el("span",null,x.t), el("time",null,`since ${fileDay(x.at)}`));
+        const inp = el("input","op-in"); inp.type = "text"; inp.maxLength = 500; inp.value = drafts.get(key) || "";
+        inp.placeholder = "What changed? Done, a new date, a next step"; inp.setAttribute("aria-label", `Comment on: ${x.t}`);
+        inp.oninput = () => { drafts.set(key, inp.value); sendable(); };
+        inp.onkeydown = e => { if (e.key === "Enter" && !send.disabled) send.click(); };
+        row.append(top, inp); sec.append(row);
+      }
+      list.append(sec);
+    }
+  };
+  send.onclick = async () => {
+    const updates = [...drafts].filter(([, v]) => v.trim()).map(([k, v]) => { const [id, key] = k.split("|"); return { id, k: key, comment: v.trim() }; });
+    if (!updates.length) return;
+    send.disabled = true; tell("Reading your comments", "spin");
+    try {
+      const r = await api("/api/personal/open", { action: "send", brain: pb.slug, updates });
+      if (r.people) data = r.people;
+      if (r.error){ paintList(); throw new Error(r.error); }
+      /* What was read leaves; what was passed over or did not save keeps its comment, to send again. */
+      const again = new Set((r.retry || []).map(x => `${x.id}|${x.k}`));
+      for (const u of updates) if (!again.has(`${u.id}|${u.k}`)) drafts.delete(`${u.id}|${u.k}`);
+      paintList();
+      const said = [r.done && `${r.done} done`, r.dropped && `${r.dropped} dropped`, r.changed && `${r.changed} changed`, r.kept && `${r.kept} still open`,
+        r.followed && `${r.followed} follow-up${r.followed === 1 ? "" : "s"} added`, r.moments && `${r.moments} moment${r.moments === 1 ? "" : "s"} added to a history`].filter(Boolean);
+      const n = again.size;
+      tell((said.length ? said.join(", ") + "." : "Your comments are kept in their notes.") + (n ? ` ${n} line${n === 1 ? "" : "s"} did not go through: send again.` : ""), n ? "bad" : "ok");
+      refresh().catch(() => {});
+    } catch (e) { tell(e.message, "bad"); }
+    finally { sendable(); }
+  };
+  try { const r = await api("/api/personal/open", { brain: pb.slug }); if (r.error) throw new Error(r.error); data = r.people || []; }
+  catch (e) { list.innerHTML = ""; list.append(el("div","hint",e.message)); return; }
+  if (!veil.isConnected) return;
+  paintList();
+}
 
 /* ============ decisions: the self-driving inbox ============ */
 /**
@@ -5051,7 +5178,6 @@ const IC_CHAT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11
 const IC_DROP = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>`;
 const IC_IV = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M10 9.3a2 2 0 1 1 2.7 1.9c-.4.2-.7.5-.7 1v.3M12 14.3v.1"/></svg>`;
 const IC_TEST = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6M10 4v5l-5 9a1.5 1.5 0 0 0 1.3 2h11.4a1.5 1.5 0 0 0 1.3-2l-5-9V4"/><path d="M7.5 14h9"/></svg>`;
-const IC_OPEN = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10"/><path d="M3.5 6l1.3 1.3L7 5M3.5 12l1.3 1.3L7 11M3.5 18l1.3 1.3L7 17"/></svg>`;
 const IC_PROFILE = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg>`;
 /** A share out of 100 as a ring, the way a folder's health is drawn. */
 function pctRing(pct){
@@ -5138,7 +5264,6 @@ function openFolder(b, openId, opts = {}){
   btn("fvChat", "Chat in it", IC_CHAT, () => { S.folder = null; newChat(); $("input").focus(); });
   if (self && !S.demo){
     btn("fvMem", "Add memory", IC_DROP, () => openMemorySheet(b.slug), "Paste, or add a PDF, Word or text file about you. It is read like a drop.");
-    btn("fvOpen", "Still open", IC_OPEN, () => openPane(), "What waits on you in your people's files, by person: tick a line that is done, or comment it to update it");
     if (!ivDone(S.iv[b.slug])) btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
       "It asks you questions, one at a time, to know you better. Stop any time.");
     btn("fvTest", "Twin test", IC_TEST, () => testPane(), "5 messages to reply to, built from your notes: your twin replies first, from your notes alone, then the two replies are compared, and yours go into your notes");
@@ -5773,86 +5898,6 @@ function openFolder(b, openId, opts = {}){
       catch (e) { reset.textContent = e.message; }
     };
     inner.append(reset);
-  };
-
-  /**
-   * What is still open in every person's file, by person, the oldest first.
-   * A tick closes a line at once. A comment says what changed, and one send
-   * updates every line commented: closed, dropped, reworded, with a
-   * follow-up or a moment of their history when the comment tells one.
-   */
-  const openPane = async () => {
-    const inner = pane("openPane", "Still open", "What waits on you");
-    inner.append(el("p","fv-pos","Every promise and follow-up in your people's files, the oldest first. Tick a line that is done. " +
-      "Or write under it what changed: done, a new date, a next step. One send updates every line you commented."));
-    const list = el("div","op-list"), say = el("div","ts-say"); say.setAttribute("role","status");
-    const send = el("button","go","Send updates"); send.type = "button"; send.id = "opSend"; send.disabled = true;
-    const bar = el("div","tw-acts"); bar.append(send, say);
-    inner.append(bar, list);
-    const tell = (text, cls = "") => { say.textContent = text; say.className = "ts-say " + cls; };
-    let data = [];
-    const drafts = new Map();          // "person|line" to the comment typed, kept while the list repaints
-    const sendable = () => { send.disabled = ![...drafts.values()].some(v => v.trim()); };
-    const paintList = () => {
-      list.innerHTML = "";
-      if (!data.length){ list.append(el("p","tw-key","Nothing open. A promise or a follow-up you tell your twin about someone lands here.")); return; }
-      const n = data.reduce((t, p) => t + p.items.length, 0);
-      list.append(el("h4","op-n",`${n} open line${n === 1 ? "" : "s"}, ${data.length} ${data.length === 1 ? "person" : "people"}`));
-      for (const p of data){
-        const sec = el("section","op-p"); sec.dataset.id = p.id;
-        const head = el("button","op-h"); head.type = "button"; head.append(el("b",null,p.title));
-        if (p.line) head.append(el("small",null,p.line));
-        head.onclick = () => show(p.id);
-        sec.append(head);
-        for (const x of p.items){
-          const key = `${p.id}|${x.k}`;
-          const row = el("div","op-row"); row.dataset.k = x.k;
-          const top = el("div","pf-orow");
-          const tick = el("button","pf-tick"); tick.type = "button"; tick.title = "Done"; tick.setAttribute("aria-label", `Mark done: ${x.t}`);
-          tick.onclick = async () => {
-            tick.disabled = true;
-            try {
-              await api("/api/personal/contact", { action: "part", id: p.id, part: "open", key: x.k, done: true });
-              drafts.delete(key); p.items = p.items.filter(y => y.k !== x.k); data = data.filter(q => q.items.length);
-              paintList(); sendable(); reload();
-            } catch (e) { tick.disabled = false; tell(e.message, "bad"); }
-          };
-          top.append(tick, el("span",null,x.t), el("time",null,`since ${fileDay(x.at)}`));
-          const inp = el("input","op-in"); inp.type = "text"; inp.maxLength = 500; inp.value = drafts.get(key) || "";
-          inp.placeholder = "What changed? Done, a new date, a next step"; inp.setAttribute("aria-label", `Comment on: ${x.t}`);
-          inp.oninput = () => { drafts.set(key, inp.value); sendable(); };
-          inp.onkeydown = e => { if (e.key === "Enter" && !send.disabled) send.click(); };
-          row.append(top, inp); sec.append(row);
-        }
-        list.append(sec);
-      }
-    };
-    send.onclick = async () => {
-      const updates = [...drafts].filter(([, v]) => v.trim()).map(([k, v]) => { const [id, key] = k.split("|"); return { id, k: key, comment: v.trim() }; });
-      if (!updates.length) return;
-      send.disabled = true; tell("Reading your comments", "spin");
-      try {
-        const r = await api("/api/personal/open", { action: "send", brain: b.slug, updates });
-        if (r.people){ data = r.people; }
-        if (r.error){ paintList(); throw new Error(r.error); }
-        /* What was read leaves; what was passed over or did not save keeps its comment, to send again. */
-        const again = new Set((r.retry || []).map(x => `${x.id}|${x.k}`));
-        for (const u of updates) if (!again.has(`${u.id}|${u.k}`)) drafts.delete(`${u.id}|${u.k}`);
-        paintList();
-        const said = [r.done && `${r.done} done`, r.dropped && `${r.dropped} dropped`, r.changed && `${r.changed} changed`, r.kept && `${r.kept} still open`,
-          r.followed && `${r.followed} follow-up${r.followed === 1 ? "" : "s"} added`, r.moments && `${r.moments} moment${r.moments === 1 ? "" : "s"} added to a history`].filter(Boolean);
-        const n = again.size;
-        tell((said.length ? said.join(", ") + "." : "Your comments are kept in their notes.") + (n ? ` ${n} line${n === 1 ? "" : "s"} did not go through: send again.` : ""), n ? "bad" : "ok");
-        reload();
-      } catch (e) { tell(e.message, "bad"); }
-      finally { sendable(); }
-    };
-    const w = waitIn(list);
-    try { const r = await api("/api/personal/open", { brain: b.slug }); if (r.error) throw new Error(r.error); data = r.people || []; }
-    catch (e) { w.remove(); list.append(el("div","fv-li bad",e.message)); return; }
-    w.remove();
-    if (!doc.contains(inner)) return;
-    paintList();
   };
 
   /** The twin test: your answers, never filed, the twin's from your notes, and a score for each. */

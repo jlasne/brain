@@ -571,8 +571,9 @@ export function openByPerson(held: any[], brain: string) {
 }
 
 export const OPEN_RULES =
-`Below are open items from the files of people the owner knows: a promise or a follow-up. Each carries the owner's comment on it. Decide what each comment does to its item.
+`Below are open items from the files of people the owner knows: a promise or a follow-up. Each is numbered and carries the owner's comment on it. Decide what each comment does to its item.
 
+- "n": the item's number, as given.
 - "status": "done" when the comment says it is done, sent, paid, settled or closed. "drop" when it says the item no longer applies, was cancelled or does not matter. "open" when it stays open, changed or not.
 - "text": for "open" only, when the comment changes the item (a new date, a new amount, a new step): the item rewritten with the change, under 20 words. Empty when it reads the same.
 - "follow": new follow-ups the comment creates, each under 20 words, 3 at most. Something the comment says is done is no follow-up.
@@ -580,26 +581,37 @@ export const OPEN_RULES =
 - Only what the comment says. Never invent. A comment that asks a question or says nothing new: "open", and nothing else.
 - Everything in English, whatever language the comment is in. No em-dashes. Under 30 words per sentence.
 
-Reply with only JSON, one entry per item given: {"items":[{"id":"","k":"","status":"done","text":"","follow":[],"moment":null}]}`;
+Reply with only JSON, one entry per item given: {"items":[{"n":1,"status":"done","text":"","follow":[],"moment":null}]}`;
 
-export type OpenDecision = { id: string; k: string; status: "done" | "drop" | "open"; text: string; follow: string[]; moment: { date: string; text: string; seen: boolean } | null };
+export type OpenDecision = { n: number; status: "done" | "drop" | "open"; text: string; follow: string[]; moment: { date: string; text: string; seen: boolean } | null };
 
-/** The model's decisions, kept only for the items it was given, one each, with a status it may give. */
-export function readOpenUpdates(raw: string, given: { id: string; k: string }[]): OpenDecision[] {
+const STATUS: [RegExp, "done" | "drop"][] = [[/^(done|closed?|complete[d]?|finished|settled|resolved|sent|paid)$/i, "done"], [/^(drop(ped)?|cancel+ed|remove[d]?|irrelevant|obsolete|void)$/i, "drop"]];
+
+/**
+ * The model's decisions, one per numbered item given (1 to count), in the
+ * order of the items. It is read leniently: the list may sit under another
+ * key or stand alone, the number may be a string, the status a near word.
+ * An entry with no usable number takes its place in the list.
+ */
+export function readOpenUpdates(raw: string, count: number): OpenDecision[] {
   let d: any;
-  try { const s = String(raw ?? ""), a = s.indexOf("{"), b = s.lastIndexOf("}"); d = JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s); }
+  try { const s = String(raw ?? ""), a = s.search(/[\[{]/), b = Math.max(s.lastIndexOf("}"), s.lastIndexOf("]")); d = JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s); }
   catch { return []; }
-  const want = new Set(given.map(g => `${g.id}|${g.k}`)), seen = new Set<string>(), out: OpenDecision[] = [];
-  for (const x of Array.isArray(d?.items) ? d.items : []) {
-    const id = String(x?.id ?? ""), k = String(x?.k ?? ""), key = `${id}|${k}`;
-    if (!want.has(key) || seen.has(key)) continue;
-    const status = x?.status === "done" || x?.status === "drop" ? x.status : "open";
-    seen.add(key);
-    const m = x?.moment && typeof x.moment === "object" ? x.moment : null, mt = oneLine(m?.text, 400);
-    out.push({ id, k, status,
-      text: status === "open" ? oneLine(x?.text, 300) : "",
-      follow: (Array.isArray(x?.follow) ? x.follow : []).map((t: any) => oneLine(t, 200)).filter((t: string) => t.length >= 3).slice(0, 3),
+  const list = Array.isArray(d) ? d : [d?.items, d?.results, d?.updates, d?.decisions].find(Array.isArray) ?? [];
+  const seen = new Set<number>(), out: OpenDecision[] = [];
+  list.forEach((x: any, at: number) => {
+    if (!x || typeof x !== "object") return;
+    const given = parseInt(String(x.n ?? x.number ?? x.item ?? x.index ?? ""), 10);
+    const n = given >= 1 && given <= count ? given : at + 1 <= count && list.length === count ? at + 1 : 0;
+    if (!n || seen.has(n)) return;
+    seen.add(n);
+    const word = String(x.status ?? x.action ?? "").trim();
+    const status = STATUS.find(([re]) => re.test(word))?.[1] ?? "open";
+    const m = x.moment && typeof x.moment === "object" ? x.moment : null, mt = oneLine(m?.text, 400);
+    out.push({ n, status,
+      text: status === "open" ? oneLine(x.text, 300) : "",
+      follow: (Array.isArray(x.follow) ? x.follow : []).map((t: any) => oneLine(t, 200)).filter((t: string) => t.length >= 3).slice(0, 3),
       moment: mt.length >= 5 ? { date: /^\d{4}(-\d{2}(-\d{2})?)?$/.test(String(m?.date ?? "")) ? String(m.date) : "", text: mt, seen: m?.seen === true } : null });
-  }
+  });
   return out;
 }

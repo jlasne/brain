@@ -365,6 +365,8 @@ export default defineSchema({
     aliases: v.optional(v.array(v.string())),
     seen: v.optional(v.string()),
     full: v.optional(v.boolean()),
+    /* A person's lines still open: the app counts them without reading a file. */
+    open: v.optional(v.number()),
     updated: v.string(),
   }).index("by_cid", ["cid"])
     .index("by_brain", ["brain"])

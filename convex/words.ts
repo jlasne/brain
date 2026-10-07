@@ -484,8 +484,8 @@ export function cardOf(c: any) {
     kinds: kindsOf(c),
     ...(c.tag ? { tag: String(c.tag) } : {}),
     ...(Array.isArray(c.aliases) && c.aliases.length ? { aliases: c.aliases.slice(0, 12).map(String) } : {}),
-    /* A person's file: the last day you were with them, and whether it is built. */
-    ...(c.tag === "contact" ? { seen: String(c.file?.seen ?? ""), full: !!c.file } : {}),
+    /* A person's file: the last day you were with them, whether it is built, and how many lines are still open. */
+    ...(c.tag === "contact" ? { seen: String(c.file?.seen ?? ""), full: !!c.file, open: (c.file?.open ?? []).filter((x: any) => x && !x.done).length } : {}),
     updated: String(c.updated ?? ""),
   };
 }

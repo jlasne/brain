@@ -410,7 +410,8 @@ route("/api/state", async (ctx, _req, b) => {
     const kinds = kindsOf(c);
     return { brain: c.brain, slug: c.slug, n: c.n, title: c.title, summaryLine: c.summaryLine, updated: c.updated,
       ev: c.ev ?? 0, src: c.src ?? 0, links: (c.related ?? []).length, ...(kinds.length ? { kinds } : {}),
-      ...(c.tag ? { tag: c.tag } : {}), ...(c.aliases?.length ? { aliases: c.aliases } : {}) };
+      ...(c.tag ? { tag: c.tag } : {}), ...(c.aliases?.length ? { aliases: c.aliases } : {}),
+      ...(c.tag === "contact" && c.open != null ? { open: c.open } : {}) };
   }) };
   const brand = await ctx.runQuery(internal.store.brandOf, { space: who.space });
   /* The model in use, and the default Settings offers to go back to. */
@@ -1302,8 +1303,17 @@ route("/api/personal/open", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   const got = await personalOf(ctx, who.space, String(b.brain ?? ""));
   if (!got) return { error: "that is not a personal brain of this workspace" };
-  const { mine } = got;
-  const list = async (held?: any[]) => openByPerson(held ?? await wholeNotes(ctx, who.space, mine.slug), mine.slug);
+  const { mine, cards } = got;
+  /* Each person's card carries how many lines are open, so the app counts them without reading a file.
+     Cards made before that read it here, once: the ones that differ are written. */
+  const list = async (held?: any[]) => {
+    const people = openByPerson(held ?? await wholeNotes(ctx, who.space, mine.slug), mine.slug);
+    const n = new Map(people.map(p => [p.id.split("/")[1], p.items.length]));
+    const stale = cards.filter((c: any) => c.tag === "contact" && (c.open ?? -1) !== (n.get(c.slug) ?? 0)).map((c: any) => ({ slug: c.slug, n: n.get(c.slug) ?? 0 }));
+    for (let i = 0; i < stale.length; i += 200) await ctx.runMutation(internal.store.setOpenCounts, { brain: mine.slug, counts: stale.slice(i, i + 200) });
+    for (const c of cards) if (c.tag === "contact") c.open = n.get(c.slug) ?? 0;
+    return people;
+  };
   if (b.action !== "send") return { people: await list() };
 
   const date = new Date().toISOString().slice(0, 10);
@@ -1321,20 +1331,30 @@ route("/api/personal/open", async (ctx, _req, b) => {
 
   const groups = new Map<string, any[]>();
   for (const l of lines) (groups.get(l.id) || groups.set(l.id, []).get(l.id)!).push(l);
-  const text = [...groups].map(([id, ls]) => `PERSON: ${ls[0].c.title} (id ${id})${ls[0].c.summaryLine ? `, ${ls[0].c.summaryLine}` : ""}\n` +
-    ls.map((l: any) => `- [${l.k}] ${l.it.t} (open since ${l.it.at ?? "?"}). COMMENT: "${l.comment}"`).join("\n")).join("\n\n");
-  const { text: raw, finish } = await ask([
-    { role: "system", content: "You keep the open items of a person's contacts up to date from what their owner says. You reply with JSON only." },
-    { role: "user", content: `${OPEN_RULES}\n\nTODAY: ${date}\n\n${text}` },
-  ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), timeout: 120000, temperature: 0.2 });
-  const decided = readOpenUpdates(raw, lines.map((l: any) => ({ id: l.id, k: l.k })));
+  /* The items are numbered 1, 2, 3 in the order told, so the model echoes a number and no key. */
+  const order: any[] = [...groups.values()].flat();
+  order.forEach((l, i) => { l.n = i + 1; });
+  const text = [...groups].map(([, ls]) => `PERSON: ${ls[0].c.title}${ls[0].c.summaryLine ? `, ${ls[0].c.summaryLine}` : ""}\n` +
+    ls.map((l: any) => `${l.n}. ITEM: ${l.it.t} (open since ${l.it.at ?? "?"}). COMMENT: "${l.comment}"`).join("\n")).join("\n\n");
+  /* One more try when the first reply cannot be read, with the shape said again. */
+  let decided: ReturnType<typeof readOpenUpdates> = [], finish = "";
+  for (let attempt = 0; attempt < 2 && !decided.length; attempt++) {
+    const r = await ask([
+      { role: "system", content: "You keep the open items of a person's contacts up to date from what their owner says. You reply with JSON only." },
+      { role: "user", content: `${OPEN_RULES}\n\nTODAY: ${date}\n\n${text}${attempt ? `\n\nYour last reply could not be read. Reply with only the JSON, {"items":[...]}, one entry per numbered item, 1 to ${order.length}.` : ""}` },
+    ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), timeout: 90000, temperature: 0.2 });
+    finish = r.finish;
+    decided = readOpenUpdates(r.text, order.length);
+    if (!decided.length) console.log(`open lines: no decision read, try ${attempt + 1}, finish ${r.finish}, ${String(r.text ?? "").length} characters`);
+    if (finish === "length") break;
+  }
   if (!decided.length) return { error: finish === "length" ? "the answer ran out of room. Send fewer lines." : "the comments could not be read this time. Try again." };
 
   const sum = { done: 0, dropped: 0, changed: 0, followed: 0, moments: 0, kept: 0 };
   /* The lines to send again: the ones the model passed over, and the ones that did not save. */
-  const retry: { id: string; k: string }[] = lines.filter((l: any) => !decided.some(d => d.id === l.id && d.k === l.k)).map((l: any) => ({ id: l.id, k: l.k }));
+  const retry: { id: string; k: string }[] = order.filter((l: any) => !decided.some(d => d.n === l.n)).map((l: any) => ({ id: l.id, k: l.k }));
   for (const [id, ls] of groups) {
-    const mine1 = ls.map((l: any) => ({ l, d: decided.find(d => d.id === id && d.k === l.k) })).filter((x: any) => x.d);
+    const mine1 = ls.map((l: any) => ({ l, d: decided.find(d => d.n === l.n) })).filter((x: any) => x.d);
     if (!mine1.length) continue;
     const change: any = { open: [], events: [] };
     try {

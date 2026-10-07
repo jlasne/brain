@@ -1576,6 +1576,19 @@ export const fileContact = internalMutation({
   },
 });
 
+/** The open-line count of some people's cards, for the cards made before the count existed. */
+export const setOpenCounts = internalMutation({
+  args: { brain: v.string(), counts: v.array(v.object({ slug: v.string(), n: v.number() })) },
+  handler: async (ctx, a) => {
+    for (const x of a.counts.slice(0, 200)) {
+      const c = await ctx.db.query("concepts").withIndex("by_brain_slug", q => q.eq("brain", a.brain).eq("slug", x.slug)).unique();
+      if (!c || c.tag !== "contact") continue;
+      const card = await ctx.db.query("cards").withIndex("by_cid", q => q.eq("cid", c._id)).unique();
+      if (card && card.open !== x.n) await ctx.db.patch(card._id, { open: x.n });
+    }
+  },
+});
+
 /** One line of a person's file taken out, or an open item marked done, open again, or reworded. */
 export const contactPart = internalMutation({
   args: { space: v.string(), id: v.string(), part: v.string(), key: v.string(), done: v.optional(v.boolean()), text: v.optional(v.string()) },
