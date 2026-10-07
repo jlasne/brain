@@ -150,6 +150,15 @@ the rows still there: run `npx convex run admin:clearRemoved --prod` until it
 says `runAgain: false`, then delete the definitions of `modes`, `projects`,
 `onepagers`, `pages`, `gaps`, `heat`, `scouts` and `finds`.
 
+Doubled "Still open" lines are made one when the list opens. To do a whole
+workspace at once, from a terminal, with no model call:
+
+```bash
+npx convex run admin:dedupeOpen "{space:'octopus',dry:true}" --prod   # count them, write nothing
+npx convex run admin:dedupeOpen "{space:'octopus'}" --prod
+npx convex run admin:dedupeOpen "{space:'pandaaahh'}" --prod
+```
+
 Link what is already stored. A drop links the concepts it writes, and these
 fill in the rest, in the background, both spaces:
 

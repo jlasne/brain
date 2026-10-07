@@ -892,6 +892,30 @@ function seed() {
     r.ok && JSON.stringify(wealth.findings.english) === '[{"id":"wealth/silver","to":"Silver"}]' && !dogs.findings, JSON.stringify([wealth.findings, dogs.findings]));
 }
 
+/* ---- the command that makes doubled open lines one ---- */
+{
+  const { T, ctx } = seed();
+  const file = open => ({ v: 1, facts: [], events: [], links: [], seen: "", open });
+  T.brains.push({ _id: "bme", slug: "me", name: "Me", type: "personal", scope: "", space: "octopus" });
+  T.concepts.push(
+    { _id: "m1", brain: "me", slug: "marc", n: 1, title: "Marc Dupont", tag: "contact", position: "", summaryLine: "", evidence: [], data: [], conflicts: [], sources: [], related: [], updated: "2026-10-01",
+      file: file([{ k: "a", t: "Send Marc the contract", at: "2026-09-01" }, { k: "b", t: "Book the venue", at: "2026-09-05" }, { k: "c", t: "Send the contract to Marc, by Friday", at: "2026-09-20" }, { k: "d", t: "Send the contract", at: "2026-08-01", done: "2026-08-02" }]) },
+    { _id: "m2", brain: "me", slug: "paul", n: 2, title: "Paul", tag: "contact", position: "", summaryLine: "", evidence: [], data: [], conflicts: [], sources: [], related: [], updated: "2026-10-01",
+      file: file([{ k: "e", t: "Pay Paul's invoice", at: "2026-10-01" }]) },
+    { _id: "m3", brain: "me", slug: "note", n: 3, title: "A note", position: "x", summaryLine: "", evidence: [], data: [], conflicts: [], sources: [], related: [], updated: "2026-10-01" });
+  T.cards = [{ _id: "k1", cid: "m1", brain: "me", slug: "marc" }, { _id: "k2", cid: "m2", brain: "me", slug: "paul" }];
+  const get = slug => T.concepts.find(c => c.brain === "me" && c.slug === slug);
+  const dry = await run(admin.dedupeOpenPage, ctx, { brain: "me", cursor: null, dry: true });
+  check("a dry run counts the doubled lines and writes nothing", dry.merged === 1 && dry.people === 2 && dry.lines === 3 && get("marc").file.open.length === 4, JSON.stringify(dry));
+  const done = await run(admin.dedupeOpenPage, ctx, { brain: "me", cursor: null });
+  const marc = get("marc").file.open;
+  check("the command makes them one: the oldest line stays with the newest wording, a closed line is left, other people and notes are untouched",
+    done.merged === 1 && done.people === 2 && done.lines === 3 && marc.length === 3 && marc[0].k === "a" && marc[0].t === "Send the contract to Marc, by Friday" && marc[0].at === "2026-09-01"
+    && marc.some(x => x.k === "d" && x.done) && get("paul").file.open.length === 1 && !get("note").file, JSON.stringify({ done, marc }));
+  check("each card carries the count of what is open", T.cards.find(c => c.slug === "marc")?.open === 2 && T.cards.find(c => c.slug === "paul")?.open === 1, JSON.stringify(T.cards));
+  check("run again, nothing is left to merge", (await run(admin.dedupeOpenPage, ctx, { brain: "me", cursor: null })).merged === 0);
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(failures ? `\n${failures} failed` : "\nthe store holds");
 process.exit(failures ? 1 : 0);

@@ -14,7 +14,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { today, sha256, randomHex, gateKey, readSpace, slugOfName, SPACE_RE, SPACES, ask, parseJson } from "./lib";
 import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle, kindsOf } from "./words";
-import { syncCard, mergeInto } from "./store";
+import { syncCard, mergeInto, mergeOpenLines } from "./store";
 import { loadSpace } from "./space";
 import { rederive, needsPosition, REDERIVE_MAX } from "./tidy";
 import { embedConcepts, nearest, writeInsights, buildTopics } from "./graph";
@@ -165,6 +165,59 @@ export const clearRemoved = internalMutation({
       if (rows.length === 300) runAgain = true;
     }
     return { deleted, runAgain };
+  },
+});
+
+/**
+ * Make the open lines of every person in a workspace's personal folder one
+ * line each where they say the same thing, the way "Still open" does when it
+ * opens. The oldest line stays, with the newest wording, and each card's
+ * count is written. No model call.
+ *
+ *     npx convex run admin:dedupeOpen "{space:'octopus'}" --prod
+ *     npx convex run admin:dedupeOpen "{space:'pandaaahh'}" --prod
+ *
+ * Pass `dry: true` to count what it would merge and write nothing. The space
+ * may be written as its name, "PandAAAHH", or its slug.
+ */
+export const dedupeOpen = internalAction({
+  args: { space: v.string(), dry: v.optional(v.boolean()) },
+  handler: async (ctx, a): Promise<any> => {
+    const space = readSpace(slugOfName(a.space));
+    const head = await ctx.runQuery(internal.store.spaceHead, { space });
+    const folders = head.brains.filter((b: any) => b.type === "personal" && readSpace(b.space) === space);
+    if (!folders.length) return { space, error: "that workspace has no personal folder" };
+    const out = { space, dry: !!a.dry, folders: folders.map((b: any) => b.slug), people: 0, lines: 0, merged: 0 };
+    for (const b of folders) {
+      let cursor: string | null = null;
+      do {
+        const r: any = await ctx.runMutation(internal.admin.dedupeOpenPage, { brain: b.slug, cursor, ...(a.dry ? { dry: true } : {}) });
+        out.people += r.people; out.lines += r.lines; out.merged += r.merged;
+        cursor = r.next;
+      } while (cursor);
+    }
+    console.log(`${space}: ${out.merged} doubled open lines ${a.dry ? "found" : "made one"}, ${out.lines} left across ${out.people} people`);
+    return out;
+  },
+});
+
+/** One page of a personal folder's people: their doubled open lines made one. */
+export const dedupeOpenPage = internalMutation({
+  args: { brain: v.string(), cursor: v.union(v.string(), v.null()), dry: v.optional(v.boolean()) },
+  handler: async (ctx, a) => {
+    const p = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain)).paginate({ numItems: 30, cursor: a.cursor });
+    let people = 0, lines = 0, merged = 0;
+    for (const c of p.page) {
+      if (c.tag !== "contact") continue;
+      const before = (c.file?.open ?? []).filter((x: any) => x && !x.done).length;
+      const m = before ? await mergeOpenLines(ctx, c, !!a.dry) : 0;
+      /* A card the merge did not write is written, so every card carries its count. */
+      if (!m && !a.dry) await syncCard(ctx, c._id);
+      merged += m;
+      /* Each merge takes one open line away, so this is what is left, in a dry run too. */
+      if (before - m > 0) { people++; lines += before - m; }
+    }
+    return { people, lines, merged, next: p.isDone ? null : p.continueCursor };
   },
 });
 

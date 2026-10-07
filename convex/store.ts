@@ -1576,19 +1576,28 @@ export const fileContact = internalMutation({
   },
 });
 
-/** A person's open lines that say the same thing, made one: the oldest line stays, with the newest wording. */
+/**
+ * A person's open lines that say the same thing, made one in their file: the
+ * oldest line stays, with the newest wording. Returns how many were merged;
+ * with `dry` nothing is written.
+ */
+export async function mergeOpenLines(ctx: any, c0: any, dry = false): Promise<number> {
+  if (!c0?.file?.open?.length) return 0;
+  const c = await splitFile(ctx, c0);
+  if (!c.file?.open?.length) return 0;
+  const r = dedupeOpen(c.file.open, [c.title, ...(c.aliases ?? [])]);
+  if (r.merged && !dry) {
+    await ctx.db.patch(c._id, { file: { ...c.file, open: r.open } });
+    await syncCard(ctx, c._id);
+  }
+  return r.merged;
+}
+
 export const contactOpenMerge = internalMutation({
   args: { space: v.string(), id: v.string() },
   handler: async (ctx, a) => {
     const c0 = await ownContact(ctx, readSpace(a.space), a.id);
-    if (!c0) return { merged: 0 };
-    const c = await splitFile(ctx, c0);
-    if (!c.file?.open?.length) return { merged: 0 };
-    const r = dedupeOpen(c.file.open, [c.title, ...(c.aliases ?? [])]);
-    if (!r.merged) return { merged: 0 };
-    await ctx.db.patch(c._id, { file: { ...c.file, open: r.open } });
-    await syncCard(ctx, c._id);
-    return { merged: r.merged };
+    return { merged: c0 ? await mergeOpenLines(ctx, c0) : 0 };
   },
 });
 
