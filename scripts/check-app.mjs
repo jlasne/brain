@@ -2106,7 +2106,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     pane: !!document.getElementById("twinPane"), chs: document.querySelectorAll("#twinPane .tw-ch").length, now: document.querySelector("#twinPane .tw-ch.now b")?.textContent,
     pos: document.querySelector("#twinPane .fv-pos")?.textContent }));
   check("a personal folder shows how complete its twin is in place of a health score", /Twin 4% complete/.test(fv.twin || "") && /Next: Life story, 12 of 28 done/.test(fv.twin || ""), fv.twin);
-  check("its actions: chat, add memory, interview, twin test and profile; never drop, edit or tidy", fv.acts.join() === "fvChat,fvMem,fvIv,fvTest,fvProfile,fvClose", fv.acts.join());
+  check("its actions: chat, add memory, still open, interview, twin test and profile; never drop, edit or tidy", fv.acts.join() === "fvChat,fvMem,fvOpen,fvIv,fvTest,fvProfile,fvClose", fv.acts.join());
   check("it opens on the twin: the share covered and its 17 chapters, the current one marked", fv.pane && fv.chs === 17 && fv.now === "Life story" && /14 of 335 questions/.test(fv.pos || ""), JSON.stringify(fv));
 
   await page.click("#fvTest"); await page.waitForTimeout(250);
@@ -2317,6 +2317,68 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     && /^3 people filed or brought up to date\. 0 look filed twice\./.test(scans.say || "") && /Each person has one card/.test(scans.clean || "")
     && scans.stamp?.brain === "me" && scans.stamp.action === "done", JSON.stringify(scans));
   check("nothing threw around contacts", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- still open: every person's open lines, a comment on each, one send ---- */
+{
+  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "", owner: null }],
+    concepts: [{ brain: "me", slug: "marc", n: 1, title: "Marc Dupont", summaryLine: "Your co-founder", tag: "contact", ev: 4, updated: "2026-10-04" },
+      { brain: "me", slug: "paul", n: 2, title: "Paul", summaryLine: "Someone you will introduce to Marc", tag: "contact", ev: 1, updated: "2026-10-02" }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    let people = [
+      { id: "me/marc", title: "Marc Dupont", line: "Your co-founder", items: [{ k: "k1", t: "Send Marc the contract", at: "2026-09-01" }, { k: "k2", t: "Introduce Marc to Paul", at: "2026-09-20" }] },
+      { id: "me/paul", title: "Paul", line: "Someone you will introduce to Marc", items: [{ k: "k3", t: "Pay Paul's invoice", at: "2026-10-01" }] }];
+    let fail = true;
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/personal/open")) {
+        if (body.action !== "send") return Response.json({ people });
+        /* The first send closes the contract and passes over the other line; the second takes it. */
+        const done = body.updates.filter(x => x.k === "k1"), over = body.updates.filter(x => x.k !== "k1");
+        if (fail && over.length) { fail = false;
+          people = [{ ...people[0], items: people[0].items.filter(x => x.k !== "k1") }, people[1]];
+          return Response.json({ done: 1, dropped: 0, changed: 0, followed: 1, moments: 1, kept: 0, retry: over.map(x => ({ id: x.id, k: x.k })), people }); }
+        people = people.map(p => ({ ...p, items: p.items.filter(x => !body.updates.some(y => y.k === x.k)) })).filter(p => p.items.length);
+        return Response.json({ done: 0, dropped: 0, changed: 0, followed: 0, moments: 0, kept: body.updates.length, retry: [], people });
+      }
+      if (s.includes("/api/personal/contact")) { people = people.map(p => ({ ...p, items: p.items.filter(x => x.k !== body.key) })).filter(p => p.items.length); return Response.json({ ok: true }); }
+      return Response.json({ chats: [] });
+    };
+  }, mine);
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent))?.querySelector(".ed.op")?.click());
+  await page.waitForTimeout(350);
+  check("a personal folder offers Still open, beside Add memory", await page.evaluate(() => !!document.getElementById("fvOpen") && document.getElementById("fvOpen").textContent.trim() === "Still open"));
+  await page.click("#fvOpen"); await page.waitForTimeout(300);
+  const first = await page.evaluate(() => ({ n: document.querySelector("#openPane .op-n")?.textContent,
+    people: [...document.querySelectorAll("#openPane .op-p")].map(p => p.querySelector(".op-h b").textContent + ":" + [...p.querySelectorAll(".op-row .pf-orow span")].map(x => x.textContent).join("|")),
+    inputs: document.querySelectorAll("#openPane .op-in").length, since: document.querySelector("#openPane .op-row time")?.textContent, send: document.getElementById("opSend").disabled }));
+  check("it lists every open line by person, the person with the oldest line first, each with a box for a comment",
+    first.n === "3 open lines, 2 people" && JSON.stringify(first.people) === '["Marc Dupont:Send Marc the contract|Introduce Marc to Paul","Paul:Pay Paul\'s invoice"]'
+    && first.inputs === 3 && /^since /.test(first.since) && first.send, JSON.stringify(first));
+  await page.fill('#openPane .op-row[data-k="k1"] .op-in', "Signed on Tuesday, he invoices in November");
+  await page.fill('#openPane .op-row[data-k="k2"] .op-in', "Done, they met on Friday");
+  check("a comment makes Send updates available", await page.evaluate(() => !document.getElementById("opSend").disabled));
+  await page.click("#opSend"); await page.waitForTimeout(400);
+  const one = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/personal/open") && x.body.action === "send").pop()?.body,
+    say: document.querySelector("#openPane .ts-say")?.textContent, keep: document.querySelector('#openPane .op-row[data-k="k2"] .op-in')?.value,
+    left: [...document.querySelectorAll("#openPane .op-row")].map(r => r.dataset.k).join(",") }));
+  check("one send carries every comment with its person and line, and nothing else", one.sent?.brain === "me" && JSON.stringify(one.sent.updates) ===
+    JSON.stringify([{ id: "me/marc", k: "k1", comment: "Signed on Tuesday, he invoices in November" }, { id: "me/marc", k: "k2", comment: "Done, they met on Friday" }]), JSON.stringify(one.sent));
+  check("it says what changed, the line closed leaves, and the one passed over keeps its comment to send again",
+    /1 done, 1 follow-up added, 1 moment added to a history\. 1 line did not go through: send again\./.test(one.say || "") && one.left === "k2,k3" && one.keep === "Done, they met on Friday", JSON.stringify(one));
+  await page.click("#opSend"); await page.waitForTimeout(400);
+  const two = await page.evaluate(() => ({ n: document.querySelector("#openPane .op-n")?.textContent, say: document.querySelector("#openPane .ts-say")?.textContent,
+    sent: window.__calls.filter(x => x.s.includes("/api/personal/open") && x.body.action === "send").pop()?.body.updates.length }));
+  check("sent again, it goes through, and what is left is listed", two.sent === 1 && two.n === "1 open line, 1 person" && /^1 still open\.$/.test(two.say || ""), JSON.stringify(two));
+  await page.click("#openPane .op-row .pf-tick"); await page.waitForTimeout(300);
+  const tick = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s.includes("/api/personal/contact")).pop()?.body, empty: document.querySelector("#openPane .op-list")?.textContent }));
+  check("a tick closes a line at once, with no model, and an empty list says so", tick.call?.action === "part" && tick.call?.part === "open" && tick.call?.key === "k3" && tick.call?.done === true
+    && /Nothing open/.test(tick.empty || ""), JSON.stringify(tick));
+  check("nothing threw around the open lines", !bad.length, bad.join(" | "));
   await page.close();
 }
 

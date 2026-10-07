@@ -610,6 +610,43 @@ const TODAY = "2026-09-30";
   check("a promise can be opened again", !("done" in mx().file.open[0]));
   const linking = await store.contactsLinking.handler({ db: ctx.db }, { space: "acme", id: "me/clara" });
   check("a file knows who links to it", linking.length === 1 && linking[0].title === "Maxime" && linking[0].rel === "his girlfriend", JSON.stringify(linking));
+
+  /* A line reworded by its key, kept where it was. */
+  const k0 = mx().file.open[0].k, at0 = mx().file.open[0].at;
+  await run("contactPart", { space: "acme", id: "me/maxime", part: "open", key: k0, text: "Send Maxime the deck \u2014 by Friday" });
+  const re = mx().file.open[0];
+  check("a promise can be reworded: the same key, the day it was opened, new words, no em-dash", re.k === k0 && re.at === at0 && re.t === "Send Maxime the deck, by Friday" && !re.done, JSON.stringify(re));
+  let tooShort = ""; try { await run("contactPart", { space: "acme", id: "me/maxime", part: "open", key: k0, text: "no" }); } catch (e) { tooShort = e.message; }
+  check("a reworded line needs a few words", /few words/.test(tooShort) && mx().file.open[0].t === re.t);
+  const mine = personal.openByPerson([await mxw()], "me");
+  check("the open lines come by person, with their keys", mine.length === 1 && mine[0].id === "me/maxime" && mine[0].items.some(i => i.k === k0 && i.t === re.t), JSON.stringify(mine));
+}
+
+/* ---- what is still open, for every person ---- */
+{
+  const held = [
+    { slug: "b", title: "Bea", tag: "contact", summaryLine: "A friend", file: { open: [{ k: "2", t: "Call her", at: "2026-09-10" }, { k: "1", t: "Send photos", at: "2026-08-01" }, { k: "3", t: "Old", at: "2026-01-01", done: "2026-02-01" }] } },
+    { slug: "a", title: "Ali", tag: "contact", file: { open: [{ k: "4", t: "Pay Ali", at: "2026-05-01" }] } },
+    { slug: "n", title: "A note", file: { open: [{ k: "5", t: "x", at: "2026-01-01" }] } },
+    { slug: "z", title: "Zed", tag: "contact", file: { open: [] } }, { slug: "y", title: "Yan", tag: "contact" }];
+  const people = personal.openByPerson(held, "me");
+  check("each person with a line open is listed, the oldest first, their lines oldest first; done lines, notes and empty files are not",
+    JSON.stringify(people.map(p => [p.id, p.items.map(i => i.k)])) === '[["me/a",["4"]],["me/b",["1","2"]]]' && people[1].line === "A friend", JSON.stringify(people));
+  check("it asks what a comment does to a line: done, dropped or still open, reworded, with follow-ups and a moment, in English, never invented",
+    /"status": "done"/.test(personal.OPEN_RULES) && /"drop"/.test(personal.OPEN_RULES) && /"follow"/.test(personal.OPEN_RULES) && /"moment"/.test(personal.OPEN_RULES)
+    && /Never invent/.test(personal.OPEN_RULES) && /Everything in English/.test(personal.OPEN_RULES) && /Reply with only JSON/.test(personal.OPEN_RULES));
+  const given = [{ id: "me/a", k: "4" }, { id: "me/b", k: "1" }, { id: "me/b", k: "2" }];
+  const dec = personal.readOpenUpdates(JSON.stringify({ items: [
+    { id: "me/a", k: "4", status: "done", text: "ignored", follow: ["Send the receipt \u2014 today", "ab", "Thank Ali", "x1y", "x2y", "x3y"], moment: { date: "2026-10-06", text: "Ali paid back 300 euros.", seen: false } },
+    { id: "me/b", k: "1", status: "drop" },
+    { id: "me/b", k: "2", status: "maybe", text: "Call her on 12 November", follow: [], moment: { date: "soon", text: "She moved to Porto.", seen: true } },
+    { id: "me/b", k: "9", status: "done" }, { id: "me/b", k: "2", status: "done" }] }), given);
+  check("the decisions kept are for the lines given, once each; a status it may not give is still open; a follow-up is 3 at most and cleaned",
+    dec.length === 3 && dec[0].status === "done" && dec[0].text === "" && JSON.stringify(dec[0].follow) === '["Send the receipt, today","Thank Ali","x1y"]'
+    && dec[1].status === "drop" && dec[2].status === "open" && dec[2].text === "Call her on 12 November", JSON.stringify(dec));
+  check("a moment keeps its date when it is one, and leaves the day to the server when it is not",
+    dec[0].moment.date === "2026-10-06" && dec[0].moment.seen === false && dec[2].moment.date === "" && dec[2].moment.seen === true && dec[1].moment === null, JSON.stringify(dec));
+  check("a reply that is no JSON decides nothing", personal.readOpenUpdates("sorry", given).length === 0);
 }
 
 /* ---- languages: written in any, kept in English, answered as set ---- */

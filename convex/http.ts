@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal } from "./space";
-import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply } from "./personal";
+import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
 import { rederive, tidyScan } from "./tidy";
@@ -1288,6 +1288,73 @@ route("/api/personal/remember", async (ctx, _req, b) => {
     model: async m => (await ask(m, { json: true, maxTokens: kind === "chat" ? 4000 : 6000, key: mKey, model: mName, timeout: t })).text }),
     { budget: 160000, first: 120000 });
   return { filed };
+});
+
+/**
+ * What is still open in a personal brain, for every person at once.
+ * "list" (the default): the people with an open line, the oldest first, each
+ * line with its key. "send": the owner's comments on some lines, read in one
+ * model call. A line is closed, dropped or reworded, and a follow-up or a
+ * moment of the person's history may follow. Each comment is kept word for
+ * word in that person's raw notes, dated.
+ */
+route("/api/personal/open", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const got = await personalOf(ctx, who.space, String(b.brain ?? ""));
+  if (!got) return { error: "that is not a personal brain of this workspace" };
+  const { mine } = got;
+  const list = async (held?: any[]) => openByPerson(held ?? await wholeNotes(ctx, who.space, mine.slug), mine.slug);
+  if (b.action !== "send") return { people: await list() };
+
+  const date = new Date().toISOString().slice(0, 10);
+  const asked = (Array.isArray(b.updates) ? b.updates : []).slice(0, 25)
+    .map((u: any) => ({ id: String(u?.id ?? ""), k: String(u?.k ?? ""), comment: oneLine(u?.comment, 500) }))
+    .filter((u: any) => u.comment && u.k && u.id.split("/")[0] === mine.slug);
+  if (!asked.length) return { error: "write a comment on at least one line first" };
+  const held = await wholeNotes(ctx, who.space, mine.slug);
+  const byId = new Map<string, any>(held.filter((c: any) => c.tag === "contact").map((c: any) => [`${mine.slug}/${c.slug}`, c]));
+  const lines = asked.map((u: any) => {
+    const c = byId.get(u.id), it = (c?.file?.open ?? []).find((x: any) => x.k === u.k && !x.done);
+    return it ? { ...u, c, it } : null;
+  }).filter(Boolean) as any[];
+  if (!lines.length) return { error: "those lines are already gone", people: await list(held) };
+
+  const groups = new Map<string, any[]>();
+  for (const l of lines) (groups.get(l.id) || groups.set(l.id, []).get(l.id)!).push(l);
+  const text = [...groups].map(([id, ls]) => `PERSON: ${ls[0].c.title} (id ${id})${ls[0].c.summaryLine ? `, ${ls[0].c.summaryLine}` : ""}\n` +
+    ls.map((l: any) => `- [${l.k}] ${l.it.t} (open since ${l.it.at ?? "?"}). COMMENT: "${l.comment}"`).join("\n")).join("\n\n");
+  const { text: raw, finish } = await ask([
+    { role: "system", content: "You keep the open items of a person's contacts up to date from what their owner says. You reply with JSON only." },
+    { role: "user", content: `${OPEN_RULES}\n\nTODAY: ${date}\n\n${text}` },
+  ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), timeout: 120000, temperature: 0.2 });
+  const decided = readOpenUpdates(raw, lines.map((l: any) => ({ id: l.id, k: l.k })));
+  if (!decided.length) return { error: finish === "length" ? "the answer ran out of room. Send fewer lines." : "the comments could not be read this time. Try again." };
+
+  const sum = { done: 0, dropped: 0, changed: 0, followed: 0, moments: 0, kept: 0 };
+  /* The lines to send again: the ones the model passed over, and the ones that did not save. */
+  const retry: { id: string; k: string }[] = lines.filter((l: any) => !decided.some(d => d.id === l.id && d.k === l.k)).map((l: any) => ({ id: l.id, k: l.k }));
+  for (const [id, ls] of groups) {
+    const mine1 = ls.map((l: any) => ({ l, d: decided.find(d => d.id === id && d.k === l.k) })).filter((x: any) => x.d);
+    if (!mine1.length) continue;
+    const change: any = { open: [], events: [] };
+    try {
+      /* A line closes, goes or is reworded by its key, so the words need no matching. */
+      for (const { l, d } of mine1) {
+        const at = { space: who.space, id, part: "open", key: l.k };
+        if (d.status === "done") { await ctx.runMutation(internal.store.contactPart, { ...at, done: true }); sum.done++; }
+        else if (d.status === "drop") { await ctx.runMutation(internal.store.contactPart, at); sum.dropped++; }
+        else if (d.text && d.text.toLowerCase() !== String(l.it.t).toLowerCase()) { await ctx.runMutation(internal.store.contactPart, { ...at, text: d.text }); sum.changed++; }
+        else sum.kept++;
+        for (const f of d.follow) if (change.open.length < 10) { change.open.push({ text: f }); sum.followed++; }
+        if (d.moment && change.events.length < 20) { change.events.push(d.moment); sum.moments++; }
+      }
+      /* What follows, and the owner's own words, dated, in the person's notes. */
+      const said = mine1.map(({ l }: any) => `Re "${l.it.t}": ${l.comment}`);
+      change.claim = oneLine(said.join(" "), 600);
+      await applyChange(ctx, { space: who.space, brain: mine.slug, c: ls[0].c, q: said.join("\n"), change, date });
+    } catch { retry.push(...mine1.map(({ l }: any) => ({ id, k: l.k }))); }
+  }
+  return { ...sum, retry, people: await list() };
 });
 
 /**

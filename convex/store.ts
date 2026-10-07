@@ -1576,9 +1576,9 @@ export const fileContact = internalMutation({
   },
 });
 
-/** One line of a person's file taken out, or an open item marked done or open again. */
+/** One line of a person's file taken out, or an open item marked done, open again, or reworded. */
 export const contactPart = internalMutation({
-  args: { space: v.string(), id: v.string(), part: v.string(), key: v.string(), done: v.optional(v.boolean()) },
+  args: { space: v.string(), id: v.string(), part: v.string(), key: v.string(), done: v.optional(v.boolean()), text: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const c0 = await ownContact(ctx, readSpace(a.space), a.id);
     if (!c0) throw new Error("that person is not in your personal folder");
@@ -1598,7 +1598,13 @@ export const contactPart = internalMutation({
       file = { ...file, [list]: [...(c.file[list] ?? [])] };
       const at = file[list].findIndex((x: any) => x.k === a.key);
       if (at < 0) throw new Error("that line is already gone");
-      if (a.part === "open" && a.done != null) {
+      if (a.part === "open" && a.text != null) {
+        /* The line says something new, and keeps its key and the day it was opened. */
+        const t = a.text.replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, 300);
+        if (t.length < 3) throw new Error("that line needs a few words");
+        file.open[at] = { ...file.open[at], t };
+      }
+      else if (a.part === "open" && a.done != null) {
         const { done: _was, ...rest } = file.open[at];
         file.open[at] = a.done ? { ...rest, done: today() } : rest;
       }

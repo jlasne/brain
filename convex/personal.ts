@@ -449,7 +449,7 @@ export function calledBrains(answer: string, brains: any[]): string[] {
 
 /* ---------- a chat about one concept ---------- */
 
-const oneLine = (t: any, n: number) => String(t ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, n);
+export const oneLine = (t: any, n: number) => String(t ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, n);
 const listOf = (v: any, n: number) => (Array.isArray(v) ? v : []).filter((y: any) => y && typeof y === "object").slice(0, n);
 
 /**
@@ -553,4 +553,53 @@ export async function applyChange(ctx: any, o: { space: string; brain: string; c
   await ctx.runMutation(internal.store.upsertConcept, { brain, title: c.title, slug: c.slug,
     doc: { ...(position ? { position } : {}), ...(line ? { summaryLine: line } : {}), sources: [sid], evidence } });
   return { title: c.title, summary: !!position, added: 0, removed: 0 };
+}
+
+/* ---------- what is still open, for every person ---------- */
+
+/** The people of a personal brain with something still open: the oldest open line first, and each person's lines oldest first. */
+export function openByPerson(held: any[], brain: string) {
+  const out: { id: string; title: string; line: string; items: { k: string; t: string; at: string }[] }[] = [];
+  for (const c of held) {
+    if (!isContact(c)) continue;
+    const items = (c.file?.open ?? []).filter((x: any) => x && !x.done && x.k && x.t)
+      .map((x: any) => ({ k: String(x.k), t: String(x.t), at: String(x.at ?? "") }))
+      .sort((a: any, b: any) => a.at.localeCompare(b.at));
+    if (items.length) out.push({ id: `${brain}/${c.slug}`, title: String(c.title), line: String(c.summaryLine ?? ""), items });
+  }
+  return out.sort((a, b) => a.items[0].at.localeCompare(b.items[0].at) || a.title.localeCompare(b.title)).slice(0, 200);
+}
+
+export const OPEN_RULES =
+`Below are open items from the files of people the owner knows: a promise or a follow-up. Each carries the owner's comment on it. Decide what each comment does to its item.
+
+- "status": "done" when the comment says it is done, sent, paid, settled or closed. "drop" when it says the item no longer applies, was cancelled or does not matter. "open" when it stays open, changed or not.
+- "text": for "open" only, when the comment changes the item (a new date, a new amount, a new step): the item rewritten with the change, under 20 words. Empty when it reads the same.
+- "follow": new follow-ups the comment creates, each under 20 words, 3 at most. Something the comment says is done is no follow-up.
+- "moment": when the comment tells something that happened, one sentence for the person's history, {"date":"YYYY-MM-DD, YYYY-MM or YYYY, from TODAY","text":"","seen":false}. "seen" is true when the owner was with the person that day. null otherwise.
+- Only what the comment says. Never invent. A comment that asks a question or says nothing new: "open", and nothing else.
+- Everything in English, whatever language the comment is in. No em-dashes. Under 30 words per sentence.
+
+Reply with only JSON, one entry per item given: {"items":[{"id":"","k":"","status":"done","text":"","follow":[],"moment":null}]}`;
+
+export type OpenDecision = { id: string; k: string; status: "done" | "drop" | "open"; text: string; follow: string[]; moment: { date: string; text: string; seen: boolean } | null };
+
+/** The model's decisions, kept only for the items it was given, one each, with a status it may give. */
+export function readOpenUpdates(raw: string, given: { id: string; k: string }[]): OpenDecision[] {
+  let d: any;
+  try { const s = String(raw ?? ""), a = s.indexOf("{"), b = s.lastIndexOf("}"); d = JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s); }
+  catch { return []; }
+  const want = new Set(given.map(g => `${g.id}|${g.k}`)), seen = new Set<string>(), out: OpenDecision[] = [];
+  for (const x of Array.isArray(d?.items) ? d.items : []) {
+    const id = String(x?.id ?? ""), k = String(x?.k ?? ""), key = `${id}|${k}`;
+    if (!want.has(key) || seen.has(key)) continue;
+    const status = x?.status === "done" || x?.status === "drop" ? x.status : "open";
+    seen.add(key);
+    const m = x?.moment && typeof x.moment === "object" ? x.moment : null, mt = oneLine(m?.text, 400);
+    out.push({ id, k, status,
+      text: status === "open" ? oneLine(x?.text, 300) : "",
+      follow: (Array.isArray(x?.follow) ? x.follow : []).map((t: any) => oneLine(t, 200)).filter((t: string) => t.length >= 3).slice(0, 3),
+      moment: mt.length >= 5 ? { date: /^\d{4}(-\d{2}(-\d{2})?)?$/.test(String(m?.date ?? "")) ? String(m.date) : "", text: mt, seen: m?.seen === true } : null });
+  }
+  return out;
 }
