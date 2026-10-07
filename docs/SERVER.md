@@ -144,11 +144,11 @@ At 100% the profile is neither offered nor read by the chat: the notes and
 the contacts hold what it would say. Nothing but that
 brain's own folder and chat reads any of it.
 
-Projects, saved one-pagers, the Limited or Full side panel, the map and the scouts are gone from
+Projects, saved one-pagers, the Limited or Full side panel, the map, the scouts and the lab are gone from
 the code. Their tables stay in `schema.ts` until emptied, so a deploy accepts
 the rows still there: run `npx convex run admin:clearRemoved --prod` until it
 says `runAgain: false`, then delete the definitions of `modes`, `projects`,
-`onepagers`, `pages`, `gaps`, `heat`, `scouts` and `finds`.
+`onepagers`, `pages`, `gaps`, `heat`, `scouts`, `finds`, `labs` and `labTurns`.
 
 Doubled "Still open" lines are made one when the list opens. To do a whole
 workspace at once, from a terminal, with no model call:
@@ -311,7 +311,6 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/personal/page` | One page of a person: the moments of a `year`, or the raw notes of a `month` | Owner |
 | `/api/personal/people` | The people in a personal brain's older notes, filed as contacts, 20 notes a call; the app calls again with `at` until `next` is null | Owner |
 | `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `test` (the open round of 5 messages to reply to, built from the notes, or `fresh: true` for another), `check` (your replies, and the twin replies the same from the notes alone, with its reasons), `score` (a model compares the two, 0 to 2 a question, and the round goes into the history), `learn` (your answers filed as notes) and `profile` (the notes as 7 parts, offered until the interview reaches 100%). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
-| `/api/lab` | The lab, open to the Octopus and PandAAAHH workspaces and to their owners alone: a call between the twin of one personal folder and the other's, run from the app's right-hand column. By `action`: `state` (every call, the newest first, and the two folders as counts, with the newest note titles of the caller's own folder alone), `get` (one call and its turns after turn `after`, so a poll carries only what is new), `new` (a goal and the twin that opens it, not started), `go` (on for the next 10 turns, or a stalled call woken), `step` (on for one turn), `pause`, `stop` (final), `say` (a line from the admin, read by the next twin to speak) and `delete`. Each turn is one model call on the deployment's key, made by the server: a twin reads only its own personal folder, its notes, its people and its profile, and the other twin's words. What it leaned on goes to the admin and never to the other twin. A pause or a stop is final the moment it is pressed, and a turn still being written is dropped. A call holds 60 turns at most, the lab 300 a day, and a twin that repeats itself pauses the call. Anything else is refused | Owner, of those two |
 | `/api/feedback` | Send feedback: mails one error, where it happened, the workspace and the message to `FEEDBACK_TO`, else `DIGEST_TO`. Another workspace's personal message keeps its words out. 5 an hour per sender, 20 per workspace | Yes |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
 | `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
@@ -370,8 +369,6 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `rawNotes` | everything said about a person of a personal folder, word for word and dated: one row a message, with the question it answered for an interview. Only that person's file reads it | brain, slug, then time |
 | `moments` | a person's history in a personal brain, one moment a row: date, what happened, whether you were together. The person's file keeps the count and the last day together, and a read carries the newest 300; older years come a page at a time | brain, slug, then date |
 | `interviews` | a personal brain's interview: each question answered, known from the notes or skipped, the one waiting, the twin test's answers and scores, and the profile | space, then brain |
-| `labs` | a lab call: its goal, the two workspaces, the one that opens, its state (idle, running, paused, ended), the turns so far and how many it may reach before it waits, and why it waits | creation order |
-| `labTurns` | a call's turns, one row each: who spoke (a workspace or the admin), the words, and what the twin leaned on, which only the admin reads | call, turn number |
 | `insights` | what follows from two linked concepts: the pair, the kind of link, a title and a line | the pair, each side, space |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.

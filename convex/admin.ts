@@ -147,7 +147,7 @@ export const forgetOldKeys = internalMutation({
 
 /**
  * What the app no longer keeps: Projects and their pages, saved one-pagers,
- * the side panel's mode, the old blind-spot log, the scouts' feeds and finds, and the map's question counts. Their code is gone;
+ * the side panel's mode, the old blind-spot log, the scouts' feeds and finds, the map's question counts, and the lab's calls and turns. Their code is gone;
  * this empties their tables, 300 rows each a call. Run it until it says
  * "runAgain": false, then the tables can leave schema.ts.
  *
@@ -158,7 +158,7 @@ export const clearRemoved = internalMutation({
   handler: async (ctx) => {
     const deleted: Record<string, number> = {};
     let runAgain = false;
-    for (const t of ["pages", "projects", "onepagers", "modes", "gaps", "heat", "scouts", "finds"]) {
+    for (const t of ["pages", "projects", "onepagers", "modes", "gaps", "heat", "scouts", "finds", "labTurns", "labs"]) {
       const rows = await (ctx.db as any).query(t).take(300);
       for (const r of rows) await ctx.db.delete(r._id);
       deleted[t] = rows.length;
