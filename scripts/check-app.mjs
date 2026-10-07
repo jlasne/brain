@@ -2370,6 +2370,17 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.fill('.op-row[data-k="k1"] .op-in', "Signed on Tuesday, he invoices in November");
   await page.fill('.op-row[data-k="k2"] .op-in', "Done, they met on Friday");
   check("a comment makes Send updates available", await page.evaluate(() => !document.getElementById("opSend").disabled));
+  const vp = page.viewportSize();
+  for (const [w, h] of [[390, 844], [360, 640]]) {
+    await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(150);
+    const ph = await page.evaluate(() => { const f = document.querySelector(".op-sheet > footer").getBoundingClientRect(), s = document.getElementById("stillBtn").getBoundingClientRect(),
+      i = document.getElementById("inboxBtn").getBoundingClientRect(), t = document.querySelector(".op-row .pf-tick").getBoundingClientRect(), n = document.querySelector(".op-row .op-in");
+      return { wide: document.documentElement.scrollWidth > innerWidth, pinned: Math.abs(f.bottom - innerHeight) < 2, apart: s.right <= i.left, size: Math.min(s.width, s.height, i.width, i.height),
+        font: parseFloat(getComputedStyle(n).fontSize), inH: n.getBoundingClientRect().height, send: document.getElementById("opSend").getBoundingClientRect().height, tick: t.width }; });
+    check(`on a ${w}px phone the Send updates bar stays at the bottom, the icons are 40px and apart, the comment box is 46px at 16px, and nothing scrolls sideways`,
+      !ph.wide && ph.pinned && ph.apart && ph.size >= 40 && ph.font >= 16 && ph.inH >= 46 && ph.send >= 48, JSON.stringify(ph));
+  }
+  await page.setViewportSize(vp); await page.waitForTimeout(150);
   await page.click("#opSend"); await page.waitForTimeout(400);
   const one = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/personal/open") && x.body.action === "send").pop()?.body,
     say: document.getElementById("opSay")?.textContent, keep: document.querySelector('.op-row[data-k="k2"] .op-in')?.value,

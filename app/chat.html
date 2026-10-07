@@ -203,7 +203,7 @@
   .cr-dot.run{ background:none; width:10px; height:10px; border:2px solid var(--line-2); border-top-color:var(--accent-solid); animation:turn 1s linear infinite; }
   /* The bubble keeps the folder and Drop headers clear of it. */
   @media (min-width:861px){ main .fv-h, main .drop-head .col{ padding-right:64px; } body.has-still main .fv-h, body.has-still main .drop-head .col{ padding-right:106px; } }
-  @media (max-width:860px){ .inbox-btn{ top:6px; right:12px; width:34px; height:34px; } .still-btn{ right:54px; } .inbox{ top:50px; right:12px; } }
+  @media (max-width:860px){ .inbox-btn{ top:4px; right:10px; width:40px; height:40px; } .still-btn{ right:56px; } .inbox{ top:50px; right:12px; } }
 
   .dropsrc{
     display:flex; align-items:center; gap:10px;
@@ -645,6 +645,28 @@
   .op-row .op-in{ display:block; width:calc(100% - 28px); height:36px; margin:3px 0 0 28px; padding:0 11px; border:1px solid var(--line-2); border-radius:9px;
     background:var(--bg); font:400 13.5px/1 var(--sans); color:var(--ink); }
   .op-row .op-in:focus{ outline:none; border-color:var(--ink-4); }
+  /* The send stays in reach however long the list: a footer that sticks to the bottom of the sheet. */
+  .op-sheet > footer{ position:sticky; bottom:0; z-index:2; align-items:center; background:var(--surface); border-top:1px solid var(--line); }
+  .op-sheet > footer .dc-state{ flex:1; min-width:0; margin-right:auto; font-size:12.5px; line-height:1.35; }
+  .op-sheet > footer .dc-state.bad{ color:var(--bad); }
+  .op-sheet > footer .dc-state.ok{ color:var(--good); }
+  @media (max-width:560px){
+    .op-sheet > header p{ font-size:13px; }
+    .op-sheet > footer{ flex-wrap:wrap; padding:12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); }
+    .op-sheet > footer .dc-state{ flex:1 0 100%; margin:0 0 4px; }
+    .op-sheet > footer .dc-state:empty{ display:none; }
+    .sheet.op-sheet > footer button{ flex:1; min-height:48px; }
+    .op-sheet > footer .go{ order:2; flex:2; }
+    .op-p{ padding:10px 12px 4px; }
+    .op-row .op-in{ height:46px; font-size:16px; margin-left:0; width:100%; margin-top:6px; }
+    .op-row .pf-orow{ flex-wrap:wrap; align-items:flex-start; gap:6px 12px; }
+    .op-row .pf-orow span{ flex:1 1 calc(100% - 40px); }
+    .op-row .pf-orow time{ flex:1 0 100%; padding-left:30px; }
+    .op-row .pf-tick{ margin-top:2px; }
+  }
+  /* A tick is a small box; the touch around it is wide enough for a thumb. */
+  .op-row .pf-tick{ position:relative; }
+  .op-row .pf-tick::after{ content:""; position:absolute; inset:-13px; }
   .ts-q.msg > span{ padding:10px 12px; border-left:3px solid var(--accent-line); border-radius:0 10px 10px 0; background:var(--side); font-weight:400; color:var(--ink); }
   .ts-pair .ts-why{ font:400 12.5px/1.45 var(--sans); color:var(--ink-3); }
   .tt-now{ margin-top:18px; }
@@ -3531,12 +3553,10 @@ async function openStill(){
   closeInbox();
   const veil = el("div","veil");
   veil.innerHTML = `
-    <div class="sheet dc-sheet" role="dialog" aria-modal="true" aria-label="Still open">
-      <header><h3>Still open</h3><p>Every promise and follow-up in your people's files, the oldest first. Tick a line that is done.
-        Or write under it what changed: done, a new date, a next step. One send updates every line you commented.</p>
-        <div class="dc-top"><button class="go" id="opSend" type="button" disabled>Send updates</button><span class="dc-state" id="opSay" role="status"></span></div></header>
+    <div class="sheet dc-sheet op-sheet" role="dialog" aria-modal="true" aria-label="Still open">
+      <header><h3>Still open</h3><p>The promises and follow-ups in your people's files, the oldest first. Tick a line that is done, or write under it what changed. One send updates every line you commented.</p></header>
       <div class="f" id="opList"><div class="hint">Loading</div></div>
-      <footer><button class="ghost" id="opDone" type="button">Done</button></footer>
+      <footer><span class="dc-state" id="opSay" role="status"></span><button class="ghost" id="opDone" type="button">Done</button><button class="go" id="opSend" type="button" disabled>Send updates</button></footer>
     </div>`;
   document.body.append(veil);
   const list = veil.querySelector("#opList"), say = veil.querySelector("#opSay"), send = veil.querySelector("#opSend");
@@ -3577,7 +3597,7 @@ async function openStill(){
         };
         top.append(tick, el("span",null,x.t), el("time",null,`since ${fileDay(x.at)}`));
         const inp = el("input","op-in"); inp.type = "text"; inp.maxLength = 500; inp.value = drafts.get(key) || "";
-        inp.placeholder = "What changed? Done, a new date, a next step"; inp.setAttribute("aria-label", `Comment on: ${x.t}`);
+        inp.placeholder = "What changed?"; inp.setAttribute("aria-label", `Comment on: ${x.t}`);
         inp.oninput = () => { drafts.set(key, inp.value); sendable(); };
         inp.onkeydown = e => { if (e.key === "Enter" && !send.disabled) send.click(); };
         row.append(top, inp); sec.append(row);
