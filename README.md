@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1241 checks passing" src="https://img.shields.io/badge/checks-1241%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1249 checks passing" src="https://img.shields.io/badge/checks-1249%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -110,7 +110,7 @@ A third kind of brain, next to subjects and experts. You talk to it, and it keep
 - **The interview ends at 100%.** Once every question is answered or known, the Interview button leaves the chat, the folder and the twin pane.
 - **It calls your other brains on its own.** When one holds something that bears on what you said, it brings it up and names it: "your Health brain says 3 to 5 g a day". A line under the reply shows which brains it called.
 - **A person is a folder.** Their page opens on an Overview (what is still open, the latest moments), then Facts, History a year at a time, Their people and Raw notes a month at a time. Each moment is stored on its own, so a person grows without a size limit, and the AI reads the moments that bear on what you say first, whatever their age.
-- **Still open, for everyone.** An icon beside the inbox counts the promises and follow-ups still open in your people's files. It opens a list grouped by person, the oldest first. Tick a line that is done. Or write under it what changed: "signed Tuesday, he invoices in November". One send updates every line you commented: closed, dropped, reworded, with a follow-up or a moment of their history added when you told one. Your comment stays word for word in their raw notes.
+- **Still open, for everyone.** An icon beside the inbox counts the promises and follow-ups still open in your people's files. It opens a list grouped by person, the oldest first. Tick a line that is done. Or write under it what changed: "signed Tuesday, he invoices in November". One send updates every line you commented: closed, dropped, reworded, with a follow-up or a moment of their history added when you told one. A line already open is updated, never listed twice: the same words in another order, or with a date added, are one line, and a done closes it. Lines doubled before are made one when you open the list. Your comment stays word for word in their raw notes.
 - **A file per person.** Each person you mention, by name or by role, gets a file: a short summary on top, then what is still open, their facts by section (identity, contact details, you and them, work, tastes), their people both ways, and their whole history, year by year, each moment dated and told with its details. It only grows: a changed fact keeps the old one with the day it ended, and after the history come its raw notes: every message you sent about them, word for word, dated, in the language you wrote it. The People tab lists them, the most recent first. Settings, Audit, finds the people in your older notes. Edit a card by hand, or merge two cards of the same person: the mentions and names join, and the card is written again as one.
 - **It interviews you.** Tap Interview me: one quick question at a time, from 335 in 17 chapters, life story first. Each takes under 30 seconds: a fact, a choice, a number or one sentence. A one-word answer gets one follow-up, a question your notes already answer is skipped, and every 10 answers it reads back 3 notes for you to confirm or correct. Say skip to pass; Stop pauses it, and it picks up where you left off.
 - **It asks in passing.** Every few messages, when you asked nothing, it may end its reply with one question from the chapters it knows least.
@@ -211,7 +211,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 ```
 app/            the landing, the app (one file), the white paper and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        1241 checks, the app driven in a real browser included
+scripts/        1249 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -225,7 +225,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-1241 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+1249 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 <br>
 

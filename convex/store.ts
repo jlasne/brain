@@ -2,7 +2,7 @@
 
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap, cardOf, mergeFile } from "./words";
+import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap, cardOf, mergeFile, dedupeOpen } from "./words";
 import { sha256, randomHex, today, slug, gateKey, readSpace, HOME, SPACE_RE, SPACES,
          SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, inSpace, isViewer, SPACE_NAME } from "./lib";
 
@@ -1525,7 +1525,7 @@ export const contactMerge = internalMutation({
         aliases: cleanNames([...(now.aliases ?? []), gone.title, ...(gone.aliases ?? [])], now.title),
         position: [now.position, gone.position].map((t: any) => String(t ?? "").trim()).filter(Boolean).join("\n\n").slice(0, 4000),
         /* Both files join: every fact, link and open item kept; the moments moved above. */
-        ...(now.file || gone.file ? { file: await withNewMoments(ctx, keep.brain, keep.slug, mergeFile(now.file, { ...(gone.file ?? {}), events: [] }, today()), [], today()) } : {}),
+        ...(now.file || gone.file ? { file: await withNewMoments(ctx, keep.brain, keep.slug, mergeFile(now.file, { ...(gone.file ?? {}), events: [] }, today(), [keep.title, ...(keep.aliases ?? [])]), [], today()) } : {}),
       });
       /* Their raw notes follow them to the card kept. */
       for (const r of await ctx.db.query("rawNotes").withIndex("by_contact", (q: any) => q.eq("brain", gone.brain).eq("slug", gone.slug)).collect())
@@ -1559,7 +1559,7 @@ export const fileContact = internalMutation({
         ...fields,
         ...(d.evidence ? { evidence: mergeEvidence(d.evidence, was.evidence ?? []) } : {}),
         ...(d.sources ? { sources: unionCap(was.sources ?? [], d.sources, 1e9, String).slice(-2000) } : {}),
-        file: await withNewMoments(ctx, was.brain, was.slug, mergeFile(was.file, { ...(a.add ?? {}), events: [] }, a.date), a.add?.events, a.date),
+        file: await withNewMoments(ctx, was.brain, was.slug, mergeFile(was.file, { ...(a.add ?? {}), events: [] }, a.date, [was.title, ...(was.aliases ?? [])]), a.add?.events, a.date),
       });
       await syncCard(ctx, seen._id);
       return seen._id;
@@ -1569,10 +1569,26 @@ export const fileContact = internalMutation({
     const id = await ctx.db.insert("concepts", {
       brain: a.brain, slug, n: (newest?.n ?? 0) + 1, title: a.title,
       position: "", summaryLine: "", evidence: d.evidence ?? [], data: [], conflicts: [], sources: d.sources ?? [], related: [],
-      ...fields, file: await withNewMoments(ctx, a.brain, slug, mergeFile(null, { ...(a.add ?? {}), events: [] }, a.date), a.add?.events, a.date),
+      ...fields, file: await withNewMoments(ctx, a.brain, slug, mergeFile(null, { ...(a.add ?? {}), events: [] }, a.date, [a.title]), a.add?.events, a.date),
     });
     await syncCard(ctx, id);
     return id;
+  },
+});
+
+/** A person's open lines that say the same thing, made one: the oldest line stays, with the newest wording. */
+export const contactOpenMerge = internalMutation({
+  args: { space: v.string(), id: v.string() },
+  handler: async (ctx, a) => {
+    const c0 = await ownContact(ctx, readSpace(a.space), a.id);
+    if (!c0) return { merged: 0 };
+    const c = await splitFile(ctx, c0);
+    if (!c.file?.open?.length) return { merged: 0 };
+    const r = dedupeOpen(c.file.open, [c.title, ...(c.aliases ?? [])]);
+    if (!r.merged) return { merged: 0 };
+    await ctx.db.patch(c._id, { file: { ...c.file, open: r.open } });
+    await syncCard(ctx, c._id);
+    return { merged: r.merged };
   },
 });
 

@@ -526,11 +526,44 @@ const dayOk = (d: any) => /^\d{4}(-\d{2}(-\d{2})?)?$/.test(String(d ?? "")) ? St
 const keyOf = (t: string) => { let h = 5381; for (const ch of t) h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0; return h.toString(36); };
 
 /**
+ * Two open lines that say the same thing: the same words, or nearly (three in
+ * four shared, two at least), once the person's own names are set aside, since
+ * every line of a file is about them. "Send Marc the contract" and "Send the
+ * contract to Marc" are one line; "Call about the price" and "Call Monday" are two.
+ */
+export function sameOpen(a: string, b: string, names: string[] = []): boolean {
+  const skip = new Set(names.flatMap(n => keywords(n).map(stem)));
+  const w = (t: string) => new Set(keywords(t).map(stem).filter(x => !skip.has(x)));
+  const x = w(a), y = w(b);
+  if (!x.size || !y.size) return flat(a).toLowerCase() === flat(b).toLowerCase();
+  let both = 0;
+  for (const t of x) if (y.has(t)) both++;
+  const union = x.size + y.size - both;
+  return both === union || (both >= 2 && both / union >= 0.6);
+}
+
+/**
+ * A file's open lines with the ones that say the same thing made one: the
+ * oldest keeps its key and the day it was opened, the newest wording is kept.
+ * Closed lines stay as they are.
+ */
+export function dedupeOpen(open: any[], names: string[] = []): { open: any[]; merged: number } {
+  const out: any[] = [];
+  let merged = 0;
+  for (const x of open ?? []) {
+    const had = x?.done ? null : out.find(y => !y.done && sameOpen(y.t, x.t, names));
+    if (had) { had.t = x.t; merged++; }
+    else out.push({ ...x });
+  }
+  return { open: out, merged };
+}
+
+/**
  * A file with what a message adds folded in. Each part comes in either as
  * the filer writes it ({section, label, value}) or as a file stores it
  * ({s, l, v}), so two files merge the same way a message does.
  */
-export function mergeFile(old: any, add: any, date: string) {
+export function mergeFile(old: any, add: any, date: string, names: string[] = []) {
   const f = {
     v: 1,
     facts: [...(old?.facts ?? [])].map((x: any) => ({ ...x })),
@@ -571,6 +604,9 @@ export function mergeFile(old: any, add: any, date: string) {
     if (t.length < 3) continue;
     const had = f.open.find(y => same(y.t, t));
     if (had) { if (x?.done) had.done = dayOk(x?.done) || date; continue; }
+    /* A line already open that says the same thing is that line: closed by a done, reworded by a new one. */
+    const alike = f.open.find(y => !y.done && sameOpen(y.t, t, names));
+    if (alike) { if (x?.done) alike.done = dayOk(x?.done) || date; else alike.t = t; continue; }
     f.open.push({ k: keyOf(t), t, at: dayOk(x?.at) || date, ...(x?.done ? { done: dayOk(x?.done) || date } : {}) });
   }
   f.events.sort((a: any, b: any) => String(b.d).localeCompare(String(a.d)));

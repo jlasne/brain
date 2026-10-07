@@ -19,7 +19,7 @@ import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from 
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, translatePage, langOf, DOC_TYPES } from "./onepager";
 import type { DocType } from "./onepager";
-import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf } from "./words";
+import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal } from "./space";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine } from "./personal";
@@ -1307,7 +1307,15 @@ route("/api/personal/open", async (ctx, _req, b) => {
   /* Each person's card carries how many lines are open, so the app counts them without reading a file.
      Cards made before that read it here, once: the ones that differ are written. */
   const list = async (held?: any[]) => {
-    const people = openByPerson(held ?? await wholeNotes(ctx, who.space, mine.slug), mine.slug);
+    held = held ?? await wholeNotes(ctx, who.space, mine.slug);
+    /* Lines that say the same thing are made one, in the file and in what is listed. */
+    for (const c of held) {
+      if (c.tag !== "contact" || !c.file?.open?.length) continue;
+      const r = dedupeOpen(c.file.open, [c.title, ...(c.aliases ?? [])]);
+      if (!r.merged) continue;
+      try { await ctx.runMutation(internal.store.contactOpenMerge, { space: who.space, id: `${mine.slug}/${c.slug}` }); c.file = { ...c.file, open: r.open }; } catch { /* listed merged, saved next time */ }
+    }
+    const people = openByPerson(held, mine.slug);
     const n = new Map(people.map(p => [p.id.split("/")[1], p.items.length]));
     const stale = cards.filter((c: any) => c.tag === "contact" && (c.open ?? -1) !== (n.get(c.slug) ?? 0)).map((c: any) => ({ slug: c.slug, n: n.get(c.slug) ?? 0 }));
     for (let i = 0; i < stale.length; i += 200) await ctx.runMutation(internal.store.setOpenCounts, { brain: mine.slug, counts: stale.slice(i, i + 200) });
@@ -1334,8 +1342,13 @@ route("/api/personal/open", async (ctx, _req, b) => {
   /* The items are numbered 1, 2, 3 in the order told, so the model echoes a number and no key. */
   const order: any[] = [...groups.values()].flat();
   order.forEach((l, i) => { l.n = i + 1; });
-  const text = [...groups].map(([, ls]) => `PERSON: ${ls[0].c.title}${ls[0].c.summaryLine ? `, ${ls[0].c.summaryLine}` : ""}\n` +
-    ls.map((l: any) => `${l.n}. ITEM: ${l.it.t} (open since ${l.it.at ?? "?"}). COMMENT: "${l.comment}"`).join("\n")).join("\n\n");
+  const text = [...groups].map(([, ls]) => {
+    /* The person's other open lines, so a follow-up never repeats one. */
+    const rest = (ls[0].c.file?.open ?? []).filter((x: any) => !x.done && !ls.some((l: any) => l.it.k === x.k)).map((x: any) => x.t);
+    return `PERSON: ${ls[0].c.title}${ls[0].c.summaryLine ? `, ${ls[0].c.summaryLine}` : ""}\n` +
+      ls.map((l: any) => `${l.n}. ITEM: ${l.it.t} (open since ${l.it.at ?? "?"}). COMMENT: "${l.comment}"`).join("\n") +
+      (rest.length ? `\nALREADY OPEN, not commented: ${rest.slice(0, 15).join("; ")}` : "");
+  }).join("\n\n");
   /* One more try when the first reply cannot be read, with the shape said again. */
   let decided: ReturnType<typeof readOpenUpdates> = [], finish = "";
   for (let attempt = 0; attempt < 2 && !decided.length; attempt++) {

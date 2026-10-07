@@ -154,7 +154,7 @@ ${en ? `- "claim": what they said about this person, in one sentence, in English
 - "facts": each lasting fact this message gives, one per entry: {"section","label","value"}. Sections: ${FILE_SECTIONS.map(x => x[0]).join(", ")}. identity: birthday, age, born in, lives in, nationality, languages, family status. contact: phone, email, address, social accounts. you: how you met, since when, how close, how often you see them. work: job, company, role, projects, money. tastes: likes, dislikes, character, habits, values, health. Keep every detail given: numbers, names, places. When the fact replaces an older one (they moved, changed job), add "replaces": true and "since": the date.
 - "events": the moments of this person's story, one entry per moment: {"date","text","seen"}. "date" is the real date, YYYY-MM-DD, YYYY-MM or YYYY, worked out from TODAY ("yesterday", "last summer", "in 2019"). "text" tells the moment as an anecdote, with every detail given: what happened, where, who was there, what was said, how it went, 1 to 4 sentences as "you". "seen": true when you were with them or spoke with them that day.
 - "links": the people linked to this person: {"name","rel"}, rel from this person's side ("his wife", "her boss", "his co-founder"). Each linked person also gets their own file.
-- "open": promises and things to follow up: {"text","done"}. "done": true when this message closes one already open.
+- "open": promises and things to follow up: {"text","done"}. "done": true when this message closes one already open. A line the file lists as STILL OPEN is never sent again as a new one: send it only to close it, or reworded when this message changes it (a new date, a new step), and the file updates that line.
 - Never repeat what the file already holds. An empty list is a correct answer.
 - At most ${MAX_PEOPLE[kind]} people.${kind === "people" ? `
 - "date": the date of the note it comes from.` : ""}${kind === "import" ? `
@@ -504,7 +504,7 @@ ${contact ? `THE CHANGE, for this person. Send only what the message adds or cor
 - "facts": [{"section","label","value"}], sections: ${FILE_SECTIONS.map(x => x[0]).join(", ")}. A value that replaced an older one (they moved, changed job) adds "replaces": true and "since": the date.
 - "events": [{"date","text","seen"}]: a moment, dated YYYY-MM-DD, YYYY-MM or YYYY from TODAY, told as an anecdote. "seen": true when you were together that day.
 - "links": [{"name","rel"}], rel from this person's side.
-- "open": [{"text","done"}]: a promise or a follow-up; "done": true closes one already open.
+- "open": [{"text","done"}]: a promise or a follow-up; "done": true closes one already open. A line already open is sent again only reworded, when the message changes it: the file updates that line.
 - "remove": [{"part","key"}]: a line of the file that is wrong or that they ask to take out, by the part and key in its brackets, e.g. {"part":"fact","key":"x1y2"}. A wrong fact is taken out and the right one sent in "facts".
 
 Reply with only JSON: {"reply":"","change":null}
@@ -576,7 +576,7 @@ export const OPEN_RULES =
 - "n": the item's number, as given.
 - "status": "done" when the comment says it is done, sent, paid, settled or closed. "drop" when it says the item no longer applies, was cancelled or does not matter. "open" when it stays open, changed or not.
 - "text": for "open" only, when the comment changes the item (a new date, a new amount, a new step): the item rewritten with the change, under 20 words. Empty when it reads the same.
-- "follow": new follow-ups the comment creates, each under 20 words, 3 at most. Something the comment says is done is no follow-up.
+- "follow": new follow-ups the comment creates, each under 20 words, 3 at most. Something the comment says is done is no follow-up. Never one that an item of the same person already covers, listed under ALREADY OPEN: reword that item with "text" instead.
 - "moment": when the comment tells something that happened, one sentence for the person's history, {"date":"YYYY-MM-DD, YYYY-MM or YYYY, from TODAY","text":"","seen":false}. "seen" is true when the owner was with the person that day. null otherwise.
 - Only what the comment says. Never invent. A comment that asks a question or says nothing new: "open", and nothing else.
 - Everything in English, whatever language the comment is in. No em-dashes. Under 30 words per sentence.

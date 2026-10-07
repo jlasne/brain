@@ -587,6 +587,24 @@ const TODAY = "2026-09-30";
     { facts: [{ s: "work", l: "Company", v: "Airbus", at: "2026-02-01" }, { s: "nonsense", l: "Shoe size", v: "44" }], events: [{ d: "2025", t: "met in lyon" }, { d: "bad", t: "Called him" }] }, "2026-10-06");
   check("two files merge without doubles; an unknown section goes to Other, a bad date to the day told",
     merged.facts.length === 2 && merged.facts[1].s === "other" && merged.events.length === 2 && merged.events.some(x => x.d === "2026-10-06" && x.t === "Called him"), JSON.stringify(merged));
+  /* Open lines that say the same thing are one line. */
+  check("two open lines are one when they share their words, a person's name aside; different subjects stay two",
+    words.sameOpen("Send Marc the contract", "Send the contract to Marc", ["Marc Dupont"]) && words.sameOpen("Pay the invoice", "Pay the invoice by Friday", ["Paul"])
+    && words.sameOpen("Call Marc", "call marc") && !words.sameOpen("Call Marc about the price", "Call Marc Monday", ["Marc"]) && !words.sameOpen("Call about the price", "Call about the contract"));
+  const open1 = [{ k: "a", t: "Send Marc the contract", at: "2026-09-01" }];
+  const m1 = words.mergeFile({ open: open1 }, { open: [{ text: "Send the contract to Marc by Friday" }] }, "2026-10-07", ["Marc"]);
+  check("a line that is already open is updated, not added again: the same key and day, the new wording",
+    m1.open.length === 1 && m1.open[0].k === "a" && m1.open[0].at === "2026-09-01" && m1.open[0].t === "Send the contract to Marc by Friday", JSON.stringify(m1.open));
+  const m2 = words.mergeFile({ open: open1 }, { open: [{ text: "Send the contract to Marc", done: true }] }, "2026-10-07", ["Marc"]);
+  check("a done closes the line that says the same, and adds no second one", m2.open.length === 1 && m2.open[0].done === "2026-10-07", JSON.stringify(m2.open));
+  const m3 = words.mergeFile({ open: open1 }, { open: [{ text: "Book a table for Marc" }] }, "2026-10-07", ["Marc"]);
+  check("a different line is added", m3.open.length === 2 && !m3.open[0].done, JSON.stringify(m3.open));
+  const dd = words.dedupeOpen([{ k: "1", t: "Send Marc the contract", at: "2026-09-01" }, { k: "2", t: "Book the venue", at: "2026-09-05" },
+    { k: "3", t: "Send the contract to Marc, by Friday", at: "2026-09-20" }, { k: "4", t: "Send the contract", at: "2026-08-01", done: "2026-08-02" }], ["Marc"]);
+  check("lines already doubled are made one: the oldest key and day, the newest wording, closed lines left as they are",
+    dd.merged === 1 && dd.open.length === 3 && dd.open[0].k === "1" && dd.open[0].at === "2026-09-01" && dd.open[0].t === "Send the contract to Marc, by Friday" && dd.open[2].done === "2026-08-02", JSON.stringify(dd));
+  check("the filer and the comment rules say a line already open is updated, never sent again as new",
+    /never sent again as a new one/.test(personal.filerPrompt("chat", "x", "", [], [], TODAY)[1].content) && /Never one that an item of the same person already covers/.test(personal.OPEN_RULES) && /ALREADY OPEN/.test(personal.OPEN_RULES));
   check("the dossier an answer reads carries the person's file", /THE PERSON'S FILE\nFACTS/.test(words.fileText(await mxw(), 4000) ? `THE PERSON'S FILE\n${words.fileText(await mxw(), 4000)}` : ""));
 
   /* Building files for people held before files existed: no new mention, no new source. */
@@ -620,6 +638,13 @@ const TODAY = "2026-09-30";
   check("a reworded line needs a few words", /few words/.test(tooShort) && mx().file.open[0].t === re.t);
   const mine = personal.openByPerson([await mxw()], "me");
   check("the open lines come by person, with their keys", mine.length === 1 && mine[0].id === "me/maxime" && mine[0].items.some(i => i.k === k0 && i.t === re.t), JSON.stringify(mine));
+  mx().file.open.push({ k: "dup1", t: "Send the deck to Maxime", at: "2026-10-05" });
+  const openBefore = mx().file.open.filter(x => !x.done).length;
+  const dups = await run("contactOpenMerge", { space: "acme", id: "me/maxime" });
+  const after = mx().file.open.filter(x => !x.done);
+  check("a person's doubled open lines are made one in their file: the oldest stays, with the newest wording",
+    dups.merged === 1 && after.length === openBefore - 1 && after.some(x => x.k === k0 && x.t === "Send the deck to Maxime" && x.at === at0), JSON.stringify({ dups, after }));
+  check("run again, it finds nothing to merge", (await run("contactOpenMerge", { space: "acme", id: "me/maxime" })).merged === 0);
   await run("setOpenCounts", { brain: "me", counts: [{ slug: "maxime", n: 7 }, { slug: "nobody", n: 3 }] });
   check("a card made before the count existed gets it, and an unknown person is skipped", (T.cards ?? []).find(c => c.slug === "maxime")?.open === 7);
 }
