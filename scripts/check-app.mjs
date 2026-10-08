@@ -526,6 +526,53 @@ async function boot(path, init, arg) {
   await page.close();
 }
 
+/* ---- favourites: the model is the cheapest of a list, chosen each day ---- */
+{
+  const DS = "deepseek/deepseek-v4-flash-0731", GLM = "z-ai/glm-5.3-flash";
+  const day = Date.parse("2026-10-08T05:30:00Z");
+  const withFavs = { ...STATE, model: DS, models: { chat: DS, chatDefault: GLM, favs: [DS, GLM], favAt: day, favPrices: [{ id: DS, price: 0.12 }, { id: GLM, price: 0.178 }] } };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("openrouter.ai/api/v1/models")) return Response.json({ data: [
+        { id: "deepseek/deepseek-v4-flash-0731", name: "DeepSeek: DeepSeek V4 Flash 0731", pricing: { prompt: "0.0000000104", completion: "0.00000128" }, context_length: 1048576, supported_parameters: ["response_format"] },
+        { id: "z-ai/glm-5.3-flash", name: "Z.ai: GLM 5.3 Flash", pricing: { prompt: "0.00000015", completion: "0.0000005" }, context_length: 1048576, supported_parameters: ["response_format"] },
+        { id: "z-ai/glm-5.3", name: "Z.ai: GLM 5.3", pricing: { prompt: "0.0000014", completion: "0.0000044" }, context_length: 1048576, supported_parameters: ["response_format"] }] });
+      if (s.includes("/api/state")) return Response.json(state);
+      /* A model picked by hand ends the favourites, as the server does. */
+      if (s.includes("/api/models")) return Response.json({ chat: body.chat || state.models.chatDefault, favs: null });
+      return Response.json({ chats: [] });
+    };
+  }, withFavs);
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(150);
+  const lab = await page.evaluate(() => ({ val: document.querySelector("#setModel .val")?.textContent, title: document.getElementById("setModel")?.title }));
+  check("Settings says the model is the cheapest of the favourites today", lab.val === "deepseek-v4-flash-0731" && /the cheapest of your 2 favourites today/.test(lab.title || ""), JSON.stringify(lab));
+  await page.click("#setModel"); await page.waitForTimeout(250);
+  const line = await page.evaluate(() => { const f = document.getElementById("mFav"); return { hidden: f.hidden, text: f.textContent }; });
+  check("the model list opens on a line that names the favourites, the price each was compared at, and the day",
+    !line.hidden && line.text === "Chosen each day as the cheapest of your favourites, checked 8 Oct 2026: DeepSeek V4 Flash 0731 $0.12 · GLM 5.3 Flash $0.178, per million tokens. Picking a model here ends that.", JSON.stringify(line));
+  await page.click('#mList .mrow:has(b:text-is("Z.ai: GLM 5.3"))'); await page.click("#mSave"); await page.waitForTimeout(200);
+  const after = await page.evaluate(() => ({ body: window.__calls.filter(c => c.s.includes("/api/models")).pop()?.body, title: document.getElementById("setModel")?.title }));
+  check("a model picked by hand is saved, and the label stops saying it is chosen daily", after.body?.chat === "z-ai/glm-5.3" && !/favourites/.test(after.title || "") && /picked for this workspace/.test(after.title || ""), JSON.stringify(after));
+  await page.click("#setModel"); await page.waitForTimeout(250);
+  check("and the line is gone from the list", await page.evaluate(() => document.getElementById("mFav").hidden));
+  check("nothing threw with favourites", !bad.length, bad.join(" | "));
+  await page.close();
+
+  /* A workspace with no favourites shows no line. */
+  const plain = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.fetch = async (u) => String(u).includes("openrouter.ai") ? Response.json({ data: [] }) : String(u).includes("/api/state") ? Response.json(state) : Response.json({ chats: [] });
+  }, { ...STATE, model: GLM, models: { chat: GLM, chatDefault: GLM } });
+  await plain.page.evaluate(() => document.getElementById("keyBtn").click()); await plain.page.waitForTimeout(150);
+  const plainTitle = await plain.page.evaluate(() => document.getElementById("setModel").title);
+  await plain.page.click("#setModel"); await plain.page.waitForTimeout(200);
+  check("a workspace with no favourites shows no such line", await plain.page.evaluate(() => document.getElementById("mFav").hidden) && !/favourites/.test(plainTitle), plainTitle);
+  await plain.page.close();
+}
+
 /* ---- Merge into: a folder poured into another, after a second click ---- */
 {
   const two = { ...STATE, brains: [...STATE.brains, { slug: "wealth", name: "Wealth", type: "subject", scope: "w", owner: null },

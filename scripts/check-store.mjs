@@ -17,7 +17,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-store-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "tidy.ts", "graph.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "tidy.ts", "graph.ts", "price.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 /* A query or mutation is its definition, so a test can call its handler. */
@@ -29,6 +29,9 @@ const store = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "admin.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "admin.mjs"), logLevel: "silent" });
 const admin = await import(pathToFileURL(join(dir, "admin.mjs")).href);
+await esbuild.build({ entryPoints: [join(dir, "price.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
+  platform: "node", outfile: join(dir, "price.mjs"), logLevel: "silent" });
+const price = await import(pathToFileURL(join(dir, "price.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "digest.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "digest.mjs"), logLevel: "silent" });
 const digest = await import(pathToFileURL(join(dir, "digest.mjs")).href);
@@ -759,6 +762,152 @@ function seed() {
     /not a model id/.test(await throws(run(admin.setModel, ctx, { model: "deepseek flash" }))) && /not a model id/.test(await throws(run(admin.setModel, ctx, { model: "x".repeat(90) + "/y" }))) && pick().octopus === null);
   check("a workspace that is not on the deployment's key is refused by name, and the ones that are are listed",
     /demo is not on this deployment's key\. They are: octopus, squidgy, pandaaahh/.test(await throws(run(admin.setModel, ctx, { model: DS, spaces: ["demo"] }))) && pick().octopus === null);
+}
+
+/* ---- what a model costs, and which favourite costs least ---- */
+{
+  /* A provider whose price is the same read and written, so its price at any mix is that number. */
+  const ep = (p, o = {}) => ({ provider_name: o.name ?? "p" + p, pricing: { prompt: String(p / 1e6), completion: String(p / 1e6) },
+    supported_parameters: o.json === false ? ["max_tokens"] : ["response_format", "max_tokens"], uptime_last_30m: "up" in o ? o.up : 100 });
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+
+  check("a provider's price is 4 tokens read for 1 written, in dollars per million",
+    near(price.blend({ pricing: { prompt: "0.0000001", completion: "0.0000005" } }), 0.18) && near(price.blend({ pricing: { prompt: "0.00000015", completion: "0.0000005" } }), 0.22));
+  check("a price that is missing, not a number or negative is no price",
+    price.blend({}) === null && price.blend({ pricing: { prompt: "x", completion: "1" } }) === null && price.blend({ pricing: { prompt: "-0.000001", completion: "0.000001" } }) === null);
+
+  const three = price.expectedPrice([ep(0.1), ep(0.2), ep(0.4)]);
+  check("a model's price is the average over its providers, each weighted by the inverse square of its price", Math.abs(three.price - 17.5 / 131.25) < 1e-6 && three.providers === 3, JSON.stringify(three));
+  check("a provider that cannot take JSON is left out", near(price.expectedPrice([ep(0.1), ep(0.2), ep(0.4), ep(0.01, { json: false })]).price, three.price));
+  check("so is one that is down: under 95% of the last 30 minutes", near(price.expectedPrice([ep(0.1), ep(0.2), ep(0.4), ep(0.01, { up: 80 })]).price, three.price));
+  check("a provider with no uptime figure counts as up", near(price.expectedPrice([ep(0.1), ep(0.2), ep(0.4), ep(0.1, { up: null })]).providers, 4));
+  check("when every provider is down, those that take JSON stand in", near(price.expectedPrice([ep(0.1, { up: 10 }), ep(0.1, { up: 20 })]).price, 0.1));
+  check("a model none of whose providers takes JSON has no price", price.expectedPrice([ep(0.1, { json: false })]) === null && price.expectedPrice([]) === null && price.expectedPrice(undefined) === null);
+  check("a free provider gives a price near zero, never a break", Number.isFinite(price.expectedPrice([ep(0)]).price) && price.expectedPrice([ep(0), ep(0.1)]).price < 0.001);
+
+  const A = "a/cheap", B = "b/dear";
+  check("the cheapest favourite runs, from another model or none", price.choose("x/other", [{ id: B, price: 0.18 }, { id: A, price: 0.12 }]) === A && price.choose(null, [{ id: B, price: 0.18 }, { id: A, price: 0.12 }]) === A);
+  check("the one running stays unless another is at least 10% cheaper", price.choose(B, [{ id: A, price: 0.17 }, { id: B, price: 0.18 }]) === B && price.choose(B, [{ id: A, price: 0.15 }, { id: B, price: 0.18 }]) === A);
+  check("and the cheapest stays", price.choose(A, [{ id: A, price: 0.12 }, { id: B, price: 0.18 }]) === A);
+  check("equal prices keep the list's order, and no price keeps nothing", price.choose(null, [{ id: B, price: 0.1 }, { id: A, price: 0.1 }]) === B && price.choose(A, []) === null);
+
+  /* the read, against a stand-in for OpenRouter's list of providers */
+  const real = globalThis.fetch;
+  const seen = [];
+  const lists = {};
+  globalThis.fetch = async (u) => {
+    seen.push(String(u));
+    const id = decodeURIComponent(String(u).replace("https://openrouter.ai/api/v1/models/", "").replace(/\/endpoints$/, ""));
+    if (id === "boom/down") throw new Error("socket closed");
+    if (id === "boom/five") return new Response("no", { status: 500 });
+    if (!(id in lists)) return new Response('{"error":{"code":404}}', { status: 404 });
+    return Response.json({ data: { id, endpoints: lists[id] } });
+  };
+  lists["deepseek/deepseek-v4-flash-0731"] = [ep(0.08)];
+  lists["~deepseek/deepseek-v4-flash-latest"] = [];
+  const r1 = await price.readPrice("deepseek/deepseek-v4-flash-0731");
+  check("a model is read from OpenRouter's public list of its providers, at its own address", near(r1.price, 0.08) && r1.providers === 1
+    && seen[0] === "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4-flash-0731/endpoints", JSON.stringify([r1, seen]));
+  check("a model OpenRouter does not know is missing", (await price.readPrice("no/such")).missing === true);
+  check("an alias with no provider of its own has no price, and says why", /lists no provider/.test((await price.readPrice("~deepseek/deepseek-v4-flash-latest")).error));
+  check("a refusal or a failed request is an error, never a price", (await price.readPrice("boom/five")).error === "OpenRouter answered 500" && /socket closed/.test((await price.readPrice("boom/down")).error));
+
+  /* the command and the daily check, on workspaces that run on the deployment's key */
+  const DS = "deepseek/deepseek-v4-flash-0731", GLM = "z-ai/glm-5.3-flash";
+  const set = (ds, glm) => { lists[DS] = [ep(ds), ep(ds)]; lists[GLM] = [ep(glm)]; };
+  const world = async () => {
+    const w = seed();
+    await run(admin.makeWorkspace, w.ctx, { name: "PandAAAHH", pass: "ABC12345" });
+    w.T.workspaces.push({ _id: "wd", slug: "demo", name: "Demo", kind: "demo", created: "2026-01-01" }, { _id: "wb", slug: "acme", name: "Acme", kind: "byok", created: "2026-01-01" });
+    await run(store.setModels, w.ctx, { space: "octopus", chat: "deepseek/deepseek-v4.1-flash", reply: "en", voice: "fr-FR" });
+    const mods = { admin, store };
+    const hand = ref => { const [m, f] = String(ref).split("."); return mods[m][f].handler; };
+    const actx = { runQuery: (ref, a) => hand(ref)(w.ctx, a), runMutation: (ref, a) => hand(ref)(w.ctx, a) };
+    const row = sp => w.T.models?.find(m => m.space === sp);
+    const on = () => Object.fromEntries(["octopus", "squidgy", "pandaaahh", "demo", "acme"].map(x => [x, row(x)?.chat ?? null]));
+    return { ...w, actx, row, on, cmd: a => admin.setFavourites.handler(actx, a), daily: () => admin.pickCheapest.handler(actx, {}) };
+  };
+  {
+    set(0.08, 0.12);
+    const W = await world();
+    const before = JSON.stringify(W.T.models);
+    const dry = await W.cmd({ models: [DS, GLM], dry: true });
+    check("a dry run prices the favourites and says what would run, writing nothing",
+      dry.dry && JSON.stringify(dry.models.map(x => [x.id, x.price])) === JSON.stringify([[DS, 0.08], [GLM, 0.12]]) && dry.spaces.length === 3 && dry.spaces.every(x => x.now === DS && x.switched)
+      && JSON.stringify(W.T.models) === before, JSON.stringify(dry));
+
+    const done = await W.cmd({ models: [DS, GLM] });
+    const o = W.row("octopus");
+    check("the command gives the list to the three workspaces on the deployment's key, the cheapest running",
+      JSON.stringify(W.on()) === JSON.stringify({ octopus: DS, squidgy: DS, pandaaahh: DS, demo: null, acme: null }) && JSON.stringify(o.favs) === JSON.stringify([DS, GLM])
+      && done.spaces.map(x => x.space).join() === "octopus,squidgy,pandaaahh", JSON.stringify([W.on(), done]));
+    check("with the day it was priced and each price, and the languages a workspace chose kept",
+      typeof o.favAt === "number" && JSON.stringify(o.favPrices) === JSON.stringify([{ id: DS, price: 0.08 }, { id: GLM, price: 0.12 }]) && o.reply === "en" && o.voice === "fr-FR", JSON.stringify(o));
+    check("the demo and a visitor's own-key workspace get no list", !W.row("demo") && !W.row("acme"));
+    check("the workspace reads its favourites back, and a workspace without any reads none",
+      JSON.stringify((await run(store.modelsOf, W.ctx, { space: "squidgy" })).favs) === JSON.stringify([DS, GLM]) && !("favs" in (await run(store.modelsOf, W.ctx, { space: "demo" }))));
+
+    /* the daily check, as prices move */
+    let fetched = seen.length;
+    set(0.115, 0.12);
+    let d = await W.daily();
+    check("the daily check prices the list again and records it", seen.length > fetched && JSON.stringify(W.row("squidgy").favPrices) === JSON.stringify([{ id: DS, price: 0.115 }, { id: GLM, price: 0.12 }]) && d.spaces.every(x => !x.switched));
+    set(0.13, 0.12);
+    d = await W.daily();
+    check("a favourite within 10% of the one running changes nothing", JSON.stringify(W.on()) === JSON.stringify({ octopus: DS, squidgy: DS, pandaaahh: DS, demo: null, acme: null }) && d.spaces.every(x => !x.switched), JSON.stringify(d));
+    set(0.2, 0.12);
+    d = await W.daily();
+    check("another at least 10% cheaper takes over, and the default model is kept as no pick, the way Settings keeps it",
+      d.spaces.every(x => x.switched) && JSON.stringify(W.on()) === JSON.stringify({ octopus: null, squidgy: null, pandaaahh: null, demo: null, acme: null }) && JSON.stringify(W.row("octopus").favs) === JSON.stringify([DS, GLM]), JSON.stringify(W.on()));
+    check("the workspace then runs on it", (await run(store.modelsOf, W.ctx, { space: "octopus" })).chat === null && (await run(store.modelsOf, W.ctx, { space: "octopus" })).favs.length === 2);
+
+    /* a bad read never moves a workspace */
+    set(0.05, 0.12);
+    const at = W.row("octopus").favAt;
+    const keep = lists[GLM]; delete lists[GLM];          // the one running (the default) is not found today
+    d = await W.daily();
+    check("when the favourite running cannot be priced, the workspace stays as it is and nothing is written", d.spaces.every(x => !x.switched && /stays/.test(x.why)) && W.row("octopus").chat === undefined && W.row("octopus").favAt === at, JSON.stringify(d));
+    lists[GLM] = keep;
+    d = await W.daily();
+    check("and the next day it chooses again", d.spaces.every(x => x.switched) && JSON.stringify(W.on()) === JSON.stringify({ octopus: DS, squidgy: DS, pandaaahh: DS, demo: null, acme: null }));
+
+    /* ending it */
+    await run(store.setModels, W.ctx, { space: "squidgy", chat: "x/picked", favs: null });
+    check("a model picked by hand stays, and ends the daily choice for that workspace", W.row("squidgy").chat === "x/picked" && !W.row("squidgy").favs && !W.row("squidgy").favAt && !W.row("squidgy").favPrices && !!W.row("octopus").favs);
+    set(0.5, 0.12);
+    await W.daily();
+    check("the daily check leaves it alone", W.row("squidgy").chat === "x/picked" && W.row("octopus").chat === undefined);
+    const late = await W.actx.runMutation("admin.favsApply", { space: "squidgy", favs: [DS, GLM], chat: DS, favAt: 1, favPrices: [{ id: DS, price: 0.1 }], stillOn: true });
+    check("a check that priced for some seconds does not undo a model picked meanwhile: it writes only while the list stands",
+      late.skipped === true && W.row("squidgy").chat === "x/picked" && !W.row("squidgy").favs, JSON.stringify(late));
+    await W.actx.runMutation("admin.favsApply", { space: "squidgy", favs: [DS, GLM], chat: DS });
+    check("while the command, which gives a list, writes it", W.row("squidgy").chat === DS && W.row("squidgy").favs.length === 2);
+    await run(store.setModels, W.ctx, { space: "squidgy", chat: "x/picked", favs: null });
+    const one = await run(admin.setModel, W.ctx, { model: "y/one", spaces: ["PandAAAHH"] });
+    check("setModel ends the list too, and says so", one.spaces[0].favsEnded === true && !W.row("pandaaahh").favs && W.row("pandaaahh").chat === "y/one", JSON.stringify(one));
+    const stop = await W.cmd({ models: null });
+    check("models: null ends the daily choice and leaves each model running", JSON.stringify(stop.stopped) === '["octopus"]' && !W.row("octopus").favs && W.row("octopus").chat === undefined && W.row("squidgy").chat === "x/picked", JSON.stringify(stop));
+    fetched = seen.length;
+    await W.daily();
+    check("with no list anywhere, the daily check reads nothing from OpenRouter", seen.length === fetched);
+  }
+
+  /* what the command refuses, before it writes anything */
+  {
+    set(0.08, 0.12);
+    const W = await world();
+    const before = JSON.stringify(W.T.models);
+    const no = async a => await throws(W.cmd(a));
+    check("a model OpenRouter does not know is refused by name, and nothing is written", /OpenRouter has no model called nope\/x\. Nothing was changed/.test(await no({ models: [DS, "nope/x"] })) && JSON.stringify(W.T.models) === before);
+    check("a price that cannot be read is refused, with why", /could not price boom\/five \(OpenRouter answered 500\)/.test(await no({ models: [DS, "boom/five"] })) && JSON.stringify(W.T.models) === before);
+    check("an alias with no providers of its own is refused: it has no price to compare", /could not price ~deepseek\/deepseek-v4-flash-latest/.test(await no({ models: [DS, "~deepseek/deepseek-v4-flash-latest"] })));
+    check("one model is no choice, and more than 8 is too many", /at least 2 models/.test(await no({ models: [DS] })) && /at least 2 models/.test(await no({ models: [DS, DS] })) && /8 models at most/.test(await no({ models: Array.from({ length: 9 }, (_, i) => `v/m${i}`) })));
+    check("a text that is not a model id is refused", /is not a model id/.test(await no({ models: [DS, "not a model"] })));
+    const some = await W.cmd({ models: [DS, GLM], spaces: ["PandAAAHH", "squidgy"] });
+    check("a few workspaces can be named, by slug or by name", some.spaces.map(x => x.space).join() === "squidgy,pandaaahh" && !W.row("octopus")?.favs && !!W.row("squidgy").favs);
+    check("a workspace that is not on the deployment's key is refused, with the ones that are", /demo is not on this deployment's key\. They are: octopus, squidgy, pandaaahh/.test(await no({ models: [DS, GLM], spaces: ["demo"] })));
+  }
+  globalThis.fetch = real;
 }
 
 /* ---- one folder merged into another ---- */

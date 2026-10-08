@@ -13,6 +13,8 @@ import { internalMutation, internalQuery, internalAction } from "./_generated/se
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { today, sha256, randomHex, gateKey, readSpace, slugOfName, SPACE_RE, SPACES, MODEL, MODEL_ID, ask, parseJson } from "./lib";
+import { choose, readPrices, MAX_FAVS } from "./price";
+import type { Read } from "./price";
 import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle, kindsOf } from "./words";
 import { syncCard, mergeInto, mergeOpenLines, putModels } from "./store";
 import { loadSpace } from "./space";
@@ -124,6 +126,34 @@ export const setPass = internalMutation({
   },
 });
 
+/** A workspace on this deployment's key: its model, and its favourites when it has any. */
+type Row = { space: string; name: string; chat: string | null; favs: string[] | null };
+
+/** Every workspace on the deployment's key: Octopus, Squidgy and each one made with makeWorkspace. */
+async function keyedRows(ctx: any): Promise<Row[]> {
+  const hosted = (await ctx.db.query("workspaces").collect()).filter((w: any) => w.kind === "hosted");
+  const names = new Map<string, string>([...SPACES.map(s => [s, s] as [string, string]), ...hosted.map((w: any) => [w.slug, w.name] as [string, string])]);
+  const rows: Row[] = [];
+  for (const [space, name] of names) {
+    const row = await ctx.db.query("models").withIndex("by_space", (q: any) => q.eq("space", space)).unique();
+    rows.push({ space, name, chat: row?.chat ?? null, favs: row?.favs?.length ? row.favs : null });
+  }
+  return rows;
+}
+
+/** The workspaces a command names, by slug or by name, or all of them. */
+function target(rows: Row[], spaces?: string[]): Row[] {
+  const asked: string[] = (spaces ?? []).map((s: string) => slugOfName(s));
+  const strange = asked.filter(s => !rows.some(r => r.space === s));
+  if (strange.length) throw new Error(`${strange.join(", ")} ${strange.length === 1 ? "is" : "are"} not on this deployment's key. They are: ${rows.map(r => r.space).join(", ")}.`);
+  return asked.length ? rows.filter(r => asked.includes(r.space)) : rows;
+}
+
+export const keyed = internalQuery({
+  args: {},
+  handler: async (ctx) => await keyedRows(ctx),
+});
+
 /**
  * The model of every workspace that runs on this deployment's key, set at once:
  * Octopus, Squidgy and each workspace made with makeWorkspace. It is what each
@@ -134,7 +164,9 @@ export const setPass = internalMutation({
  *
  * Pass `dry: true` to see what it would change and write nothing, and `spaces`
  * to name a few instead of all, by slug or by name. `model: null` takes them
- * back to the default, which is what a workspace with no pick runs on.
+ * back to the default, which is what a workspace with no pick runs on. A model
+ * set here ends the daily choice among favourites (setFavourites) for those
+ * workspaces.
  */
 export const setModel = internalMutation({
   args: { model: v.union(v.string(), v.null()), spaces: v.optional(v.array(v.string())), dry: v.optional(v.boolean()) },
@@ -143,22 +175,123 @@ export const setModel = internalMutation({
     if (model !== null && (model.length > 80 || !MODEL_ID.test(model))) {
       throw new Error(`"${model.slice(0, 40)}" is not a model id. They read vendor/model, like ${MODEL}.`);
     }
-    const hosted = (await ctx.db.query("workspaces").collect()).filter((w: any) => w.kind === "hosted");
-    const names = new Map<string, string>([...SPACES.map(s => [s, s] as [string, string]), ...hosted.map((w: any) => [w.slug, w.name] as [string, string])]);
-    const asked: string[] = (a.spaces ?? []).map((s: string) => slugOfName(s));
-    const strange = asked.filter(s => !names.has(s));
-    if (strange.length) throw new Error(`${strange.join(", ")} ${strange.length === 1 ? "is" : "are"} not on this deployment's key. They are: ${[...names.keys()].join(", ")}.`);
+    const rows = target(await keyedRows(ctx), a.spaces);
     /* The default is kept as no pick, the way Settings keeps it. */
     const to = model === MODEL ? null : model;
-    const out: { space: string; name: string; was: string | null; now: string | null }[] = [];
-    const list: string[] = asked.length ? [...new Set(asked)] : [...names.keys()];
-    for (const space of list) {
-      const row = await ctx.db.query("models").withIndex("by_space", (q: any) => q.eq("space", space)).unique();
-      out.push({ space, name: names.get(space) ?? space, was: row?.chat ?? null, now: to });
-      if (!a.dry) await putModels(ctx, { space, chat: to });
+    const out: { space: string; name: string; was: string | null; now: string | null; favsEnded?: boolean }[] = [];
+    for (const r of rows) {
+      out.push({ space: r.space, name: r.name, was: r.chat, now: to, ...(r.favs ? { favsEnded: true } : {}) });
+      if (!a.dry) await putModels(ctx, { space: r.space, chat: to, favs: null });
     }
     console.log(`model ${model ?? "default"} ${a.dry ? "would be set" : "set"} for ${out.map(x => x.space).join(", ")}`);
     return { dry: !!a.dry, model, spaces: out };
+  },
+});
+
+/**
+ * A workspace's list of favourites, with what each cost when it was last priced:
+ * written, or ended with null. `stillOn` writes only while the workspace still
+ * has its list: the daily check prices for some seconds before it writes, and a
+ * model picked in Settings meanwhile must stay as it was picked.
+ */
+export const favsApply = internalMutation({
+  args: { space: v.string(), favs: v.union(v.array(v.string()), v.null()), chat: v.optional(v.union(v.string(), v.null())),
+          favAt: v.optional(v.number()), favPrices: v.optional(v.array(v.object({ id: v.string(), price: v.number() }))), stillOn: v.optional(v.boolean()) },
+  handler: async (ctx, a) => {
+    if (a.stillOn) {
+      const row = await ctx.db.query("models").withIndex("by_space", (q: any) => q.eq("space", readSpace(a.space))).unique();
+      if (!row?.favs?.length) return { skipped: true };
+    }
+    const { stillOn: _on, ...write } = a;
+    return await putModels(ctx, write);
+  },
+});
+
+const cents = (n: number | undefined) => (n === undefined ? n : Math.round(n * 10000) / 10000);
+
+/**
+ * Each workspace's favourites, from the prices read: the cheapest one runs, and
+ * the one running changes only for another that is at least 10% cheaper. A
+ * favourite running that could not be priced today leaves the workspace as it
+ * is: one bad read never moves it.
+ */
+async function settle(ctx: any, rows: Row[], reads: Read[], dry: boolean, daily = false) {
+  const priced = new Map(reads.filter(x => x.price !== undefined).map(x => [x.id, x.price as number]));
+  const at = Date.now(), out: any[] = [];
+  for (const r of rows) {
+    const favs = r.favs ?? [], now = r.chat ?? MODEL;
+    const mine = favs.filter(id => priced.has(id)).map(id => ({ id, price: priced.get(id) as number }));
+    if (!mine.length || (favs.includes(now) && !priced.has(now))) {
+      out.push({ space: r.space, name: r.name, was: r.chat, now: r.chat, switched: false, why: "a price could not be read today, so it stays" });
+      continue;
+    }
+    const win = choose(now, mine) as string, chat = win === MODEL ? null : win;
+    if (!dry) await ctx.runMutation(internal.admin.favsApply, { space: r.space, favs, chat, favAt: at, favPrices: mine, ...(daily ? { stillOn: true } : {}) });
+    out.push({ space: r.space, name: r.name, was: r.chat, now: chat, switched: win !== now });
+  }
+  return out;
+}
+
+/** The prices read, as the command prints them. */
+const shown = (reads: Read[]) => reads.map(x => ({ id: x.id, price: cents(x.price), providers: x.providers, ...(x.error ? { error: x.error } : {}), ...(x.missing ? { missing: true } : {}) }));
+
+/**
+ * Give the workspaces a list of favourite models, and the cheapest one runs. The
+ * list goes to Octopus, Squidgy and each workspace made with makeWorkspace, and
+ * is priced at once. A daily check (pickCheapest) prices it again.
+ *
+ *     npx convex run admin:setFavourites "{models:['deepseek/deepseek-v4-flash-0731','z-ai/glm-5.3-flash']}" --prod
+ *
+ * The price of a model is what a call costs on average on OpenRouter, in dollars
+ * per million tokens, at 4 tokens read for 1 written (see price.ts). A workspace
+ * changes model only for a favourite at least 10% cheaper than the one running.
+ *
+ * Pass `dry: true` to price them and write nothing, and `spaces` to name a few
+ * workspaces instead of all. `models: null` ends the daily choice and leaves
+ * the model running. A model picked in Settings, or set with setModel, ends it
+ * too. 2 to 8 models, each an OpenRouter id, each one priced before anything is
+ * written.
+ */
+export const setFavourites = internalAction({
+  args: { models: v.union(v.array(v.string()), v.null()), spaces: v.optional(v.array(v.string())), dry: v.optional(v.boolean()) },
+  handler: async (ctx, a): Promise<any> => {
+    const rows = target(await ctx.runQuery(internal.admin.keyed, {}), a.spaces);
+    if (a.models === null) {
+      const had = rows.filter(r => r.favs);
+      if (!a.dry) for (const r of had) await ctx.runMutation(internal.admin.favsApply, { space: r.space, favs: null });
+      return { dry: !!a.dry, stopped: had.map(r => r.space), runningNow: rows.map(r => ({ space: r.space, model: r.chat ?? MODEL })) };
+    }
+    const ids: string[] = [...new Set<string>(a.models.map((m: string) => m.trim()))];
+    const bad = ids.find(m => m.length > 80 || !MODEL_ID.test(m));
+    if (bad !== undefined) throw new Error(`"${bad.slice(0, 40)}" is not a model id. They read vendor/model, like ${MODEL}.`);
+    if (ids.length < 2) throw new Error("give at least 2 models to choose between. For one model, use admin:setModel.");
+    if (ids.length > MAX_FAVS) throw new Error(`give ${MAX_FAVS} models at most.`);
+    const reads = await readPrices(ids);
+    const missing = reads.filter(x => x.missing), failed = reads.filter(x => x.error);
+    if (missing.length) throw new Error(`OpenRouter has no model called ${missing.map(x => x.id).join(", ")}. Nothing was changed.`);
+    if (failed.length) throw new Error(`could not price ${failed.map(x => `${x.id} (${x.error})`).join("; ")}. Nothing was changed.`);
+    const spaces = await settle(ctx, rows.map(r => ({ ...r, favs: ids })), reads, !!a.dry);
+    console.log(`favourites ${a.dry ? "priced" : "set"}: ${reads.map(x => `${x.id} $${cents(x.price)}`).join(", ")}. ${spaces.map(x => `${x.space} ${x.switched ? "now " : "stays "}${x.now ?? MODEL}`).join("; ")}`);
+    return { dry: !!a.dry, models: shown(reads), spaces };
+  },
+});
+
+/**
+ * The daily check, run by crons.ts: each workspace with favourites is priced
+ * again and set to the cheapest, as setFavourites does. Nothing is read from
+ * OpenRouter when no workspace has favourites. Run by hand to look now:
+ *
+ *     npx convex run admin:pickCheapest --prod
+ */
+export const pickCheapest = internalAction({
+  args: {},
+  handler: async (ctx): Promise<any> => {
+    const rows: Row[] = (await ctx.runQuery(internal.admin.keyed, {})).filter((r: Row) => r.favs);
+    if (!rows.length) return { models: [], spaces: [] };
+    const reads = await readPrices([...new Set<string>(rows.flatMap(r => r.favs as string[]))]);
+    const spaces = await settle(ctx, rows, reads, false, true);
+    console.log(`daily check: ${reads.map(x => `${x.id} ${x.price === undefined ? "no price" : "$" + cents(x.price)}`).join(", ")}. ${spaces.map(x => `${x.space} ${x.switched ? "now " : "stays "}${x.now ?? MODEL}`).join("; ")}`);
+    return { models: shown(reads), spaces };
   },
 });
 

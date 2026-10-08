@@ -279,6 +279,12 @@ export default defineSchema({
     store: v.optional(v.string()),
     reply: v.optional(v.string()),
     voice: v.optional(v.string()),
+    /* Favourites: models to choose among, the cheapest one running. A daily
+       check writes `chat` from this list, with when it looked and each model's
+       price in dollars per million tokens. A model picked by hand clears all three. */
+    favs: v.optional(v.array(v.string())),
+    favAt: v.optional(v.number()),
+    favPrices: v.optional(v.array(v.object({ id: v.string(), price: v.number() }))),
     updated: v.number(),
   }).index("by_space", ["space"]),
 

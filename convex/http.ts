@@ -53,7 +53,9 @@ const router = httpRouter();
 type Caller = Who & { demo: boolean; byok: boolean; key?: string; visitor: string | null; wsName: string;
   /* The models this workspace picked in Settings, or null for the defaults,
      and its languages: what the personal folder keeps, how answers come back. */
-  models: { chat: string | null; reply?: string; voice?: string | null } };
+  models: { chat: string | null; reply?: string; voice?: string | null;
+    /* Favourite models, when the workspace has them: the cheapest of them is the one in `chat`. */
+    favs?: string[]; favAt?: number | null; favPrices?: { id: string; price: number }[] } };
 const KEY_RE = /^sk-or-[A-Za-z0-9_-]{20,200}$/;
 const owners = SPACES as readonly string[];
 
@@ -415,14 +417,16 @@ route("/api/state", async (ctx, _req, b) => {
   const brand = await ctx.runQuery(internal.store.brandOf, { space: who.space });
   /* The model in use, and the default Settings offers to go back to. */
   const models = { chat: who.models.chat || MODEL, chatDefault: MODEL,
-    reply: who.models.reply === "en" ? "en" : "same", voice: who.models.voice ?? null };
+    reply: who.models.reply === "en" ? "en" : "same", voice: who.models.voice ?? null,
+    ...(who.models.favs?.length ? { favs: who.models.favs, favAt: who.models.favAt ?? null, favPrices: who.models.favPrices ?? [] } : {}) };
   return { ...s, model: models.chat, models, chunk: CHUNK,
            space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand };
 });
 
 /**
  * The model, picked in Settings for the whole workspace: it answers, reads
- * Drop and writes one-pagers. null goes back to the default.
+ * Drop and writes one-pagers. null goes back to the default. A model picked
+ * here, or the default, ends the daily choice among favourites, if there was one.
  */
 route("/api/models", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
@@ -439,9 +443,9 @@ route("/api/models", async (ctx, _req, b) => {
   const voice = "voice" in b ? (b.voice ? String(b.voice) : null) : undefined;
   if (chat === undefined && !reply && voice === undefined) return { error: "say which model or language to change" };
   const r = await ctx.runMutation(internal.store.setModels, { space: who.space,
-    ...(chat !== undefined ? { chat: chat === MODEL ? null : chat } : {}),
+    ...(chat !== undefined ? { chat: chat === MODEL ? null : chat, favs: null } : {}),
     ...(reply ? { reply } : {}), ...(voice !== undefined ? { voice } : {}) });
-  return { chat: r.chat || MODEL, reply: r.reply, voice: r.voice };
+  return { chat: r.chat || MODEL, reply: r.reply, voice: r.voice, favs: r.favs ?? null };
 });
 
 /**

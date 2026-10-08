@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1278 checks passing" src="https://img.shields.io/badge/checks-1278%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1326 checks passing" src="https://img.shields.io/badge/checks-1326%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -80,7 +80,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 - **The chat bar floats** over the thread, with the folder picker, the level, the mic and send in one place.
 - **Chat in several folders.** Click a folder to tick it, and tick as many as you like: the question reads those alone. The chat only asks.
 - **A folder, open.** Open fills the main area: its scope, its counts, its health and the next move, then every concept, newest first, with the one open beside them. Chat in it, Drop into it, or edit its name and scope from there. The bar below asks that folder.
-- **The model, picked in Settings.** It answers, reads drops and writes one-pagers: GLM 5.3 Flash by default, saved for the whole workspace.
+- **The model, picked in Settings.** It answers, reads drops and writes one-pagers: GLM 5.3 Flash by default, saved for the whole workspace. A workspace can be given a list of favourite models instead, and the cheapest runs: each morning the average price OpenRouter charges for a call is compared (4 tokens read for 1 written), and the model changes only for a favourite at least 10% cheaper. Settings, Model names the favourites, the prices and the day.
 - **A drop stores everything.** Every number, date and name of the source is looked for in what was read; the passages holding the ones left out are read again, and what is still missing goes in word for word. Every topic lands in a concept, opinions with nothing behind them included: one placed nowhere is filed once more, then becomes a concept of its own. A reply cut short is read again in halves, never kept half. The card says it in one line: "All of it kept: 7,020 words, 145 numbers, dates and names, 23 topics, filed into 18 concepts".
 - **Drop on its own screen.** Drop sits in the side panel and opens a screen with its own log. The chat waits as it was, one click away.
 - **New folder.** A folder is fed by Drop, and one switch says it holds one person's view. A personal folder is fed by what you say.
@@ -211,7 +211,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 ```
 app/            the landing, the app (one file), the white paper and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        1278 checks, the app driven in a real browser included
+scripts/        1326 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -225,7 +225,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-1278 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
+1326 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, and the app itself driven in a real browser.
 
 <br>
 

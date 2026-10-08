@@ -19,7 +19,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-link-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["admin.ts", "lib.ts", "words.ts", "store.ts", "space.ts", "tidy.ts", "drop.ts", "graph.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["admin.ts", "lib.ts", "words.ts", "store.ts", "space.ts", "tidy.ts", "drop.ts", "graph.ts", "price.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/server.ts"),
   "export const internalQuery = (x: any) => x; export const internalMutation = (x: any) => x; export const internalAction = (x: any) => x;\n");
 writeFileSync(join(dir, "_generated/api.ts"),

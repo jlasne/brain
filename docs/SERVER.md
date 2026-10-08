@@ -293,7 +293,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
 | `/api/drop/merge` | Before storing: groups new titles that name one idea twice, joins a new idea to the concept already holding it, and gives a title not in English its English one | Yes |
 | `/api/ask` | The answer. With `concept`, it reads that one concept alone; in a personal folder, what the message adds or corrects is written to the note or the person's file at once, and `changed` says what moved | Yes |
-| `/api/models` | The workspace's model, and the languages of its answers and its mic. `null` goes back to the default | Owner |
+| `/api/models` | The workspace's model, and the languages of its answers and its mic. `null` goes back to the default. A model picked here ends the daily choice among favourites, and the answer says so (`favs: null`) | Owner |
 | `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Built, shown and never stored. Sends it too, when given an address | Yes |
 | `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |
 | `/api/usage` | What transcripts have cost, from both sides | Yes |
@@ -344,7 +344,41 @@ npx convex run admin:setModel "{model:null}" --prod                             
 
 It writes what each workspace would pick in Settings, and each can change it
 there afterwards. The demo and the workspaces visitors made on their own key
-keep the default. `spaces:['pandaaahh']` names a few instead of all.
+keep the default. `spaces:['pandaaahh']` names a few instead of all. A model
+set this way ends a list of favourites, below.
+
+**Favourites: the cheapest one runs.** Give the same workspaces a list of 2 to
+8 models, and each morning (05:30 UTC) the cheapest of them runs. Nothing is
+read from OpenRouter while no workspace has a list.
+
+```bash
+npx convex run admin:setFavourites "{models:['deepseek/deepseek-v4-flash-0731','z-ai/glm-5.3-flash'],dry:true}" --prod   # prices, nothing written
+npx convex run admin:setFavourites "{models:['deepseek/deepseek-v4-flash-0731','z-ai/glm-5.3-flash']}" --prod
+npx convex run admin:pickCheapest --prod                                                                                    # look now, as the daily check does
+npx convex run admin:setFavourites "{models:null}" --prod                                                                   # end it, the model running stays
+```
+
+The price of a model is what a call costs on OpenRouter on average, in dollars
+per million tokens, at 4 tokens read for 1 written (a drop reads about 32,000
+and writes 12,000; an answer reads far more than it writes). OpenRouter sends
+each call to one provider of the model, picked at random and favouring cheap
+ones: half the price gets 4 times the calls. A call that asks for JSON goes only
+to providers that take it, and to those with no recent outage. So the price is
+the average over the providers that take JSON and had 95% uptime over the last
+30 minutes, each weighted by the inverse square of its price (`price.ts`).
+The price OpenRouter lists for a model is one provider's, so it is not used.
+Calls are sent as before.
+
+A workspace changes model only for a favourite at least 10% cheaper than the one
+running. A favourite that cannot be priced on a given day leaves the choice as it
+is. The command prices every model before it writes anything, and refuses one
+OpenRouter does not know, or one with no provider that takes JSON, such as an
+alias that redirects to the newest version. The prices, and the day they were
+read, are kept on the workspace's `models` row and shown in Settings, Model.
+A model picked there, or set with `setModel`, ends the list for that workspace.
+The price is an estimate: OpenRouter's Activity page shows what a call cost.
+It leaves thinking out, which is billed as output: a model that must think, such
+as GLM 5.3 Flash, costs more than its price here.
 
 Every call asks the model to skip thinking, which is cheaper and quicker. GLM
 5.3 Flash cannot skip it and refuses such a call, so it is asked again with
@@ -375,7 +409,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `sessions` | the token, when it expires, its kind and its space | token |
 | `drafts` | a connector drop in progress | token |
 | `fetches` | one row per transcript fetch, so the pace is visible | time |
-| `models` | the model a workspace picked, and the languages of its answers and its mic | space |
+| `models` | the model a workspace picked, the languages of its answers and its mic, and its favourite models with the day they were priced and each price | space |
 | `vectors` | a concept's meaning as 1,024 numbers | concept, and a vector index by folder |
 | `topics` | a folder's topics: title, line, the concepts in each | folder |
 | `feedback` | each error report sent: workspace, sender in the demo, its first words, when. It counts the hour; the mail holds the rest. Cleared after a week | space, then time |
@@ -394,6 +428,7 @@ The duplicate check reads `sources` by normalised link, so it stays an index loo
 | Every model call | The key would be readable |
 | The settle write | Positions must be rewritten in one pass, atomically |
 | The weekly digest | It runs on a schedule, with no browser open. `crons.ts` calls `digest:send` every Monday at 06:00 UTC and mails `DIGEST_TO` |
+| The daily model check | It runs on a schedule too. `crons.ts` calls `admin:pickCheapest` every day at 05:30 UTC: each workspace with favourite models is set to the cheapest of them |
 
 Reading brains and rendering the card can stay client side, because that data is already yours.
 

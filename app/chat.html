@@ -981,6 +981,9 @@
   .mrow b{ display:block; font:500 13.5px/1.4 var(--sans); color:var(--ink); }
   .mrow span{ display:block; margin-top:2px; font:400 11.5px/1.6 var(--mono); color:var(--ink-3); }
   .mrow.on b{ color:var(--accent); }
+  /* The favourites the model is chosen among, when the workspace has some. */
+  .mfav{ margin:10px 0 0; padding:9px 11px; border:1px solid var(--accent-line); border-radius:9px; background:var(--accent-soft); font:400 13px/1.5 var(--sans); color:var(--ink-2); }
+  .mfav[hidden]{ display:none; }
   .mnone{ padding:14px 12px; font:400 13px/1.5 var(--sans); color:var(--ink-3); }
 
   /* How much of the transcript quota is gone. */
@@ -2866,7 +2869,7 @@ function modelLabel(){
   const picked = !!live && !!def && live !== def;
   return {
     val: live ? live.split("/").pop() : "default", picked,
-    title: `${live || "the server default"}${picked ? ", picked for this workspace" : ", the default"}. Click to change it. Build ${window.OCTOPUS_BUILD}.`,
+    title: `${live || "the server default"}${m.favs?.length ? `, the cheapest of your ${m.favs.length} favourites today` : picked ? ", picked for this workspace" : ", the default"}. Click to change it. Build ${window.OCTOPUS_BUILD}.`,
   };
 }
 
@@ -4897,7 +4900,8 @@ function openModelSheet(){
       <header><h3>Model</h3>
       <p>The model that answers in the chat, reads and files what you drop, and writes one-pagers.
       It applies to everyone in this workspace. ${S.byok ? "Your own key pays for every call." : "This deployment's key pays for every call."}
-      Prices are per million tokens, read from OpenRouter.</p></header>
+      Prices are per million tokens, read from OpenRouter.</p>
+      <p class="mfav" id="mFav" role="status" hidden></p></header>
       <div class="f"><label for="mQ">Search</label><input id="mQ" autocomplete="off" spellcheck="false" placeholder="claude, gemini, free, ...">
         <div class="mlist" id="mList"><div class="mnone">Loading the list</div></div>
       </div>
@@ -4917,6 +4921,21 @@ function openModelSheet(){
 
   let chosen = S.models?.chat || def || "";
   let all = [];
+
+  /* The favourites, when there are some: each with the price that was compared, the day it was read, and what a pick here does. */
+  const favBox = veil.querySelector("#mFav");
+  const paintFav = () => {
+    const f = S.models?.favs;
+    favBox.hidden = !f?.length;
+    if (!f?.length) return;
+    const price = new Map((S.models.favPrices || []).map(p => [p.id, p.price]));
+    const name = id => (all.find(m => m.id === id)?.name || "").replace(/^[^:]+:\s*/, "") || id.split("/").pop();
+    const day = S.models.favAt ? fileDay(new Date(S.models.favAt).toISOString().slice(0, 10)) : "";
+    favBox.textContent = `Chosen each day as the cheapest of your favourites${day ? `, checked ${day}` : ""}: ` +
+      f.map(id => `${name(id)}${price.has(id) ? " " + money(price.get(id)) : ""}`).join(" \u00b7 ") +
+      ", per million tokens. Picking a model here ends that.";
+  };
+  paintFav();
 
   const paint = () => {
     const t = q.value.trim().toLowerCase();
@@ -4939,7 +4958,7 @@ function openModelSheet(){
   };
   q.oninput = paint;
 
-  models().then(ms => { all = ms; paint(); setTimeout(()=>q.focus(),30); })
+  models().then(ms => { all = ms; paint(); paintFav(); setTimeout(()=>q.focus(),30); })
     .catch(e => { msg.className="bad"; msg.textContent = e.message; list.innerHTML = ""; list.append(el("div","mnone","The list did not load.")); });
 
   /* Saved for the workspace, then Settings opens again on the new pick. */
@@ -4948,7 +4967,7 @@ function openModelSheet(){
     let r;
     try { r = await api("/api/models", { chat: model }); }
     catch (e) { save.disabled = false; msg.className = "bad"; msg.textContent = e.message; return; }
-    S.models = { ...(S.models || {}), chat: r.chat, ...(r.reply ? { reply: r.reply, voice: r.voice } : {}) };
+    S.models = { ...(S.models || {}), chat: r.chat, favs: r.favs ?? null, ...(r.reply ? { reply: r.reply, voice: r.voice } : {}) };
     S.model = r.chat;
     shut(); render(); openSetupSheet();
   };
