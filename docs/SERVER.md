@@ -333,6 +333,19 @@ workspace picks one in Settings, saved on the server: it answers, reads drops
 and writes one-pagers. It defaults to `z-ai/glm-5.3-flash`, in every
 workspace. The demo always runs on the defaults.
 
+To set the model of Octopus, Squidgy and every workspace made with
+`makeWorkspace` at once, from a terminal, with no model call:
+
+```bash
+npx convex run admin:setModel "{model:'deepseek/deepseek-v4.1-flash',dry:true}" --prod   # who changes, nothing written
+npx convex run admin:setModel "{model:'deepseek/deepseek-v4.1-flash'}" --prod
+npx convex run admin:setModel "{model:null}" --prod                                      # back to the default
+```
+
+It writes what each workspace would pick in Settings, and each can change it
+there afterwards. The demo and the workspaces visitors made on their own key
+keep the default. `spaces:['pandaaahh']` names a few instead of all.
+
 Every call asks the model to skip thinking, which is cheaper and quicker. GLM
 5.3 Flash cannot skip it and refuses such a call, so it is asked again with
 low thinking, kept out of the reply, and 4,000 more tokens of room. The model

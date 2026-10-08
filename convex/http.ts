@@ -10,7 +10,7 @@ import { internal } from "./_generated/api";
 import {
   ask, json, cors, sha256, slug, randomHex, isOpen, parseJson,
   readSpace, SPACE_NAME, HOME, spaceName, slugOfName, SPACE_RE, SPACES,
-  MODEL, CHUNK,
+  MODEL, MODEL_ID, CHUNK,
   canDrop,
 } from "./lib";
 import type { Who } from "./lib";
@@ -128,7 +128,6 @@ async function demoCount(ctx: any, who: Caller, what: "drop" | "ask" | "step") {
  * may pick another model in the app; the default is the one this deployment
  * runs.
  */
-const MODEL_ID = /^[a-z0-9~][a-z0-9._-]*\/[a-z0-9][a-z0-9._:-]*$/i;
 function modelName(body: any): string | undefined {
   const m = String(body?.model ?? "").trim();
   if (!m || m === MODEL) return undefined;

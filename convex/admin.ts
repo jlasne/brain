@@ -12,9 +12,9 @@
 import { internalMutation, internalQuery, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { today, sha256, randomHex, gateKey, readSpace, slugOfName, SPACE_RE, SPACES, ask, parseJson } from "./lib";
+import { today, sha256, randomHex, gateKey, readSpace, slugOfName, SPACE_RE, SPACES, MODEL, MODEL_ID, ask, parseJson } from "./lib";
 import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle, kindsOf } from "./words";
-import { syncCard, mergeInto, mergeOpenLines } from "./store";
+import { syncCard, mergeInto, mergeOpenLines, putModels } from "./store";
 import { loadSpace } from "./space";
 import { rederive, needsPosition, REDERIVE_MAX } from "./tidy";
 import { embedConcepts, nearest, writeInsights, buildTopics } from "./graph";
@@ -121,6 +121,44 @@ export const setPass = internalMutation({
     if (row) { await ctx.db.patch(row._id, doc); return { space, replaced: true }; }
     await ctx.db.insert("config", doc);
     return { space, replaced: false };
+  },
+});
+
+/**
+ * The model of every workspace that runs on this deployment's key, set at once:
+ * Octopus, Squidgy and each workspace made with makeWorkspace. It is what each
+ * would pick in Settings, and each can change it there afterwards. The demo and
+ * the workspaces visitors made on their own key are left alone.
+ *
+ *     npx convex run admin:setModel "{model:'deepseek/deepseek-v4.1-flash'}" --prod
+ *
+ * Pass `dry: true` to see what it would change and write nothing, and `spaces`
+ * to name a few instead of all, by slug or by name. `model: null` takes them
+ * back to the default, which is what a workspace with no pick runs on.
+ */
+export const setModel = internalMutation({
+  args: { model: v.union(v.string(), v.null()), spaces: v.optional(v.array(v.string())), dry: v.optional(v.boolean()) },
+  handler: async (ctx, a) => {
+    const model = a.model === null ? null : String(a.model).trim();
+    if (model !== null && (model.length > 80 || !MODEL_ID.test(model))) {
+      throw new Error(`"${model.slice(0, 40)}" is not a model id. They read vendor/model, like ${MODEL}.`);
+    }
+    const hosted = (await ctx.db.query("workspaces").collect()).filter((w: any) => w.kind === "hosted");
+    const names = new Map<string, string>([...SPACES.map(s => [s, s] as [string, string]), ...hosted.map((w: any) => [w.slug, w.name] as [string, string])]);
+    const asked: string[] = (a.spaces ?? []).map((s: string) => slugOfName(s));
+    const strange = asked.filter(s => !names.has(s));
+    if (strange.length) throw new Error(`${strange.join(", ")} ${strange.length === 1 ? "is" : "are"} not on this deployment's key. They are: ${[...names.keys()].join(", ")}.`);
+    /* The default is kept as no pick, the way Settings keeps it. */
+    const to = model === MODEL ? null : model;
+    const out: { space: string; name: string; was: string | null; now: string | null }[] = [];
+    const list: string[] = asked.length ? [...new Set(asked)] : [...names.keys()];
+    for (const space of list) {
+      const row = await ctx.db.query("models").withIndex("by_space", (q: any) => q.eq("space", space)).unique();
+      out.push({ space, name: names.get(space) ?? space, was: row?.chat ?? null, now: to });
+      if (!a.dry) await putModels(ctx, { space, chat: to });
+    }
+    console.log(`model ${model ?? "default"} ${a.dry ? "would be set" : "set"} for ${out.map(x => x.space).join(", ")}`);
+    return { dry: !!a.dry, model, spaces: out };
   },
 });
 

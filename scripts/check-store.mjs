@@ -726,6 +726,41 @@ function seed() {
   check("and the old field goes on its next save", old.T.models[0].project === undefined && old.T.models[0].chat === "x/y");
 }
 
+/* ---- the model of every workspace on the deployment's key, set at once ---- */
+{
+  const { T, ctx } = seed();
+  await run(admin.makeWorkspace, ctx, { name: "PandAAAHH", pass: "ABC12345" });
+  T.workspaces.push({ _id: "wd", slug: "demo", name: "Demo", kind: "demo", created: "2026-01-01" }, { _id: "wb", slug: "acme", name: "Acme", kind: "byok", created: "2026-01-01" });
+  await run(store.setModels, ctx, { space: "octopus", chat: "z-ai/glm-5.3", reply: "en", voice: "fr-FR" });
+  const pick = () => Object.fromEntries(["octopus", "squidgy", "pandaaahh", "demo", "acme"].map(s => [s, T.models?.find(m => m.space === s)?.chat ?? null]));
+  const DS = "deepseek/deepseek-v4.1-flash";
+
+  const dry = await run(admin.setModel, ctx, { model: DS, dry: true });
+  check("a dry run lists the three workspaces on the deployment's key, what each runs on, and writes nothing",
+    dry.dry && JSON.stringify(dry.spaces.map(x => [x.space, x.name, x.was, x.now])) === JSON.stringify([["octopus", "octopus", "z-ai/glm-5.3", DS], ["squidgy", "squidgy", null, DS], ["pandaaahh", "PandAAAHH", null, DS]])
+    && JSON.stringify(pick()) === JSON.stringify({ octopus: "z-ai/glm-5.3", squidgy: null, pandaaahh: null, demo: null, acme: null }), JSON.stringify([dry, pick()]));
+
+  const set = await run(admin.setModel, ctx, { model: DS });
+  check("set, the three run on that model", JSON.stringify(pick()) === JSON.stringify({ octopus: DS, squidgy: DS, pandaaahh: DS, demo: null, acme: null }) && !set.dry, JSON.stringify(pick()));
+  check("the demo and a visitor's own-key workspace are left on the default", !T.models.some(m => m.space === "demo" || m.space === "acme"));
+  check("what a workspace chose for its languages is kept", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === `{"chat":"${DS}","reply":"en","voice":"fr-FR"}`, JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })));
+  check("and each reads it back as its model", (await run(store.modelsOf, ctx, { space: "pandaaahh" })).chat === DS && (await run(store.modelsOf, ctx, { space: "squidgy" })).chat === DS);
+
+  const some = await run(admin.setModel, ctx, { model: "z-ai/glm-5.3", spaces: ["PandAAAHH"] });
+  check("a name given by its title picks just that workspace", JSON.stringify(some.spaces.map(x => x.space)) === '["pandaaahh"]' && pick().pandaaahh === "z-ai/glm-5.3" && pick().octopus === DS && pick().squidgy === DS, JSON.stringify(pick()));
+
+  await run(admin.setModel, ctx, { model: "z-ai/glm-5.3-flash" });
+  check("the default model is kept as no pick, the way Settings keeps it", JSON.stringify(pick()) === JSON.stringify({ octopus: null, squidgy: null, pandaaahh: null, demo: null, acme: null }) && T.models.every(m => !("chat" in m) || m.chat === undefined), JSON.stringify(T.models));
+  await run(admin.setModel, ctx, { model: DS });
+  const back = await run(admin.setModel, ctx, { model: null });
+  check("null takes them all back to the default", back.model === null && JSON.stringify(pick()) === JSON.stringify({ octopus: null, squidgy: null, pandaaahh: null, demo: null, acme: null }));
+
+  check("something that is not a model id is refused, and nothing changes",
+    /not a model id/.test(await throws(run(admin.setModel, ctx, { model: "deepseek flash" }))) && /not a model id/.test(await throws(run(admin.setModel, ctx, { model: "x".repeat(90) + "/y" }))) && pick().octopus === null);
+  check("a workspace that is not on the deployment's key is refused by name, and the ones that are are listed",
+    /demo is not on this deployment's key\. They are: octopus, squidgy, pandaaahh/.test(await throws(run(admin.setModel, ctx, { model: DS, spaces: ["demo"] }))) && pick().octopus === null);
+}
+
 /* ---- one folder merged into another ---- */
 {
   const { T, ctx } = seed();

@@ -1375,20 +1375,23 @@ export const modelsOf = internalQuery({
 export const VOICES = ["en-US", "fr-FR", "es-ES", "de-DE", "it-IT", "pt-PT"];
 
 /** A new pick. null goes back to the default; absent leaves it. */
+/** A workspace's model and languages, written: only the fields given change. */
+export async function putModels(ctx: any, a: { space: string; chat?: string | null; reply?: string; voice?: string | null }) {
+  const space = readSpace(a.space), row = await modelsRow(ctx, space), at = Date.now();
+  const next: any = { chat: row?.chat, reply: row?.reply, voice: row?.voice };
+  if (a.chat !== undefined) next.chat = a.chat ?? undefined;
+  if (a.reply !== undefined) next.reply = a.reply === "en" ? "en" : "same";
+  if (a.voice !== undefined) next.voice = VOICES.includes(a.voice as string) ? a.voice : undefined;
+  for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
+  if (row) await ctx.db.patch(row._id, { chat: undefined, project: undefined, voice: undefined, ...next, updated: at });
+  else await ctx.db.insert("models", { space, ...next, updated: at });
+  return { chat: next.chat ?? null, reply: next.reply === "en" ? "en" : "same", voice: next.voice ?? null };
+}
+
 export const setModels = internalMutation({
   args: { space: v.string(), chat: v.optional(v.union(v.string(), v.null())),
           reply: v.optional(v.string()), voice: v.optional(v.union(v.string(), v.null())) },
-  handler: async (ctx, a) => {
-    const space = readSpace(a.space), row = await modelsRow(ctx, space), at = Date.now();
-    const next: any = { chat: row?.chat, reply: row?.reply, voice: row?.voice };
-    if (a.chat !== undefined) next.chat = a.chat ?? undefined;
-    if (a.reply !== undefined) next.reply = a.reply === "en" ? "en" : "same";
-    if (a.voice !== undefined) next.voice = VOICES.includes(a.voice as string) ? a.voice : undefined;
-    for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
-    if (row) await ctx.db.patch(row._id, { chat: undefined, project: undefined, voice: undefined, ...next, updated: at });
-    else await ctx.db.insert("models", { space, ...next, updated: at });
-    return { chat: next.chat ?? null, reply: next.reply === "en" ? "en" : "same", voice: next.voice ?? null };
-  },
+  handler: async (ctx, a) => await putModels(ctx, a),
 });
 
 /** A workspace's logo and colours, or null for the look it wears by default. */
