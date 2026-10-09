@@ -3439,7 +3439,8 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/project/finish") return J({ sections: 1, chars: 10 });
       if (path === "/api/project/rename") { P.project.name = body.name; arg.state.projects.find(x => x.slug === body.brain).name = body.name; return J({ slug: body.brain, name: body.name }); }
       if (path === "/api/project/delete") { arg.state.projects = arg.state.projects.filter(x => x.slug !== body.brain); return J({ ok: true }); }
-      if (path === "/api/project/download") return J({ name: P.file.name, kind: P.file.kind, sheet: "Programs", text: "a,b\n1,2\n" });
+      if (path === "/api/project/download") { const sh = P.file.sheets[body.sheet || 0];
+        return J({ name: P.file.name, kind: P.file.kind, sheet: sh?.name || "", text: P.file.kind === "table" ? (body.sheet ? "Note\nCall Ana\n" : 'Program,Price,Plan\nAlpha,490,Yes\nBeta,"1,200",No\nCode,00123,No\n') : arg.md }); }
       if (path === "/api/chats/get") return J({ chat: { id: body.id, title: "Is gold a hedge?", brain: "all", pinned: false, turns: [{ q: "Is gold a hedge?", a: "Gold held its value over 20 years.", sources: 4, level: "normal" }] } });
       if (path === "/api/chats") return J({ chats: [{ id: "k1", title: "Is gold a hedge?", brain: "all", pinned: false, updated: Date.now(), turns: 1 }] });
       return J({ chats: [] });
@@ -3452,7 +3453,8 @@ for (const space of ["octopus", "squidgy"]) {
         cost: { in: 4120, out: 310, cached: 2048, usd: 0.00052, calls: 2 } };
     };
   };
-  const arg = { state: st, projects, doc: DOC, rows: ROWS };
+  const MD = "# Brief\n\nFill **200** seats by 30 November, café open.\n\n| Plan | Price |\n| --- | --- |\n| Team | €1,490 |\n";
+  const arg = { state: st, projects, doc: DOC, rows: ROWS, md: MD };
   const { page, bad } = await boot("/chat.html", init, arg);
   await page.waitForTimeout(400);
   const side = await page.evaluate(() => ({ head: document.getElementById("projectsFold").textContent.trim().replace(/\s+/g, " "), n: document.getElementById("pcount").textContent,
@@ -3499,17 +3501,32 @@ for (const space of ["octopus", "squidgy"]) {
   check("it says what it used: the file and its section, the folder and its notes, the memory, and the note it filed by itself, then what it cost", JSON.stringify(ans.chips) === '["brief-v3.docx: Offer","Pricing folder · 2 notes","Memory · 1 note","Noted: Team price","4.1k in · 310 out · 2k reused · $0.00052"]', JSON.stringify(ans.chips));
   check("the section it used is marked in the file, and the words it rests on, across the table's cells", JSON.stringify(ans.used) === '["2"]' && ans.marks.join(" ") === "Team 3 €1,490", JSON.stringify(ans));
 
-  /* the memory fills by itself */
+  /* the memory fills by itself, and sits behind one small button: no bar of tabs */
   await page.waitForTimeout(300);
-  const auto = await page.evaluate(() => ({ tab: document.querySelector(".pj-tab i")?.textContent, keeps: window.__calls.filter(x => x.s === "/api/project/keep").length, offer: [...document.querySelectorAll("button")].some(b => /Keep in memory/.test(b.textContent)) }));
-  check("the project filed a note by itself: the Memory tab counts it, and nothing offers to keep an answer", auto.tab === "2" && auto.keeps === 0 && !auto.offer, JSON.stringify(auto));
-  await page.click(".pj-tab >> text=Memory"); await page.waitForTimeout(200);
-  const mem = await page.evaluate(() => ({ items: [...document.querySelectorAll(".pj-mem b")].map(x => x.textContent), comp: document.querySelector(".pj-comp").hidden, small: [...document.querySelectorAll(".pj-mem small")].map(x => x.textContent) }));
-  check("the Memory tab lists what the project remembers, with the message bar out of the way", JSON.stringify(mem.items) === '["Team price","Team price"]' && mem.comp === true, JSON.stringify(mem));
-  check("each note says which section it rests on, and the file's change under it", mem.small[0] === "In Offer · 2026-10-09" && mem.small[1] === "In Offer · The file changed since · 2026-10-08", JSON.stringify(mem.small));
-  await page.click(".pj-mem .pj-b >> nth=0"); await page.waitForTimeout(300);
-  check("a note can be forgotten", (await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/forget").pop()?.body, left: document.querySelectorAll(".pj-mem").length })) ).left === 1);
-  await page.click(".pj-tab >> text=Chat"); await page.waitForTimeout(200);
+  const auto = await page.evaluate(() => ({ badge: document.querySelector(".pj-memb i")?.textContent, inBar: !!document.querySelector(".pj-comp .pj-memb"), bar: !!document.querySelector(".pj-tabs, .pj-tab"),
+    keeps: window.__calls.filter(x => x.s === "/api/project/keep").length, offer: [...document.querySelectorAll("button")].some(b => /Keep in memory/.test(b.textContent)) }));
+  check("the project filed a note by itself: a small Memory button by the message bar counts it, no bar of tabs is left, and nothing offers to keep an answer", auto.badge === "2" && auto.inBar && !auto.bar && auto.keeps === 0 && !auto.offer, JSON.stringify(auto));
+  await page.click('.pj-used button:has-text("Memory")'); await page.waitForTimeout(250);
+  check("the Memory chip under an answer opens the same sheet", await page.evaluate(() => !!document.querySelector(".veil.pm") && document.querySelectorAll("#pmList .fv-row").length === 2));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+  check("Escape puts the sheet away", await page.evaluate(() => !document.querySelector(".veil.pm")));
+  await page.click(".pj-memb"); await page.waitForTimeout(250);
+  const mem = await page.evaluate(() => ({ sub: document.querySelector("#pmSub")?.textContent, bold: getComputedStyle(document.querySelector("#pmList .fv-row b")).fontWeight, tag: document.querySelector("#pmList .fv-row").tagName,
+    rows: [...document.querySelectorAll("#pmList .fv-row:not(.st)")].map(r => [r.querySelector("b").textContent, r.querySelector("span")?.textContent, r.querySelector("small").textContent]) }));
+  check("Memory opens as a sheet that lists its notes the way a folder lists its concepts: a bold title, a line, a small meta, the newest first",
+    mem.sub === "2 notes, the newest first." && mem.rows.length === 2 && mem.tag === "BUTTON" && Number(mem.bold) >= 600
+    && mem.rows[0][1] === "Team stays at 1,490 euros, sold in two payments." && mem.rows[1][1] === "Team is priced at 1,490 euros.", JSON.stringify(mem));
+  check("each note says which section it rests on, and the file's change under it, then its day", mem.rows[0][2] === "In Offer · 9 Oct" && mem.rows[1][2] === "In Offer · The file changed since · 8 Oct", JSON.stringify(mem.rows));
+  await page.click("#pmList .fv-row >> nth=0"); await page.waitForTimeout(150);
+  const note = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, text: document.querySelector(".pm-note .fv-pos")?.textContent, back: document.querySelector(".pm-back")?.textContent, forget: document.querySelector(".pm-note .pj-b")?.textContent }));
+  check("a tap opens the note: its words in full, a way back to all notes, and Forget inside", note.title === "Team price" && note.text === "Team stays at 1,490 euros, sold in two payments." && note.back === "← All notes" && note.forget === "Forget this note", JSON.stringify(note));
+  await page.click(".pm-back"); await page.waitForTimeout(100);
+  check("back returns to the list", await page.evaluate(() => document.querySelectorAll("#pmList .fv-row").length === 2));
+  await page.click("#pmList .fv-row >> nth=0"); await page.click(".pm-note .pj-b"); await page.waitForTimeout(300);
+  const gone = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/forget").pop()?.body, rows: document.querySelectorAll("#pmList .fv-row:not(.st)").length, badge: document.querySelector(".pj-memb i")?.textContent }));
+  check("a note can be forgotten: the list comes back with one note left, and the button counts it", gone.call?.slug === "two-payments" && gone.rows === 1 && gone.badge === "1", JSON.stringify(gone));
+  await page.click("#pmClose"); await page.waitForTimeout(100);
+  check("Close puts the sheet away", await page.evaluate(() => !document.querySelector(".veil.pm")));
 
   /* a change the chat proposes: the words before and after, a click to apply, a click to undo */
   await page.evaluate(() => { window.__reply = (b, P) => { const e = { id: "e1", at: 1, status: "open", preview: [{ label: 'In "Offer"', before: "€1,490", after: "€1,290" }, { label: 'New section after "Offer"', before: "", after: "Early-bird week: 3 Nov." }] };
@@ -3543,8 +3560,35 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click(".pj-t h2"); await page.fill("#prName", "Launch brief"); await page.click("#prSave"); await page.waitForTimeout(400);
   const ren = await page.evaluate(() => ({ title: document.querySelector(".pj-t h2").textContent, row: document.querySelector("#projects .pj-row .nm").textContent, call: window.__calls.filter(x => x.s === "/api/project/rename").pop()?.body }));
   check("a project is renamed from its title, and the list follows", ren.title === "Launch brief" && ren.row === "Launch brief" && ren.call?.name === "Launch brief", JSON.stringify(ren));
-  const [dl] = await Promise.all([page.waitForEvent("download"), page.click(".pj-acts button >> text=Download")]);
-  check("Download gives the file as it stands: a document as Markdown", dl.suggestedFilename() === "brief-v3.md", dl.suggestedFilename());
+  /* Download asks for the format, then writes the file in this tab */
+  const saved = async fmt => { const [d] = await Promise.all([page.waitForEvent("download"), (async () => { await page.click(".pj-acts button >> text=Download"); await page.click(`.pj-menu button[data-fmt="${fmt}"]`); })()]);
+    return { name: d.suggestedFilename(), body: await readFile(await d.path()) }; };
+  await page.click(".pj-acts button >> text=Download"); await page.waitForTimeout(100);
+  const fm = await page.evaluate(() => { const m = document.querySelector(".pj-menu"), r = m.getBoundingClientRect(); return { opts: [...m.querySelectorAll("button")].map(b => b.textContent), role: m.getAttribute("role"),
+    expanded: document.querySelector(".pj-acts button[aria-haspopup]").getAttribute("aria-expanded"), focus: document.activeElement?.dataset.fmt, inside: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight }; });
+  check("Download asks for the format: a document as Markdown, PDF or a web page, in a menu inside the screen", JSON.stringify(fm.opts) === '["Markdown.md","PDF.pdf","Web page.html"]' && fm.role === "menu" && fm.expanded === "true" && fm.focus === "md" && fm.inside, JSON.stringify(fm));
+  await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown");
+  check("the arrow keys move through the formats and come round", await page.evaluate(() => document.activeElement?.dataset.fmt === "md"));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(80);
+  check("Escape puts the menu away", await page.evaluate(() => !document.querySelector(".pj-menu") && document.querySelector(".pj-acts button[aria-haspopup]").getAttribute("aria-expanded") === "false"));
+  await page.click(".pj-acts button >> text=Download"); await page.mouse.click(520, 300); await page.waitForTimeout(80);
+  check("a press outside puts it away too", await page.evaluate(() => !document.querySelector(".pj-menu")));
+  await page.click(".pj-acts button >> text=Download"); await page.click(".pj-acts button >> text=Download"); await page.waitForTimeout(80);
+  check("and the button again closes it", await page.evaluate(() => !document.querySelector(".pj-menu")));
+  const dMd = await saved("md");
+  check("Markdown gives the document as it stands", dMd.name === "brief-v3.md" && dMd.body.toString("utf8") === MD, dMd.name);
+  check("and the menu is gone once a format is chosen", await page.evaluate(() => !document.querySelector(".pj-menu")));
+  const dPdf = await saved("pdf");
+  const pt = dPdf.body.toString("latin1");
+  const words = [...pt.matchAll(/\((.*?)\) Tj/g)].map(m => m[1]).join(" ");
+  const xrefOk = (() => { const start = Number(/startxref\n(\d+)/.exec(pt)?.[1]), tail = pt.slice(start), size = Number(/^xref\n0 (\d+)/.exec(tail)?.[1]), lines = tail.split("\n");
+    for (let i = 1; i < size; i++){ if (!pt.slice(Number(lines[2 + i].slice(0, 10))).startsWith(`${i} 0 obj`)) return false; } return size >= 11; })();
+  check("PDF gives a PDF written here: its header, one page, the words with their accents, the table, and every offset right", dPdf.name === "brief-v3.pdf" && pt.startsWith("%PDF-1.4") && pt.endsWith("%%EOF\n")
+    && (pt.match(/\/Type \/Page /g) || []).length === 1 && /Brief/.test(words) && /café open\./.test(words) && /1,490/.test(words) && /Plan/.test(words) && xrefOk, JSON.stringify({ name: dPdf.name, head: pt.slice(0, 8), words: words.slice(0, 160), xrefOk }));
+  const dWeb = await saved("html");
+  const wt = dWeb.body.toString("utf8");
+  check("Web page gives the document as a page of its own: a title, its headings, bold and a table, and no script", dWeb.name === "brief-v3.html" && /^<!doctype html>/.test(wt) && /<title>brief-v3<\/title>/.test(wt)
+    && /<h1>Brief<\/h1>/.test(wt) && /<strong>200<\/strong>/.test(wt) && /<th>Plan<\/th>/.test(wt) && /<td>€1,490<\/td>/.test(wt) && !/<script/i.test(wt), wt.slice(0, 200));
 
   /* leaving: a folder, or a new chat, takes the screen back */
   await page.evaluate(() => document.querySelectorAll("#brains .brain-row .op")[1].click()); await page.waitForTimeout(300);
@@ -3560,9 +3604,22 @@ for (const space of ["octopus", "squidgy"]) {
     nums: [...document.querySelectorAll(".pj-grid tbody tr:first-child td")].map(t => t.className).join("|"), rows: document.querySelectorAll(".pj-grid tbody tr").length, first: document.querySelector(".pj-grid tbody tr td.r").textContent,
     foot: document.querySelector(".pj-foot summary").textContent.replace(/\s+/g, " "), stats: [...document.querySelectorAll(".pj-foot .ln")].map(x => x.textContent), btn: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"),
     seg: [...document.querySelectorAll(".pj-seg button")].map(b => b.textContent).join() }));
-  check("a table shows a tab for each sheet, a grid with row numbers, numbers on the right", tbl.tabs === "Programs,Notes" && tbl.head === "#|Program|Price|Plan" && tbl.nums === "r||n|" && tbl.rows === 4 && tbl.first === "1" && tbl.seg === "Table,Chat,Memory", JSON.stringify(tbl));
+  check("a table shows a tab for each sheet, a grid with row numbers, numbers on the right", tbl.tabs === "Programs,Notes" && tbl.head === "#|Program|Price|Plan" && tbl.nums === "r||n|" && tbl.rows === 4 && tbl.first === "1" && tbl.seg === "Table,Chat", JSON.stringify(tbl));
   check("and what each column holds, computed when it was read", /4<\/b>|4 rows/.test(tbl.foot) || /^4 rows · 3 columns/.test(tbl.foot) ? tbl.stats[1] === "Price: total 5,130 · average 1,282.5 · lowest 490 · highest 2,400" && tbl.stats[2] === "Plan: Yes, No" : false, JSON.stringify(tbl));
   check("Replace table is offered, never Contents", tbl.btn === "Replace table/Download/Delete", tbl.btn);
+  await page.evaluate(() => { window.__xl = []; window.XLSX = { utils: { book_new: () => ({ SheetNames: [], Sheets: {} }), aoa_to_sheet: rows => ({ rows }), book_append_sheet: (wb, ws, name) => { wb.SheetNames.push(name); wb.Sheets[name] = ws; } },
+    write: (wb, o) => { window.__xl.push({ names: wb.SheetNames.slice(), sheets: wb.SheetNames.map(n => wb.Sheets[n].rows), o }); return new Uint8Array([80, 75, 3, 4]).buffer; } }; });
+  await page.click(".pj-acts button >> text=Download"); await page.waitForTimeout(100);
+  const tm = await page.evaluate(() => ({ opts: [...document.querySelectorAll(".pj-menu button")].map(b => b.textContent), note: document.querySelector(".pj-menu p")?.textContent }));
+  check("a table downloads as Excel, CSV or Markdown, and a table of two sheets says what each takes", JSON.stringify(tm.opts) === '["Excel.xlsx","CSV.csv","Markdown.md"]' && tm.note === "Excel keeps all 2 sheets. CSV and Markdown take the open one.", JSON.stringify(tm));
+  await page.keyboard.press("Escape");
+  const tXl = await saved("xlsx"), xl = await page.evaluate(() => window.__xl[0]);
+  check("Excel puts every sheet in one workbook: numbers are numbers, a code with a zero in front stays text", tXl.name === "competitors.xlsx" && [...tXl.body].join() === "80,75,3,4" && xl.o.bookType === "xlsx"
+    && JSON.stringify(xl.names) === '["Programs","Notes"]' && JSON.stringify(xl.sheets[0]) === '[["Program","Price","Plan"],["Alpha",490,"Yes"],["Beta","1,200","No"],["Code","00123","No"]]' && JSON.stringify(xl.sheets[1]) === '[["Note"],["Call Ana"]]', JSON.stringify(xl));
+  const tCsv = await saved("csv");
+  check("CSV gives the open sheet as it is, named for the sheet", tCsv.name === "competitors - Programs.csv" && tCsv.body.toString("utf8") === 'Program,Price,Plan\nAlpha,490,Yes\nBeta,"1,200",No\nCode,00123,No\n', tCsv.name);
+  const tMd = await saved("md");
+  check("Markdown gives the open sheet as a Markdown table", tMd.name === "competitors - Programs.md" && tMd.body.toString("utf8") === "| Program | Price | Plan |\n| --- | --- | --- |\n| Alpha | 490 | Yes |\n| Beta | 1,200 | No |\n| Code | 00123 | No |\n", tMd.body.toString("utf8"));
   await page.evaluate(() => { window.__reply = (b, P) => ({ id: "t1", q: b.q, a: "Two programs charge more than 1,200.", proposal: false, quotes: [], used: { file: { name: P.file.name, whole: false, rows: [1, 3], sheet: 0 }, folders: [], memory: 0 } }); });
   await page.fill(".pj-comp textarea", "Which cost more than 1,200?"); await page.keyboard.press("Enter"); await page.waitForTimeout(600);
   const marked = await page.evaluate(() => ({ rows: [...document.querySelectorAll(".pj-grid tr.used")].map(r => r.dataset.n).join(), chip: document.querySelector(".pj-used button")?.textContent }));
@@ -3670,15 +3727,17 @@ for (const space of ["octopus", "squidgy"]) {
       segH: Math.min(...seg.map(b => b.getBoundingClientRect().height)), docShown: getComputedStyle(doc).display !== "none", chatShown: getComputedStyle(chat).display !== "none",
       wide: document.documentElement.scrollWidth > innerWidth + 1, ta: parseFloat(getComputedStyle(document.querySelector(".pj-comp textarea")).fontSize), turn: document.querySelectorAll(".pj-turn").length,
       send: document.querySelector(".pj-send").getBoundingClientRect().width }; });
-  check("on a phone the drawer closes on the project, which opens as three tabs on its chat", !m.drawer && m.seg === "Document,Chat,Memory1" && m.on === "Chat" && m.chatShown && !m.docShown && m.turn === 1, JSON.stringify(m));
+  check("on a phone the drawer closes on the project, which opens on its chat, the file one tap away", !m.drawer && m.seg === "Document,Chat" && m.on === "Chat" && m.chatShown && !m.docShown && m.turn === 1, JSON.stringify(m));
   check("the tabs and the send button are 36px, what a thumb needs, the field never zooms the page, nothing runs off the screen", m.segH >= 36 && m.segH <= 40 && m.send >= 36 && m.send <= 40 && m.ta >= 16 && !m.wide, JSON.stringify(m));
-  /* the memory is a button of the same row, and the chat's own tabs are not shown */
-  await page.click(".pj-seg button >> text=Memory"); await page.waitForTimeout(300);
-  const mm = await page.evaluate(() => ({ on: document.querySelector(".pj-seg .on")?.textContent, tabs: getComputedStyle(document.querySelector(".pj-tabs")).display, bar: document.querySelector(".pj-comp").hidden,
-    notes: [...document.querySelectorAll(".pj-mem b")].map(x => x.textContent), chatShown: getComputedStyle(document.querySelector(".pj-chat")).display !== "none", wide: document.documentElement.scrollWidth > innerWidth + 1 }));
-  check("on a phone Memory sits in the same row as the file and the chat, lists what the project keeps, and the message bar steps aside", mm.on === "Memory1" && mm.tabs === "none" && mm.bar && JSON.stringify(mm.notes) === '["Seats"]' && mm.chatShown && !mm.wide, JSON.stringify(mm));
-  await page.click(".pj-seg button >> text=Chat"); await page.waitForTimeout(300);
-  check("and Chat brings the thread and the message bar back", await page.evaluate(() => document.querySelector(".pj-seg .on")?.textContent === "Chat" && !document.querySelector(".pj-comp").hidden && document.querySelectorAll(".pj-turn").length === 1));
+  /* the memory is one small button in the message bar: no tab, no third segment */
+  const mb = await page.evaluate(() => { const b = document.querySelector(".pj-memb"), r = b.getBoundingClientRect(); return { w: r.width, h: r.height, badge: b.querySelector("i")?.textContent, tabs: !!document.querySelector(".pj-tabs"), inBar: !!b.closest(".pj-comp"), title: b.title }; });
+  check("on a phone Memory is a small button in the message bar, 36px, with its count, and no tab", mb.inBar && mb.w >= 36 && mb.w <= 40 && mb.h >= 36 && mb.h <= 40 && mb.badge === "1" && !mb.tabs && mb.title === "Memory: 1 note", JSON.stringify(mb));
+  await page.click(".pj-memb"); await page.waitForTimeout(300);
+  const mm = await page.evaluate(() => { const r = document.querySelector(".veil.pm .sheet")?.getBoundingClientRect();
+    return { notes: [...document.querySelectorAll("#pmList .fv-row b")].map(x => x.textContent), wide: document.documentElement.scrollWidth > innerWidth + 1, left: r && Math.round(r.left), right: r && Math.round(r.right), bottom: r && Math.round(r.bottom), ih: innerHeight }; });
+  check("it opens a sheet from the bottom with the notes listed, inside the screen", JSON.stringify(mm.notes) === '["Seats"]' && !mm.wide && mm.left >= 0 && mm.right <= 390 && Math.abs(mm.bottom - mm.ih) <= 1, JSON.stringify(mm));
+  await page.click("#pmClose"); await page.waitForTimeout(200);
+  check("and Close brings the chat back as it was", await page.evaluate(() => !document.querySelector(".veil.pm") && document.querySelector(".pj-seg .on")?.textContent === "Chat" && !!document.querySelector(".pj-comp") && document.querySelectorAll(".pj-turn").length === 1));
   await page.click(".pj-seg button >> text=Document"); await page.waitForTimeout(500);
   const d = await page.evaluate(() => ({ docShown: getComputedStyle(document.querySelector(".pj-doc")).display !== "none", chatShown: getComputedStyle(document.querySelector(".pj-chat")).display !== "none",
     secs: document.querySelectorAll(".pj-sec").length, wide: document.documentElement.scrollWidth > innerWidth + 1, page: document.querySelector(".pj-page").getBoundingClientRect() }));
@@ -3754,6 +3813,10 @@ for (const space of ["octopus", "squidgy"]) {
   };
   const { page, bad } = await boot("/chat.html", init, { state: st, page: PAGE });
   await page.waitForTimeout(400);
+  /* with no project the panel says nothing: its header and its plus are enough */
+  const none = await page.evaluate(() => ({ box: getComputedStyle(document.getElementById("projectsBox")).display, text: document.getElementById("projects").textContent.trim(),
+    head: document.getElementById("projectsFold").textContent.trim().replace(/\s+/g, " "), plus: !!document.getElementById("newProject") }));
+  check("with no project the Projects panel says nothing: its header and its plus remain, and no line explains", none.box === "none" && none.text === "" && none.head === "Projects" && none.plus, JSON.stringify(none));
   await page.click("#newProject"); await page.waitForTimeout(200);
   const sheet = await page.evaluate(() => ({ makes: [...document.querySelectorAll("[data-make]")].map(b => b.textContent).join(), file: document.getElementById("npFile").textContent }));
   check("a new project can start from nothing: a document, a table or an HTML page", sheet.makes === "Document,Table,HTML page" && /HTML/.test(sheet.file), JSON.stringify(sheet));
@@ -3766,6 +3829,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("the page is empty and says so; there is nothing to download yet", made.empty === "This page is empty" && made.chip === "New page.html" && made.acts === "Replace page/Delete", JSON.stringify(made));
   check("the message bar asks for a description, with examples to start from", /^Describe the page you want/.test(made.ph) && made.tries.length === 2 && /^A landing page/.test(made.tries[0]) && /Describe the page you want/.test(made.hint), JSON.stringify(made.tries));
   check("a page has its own icon in the Projects panel", made.icon);
+  check("and the panel shows its body again once a project is listed", await page.evaluate(() => getComputedStyle(document.getElementById("projectsBox")).display !== "none" && document.querySelectorAll("#projects .pj-row").length === 1));
 
   await page.click(".pj-try button >> nth=0"); await page.keyboard.press("Enter"); await page.waitForTimeout(900);
   const ans = await page.evaluate(() => { const a = document.querySelector(".pj-a"), h = a.querySelector(".pj-md h4");
@@ -3777,8 +3841,8 @@ for (const space of ["octopus", "squidgy"]) {
   check("headings in an answer read as small labels, lists nest, quotes stand apart", ans.h4 === "Next" && ans.h4size <= 12 && ans.nested === "with a phone field" && ans.quote === "Keep it short.", JSON.stringify(ans));
   check("it says what the project noted from the message", JSON.stringify(ans.chips) === '["New page.html","Noted: Page purpose"]', JSON.stringify(ans.chips));
   await page.waitForTimeout(300);
-  const mem = await page.evaluate(() => ({ badge: document.querySelector(".pj-tab i")?.textContent, listed: window.__calls.filter(x => x.s === "/api/project/list").length }));
-  check("the Memory tab counts what was noted, and the Projects panel is read again", mem.badge === "1" && mem.listed >= 1, JSON.stringify(mem));
+  const mem = await page.evaluate(() => ({ badge: document.querySelector(".pj-memb i")?.textContent, listed: window.__calls.filter(x => x.s === "/api/project/list").length }));
+  check("the Memory button counts what was noted, and the Projects panel is read again", mem.badge === "1" && mem.listed >= 1, JSON.stringify(mem));
   check("a change made at once shows as applied, with an Undo", /applied/.test(ans.edit) && ans.ek === "Applied" && JSON.stringify(ans.btns) === '["Undo"]', JSON.stringify(ans));
 
   const web = await page.evaluate(() => { const f = document.querySelector(".pj-frame"); return { sandbox: f?.getAttribute("sandbox"), src: f?.srcdoc, code: document.querySelector(".pj-code")?.hidden,
@@ -3790,8 +3854,15 @@ for (const space of ["octopus", "squidgy"]) {
   check("Code shows the page's words as they are written", code.text === PAGE && !code.hidden && code.frame && code.on === "Code", JSON.stringify(code));
   await page.click(".pj-view button >> text=Page"); await page.waitForTimeout(100);
   check("and Page brings the rendering back", await page.evaluate(() => document.querySelector(".pj-code").hidden && !document.querySelector(".pj-frame").hidden));
-  const [dl] = await Promise.all([page.waitForEvent("download"), page.click(".pj-b >> text=Download")]);
-  check("a page downloads as an HTML file", dl.suggestedFilename() === "New page.html", dl.suggestedFilename());
+  const savedPg = async fmt => { const [d] = await Promise.all([page.waitForEvent("download"), (async () => { await page.click(".pj-b >> text=Download"); await page.click(`.pj-menu button[data-fmt="${fmt}"]`); })()]);
+    return { name: d.suggestedFilename(), body: (await readFile(await d.path())).toString("utf8") }; };
+  await page.click(".pj-b >> text=Download"); await page.waitForTimeout(100);
+  check("a page downloads as a web page or as Markdown", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll(".pj-menu button")].map(b => b.textContent))) === '["Web page.html","Markdown.md"]');
+  await page.keyboard.press("Escape");
+  const pgHtml = await savedPg("html");
+  check("a page downloads as its own HTML file, as it is", pgHtml.name === "New page.html" && pgHtml.body === PAGE, pgHtml.name);
+  const pgMd = await savedPg("md");
+  check("and as Markdown: its words, with the heading", pgMd.name === "New page.md" && pgMd.body === "# Coaching with Ana\n\nThree offers.", JSON.stringify(pgMd));
 
   await page.click(".pj-edit button >> text=Undo"); await page.waitForTimeout(900);
   const undone = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/edit").pop()?.body, empty: document.querySelector(".pj-empty h3")?.textContent, frame: !!document.querySelector(".pj-frame"), ek: document.querySelector(".pj-ek")?.textContent }));
@@ -3871,6 +3942,37 @@ for (const space of ["octopus", "squidgy"]) {
     costLine({ in: 4120, out: 310, cached: 2048, usd: 0.00052, calls: 2 }), costLine({ in: 900, out: 40, cents: 0.0123, calls: 1 }), costLine({ in: 12500, out: 310, calls: 2 }),
     costLine({ in: 100, out: 5, usd: 0.000001 }), costLine({ in: 50000, out: 900, usd: 0.0345 }), costLine({ in: 800, out: 20, usd: 0.25 })]; }, grab("costLine") + "; return { costLine };");
   check("a price shows in dollars with two figures that count, tokens and what was reused beside it", JSON.stringify(money) === JSON.stringify(["4.1k in · 310 out · 2k reused · $0.00052", "900 in · 40 out · $0.00012", "13k in · 310 out", "100 in · 5 out · under $0.00001", "50k in · 900 out · $0.035", "800 in · 20 out · $0.25"]), JSON.stringify(money));
+
+  /* the formats written in this tab: a PDF, a web page, a Markdown table, a workbook */
+  const exp = await page.evaluate(code => { const { pdfFromMarkdown, htmlDocument, tableMarkdown, xlsxBlob, mdView } = new Function(code)();
+    const latin = u => { let s = ""; for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return s; };
+    const facts = u => { const t = latin(u), start = Number(/startxref\n(\d+)/.exec(t)[1]), tail = t.slice(start), size = Number(/^xref\n0 (\d+)/.exec(tail)[1]), lines = tail.split("\n"); let bad = 0;
+      for (let i = 1; i < size; i++) if (!t.slice(Number(lines[2 + i].slice(0, 10))).startsWith(`${i} 0 obj`)) bad++;
+      const words = [...t.matchAll(/\((.*?)\) Tj/g)].map(m => m[1]);
+      return { pages: (t.match(/\/Type \/Page /g) || []).length, bad, last: words.filter(w => /^\d+ \/ \d+$/.test(w)).pop(), words, head: t.slice(0, 8) }; };
+    const rows = Array.from({ length: 140 }, (_, i) => `| Row ${i + 1} | Item ${i % 7} with some words to wrap around the cell | ${1000 + i * 3} |`).join("\n");
+    const long = facts(pdfFromMarkdown("# Long\n\n" + Array.from({ length: 120 }, (_, i) => `## Part ${i + 1}\n\n` + "A sentence of plain words that goes on. ".repeat(24)).join("\n\n") + "\n\n| Row | Item | Amount |\n| --- | --- | ---: |\n" + rows, "Long"));
+    const small = facts(pdfFromMarkdown("# Café\n\nOne **bold** line, a [link](https://x.com), 100 € and “quotes” — done.\n\n- a\n- b\n\n1. c\n\n> q\n\n```\ncode\n```\n\n---\n\n[[p. 2]]\n\nEnd", "Café"));
+    const edge = facts(pdfFromMarkdown("", "x")), word = facts(pdfFromMarkdown("A " + "x".repeat(400) + " end", "x"));
+    const sym = facts(pdfFromMarkdown("A text in English with one symbol ☃ only.", "x"));
+    const other = pdfFromMarkdown("# 你好\n\n这是一个文档，里面有很多中文字符，不能用拉丁字体写出来。", "x");
+    const tm = tableMarkdown([["a|b", "c\nd"], ["1"]]), none = tableMarkdown([]);
+    const html = htmlDocument(mdView("# T\n\nBody **b**", 1), 'A <b> & "c"');
+    const got = []; window.XLSX = { utils: { book_new: () => ({ names: [], sheets: {} }), aoa_to_sheet: r => ({ r }), book_append_sheet: (wb, ws, n) => { wb.names.push(n); wb.sheets[n] = ws.r; } }, write: (wb, o) => { got.push({ names: wb.names, sheets: wb.sheets, o }); return new ArrayBuffer(4); } };
+    const blob = xlsxBlob([{ name: "Data: 2026/Q1 [draft]", rows: [["h"], ["12"], ["-3.5"], ["007"], ["1e5"], ["12345678901234567890"], [""], ["0"], ["0.5"], ["00.5"]] }, { name: "data  2026 q1  draft", rows: [] }, { name: "", rows: [] }, { name: "__proto__", rows: [] }, { name: "A".repeat(40), rows: [] }]);
+    delete window.XLSX;
+    return { long: { pages: long.pages, bad: long.bad, last: long.last, head: long.head, amount: long.words.filter(w => w === "Amount").length }, small: { pages: small.pages, bad: small.bad, words: small.words.join(" ") },
+      edge: { pages: edge.pages, bad: edge.bad }, word: { pages: word.pages, pieces: word.words.filter(w => /^x+$/.test(w)).length }, sym: sym.words.join(" "), other, tm, none, html,
+      xl: { names: got[0].names, first: got[0].sheets[got[0].names[0]], o: got[0].o, type: blob.type, size: blob.size } }; },
+    `const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));` + grab("pdfFromMarkdown") + grab("htmlDocument") + grab("tableMarkdown") + grab("xlsxBlob") + grab("mdView") + "; return { pdfFromMarkdown, htmlDocument, tableMarkdown, xlsxBlob, mdView };");
+  check("a long document comes out as a PDF of many pages, every offset right, the page number on each, the header of a long table repeated", exp.long.head === "%PDF-1.4" && exp.long.pages >= 20 && exp.long.bad === 0 && exp.long.last === `${exp.long.pages} / ${exp.long.pages}` && exp.long.amount >= 3, JSON.stringify(exp.long));
+  check("accents, quotes, the euro sign and a dash are printed; bold, list, quote, code and rule are kept; a PDF's page mark is not", exp.small.pages === 1 && exp.small.bad === 0 && /Café/.test(exp.small.words) && /100 \u0080 and \u0093quotes\u0094 \u0097 done\./.test(exp.small.words) && /bold/.test(exp.small.words) && !/p\. 2/.test(exp.small.words), JSON.stringify(exp.small));
+  check("an empty document is still a valid page, and a word wider than the line is cut where it runs out", exp.edge.pages === 1 && exp.edge.bad === 0 && exp.word.pages === 1 && exp.word.pieces >= 4, JSON.stringify([exp.edge, exp.word]));
+  check("one symbol the fonts lack is a question mark, and a document in Chinese is refused rather than printed as marks", /symbol \? only\./.test(exp.sym) && exp.other === null, JSON.stringify([exp.sym, exp.other]));
+  check("a table is written as a Markdown table: a bar in a cell is escaped, a line break is a space, a short row is filled", exp.tm === "| a\\|b | c d |\n| --- | --- |\n| 1 |  |\n" && exp.none === "", JSON.stringify(exp.tm));
+  check("a document becomes a page of its own: its title escaped, its heading an h1, its words, no script", /^<!doctype html>/.test(exp.html) && /<title>A &lt;b&gt; &amp; &quot;c&quot;<\/title>/.test(exp.html) && /<main><h1>T<\/h1><p>Body <strong>b<\/strong><\/p><\/main>/.test(exp.html) && !/<script/i.test(exp.html), exp.html.slice(0, 300));
+  check("a workbook names its sheets as Excel allows: no forbidden sign, 31 letters, never twice, never an object's own name", JSON.stringify(exp.xl.names) === JSON.stringify(["Data  2026 Q1  draft", "data  2026 q1  draft 2", "Sheet 3", "Sheet 4", "A".repeat(31)]), JSON.stringify(exp.xl.names));
+  check("its numbers are numbers; a code with a zero in front, an exponent, a number of 20 digits and an empty cell stay text", JSON.stringify(exp.xl.first) === JSON.stringify([["h"], [12], [-3.5], ["007"], ["1e5"], ["12345678901234567890"], [""], [0], [0.5], ["00.5"]]) && exp.xl.o.bookType === "xlsx" && exp.xl.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" && exp.xl.size === 4, JSON.stringify(exp.xl));
   await page.close();
 
   /* Drop reads a saved web page for its words */
@@ -3919,20 +4021,20 @@ for (const space of ["octopus", "squidgy"]) {
   };
   const { page, bad } = await boot("/chat.html", init, { state: st, secs: SECS });
   await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(600);
-  await page.click(".pj-tab >> text=Memory"); await page.waitForTimeout(300);
-  check("with nothing kept and nothing learned, the Memory tab says what it will keep, and that it learns where things are", /Nothing kept yet/.test(await page.textContent(".pj-hint")) && /learns where things are in a long file/.test(await page.textContent(".pj-hint")));
-  await page.click(".pj-tab >> text=Chat"); await page.waitForTimeout(200);
+  await page.click(".pj-memb"); await page.waitForTimeout(300);
+  check("with nothing kept and nothing learned, the Memory sheet says what it will keep, and the button shows no count", /Nothing kept yet/.test(await page.textContent("#pmList")) && !(await page.$(".pj-memb i")));
+  await page.click("#pmClose"); await page.waitForTimeout(200);
   await page.fill(".pj-comp textarea", "When are the payments made?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
   const first = await page.evaluate(() => [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent));
   check("an answer says how little of a long file it read", JSON.stringify(first) === '["contract.pdf: Clause 1 payment · Clause 4 payment","Read 2 of 30 sections"]', JSON.stringify(first));
   const gets = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/get").length);
-  await page.click(".pj-tab >> text=Memory"); await page.waitForTimeout(400);
-  const mem = await page.evaluate(() => ({ hint: [...document.querySelectorAll(".pj-hint")].map(x => x.textContent), rows: [...document.querySelectorAll(".pj-mem")].map(r => [r.querySelector("b").textContent, r.querySelector("p").textContent, r.querySelector("small").textContent]),
-    forget: document.querySelectorAll(".pj-mem .pj-b").length, gets: window.__calls.filter(x => x.s === "/api/project/get").length }));
-  check("opening the Memory tab reads what the project learned since", mem.gets === gets + 1, JSON.stringify(mem));
-  check("it lists where things are: the question that taught it, the sections, how often", mem.rows.length === 1 && mem.rows[0][0] === "“When are the payments made?”" && mem.rows[0][1] === "Clause 1 payment, Clause 4 payment" && mem.rows[0][2] === "Used 1 time" && /Where things are/.test(mem.hint.join(" ")), JSON.stringify(mem));
+  await page.click(".pj-memb"); await page.waitForTimeout(400);
+  const mem = await page.evaluate(() => ({ head: document.querySelector("#pmList .fv-eye")?.textContent, rows: [...document.querySelectorAll("#pmList .fv-row.st")].map(r => [r.querySelector("b").textContent, r.querySelector("span").textContent, r.querySelector("small").textContent]),
+    forget: document.querySelectorAll("#pmList .pj-b").length, gets: window.__calls.filter(x => x.s === "/api/project/get").length }));
+  check("opening Memory reads what the project learned since", mem.gets === gets + 1, JSON.stringify(mem));
+  check("it lists where things are: the question that taught it, the sections, how often", mem.rows.length === 1 && mem.rows[0][0] === "“When are the payments made?”" && mem.rows[0][1] === "Clause 1 payment, Clause 4 payment" && mem.rows[0][2] === "Used 1 time" && mem.head === "Where things are", JSON.stringify(mem));
   check("a route is a pointer: it has no Forget, it mends itself", mem.forget === 0);
-  await page.click(".pj-tab >> text=Chat"); await page.waitForTimeout(200);
+  await page.click("#pmClose"); await page.waitForTimeout(200);
   await page.fill(".pj-comp textarea", "What do the payments look like?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
   const second = await page.evaluate(() => [...document.querySelectorAll(".pj-turn")].pop().querySelector(".pj-used")?.textContent);
   check("when memory led and the long sections came as passages, the answer says both", /Read 2 of 30 sections · passages · led by memory/.test(second), second);

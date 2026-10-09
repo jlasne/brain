@@ -767,6 +767,7 @@
   .panel .side-plus:hover{ background:var(--accent-soft); color:var(--accent); }
   .panel .side-plus svg{ width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; }
   .panel-b{ border-top:1px solid var(--line); padding:6px; }
+  .panel-b.none{ display:none; }
   .panel .soon{ font:500 10.5px/1 var(--mono); color:var(--warn); background:rgba(148,101,15,.10); padding:4px 6px; border-radius:6px; }
   .panel .empty-side{ padding:6px 6px 4px; }
   .panel .group-h{ margin:8px 4px 3px; }
@@ -1967,14 +1968,9 @@
   .pj-empty h3{ font:600 17px/1.3 var(--sans); color:var(--ink); }
   .pj-empty p{ margin:8px auto 16px; max-width:46ch; font:400 14px/1.55 var(--sans); color:var(--ink-3); }
 
-  /* The chat beside it. */
-  .pj-tabs{ flex:none; display:flex; align-items:center; gap:4px; padding:10px 64px 10px 16px; min-height:57px; border-bottom:1px solid var(--line); }
-  body.has-still .pj-tabs{ padding-right:106px; }
-  .pj-tab{ display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:0 12px; border-radius:8px; font:500 13px/1 var(--sans); color:var(--ink-3); }
-  .pj-tab:hover{ color:var(--ink); }
-  .pj-tab.on{ background:var(--surface-3); color:var(--ink); }
-  .pj-tab i{ font-style:normal; padding:2px 6px; border-radius:99px; background:var(--accent-solid); color:var(--accent-on); font:600 10.5px/1.2 var(--sans); }
+  /* The chat beside it. On a wide screen the thread starts below the buttons that float at the top right. */
   .pj-thread{ flex:1; min-height:0; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; }
+  @media (min-width:861px){ .pj-thread{ padding-top:56px; } }
   .pj-turn{ display:flex; flex-direction:column; gap:10px; }
   .pj-q{ align-self:flex-end; max-width:90%; padding:10px 13px; border:1px solid var(--accent-line); border-radius:14px 14px 4px 14px; background:var(--accent-soft);
     font:400 14px/1.5 var(--sans); color:var(--ink); white-space:pre-wrap; overflow-wrap:anywhere; }
@@ -2005,7 +2001,12 @@
   .pj-try button:hover{ border-color:var(--accent-fill); }
   .pj-err{ display:grid; gap:6px; font:400 13.5px/1.5 var(--sans); color:var(--ink-2); }
   .pj-err b{ color:var(--bad); font-weight:600; }
-  .pj-comp{ flex:none; display:flex; align-items:flex-end; gap:8px; margin:10px 12px 12px; padding:8px 8px 8px 14px; border:1px solid var(--line-2); border-radius:16px; background:var(--surface); box-shadow:var(--shadow); }
+  .pj-comp{ flex:none; display:flex; align-items:flex-end; gap:6px; margin:10px 12px 12px; padding:8px; border:1px solid var(--line-2); border-radius:16px; background:var(--surface); box-shadow:var(--shadow); }
+  /* Memory is one quiet button by the message bar, with how many notes it holds. */
+  .pj-memb{ position:relative; flex:none; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; color:var(--ink-4); }
+  .pj-memb:hover{ background:var(--surface-3); color:var(--ink); }
+  .pj-memb svg{ width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .pj-memb i{ position:absolute; top:-3px; right:-3px; min-width:16px; padding:0 4px; border:1px solid var(--line-2); border-radius:99px; background:var(--surface-3); color:var(--ink-3); font:600 10px/14px var(--sans); font-style:normal; text-align:center; }
   .pj-comp:focus-within{ border-color:var(--accent-fill); }
   .pj-comp textarea{ flex:1; min-width:0; max-height:170px; padding:6px 0; resize:none; outline:none; font:400 14px/1.45 var(--sans); color:var(--ink); }
   .pj-comp textarea::placeholder{ color:var(--ink-4); }
@@ -2027,12 +2028,25 @@
   .pj-edit .pj-tact{ margin:0; padding:10px 12px 12px; border-top:1px solid var(--line); }
   .pj-edit .pj-msg{ padding:0 12px 10px; font:400 12.5px/1.45 var(--sans); color:var(--bad); }
 
-  /* What the project remembers. */
-  .pj-mem{ padding:12px 14px; border:1px solid var(--line-2); border-radius:12px; background:var(--surface); }
-  .pj-mem b{ display:block; font:600 14px/1.3 var(--sans); color:var(--ink); }
-  .pj-mem p{ margin-top:4px; font:400 13.5px/1.55 var(--sans); color:var(--ink-2); }
-  .pj-mem small{ display:block; margin-top:6px; font:400 11px/1 var(--mono); color:var(--ink-4); }
-  .pj-mem .pj-b{ margin-top:8px; min-height:30px; font-size:12px; }
+  /* What the project remembers: a sheet whose notes are listed as a folder lists its concepts. */
+  .pm-list{ max-height:52vh; overflow-y:auto; overscroll-behavior:contain; }
+  .pm-list .fv-row:last-child{ border-bottom:0; }
+  .pm-list .fv-row.st{ cursor:default; }
+  .pm-list .fv-row.st:hover{ background:none; }
+  .pm-list .fv-eye{ padding:14px 20px 4px; }
+  .pm-list .fv-none{ padding:6px 20px 12px; }
+  .pm-note{ padding:16px 20px 18px; }
+  .pm-back{ display:inline-block; margin-bottom:10px; font:500 13px/1 var(--sans); color:var(--accent); }
+  .pm-t{ font:700 18px/1.25 var(--sans); letter-spacing:-.01em; color:var(--ink); }
+  .pm-note small{ display:block; margin-top:12px; font:400 11px/1.6 var(--mono); color:var(--ink-4); }
+  .pm-note .pj-b{ margin-top:14px; }
+
+  /* The formats a file can be downloaded in. */
+  .pj-menu{ position:fixed; z-index:60; min-width:210px; max-width:calc(100vw - 16px); padding:6px; border:1px solid var(--line-2); border-radius:12px; background:var(--surface); box-shadow:var(--shadow-lift); animation:fade .12s var(--ease) both; }
+  .pj-menu button{ display:flex; align-items:center; justify-content:space-between; gap:18px; width:100%; min-height:40px; padding:0 12px; border-radius:8px; text-align:left; font:500 14px/1 var(--sans); color:var(--ink); }
+  .pj-menu button:hover, .pj-menu button:focus-visible{ background:var(--surface-3); outline:none; }
+  .pj-menu button span{ font:400 11.5px/1 var(--mono); color:var(--ink-4); }
+  .pj-menu p{ margin:4px 12px 6px; max-width:230px; font:400 12px/1.45 var(--sans); color:var(--ink-3); }
 
   /* A file being read: where it stands. */
   .sheet .pj-step{ margin-top:12px; font:400 13.5px/1.55 var(--sans); color:var(--ink-3); min-height:1.6em; }
@@ -2045,9 +2059,6 @@
     .pj-seg{ flex:none; display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid var(--line); background:var(--bg); }
     .pj-seg button{ flex:1; display:flex; align-items:center; justify-content:center; min-height:36px; border:1px solid var(--line-2); border-radius:8px; background:var(--surface); font:500 13px/1 var(--sans); color:var(--ink-3); }
     .pj-seg button.on{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
-    .pj-seg button i{ margin-left:6px; padding:2px 6px; border-radius:99px; background:var(--accent-solid); color:var(--accent-on); font:600 10.5px/1.2 var(--sans); font-style:normal; }
-    .pj-seg button.on i{ background:var(--accent-on); color:var(--accent-solid); }
-    .pj-tabs{ display:none; }
     .pj-doc, .pj-chat{ flex:1; border-right:0; }
     .pj[data-seg="chat"] .pj-doc{ display:none; }
     .pj[data-seg="doc"] .pj-chat{ display:none; }
@@ -2080,16 +2091,14 @@
     .pj-a .pj-md{ font-size:13.5px; }
     .pj-ld{ font-size:14px; }
     .pj-used > *{ padding:5px 8px; font-size:11px; }
-    .pj-mem{ padding:10px 12px; }
     .pj-hint{ font-size:13px; }
     .pj-tact .go, .pj-tact .ghost{ min-height:36px; font-size:12.5px; }
     /* The message bar stays 16px where it is typed in, so a phone does not zoom in on it; its hint is smaller. */
-    .pj-comp{ margin:8px 10px 10px; padding:6px 6px 6px 12px; }
+    .pj-comp{ margin:8px 10px 10px; padding:6px; }
     .pj-comp textarea{ font-size:16px; }
     .pj-comp textarea::placeholder{ font-size:14px; }
-    .pj-send{ width:36px; height:36px; }
+    .pj-send, .pj-memb{ width:36px; height:36px; }
   }
-  .pj-comp[hidden]{ display:none; }
   .pj-msg{ font:400 12.5px/1.45 var(--sans); color:var(--bad); }
 </style>
 
@@ -7596,8 +7605,8 @@ const pjSeg = f => f?.kind === "table" ? "Table" : f?.kind === "html" ? "Page" :
 
 /* ---- reading a file in this tab ---- */
 
-/** Text with Markdown's marks, as a page of HTML: headings, lists inside lists, quotes, code, tables, bold, italic, links, a PDF's page marks. */
-function mdView(text){
+/** Text with Markdown's marks, as a page of HTML: headings, lists inside lists, quotes, code, tables, bold, italic, links, a PDF's page marks. A # is an h2 under the page's own title; `top` sets its level. */
+function mdView(text, top = 2){
   const fmt = t => esc(t).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[\s(])\*([^*\s][^*]*?)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>").replace(/`([^`]+)`/g, "<code>$1</code>");
   /* A web address is a link only as [words](https://...): its own marks are never read as bold or italic. */
@@ -7655,7 +7664,7 @@ function mdView(text){
     if (!t){ flush(); continue; }
     if (/^([-*_])\1{2,}$/.test(t)){ flush(); out.push("<hr>"); continue; }
     const h = /^(#{1,3})\s+(.+)$/.exec(t);
-    if (h){ flush(); out.push(`<h${h[1].length + 1}>${inline(h[2])}</h${h[1].length + 1}>`); continue; }
+    if (h){ flush(); out.push(`<h${h[1].length + top - 1}>${inline(h[2])}</h${h[1].length + top - 1}>`); continue; }
     const q = /^>\s?(.*)$/.exec(t);
     if (q){ flushP(); flushL(); flushT(); quote.push(q[1]); continue; }
     const li = /^(\s*)([-*•]|(\d+)[.)])\s+(.+)$/.exec(line);
@@ -7894,7 +7903,9 @@ function renderProjects(){
   panel.hidden = S.demo;
   const box = $("projects"); box.innerHTML = "";
   $("pcount").textContent = S.projects.length || "";
-  if (!S.projects.length){ box.append(el("div","empty-side","None yet. A project holds one file, table or page, with a chat beside it.")); return; }
+  /* With no project the panel says nothing: its header and its plus are enough. */
+  $("projectsBox").classList.toggle("none", !S.projects.length);
+  if (!S.projects.length) return;
   for (const p of S.projects){
     const row = el("button","brain-row self pj-row" + (S.project === p.slug ? " on" : "") + (p.status === "reading" ? " run" : ""));
     const tick = el("span","tick"); tick.innerHTML = pjIcon(p.kind);
@@ -7909,8 +7920,9 @@ function renderProjects(){
 
 async function openProject(slug){
   closeSide();
+  document.querySelector(".veil.pm")?.remove();
   S.folder = null; S.mode = "ask"; S.project = slug;
-  S.pj = { slug, data: null, tab: "chat", seg: "chat", sheet: 0, busy: false, marks: null };
+  S.pj = { slug, data: null, seg: "chat", sheet: 0, busy: false, marks: null };
   render(); paintProject();
   try { await loadProject(); }
   catch (e){
@@ -7936,44 +7948,32 @@ async function syncProjects(){ try { S.projects = (await api("/api/project/list"
 
 function paintProject(){
   const host = $("projectView"), pj = S.pj;
+  closeDownload();
   host.innerHTML = "";
   if (!pj) return;
   if (!pj.data){ host.append(el("div","pj-loading","Opening the project")); return; }
   const root = el("div","pj"); root.dataset.seg = pj.seg; pj.root = root;
-  /* On a phone one row holds the three places: the file, the chat and the memory. The chat's own tabs are for the wide screen. */
-  const seg = el("div","pj-seg"); pj.segBox = seg;
-  for (const [k, label] of [["doc", pjSeg(pj.data.file)], ["chat", "Chat"], ["memory", "Memory"]]){
-    const b = el("button", "", label); b.type = "button"; b.dataset.k = k;
-    b.onclick = () => {
-      pj.seg = k === "doc" ? "doc" : "chat"; root.dataset.seg = pj.seg;
-      if (k === "doc"){ fillDoc(); fillGrid(); }
-      else { pj.tab = k; paintSide(); if (k === "memory") refreshMemory(); }
-      paintSeg();
-    };
+  /* On a phone the file and the chat take turns. */
+  const seg = el("div","pj-seg");
+  for (const [k, label] of [["doc", pjSeg(pj.data.file)], ["chat", "Chat"]]){
+    const b = el("button", pj.seg === k ? "on" : "", label); b.type = "button";
+    b.onclick = () => { pj.seg = k; root.dataset.seg = k; [...seg.children].forEach(x => x.classList.toggle("on", x === b)); if (k === "doc"){ fillDoc(); fillGrid(); } };
     seg.append(b);
   }
   root.append(seg, docPane(), chatPane());
   host.append(root);
   paintSide();
 }
-/** The phone's row of three, lit where the project stands, with what it remembers counted on Memory. */
-function paintSeg(){
-  const pj = S.pj; if (!pj?.segBox) return;
-  const on = pj.seg === "doc" ? "doc" : pj.tab === "memory" ? "memory" : "chat";
-  for (const b of pj.segBox.children){
-    b.classList.toggle("on", b.dataset.k === on);
-    if (b.dataset.k === "memory"){ b.textContent = "Memory"; if (pj.data?.memory?.length) b.append(el("i",null,String(pj.data.memory.length))); }
-  }
-}
 function showDoc(){
   const pj = S.pj; if (!pj?.root) return;
-  pj.seg = "doc"; pj.root.dataset.seg = "doc"; paintSeg();
+  pj.seg = "doc"; pj.root.dataset.seg = "doc";
+  [...pj.root.querySelector(".pj-seg").children].forEach((x, i) => x.classList.toggle("on", i === 0));
   fillDoc(); fillGrid();
 }
 function showChat(){
   const pj = S.pj; if (!pj?.root) return;
   pj.seg = "chat"; pj.root.dataset.seg = "chat";
-  pj.tab = "chat"; paintSide();
+  [...pj.root.querySelector(".pj-seg").children].forEach((x, i) => x.classList.toggle("on", i === 1));
   pj.input?.focus();
 }
 
@@ -7989,7 +7989,7 @@ function docPane(){
   if (f) t.append(el("span","pj-chip",f.name));
   h.append(t);
   const acts = el("div","pj-acts");
-  const btn = (label, fn, cls) => { const b = el("button","pj-b" + (cls ? " " + cls : ""),label); b.type = "button"; b.onclick = fn; acts.append(b); };
+  const btn = (label, fn, cls) => { const b = el("button","pj-b" + (cls ? " " + cls : ""),label); b.type = "button"; b.onclick = fn; acts.append(b); return b; };
   const ready = f?.status === "ready", written = ready && f.chars > 0;
   if (written && f.kind === "html"){
     /* A page is read as it renders, or as its code. */
@@ -8003,7 +8003,7 @@ function docPane(){
   }
   if (written && f.kind === "doc" && f.sections > 1) btn("Contents", openContents);
   btn(f ? (f.kind === "table" ? "Replace table" : f.kind === "html" ? "Replace page" : "Replace file") : "Add a file", () => chooseFile());
-  if (written) btn("Download", downloadFile);
+  if (written) btn("Download", e => openDownload(e.currentTarget)).setAttribute("aria-haspopup", "menu");
   btn("Delete", deleteProject, "bad");
   h.append(acts); pane.append(h);
   const body = el("div","pj-body"); pj.body = body; pane.append(body);
@@ -8257,12 +8257,12 @@ function openContents(){
 function chatPane(){
   const pj = S.pj, d = pj.data;
   const pane = el("section","pj-chat");
-  const tabs = el("div","pj-tabs"); pj.tabs = tabs;
-  pane.append(tabs);
   const thread = el("div","pj-thread"); pj.thread = thread; pane.append(thread);
   const comp = el("div","pj-comp");
+  const memb = el("button","pj-memb"); memb.type = "button"; pj.memb = memb; memb.onclick = openMemory;
+  memb.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="10" height="12" rx="2"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3"/></svg>`;
   const ta = el("textarea"); ta.rows = 1; ta.placeholder = askHint(d.file); ta.setAttribute("aria-label", "Message to the project");
-  attachMentions(ta, () => pj.tab === "chat" ? tagChoices(false) : []);
+  attachMentions(ta, () => tagChoices(false));
   const send = el("button","pj-send"); send.type = "button"; send.setAttribute("aria-label", "Send"); send.disabled = true;
   send.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M8 3L4 7M8 3l4 4"/></svg>`;
   const size = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 170) + "px"; send.disabled = !ta.value.trim() || pj.busy || (!!pj.data.file && pj.data.file.status !== "ready"); };
@@ -8270,7 +8270,7 @@ function chatPane(){
   ta.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); if (!send.disabled) go(); } };
   const go = () => { const q = ta.value.trim(); if (!q) return; ta.value = ""; size(); sendProject(q); };
   send.onclick = go;
-  comp.append(ta, send); pane.append(comp);
+  comp.append(memb, ta, send); pane.append(comp);
   pj.comp = comp; pj.input = ta; pj.size = size;
   return pane;
 }
@@ -8286,24 +8286,20 @@ function askHint(f){
     : (small ? `Describe the ${n} you want.` : `Describe the ${n} you want. It is written here, then changed as you go.`);
 }
 
-function paintTabs(){
-  const pj = S.pj; if (!pj?.tabs) return;
-  pj.tabs.innerHTML = "";
-  for (const [k, label] of [["chat","Chat"],["memory","Memory"]]){
-    const b = el("button","pj-tab" + (pj.tab === k ? " on" : ""),label); b.type = "button";
-    if (k === "memory" && pj.data.memory.length) b.append(el("i",null,String(pj.data.memory.length)));
-    b.onclick = () => { pj.tab = k; paintSide(); if (k === "memory") refreshMemory(); };
-    pj.tabs.append(b);
-  }
-  paintSeg();
+/** The memory button: how many notes the project holds, as a small neutral count. */
+function paintMemb(){
+  const pj = S.pj; if (!pj?.memb) return;
+  const n = pj.data.memory.length;
+  pj.memb.querySelector("i")?.remove();
+  if (n) pj.memb.append(el("i",null,String(n)));
+  pj.memb.title = n ? `Memory: ${n} note${n === 1 ? "" : "s"}` : "Memory: nothing kept yet";
+  pj.memb.setAttribute("aria-label", pj.memb.title);
 }
-/** The right side: the thread of the chat, or what the project remembers. */
+/** The right side: the thread of the chat. */
 function paintSide(){
   const pj = S.pj; if (!pj?.thread) return;
-  paintTabs();
-  pj.comp.hidden = pj.tab !== "chat";
+  paintMemb();
   const box = pj.thread; box.innerHTML = "";
-  if (pj.tab === "memory"){ paintMemory(box); return; }
   const turns = pj.data.turns;
   if (!turns.length){
     const f = pj.data.file, tbl = f?.kind === "table", blank = f?.status === "ready" && !f.chars;
@@ -8365,7 +8361,10 @@ function usedChips(t){
   /* How little of a long file was read, whether the long sections came as passages, and that memory led there. */
   if (f?.sections?.length && f.of > 4) box.append(el("span",null,`Read ${f.sections.length} of ${f.of} sections${f.passages ? " · passages" : ""}${f.via ? " · led by memory" : ""}`));
   for (const c of u.folders || []) box.append(el("span",null,`${c.name} folder · ${c.notes} note${c.notes === 1 ? "" : "s"}`));
-  if (u.memory) box.append(el("span",null,`Memory · ${u.memory} note${u.memory === 1 ? "" : "s"}`));
+  if (u.memory){
+    const b = el("button",null,`Memory · ${u.memory} note${u.memory === 1 ? "" : "s"}`); b.type = "button"; b.title = "Show what the project remembers";
+    b.onclick = openMemory; box.append(b);
+  }
   if (Array.isArray(t.noted) && t.noted.length) box.append(el("span","noted",`Noted: ${t.noted.slice(0, 2).join(", ")}`));
   if (t.cost?.in){ const c = el("span","cost",costLine(t.cost)); c.title = `${t.cost.calls || 1} model call${t.cost.calls === 1 ? "" : "s"} for this message`; box.append(c); }
   return box.children.length ? box : null;
@@ -8431,43 +8430,82 @@ async function refreshMemory(){
   try {
     const d = await api("/api/project/get", { brain: pj.slug });
     if (S.pj !== pj) return;
-    pj.data.memory = d.memory; pj.data.shortcuts = d.shortcuts || []; paintTabs();
-    if (pj.tab === "memory") paintSide();
+    pj.data.memory = d.memory; pj.data.shortcuts = d.shortcuts || []; paintMemb(); pj.memPaint?.();
     syncProjects();
   } catch { /* the list catches up the next time the project opens */ }
 }
 
-function paintMemory(box){
-  const pj = S.pj, mem = pj.data.memory, ways = pj.data.shortcuts || [];
-  if (!mem.length && !ways.length){ box.append(el("div","pj-hint","Nothing kept yet. The project files its notes by itself: what the file holds when it is read in, what you decide, and what its answers find, each with the sections it rests on. Notes have the format a folder has. It also learns where things are in a long file, so it opens the right sections and not the whole file.")); return; }
+/** What the project remembers, listed as a folder lists its concepts: the newest first, a title, a line, a small meta. A tap opens the note, with a way to forget it. */
+function openMemory(){
+  const pj = S.pj; if (!pj?.data) return;
+  document.querySelector(".veil.pm")?.remove();
+  const veil = el("div","veil pm");
+  veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pmTitle">
+    <header><h3 id="pmTitle">Memory</h3><p id="pmSub"></p></header>
+    <div class="pm-list" id="pmList"></div>
+    <footer><button class="ghost" id="pmClose">Close</button></footer></div>`;
+  document.body.append(veil);
+  const list = veil.querySelector("#pmList"), sub = veil.querySelector("#pmSub");
+  const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
+  const shut = () => { document.removeEventListener("keydown", onKey); pj.memPaint = null; veil.remove(); };
+  document.addEventListener("keydown", onKey);
+  veil.querySelector("#pmClose").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
   const named = new Map((pj.data.cards || []).map(c => [c.sid, c.title]));
-  for (const m of mem){
-    const c = el("div","pj-mem");
-    /* Where a note rests in the file, and whether the file changed there since. */
+  /* Where a note rests in the file, and whether the file changed there since. */
+  const metaOf = m => {
     const rests = (m.sections || []).map(sid => named.get(sid)).filter(Boolean);
-    c.append(el("b",null,m.title), el("p",null,m.position || m.summaryLine || ""),
-      el("small",null,[m.title === "The file" ? "From the file" : "", ...(rests.length ? [`In ${rests.slice(0, 2).join(", ")}${rests.length > 2 ? ` +${rests.length - 2}` : ""}`] : []), m.stale ? "The file changed since" : "",
-        m.updated, ...(m.dates || [])].filter((x, i, l) => x && l.indexOf(x) === i).slice(0, 4).join(" · ")));
-    const x = el("button","pj-b","Forget"); x.type = "button";
+    return [m.title === "The file" ? "From the file" : "", rests.length ? `In ${rests.slice(0, 2).join(", ")}${rests.length > 2 ? ` +${rests.length - 2}` : ""}` : "",
+      m.stale ? "The file changed since" : "", fileDay(m.updated, true)].filter(Boolean).join(" · ");
+  };
+  let note = null;
+  const paint = () => {
+    note = null; list.innerHTML = "";
+    const mem = pj.data.memory.slice().sort((x, y) => String(y.updated || "").localeCompare(String(x.updated || "")) || x.title.localeCompare(y.title));
+    const ways = pj.data.shortcuts || [];
+    sub.textContent = mem.length ? `${mem.length} note${mem.length === 1 ? "" : "s"}, the newest first.` : "";
+    if (!mem.length && !ways.length){ list.append(el("div","fv-none","Nothing kept yet. The project files its notes by itself: what the file holds, what you decide, what its answers find.")); return; }
+    for (const m of mem){
+      const r = el("button","fv-row"); r.type = "button";
+      r.append(el("b",null,m.title));
+      if (m.summaryLine || m.position) r.append(el("span",null,m.summaryLine || m.position));
+      r.append(el("small",null,metaOf(m)));
+      r.onclick = () => open(m);
+      list.append(r);
+    }
+    if (ways.length){
+      /* Where things are: learned from the questions, free, and a pointer only: an answer is always written from the sections as they are. */
+      list.append(el("div","fv-eye","Where things are"), el("div","fv-none","Learned from your questions, so the chat opens these sections first."));
+      for (const w of ways.slice().sort((a, b) => b.at - a.at)){
+        const where = w.s.map(sid => named.get(sid)).filter(Boolean);
+        const r = el("div","fv-row st");
+        r.append(el("b",null, w.q ? `“${w.q}”` : w.t.slice(0, 4).join(" · ")), el("span",null,`${where.slice(0, 3).join(", ")}${where.length > 3 ? ` and ${where.length - 3} more` : ""}`),
+          el("small",null,`Used ${w.n} time${w.n === 1 ? "" : "s"}`));
+        list.append(r);
+      }
+    }
+    list.scrollTop = 0;
+  };
+  const open = m => {
+    note = m; list.innerHTML = ""; sub.textContent = "";
+    const box = el("div","pm-note");
+    const back = el("button","pm-back","← All notes"); back.type = "button"; back.onclick = paint;
+    box.append(back, el("div","pm-t",m.title), el("p","fv-pos",m.position || m.summaryLine || "No text."));
+    const meta = metaOf(m); if (meta) box.append(el("small",null,meta));
+    const x = el("button","pj-b bad","Forget this note"); x.type = "button";
     x.onclick = async () => {
       x.disabled = true;
-      try { await api("/api/project/forget", { brain: pj.slug, slug: m.slug }); pj.data.memory = pj.data.memory.filter(y => y.slug !== m.slug); paintSide(); syncProjects(); }
-      catch (e){ x.disabled = false; x.after(el("span","pj-msg", e.message)); }
+      try { await api("/api/project/forget", { brain: pj.slug, slug: m.slug }); pj.data.memory = pj.data.memory.filter(y => y.slug !== m.slug); paintMemb(); syncProjects(); paint(); }
+      catch (e){ x.disabled = false; box.append(el("div","pj-msg", e.message)); }
     };
-    c.append(x); box.append(c);
-  }
-  if (ways.length){
-    /* Where things are: learned from the answers, free, and a pointer only: an answer is always written from the sections as they are. */
-    box.append(el("div","pj-hint","Where things are. Learned from your questions, so the chat opens these sections first and reads less of the file."));
-    const title = new Map((pj.data.cards || []).map(c => [c.sid, c.title]));
-    for (const w of ways.slice().sort((a, b) => b.at - a.at)){
-      const c = el("div","pj-mem");
-      const where = w.s.map(sid => title.get(sid)).filter(Boolean);
-      c.append(el("b",null, w.q ? `“${w.q}”` : w.t.slice(0, 4).join(" · ")), el("p",null,`${where.slice(0, 3).join(", ")}${where.length > 3 ? ` and ${where.length - 3} more` : ""}`),
-        el("small",null,`Used ${w.n} time${w.n === 1 ? "" : "s"}`));
-      box.append(c);
-    }
-  }
+    box.append(x); list.append(box); list.scrollTop = 0;
+  };
+  /* A message that just finished may have added notes: the list follows, unless a note is open. */
+  pj.memPaint = () => { if (!note) paint(); };
+  paint();
+  (list.querySelector("button") || veil.querySelector("#pmClose")).focus();
+  /* What it learned since the last answer is read again, so the list is current. */
+  refreshMemory();
 }
 
 /* ---- changes to the file ---- */
@@ -8569,19 +8607,457 @@ function deleteProject(){
   veil.onclick = e => { if (e.target === veil) shut(); };
 }
 
-async function downloadFile(){
-  const pj = S.pj, f = pj.data.file;
+/* ---- downloading the file, in the format asked ---- */
+
+/** What each kind of file can be downloaded as: its key, its name, its extension. */
+const DL_FORMATS = {
+  doc: [["md","Markdown",".md"], ["pdf","PDF",".pdf"], ["html","Web page",".html"]],
+  html: [["html","Web page",".html"], ["md","Markdown",".md"]],
+  table: [["xlsx","Excel",".xlsx"], ["csv","CSV",".csv"], ["md","Markdown",".md"]],
+};
+let dlMenu = null;
+function closeDownload(){
+  if (!dlMenu) return;
+  const m = dlMenu; dlMenu = null;
+  document.removeEventListener("pointerdown", m.down, true); document.removeEventListener("keydown", m.key, true);
+  window.removeEventListener("resize", m.shut); window.removeEventListener("scroll", m.shut, true);
+  m.anchor.setAttribute("aria-expanded", "false"); m.menu.remove();
+}
+/** The formats as a small menu under the Download button. A second press, an outside press or Escape puts it away. */
+function openDownload(anchor){
+  const f = S.pj?.data?.file; if (!f) return;
+  const same = dlMenu?.anchor === anchor; closeDownload(); if (same) return;
+  const kind = f.kind === "table" ? "table" : f.kind === "html" ? "html" : "doc";
+  const menu = el("div","pj-menu"); menu.setAttribute("role","menu"); menu.setAttribute("aria-label","Download as");
+  for (const [k, name, ext] of DL_FORMATS[kind]){
+    const b = el("button"); b.type = "button"; b.dataset.fmt = k; b.setAttribute("role","menuitem");
+    b.append(el("b",null,name), el("span",null,ext));
+    b.onclick = () => { closeDownload(); downloadAs(k); };
+    menu.append(b);
+  }
+  if (kind === "table" && f.sheets.length > 1) menu.append(el("p",null,`Excel keeps all ${f.sheets.length} sheets. CSV and Markdown take the open one.`));
+  document.body.append(menu);
+  const r = anchor.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
+  menu.style.left = Math.round(Math.max(8, Math.min(r.right - w, innerWidth - w - 8))) + "px";
+  menu.style.top = Math.round(r.bottom + 6 + h <= innerHeight - 8 || r.top - 6 - h < 8 ? r.bottom + 6 : r.top - 6 - h) + "px";
+  const shut = () => closeDownload();
+  const down = e => { if (!menu.contains(e.target) && !anchor.contains(e.target)) shut(); };
+  const key = e => {
+    if (e.key === "Escape"){ e.preventDefault(); shut(); anchor.focus(); }
+    else if (e.key === "Tab") shut();
+    else if (e.key === "ArrowDown" || e.key === "ArrowUp"){
+      e.preventDefault();
+      const items = [...menu.querySelectorAll("button")], n = items.length, at = items.indexOf(document.activeElement);
+      items[e.key === "ArrowDown" ? (at + 1) % n : at <= 0 ? n - 1 : at - 1].focus();
+    }
+  };
+  dlMenu = { menu, anchor, down, key, shut };
+  document.addEventListener("pointerdown", down, true); document.addEventListener("keydown", key, true);
+  window.addEventListener("resize", shut); window.addEventListener("scroll", shut, true);
+  anchor.setAttribute("aria-expanded", "true");
+  menu.querySelector("button").focus();
+}
+
+/** A blob handed to the browser as a file with a name. */
+function saveBlob(blob, name){
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/** A document's HTML as a page of its own: it reads on a phone and on paper, and holds no script. */
+function htmlDocument(body, title){
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)}</title>
+<style>
+body{margin:0;padding:32px 20px 64px;background:#fff;color:#1c1c1e;font:16px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto}
+h1,h2,h3{line-height:1.25;margin:1.6em 0 .5em}
+main > :first-child{margin-top:0}
+h1{font-size:2em}h2{font-size:1.5em}h3{font-size:1.2em}
+p{margin:.8em 0}
+a{color:#2150c4}
+blockquote{margin:1em 0;padding:.1em 1em;border-left:3px solid #ccc;color:#555}
+pre{overflow:auto;padding:12px 14px;background:#f4f4f5;border-radius:8px;font-size:.88em}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;background:#f4f4f5;padding:1px 5px;border-radius:4px}
+pre code{background:none;padding:0}
+.pj-tw{overflow-x:auto;margin:1em 0}
+table{border-collapse:collapse;width:100%;font-size:.95em}
+th,td{border-bottom:1px solid #ddd;padding:8px 10px;text-align:left;vertical-align:top}
+th{font-size:.8em;letter-spacing:.05em;text-transform:uppercase;color:#666}
+hr{border:0;border-top:1px solid #ddd;margin:2em 0}
+.pj-pg{margin:1.6em 0 .6em;font-size:.75em;letter-spacing:.06em;text-transform:uppercase;color:#888}
+</style></head><body><main>${body}</main></body></html>
+`;
+}
+
+/** Rows of a table as a Markdown table: the first row heads it, a bar inside a cell is written \| and a line break is a space. */
+function tableMarkdown(rows){
+  const w = rows.reduce((m, r) => Math.max(m, r.length), 0);
+  if (!w) return "";
+  const cell = c => String(c ?? "").replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|").trim();
+  const line = r => `| ${Array.from({ length: w }, (_, i) => cell(r[i])).join(" | ")} |`;
+  return [line(rows[0]), `| ${Array(w).fill("---").join(" | ")} |`, ...rows.slice(1).map(line)].join("\n") + "\n";
+}
+
+/** The sheets of a table as one Excel workbook: a number stays a number, so a column can be summed; a code with a leading zero stays text. */
+function xlsxBlob(sheets){
+  const X = window.XLSX, wb = X.utils.book_new(), used = new Set();
+  const typed = v => /^-?(0|[1-9]\d{0,14})(\.\d+)?$/.test(v) ? Number(v) : v;
+  sheets.forEach((sh, i) => {
+    /* Excel allows 31 letters, no brackets, colons, stars, question marks or slashes, and no two sheets of one name. */
+    let base = String(sh.name || "").replace(/[\[\]:*?\/\\]/g, " ").trim().slice(0, 31);
+    if (!base || /^(__proto__|constructor|prototype)$/i.test(base)) base = `Sheet ${i + 1}`;
+    let name = base, k = 1;
+    while (used.has(name.toLowerCase())) name = `${base.slice(0, 28)} ${++k}`;
+    used.add(name.toLowerCase());
+    X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(sh.rows.map((r, j) => j ? r.map(typed) : r)), name);
+  });
+  return new Blob([X.write(wb, { type: "array", bookType: "xlsx" })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+
+/** The file in the format asked: what is said here is written here, in this tab. The server only gives the words, or the rows. */
+async function downloadAs(fmt){
+  const pj = S.pj, f = pj.data.file, table = f.kind === "table";
   try {
-    const r = await api("/api/project/download", { brain: pj.slug, sheet: f.kind === "table" ? pj.sheet : 0 });
-    const base = String(r.name).replace(/\.[^.]+$/, "");
-    const name = r.kind === "table" ? `${base}${f.sheets.length > 1 ? " - " + r.sheet : ""}.csv`
-      : r.kind === "html" ? (/\.(html?|xhtml)$/i.test(r.name) ? r.name : `${base}.html`)
-      : /\.(md|markdown|txt)$/i.test(r.name) ? r.name : `${base}.md`;
-    const blob = new Blob([r.text], { type: r.kind === "table" ? "text/csv;charset=utf-8" : r.kind === "html" ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
-    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    if (fmt === "xlsx"){
+      await loadXlsx();
+      const sheets = [];
+      for (let i = 0; i < f.sheets.length; i++){
+        const r = await api("/api/project/download", { brain: pj.slug, sheet: i });
+        sheets.push({ name: r.sheet || f.sheets[i].name, rows: parseDelimited(r.text, ",") });
+      }
+      saveBlob(xlsxBlob(sheets), `${String(f.name).replace(/\.[^.]+$/, "")}.xlsx`);
+      return;
+    }
+    const r = await api("/api/project/download", { brain: pj.slug, sheet: table ? pj.sheet : 0 });
+    const base = String(r.name).replace(/\.[^.]+$/, ""), part = table && f.sheets.length > 1 ? ` - ${r.sheet}` : "";
+    const save = (text, type, name) => saveBlob(new Blob([text], { type: `${type};charset=utf-8` }), name);
+    if (fmt === "csv") save(r.text, "text/csv", `${base}${part}.csv`);
+    else if (fmt === "html"){
+      /* A page is its own code. A document becomes one. */
+      if (r.kind === "html") save(r.text, "text/html", /\.(html?|xhtml)$/i.test(r.name) ? r.name : `${base}.html`);
+      else save(htmlDocument(mdView(r.text, 1), base), "text/html", `${base}.html`);
+    } else if (fmt === "pdf"){
+      if (r.text.length > 4000000) throw new Error("This document is too long for a PDF. Download it as Markdown or a web page.");
+      /* Let the menu go before the page is busy. */
+      await new Promise(ok => setTimeout(ok, 20));
+      const pdf = pdfFromMarkdown(r.text, base);
+      if (!pdf) throw new Error("This document uses letters a PDF cannot print here. Download it as Markdown or a web page.");
+      saveBlob(new Blob([pdf], { type: "application/pdf" }), `${base}.pdf`);
+    } else {
+      const md = r.kind === "table" ? tableMarkdown(parseDelimited(r.text, ",")) : r.kind === "html" ? htmlToMd(r.text) : r.text;
+      if (!md.trim()) throw new Error("There is nothing here to write as Markdown.");
+      save(md, "text/markdown", r.kind === "doc" && /\.(md|markdown|txt)$/i.test(r.name) ? r.name : `${base}${part}.md`);
+    }
   } catch (e){ pjNote(e.message); }
 }
+
+/**
+ * A document's Markdown as a PDF, written here: A4, Helvetica and Courier,
+ * headings, paragraphs with bold and italic, lists, quotes, code, tables whose
+ * header repeats on each page, and the page number. The fonts are the ones every
+ * PDF reader holds, so nothing is embedded and the file stays small. They write
+ * Western European text; a document that is mostly in another script, Chinese,
+ * Arabic or Cyrillic for one, comes back as null, since a PDF here would print question marks.
+ */
+function pdfFromMarkdown(md, title){
+  /* Widths of Helvetica and Helvetica-Bold for the characters 32 to 126, in thousandths of the size. */
+  const WR = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,
+    667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,
+    556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584];
+  const WB = [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,
+    722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,
+    556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584];
+  /* What Windows-1252 holds beyond Latin-1, and a few signs written with letters when the font lacks them. */
+  const WIN = [[0x20AC,0x80],[0x201A,0x82],[0x0192,0x83],[0x201E,0x84],[0x2026,0x85],[0x2020,0x86],[0x2021,0x87],[0x02C6,0x88],[0x2030,0x89],[0x0160,0x8A],[0x2039,0x8B],
+    [0x0152,0x8C],[0x017D,0x8E],[0x2018,0x91],[0x2019,0x92],[0x201C,0x93],[0x201D,0x94],[0x2022,0x95],[0x2013,0x96],[0x2014,0x97],[0x02DC,0x98],[0x2122,0x99],
+    [0x0161,0x9A],[0x203A,0x9B],[0x0153,0x9C],[0x017E,0x9E],[0x0178,0x9F]];
+  const SPEC = { 0x80: 556, 0x85: 1000, 0x91: 222, 0x92: 222, 0x93: 333, 0x94: 333, 0x95: 350, 0x96: 556, 0x97: 1000, 0x99: 1000, 0xA9: 737, 0xAE: 737, 0xB0: 400, 0xB1: 584, 0xB7: 278, 0xD7: 584, 0xF7: 584 };
+  const WORDS = { "→": "->", "←": "<-", "↔": "<->", "≥": ">=", "≤": "<=", "≠": "!=", "≈": "~", "−": "-", "‑": "-", "‒": "-", "✓": "v", "✔": "v", "●": "•", "◦": "-", "⁃": "-" };
+  const win = new Map(WIN);
+  let lost = 0, total = 0;
+  /* One text as the bytes of the font: Latin-1 as it is, the rest by the table, a question mark where nothing fits. */
+  const bytes = t => {
+    let s = "";
+    for (const ch of String(t).normalize("NFC")){
+      let c = ch.codePointAt(0);
+      if (c === 0xA0 || c === 0x202F) c = 32;
+      if (c === 0xAD || (c >= 0x200B && c <= 0x200F) || c === 0xFEFF || (c < 32 && c !== 10 && c !== 9)) continue;
+      if (c === 9) { s += "    "; continue; }
+      if (WORDS[ch] && !win.has(c)) { s += WORDS[ch]; continue; }
+      total++;
+      if ((c >= 32 && c < 127) || (c >= 0xA0 && c <= 0xFF) || c === 10) s += String.fromCharCode(c);
+      else if (win.has(c)) s += String.fromCharCode(win.get(c));
+      else { s += "?"; lost++; }
+    }
+    return s;
+  };
+  const wch = (c, bold) => {
+    if (c >= 32 && c < 127) return (bold ? WB : WR)[c - 32];
+    if (SPEC[c]) return SPEC[c];
+    const b = String.fromCharCode(c).normalize("NFD").charCodeAt(0);
+    return b >= 32 && b < 127 ? (bold ? WB : WR)[b - 32] : 556;
+  };
+  const FONTS = { R: ["Helvetica", false], B: ["Helvetica-Bold", true], I: ["Helvetica-Oblique", false], BI: ["Helvetica-BoldOblique", true], C: ["Courier", false] };
+  const FKEY = ["R", "B", "I", "BI", "C"];
+  const width = (s, f, sz) => { let w = 0; if (f === "C") return s.length * 0.6 * sz; const bold = FONTS[f][1]; for (let i = 0; i < s.length; i++) w += wch(s.charCodeAt(i), bold); return w * sz / 1000; };
+  const esc = s => s.replace(/[\\()]/g, m => "\\" + m);
+  const num = n => (Math.round(n * 100) / 100).toString();
+
+  /* Inline Markdown as runs of one font each. */
+  const inline = (s, f) => {
+    const runs = [], push = (t, ff) => { if (t) runs.push({ t, f: ff }); };
+    const re = /`([^`]+)`|(!?)\[([^\]]*)\]\(([^)\s]*)[^)]*\)|\*\*([^\s*](?:[^*]*[^\s*])?)\*\*|\*([^\s*](?:[^*]*[^\s*])?)\*|<br\s*\/?>|<\/?[a-zA-Z][^>]*>|\\([*_`\[\]()#>|\\-])/g;
+    let last = 0, m;
+    while ((m = re.exec(s))){
+      push(s.slice(last, m.index), f); last = m.index + m[0].length;
+      if (m[1] != null) push(m[1], "C");
+      else if (m[3] != null){ push(m[3], f); if (!m[2] && m[4] && m[4] !== m[3]) push(` (${m[4]})`, f); }
+      else if (m[5] != null) runs.push(...inline(m[5], f === "I" || f === "BI" ? "BI" : "B"));
+      else if (m[6] != null) runs.push(...inline(m[6], f === "B" || f === "BI" ? "BI" : "I"));
+      else if (/^<br/i.test(m[0])) push("\n", f);
+      else if (m[7] != null) push(m[7], f);
+    }
+    push(s.slice(last), f);
+    return runs;
+  };
+  /* Words with their font, ready to wrap; `sp` says whitespace follows the word. */
+  const wordsOf = (runs, sz) => {
+    const out = [];
+    for (const r of runs){
+      for (const p of bytes(r.t).split(/(\n|\s+)/)){
+        if (!p) continue;
+        if (p === "\n") out.push({ br: true });
+        else if (/^\s+$/.test(p)) { if (out.length && !out[out.length - 1].br) out[out.length - 1].sp = true; }
+        else out.push({ t: p, f: r.f, w: width(p, r.f, sz), sp: false });
+      }
+    }
+    return out;
+  };
+  /* Words as lines no wider than `max`; each word knows the space before it. A word wider than a line is cut where it overflows. */
+  const wrap = (words, max, sz) => {
+    const lines = []; let cur = [], x = 0;
+    const flush = () => { lines.push(cur); cur = []; x = 0; };
+    for (const w of words){
+      if (w.br){ flush(); continue; }
+      const prev = cur[cur.length - 1];
+      const gap = prev && prev.sp ? width(" ", prev.f, sz) : 0;
+      if (w.w > max){
+        if (cur.length) flush();
+        let rest = w.t;
+        while (rest){
+          let n = rest.length;
+          while (n > 1 && width(rest.slice(0, n), w.f, sz) > max) n--;
+          const piece = rest.slice(0, n); rest = rest.slice(n);
+          cur.push({ t: piece, f: w.f, w: width(piece, w.f, sz), sp: !rest && w.sp, lead: 0 }); x = width(piece, w.f, sz);
+          if (rest) flush();
+        }
+        continue;
+      }
+      if (cur.length && x + gap + w.w > max) flush();
+      const lead = cur.length ? (cur[cur.length - 1].sp ? width(" ", cur[cur.length - 1].f, sz) : 0) : 0;
+      cur.push({ ...w, lead }); x += lead + w.w;
+    }
+    if (cur.length || !lines.length) flush();
+    return lines;
+  };
+
+  /* ---- the page ---- */
+  const PW = 595.28, PH = 841.89, ML = 56, MR = 56, MT = 60, MB = 62, TW = PW - ML - MR;
+  const pages = []; let page = null, y = 0;
+  const newPage = () => { page = []; pages.push(page); y = PH - MT; };
+  const room = h => y - h >= MB;
+  const color = (r, g, b) => `${num(r)} ${num(g)} ${num(b)} rg`;
+  /* A line of words (their fonts named by resource) with its top at `top`, from x, or ending at x when it aligns right. */
+  const drawLine = (line, x, top, sz, lead, rgb = [0.1, 0.1, 0.12], align) => {
+    const base = top - lead * 0.76;
+    let cx = align === "right" ? x - line.reduce((n, w) => n + w.lead + w.w, 0) : x, run = null;
+    const out = () => { if (run) page.push(`BT /${run.f} ${num(sz)} Tf ${color(...rgb)} 1 0 0 1 ${num(run.x)} ${num(base)} Tm (${esc(run.t)}) Tj ET`); run = null; };
+    for (const w of line){
+      cx += w.lead;
+      if (run && run.f !== w.f) out();
+      if (!run) run = { f: w.f, x: cx, t: "" };
+      else if (w.lead) run.t += " ";
+      run.t += w.t; cx += w.w;
+    }
+    out();
+  };
+  const FONTCODE = { R: "F1", B: "F2", I: "F3", BI: "F4", C: "F5" };
+  const rect = (x, top, w, h, g) => page.push(`${num(g)} g ${num(x)} ${num(top - h)} ${num(w)} ${num(h)} re f`);
+  const stroke = (x1, y1, x2, y2, g = 0.8, lw = 0.6) => page.push(`${num(g)} G ${num(lw)} w ${num(x1)} ${num(y1)} m ${num(x2)} ${num(y2)} l S`);
+
+  /* Lines of words as text blocks: fonts are named by their resource code. */
+  const emit = (line, x, top, sz, lead, rgb, align) => {
+    const mapped = line.map(w => ({ ...w, f: FONTCODE[w.f] }));
+    drawLine(mapped, x, top, sz, lead, rgb, align);
+  };
+  const para = (runs, o) => {
+    const { x = ML, w = TW, sz = 10.5, lead = 15.5, rgb, after = 6, hang = 0, mark = null } = o || {};
+    const lines = wrap(wordsOf(runs, sz), w - hang, sz);
+    lines.forEach((ln, i) => {
+      if (!room(lead)) newPage();
+      if (i === 0 && mark) emit([{ t: bytes(mark.t), f: "R", w: 0, lead: 0 }], x, y, sz, lead, rgb);
+      emit(ln, x + hang, y, sz, lead, rgb);
+      y -= lead;
+    });
+    y -= after;
+  };
+
+  /* ---- Markdown as blocks ---- */
+  const src = String(md ?? "").replace(/\r\n?/g, "\n").split("\n");
+  const blocks = [];
+  const cellsOf = r => r.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+  const isSep = r => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(r.trim());
+  const itemRe = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/;
+  for (let i = 0; i < src.length;){
+    const ln = src[i], t = ln.trim();
+    if (!t){ i++; continue; }
+    let m;
+    if ((m = /^(```|~~~)/.exec(t))){
+      const body = []; i++;
+      while (i < src.length && !/^(```|~~~)/.test(src[i].trim())) body.push(src[i++]);
+      i++; blocks.push({ k: "code", lines: body }); continue;
+    }
+    if (/^\[\[p\. \d+\]\]$/.test(t)){ i++; continue; }
+    if ((m = /^(#{1,6})\s+(.*?)\s*#*$/.exec(t))){ blocks.push({ k: "h", n: m[1].length, s: m[2] }); i++; continue; }
+    if (/^([-*_])(\s*\1){2,}$/.test(t)){ blocks.push({ k: "hr" }); i++; continue; }
+    if (/^>/.test(t)){ const q = []; while (i < src.length && /^\s*>/.test(src[i])) q.push(src[i++].trim().replace(/^>\s?/, "")); blocks.push({ k: "quote", s: q.join(" ") }); continue; }
+    if (/^\|.*\|$/.test(t)){
+      const rows = []; while (i < src.length && /^\s*\|.*\|\s*$/.test(src[i])) rows.push(src[i++]);
+      const sep = rows.findIndex(isSep);
+      const body = rows.filter((r, j) => j !== sep).map(cellsOf);
+      blocks.push({ k: "table", head: sep > 0 ? body.slice(0, sep) : [], rows: sep > 0 ? body.slice(sep) : body }); continue;
+    }
+    if (itemRe.test(ln)){
+      const items = [];
+      while (i < src.length && src[i].trim()){
+        const li = itemRe.exec(src[i]);
+        if (li) items.push({ lvl: Math.min(3, Math.floor(li[1].replace(/\t/g, "    ").length / 2)), num: /\d/.test(li[2]) ? parseInt(li[2], 10) : 0, s: li[3] });
+        else if (/^\s+\S/.test(src[i]) && items.length) items[items.length - 1].s += " " + src[i].trim();
+        else break;
+        i++;
+      }
+      blocks.push({ k: "list", items }); continue;
+    }
+    /* A paragraph: the lines of a PDF or a text file break where the page ended, so a long line that stops no sentence reads on. */
+    const lines = [];
+    while (i < src.length && src[i].trim() && !/^(```|~~~|#{1,6}\s|>|\|.*\|$)/.test(src[i].trim()) && !itemRe.test(src[i]) && !/^([-*_])(\s*\1){2,}$/.test(src[i].trim())) lines.push(src[i++].trim());
+    blocks.push({ k: "p", lines });
+  }
+
+  /* ---- laying the blocks out ---- */
+  newPage();
+  const H = { 1: [19, 24, 14], 2: [14.5, 19, 11], 3: [12, 16, 9], 4: [10.5, 15, 7], 5: [10.5, 15, 7], 6: [10.5, 15, 7] };
+  let first = true;
+  for (const b of blocks){
+    if (b.k === "h"){
+      const [sz, lead, before] = H[b.n];
+      if (!first && y < PH - MT - 1) y -= before;
+      if (!room(lead * 2 + 14)) newPage();
+      para(inline(b.s, "B"), { sz, lead, after: 5, rgb: [0.07, 0.07, 0.09] });
+    } else if (b.k === "p"){
+      let s = "";
+      b.lines.forEach((l, j) => { const p = b.lines[j - 1]; s += j ? (p.length >= 50 && !/[.!?:;]["')\]]?$/.test(p) ? " " : "\n") + l : l; });
+      para(inline(s, "R"), {});
+    } else if (b.k === "list"){
+      const counters = [];
+      for (const it of b.items){
+        counters.length = it.lvl + 1;
+        const n = it.num ? (counters[it.lvl] = it.num) : 0;
+        if (it.num) counters[it.lvl] = it.num + 1; else counters[it.lvl] = 0;
+        const x = ML + it.lvl * 16;
+        para(inline(it.s, "R"), { x, w: TW - it.lvl * 16, hang: 15, after: 2.5, mark: { t: it.num ? `${n}.` : it.lvl ? "-" : "•" } });
+      }
+      y -= 4;
+    } else if (b.k === "quote"){
+      const top = y;
+      para(inline(b.s, "I"), { x: ML + 14, w: TW - 14, rgb: [0.33, 0.33, 0.36], after: 0 });
+      stroke(ML + 4, top - 1, ML + 4, y + 3, 0.72, 2);
+      y -= 8;
+    } else if (b.k === "code"){
+      const sz = 8.8, lead = 12, per = Math.max(20, Math.floor((TW - 16) / (0.6 * sz)));
+      const rows = [];
+      for (const l of b.lines){ const t = bytes(l.replace(/\t/g, "    ")); if (!t) rows.push(""); for (let k = 0; k < t.length; k += per) rows.push(t.slice(k, k + per)); }
+      let i = 0;
+      while (i < rows.length){
+        if (!room(lead + 8)) newPage();
+        const fit = Math.max(1, Math.min(rows.length - i, Math.floor((y - MB - 8) / lead)));
+        rect(ML, y, TW, fit * lead + 8, 0.955);
+        for (let k = 0; k < fit; k++){ if (rows[i + k]) page.push(`BT /F5 ${num(sz)} Tf 0.15 0.15 0.18 rg 1 0 0 1 ${num(ML + 8)} ${num(y - 4 - lead * (k + 0.76))} Tm (${esc(rows[i + k])}) Tj ET`); }
+        y -= fit * lead + 8; i += fit;
+      }
+      y -= 8;
+    } else if (b.k === "hr"){
+      if (!room(20)) newPage();
+      y -= 8; stroke(ML, y, PW - MR, y, 0.78, 0.8); y -= 10;
+    } else if (b.k === "table"){
+      const sz = 9, lead = 12.5, padX = 5, padY = 4;
+      y -= 4;
+      const all = [...b.head, ...b.rows];
+      const cols = Math.max(1, ...all.map(r => r.length));
+      const cellWords = r => Array.from({ length: cols }, (_, c) => wordsOf(inline(r[c] ?? "", b.head.includes(r) ? "B" : "R"), sz));
+      const prep = all.map(cellWords);
+      const natural = Array.from({ length: cols }, (_, c) => Math.max(20, ...prep.map(r => r[c].reduce((n, w) => n + (w.w || 0) + (w.sp ? width(" ", "R", sz) : 0), 0))) + 2 * padX);
+      const least = Array.from({ length: cols }, (_, c) => Math.min(natural[c], Math.max(34, ...prep.map(r => Math.max(0, ...r[c].map(w => w.w || 0))) + 2 * padX)));
+      let colw = natural.slice();
+      const sum = a => a.reduce((n, x) => n + x, 0);
+      if (sum(natural) > TW){
+        const spare = TW - sum(least), want = sum(natural) - sum(least);
+        colw = least.map((l, c) => l + (want > 0 ? (natural[c] - l) * Math.max(0, spare) / want : 0));
+        const over = sum(colw) - TW; if (over > 0) colw = colw.map(w => w * TW / sum(colw));
+      } else colw = natural.map(w => w + (TW - sum(natural)) / cols);
+      const drawRow = (cells, head) => {
+        const wrapped = cells.map((c, j) => wrap(c, colw[j] - 2 * padX, sz));
+        const h = Math.max(...wrapped.map(l => l.length)) * lead + 2 * padY;
+        if (!room(h)) { newPage(); if (!head && b.head.length) drawRow(prep[0], true); }
+        if (head) rect(ML, y, TW, h, 0.93);
+        let x = ML;
+        wrapped.forEach((lines, j) => {
+          lines.forEach((ln, k) => emit(ln, x + padX, y - padY - k * lead, sz, lead, [0.1, 0.1, 0.12]));
+          page.push(`0.8 G 0.5 w ${num(x)} ${num(y - h)} ${num(colw[j])} ${num(h)} re S`);
+          x += colw[j];
+        });
+        y -= h;
+      };
+      b.head.forEach((_, r) => drawRow(prep[r], true));
+      b.rows.forEach((_, r) => drawRow(prep[b.head.length + r], false));
+      y -= 10;
+    }
+    first = false;
+  }
+  if (total && lost > Math.max(4, total * 0.02)) return null;
+
+  /* ---- the file ---- */
+  let out = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";
+  const off = [];
+  const put = (id, body) => { off[id] = out.length; out += `${id} 0 obj\n${body}\nendobj\n`; };
+  const n = pages.length, first0 = 9;
+  put(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  put(2, `<< /Type /Pages /Kids [${pages.map((_, i) => `${first0 + i * 2} 0 R`).join(" ")}] /Count ${n} >>`);
+  FKEY.forEach((k, i) => put(3 + i, `<< /Type /Font /Subtype /Type1 /BaseFont /${FONTS[k][0]} /Encoding /WinAnsiEncoding >>`));
+  const name = esc(String(title ?? "Document").replace(/[^\x20-\x7e]/g, "").slice(0, 120));
+  put(8, `<< /Title (${name}) /Producer (Octopus) >>`);
+  const foot = bytes(String(title ?? "")).slice(0, 70);
+  pages.forEach((ops, i) => {
+    /* The footer: the name of the file at the left, the page at the right. */
+    page = ops;
+    const left = [{ t: foot, f: "F1", w: width(foot, "R", 8), lead: 0 }], right = [{ t: `${i + 1} / ${n}`, f: "F1", w: width(`${i + 1} / ${n}`, "R", 8), lead: 0 }];
+    drawLine(left, ML, MB - 22, 8, 10, [0.5, 0.5, 0.54]);
+    drawLine(right, PW - MR, MB - 22, 8, 10, [0.5, 0.5, 0.54], "right");
+    const content = ops.join("\n");
+    put(first0 + i * 2, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${num(PW)} ${num(PH)}] /Resources << /Font << ${FKEY.map((k, j) => `/F${j + 1} ${3 + j} 0 R`).join(" ")} >> >> /Contents ${first0 + i * 2 + 1} 0 R >>`);
+    put(first0 + i * 2 + 1, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  });
+  const size = first0 + n * 2, xref = out.length;
+  out += `xref\n0 ${size}\n0000000000 65535 f \n`;
+  for (let id = 1; id < size; id++) out += `${String(off[id]).padStart(10, "0")} 00000 n \n`;
+  out += `trailer\n<< /Size ${size} /Root 1 0 R /Info 8 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  const bin = new Uint8Array(out.length);
+  for (let i = 0; i < out.length; i++) bin[i] = out.charCodeAt(i) & 255;
+  return bin;
+}
+
 /** A line at the top of the file, for what did not work. It goes by itself. */
 function pjNote(text){
   const pj = S.pj; if (!pj?.body) return;
