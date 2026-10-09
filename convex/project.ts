@@ -247,6 +247,78 @@ export function sheetsText(sheets: Sheet[], firstRows: string[][][]): string {
   ].join("\n")).join("\n\n");
 }
 
+/* ---------- reading less of a long section ---------- */
+
+/** A section at least this long is read as passages when the message only asks a question. A section is never cut shorter than a heading starts one, so this is where reading less begins. */
+const PASSAGES_AFTER = 2500;
+/** What is kept of one section read as passages: two fifths of it, from 1,200 to 2,400 characters. */
+const passageChars = (n: number) => Math.max(1200, Math.min(2400, Math.round(n * 0.4)));
+/** Said above the sections when some are read as passages, with the way out when a part left out is needed. */
+const PASSAGE_NOTE = `SECTIONS MARKED (passages) SHOW ONLY THE PARTS THAT BEAR ON THE QUESTION, with [...] where parts are left out. When what the question needs may lie in a part left out, reply with only {"more":true}.`;
+
+/**
+ * The passages of a long section that bear on a question: its opening line,
+ * then the paragraphs that share the most words with the question, then the
+ * paragraphs beside them while there is room, in the order they stand, with
+ * [...] where parts are left out. A section that no word of the question
+ * reaches is read whole, since nothing says where to look, and so is one that
+ * would lose less than a fifth.
+ */
+export function passages(text: string, words: string[], max = passageChars(text.length)): { text: string; cut: boolean } {
+  const whole = { text, cut: false };
+  if (text.length < PASSAGES_AFTER || !words.length) return whole;
+  /* Paragraphs, and a long one by its lines, a very long line by its sentences: a table or a list keeps its shape. */
+  const blocks: string[] = [];
+  for (const b of text.split(/\n{2,}/)) {
+    if (!b.trim()) continue;
+    if (b.length <= 700) { blocks.push(b); continue; }
+    let cur = "";
+    const put = (piece: string, sep: string) => { if (cur && cur.length + piece.length > 600) { blocks.push(cur); cur = ""; } cur += (cur ? sep : "") + piece; };
+    for (const line of b.split("\n")) {
+      if (line.length <= 700) put(line, "\n");
+      else for (const sentence of line.split(/(?<=[.!?])\s+/)) put(sentence, " ");
+    }
+    if (cur) blocks.push(cur);
+  }
+  const want = new Set(words);
+  const score = blocks.map(b => new Set(keywords(b).map(stem).filter(w => want.has(w))).size);
+  if (!score.some(x => x > 0)) return whole;
+  const keep = new Set<number>();
+  let used = 0;
+  const take = (i: number) => { if (i < 0 || i >= blocks.length || keep.has(i) || used + blocks[i].length > max) return false; keep.add(i); used += blocks[i].length + 1; return true; };
+  /* The opening, when it is a heading or a line. */
+  if (blocks[0].length <= 200) take(0);
+  /* The paragraphs that name the question's words, the most first. */
+  for (const i of blocks.map((_, k) => k).filter(k => score[k] > 0).sort((a, b) => score[b] - score[a] || a - b)) take(i);
+  /* Then what stands beside them, while there is room. */
+  for (const i of [...keep].sort((a, b) => score[b] - score[a] || a - b)) { take(i - 1); take(i + 1); }
+  const order = [...keep].sort((a, b) => a - b);
+  const out: string[] = [];
+  order.forEach((i, k) => { if (k && i !== order[k - 1] + 1) out.push("[...]"); else if (!k && i > 0) out.push("[...]"); out.push(blocks[i]); });
+  if (order[order.length - 1] < blocks.length - 1) out.push("[...]");
+  const cut = out.join("\n\n");
+  return cut.length > text.length * 0.8 ? whole : { text: cut, cut: true };
+}
+
+const CLOSE_WORDS = new Set(["thanks", "thank", "thx", "ty", "cheers", "merci", "hello", "hi", "hey", "bonjour", "bonsoir", "salut", "bye", "goodbye", "revoir", "bientot"]);
+const CLOSE_FILL = new Set(["ok", "okay", "great", "perfect", "super", "parfait", "nice", "cool", "got", "it", "you", "a", "lot", "very", "much", "so", "again", "beaucoup", "bien", "encore", "au", "see", "good", "all", "the", "for", "help", "your"]);
+/**
+ * Thanks, a greeting or a goodbye, and nothing else: it needs no part of the
+ * file, no folder and no router. A bare "ok" or "yes" is not one, since it may
+ * answer the question before it.
+ */
+export function isCloser(q: string): boolean {
+  const w = String(q ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
+  return w.length > 0 && w.length <= 6 && w.some(x => CLOSE_WORDS.has(x)) && w.every(x => CLOSE_WORDS.has(x) || CLOSE_FILL.has(x));
+}
+
+/* ---------- reading the owner's folders to support a project ---------- */
+
+/** The titles the folder router is shown when a project reads folders: the nearest by meaning, then by words. */
+const FOLDER_INDEX = 120;
+/** What a project's answer holds of the folders: they support the file, and never carry the message. */
+const FOLDER_DOSSIER = { fullMax: 10, fullChars: 16000, titleMax: 25, titleChars: 2500 };
+
 /** What a message cost, from the usage each model call reports. */
 type Spent = { in: number; out: number; cached: number; usd: number; known: boolean; calls: number };
 const newSpent = (): Spent => ({ in: 0, out: 0, cached: 0, usd: 0, known: false, calls: 0 });
@@ -534,8 +606,10 @@ export async function projectChat(ctx: any, o: ChatIn) {
   /* A message in a script the lines share no word with (Chinese, Arabic, Cyrillic) can never meet a line: it gets the whole list at once, as before. */
   if (short && !keywords(q).length && !/[a-z]/i.test(q) && q.length >= 8) short = null;
   const spent = newSpent();
+  /* Thanks and goodbyes need nothing read and nothing decided. */
+  const closer = !fresh && isCloser(q);
   const ask0 = { q, earlier, file, cards, tiny, firstRows, folders: o.shared.brains, memory: memoryForRouter(memory, q), fresh, empty, meter: (u: any) => meter(spent, u), key: o.key, model: o.model };
-  let r: Route = skip ? NO_ROUTE : await route({ ...ask0, short });
+  let r: Route = closer ? { ...NO_ROUTE, routed: true } : skip ? NO_ROUTE : await route({ ...ask0, short });
   /* None of the short list fits: the whole list, once. */
   if (short && r.more) r = await route({ ...ask0, short: null });
   /* The folders the owner tagged are the ones read: the router's own choice of folders stands aside. */
@@ -547,17 +621,28 @@ export async function projectChat(ctx: any, o: ChatIn) {
   }
 
   /* 2. The file. */
-  const whole = tiny || (mid && (r.all || !r.routed || (kind === "html" && r.intent === "change")));
+  const whole = !closer && (tiny || (mid && (r.all || !r.routed || (kind === "html" && r.intent === "change"))));
+  /* What the router judged small talk: no section, no folder, no search word. */
+  const talk = r.routed && r.intent === "ask" && !fresh && !r.sections.length && !r.all && !r.query && !r.folders.length && !r.terms.length;
   let fileText = "", opened: { sid: number; title: string }[] = [], rowsUsed: number[] = [], rowsSheet = 0, alsoIn = "", mapText = "";
+  /* Some sections read as passages: the file as it would read whole, kept for the second pass. */
+  let trimmed = false, fileWhole = "";
   if (doc) {
     const sids = whole ? cards.map(c => c.sid)
       : r.sections.length ? r.sections
       : !r.routed ? pickByWords(cards, q, 4)
       : r.intent === "change" ? pickByWords(cards, q, 3) : [];
-    const secs: any[] = sids.length ? await ctx.runQuery(internal.projects.sectionsRead, { space: o.space, brain: o.brain, sids }) : [];
+    let secs: any[] = sids.length ? await ctx.runQuery(internal.projects.sectionsRead, { space: o.space, brain: o.brain, sids }) : [];
     const order = new Map<number, number>(cards.map((c, i) => [c.sid, i]));
     secs.sort((a, b) => (order.get(a.sid) ?? 0) - (order.get(b.sid) ?? 0));
-    fileText = secs.map(s => `--- SECTION ${s.sid}: ${s.title}\n${s.text}`).join("\n\n");
+    const sectionText = (list: any[]) => list.map(s => `--- SECTION ${s.sid}: ${s.title}${s.cut ? " (passages)" : ""}\n${s.text}`).join("\n\n");
+    fileText = sectionText(secs);
+    /* A question about a long section reads the passages that bear on it. A change, a brainstorm and a page read whole. */
+    if (!whole && r.routed && r.intent === "ask" && kind !== "html" && secs.length) {
+      const want = [...new Set([...keywords(q), ...r.terms.flatMap(t => keywords(t))].map(stem))];
+      const cut = secs.map(s => { const p = passages(s.text, want); return { ...s, text: p.text, cut: p.cut }; });
+      if (cut.some(s => s.cut)) { fileWhole = fileText; secs = cut; trimmed = true; fileText = `${PASSAGE_NOTE}\n${sectionText(cut)}`; }
+    }
     if (!whole) {
       opened = secs.map(s => ({ sid: s.sid, title: s.title }));
       /* A message about the whole file reads the contents lines: a summary of every section. */
@@ -566,7 +651,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
         const near = new Set(short?.sids ?? []);
         const rest = cards.filter(c => !secs.some(s => s.sid === c.sid)).sort((a, b) => Number(near.has(b.sid)) - Number(near.has(a.sid)));
         const cap = ALSO_IN;
-        alsoIn = rest.slice(0, cap).map(c => `${c.sid}: ${c.title}`).join("\n") + (rest.length > cap ? `\n... and ${rest.length - cap} more` : "");
+        if (!closer) alsoIn = rest.slice(0, cap).map(c => `${c.sid}: ${c.title}`).join("\n") + (rest.length > cap ? `\n... and ${rest.length - cap} more` : "");
       }
     }
   } else if (empty) {
@@ -595,15 +680,17 @@ export async function projectChat(ctx: any, o: ChatIn) {
     try {
       const cs = await o.shared.cards(pool.map((b: any) => b.slug));
       const before = earlierTurns.map(t => ({ q: t.q, a: said(t) }));
-      const rt = await routeQuestion(pool, cs, q, before, o.key, o.model);
+      /* The concepts nearest in meaning lead the short list the folder router is shown, so a long folder costs the router 120 titles, not all of them. */
       let near: string[] = [];
       if (o.embeds) {
         try { const [vec] = await embed([q.slice(0, 1000)]); near = (await nearest(ctx, vec, pool.map((b: any) => b.slug), 8)).map((x: any) => x.id); }
         catch (e: any) { console.log(`question embedding skipped: ${String(e?.message ?? e).slice(0, 120)}`); }
       }
+      const rt = await routeQuestion(pool, cs, q, before, o.key, o.model, { cap: FOLDER_INDEX, first: near, extra: r.terms });
       const plan = planDossier(pool, cs, q, before, { ...rt, picked: rt.picked, terms: [...rt.terms, ...r.terms].slice(0, 16), near });
       const whole2 = await ctx.runQuery(internal.store.conceptsByIds, { space: o.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
-      const pick = writeDossier(pool, plan, new Map(whole2.map((c: any) => [idOf(c), c])));
+      /* An empty file is built from the folders, so it reads them in full; any other message reads them as support. */
+      const pick = writeDossier(pool, plan, new Map(whole2.map((c: any) => [idOf(c), c])), empty ? {} : FOLDER_DOSSIER);
       dossier = pick.dossier;
       taggedNote = taggedLine(named, pick.opened);
       /* A folder the owner tagged shows even when it held nothing for this message: it was called. */
@@ -614,15 +701,14 @@ export async function projectChat(ctx: any, o: ChatIn) {
     }
   }
 
-  /* 4. The answer. */
-  const picked = memoryPick(memory, 3000, q);
+  /* 4. The answer. Thanks and goodbyes read no note. */
+  const picked = closer ? [] : memoryPick(memory, 3000, q);
   /* The last exchange whole; the ones before it as the question and the one line that answered it: the notes keep the rest. */
   const history = earlierTurns.map((t, i) => i === earlierTurns.length - 1
     ? `Q: ${oneLine(t.q, 400)}\nA: ${oneLine(said(t), 700)}`
     : `Q: ${oneLine(t.q, 200)}\nA: ${oneLine(t.lead || t.a, 200)}`).join("\n\n");
   /* How to change the file is sent when the message may change it, or when nothing said what it is. The memory rules are left out of small talk. */
   const edits = !r.routed || r.intent === "change" || empty;
-  const talk = r.routed && r.intent === "ask" && !fresh && !r.sections.length && !r.all && !r.query && !r.folders.length && !r.terms.length;
   const date = new Date().toISOString().slice(0, 10);
   const noun = table ? `a table, ${file.sheets.length} sheet${file.sheets.length === 1 ? "" : "s"}`
     : `${kind === "html" ? "an HTML page" : "a document"}, ${cards.length} section${cards.length === 1 ? "" : "s"}${whole ? ", read whole" : ""}`;
@@ -630,17 +716,20 @@ export async function projectChat(ctx: any, o: ChatIn) {
     `THE FILE "${file.name}" (${noun})\n${fileText || (empty ? "(empty)" : "(not opened for this message)")}\n\n` +
     `${mapText ? `THE FILE'S CONTENTS, a line a section (id | title | summary), written when the file was read in\n${mapText}\n\n` : ""}` +
     `${alsoIn ? `ALSO IN THE FILE, not opened (id: title)\n${alsoIn}\n\n` : ""}` +
-    `PROJECT MEMORY\n${picked.map(memoryLine).join("\n") || "(nothing kept yet)"}\n\n${taggedNote ? taggedNote + "\n\n" : ""}THEIR FOLDERS\n${dossier}\n\n` +
+    `PROJECT MEMORY\n${closer ? "(not read for this message)" : picked.map(memoryLine).join("\n") || "(nothing kept yet)"}\n\n${taggedNote ? taggedNote + "\n\n" : ""}THEIR FOLDERS\n${dossier}\n\n` +
     `${history ? `EARLIER IN THIS CHAT\n${history}\n\nThat is context for reading the question, never a source.\n\n` : ""}QUESTION: ${q}`;
   const writes = empty || kind === "html" || r.intent === "change";
-  const { text, finish, usage } = await ask([
-    { role: "system", content: ANSWER_RULES(kind, o.english, { auto: made, empty, note: !!o.note && !talk, edits }) },
-    { role: "user", content: prompt },
-  ], { json: true, maxTokens: writes ? 8000 : 3000, temperature: 0.2, key: o.key, model: o.model, timeout: Math.max(60000, 165000 - (Date.now() - t0)) });
-  meter(spent, usage);
-  let d: any;
-  try { d = parseJson(String(text), finish); }
-  catch { d = { reply: String(text).replace(/^```(?:json)?|```$/g, "").trim() }; }
+  const system = ANSWER_RULES(kind, o.english, { auto: made, empty, note: !!o.note && !talk, edits });
+  const answerOf = async (user: string) => {
+    const { text, finish, usage } = await ask([{ role: "system", content: system }, { role: "user", content: user }],
+      { json: true, maxTokens: writes ? 8000 : 3000, temperature: 0.2, key: o.key, model: o.model, timeout: Math.max(60000, 165000 - (Date.now() - t0)) });
+    meter(spent, usage);
+    try { return parseJson(String(text), finish); }
+    catch { return { reply: String(text).replace(/^```(?:json)?|```$/g, "").trim() }; }
+  };
+  let d: any = await answerOf(prompt);
+  /* The passages did not hold what the question needs: the sections whole, once. */
+  if (trimmed && d?.more === true) { d = await answerOf(prompt.split(fileText).join(fileWhole)); trimmed = false; }
   const clean = (t: any) => String(t ?? "").replace(/\s*—\s*/g, ", ").trim();
   const lead = clean(d?.tldr).slice(0, 400);
   let reply = clean(d?.reply);
@@ -690,10 +779,10 @@ export async function projectChat(ctx: any, o: ChatIn) {
   const turn = {
     q, ...(lead ? { lead } : {}), a: reply, proposal: d?.proposal === true && !edit,
     quotes,
-    used: { file: { name: file.name, whole: whole && !empty, ...(opened.length ? { sections: opened, of: cards.length } : {}), ...(opened.some(x => short?.memory.has(x.sid)) ? { via: "memory" } : {}), ...(mapText ? { map: true } : {}), ...(rowsUsed.length ? { rows: rowsUsed, sheet: rowsSheet } : {}) },
+    used: { file: { name: file.name, whole: whole && !empty, ...(opened.length ? { sections: opened, of: cards.length } : {}), ...(opened.some(x => short?.memory.has(x.sid)) ? { via: "memory" } : {}), ...(trimmed ? { passages: true } : {}), ...(mapText ? { map: true } : {}), ...(rowsUsed.length ? { rows: rowsUsed, sheet: rowsSheet } : {}) },
       folders: called, memory: picked.length },
-    /* What this message cost, as the model host reported it: tokens in and out, the part reused from before, and the price when it says it. */
-    ...(spent.in ? { cost: { in: spent.in, out: spent.out, ...(spent.cached ? { cached: spent.cached } : {}), ...(spent.known ? { cents: Math.round(spent.usd * 1e6) / 1e4 } : {}), calls: spent.calls } } : {}),
+    /* What this message cost, as the model host reported it: tokens in and out, the part reused from before, and the price in dollars when it says it. */
+    ...(spent.in ? { cost: { in: spent.in, out: spent.out, ...(spent.cached ? { cached: spent.cached } : {}), ...(spent.known ? { usd: Math.round(spent.usd * 1e7) / 1e7 } : {}), calls: spent.calls } } : {}),
     ...(edit ? { edit } : {}), intent: r.intent,
     ...(filed?.titles?.length ? { noted: filed.titles } : {}),
   };

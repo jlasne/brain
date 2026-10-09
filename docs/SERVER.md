@@ -441,14 +441,14 @@ What one message costs, measured on this code with a recording model and DeepSee
 
 | A message in | Small talk | A question |
 |---|---|---|
-| a project on a file of 1 page (3,000 characters) | 0.021 cent | 0.025 cent |
-| a project on a file of 13 pages (40,000 characters) | 0.020 cent | 0.036 cent |
-| a project on a file of 125 pages (375,000 characters, 111 sections) | 0.014 cent | 0.030 cent |
-| a project on a table of 3,000 rows | 0.017 cent | 0.025 cent |
-| the folders chat, 400 notes | 0.051 cent | 0.059 cent |
-| the personal chat, 400 notes | 0.068 cent | 0.075 cent |
+| a project on a file of 1 page (3,000 characters) | $0.00021 | $0.00025 |
+| a project on a file of 13 pages (40,000 characters) | $0.00020 | $0.00027 |
+| a project on a file of 133 pages (400,000 characters) | $0.00017 | $0.00028 |
+| a project on a table of 3,000 rows | $0.00017 | $0.00025 |
+| the folders chat, 400 notes | $0.00051 | $0.00059 |
+| the personal chat, 400 notes | $0.00068 | $0.00075 |
 
-A file of 13 pages cost 0.085 cent for small talk when it was read whole at every message. A file of 125 pages cost 0.056 cent for small talk and 0.069 cent for a question when the router read the whole contents list at every message: about 5,700 tokens.
+A file of 13 pages cost $0.00085 for small talk when it was read whole at every message. A file of 125 pages cost $0.00056 for small talk and $0.00069 for a question when the router read the whole contents list at every message: about 5,700 tokens.
 
 **A table is searched, never skimmed.** Its rows are cut in blocks, and each column's total, average, lowest and highest are worked out once, when the last piece is in. A question about a table becomes a filter and a few totals (`where`, `show`, `sort`, `calc`), which the server runs over every row: a count, a sum or an average is exact at any size, and the model never adds rows up. A column the model names that the sheet lacks drops that one condition and never the answer. A table holds up to 6,000,000 bytes, about 40,000 rows of 10 columns, and each question sees the columns, the first rows and the result.
 
@@ -464,20 +464,27 @@ A file of 13 pages cost 0.085 cent for small talk when it was read whole at ever
 
 **Memory as a shortcut into a long file.** A project keeps what it learns about where things are, and uses it so that a long file is not read at every message. It is automatic and costs no model call. After an answer that opened sections, the project stores a route in `projectFiles.routes`: the stems of the words of the question and of the router's English search words, the sections that answered, how many times, when, and the question that last used it. A route resting on the same sections takes the new words; any other makes a route of its own; the latest 40 stay, and a new file takes them all away. A route is a pointer and never an answer: the answer is always written from the sections as they stand, so a changed file never makes it stale. Before the router runs on a file of more than 40 sections, `shortlist` builds a list of at most 12 lines: the routes that cover at least half the question's words (marked with a star), then the sections the last exchange opened, then the sections whose title or summary share words with the message. The router reads that list and a count of the others. When none fits it sets `more`, and the whole list is shown, once. The answer's list of titles it did not open is cut to the likeliest 12, and the router sees 120 characters of each summary. Each turn records how many sections it read of how many, and whether memory led; the page shows "Read 2 of 111 sections", and the Memory tab lists the routes under "Where things are". Messages with no word in common with any section cost one short router call. A router that cannot answer teaches nothing.
 
-Measured on a file of 125 pages (375,000 characters, 111 sections), with a router that opens the sections a line names. Before is the version that showed the router every contents line and filed notes in a call of its own; now the notes come in the answer's own call:
+Measured on a contract of 428,000 characters (89 sections of 2,000 to 6,000 characters), with a router that opens the sections a line names. Before is the version that showed the router every contents line and filed notes in a call of its own. A price is one message, in dollars; the tokens are the ones sent in:
 
 | A message | Before | Now |
 |---|---|---|
-| a first question on a subject its words name | 0.069 cent, 10,200 tokens | 0.030 cent, 4,200 tokens |
-| the same subject again | 0.071 cent | 0.032 cent |
-| small talk | 0.056 cent, 8,500 tokens | 0.014 cent, 2,100 tokens |
-| a question in other words, first time | 0.073 cent | 0.069 cent, the short list then the whole list |
-| the same other words again | 0.074 cent | 0.033 cent |
-| eight messages in all | 0.548 cent | 0.260 cent |
+| a first question on a subject its words name | $0.00047, 6,700 tokens | $0.00026, 3,600 tokens |
+| the same subject again | $0.00049 | $0.00027 |
+| thanks | $0.00025, 3,700 tokens | $0.00007, 960 tokens |
+| small talk that is not thanks | $0.00024 | $0.00013 |
+| a question in other words, first time | $0.00075 | $0.00058, the short list then the whole list |
+| a question that calls a folder of 400 notes | $0.00114, 17,100 tokens | $0.00050, 7,200 tokens |
+| the first eight messages in all | $0.00346 | $0.00204 |
 
-A miss costs 5% less than the whole list at every message. A hit saves 55%. The tokens are the ones sent in.
+A hit saves 45% and a miss 23%.
 
-**What a message sends.** Only what the message needs. The rules every message needs come first and read the same each time, so a model host that reuses what it was sent before can reuse them. The rules for changing the file (and the `edits` field) go in only when the router says the message changes the file, when the file is empty, or when the router could not say. The rules for the memory and its `notes` field are left out of small talk. The router is told what to return for this kind of file: sections for a document or a page, a query for a table, `more` only when it is shown a short list, `kind` only when there is no file. Each turn carries what it cost, as the model host reports it: tokens in and out, the part reused from before, and the price when the host gives one, added over the router and the answer. The page shows it under the answer, like "4.1k in · 310 out · 2k reused · 0.052¢".
+**What a message sends.** Only what the message needs. The rules every message needs come first and read the same each time, so a model host that reuses what it was sent before can reuse them. The rules for changing the file (and the `edits` field) go in only when the router says the message changes the file, when the file is empty, or when the router could not say. The rules for the memory and its `notes` field are left out of small talk. The router is told what to return for this kind of file: sections for a document or a page, a query for a table, `more` only when it is shown a short list, `kind` only when there is no file. Each turn carries what it cost, as the model host reports it: tokens in and out, the part reused from before, and the price in dollars (`usd`) when the host gives one, added over every call of the message. The page shows it under the answer, in dollars, like "4.1k in · 310 out · 2k reused · $0.00052".
+
+**Passages.** A section of 2,500 characters or more that a question opens is read as passages: its opening line, the paragraphs that share the most words with the question and with the router's English search words, and the paragraphs beside them, up to two fifths of the section (1,200 to 2,400 characters), in the order they stand, with [...] where parts are left out. A section that no word reaches, or one that would lose less than a fifth, is read whole. A change, a brainstorm, a page and a message the router could not read take their sections whole. When the passages lack what the question needs, the answer is `{"more":true}` and the sections go again whole, once: that message pays for two answers. The page says "passages" beside "Read 2 of 89 sections".
+
+**Thanks.** A message made only of thanks, a greeting or a goodbye, in English or French, needs no section, no note, no folder and no router: one call and about 960 tokens. A bare ok or yes still goes through the router, since it may answer the question before it.
+
+**Folders as support.** A project reads the owner's folders to support its file, so it reads less of them than a folder chat. The folder router is shown the 120 titles nearest the message, the nearest by meaning first and then by words with the router's English search words, instead of all of them. The answer holds 10 concepts of a folder in full and 25 more by title, instead of 30 and 120. A file built from the folders keeps the full dossier.
 
 **The answer has two parts.** The model returns `tldr`, the answer or the decision in one sentence, and `reply`, its support as short points with their sources. Small talk gets one line and no tldr. The page shows the tldr first, then the support, and the thread and the memory read both.
 

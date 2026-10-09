@@ -843,7 +843,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   })());
   check("small talk right after an answer keeps the short list: the sections that answer opened", await (async () => {
     reply = { route: routeOf({ sections: [], terms: [] }), answer: answerOf({ tldr: "Glad." }) };
-    await chat("ok thanks");
+    await chat("ok that helps a lot");
     const l = listed(last(/You route a project's questions/).user);
     return l.length >= 1 && l.length <= 3 && /more sections are not listed/.test(last(/You route a project's questions/).user);
   })());
@@ -1120,14 +1120,14 @@ const docProject = async (w, name, text, kind = "doc") => {
   const p = await docProject(w, "Usage", midDoc);
   const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, ...extra });
   reply = { route: routeOf(), answer: answerOf() };
-  const none = await chat("thanks");
+  const none = await chat("that is clear");
   check("a model host that reports no usage leaves the turn with no cost line", none.cost === undefined, JSON.stringify(none.cost));
   const use = sys => /You route a project's questions/.test(sys) ? { prompt_tokens: 1000, completion_tokens: 50, cost: 0.0003 } : { prompt_tokens: 3000, completion_tokens: 200, prompt_tokens_details: { cached_tokens: 2000 }, cost: 0.001 };
   reply = { route: routeOf(), answer: answerOf(), usage: use };
-  const t = await chat("thanks again");
-  check("a turn adds up the router and the answer: tokens in and out, the part reused, the price in cents", JSON.stringify(t.cost) === JSON.stringify({ in: 4000, out: 250, cached: 2000, cents: 0.13, calls: 2 }), JSON.stringify(t.cost));
+  const t = await chat("that is clear again");
+  check("a turn adds up the router and the answer: tokens in and out, the part reused, the price in dollars", JSON.stringify(t.cost) === JSON.stringify({ in: 4000, out: 250, cached: 2000, usd: 0.0013, calls: 2 }), JSON.stringify(t.cost));
   reply = { route: routeOf(), answer: answerOf(), usage: () => ({ prompt_tokens: 900, completion_tokens: 40 }) };
-  const u = await chat("and again");
+  const u = await chat("that is clear once more");
   check("tokens alone are kept when the host gives no price, and 'reused' only when something was", JSON.stringify(u.cost) === JSON.stringify({ in: 1800, out: 80, calls: 2 }), JSON.stringify(u.cost));
   const th = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).turns;
   check("the cost stays with the exchange in the thread", th[th.length - 2].cost?.in === 4000 && th[th.length - 1].cost?.in === 1800);
@@ -1195,7 +1195,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   const w = makeCtx();
   const doc = await docProject(w, "Doc router", midDoc);
   reply = { route: routeOf(), answer: answerOf() };
-  await project.projectChat(w.ctx, { space: SPACE, brain: doc, q: "thanks", english: false, embeds: false, shared: shared0 });
+  await project.projectChat(w.ctx, { space: SPACE, brain: doc, q: "that is clear", english: false, embeds: false, shared: shared0 });
   const d = route();
   check("a document's router is asked for sections, and not for a query", /"sections": for a document/.test(d) && !/"query": for a table/.test(d) && !/"query"/.test(d.split("Reply with only JSON:")[1].split("\n")[0]));
   check("and for neither 'more' nor 'kind', which belong to a long file and to no file", !/"more"/.test(d) && !/"kind"/.test(d));
@@ -1203,7 +1203,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   const tb = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: t, name: "t.csv", kind: "table", sheets: [{ name: "T", header: sheet.colNames(["A", "B"]) }] });
   await project.addRowPiece(w.ctx, { space: SPACE, brain: t, ver: tb.ver, sheet: 0, rows: Array.from({ length: 500 }, (_, i) => [`Program number ${i + 1}`, String(1000 + i)]) });
   await project.finishFile(w.ctx, { space: SPACE, brain: t, ver: tb.ver });
-  await project.projectChat(w.ctx, { space: SPACE, brain: t, q: "thanks", english: false, embeds: false, shared: shared0 });
+  await project.projectChat(w.ctx, { space: SPACE, brain: t, q: "that is clear", english: false, embeds: false, shared: shared0 });
   const tr = route();
   check("a table's router is asked for a query, and not for sections", /"query": for a table/.test(tr) && !/"sections": for a document/.test(tr) && !/"more"/.test(tr) && !/"kind"/.test(tr));
   const bare = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Bare router" });
@@ -1259,6 +1259,121 @@ const docProject = async (w, name, text, kind = "doc") => {
   check("a new file takes away the notes that only the old file wrote, and keeps what the chat kept", gone.forgotten === 2 && mem.map(m => m.title).join() === "Payment terms", JSON.stringify(mem.map(m => m.title)));
   check("and a note kept no longer points at the old sections, and says the file changed", !by("Payment terms").sections && by("Payment terms").stale === true && w.T.cards.every(c => c.brain !== p || mem.some(m => m.title === c.title)), JSON.stringify(by("Payment terms")));
   check("with nothing of the old file's left, nothing more is forgotten", (await w.ctx.runMutation("projects.memoryForgetFile", { space: SPACE, brain: p })).forgotten === 0);
+}
+
+/* ================= a message reads less: passages, thanks, folders as support ================= */
+
+{
+  /* the passages of a long section */
+  const para = (n, extra = "") => `Paragraph ${n} ${extra}: ` + "plain filler words about nothing in particular ".repeat(9).trim() + ".";
+  const sec = ["## Payment terms", ...Array.from({ length: 12 }, (_, i) => para(i, i === 7 ? "indemnity cap of 2 million euros" : ""))].join("\n\n");
+  const p = project.passages(sec, ["indemnity", "cap"]);
+  check("a long section is read as the passages that name the question's words, its heading first, gaps marked", p.cut && p.text.length < 2100 && p.text.startsWith("## Payment terms") && p.text.includes("indemnity cap of 2 million euros") && /\[\.\.\.\]/.test(p.text), `${p.text.length} of ${sec.length}`);
+  check("the paragraphs beside the one that matches come with it, in the order they stand", p.text.indexOf("Paragraph 6") < p.text.indexOf("Paragraph 7") && p.text.indexOf("Paragraph 7") < p.text.indexOf("Paragraph 8"));
+  check("a short section is read whole", project.passages("A short section about the indemnity cap.", ["indemnity"]).cut === false);
+  check("a section that no word of the question reaches is read whole: nothing says where to look", project.passages(sec, ["zebra"]).text === sec && project.passages(sec, []).text === sec);
+  check("a section that would lose less than a fifth is read whole", project.passages(sec, ["fill"], sec.length - 100).text === sec && project.passages(sec, ["fill"]).cut === true);
+  const table = Array.from({ length: 40 }, (_, i) => `| Plan ${i} | ${100 + i} | seats |`).join("\n");
+  const withTable = [para(0), para(1), para(2), para(3), para(4), para(5), para(6), table, para(8), para(9)].join("\n\n");
+  const pt = project.passages(withTable, ["plan"]);
+  check("a table keeps its rows one to a line", pt.cut && /\| Plan 3 \| 103 \| seats \|\n\| Plan 4 \| 104 \| seats \|/.test(pt.text), pt.text.slice(0, 300));
+}
+
+{
+  /* thanks needs nothing */
+  const yes = ["thanks", "Thank you!", "ok thanks", "merci beaucoup", "Great, thanks a lot", "hello", "Bonjour", "bye", "thanks for the help", "Merci !"];
+  const no = ["ok", "yes", "perfect", "thanks, now change the price", "hi what is the price?", "", "what is the deadline", "no thanks, I prefer the other one", "hello there general kenobi friend"];
+  check("thanks, a greeting and a goodbye are small talk that needs no router", yes.every(x => project.isCloser(x)), yes.filter(x => !project.isCloser(x)).join(" | "));
+  check("a bare ok or yes, a question and a request with thanks in it are not", no.every(x => !project.isCloser(x)), no.filter(x => project.isCloser(x)).join(" | "));
+}
+
+{
+  /* a question on long sections, through the chat */
+  const para = (n, extra = "") => `Paragraph ${n} ${extra}: ` + "plain filler words about nothing in particular ".repeat(9).trim() + ".";
+  const section = (title, mark) => [`## ${title}`, ...Array.from({ length: 10 }, (_, i) => para(i, i === 6 ? mark : i === 1 ? "UNIQUE-FAR-PARAGRAPH" : ""))].join("\n\n");
+  const text = [section("Payment", "payment is due on the 10th"), section("Liability", "the indemnity cap is 2 million euros"), section("Term", "the term is 3 years")].join("\n\n");
+  const w = makeCtx();
+  const p = await docProject(w, "Long sections", text);
+  const g = await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  const liab = g.cards[1].sid;
+  const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, ...extra });
+  check("the file is cut in sections of 4,000 characters or more", g.cards.length === 3 && text.length > 12000 && g.file.chars > 8000, `${g.cards.length} sections, ${g.file.chars} characters`);
+
+  reply = { route: routeOf({ sections: [liab], terms: ["indemnity", "cap"] }), answer: answerOf({ tldr: "2 million." }) };
+  const n0 = sent.length;
+  const t1 = await chat("What is the indemnity cap?");
+  const a1 = last(/You are the chat of a project/).user;
+  check("a question reads the passages of the section, marked as passages, with the way out said", /--- SECTION \d+: [^\n]*\(passages\)/.test(a1) && a1.includes("the indemnity cap is 2 million euros") && /\[\.\.\.\]/.test(a1) && a1.includes('reply with only {"more":true}') && !a1.includes("UNIQUE-FAR-PARAGRAPH"), a1.slice(a1.indexOf("THE FILE")).slice(0, 500));
+  check("it reads under half of the section, in one router call and one answer call", sent.length - n0 === 2 && a1.length < text.length / 3 + 3000, `${a1.length} characters`);
+  check("the turn says its sections came as passages", t1.used.file.passages === true && t1.used.file.sections.length === 1);
+
+  /* a miss: the passages do not hold it, the section is read whole, once */
+  reply = { route: routeOf({ sections: [liab], terms: ["indemnity", "cap"] }), answer: user => /\(passages\)/.test(user) ? JSON.stringify({ more: true }) : JSON.stringify(answerOf({ tldr: "From the whole section." })) };
+  const n1 = sent.length;
+  const t2 = await chat("What is the indemnity cap for a late payment?");
+  const answers = sent.slice(n1).filter(m => /You are the chat of a project/.test(m.sys));
+  check("when the answer says the passages fall short, the section goes again whole, and that is the answer", answers.length === 2 && /\(passages\)/.test(answers[0].user) && !/\(passages\)/.test(answers[1].user) && answers[1].user.includes("UNIQUE-FAR-PARAGRAPH") && t2.lead === "From the whole section.", JSON.stringify(answers.map(m => m.user.length)));
+  check("and the turn does not claim passages, though it cost both calls", !t2.used.file.passages);
+  reply = { route: routeOf({ sections: [liab], terms: ["indemnity"] }), answer: () => JSON.stringify({ more: true }) };
+  const t3 = await chat("What is the indemnity?");
+  check("a second more is not followed: the answer is whatever the whole section gave", /could not write an answer/.test(t3.a) && sent.slice(-2).filter(m => /You are the chat of a project/.test(m.sys)).length === 2);
+
+  /* a change, a brainstorm and a message the router could not read take the section whole */
+  reply = { route: routeOf({ intent: "change", sections: [liab], terms: ["indemnity", "cap"] }), answer: answerOf({ tldr: "Done." }) };
+  await chat("Change the indemnity cap to 3 million euros");
+  check("a change reads the section whole", !/\(passages\)/.test(last(/You are the chat of a project/).user) && last(/You are the chat of a project/).user.includes("UNIQUE-FAR-PARAGRAPH"));
+  reply = { route: routeOf({ intent: "brainstorm", sections: [liab], terms: ["indemnity", "cap"] }), answer: answerOf({ tldr: "Raise it." }) };
+  await chat("Brainstorm: should we raise the indemnity cap?");
+  check("a brainstorm reads it whole too", !/\(passages\)/.test(last(/You are the chat of a project/).user) && last(/You are the chat of a project/).user.includes("UNIQUE-FAR-PARAGRAPH"));
+
+  /* thanks: nothing read, nothing decided */
+  reply = { route: routeOf(), answer: answerOf({ tldr: "" , reply: "You are welcome." }), usage: () => ({ prompt_tokens: 700, completion_tokens: 10 }) };
+  const n2 = sent.length;
+  const t4 = await chat("thanks a lot");
+  const a4 = last(/You are the chat of a project/);
+  check("thanks costs one call: no router", sent.length - n2 === 1 && t4.cost.calls === 1, `${sent.length - n2} calls`);
+  check("and the answer is shown none of the file, none of the notes and none of the titles", /\(not opened for this message\)/.test(a4.user) && /\(not read for this message\)/.test(a4.user) && !/ALSO IN THE FILE/.test(a4.user) && t4.used.memory === 0 && t4.used.file.whole === false && !t4.used.file.sections, a4.user.slice(0, 500));
+  check("it asks for no notes, and is not taught as a route", !/THE MEMORY\n/.test(a4.sys) && (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).shortcuts.length === 0);
+  const n3 = sent.length;
+  reply = { route: routeOf(), answer: answerOf() };
+  await chat("ok");
+  check("a bare ok is read by the router, since it may answer the question before it", sent.length - n3 === 2);
+}
+
+{
+  /* a tiny file is not read for thanks either */
+  const w = makeCtx();
+  const p = await docProject(w, "Tiny thanks", "# Offer\n\nTeam costs 1,490 euros a seat.");
+  reply = { route: routeOf(), answer: answerOf({ reply: "You are welcome." }) };
+  await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "Merci beaucoup", english: false, embeds: false, shared: shared0 });
+  check("a file of one section is not read for thanks", /\(not opened for this message\)/.test(last(/You are the chat of a project/).user) && !last(/You are the chat of a project/).user.includes("Team costs"));
+  await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "What does Team cost?", english: false, embeds: false, shared: shared0 });
+  check("and is read whole for a question", last(/You are the chat of a project/).user.includes("Team costs 1,490 euros a seat."));
+}
+
+{
+  /* a folder read to support a project: a short list for the router, and a smaller dossier */
+  const w = makeCtx();
+  const p = await docProject(w, "Support", "# Offer\n\nTeam costs 1,490 euros a seat.");
+  w.T.brains.push({ _id: "bigb", slug: "big", name: "Big", type: "subject", scope: "lots of notes", space: SPACE });
+  const rowOf = i => ({ brain: "big", slug: `c${i}`, n: i + 1, title: `Concept ${i} about topic${i}`, summaryLine: `Line ${i}`, position: `Position of concept ${i}. ` + "detail ".repeat(150), evidence: [{ date: "2026-01-01", author: "A", claim: `claim ${i}`, source: "s" }],
+    data: [], conflicts: [], sources: ["s"], related: [], updated: "2026-01-01", ev: 1 });
+  const rows = Array.from({ length: 300 }, (_, i) => rowOf(i));
+  w.T.concepts.push(...rows);
+  const sharedBig = { brains: [{ slug: "big", name: "Big", scope: "lots of notes" }], cards: async () => rows.map(({ position, evidence, data, conflicts, related, ...card }) => card) };
+  reply = { route: routeOf({ folders: ["big"], terms: ["topic7"] }), folders: { picks: Array.from({ length: 40 }, (_, i) => i + 1), terms: ["topic7"] }, answer: answerOf({ tldr: "Held." }) };
+  const t = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "What do the folders say about topic7?", english: false, embeds: false, shared: sharedBig });
+  const fr = last(/You route questions to the right entries/).user;
+  const ap = last(/You are the chat of a project/).user;
+  check("the folder router is shown 120 titles of 300, the closest by wording", /CONCEPTS \(120 of 300, the closest by wording\)/.test(fr) && fr.split("\n").filter(l => /^\d+\|Concept/.test(l)).length === 120 && /^1\|Concept 7 about topic7/m.test(fr), fr.slice(fr.indexOf("CONCEPTS")).slice(0, 200));
+  check("the answer holds 10 concepts of the folder in full, and 25 more by title", (ap.match(/^### /gm) ?? []).length === 10 && ap.split("ALSO HELD, not opened here:\n")[1].split("\n\n")[0].split("\n").filter(l => l.startsWith("- ")).length === 25, String((ap.match(/^### /gm) ?? []).length));
+  check("the turn still says the folder was called, with the notes it opened", t.used.folders.length === 1 && t.used.folders[0].notes === 10, JSON.stringify(t.used.folders));
+  /* a file with nothing yet is built from the folders: they are read in full */
+  const bare = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Build from folders" });
+  reply = { route: routeOf({ kind: "doc", folders: ["big"], terms: ["topic7"] }), folders: { picks: Array.from({ length: 40 }, (_, i) => i + 1), terms: ["topic7"] }, answer: answerOf({ tldr: "Built." }) };
+  await project.projectChat(w.ctx, { space: SPACE, brain: bare, q: "A brief from the big folder", english: false, embeds: false, shared: sharedBig });
+  const ab = last(/You are the chat of a project/).user;
+  check("a file to build from the folders reads them with the full dossier", (ab.match(/^### /gm) ?? []).length > 10, String((ab.match(/^### /gm) ?? []).length));
 }
 
 /* ================= the routes, end to end ================= */

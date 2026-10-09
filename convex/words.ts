@@ -166,9 +166,13 @@ export function planDossier(pool: any[], concepts: any[], q: string, history?: a
    open, with room for long ones passed over. */
 export const OPEN_READ = 60;
 
+/** What a dossier may hold: how many concepts open in full and within how many characters, and how many more are named by title. A caller that reads the folders to support something else sets less. */
+export type DossierLimits = { fullMax?: number; fullChars?: number; titleMax?: number; titleChars?: number };
+
 /** The dossier itself, from the plan and the leading concepts read whole. */
-export function writeDossier(pool: any[], plan: ReturnType<typeof planDossier>, full: Map<string, any>) {
+export function writeDossier(pool: any[], plan: ReturnType<typeof planDossier>, full: Map<string, any>, limits: DossierLimits = {}) {
   const { lead, ranked, inPool, hits, picked, linked } = plan;
+  const fullMax = limits.fullMax ?? FULL_MAX, fullChars = limits.fullChars ?? FULL_CHARS, titleMax = limits.titleMax ?? TITLE_MAX, titleChars = limits.titleChars ?? TITLE_CHARS;
   const brainOf = (c: any) => pool.find((x: any) => x.slug === c.brain);
   const titles = new Map(inPool.map((c: any) => [idOf(c), c.title]));
   /* What each link means, so an answer can follow a chain: a formula needs
@@ -193,23 +197,23 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
   const opened: any[] = [];
   let used = 0;
   for (const card of lead) {
-    if (opened.length >= FULL_MAX) break;
+    if (opened.length >= fullMax) break;
     const c = full.get(idOf(card));
     if (!c) continue;
     const r = row(c);
     /* One long concept is passed over, not the end of the list: a smaller
        pick after it still opens. */
-    if (used + Math.min(r.length, ROW_MAX) > FULL_CHARS && opened.length) continue;
+    if (used + Math.min(r.length, ROW_MAX) > fullChars && opened.length) continue;
     opened.push(c); used += Math.min(r.length, ROW_MAX);
   }
   const openedIds = new Set(opened.map(idOf));
   const named: string[] = [];
   let usedT = 0;
   for (const { c } of ranked) {
-    if (named.length >= TITLE_MAX) break;
+    if (named.length >= titleMax) break;
     if (openedIds.has(idOf(c))) continue;
     const line = `- ${c.title} (${brainOf(c)?.name ?? c.brain}): ${c.summaryLine || "no summary"}`;
-    if (usedT + line.length > TITLE_CHARS) break;
+    if (usedT + line.length > titleChars) break;
     named.push(line); usedT += line.length;
   }
   const left = inPool.length - opened.length - named.length;
@@ -296,7 +300,7 @@ export const INDEX_CHARS = 80000;
  * Every concept title, numbered, for a model to pick from. Numbers keep the
  * reply short and cannot be misspelled into a concept that does not exist.
  */
-export function indexFor(pool: any[], concepts: any[], q: string) {
+export function indexFor(pool: any[], concepts: any[], q: string, opts: { cap?: number; first?: string[]; extra?: string[] } = {}) {
   const inPool = concepts.filter((c: any) => pool.some((x: any) => x.slug === c.brain));
   const name = new Map(pool.map((b: any) => [b.slug, b.name]));
   const lines: string[] = [], ids: string[] = [];
@@ -305,9 +309,13 @@ export function indexFor(pool: any[], concepts: any[], q: string) {
      just dropped is never the part the router cannot see. One brain needs no
      brain name on each line, which leaves room for a quarter more titles. */
   const one = pool.length === 1;
-  const order = rankConcepts(inPool, keywords(q), pool)
+  /* A caller that wants a short list says how many titles, which concepts lead (the nearest by meaning) and what other words to rank by. */
+  const lead = new Set(opts.first ?? []);
+  const ranked = rankConcepts(inPool, [...keywords(q), ...keywords((opts.extra ?? []).join(" "))], pool)
     .sort((a, b) => b.score - a.score || String(b.c.updated ?? "").localeCompare(String(a.c.updated ?? "")));
+  const order = lead.size ? [...ranked.filter(x => lead.has(idOf(x.c))), ...ranked.filter(x => !lead.has(idOf(x.c)))] : ranked;
   for (const { c } of order) {
+    if (opts.cap && ids.length >= opts.cap) break;
     const line = one ? `${ids.length + 1}|${c.title}` : `${ids.length + 1}|${c.title} [${name.get(c.brain) ?? c.brain}]`;
     if (used + line.length + 1 > INDEX_CHARS) break;
     lines.push(line); ids.push(idOf(c)); used += line.length + 1;

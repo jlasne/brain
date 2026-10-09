@@ -3449,7 +3449,7 @@ for (const space of ["octopus", "squidgy"]) {
       P.memory.unshift({ slug: "two-payments", title: "Team price", position: "Team stays at 1,490 euros, sold in two payments.", summaryLine: "", updated: "2026-10-09", sections: [2], dates: ["2026-10-09"] });
       return { id: "t" + (P.turns.length + 1), q: b.q, a: "Keep **€1,490** and sell it in two payments.", proposal: /brainstorm/i.test(b.q), quotes: ["Team 3 €1,490"], noted: ["Team price"],
         used: { file: { name: P.file.name, whole: false, sections: [{ sid: 2, title: "Offer" }] }, folders: [{ slug: "pricing", name: "Pricing", notes: 2 }], memory: 1 },
-        cost: { in: 4120, out: 310, cached: 2048, cents: 0.052, calls: 2 } };
+        cost: { in: 4120, out: 310, cached: 2048, usd: 0.00052, calls: 2 } };
     };
   };
   const arg = { state: st, projects, doc: DOC, rows: ROWS };
@@ -3496,7 +3496,7 @@ for (const space of ["octopus", "squidgy"]) {
     marks: [...document.querySelectorAll("mark.pj-mark")].map(m => m.textContent), btns: [...document.querySelectorAll(".pj-a .pj-tact button")].map(b => b.textContent), ta: document.querySelector(".pj-comp textarea").value }));
   check("a question goes to the project's chat with the project named", ans.call?.brain === "launch-plan" && ans.call?.q === "Brainstorm: is Team too high?" && ans.ta === "", JSON.stringify(ans.call));
   check("a brainstorm comes back as a proposal, in bold where it says so, and nothing to press to keep it: only Refine", ans.prop && ans.kind === "Proposal" && /<strong>€1,490<\/strong>/.test(ans.text) && JSON.stringify(ans.btns) === '["Refine"]', JSON.stringify(ans));
-  check("it says what it used: the file and its section, the folder and its notes, the memory, and the note it filed by itself, then what it cost", JSON.stringify(ans.chips) === '["brief-v3.docx: Offer","Pricing folder · 2 notes","Memory · 1 note","Noted: Team price","4.1k in · 310 out · 2k reused · 0.052¢"]', JSON.stringify(ans.chips));
+  check("it says what it used: the file and its section, the folder and its notes, the memory, and the note it filed by itself, then what it cost", JSON.stringify(ans.chips) === '["brief-v3.docx: Offer","Pricing folder · 2 notes","Memory · 1 note","Noted: Team price","4.1k in · 310 out · 2k reused · $0.00052"]', JSON.stringify(ans.chips));
   check("the section it used is marked in the file, and the words it rests on, across the table's cells", JSON.stringify(ans.used) === '["2"]' && ans.marks.join(" ") === "Team 3 €1,490", JSON.stringify(ans));
 
   /* the memory fills by itself */
@@ -3858,6 +3858,11 @@ for (const space of ["octopus", "squidgy"]) {
   check("a web page comes out as its words: the title, loose text, links, nested lists, code and quotes; no script, style, menu or footer",
     md.web === "# My Page\n\nLoose words **bold** here\n\nPara [link](https://x.com)\n\n- One\n  - Nested\n- Two\n\n```\na  b\n c\n```\n\n> Quoted\n\nOnly", JSON.stringify(md.web));
   check("a table with columns keeps them, and the text after it still comes", md.grid === "## Plans\n\n| Plan | Price |\n| --- | --- |\n| Team | 1,490 |\n\nafter", JSON.stringify(md.grid));
+  /* what a message cost, in dollars */
+  const money = await page.evaluate(code => { const { costLine } = new Function(code)(); return [
+    costLine({ in: 4120, out: 310, cached: 2048, usd: 0.00052, calls: 2 }), costLine({ in: 900, out: 40, cents: 0.0123, calls: 1 }), costLine({ in: 12500, out: 310, calls: 2 }),
+    costLine({ in: 100, out: 5, usd: 0.000001 }), costLine({ in: 50000, out: 900, usd: 0.0345 }), costLine({ in: 800, out: 20, usd: 0.25 })]; }, grab("costLine") + "; return { costLine };");
+  check("a price shows in dollars with two figures that count, tokens and what was reused beside it", JSON.stringify(money) === JSON.stringify(["4.1k in · 310 out · 2k reused · $0.00052", "900 in · 40 out · $0.00012", "13k in · 310 out", "100 in · 5 out · under $0.00001", "50k in · 900 out · $0.035", "800 in · 20 out · $0.25"]), JSON.stringify(money));
   await page.close();
 
   /* Drop reads a saved web page for its words */
@@ -3896,7 +3901,7 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/project/chat") {
         const via = window.__n++ > 0;
         const t = { id: "t" + window.__n, q: body.q, lead: "Payments are monthly.", a: "**Clause 1:** the 10th of each month.", proposal: false, quotes: [],
-          used: { file: { name: "contract.pdf", whole: false, sections: [{ sid: 1, title: "Clause 1 payment" }, { sid: 4, title: "Clause 4 payment" }], of: 30, ...(via ? { via: "memory" } : {}) }, folders: [], memory: 0 }, intent: "ask" };
+          used: { file: { name: "contract.pdf", whole: false, sections: [{ sid: 1, title: "Clause 1 payment" }, { sid: 4, title: "Clause 4 payment" }], of: 30, ...(via ? { via: "memory", passages: true } : {}) }, folders: [], memory: 0 }, intent: "ask" };
         window.__ways = [{ t: ["payment", "tim"], s: [1, 4], n: window.__n, at: Date.now(), q: body.q }];
         if (via) t.cost = { in: 12500, out: 310, calls: 2 };
         return J({ turn: t });
@@ -3922,7 +3927,7 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click(".pj-tab >> text=Chat"); await page.waitForTimeout(200);
   await page.fill(".pj-comp textarea", "What do the payments look like?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
   const second = await page.evaluate(() => [...document.querySelectorAll(".pj-turn")].pop().querySelector(".pj-used")?.textContent);
-  check("when memory led, the answer says so", /Read 2 of 30 sections · led by memory/.test(second), second);
+  check("when memory led and the long sections came as passages, the answer says both", /Read 2 of 30 sections · passages · led by memory/.test(second), second);
   const cost = await page.evaluate(() => { const c = [...document.querySelectorAll(".pj-turn")].pop().querySelector(".pj-used .cost"); return c && { text: c.textContent, title: c.title }; });
   check("and when the host gave no price, the cost shows tokens alone", cost?.text === "13k in · 310 out" && cost.title === "2 model calls for this message", JSON.stringify(cost));
   check("nothing threw", !bad.length, bad.join(" | "));
