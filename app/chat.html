@@ -8001,8 +8001,8 @@ function docPane(){
     }
     acts.append(view);
   }
-  if (written && f.kind === "doc" && f.sections > 1) btn("Contents", openContents);
-  btn(f ? (f.kind === "table" ? "Replace table" : f.kind === "html" ? "Replace page" : "Replace file") : "Add a file", () => chooseFile());
+  /* Only a project with no file offers to add one. A file it holds stays: the chat changes it, and another file is another project. */
+  if (!f) btn("Add a file", () => chooseFile());
   if (written) btn("Download", e => openDownload(e.currentTarget)).setAttribute("aria-haspopup", "menu");
   btn("Delete", deleteProject, "bad");
   h.append(acts); pane.append(h);
@@ -8222,34 +8222,6 @@ async function focusUsed(t, scroll){
     applyMarks();
     if (scroll){ showDoc(); pj.page.querySelector(`[data-sid="${first}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" }); }
   } else applyMarks();
-}
-
-/** The contents list: every section's title and line, to jump to one. */
-function openContents(){
-  const pj = S.pj, cards = pj.data.cards;
-  const veil = el("div","veil");
-  veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pcTitle">
-    <header><h3 id="pcTitle">Contents</h3><p>${cards.length} sections. Pick one to read from there.</p></header>
-    <div class="f"><input id="pcFind" type="search" placeholder="Find a section" autocomplete="off"></div>
-    <div class="f" id="pcList" style="max-height:52vh;overflow-y:auto"></div>
-    <footer><button class="ghost" id="pcClose">Close</button></footer></div>`;
-  document.body.append(veil);
-  const list = veil.querySelector("#pcList"), find = veil.querySelector("#pcFind");
-  const shut = () => veil.remove();
-  const paint = () => {
-    const q = find.value.trim().toLowerCase(); list.innerHTML = "";
-    for (const c of cards.filter(c => !q || `${c.title} ${c.summary}`.toLowerCase().includes(q)).slice(0, 300)){
-      const b = el("button","fv-row"); b.type = "button";
-      b.append(el("b",null,c.title), el("span",null,c.summary || ""));
-      b.onclick = async () => { shut(); showDoc(); pj.marks = null; await loadSections({ sid: c.sid, replace: true }); pj.body.scrollTop = 0; };
-      list.append(b);
-    }
-    if (!list.children.length) list.append(el("div","fv-none","No section matches."));
-  };
-  find.oninput = paint; paint();
-  veil.querySelector("#pcClose").onclick = shut;
-  veil.onclick = e => { if (e.target === veil) shut(); };
-  setTimeout(() => find.focus(), 30);
 }
 
 /* ---- the chat, on the right ---- */

@@ -3489,7 +3489,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("words in the file are text, never markup", !lay.pwned && lay.img === 0, JSON.stringify(lay));
   const wrapped = await page.evaluate(() => [...document.querySelectorAll('.pj-sec[data-sid="1"] p')].pop().innerHTML);
   check("lines a PDF broke at the page's edge read on, and a line that ends a sentence still breaks", /ships a game before the last day\. Seats are limited\.<br>By Ana/.test(wrapped), wrapped);
-  check("the head names the project and its file, with Contents, Replace, Download and Delete", lay.title === "Launch plan" && lay.chip === "brief-v3.docx" && lay.btns === "Contents/Replace file/Download/Delete", lay.btns);
+  check("the head names the project and its file, with Download and Delete: no Contents, and no way to replace the file", lay.title === "Launch plan" && lay.chip === "brief-v3.docx" && lay.btns === "Download/Delete", lay.btns);
 
   /* a question: sent, answered as a proposal, with what it used marked in the file */
   await page.fill(".pj-comp textarea", "Brainstorm: is Team too high?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
@@ -3549,13 +3549,6 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click(".pj-edit .ghost"); await page.waitForTimeout(500);
   check("Undo puts it back", (await page.evaluate(() => ({ kind: document.querySelector(".pj-edit .pj-ek").textContent, last: window.__calls.filter(x => x.s === "/api/project/edit").pop()?.body.action }))).kind === "Undone");
 
-  /* the contents list jumps to a section */
-  await page.click(".pj-acts button >> text=Contents"); await page.waitForTimeout(250);
-  const toc = await page.evaluate(() => [...document.querySelectorAll("#pcList .fv-row b")].map(b => b.textContent).join(","));
-  await page.click("#pcList .fv-row >> text=Timeline"); await page.waitForTimeout(500);
-  const jumped = await page.evaluate(() => ({ first: document.querySelector(".pj-sec")?.dataset.sid, call: window.__calls.filter(x => x.s === "/api/project/doc").pop()?.body }));
-  check("Contents lists every section and opens the file from the one picked", toc === "Goal,Offer,Timeline" && jumped.first === "3" && jumped.call?.sid === 3, JSON.stringify({ toc, jumped }));
-
   /* the title renames, Download gives the file, Delete asks first */
   await page.click(".pj-t h2"); await page.fill("#prName", "Launch brief"); await page.click("#prSave"); await page.waitForTimeout(400);
   const ren = await page.evaluate(() => ({ title: document.querySelector(".pj-t h2").textContent, row: document.querySelector("#projects .pj-row .nm").textContent, call: window.__calls.filter(x => x.s === "/api/project/rename").pop()?.body }));
@@ -3606,7 +3599,7 @@ for (const space of ["octopus", "squidgy"]) {
     seg: [...document.querySelectorAll(".pj-seg button")].map(b => b.textContent).join() }));
   check("a table shows a tab for each sheet, a grid with row numbers, numbers on the right", tbl.tabs === "Programs,Notes" && tbl.head === "#|Program|Price|Plan" && tbl.nums === "r||n|" && tbl.rows === 4 && tbl.first === "1" && tbl.seg === "Table,Chat", JSON.stringify(tbl));
   check("and what each column holds, computed when it was read", /4<\/b>|4 rows/.test(tbl.foot) || /^4 rows · 3 columns/.test(tbl.foot) ? tbl.stats[1] === "Price: total 5,130 · average 1,282.5 · lowest 490 · highest 2,400" && tbl.stats[2] === "Plan: Yes, No" : false, JSON.stringify(tbl));
-  check("Replace table is offered, never Contents", tbl.btn === "Replace table/Download/Delete", tbl.btn);
+  check("a table offers Download and Delete, never Contents or Replace", tbl.btn === "Download/Delete", tbl.btn);
   await page.evaluate(() => { window.__xl = []; window.XLSX = { utils: { book_new: () => ({ SheetNames: [], Sheets: {} }), aoa_to_sheet: rows => ({ rows }), book_append_sheet: (wb, ws, name) => { wb.SheetNames.push(name); wb.Sheets[name] = ws; } },
     write: (wb, o) => { window.__xl.push({ names: wb.SheetNames.slice(), sheets: wb.SheetNames.map(n => wb.Sheets[n].rows), o }); return new Uint8Array([80, 75, 3, 4]).buffer; } }; });
   await page.click(".pj-acts button >> text=Download"); await page.waitForTimeout(100);
@@ -3826,7 +3819,7 @@ for (const space of ["octopus", "squidgy"]) {
     tries: [...document.querySelectorAll(".pj-try button")].map(b => b.textContent), icon: !!document.querySelector("#projects .pj-row path[d^='M9 8l-4']"), sheetGone: !document.querySelector(".veil"),
     hint: document.querySelector(".pj-hint")?.textContent }));
   check("it makes the project with the kind chosen, named for the kind when no name is typed", made.call?.name === "New page" && made.call?.make === "html" && made.view === "project" && made.sheetGone, JSON.stringify(made.call));
-  check("the page is empty and says so; there is nothing to download yet", made.empty === "This page is empty" && made.chip === "New page.html" && made.acts === "Replace page/Delete", JSON.stringify(made));
+  check("the page is empty and says so; there is nothing to download yet", made.empty === "This page is empty" && made.chip === "New page.html" && made.acts === "Delete", JSON.stringify(made));
   check("the message bar asks for a description, with examples to start from", /^Describe the page you want/.test(made.ph) && made.tries.length === 2 && /^A landing page/.test(made.tries[0]) && /Describe the page you want/.test(made.hint), JSON.stringify(made.tries));
   check("a page has its own icon in the Projects panel", made.icon);
   check("and the panel shows its body again once a project is listed", await page.evaluate(() => getComputedStyle(document.getElementById("projectsBox")).display !== "none" && document.querySelectorAll("#projects .pj-row").length === 1));
@@ -3848,7 +3841,7 @@ for (const space of ["octopus", "squidgy"]) {
   const web = await page.evaluate(() => { const f = document.querySelector(".pj-frame"); return { sandbox: f?.getAttribute("sandbox"), src: f?.srcdoc, code: document.querySelector(".pj-code")?.hidden,
     acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), empty: !!document.querySelector(".pj-empty") }; });
   check("the page shows as it renders, in a frame that can reach nothing of the app", web.src === PAGE && web.sandbox === "allow-scripts allow-popups" && !/same-origin/.test(web.sandbox) && web.code === true && !web.empty, JSON.stringify(web));
-  check("the head offers Page and Code, and Download now", web.acts === "Page/Code/Replace page/Download/Delete", web.acts);
+  check("the head offers Page and Code, and Download now", web.acts === "Page/Code/Download/Delete", web.acts);
   await page.click(".pj-view button >> text=Code"); await page.waitForTimeout(150);
   const code = await page.evaluate(() => ({ text: document.querySelector(".pj-code").textContent, hidden: document.querySelector(".pj-code").hidden, frame: document.querySelector(".pj-frame").hidden, on: document.querySelector(".pj-view .on")?.textContent }));
   check("Code shows the page's words as they are written", code.text === PAGE && !code.hidden && code.frame && code.on === "Code", JSON.stringify(code));
@@ -3898,7 +3891,7 @@ for (const space of ["octopus", "squidgy"]) {
     acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), page: !!document.querySelector(".pj-paper .pj-page"), seg: document.querySelector(".pj-seg button")?.textContent,
     ph: document.querySelector(".pj-comp textarea").placeholder, lead: document.querySelector(".pj-ld")?.textContent, chips: [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent),
     row: document.querySelector("#projects .pj-row.on")?.title }));
-  check("what is said makes the file: the drop gives way to the document, with its name, its buttons and its tab", !said.drop && said.page && said.chip === "New project.md" && said.acts === "Replace file/Download/Delete" && said.seg === "Document", JSON.stringify(said));
+  check("what is said makes the file: the drop gives way to the document, with its name, its buttons and its tab", !said.drop && said.page && said.chip === "New project.md" && said.acts === "Download/Delete" && said.seg === "Document", JSON.stringify(said));
   check("the message bar then asks about the document, the answer names the folder it used, and the list knows the file", /^Ask about the document/.test(said.ph) && said.lead === "I wrote the brief from your Content folder." && said.chips.includes("Content folder · 2 notes") && /New project\.md/.test(said.row), JSON.stringify(said));
 
   /* a server older than this page: nothing is left behind, and the sheet says what to do */
@@ -4027,6 +4020,8 @@ for (const space of ["octopus", "squidgy"]) {
   await page.fill(".pj-comp textarea", "When are the payments made?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
   const first = await page.evaluate(() => [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent));
   check("an answer says how little of a long file it read", JSON.stringify(first) === '["contract.pdf: Clause 1 payment · Clause 4 payment","Read 2 of 30 sections"]', JSON.stringify(first));
+  await page.click(".pj-used button >> nth=0"); await page.waitForTimeout(300);
+  check("the file chip under an answer opens the file at the first section it read", (await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/doc").pop()?.body))?.sid === 1);
   const gets = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/get").length);
   await page.click(".pj-memb"); await page.waitForTimeout(400);
   const mem = await page.evaluate(() => ({ head: document.querySelector("#pmList .fv-eye")?.textContent, rows: [...document.querySelectorAll("#pmList .fv-row.st")].map(r => [r.querySelector("b").textContent, r.querySelector("span").textContent, r.querySelector("small").textContent]),
@@ -4040,6 +4035,33 @@ for (const space of ["octopus", "squidgy"]) {
   check("when memory led and the long sections came as passages, the answer says both", /Read 2 of 30 sections · passages · led by memory/.test(second), second);
   const cost = await page.evaluate(() => { const c = [...document.querySelectorAll(".pj-turn")].pop().querySelector(".pj-used .cost"); return c && { text: c.textContent, title: c.title }; });
   check("and when the host gave no price, the cost shows tokens alone", cost?.text === "13k in · 310 out" && cost.title === "2 model calls for this message", JSON.stringify(cost));
+  check("nothing threw", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- projects: a file that stopped part way is chosen again from the drop area, and the head holds no button to replace a file ---- */
+{
+  const st = { ...STATE, brains: [], concepts: [], projects: [{ slug: "half", name: "Half read", kind: "doc", file: "half.pdf", status: "reading", chars: 0, sections: 0, memory: 0, at: 1 }] };
+  const init = arg => {
+    if (window.top !== window) return;
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}");
+      window.__calls.push({ s: path, body });
+      const J = x => Response.json(x);
+      if (path === "/api/state") return J(arg.state);
+      if (path === "/api/health") return J({ conflicted: [], health: [] });
+      if (path === "/api/project/list") return J({ projects: arg.state.projects });
+      if (path === "/api/project/get") return J({ project: { slug: "half", name: "Half read", created: "2026-10-09" }, file: { name: "half.pdf", kind: "doc", sheets: [{ name: "half.pdf", cols: [], rows: 0 }], chars: 0, sections: 0, status: "reading", ver: 1, at: 1 },
+        cards: [], turns: [], edits: [], memory: [], shortcuts: [] });
+      return J({ chats: [] });
+    };
+  };
+  const { page, bad } = await boot("/chat.html", init, { state: st });
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(600);
+  const half = await page.evaluate(() => ({ acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), h: document.querySelector(".pj-drop h3")?.textContent, btn: document.querySelector(".pj-drop button")?.textContent }));
+  check("a file that stopped part way is chosen again from the drop area, and the head holds only Delete", half.acts === "Delete" && half.h === "This file was not finished" && half.btn === "Choose the file again", JSON.stringify(half));
   check("nothing threw", !bad.length, bad.join(" | "));
   await page.close();
 }
