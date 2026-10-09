@@ -3560,7 +3560,7 @@ for (const space of ["octopus", "squidgy"]) {
     nums: [...document.querySelectorAll(".pj-grid tbody tr:first-child td")].map(t => t.className).join("|"), rows: document.querySelectorAll(".pj-grid tbody tr").length, first: document.querySelector(".pj-grid tbody tr td.r").textContent,
     foot: document.querySelector(".pj-foot summary").textContent.replace(/\s+/g, " "), stats: [...document.querySelectorAll(".pj-foot .ln")].map(x => x.textContent), btn: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"),
     seg: [...document.querySelectorAll(".pj-seg button")].map(b => b.textContent).join() }));
-  check("a table shows a tab for each sheet, a grid with row numbers, numbers on the right", tbl.tabs === "Programs,Notes" && tbl.head === "#|Program|Price|Plan" && tbl.nums === "r||n|" && tbl.rows === 4 && tbl.first === "1" && tbl.seg === "Table,Chat", JSON.stringify(tbl));
+  check("a table shows a tab for each sheet, a grid with row numbers, numbers on the right", tbl.tabs === "Programs,Notes" && tbl.head === "#|Program|Price|Plan" && tbl.nums === "r||n|" && tbl.rows === 4 && tbl.first === "1" && tbl.seg === "Table,Chat,Memory", JSON.stringify(tbl));
   check("and what each column holds, computed when it was read", /4<\/b>|4 rows/.test(tbl.foot) || /^4 rows · 3 columns/.test(tbl.foot) ? tbl.stats[1] === "Price: total 5,130 · average 1,282.5 · lowest 490 · highest 2,400" && tbl.stats[2] === "Plan: Yes, No" : false, JSON.stringify(tbl));
   check("Replace table is offered, never Contents", tbl.btn === "Replace table/Download/Delete", tbl.btn);
   await page.evaluate(() => { window.__reply = (b, P) => ({ id: "t1", q: b.q, a: "Two programs charge more than 1,200.", proposal: false, quotes: [], used: { file: { name: P.file.name, whole: false, rows: [1, 3], sheet: 0 }, folders: [], memory: 0 } }); });
@@ -3645,7 +3645,8 @@ for (const space of ["octopus", "squidgy"]) {
     { slug: "newsletter", name: "Newsletter plan", kind: null, file: "", status: "empty", chars: 0, sections: 0, memory: 0, at: 0 }] };
   const projects = { "launch-plan": { project: { slug: "launch-plan", name: "Launch plan", created: "2026-10-08" },
       file: { name: "brief-v3.docx", kind: "doc", sheets: [{ name: "brief-v3.docx", cols: [], rows: 0 }], chars: 900, sections: 1, status: "ready", ver: 1, at: 1 },
-      cards: [{ sid: 1, ord: 1, sheet: 0, title: "Goal", summary: "x", chars: 100 }], turns: [{ id: "t1", q: "What is the goal?", a: "Fill **200** seats.", proposal: false, quotes: [], used: { file: { name: "brief-v3.docx", whole: true }, folders: [], memory: 0 } }], edits: [], memory: [] },
+      cards: [{ sid: 1, ord: 1, sheet: 0, title: "Goal", summary: "x", chars: 100 }], turns: [{ id: "t1", q: "What is the goal?", a: "Fill **200** seats.", proposal: false, quotes: [], used: { file: { name: "brief-v3.docx", whole: true }, folders: [], memory: 0 } }], edits: [],
+      memory: [{ slug: "goal", title: "Seats", position: "The goal is 200 seats.", summaryLine: "", updated: "2026-10-08", sections: [1], dates: ["2026-10-08"] }] },
     "newsletter": { project: { slug: "newsletter", name: "Newsletter plan", created: "2026-10-08" }, file: null, cards: [], turns: [], edits: [], memory: [] } };
   const page = await hermetic(); const bad = [];
   await page.setViewportSize({ width: 390, height: 844 }); page.on("pageerror", e => bad.push(e.message));
@@ -3669,8 +3670,15 @@ for (const space of ["octopus", "squidgy"]) {
       segH: Math.min(...seg.map(b => b.getBoundingClientRect().height)), docShown: getComputedStyle(doc).display !== "none", chatShown: getComputedStyle(chat).display !== "none",
       wide: document.documentElement.scrollWidth > innerWidth + 1, ta: parseFloat(getComputedStyle(document.querySelector(".pj-comp textarea")).fontSize), turn: document.querySelectorAll(".pj-turn").length,
       send: document.querySelector(".pj-send").getBoundingClientRect().width }; });
-  check("on a phone the drawer closes on the project, which opens as two tabs on its chat", !m.drawer && m.seg === "Document,Chat" && m.on === "Chat" && m.chatShown && !m.docShown && m.turn === 1, JSON.stringify(m));
-  check("the tabs and the send button are thumb sized, the field never zooms the page, nothing runs off the screen", m.segH >= 44 && m.send >= 40 && m.ta >= 16 && !m.wide, JSON.stringify(m));
+  check("on a phone the drawer closes on the project, which opens as three tabs on its chat", !m.drawer && m.seg === "Document,Chat,Memory1" && m.on === "Chat" && m.chatShown && !m.docShown && m.turn === 1, JSON.stringify(m));
+  check("the tabs and the send button are 36px, what a thumb needs, the field never zooms the page, nothing runs off the screen", m.segH >= 36 && m.segH <= 40 && m.send >= 36 && m.send <= 40 && m.ta >= 16 && !m.wide, JSON.stringify(m));
+  /* the memory is a button of the same row, and the chat's own tabs are not shown */
+  await page.click(".pj-seg button >> text=Memory"); await page.waitForTimeout(300);
+  const mm = await page.evaluate(() => ({ on: document.querySelector(".pj-seg .on")?.textContent, tabs: getComputedStyle(document.querySelector(".pj-tabs")).display, bar: document.querySelector(".pj-comp").hidden,
+    notes: [...document.querySelectorAll(".pj-mem b")].map(x => x.textContent), chatShown: getComputedStyle(document.querySelector(".pj-chat")).display !== "none", wide: document.documentElement.scrollWidth > innerWidth + 1 }));
+  check("on a phone Memory sits in the same row as the file and the chat, lists what the project keeps, and the message bar steps aside", mm.on === "Memory1" && mm.tabs === "none" && mm.bar && JSON.stringify(mm.notes) === '["Seats"]' && mm.chatShown && !mm.wide, JSON.stringify(mm));
+  await page.click(".pj-seg button >> text=Chat"); await page.waitForTimeout(300);
+  check("and Chat brings the thread and the message bar back", await page.evaluate(() => document.querySelector(".pj-seg .on")?.textContent === "Chat" && !document.querySelector(".pj-comp").hidden && document.querySelectorAll(".pj-turn").length === 1));
   await page.click(".pj-seg button >> text=Document"); await page.waitForTimeout(500);
   const d = await page.evaluate(() => ({ docShown: getComputedStyle(document.querySelector(".pj-doc")).display !== "none", chatShown: getComputedStyle(document.querySelector(".pj-chat")).display !== "none",
     secs: document.querySelectorAll(".pj-sec").length, wide: document.documentElement.scrollWidth > innerWidth + 1, page: document.querySelector(".pj-page").getBoundingClientRect() }));

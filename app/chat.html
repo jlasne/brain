@@ -2039,30 +2039,55 @@
   .sheet .pj-pick, .sheet .pj-make{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .sheet .pj-pick .pj-file{ min-width:0; font:400 13px/1.4 var(--sans); color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
+  /* On a phone the file and its chat take turns, and what is pressed is as small as a thumb allows: 36px, not 44. */
   @media (max-width:860px){
     .pj{ display:flex; flex-direction:column; }
-    .pj-seg{ flex:none; display:flex; gap:6px; padding:8px 12px; border-bottom:1px solid var(--line); background:var(--bg); }
-    .pj-seg button{ flex:1; min-height:44px; border:1px solid var(--line-2); border-radius:9px; background:var(--surface); font:500 14px/1 var(--sans); color:var(--ink-3); }
+    .pj-seg{ flex:none; display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid var(--line); background:var(--bg); }
+    .pj-seg button{ flex:1; display:flex; align-items:center; justify-content:center; min-height:36px; border:1px solid var(--line-2); border-radius:8px; background:var(--surface); font:500 13px/1 var(--sans); color:var(--ink-3); }
     .pj-seg button.on{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
+    .pj-seg button i{ margin-left:6px; padding:2px 6px; border-radius:99px; background:var(--accent-solid); color:var(--accent-on); font:600 10.5px/1.2 var(--sans); font-style:normal; }
+    .pj-seg button.on i{ background:var(--accent-on); color:var(--accent-solid); }
+    .pj-tabs{ display:none; }
     .pj-doc, .pj-chat{ flex:1; border-right:0; }
     .pj[data-seg="chat"] .pj-doc{ display:none; }
     .pj[data-seg="doc"] .pj-chat{ display:none; }
-    .pj-h{ padding:10px 14px; }
-    .pj-b{ min-height:40px; }
-    .pj-tabs{ padding-right:16px; min-height:52px; }
-    .pj-tab{ min-height:40px; }
-    .pj-paper{ padding:12px 12px 8px; }
-    .pj-page{ padding:20px 18px 24px; }
-    .pj-md h2{ font-size:24px; }
-    .pj-sheets{ padding:8px 12px 0; }
-    .pj-grid th, .pj-grid td{ padding:10px 12px; }
-    .pj-foot{ padding:10px 14px; }
-    .pj-drop, .pj-empty{ margin:14px; padding:30px 16px; }
-    .pj-view button{ min-height:40px; }
+    /* The file's head: its name on one line, its buttons on the next. */
+    .pj-h{ padding:8px 12px; gap:6px 8px; min-height:0; }
+    .pj-t{ flex:1 1 100%; }
+    .pj-t h2{ font-size:15px; }
+    .pj-chip{ display:none; }
+    .pj-acts{ flex:1 1 100%; gap:5px; }
+    .pj-b{ min-height:36px; padding:0 8px; font-size:12px; }
+    .pj-view button{ min-height:36px; padding:0 9px; font-size:12px; }
+    /* The file. */
+    .pj-paper{ padding:8px 8px 6px; }
+    .pj-page{ padding:16px 14px 20px; border-radius:10px; }
+    .pj-md{ font-size:14px; line-height:1.62; }
+    .pj-md h2{ font-size:21px; }
+    .pj-md h3{ font-size:15px; }
+    .pj-md table{ font-size:13px; }
+    .pj-md th, .pj-md td{ padding:7px 8px; }
+    .pj-sheets{ padding:6px 10px 0; }
+    .pj-sheets button{ padding:7px 11px; font-size:12.5px; }
+    .pj-grid{ font-size:12.5px; }
+    .pj-grid th, .pj-grid td{ padding:8px 10px; }
+    .pj-foot{ padding:8px 12px; }
+    .pj-drop, .pj-empty{ margin:12px; padding:24px 14px; }
+    /* The chat. */
+    .pj-thread{ padding:12px; gap:12px; }
+    .pj-q{ padding:8px 11px; font-size:13.5px; }
+    .pj-a{ padding:11px 12px 10px; }
+    .pj-a .pj-md{ font-size:13.5px; }
+    .pj-ld{ font-size:14px; }
+    .pj-used > *{ padding:5px 8px; font-size:11px; }
+    .pj-mem{ padding:10px 12px; }
+    .pj-hint{ font-size:13px; }
+    .pj-tact .go, .pj-tact .ghost{ min-height:36px; font-size:12.5px; }
+    /* The message bar stays 16px where it is typed in, so a phone does not zoom in on it; its hint is smaller. */
+    .pj-comp{ margin:8px 10px 10px; padding:6px 6px 6px 12px; }
     .pj-comp textarea{ font-size:16px; }
-    .pj-send{ width:40px; height:40px; }
-    .pj-tact .go, .pj-tact .ghost{ min-height:44px; }
-    .pj-used > *{ padding:7px 10px; }
+    .pj-comp textarea::placeholder{ font-size:14px; }
+    .pj-send{ width:36px; height:36px; }
   }
   .pj-comp[hidden]{ display:none; }
   .pj-msg{ font:400 12.5px/1.45 var(--sans); color:var(--bad); }
@@ -3293,6 +3318,8 @@ function closePick(){
  * to its folders, levels and hints when it is wanted: a click in it, text in
  * it, a drop, its folder menu open, or the mic on.
  */
+/* A phone's screen: hints are short there. */
+function phone(){ return window.matchMedia("(max-width: 700px)").matches; }
 var fullPlaceholder = "";   // var: renderComposer runs before this line is reached
 /* The folded bar's few words, where the full line would not fit beside the mic. */
 var shortPlaceholder = "";
@@ -3324,9 +3351,9 @@ function renderComposer(){
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
     : about ? (about.personal ? `Tell or ask anything about ${about.title}. What you say changes it.` : `Ask about ${about.title}.`)
     : asking ? "Your answer, in your own words"
-    : mine ? "Tell it anything: a plan, a decision, an idea. Or ask what you said. Type @ to call a folder."
+    : mine ? (phone() ? "Tell it anything. @ calls a folder." : "Tell it anything: a plan, a decision, an idea. Or ask what you said. Type @ to call a folder.")
     : S.picks.length > 1 ? `Ask ${picksName()}.`
-    : S.scope==="all" ? "Ask anything your folders have read. Type @ to name one."
+    : S.scope==="all" ? (phone() ? "Ask your folders. @ names one." : "Ask anything your folders have read. Type @ to name one.")
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this folder") + ".";
   $("levelWrap").hidden = drop || mine || !!about || isPersonal(S.scope);
   /* A chat about one concept reads that one alone: its chip stands for the folders. */
@@ -7913,26 +7940,39 @@ function paintProject(){
   if (!pj) return;
   if (!pj.data){ host.append(el("div","pj-loading","Opening the project")); return; }
   const root = el("div","pj"); root.dataset.seg = pj.seg; pj.root = root;
-  const seg = el("div","pj-seg");
-  for (const [k, label] of [["doc", pjSeg(pj.data.file)], ["chat", "Chat"]]){
-    const b = el("button", pj.seg === k ? "on" : "", label); b.type = "button";
-    b.onclick = () => { pj.seg = k; root.dataset.seg = k; [...seg.children].forEach(x => x.classList.toggle("on", x === b)); if (k === "doc"){ fillDoc(); fillGrid(); } };
+  /* On a phone one row holds the three places: the file, the chat and the memory. The chat's own tabs are for the wide screen. */
+  const seg = el("div","pj-seg"); pj.segBox = seg;
+  for (const [k, label] of [["doc", pjSeg(pj.data.file)], ["chat", "Chat"], ["memory", "Memory"]]){
+    const b = el("button", "", label); b.type = "button"; b.dataset.k = k;
+    b.onclick = () => {
+      pj.seg = k === "doc" ? "doc" : "chat"; root.dataset.seg = pj.seg;
+      if (k === "doc"){ fillDoc(); fillGrid(); }
+      else { pj.tab = k; paintSide(); if (k === "memory") refreshMemory(); }
+      paintSeg();
+    };
     seg.append(b);
   }
   root.append(seg, docPane(), chatPane());
   host.append(root);
   paintSide();
 }
+/** The phone's row of three, lit where the project stands, with what it remembers counted on Memory. */
+function paintSeg(){
+  const pj = S.pj; if (!pj?.segBox) return;
+  const on = pj.seg === "doc" ? "doc" : pj.tab === "memory" ? "memory" : "chat";
+  for (const b of pj.segBox.children){
+    b.classList.toggle("on", b.dataset.k === on);
+    if (b.dataset.k === "memory"){ b.textContent = "Memory"; if (pj.data?.memory?.length) b.append(el("i",null,String(pj.data.memory.length))); }
+  }
+}
 function showDoc(){
   const pj = S.pj; if (!pj?.root) return;
-  pj.seg = "doc"; pj.root.dataset.seg = "doc";
-  [...pj.root.querySelector(".pj-seg").children].forEach((x, i) => x.classList.toggle("on", i === 0));
+  pj.seg = "doc"; pj.root.dataset.seg = "doc"; paintSeg();
   fillDoc(); fillGrid();
 }
 function showChat(){
   const pj = S.pj; if (!pj?.root) return;
   pj.seg = "chat"; pj.root.dataset.seg = "chat";
-  [...pj.root.querySelector(".pj-seg").children].forEach((x, i) => x.classList.toggle("on", i === 1));
   pj.tab = "chat"; paintSide();
   pj.input?.focus();
 }
@@ -8237,11 +8277,13 @@ function chatPane(){
 
 /** What the message bar invites: a question about the file, or a description of one to make. */
 function askHint(f){
-  if (!f) return "Describe a document, a table or a page to make. Your folders are read when they help.";
-  if (f.status !== "ready") return "Drop the file again first, then ask about it here.";
+  /* On a phone the hint is one line, not four. */
+  const small = window.matchMedia("(max-width: 860px)").matches;
+  if (!f) return small ? "Describe it. @ names a folder." : "Describe a document, a table or a page to make. Your folders are read when they help.";
+  if (f.status !== "ready") return small ? "Drop the file again first." : "Drop the file again first, then ask about it here.";
   const n = pjNoun(f.kind);
-  return f.chars ? `Ask about the ${n}, or ask for a change. Your folders are read when they help. Type @ to name one.`
-    : `Describe the ${n} you want. It is written here, then changed as you go.`;
+  return f.chars ? (small ? "Ask, or change. @ names a folder." : `Ask about the ${n}, or ask for a change. Your folders are read when they help. Type @ to name one.`)
+    : (small ? `Describe the ${n} you want.` : `Describe the ${n} you want. It is written here, then changed as you go.`);
 }
 
 function paintTabs(){
@@ -8253,6 +8295,7 @@ function paintTabs(){
     b.onclick = () => { pj.tab = k; paintSide(); if (k === "memory") refreshMemory(); };
     pj.tabs.append(b);
   }
+  paintSeg();
 }
 /** The right side: the thread of the chat, or what the project remembers. */
 function paintSide(){
