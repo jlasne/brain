@@ -8161,7 +8161,7 @@ function paintTabs(){
   for (const [k, label] of [["chat","Chat"],["memory","Memory"]]){
     const b = el("button","pj-tab" + (pj.tab === k ? " on" : ""),label); b.type = "button";
     if (k === "memory" && pj.data.memory.length) b.append(el("i",null,String(pj.data.memory.length)));
-    b.onclick = () => { pj.tab = k; paintSide(); };
+    b.onclick = () => { pj.tab = k; paintSide(); if (k === "memory") refreshMemory(); };
     pj.tabs.append(b);
   }
 }
@@ -8223,6 +8223,8 @@ function usedChips(t){
     b.onclick = () => focusUsed(t, true);
     box.append(b);
   }
+  /* How little of a long file was read, and that memory led there. */
+  if (f?.sections?.length && f.of > 4) box.append(el("span",null,`Read ${f.sections.length} of ${f.of} sections${f.via ? " · led by memory" : ""}`));
   for (const c of u.folders || []) box.append(el("span",null,`${c.name} folder · ${c.notes} note${c.notes === 1 ? "" : "s"}`));
   if (u.memory) box.append(el("span",null,`Memory · ${u.memory} note${u.memory === 1 ? "" : "s"}`));
   if (Array.isArray(t.noted) && t.noted.length) box.append(el("span","noted",`Noted: ${t.noted.slice(0, 2).join(", ")}`));
@@ -8294,7 +8296,7 @@ async function refreshMemory(){
   try {
     const d = await api("/api/project/get", { brain: pj.slug });
     if (S.pj !== pj) return;
-    pj.data.memory = d.memory; paintTabs();
+    pj.data.memory = d.memory; pj.data.shortcuts = d.shortcuts || []; paintTabs();
     if (pj.tab === "memory") paintSide();
     syncProjects();
   } catch { /* the list catches up the next time the project opens */ }
@@ -8315,8 +8317,8 @@ async function keepTurn(t, btn){
   }
 }
 function paintMemory(box){
-  const pj = S.pj, mem = pj.data.memory;
-  if (!mem.length){ box.append(el("div","pj-hint","Nothing kept yet. The project writes a note on its file when it is read in, and files what you decide as you chat. Keep in memory under an answer files that answer too. Notes have the format a folder has.")); return; }
+  const pj = S.pj, mem = pj.data.memory, ways = pj.data.shortcuts || [];
+  if (!mem.length && !ways.length){ box.append(el("div","pj-hint","Nothing kept yet. The project writes a note on its file when it is read in, and files what you decide as you chat. Keep in memory under an answer files that answer too. Notes have the format a folder has. It also learns where things are in a long file, so it opens the right sections and not the whole file.")); return; }
   for (const m of mem){
     const c = el("div","pj-mem");
     c.append(el("b",null,m.title), el("p",null,m.position || m.summaryLine || ""),
@@ -8328,6 +8330,18 @@ function paintMemory(box){
       catch (e){ x.disabled = false; x.after(el("span","pj-msg", e.message)); }
     };
     c.append(x); box.append(c);
+  }
+  if (ways.length){
+    /* Where things are: learned from the answers, free, and a pointer only: an answer is always written from the sections as they are. */
+    box.append(el("div","pj-hint","Where things are. Learned from your questions, so the chat opens these sections first and reads less of the file."));
+    const title = new Map((pj.data.cards || []).map(c => [c.sid, c.title]));
+    for (const w of ways.slice().sort((a, b) => b.at - a.at)){
+      const c = el("div","pj-mem");
+      const where = w.s.map(sid => title.get(sid)).filter(Boolean);
+      c.append(el("b",null, w.q ? `“${w.q}”` : w.t.slice(0, 4).join(" · ")), el("p",null,`${where.slice(0, 3).join(", ")}${where.length > 3 ? ` and ${where.length - 3} more` : ""}`),
+        el("small",null,`Used ${w.n} time${w.n === 1 ? "" : "s"}`));
+      box.append(c);
+    }
   }
 }
 

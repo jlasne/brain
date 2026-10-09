@@ -26,7 +26,7 @@ import { planDossier, writeDossier, idOf, OPEN_READ, keywords, stem } from "./wo
 import { embed, nearest } from "./graph";
 import { readNotes, fileNotes } from "./personal";
 import {
-  splitDoc, openingOf, withoutPages, pagesIn, WHOLE_CHARS, TINY_CHARS, SECTION_CHARS, FILE_KINDS, madeName, columnsOf, colNames, parseCsv, csvOf, blocksOf,
+  splitDoc, openingOf, withoutPages, pagesIn, WHOLE_CHARS, TINY_CHARS, SECTION_CHARS, FILE_KINDS, SHORT_AFTER, SHORT_N, madeName, columnsOf, colNames, parseCsv, csvOf, blocksOf,
   readQuery, runQuery, resultText, colLine, MAX_OPS,
 } from "./sheet";
 import type { Part, Sheet } from "./sheet";
@@ -173,14 +173,17 @@ async function aboutFile(ctx: any, o: { space: string; brain: string; key?: stri
 
 /* ---------- the step before an answer ---------- */
 
-export type Route = { intent: "ask" | "brainstorm" | "change"; sections: number[]; all: boolean; query: any | null; folders: string[]; terms: string[]; kind: string; routed: boolean };
+/** Titles of sections not opened that the answer is shown, so it can point at them. */
+const ALSO_IN = 40;
 
-const NO_ROUTE: Route = { intent: "ask", sections: [], all: false, query: null, folders: [], terms: [], kind: "", routed: false };
+export type Route = { intent: "ask" | "brainstorm" | "change"; sections: number[]; all: boolean; query: any | null; folders: string[]; terms: string[]; kind: string; more: boolean; routed: boolean };
+
+const NO_ROUTE: Route = { intent: "ask", sections: [], all: false, query: null, folders: [], terms: [], kind: "", more: false, routed: false };
 
 const ROUTE_RULES = `You decide what a project's chat must read before it answers.
 The project is built on ONE file or table. Below are the message, the earlier questions, what the project remembers, the file's contents, and the folders the owner has.
 
-Reply with only JSON: {"intent":"ask","sections":[3,7],"all":false,"query":null,"folders":["pricing"],"terms":["price","payment plan"],"kind":""}
+Reply with only JSON: {"intent":"ask","sections":[3,7],"all":false,"query":null,"folders":["pricing"],"terms":["price","payment plan"],"kind":"","more":false}
 
 - "intent": "ask" for a question, "brainstorm" when they want ideas, a choice or a decision, "change" when they ask to change the file or table.
 - "sections": for a document or a page. The ids of the sections the answer needs, best first, at most 8. For a change, the sections to change. Empty when the message needs none of the file: thanks, small talk, a question about this chat, or one the memory or the owner's folders answer.
@@ -192,6 +195,7 @@ Reply with only JSON: {"intent":"ask","sections":[3,7],"all":false,"query":null,
   Ask for the rows a change needs, so each carries its row number. Never ask for more than 100 rows.
 - "folders": the slugs of the owner's other folders that could add a fact, a number or a view the file lacks, at most 4. Empty when the file and the memory are enough. When the file is empty or there is none, the folders whose notes would fill it, the ones the owner names first.
 - "terms": the message as English search words: the subject, synonyms, abbreviations spelled out. Up to 12.
+- "more": only when the file's contents list is partial. True when the message needs the file and none of the sections listed fits: "sections" is then empty and the whole list is shown. Otherwise false.
 - "kind": only when THE FILE says there is none yet. "table" for rows and columns (a budget, a tracker, a list with fields), "html" for a web page, "doc" for any other text, and "doc" when unsure. Otherwise "".
 - Match on meaning, whatever language the message is in.
 - The earlier questions only resolve a reference like "it" or "the second one".`;
@@ -229,6 +233,46 @@ const oneLine = (t: any, n: number) => String(t ?? "").replace(/\s+/g, " ").trim
 /** What an exchange said, as the next prompts read it: the one line answer, then its support. */
 const said = (t: any) => [t?.lead, t?.a].filter(Boolean).join(" ");
 
+/**
+ * The sections worth showing the router first, so it never reads a line for
+ * every section of a long file. What the project has learned about where
+ * things are leads when it covers the words of the message, then what the last
+ * exchange opened, then the sections whose title or summary share words with
+ * the message. They come back in the file's order, with the ones memory gave.
+ */
+export function shortlist(cards: any[], q: string, routes: { t: string[]; s: number[]; n: number; at: number }[], last: number[], n = SHORT_N): { sids: number[]; memory: Set<number> } {
+  const have = new Set<number>(cards.map((c: any) => c.sid));
+  const qs = [...new Set(keywords(q).map(stem))];
+  const picked: number[] = [], memory = new Set<number>();
+  const add = (sid: number, fromMemory = false) => {
+    if (!have.has(sid) || picked.includes(sid) || picked.length >= n) return;
+    picked.push(sid); if (fromMemory) memory.add(sid);
+  };
+  if (qs.length) {
+    const fit = routes.map(r => ({ r, k: qs.filter(w => r.t.includes(w)).length }))
+      .filter(x => x.k > 0 && x.k / qs.length >= 0.5)
+      .sort((x, y) => y.k - x.k || y.r.n - x.r.n || y.r.at - x.r.at);
+    for (const { r } of fit.slice(0, 3)) for (const sid of r.s) add(sid, true);
+  }
+  for (const sid of last.slice(0, 3)) add(sid);
+  if (qs.length) {
+    const score = (c: any) => {
+      const title = new Set(keywords(String(c.title ?? "")).map(stem)), all = new Set(keywords(`${c.title ?? ""} ${c.summary ?? ""}`).map(stem));
+      return qs.reduce((t, w) => t + (title.has(w) ? 2 : all.has(w) ? 1 : 0), 0);
+    };
+    for (const x of cards.map((c: any) => ({ sid: c.sid, s: score(c) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s)) add(x.sid);
+  }
+  const order = new Map<number, number>(cards.map((c: any, i: number) => [c.sid, i]));
+  return { sids: picked.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0)), memory };
+}
+
+/** The part of a contents list the router reads first, and what it may ask for when none of it fits. */
+function shortBlock(file: any, cards: any[], short: { sids: number[]; memory: Set<number> }): string {
+  const byId = new Map<number, any>(cards.map((c: any) => [c.sid, c]));
+  const lines = short.sids.map(sid => `${short.memory.has(sid) ? "* " : ""}${sid} | ${byId.get(sid)?.title} | ${String(byId.get(sid)?.summary ?? "").slice(0, 160)}`).join("\n");
+  return `THE FILE "${file.name}", ${file.kind === "html" ? "an HTML page" : "a document"} of ${cards.length} sections. Only the ${short.sids.length} likeliest are listed: a * marks one that answered a question with some of the same words before, the others share words with the message or were open in the last exchange. One line a section: id | title | summary\n${lines}\n${cards.length - short.sids.length} more sections are not listed. When the message needs the file and none of these fits, set "more" to true and the whole list is shown.`;
+}
+
 /** What to make, from the words alone: the fallback when the router cannot say. */
 export function guessKind(q: string): string {
   if (/\b(html|web ?page|landing|website|homepage|site web|page web)\b/i.test(q)) return "html";
@@ -236,7 +280,7 @@ export function guessKind(q: string): string {
   return "doc";
 }
 
-async function route(o: { q: string; earlier: string[]; file: any; cards: any[]; tiny: boolean; firstRows: string[][][]; folders: any[]; memory: string[]; fresh?: boolean; empty?: boolean; key?: string; model?: string }): Promise<Route> {
+async function route(o: { q: string; earlier: string[]; file: any; cards: any[]; tiny: boolean; firstRows: string[][][]; folders: any[]; memory: string[]; fresh?: boolean; empty?: boolean; short?: { sids: number[]; memory: Set<number> } | null; key?: string; model?: string }): Promise<Route> {
   const doc = o.file.kind !== "table";
   const fileBlock = o.fresh
     ? `THERE IS NO FILE YET. The owner describes what to make, and the chat makes it. Decide its "kind", the intent, the folders and the terms.`
@@ -244,6 +288,8 @@ async function route(o: { q: string; earlier: string[]; file: any; cards: any[];
     ? `THE FILE "${o.file.name}" is empty. The owner describes what to write in it. Decide the intent, the folders and the terms.`
     : o.tiny
     ? `THE FILE "${o.file.name}" is short: the answer reads all of it. Decide only the intent, the folders and the terms.`
+    : doc && o.short
+      ? shortBlock(o.file, o.cards, o.short)
     : doc
       ? `THE FILE "${o.file.name}", ${o.file.kind === "html" ? "an HTML page" : "a document"}. One line a section: id | title | summary\n${contentsText(o.cards)}`
       : `THE FILE "${o.file.name}", a table.\n${sheetsText(o.file.sheets, o.firstRows)}`;
@@ -268,6 +314,7 @@ async function route(o: { q: string; earlier: string[]; file: any; cards: any[];
       folders: [...new Set<string>((Array.isArray(d?.folders) ? d.folders : []).map(String).filter((s: string) => slugs.has(s)))].slice(0, 4),
       terms: (Array.isArray(d?.terms) ? d.terms : []).map(String).slice(0, 12),
       kind: !o.fresh ? "" : FILE_KINDS.includes(String(d?.kind)) ? String(d.kind) : guessKind(o.q),
+      more: !!o.short && d?.more === true,
       routed: true,
     };
   } catch (e: any) {
@@ -457,7 +504,15 @@ export async function projectChat(ctx: any, o: ChatIn) {
 
   /* 1. What the answer needs. A short file and no other folder leave nothing to decide. */
   const skip = tiny && !fresh && !o.shared.brains.length;
-  const r = skip ? NO_ROUTE : await route({ q, earlier, file, cards, tiny, firstRows, folders: o.shared.brains, memory: memory.map(m => m.title), fresh, empty, key: o.key, model: o.model });
+  /* A long file shows the router a short list first: what the project remembers about where things are, what the last exchange opened, and the sections that share words with the message. */
+  const lastSids: number[] = (earlierTurns[earlierTurns.length - 1]?.used?.file?.sections ?? []).map((x: any) => Number(x?.sid)).filter(Number.isFinite);
+  let short = doc && !tiny && cards.length > SHORT_AFTER ? shortlist(cards, q, got.shortcuts ?? [], lastSids) : null;
+  /* A message in a script the lines share no word with (Chinese, Arabic, Cyrillic) can never meet a line: it gets the whole list at once, as before. */
+  if (short && !keywords(q).length && !/[a-z]/i.test(q) && q.length >= 8) short = null;
+  const ask0 = { q, earlier, file, cards, tiny, firstRows, folders: o.shared.brains, memory: memory.map(m => m.title), fresh, empty, key: o.key, model: o.model };
+  let r: Route = skip ? NO_ROUTE : await route({ ...ask0, short });
+  /* None of the short list fits: the whole list, once. */
+  if (short && r.more) r = await route({ ...ask0, short: null });
   if (fresh) {
     kind = r.kind || guessKind(q); table = kind === "table"; doc = !table; made = true;
     file.kind = kind; file.name = madeName(got.project.name, kind);
@@ -481,8 +536,9 @@ export async function projectChat(ctx: any, o: ChatIn) {
       /* A message about the whole file reads the contents lines: a summary of every section. */
       if (r.all) mapText = contentsText(cards, 24000);
       else {
-        const rest = cards.filter(c => !secs.some(s => s.sid === c.sid));
-        const cap = opened.length ? 150 : 40;
+        const near = new Set(short?.sids ?? []);
+        const rest = cards.filter(c => !secs.some(s => s.sid === c.sid)).sort((a, b) => Number(near.has(b.sid)) - Number(near.has(a.sid)));
+        const cap = ALSO_IN;
         alsoIn = rest.slice(0, cap).map(c => `${c.sid}: ${c.title}`).join("\n") + (rest.length > cap ? `\n... and ${rest.length - cap} more` : "");
       }
     }
@@ -575,6 +631,14 @@ export async function projectChat(ctx: any, o: ChatIn) {
     if (e.bad?.length) reply += `\n\nI left out ${e.bad.length === 1 ? "one change" : e.bad.length + " changes"}: ${e.bad.slice(0, 3).join("; ")}.`;
   }
 
+  /* The project learns where things are: the words of this message, and the sections that answered it. It costs no model call and never fails an answer. */
+  if (doc && cards.length > SHORT_AFTER && !whole && opened.length && r.routed) {
+    try {
+      const terms = [...new Set([...keywords(q), ...r.terms.flatMap(t => keywords(t))].map(stem))];
+      await ctx.runMutation(internal.projects.routeLearn, { space: o.space, brain: o.brain, terms, sids: opened.map(x => x.sid), q });
+    } catch (e: any) { console.log(`the route was not kept: ${String(e?.message ?? e).slice(0, 160)}`); }
+  }
+
   /* A filing that runs late never holds the answer back for long. */
   let timer: any;
   const late = new Promise<null>(ok => { timer = setTimeout(() => ok(null), 15000); });
@@ -583,7 +647,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
   const turn = {
     q, ...(lead ? { lead } : {}), a: reply, proposal: d?.proposal === true && !edit,
     quotes,
-    used: { file: { name: file.name, whole: whole && !empty, ...(opened.length ? { sections: opened } : {}), ...(mapText ? { map: true } : {}), ...(rowsUsed.length ? { rows: rowsUsed, sheet: rowsSheet } : {}) },
+    used: { file: { name: file.name, whole: whole && !empty, ...(opened.length ? { sections: opened, of: cards.length } : {}), ...(opened.some(x => short?.memory.has(x.sid)) ? { via: "memory" } : {}), ...(mapText ? { map: true } : {}), ...(rowsUsed.length ? { rows: rowsUsed, sheet: rowsSheet } : {}) },
       folders: called, memory: picked.length },
     ...(edit ? { edit } : {}), intent: r.intent,
     ...(filed?.titles?.length ? { noted: filed.titles } : {}),

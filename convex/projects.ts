@@ -15,7 +15,7 @@
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { readSpace, slug, today } from "./lib";
-import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, FILE_KINDS, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
+import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, FILE_KINDS, ROUTES_KEEP, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
 import type { Col } from "./sheet";
 
 /** Rows one change may build a sheet from. */
@@ -90,6 +90,7 @@ export const projectGet = internalQuery({
       turns: thread?.turns ?? [],
       edits,
       memory: await memoryRows(ctx, a.brain),
+      shortcuts: file?.routes ?? [],
     };
   },
 });
@@ -331,6 +332,37 @@ export const fileMake = internalMutation({
       sheets: [{ name: a.kind === "table" ? "Sheet 1" : name.slice(0, 60), header: [], cols: [], rows: 0 }],
       chars: 0, parts: 0, next: 1, status: "ready", ver: 1, at: Date.now() });
     return { ver: 1 };
+  },
+});
+
+/**
+ * Where things are, learned from an answer: the words of the question and the
+ * sections that answered it. A route that rests on the same sections gains the
+ * new words; any other starts a route of its own. The latest 40 are kept, and
+ * a new file takes them all away with it.
+ */
+export const routeLearn = internalMutation({
+  args: { space: v.string(), brain: v.string(), terms: v.array(v.string()), sids: v.array(v.number()), q: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    const f = await fileOf(ctx, a.brain);
+    if (!f || f.status !== "ready") return { n: 0 };
+    /* The question that last used the route, for the owner to read; the words matched are the stems. */
+    const q = String(a.q ?? "").replace(/\s+/g, " ").trim().slice(0, 90);
+    const have = new Set((await cardsOf(ctx, a.brain)).map((c: any) => c.sid));
+    const sids = [...new Set(a.sids)].filter(s => have.has(s)).slice(0, 8);
+    const terms = [...new Set(a.terms.map(t => String(t).slice(0, 24)).filter(Boolean))].slice(0, 20);
+    const held = (f.routes ?? []).map((r: any) => ({ ...r, s: r.s.filter((x: number) => have.has(x)) })).filter((r: any) => r.s.length);
+    if (!sids.length || !terms.length) return { n: held.length };
+    const same = held.findIndex((r: any) => r.s.filter((x: number) => sids.includes(x)).length / Math.min(r.s.length, sids.length) >= 0.5);
+    const at = Date.now();
+    /* The route just used goes first, so that when times tie the oldest are the ones to go. */
+    if (same >= 0) { const old = held.splice(same, 1)[0]; held.unshift({ t: [...new Set([...terms, ...old.t])].slice(0, 20), s: sids, n: old.n + 1, at, ...(q || old.q ? { q: q || old.q } : {}) }); }
+    else held.unshift({ t: terms, s: sids, n: 1, at, ...(q ? { q } : {}) });
+    held.sort((x: any, y: any) => y.at - x.at);
+    const keep = held.slice(0, ROUTES_KEEP);
+    await ctx.db.patch(f._id, { routes: keep });
+    return { n: keep.length };
   },
 });
 

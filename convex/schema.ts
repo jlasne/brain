@@ -578,6 +578,8 @@ export default defineSchema({
     /* Which read this is, so a new file replaces the old one whole. */
     ver: v.number(),
     at: v.number(),
+    /* What the project has learned about where things are: the words of a question (stems), the sections that answered it, how often, and when. A new file takes them away. */
+    routes: v.optional(v.array(v.object({ t: v.array(v.string()), s: v.array(v.number()), n: v.number(), at: v.number(), q: v.optional(v.string()) }))),
   }).index("by_brain", ["brain"]),
 
   projectCards: defineTable({

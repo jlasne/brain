@@ -3870,6 +3870,57 @@ for (const space of ["octopus", "squidgy"]) {
   await dp.close();
 }
 
+/* ---- projects: memory as a shortcut into a long file ---- */
+{
+  const SECS = Array.from({ length: 30 }, (_, i) => ({ sid: i + 1, ord: i + 1, sheet: 0, title: `Clause ${i + 1} ${["payment", "audit", "privacy"][i % 3]}`, summary: "x", chars: 3000 }));
+  const st = { ...STATE, brains: [], concepts: [], projects: [{ slug: "contract", name: "Contract", kind: "doc", file: "contract.pdf", status: "ready", chars: 90000, sections: 30, memory: 0, at: 1 }] };
+  const init = arg => {
+    if (window.top !== window) return;
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = []; window.__ways = []; window.__n = 0;
+    window.fetch = async (u, opt) => {
+      const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}");
+      window.__calls.push({ s: path, body });
+      const J = x => Response.json(x);
+      if (path === "/api/state") return J(arg.state);
+      if (path === "/api/health") return J({ conflicted: [], health: [] });
+      if (path === "/api/project/list") return J({ projects: arg.state.projects });
+      if (path === "/api/project/get") return J({ project: { slug: "contract", name: "Contract", created: "2026-10-09" }, file: { name: "contract.pdf", kind: "doc", sheets: [{ name: "contract.pdf", cols: [], rows: 0 }], chars: 90000, sections: 30, status: "ready", ver: 1, at: 1 },
+        cards: arg.secs, turns: [], edits: [], memory: [], shortcuts: window.__ways });
+      if (path === "/api/project/doc") return J({ sections: [] });
+      if (path === "/api/project/chat") {
+        const via = window.__n++ > 0;
+        const t = { id: "t" + window.__n, q: body.q, lead: "Payments are monthly.", a: "**Clause 1:** the 10th of each month.", proposal: false, quotes: [],
+          used: { file: { name: "contract.pdf", whole: false, sections: [{ sid: 1, title: "Clause 1 payment" }, { sid: 4, title: "Clause 4 payment" }], of: 30, ...(via ? { via: "memory" } : {}) }, folders: [], memory: 0 }, intent: "ask" };
+        window.__ways = [{ t: ["payment", "tim"], s: [1, 4], n: window.__n, at: Date.now(), q: body.q }];
+        return J({ turn: t });
+      }
+      return J({ chats: [] });
+    };
+  };
+  const { page, bad } = await boot("/chat.html", init, { state: st, secs: SECS });
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(600);
+  await page.click(".pj-tab >> text=Memory"); await page.waitForTimeout(300);
+  check("with nothing kept and nothing learned, the Memory tab says what it will keep, and that it learns where things are", /Nothing kept yet/.test(await page.textContent(".pj-hint")) && /learns where things are in a long file/.test(await page.textContent(".pj-hint")));
+  await page.click(".pj-tab >> text=Chat"); await page.waitForTimeout(200);
+  await page.fill(".pj-comp textarea", "When are the payments made?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
+  const first = await page.evaluate(() => [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent));
+  check("an answer says how little of a long file it read", JSON.stringify(first) === '["contract.pdf: Clause 1 payment · Clause 4 payment","Read 2 of 30 sections"]', JSON.stringify(first));
+  const gets = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/get").length);
+  await page.click(".pj-tab >> text=Memory"); await page.waitForTimeout(400);
+  const mem = await page.evaluate(() => ({ hint: [...document.querySelectorAll(".pj-hint")].map(x => x.textContent), rows: [...document.querySelectorAll(".pj-mem")].map(r => [r.querySelector("b").textContent, r.querySelector("p").textContent, r.querySelector("small").textContent]),
+    forget: document.querySelectorAll(".pj-mem .pj-b").length, gets: window.__calls.filter(x => x.s === "/api/project/get").length }));
+  check("opening the Memory tab reads what the project learned since", mem.gets === gets + 1, JSON.stringify(mem));
+  check("it lists where things are: the question that taught it, the sections, how often", mem.rows.length === 1 && mem.rows[0][0] === "“When are the payments made?”" && mem.rows[0][1] === "Clause 1 payment, Clause 4 payment" && mem.rows[0][2] === "Used 1 time" && /Where things are/.test(mem.hint.join(" ")), JSON.stringify(mem));
+  check("a route is a pointer: it has no Forget, it mends itself", mem.forget === 0);
+  await page.click(".pj-tab >> text=Chat"); await page.waitForTimeout(200);
+  await page.fill(".pj-comp textarea", "What do the payments look like?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
+  const second = await page.evaluate(() => [...document.querySelectorAll(".pj-turn")].pop().querySelector(".pj-used")?.textContent);
+  check("when memory led, the answer says so", /Read 2 of 30 sections · led by memory/.test(second), second);
+  check("nothing threw", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 await browser.close();
 server.close();
 console.log(failures ? `\n${failures} failed` : "\nthe pages run");

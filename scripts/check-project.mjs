@@ -211,7 +211,7 @@ globalThis.fetch = async (_u, opt) => {
   sent.push({ sys, user, model: body.model });
   let out;
   if (/You write contents lines/.test(sys)) out = JSON.stringify({ title: "About " + user.split("SECTION\n")[1].split(/\s+/).slice(0, 2).join(" "), summary: "Covers " + user.split("SECTION\n")[1].split(/\s+/).slice(0, 5).join(" ") + "." });
-  else if (/You route a project's questions/.test(sys)) out = JSON.stringify(reply.route ?? { intent: "ask", sections: [], query: null, folders: [], terms: [] });
+  else if (/You route a project's questions/.test(sys)) out = JSON.stringify(typeof reply.route === "function" ? reply.route(user) : reply.route ?? { intent: "ask", sections: [], query: null, folders: [], terms: [] });
   else if (/You route questions to the right entries/.test(sys)) out = JSON.stringify(reply.folders ?? { picks: [], terms: [] });
   else if (/You are the chat of a project/.test(sys)) out = typeof reply.answer === "function" ? reply.answer(user) : JSON.stringify(reply.answer ?? { reply: "ok", proposal: false, quotes: [], edits: [] });
   else if (/You file notes into a project's memory/.test(sys)) out = JSON.stringify(reply.keep ?? { notes: [] });
@@ -759,6 +759,147 @@ const routeOf = (extra = {}) => ({ intent: "ask", sections: [], all: false, quer
   const fin = await project.finishFile(w3.ctx, { space: SPACE, brain: p3, ver: b3.ver, about: true });
   check("a note that could not be written never fails the file", fin.sections === 1 && (await w3.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p3 })).length === 0);
   reply = {};
+}
+
+/* ================= memory as a shortcut into a long file ================= */
+
+{
+  const topics = ["payment", "termination", "liability", "insurance", "warranty", "delivery", "audit", "privacy", "taxation", "support", "royalty", "exclusivity", "arbitration", "jurisdiction",
+    "notice", "renewal", "penalty", "invoice", "currency", "reporting", "ownership", "trademark", "confidentiality", "indemnity", "compliance", "subcontract", "milestone", "acceptance", "escrow", "bonus",
+    "discount", "refund", "shipping", "storage", "security", "training", "staffing", "hiring", "travel", "expense", "budget", "forecast", "pricing", "margin", "tender", "bidding", "lease", "utility",
+    "parking", "catering", "cleaning", "branding", "packaging", "labeling", "recycling", "safety", "medical", "pension", "holiday", "overtime"];
+  const long = topics.map((t, i) => `## ${t[0].toUpperCase()}${t.slice(1)}\n\nSection ${i} about ${t} and ${t} rules. ${"word ".repeat(560)}`).join("\n\n");
+  const w = makeCtx();
+  const p = await docProject(w, "Long contract", long);
+  const get = () => w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  const cards = (await get()).cards;
+  const sid = t => cards[topics.indexOf(t)].sid;
+  const chat = q => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0 });
+  const listed = text => text.split("\n").filter(l => /^(\* )?\d+ \| /.test(l)).map(l => ({ star: l.startsWith("* "), sid: Number(l.replace(/^\* /, "").split(" | ")[0]) }));
+  const routerCalls = () => sent.filter(m => /You route a project's questions/.test(m.sys)).length;
+  check("a long document is cut in a section for each topic", cards.length === topics.length && (await get()).shortcuts.length === 0, String(cards.length));
+
+  /* the first time: a short list, from the words of the message */
+  reply = { route: routeOf({ sections: [sid("payment")], terms: ["payment", "timing"] }), answer: answerOf({ tldr: "Payments are monthly." }) };
+  const n0 = sent.length;
+  const t1 = await chat("When are the payments made?");
+  const r1 = last(/You route a project's questions/).user, l1 = listed(r1);
+  check("a long file shows the router a short list, not a line for every section", l1.length >= 1 && l1.length <= 24 && l1.length < cards.length && /more sections are not listed/.test(r1), `${l1.length} of ${cards.length}`);
+  check("the section that shares the message's words is on it, and none is marked as remembered yet", l1.some(x => x.sid === sid("payment")) && l1.every(x => !x.star));
+  check("the router is told the whole list is one word away", /set "more" to true/.test(r1) && /"more": only when/.test(r1));
+  check("a question costs two model calls: the router and the answer", sent.length - n0 === 2, String(sent.length - n0));
+  const g1 = await get();
+  check("the answer taught the project where payments are, for no model call", g1.shortcuts.length === 1 && g1.shortcuts[0].s.join() === String(sid("payment")) && g1.shortcuts[0].t.includes("payment") && g1.shortcuts[0].n === 1, JSON.stringify(g1.shortcuts));
+  check("the route keeps the question that taught it, to be read", g1.shortcuts[0].q === "When are the payments made?", g1.shortcuts[0].q);
+  check("the turn says how many sections it read of how many, and that memory had not led", t1.used.file.sections.length === 1 && t1.used.file.of === cards.length && t1.used.file.via === undefined, JSON.stringify(t1.used.file));
+
+  /* a question with some of the same words: memory leads */
+  reply = { route: routeOf({ sections: [sid("payment")], terms: ["payment"] }), answer: answerOf({ tldr: "Monthly." }) };
+  const t2 = await chat("What do the payments look like?");
+  const l2 = listed(last(/You route a project's questions/).user);
+  check("memory puts the section it learned first, marked", l2.some(x => x.sid === sid("payment") && x.star), JSON.stringify(l2));
+  check("and the turn says memory led", t2.used.file.via === "memory");
+  const g2 = await get();
+  check("the same section answering again strengthens its route, and makes no second one", g2.shortcuts.length === 1 && g2.shortcuts[0].n === 2 && g2.shortcuts[0].q === "What do the payments look like?", JSON.stringify(g2.shortcuts));
+
+  /* a follow up with other words: what the last exchange opened stays on the list */
+  reply = { route: routeOf({ sections: [], terms: [] }), answer: answerOf({ tldr: "Yes." }) };
+  await chat("ok and who signs the lawyer part?");
+  const l3 = listed(last(/You route a project's questions/).user);
+  check("the section the last exchange opened stays on the list for a follow up, unmarked", l3.some(x => x.sid === sid("payment") && !x.star), JSON.stringify(l3));
+  check("and an answer that opened nothing teaches nothing", (await get()).shortcuts.length === 1);
+
+  /* none of the short list fits: the whole list, once */
+  reply = { route: user => /set "more" to true/.test(user) ? routeOf({ more: true }) : routeOf({ sections: [sid("hiring")], terms: ["recruitment", "hiring"] }), answer: answerOf({ tldr: "Hire two." }) };
+  const c0 = routerCalls(), m0 = sent.length;
+  const t5 = await chat("Which section handles the recruitment of new people?");
+  const full = listed(last(/You route a project's questions/).user);
+  check("a router that finds nothing fitting asks for more, and gets every section", routerCalls() - c0 === 2 && full.length === cards.length && !/more sections are not listed/.test(last(/You route a project's questions/).user), `${routerCalls() - c0} router calls, ${full.length} lines`);
+  check("it costs one more router call, then the answer", sent.length - m0 === 3, String(sent.length - m0));
+  check("the answer reads the section found, and the project learns it", t5.used.file.sections[0].sid === sid("hiring") && (await get()).shortcuts.some(r => r.s.includes(sid("hiring")) && r.t.includes("recruitment")));
+  check("a router that says more over a whole list is not asked again", await (async () => {
+    reply = { route: routeOf({ more: true, sections: [] }), answer: answerOf({ tldr: "Nothing." }) };
+    const k0 = routerCalls(); await chat("Which section covers the rubbish collection arrangements?"); return routerCalls() - k0 === 2;
+  })());
+  check("a message in a script no line shares a word with gets the whole list at once", await (async () => {
+    reply = { route: routeOf({ sections: [sid("hiring")], terms: ["recruitment"] }), answer: answerOf({ tldr: "Hire." }) };
+    const k0 = routerCalls(); await chat("\u652f\u4ed8\u6761\u6b3e\u662f\u4ec0\u4e48\uff1f\u8bf7\u8bf4\u660e");
+    return routerCalls() - k0 === 1 && listed(last(/You route a project's questions/).user).length === cards.length;
+  })());
+  check("small talk right after an answer keeps the short list: the sections that answer opened", await (async () => {
+    reply = { route: routeOf({ sections: [], terms: [] }), answer: answerOf({ tldr: "Glad." }) };
+    await chat("ok thanks");
+    const l = listed(last(/You route a project's questions/).user);
+    return l.length >= 1 && l.length <= 3 && /more sections are not listed/.test(last(/You route a project's questions/).user);
+  })());
+
+  /* a route is a pointer: it never answers for the file */
+  check("an answer is written from the sections as they are, whatever the route says", await (async () => {
+    const hit = w.T.projectSections.find(x => x.text.includes("Section 0 about payment"));
+    hit.text = hit.text.replace("payment rules.", "payment rules. PAID WEEKLY NOW.");
+    reply = { route: routeOf({ sections: [sid("payment")], terms: ["payment"] }), answer: answerOf({ tldr: "Weekly." }) };
+    await chat("How are payments paid?");
+    return last(/You are the chat of a project/).user.includes("PAID WEEKLY NOW.");
+  })());
+
+  /* the other titles under ALSO IN THE FILE are few, the likeliest first */
+  reply = { route: routeOf({ sections: [sid("audit")], terms: ["audit"] }), answer: answerOf() };
+  await chat("What does the audit cover?");
+  const also = last(/You are the chat of a project/).user.split("ALSO IN THE FILE, not opened (id: title)\n")[1].split("\n\n")[0].split("\n");
+  check("the sections not opened show 40 titles and a count of the rest", also.length === 41 && /^\.\.\. and \d+ more$/.test(also[40]), `${also.length} lines`);
+  check("and the likeliest come first: the section the last exchange opened", also[0].startsWith(`${sid("payment")}:`), also[0]);
+
+  /* the routes are the project's: a new file takes them away */
+  await w.ctx.runMutation("projects.projectWipe", { space: SPACE, brain: p, file: true });
+  const nb = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p, name: "next.md", kind: "doc", sheets: [{ name: "next" }] });
+  check("a new file starts with no shortcut", nb.ver >= 1 && (await get()).shortcuts.length === 0);
+}
+
+{
+  /* the short list, on its own */
+  const cards = Array.from({ length: 50 }, (_, i) => ({ sid: 100 + i, ord: i, title: `Topic ${["alpha", "bravo", "charlie", "delta", "echo"][i % 5]}${i}`, summary: i % 7 === 0 ? "covers royalty statements" : "covers general rules" }));
+  const routes = [{ t: ["audit", "privacy", "tax"], s: [120, 121, 9999], n: 3, at: 5 }, { t: ["royalty"], s: [130], n: 1, at: 9 }];
+  const a = project.shortlist(cards, "audit privacy tax royalty notice", routes, [], 24);
+  check("a route covering most of the question's words leads, an unknown section is dropped", a.sids.includes(120) && a.sids.includes(121) && !a.sids.includes(9999) && a.memory.has(120) && a.memory.has(121), JSON.stringify([...a.sids]));
+  const b = project.shortlist(cards, "audit lawyers insurance warranty", routes, [], 24);
+  check("a route covering a quarter of them does not", !b.memory.size, JSON.stringify([...b.memory]));
+  const c = project.shortlist(cards, "royalty statements", [], [], 5);
+  check("the list never passes its size, and comes back in the file's order", c.sids.length <= 5 && c.sids.every((x, i, all) => !i || all[i - 1] < x), JSON.stringify(c.sids));
+  const d = project.shortlist(cards, "ok thanks", routes, [140, 141, 142, 143, 9998], 24);
+  check("a message with no subject keeps only what the last exchange opened, three sections at most", d.sids.join() === "140,141,142" && !d.memory.size, JSON.stringify(d.sids));
+  const e = project.shortlist(cards, "royalty", routes, [], 24);
+  check("the words of the title count more than the summary", e.sids.includes(130) && e.memory.has(130) && e.sids.length >= 2);
+}
+
+{
+  /* a route kept, merged, capped */
+  const w = makeCtx();
+  const p = await docProject(w, "Routes", Array.from({ length: 50 }, (_, i) => `## Part ${i}\n\n${"word ".repeat(560)}`).join("\n\n"));
+  const g = await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  const ids = g.cards.map(c => c.sid);
+  const learn = (terms, sids) => w.ctx.runMutation("projects.routeLearn", { space: SPACE, brain: p, terms, sids });
+  await learn(["payment"], [ids[0]]); await learn(["timing"], [ids[0], ids[1]]);
+  let r = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).shortcuts;
+  check("sections that answer again take the new words into the same route", r.length === 1 && r[0].t.includes("payment") && r[0].t.includes("timing") && r[0].n === 2 && r[0].s.join() === `${ids[0]},${ids[1]}`, JSON.stringify(r));
+  await learn(["audit"], [ids[5]]);
+  check("other sections make a route of their own", (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).shortcuts.length === 2);
+  await learn([], [ids[6]]); await learn(["x"], [99999]);
+  check("a route with no words or no real section is left out", (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).shortcuts.length === 2);
+  for (let i = 10; i < 50; i++) await learn([`topic${i}`], [ids[i]]);
+  r = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).shortcuts;
+  check("a project keeps its latest 40 routes", r.length === 40 && r[0].t.includes("topic49"), String(r.length));
+}
+
+{
+  /* the router down: nothing is learned from a guess */
+  const w = makeCtx();
+  const p = await docProject(w, "Guess", Array.from({ length: 50 }, (_, i) => `## ${["Payment", "Audit"][i % 2]} ${i}\n\nSection ${i} about ${["payment", "audit"][i % 2]} ${"word ".repeat(560)}`).join("\n\n"));
+  const real = globalThis.fetch;
+  globalThis.fetch = async (u, opt) => { if (/You route a project's questions/.test(String(JSON.parse(opt.body).messages[0].content))) return new Response("busy", { status: 503 }); return real(u, opt); };
+  reply = { answer: answerOf({ tldr: "Found." }) };
+  const t = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "What about the payment terms?", english: false, embeds: false, shared: shared0 });
+  globalThis.fetch = real;
+  check("an answer reached by word matching teaches the project nothing", t.used.file.sections?.length > 0 && (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).shortcuts.length === 0);
 }
 
 /* ================= a project made from nothing ================= */
