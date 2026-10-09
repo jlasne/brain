@@ -1631,7 +1631,7 @@ route("/api/project/finish", async (ctx, _req, b) => {
   return await finishFile(ctx, { space: who.space, brain: String(b.brain ?? ""), ver: Number(b.ver), about: true, key: keyFor(who), model: modelFor(who, b) });
 });
 
-/** The owner's instruction file, read in the browser: one model call writes it as notes in the project's memory, and the chat follows them. */
+/** The owner's instructions, typed or read from a file in the browser: one model call writes them as notes in the project's memory, and the chat follows them. */
 route("/api/project/instructions", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   return await fileInstructions(ctx, { space: who.space, brain: String(b.brain ?? ""), name: String(b.name ?? ""), text: String(b.text ?? ""), key: keyFor(who), model: modelFor(who, b) });

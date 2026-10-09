@@ -185,7 +185,7 @@ async function aboutFile(ctx: any, o: { space: string; brain: string; key?: stri
 /* ---------- the owner's instructions ---------- */
 
 const INSTRUCTION_RULES = `You write the memory notes of an instruction file. The owner wrote it to say how a project must be handled: its goal, its audience, its tone, its limits, the words to use and to avoid, the numbers and the names that hold.
-Below: the file's name, then its words.
+Below: the file's name when it came from a file, then its words.
 Reply with only JSON: {"notes":[{"title":"","claim":"","position":"","summaryLine":""}]}
 - One note for each topic, at most 8, the one that matters most first. "title": 2 to 6 words naming the topic. "claim": one sentence with its numbers. "position": the instruction itself, in 1 to 3 sentences, with every number, name, limit and word to use or to avoid as written. "summaryLine": under 15 words.
 - Keep what the owner wrote. Never add a rule, never soften one, never join two different limits. Never guess.
@@ -216,12 +216,13 @@ export async function fileInstructions(ctx: any, o: { space: string; brain: stri
   const whole = String(o.text ?? "").replace(/\r/g, "").trim();
   const text = whole.slice(0, MAX_CHARS.instructions);
   if (!text) throw new Error("the instruction file gave no text");
-  const name = String(o.name ?? "").replace(/\s+/g, " ").trim().slice(0, 120) || "instructions";
+  /* Words typed or pasted come with no file name. */
+  const name = String(o.name ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
   /* The project must be this workspace's own before a model is asked anything. */
   await ctx.runQuery(internal.projects.memoryOf, { space: o.space, brain: o.brain });
   const { text: raw } = await ask([
     { role: "system", content: "You write the memory notes of an instruction file. You reply with JSON only." },
-    { role: "user", content: `${INSTRUCTION_RULES}\n\nTHE FILE "${name}", ${text.length} characters\n${text}` },
+    { role: "user", content: `${INSTRUCTION_RULES}\n\n${name ? `THE FILE "${name}"` : "THE TEXT"}, ${text.length} characters\n${text}` },
   ], { json: true, maxTokens: 2500, temperature: 0, timeout: 90000, key: o.key, model: o.model });
   /* The note on the file is the project's own: an instruction never takes its title. */
   const notes = readNotes(String(raw), "instructions").filter(n => n.title.toLowerCase() !== "the file").map(n => ({ ...n, position: n.position.slice(0, 700) }));

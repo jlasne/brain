@@ -99,7 +99,7 @@ export const projectGet = internalQuery({
 async function memoryRows(ctx: any, brain: string) {
   const rows = await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", brain)).collect();
   return rows.map((c: any) => ({ slug: c.slug, title: c.title, position: c.position, summaryLine: c.summaryLine, updated: c.updated,
-    /* A note the owner's instruction file wrote: the chat reads it at every message, in the order it was filed. */
+    /* A note the owner's instructions wrote: the chat reads it at every message, in the order it was filed. */
     ...(c.tag === "instructions" ? { instructions: true, n: c.n } : {}),
     ...(c.sections?.length ? { sections: c.sections } : {}), ...(c.stale ? { stale: true } : {}),
     dates: (c.evidence ?? []).map((e: any) => e?.date).filter(Boolean).slice(0, 3) }))
@@ -462,7 +462,7 @@ export const memoryForget = internalMutation({
   },
 });
 
-/** The notes an instruction file wrote, forgotten before a new one is filed: a project follows one file of instructions. */
+/** The notes the instructions wrote, forgotten before new ones are filed: a project follows one set of instructions. */
 export const memoryForgetInstructions = internalMutation({
   args: { space: v.string(), brain: v.string() },
   handler: async (ctx, a) => {

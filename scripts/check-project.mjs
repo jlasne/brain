@@ -860,6 +860,13 @@ const docProject = async (w, name, text, kind = "doc") => {
   await w.ctx.runMutation("projects.memoryForgetFile", { space: SPACE, brain: p });
   check("a new file leaves the instructions alone", (await get()).memory.filter(m => m.instructions).length === 3);
 
+  /* words typed or pasted come with no file name */
+  reply = { instructions: { notes: first } };
+  const typedR = await project.fileInstructions(w.ctx, { space: SPACE, brain: p, name: "", text: rules });
+  const typedAsk = last(/You write the memory notes of an instruction file/).user;
+  check("words typed or pasted come with no file name: the model is told they are a text, and the source is titled by the instructions alone",
+    typedR.notes === 3 && /THE TEXT, \d+ characters\n/.test(typedAsk) && !/THE FILE/.test(typedAsk) && w.T.sources.some(s => /^Instructions, \d{4}-\d{2}-\d{2}$/.test(s.title)), typedAsk.slice(-220));
+
   /* bounds: no text, a long text, another workspace */
   const n1 = sent.length;
   const blank = await project.fileInstructions(w.ctx, { space: SPACE, brain: p, name: "x.md", text: "  \n " }).catch(e => e.message);

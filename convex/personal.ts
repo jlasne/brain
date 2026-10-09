@@ -43,7 +43,7 @@ const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, pe
 /* What one call reads: the message, the answer, and a piece of an import. */
 export const MAX_CHARS: Record<Kind, number> = { chat: 4000, interview: 8000, import: 8000, people: 12000, files: 20000, file: 4000, instructions: 30000 };
 
-/** The tag a project's note carries when the owner's instruction file wrote it. */
+/** The tag a project's note carries when the owner's instructions wrote it. */
 export const INSTRUCTIONS = "instructions";
 
 /** The tag a contact card carries. */
