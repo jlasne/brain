@@ -19,7 +19,9 @@ export const SECTION_CHARS = 12000;
 export const SECTION_MIN = 2500;
 /** The contents list the chat reads. 1,000 sections is about 4,000 pages. */
 export const MAX_SECTIONS = 1000;
-/** A text that fits in this many characters is read whole for each question, with no search. */
+/** A text under this many characters is read whole for each question: its contents list would cost about as much as the text. */
+export const TINY_CHARS = 8000;
+/** A text up to this many characters is read whole when the question is about all of it. Longer, a question reads the sections it needs. */
 export const WHOLE_CHARS = 48000;
 /** The line a PDF page starts with, so an answer can name its page. */
 export const PAGE_LINE = /^\[\[p\. (\d+)\]\]$/;

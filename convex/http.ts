@@ -1545,7 +1545,17 @@ route("/api/personal/contact", async (ctx, _req, b) => {
  */
 route("/api/project/new", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  return { slug: await ctx.runMutation(internal.projects.projectCreate, { space: who.space, name: String(b.name ?? "") }) };
+  const name = String(b.name ?? "");
+  const slug = await ctx.runMutation(internal.projects.projectCreate, { space: who.space, name });
+  /* From nothing: an empty document, page or table, for the chat to write by what the owner describes. */
+  const make = String(b.make ?? "");
+  if (make) {
+    try {
+      await ctx.runMutation(internal.projects.fileMake, { space: who.space, brain: slug, kind: make,
+        name: `${name.replace(/\s+/g, " ").trim().slice(0, 56)}.${make === "html" ? "html" : make === "table" ? "csv" : "md"}` });
+    } catch (e) { await wipeProject(ctx, who.space, slug, false); throw e; }
+  }
+  return { slug };
 });
 
 route("/api/project/list", async (ctx, _req, b) => {
@@ -1582,13 +1592,15 @@ route("/api/project/delete", async (ctx, _req, b) => {
 route("/api/project/begin", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   const brain = String(b.brain ?? "");
-  const kind = b.kind === "table" ? "table" : "doc";
+  const kind = b.kind === "table" ? "table" : b.kind === "html" ? "html" : "doc";
   const sheets = kind === "table"
     ? (Array.isArray(b.sheets) ? b.sheets : []).slice(0, 40).map((s: any) => ({ name: String(s?.name ?? "").slice(0, 60),
         header: colNames((Array.isArray(s?.header) ? s.header : []).map((x: any) => String(x ?? "")).slice(0, 60)) }))
     : [{ name: String(b.name ?? "").slice(0, 60), header: [] }];
   if (!sheets.length) return { error: "the table has no sheet to read" };
   if (!(await wipeProject(ctx, who.space, brain, true))) return { error: "the old file is large: ask again to clear it" };
+  /* The note on the old file goes with it; the rest of the memory stays. */
+  await ctx.runMutation(internal.projects.memoryForget, { space: who.space, brain, slug: "the-file" });
   return await ctx.runMutation(internal.projects.fileBegin, { space: who.space, brain, name: String(b.name ?? "file").slice(0, 200), kind, sheets });
 });
 
@@ -1607,7 +1619,7 @@ route("/api/project/part", async (ctx, _req, b) => {
 
 route("/api/project/finish", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  return await finishFile(ctx, { space: who.space, brain: String(b.brain ?? ""), ver: Number(b.ver) });
+  return await finishFile(ctx, { space: who.space, brain: String(b.brain ?? ""), ver: Number(b.ver), about: true, key: keyFor(who), model: modelFor(who, b) });
 });
 
 /** A message in a project's chat: read what it needs, answered, kept in the thread. */
@@ -1618,7 +1630,7 @@ route("/api/project/chat", async (ctx, _req, b) => {
   const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
   const shared = withoutPersonal(head);
   return { turn: await projectChat(ctx, { space: who.space, brain: String(b.brain ?? ""), q: String(b.q ?? ""), key: mKey, model: mName,
-    english: who.models?.reply === "en", embeds: !who.byok && !who.demo,
+    english: who.models?.reply === "en", embeds: !who.byok && !who.demo, note: true,
     shared: { brains: shared.brains, cards: (slugs: string[]) => cardsFor(ctx, slugs, head.ready) } }) };
 });
 
@@ -1664,6 +1676,8 @@ route("/api/project/download", async (ctx, _req, b) => {
   const meta = await ctx.runQuery(internal.projects.fileMeta, { space: who.space, brain });
   if (!meta) return { error: "this project has no file yet" };
   if (meta.kind === "doc") return { name: meta.name, kind: "doc", sheet: "", text: downloadText(await readBlocks(ctx, { space: who.space, brain })) };
+  /* A page is code: its lines are kept as they are. */
+  if (meta.kind === "html") return { name: meta.name, kind: "html", sheet: "", text: (await readBlocks(ctx, { space: who.space, brain })).join("\n\n").trim() + "\n" };
   const si = Math.max(0, Math.min(meta.sheets.length - 1, Number(b.sheet) || 0));
   const rows = (await readBlocks(ctx, { space: who.space, brain, sheet: si })).flatMap((t: string) => parseCsv(t));
   return { name: meta.name, kind: "table", sheet: meta.sheets[si].name, text: csvOf([meta.sheets[si].header, ...rows]) + "\n" };

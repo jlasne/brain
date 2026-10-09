@@ -33,15 +33,15 @@ export type Person = { name: string; update: string; also: string[]; claim: stri
 export type Filed = { new: number; updated: number; titles: string[]; people?: string[]; kept?: string };
 /* "people" reads notes already held, for the people in them alone. */
 /* "files" builds the files of people already held from their cards and mentions. */
-export type Kind = "chat" | "import" | "interview" | "people" | "files";
+export type Kind = "chat" | "import" | "interview" | "people" | "files" | "file";
 
 /* A chat message files a few notes at most; an interview answer, a long
    story told aloud, files more; an import more again per piece. */
-const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 20, people: 0, files: 0 };
+const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 20, people: 0, files: 0, file: 1 };
 /* People are filed apart from notes, each on their own card. */
-const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, people: 12, files: 6 };
+const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, people: 12, files: 6, file: 0 };
 /* What one call reads: the message, the answer, and a piece of an import. */
-export const MAX_CHARS: Record<Kind, number> = { chat: 4000, interview: 8000, import: 8000, people: 12000, files: 20000 };
+export const MAX_CHARS: Record<Kind, number> = { chat: 4000, interview: 8000, import: 8000, people: 12000, files: 20000, file: 4000 };
 
 /** The tag a contact card carries. */
 export const CONTACT = "contact";
@@ -275,7 +275,7 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
   const out: Filed = { new: 0, updated: 0, titles: [], people: [] };
   if (!notes.length && !people.length && !missed.length) return out;
   const sid = `${brain}-${kind}-${date}`;
-  const author = kind === "import" ? "You (imported)" : "You";
+  const author = kind === "import" ? "You (imported)" : kind === "file" ? "The file" : "You";
   /* Building files from what is held adds no mention and no source. */
   const quiet = kind === "files";
   /* What was said about a person goes to their raw notes word for word: a
@@ -291,7 +291,7 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
   };
   if (!quiet) await ctx.runMutation(internal.store.writeSource, { space, doc: {
     sid, link: "", linkKey: sid,
-    title: kind === "chat" ? `Chat, ${date}` : kind === "interview" ? `Interview, ${date}` : kind === "people" ? `People in your notes, ${date}` : `Imported memory, ${date}`,
+    title: kind === "chat" ? `Chat, ${date}` : kind === "interview" ? `Interview, ${date}` : kind === "people" ? `People in your notes, ${date}` : kind === "file" ? `File, ${date}` : `Imported memory, ${date}`,
     author, date, location: "", brains: [brain],
   } });
   for (const p of people) {

@@ -1913,6 +1913,10 @@
   .pj-md li{ margin:.2em 0; }
   .pj-md strong{ color:var(--ink); font-weight:600; }
   .pj-md code{ font:400 .9em var(--mono); padding:1px 5px; border-radius:5px; background:var(--surface-2); }
+  .pj-md blockquote{ margin:.8em 0; padding:2px 0 2px 14px; border-left:3px solid var(--line-2); color:var(--ink-3); }
+  .pj-md pre{ margin:.8em 0; padding:12px 14px; overflow-x:auto; border-radius:8px; background:var(--surface-2); font:400 13px/1.55 var(--mono); color:var(--ink); }
+  .pj-md pre code{ padding:0; background:none; font:inherit; }
+  .pj-md li > ul, .pj-md li > ol{ margin:.2em 0; }
   .pj-tw{ max-width:100%; overflow-x:auto; margin:.9em 0; }
   .pj-md table{ width:100%; border-collapse:collapse; font:400 14px/1.4 var(--sans); }
   .pj-md th{ text-align:left; font:600 11px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-4); padding:8px 10px; border-bottom:1px solid var(--line-2); white-space:nowrap; }
@@ -1943,11 +1947,23 @@
   .pj-foot .ln{ display:block; padding:2px 0; }
   .pj-foot .ln b{ color:var(--ink); font-weight:600; }
 
-  /* No file yet, or one not finished: a place to drop it. */
+  /* A page: shown as it renders, or as its code. */
+  .pj-body.web{ display:flex; flex-direction:column; overflow:hidden; background:var(--surface-2); }
+  .pj-frame{ flex:1; width:100%; min-height:0; border:0; background:#fff; }
+  .pj-code{ flex:1; min-height:0; margin:0; padding:18px 22px; overflow:auto; background:var(--surface); font:400 12.5px/1.65 var(--mono); color:var(--ink-2); white-space:pre; tab-size:2; }
+  .pj-view{ display:inline-flex; border:1px solid var(--line-2); border-radius:8px; overflow:hidden; }
+  .pj-view button{ min-height:34px; padding:0 11px; background:var(--surface); font:500 12.5px/1 var(--sans); color:var(--ink-3); }
+  .pj-view button.on{ background:var(--surface-3); color:var(--ink); }
+  .pj-view button + button{ border-left:1px solid var(--line-2); }
+
+  /* No file yet, or one not finished: a place to drop it. A file made here and not written yet: where to describe it. */
   .pj-drop{ margin:28px; padding:44px 24px; border:1.5px dashed var(--line-2); border-radius:14px; background:var(--surface); text-align:center; }
   .pj-drop.over{ border-color:var(--accent-fill); background:var(--accent-soft); }
   .pj-drop h3{ font:600 17px/1.3 var(--sans); color:var(--ink); }
   .pj-drop p{ margin:8px auto 16px; max-width:46ch; font:400 14px/1.55 var(--sans); color:var(--ink-3); }
+  .pj-empty{ margin:28px; padding:44px 24px; border:1.5px dashed var(--line-2); border-radius:14px; background:var(--surface); text-align:center; }
+  .pj-empty h3{ font:600 17px/1.3 var(--sans); color:var(--ink); }
+  .pj-empty p{ margin:8px auto 16px; max-width:46ch; font:400 14px/1.55 var(--sans); color:var(--ink-3); }
 
   /* The chat beside it. */
   .pj-tabs{ flex:none; display:flex; align-items:center; gap:4px; padding:10px 64px 10px 16px; min-height:57px; border-bottom:1px solid var(--line); }
@@ -1966,10 +1982,18 @@
   .pj-a .pj-md{ font-size:14px; line-height:1.58; color:var(--ink); }
   .pj-a .pj-md p{ margin:.5em 0; }
   .pj-a .pj-md li{ margin:.35em 0; }
+  /* The answer: one line to read first, then its support. */
+  .pj-lead{ display:flex; align-items:baseline; gap:10px; margin:0 0 10px; padding:0 0 10px; border-bottom:1px solid var(--line); }
+  .pj-tl{ flex:none; font:600 10px/1 var(--mono); letter-spacing:.09em; color:var(--accent); }
+  .pj-ld{ min-width:0; font:600 15px/1.45 var(--sans); color:var(--ink); overflow-wrap:anywhere; }
+  .pj-ld > *{ margin:0; }
+  .pj-a .pj-md h2, .pj-a .pj-md h3, .pj-a .pj-md h4{ margin:.9em 0 .2em; font:600 11px/1.3 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3); }
+  .pj-a .pj-md ol > li::marker{ color:var(--accent); font-weight:600; }
   .pj-used{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
   .pj-used > *{ max-width:100%; padding:4px 8px; border:1px solid var(--line-2); border-radius:7px; background:var(--surface-2);
     font:400 11.5px/1.25 var(--mono); color:var(--ink-3); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pj-used button:hover{ border-color:var(--accent-fill); color:var(--accent); }
+  .pj-used .noted{ border-color:var(--accent-line); color:var(--accent); }
   .pj-tact{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
   .pj-tact .go, .pj-tact .ghost{ min-height:34px; padding:0 13px; font-size:13px; }
   .pj-tact .kept{ display:inline-flex; align-items:center; min-height:34px; font:500 12.5px/1 var(--sans); color:var(--good); }
@@ -2010,7 +2034,7 @@
 
   /* A file being read: where it stands. */
   .sheet .pj-step{ margin-top:12px; font:400 13.5px/1.55 var(--sans); color:var(--ink-3); min-height:1.6em; }
-  .sheet .pj-pick{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .sheet .pj-pick, .sheet .pj-make{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .sheet .pj-pick .pj-file{ min-width:0; font:400 13px/1.4 var(--sans); color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
   @media (max-width:860px){
@@ -2031,7 +2055,8 @@
     .pj-sheets{ padding:8px 12px 0; }
     .pj-grid th, .pj-grid td{ padding:10px 12px; }
     .pj-foot{ padding:10px 14px; }
-    .pj-drop{ margin:14px; padding:30px 16px; }
+    .pj-drop, .pj-empty{ margin:14px; padding:30px 16px; }
+    .pj-view button{ min-height:40px; }
     .pj-comp textarea{ font-size:16px; }
     .pj-send{ width:40px; height:40px; }
     .pj-tact .go, .pj-tact .ghost{ min-height:44px; }
@@ -2143,7 +2168,7 @@
           <div class="about" id="aboutLine" hidden></div>
           <textarea id="input" rows="1" placeholder="Ask anything your folders have read."></textarea>
           <input type="file" id="fileIn" hidden
-                 accept=".pdf,.txt,.md,.markdown,.text,.docx,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+                 accept=".pdf,.txt,.md,.markdown,.text,.docx,.html,.htm,.xhtml,application/pdf,text/plain,text/markdown,text/html,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
           <div class="tbar">
             <div class="ctrls">
               <button class="pick-btn" id="scopeBtn" aria-haspopup="listbox" aria-expanded="false" title="Which folders to ask, or to feed">
@@ -2167,7 +2192,7 @@
             </div>
             <span class="t" id="tHint"></span>
             <div class="tools">
-              <button class="paste" id="fileBtn" hidden title="Read a PDF, a Word file or a text file into the content">+ document</button>
+              <button class="paste" id="fileBtn" hidden title="Read a PDF, a Word file, a web page or a text file into the content">+ document</button>
             </div>
             <button class="mic" id="micBtn" type="button" aria-label="Talk" aria-pressed="false" title="Talk instead of typing">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="1.75" width="5" height="8" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/></svg>
@@ -2814,7 +2839,12 @@ function chatRow(c){
   const job = S.jobs.find(j => j.key === c.id && (j.status === "running" || !j.seen));
   if (job){ const d = el("span","cr-dot" + (job.status === "running" ? " run" : "")); d.title = job.status === "running" ? "On its way" : "Answer unread"; row.append(d); }
   row.title = c.title;
-  const open = () => { if (S.chatId !== c.id) openChat(c.id); else closeSide(); };
+  /* The chat already current still has to bring its screen back when a project, a folder or Drop is on top of it. */
+  const open = () => {
+    if (S.chatId !== c.id) openChat(c.id);
+    else if (S.project || S.folder || S.mode === "drop"){ S.folder = null; S.mode = "ask"; render(); closeSide(); }
+    else closeSide();
+  };
   row.onclick = open;
   row.onkeydown = e => { if (e.key === "Enter" && e.target === row) open(); };
 
@@ -6963,7 +6993,7 @@ async function docxText(file){
 /**
  * A dropped document becomes the content.
  *
- * PDF, Word, and anything that is already text. The file itself is never
+ * PDF, Word, a web page, and anything that is already text. The file itself is never
  * uploaded: it is read in this tab, and only the extraction ever reaches a
  * brain, which is the same rule a pasted transcript follows.
  */
@@ -6979,10 +7009,12 @@ async function readDocument(file){
   try {
     if (ext === "pdf") return { name, text: await pdfText(file, say) };
     if (ext === "docx") return { name, text: await docxText(file) };
+    /* A web page is read for its words, not its tags. */
+    if (["html", "htm", "xhtml"].includes(ext)) return { name, text: htmlToMd(await file.text()) };
     if (["txt", "md", "markdown", "text", "csv", "srt", "vtt"].includes(ext) || file.type.startsWith("text/")) {
       return { name, text: (await file.text()).trim() };
     }
-    throw new Error(`${name} is a .${ext}. PDF, Word, and text files are read here.`);
+    throw new Error(`${name} is a .${ext}. PDF, Word, HTML and text files are read here.`);
   } finally {
     say("+ document");
   }
@@ -7019,7 +7051,7 @@ async function takeDocument(file){
    any size answers at the cost of the question. The chat can propose changes
    to the file; only a click applies them. */
 
-const PJ_FILES = ".pdf,.txt,.md,.markdown,.text,.docx,.csv,.tsv,.xlsx,.xls";
+const PJ_FILES = ".pdf,.txt,.md,.markdown,.text,.docx,.csv,.tsv,.xlsx,.xls,.html,.htm,.xhtml";
 const PJ_PIECE = 120000;            /* characters of a document sent at a time */
 const PJ_ROWS = 4000;               /* rows of a sheet sent at a time */
 const XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
@@ -7027,15 +7059,26 @@ const XLSX_SRI = "sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062
 const PJ_ICON = {
   doc: `<svg class="b-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>`,
   table: `<svg class="b-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="1"/><path d="M4 10h16M10 5v14"/></svg>`,
+  html: `<svg class="b-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 8l-4 4 4 4M15 8l4 4-4 4M13 6l-2 12"/></svg>`,
 };
+const pjIcon = k => PJ_ICON[k === "table" ? "table" : k === "html" ? "html" : "doc"];
+/** What a project's file is called: a document, a page or a table. */
+const pjNoun = k => k === "table" ? "table" : k === "html" ? "page" : "document";
 
 /* ---- reading a file in this tab ---- */
 
-/** Text with Markdown's marks, as a page of HTML: headings, lists, tables, bold, italic, a PDF's page marks. */
+/** Text with Markdown's marks, as a page of HTML: headings, lists inside lists, quotes, code, tables, bold, italic, links, a PDF's page marks. */
 function mdView(text){
-  const inline = s => esc(s).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+  const fmt = t => esc(t).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[\s(])\*([^*\s][^*]*?)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>").replace(/`([^`]+)`/g, "<code>$1</code>");
-  const out = []; let para = [], list = null, table = [];
+  /* A web address is a link only as [words](https://...): its own marks are never read as bold or italic. */
+  const inline = s => {
+    let html = "", last = 0;
+    const re = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+    for (let m; (m = re.exec(s));){ html += fmt(s.slice(last, m.index)) + `<a href="${esc(m[2])}" target="_blank" rel="noopener noreferrer">${fmt(m[1])}</a>`; last = m.index + m[0].length; }
+    return html + fmt(s.slice(last));
+  };
+  const out = []; let para = [], items = [], table = [], quote = [];
   /* A PDF or a plain text file breaks its lines where the page ended: a long line with no stop is read on into the next. */
   const flushP = () => {
     if (!para.length) return;
@@ -7043,7 +7086,21 @@ function mdView(text){
     out.push("<p>" + para.map((l, i) => (i ? (soft(para[i - 1]) ? " " : "<br>") : "") + inline(l)).join("") + "</p>");
     para = [];
   };
-  const flushL = () => { if (list){ out.push(`<${list.t}>` + list.items.map(i => `<li>${inline(i)}</li>`).join("") + `</${list.t}>`); list = null; } };
+  /* Items carry how far they are indented; a deeper item opens a list inside the one above it. */
+  const flushL = () => {
+    if (!items.length) return;
+    let html = ""; const st = [];
+    for (const it of items){
+      while (st.length && it.indent < st[st.length - 1].indent) html += `</li></${st.pop().t}>`;
+      const top = st[st.length - 1];
+      if (!top || it.indent > top.indent){ html += `<${it.t}${it.t === "ol" && it.num > 1 ? ` start="${it.num}"` : ""}>`; st.push({ t: it.t, indent: it.indent }); }
+      else { html += "</li>"; if (top.t !== it.t){ html += `</${top.t}><${it.t}>`; top.t = it.t; } }
+      html += `<li>${inline(it.text)}`;
+    }
+    while (st.length) html += `</li></${st.pop().t}>`;
+    out.push(html); items = [];
+  };
+  const flushQ = () => { if (quote.length){ out.push("<blockquote><p>" + quote.map(inline).join(" ") + "</p></blockquote>"); quote = []; } };
   const cells = r => r.replace(/^\||\|$/g, "").split("|").map(c => c.trim());
   const flushT = () => {
     if (!table.length) return;
@@ -7053,54 +7110,120 @@ function mdView(text){
       "<tbody>" + body.map(r => "<tr>" + cells(r).map(c => `<td>${inline(c)}</td>`).join("") + "</tr>").join("") + "</tbody></table></div>");
     table = [];
   };
-  const flush = () => { flushP(); flushL(); flushT(); };
+  const flush = () => { flushP(); flushL(); flushT(); flushQ(); };
+  let code = null;
   for (const raw of String(text ?? "").replace(/\r/g, "").split("\n")){
     const line = raw.trimEnd(), t = line.trim();
+    /* A fence opens a block of code, shown as it is written, and runs to the next fence. */
+    if (/^```/.test(t)){
+      if (code){ out.push("<pre><code>" + esc(code.join("\n")) + "</code></pre>"); code = null; }
+      else { flush(); code = []; }
+      continue;
+    }
+    if (code){ code.push(line); continue; }
     const pg = /^\[\[p\. (\d+)\]\]$/.exec(t);
     if (pg){ flush(); out.push(`<div class="pj-pg">p. ${pg[1]}</div>`); continue; }
     if (!t){ flush(); continue; }
+    if (/^([-*_])\1{2,}$/.test(t)){ flush(); out.push("<hr>"); continue; }
     const h = /^(#{1,3})\s+(.+)$/.exec(t);
     if (h){ flush(); out.push(`<h${h[1].length + 1}>${inline(h[2])}</h${h[1].length + 1}>`); continue; }
-    const ul = /^[-*•]\s+(.+)$/.exec(t), ol = /^(\d+)[.)]\s+(.+)$/.exec(t);
-    if (ul || ol){ flushP(); flushT(); const kind = ul ? "ul" : "ol"; if (!list || list.t !== kind){ flushL(); list = { t: kind, items: [] }; } list.items.push(ul ? ul[1] : ol[2]); continue; }
-    if (/^\|.*\|$/.test(t)){ flushP(); flushL(); table.push(t); continue; }
-    flushL(); flushT(); para.push(t);
+    const q = /^>\s?(.*)$/.exec(t);
+    if (q){ flushP(); flushL(); flushT(); quote.push(q[1]); continue; }
+    const li = /^(\s*)([-*•]|(\d+)[.)])\s+(.+)$/.exec(line);
+    if (li){ flushP(); flushT(); flushQ(); items.push({ t: li[3] ? "ol" : "ul", num: Number(li[3] || 0), indent: li[1].replace(/\t/g, "    ").length, text: li[4] }); continue; }
+    if (/^\|.*\|$/.test(t)){ flushP(); flushL(); flushQ(); table.push(t); continue; }
+    flushL(); flushT(); flushQ(); para.push(t);
   }
+  if (code) out.push("<pre><code>" + esc(code.join("\n")) + "</code></pre>");
   flush();
   return out.join("");
 }
 
-/** Word's HTML as Markdown: headings, paragraphs, lists, tables, bold and italic. */
+/**
+ * HTML as Markdown: headings, paragraphs, lists inside lists, tables, quotes,
+ * code, links, bold and italic. Word's own HTML comes through it, and so does
+ * a page saved from the web: scripts, styles, menus and forms are left out,
+ * the main part is kept, and text that sits loose in a block is still text.
+ */
 function htmlToMd(html){
-  const d = new DOMParser().parseFromString(html, "text/html"), out = [];
-  const text = n => (n.textContent || "").replace(/\s+/g, " ").trim();
-  const inl = n => {
+  const d = new DOMParser().parseFromString(html, "text/html");
+  const title = (d.querySelector("title")?.textContent || "").replace(/\s+/g, " ").trim();
+  for (const x of d.querySelectorAll("script,style,noscript,template,iframe,svg,canvas,link,meta,[hidden],[aria-hidden='true']")) x.remove();
+  const root = d.querySelector("main,article,[role='main']") || d.body;
+  const SKIP = new Set(["NAV","FOOTER","ASIDE","FORM","BUTTON","SELECT","TEXTAREA","INPUT","DIALOG","IMG","HEAD"]);
+  const BLOCK = new Set(["P","DIV","SECTION","ARTICLE","MAIN","HEADER","LI","UL","OL","TABLE","TR","TD","TH","BLOCKQUOTE","PRE","H1","H2","H3","H4","H5","H6","DL","DT","DD","FIGURE","FIGCAPTION","ADDRESS","CENTER","HR","BODY"]);
+  const space = t => t.replace(/[ \t\r\f\u00a0]+/g, " ");
+  /* The inline text of a node, with its bold, italic, code and links marked. A block inside it reads as a break. */
+  const inl = (n, noLists) => {
     let s = "";
     for (const c of n.childNodes){
       if (c.nodeType === 3){ s += c.nodeValue.replace(/\s+/g, " "); continue; }
       if (c.nodeType !== 1) continue;
-      const t = c.tagName.toLowerCase(), inner = inl(c), core = inner.trim();
-      s += (t === "strong" || t === "b") && core ? `**${core}**` : (t === "em" || t === "i") && core ? `*${core}*` : t === "br" ? "\n" : inner;
+      const t = c.tagName;
+      if (t === "BR"){ s += "\n"; continue; }
+      if (SKIP.has(t) || (noLists && (t === "UL" || t === "OL"))) continue;
+      const inner = inl(c, noLists), core = inner.trim();
+      if (BLOCK.has(t)){ s += " " + inner + " "; continue; }
+      if (!core){ s += /\s/.test(inner) ? " " : ""; continue; }
+      const pre = /^\s/.test(inner) ? " " : "", post = /\s$/.test(inner) ? " " : "";
+      if (t === "A"){ const h = c.getAttribute("href") || ""; s += /^https?:\/\//i.test(h) ? `${pre}[${core}](${h})${post}` : inner; }
+      else if (t === "STRONG" || t === "B") s += `${pre}**${core}**${post}`;
+      else if (t === "EM" || t === "I") s += `${pre}*${core}*${post}`;
+      else if (t === "CODE" || t === "KBD" || t === "SAMP") s += `${pre}\`${core}\`${post}`;
+      else s += inner;
     }
     return s;
   };
-  const block = n => {
-    if (n.nodeType !== 1) return;
-    const t = n.tagName.toLowerCase();
-    if (/^h[1-6]$/.test(t)) out.push("#".repeat(Math.min(3, Number(t[1]))) + " " + text(n));
-    else if (t === "p"){ const s = inl(n).trim(); if (s) out.push(s); }
-    else if (t === "ul" || t === "ol") out.push([...n.children].filter(li => li.tagName === "LI").map((li, i) => (t === "ol" ? `${i + 1}. ` : "- ") + inl(li).trim().replace(/\s*\n+\s*/g, " ")).join("\n"));
-    else if (t === "table"){
-      const rows = [...n.querySelectorAll("tr")].map(tr => [...tr.children].map(td => text(td).replace(/\|/g, "/")));
-      if (rows.length){
-        const w = rows.reduce((m, r) => Math.max(m, r.length), 0);
-        const pad = r => `| ${Array.from({ length: w }, (_, i) => r[i] ?? "").join(" | ")} |`;
-        out.push([pad(rows[0]), `| ${Array(w).fill("---").join(" | ")} |`, ...rows.slice(1).map(pad)].join("\n"));
+  const line = t => space(t).replace(/ *\n */g, "\n").replace(/\n{2,}/g, "\n").trim();
+  /* A node's blocks, in order. Loose inline text gathers into a paragraph and ends at the next block. */
+  const blocks = node => {
+    const out = []; let run = "";
+    const flush = () => { const t = line(run); if (t) out.push(t); run = ""; };
+    const list = (el, depth, lines) => {
+      let i = 0;
+      for (const li of el.children){
+        if (li.tagName !== "LI") continue;
+        i++;
+        const own = line(inl(li, true)).replace(/\s*\n\s*/g, " ");
+        if (own) lines.push(`${"  ".repeat(depth)}${el.tagName === "OL" ? i + "." : "-"} ${own}`);
+        for (const sub of li.children) if (sub.tagName === "UL" || sub.tagName === "OL") list(sub, depth + 1, lines);
       }
-    } else for (const c of n.children) block(c);
+    };
+    const table = t => {
+      const rows = [...t.querySelectorAll("tr")].filter(tr => tr.closest("table") === t)
+        .map(tr => [...tr.children].filter(c => /^T[DH]$/.test(c.tagName)));
+      const w = rows.reduce((m, r) => Math.max(m, r.length), 0);
+      if (!w) return;
+      /* A layout table, one column wide or holding other tables, is read as the blocks it holds. */
+      if (w < 2 || t.querySelector("table")){ for (const r of rows) for (const c of r) out.push(...blocks(c)); return; }
+      const cell = c => line(inl(c)).replace(/\s*\n\s*/g, " ").replace(/\|/g, "/");
+      const pad = r => `| ${Array.from({ length: w }, (_, i) => r[i] ? cell(r[i]) : "").join(" | ")} |`;
+      out.push([pad(rows[0]), `| ${Array(w).fill("---").join(" | ")} |`, ...rows.slice(1).map(pad)].join("\n"));
+    };
+    const walk = n => {
+      if (n.nodeType === 3){ run += n.nodeValue.replace(/\s+/g, " "); return; }
+      if (n.nodeType !== 1) return;
+      const t = n.tagName;
+      if (SKIP.has(t)) return;
+      if (/^H[1-6]$/.test(t)){ flush(); const s = line(inl(n)).replace(/\s*\n\s*/g, " "); if (s) out.push("#".repeat(Math.min(3, Number(t[1]))) + " " + s); return; }
+      if (t === "UL" || t === "OL"){ flush(); const lines = []; list(n, 0, lines); if (lines.length) out.push(lines.join("\n")); return; }
+      if (t === "TABLE"){ flush(); table(n); return; }
+      if (t === "PRE"){ flush(); const c = n.textContent.replace(/\s+$/, ""); if (c.trim()) out.push("```\n" + c + "\n```"); return; }
+      if (t === "HR"){ flush(); return; }
+      if (t === "BLOCKQUOTE"){ flush(); const inner = blocks(n).join("\n\n"); if (inner) out.push(inner.split("\n").map(l => "> " + l).join("\n")); return; }
+      if (BLOCK.has(t)){ flush(); for (const c of n.childNodes) walk(c); flush(); return; }
+      /* An inline element read in place keeps its marks. */
+      if (n.children.length === 0 || [...n.children].every(c => !BLOCK.has(c.tagName))){ run += inl({ childNodes: [n] }); return; }
+      for (const c of n.childNodes) walk(c);
+    };
+    for (const c of node.childNodes) walk(c);
+    flush();
+    return out;
   };
-  for (const c of d.body.children) block(c);
-  return out.join("\n\n").trim();
+  const out = blocks(root);
+  /* A page without a heading of its own is named by its title. */
+  if (title && !root.querySelector("h1") && !out.some(b => /^# /.test(b))) out.unshift("# " + title.slice(0, 150));
+  return out.join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 /** A Word file as Markdown. */
@@ -7197,8 +7320,9 @@ async function readProjectFile(file, say){
     return tableOf(name, [{ name: name.replace(/\.[^.]+$/, ""), rows: parseDelimited(text, sep) }]);
   }
   if (ext === "xlsx" || ext === "xls"){ say("Loading the Excel reader"); return tableOf(name, await workbookSheets(file)); }
+  if (["html", "htm", "xhtml"].includes(ext)) return { kind: "html", name, text: (await file.text()).trim() };
   if (["txt", "md", "markdown", "text"].includes(ext) || file.type.startsWith("text/")) return { kind: "doc", name, text: (await file.text()).trim() };
-  throw new Error(`${name} is a .${ext}. A project reads Word, PDF, text, Markdown, Excel and CSV files.`);
+  throw new Error(`${name} is a .${ext}. A project reads Word, PDF, text, Markdown, HTML, Excel and CSV files.`);
 }
 
 /** A text cut in pieces of about `max` characters, on paragraph breaks. */
@@ -7216,12 +7340,12 @@ function cutText(t, max){
 /** The file sent to the server a piece at a time. `step` says where it stands. */
 async function uploadProject(slug, got, step){
   /* What a project holds is said before the first piece goes, not after most of them have. */
-  if (got.kind === "doc" && got.text.length > 12000000) throw new Error(`${got.name} is longer than a project reads: about 4,000 pages.`);
+  if (got.kind !== "table" && got.text.length > 12000000) throw new Error(`${got.name} is longer than a project reads: about 4,000 pages.`);
   if (got.kind === "table" && got.sheets.reduce((n, s) => n + s.rows.reduce((a, r) => a + r.reduce((b, c) => b + c.length + 1, 0), 0), 0) > 6000000)
     throw new Error(`${got.name} is bigger than a project reads: about 40,000 rows of 10 columns.`);
   const begin = await api("/api/project/begin", { brain: slug, name: got.name, kind: got.kind,
     ...(got.kind === "table" ? { sheets: got.sheets.map(s => ({ name: s.name, header: s.header })) } : {}) });
-  if (got.kind === "doc"){
+  if (got.kind !== "table"){
     const pieces = cutText(got.text, PJ_PIECE);
     if (!pieces.length) throw new Error(`${got.name} gave no text. A scanned PDF holds pictures of words, so it needs its text.`);
     let page = 0;
@@ -7253,12 +7377,12 @@ function renderProjects(){
   panel.hidden = S.demo;
   const box = $("projects"); box.innerHTML = "";
   $("pcount").textContent = S.projects.length || "";
-  if (!S.projects.length){ box.append(el("div","empty-side","None yet. A project holds one file or one table, with a chat beside it.")); return; }
+  if (!S.projects.length){ box.append(el("div","empty-side","None yet. A project holds one file, table or page, with a chat beside it.")); return; }
   for (const p of S.projects){
     const row = el("button","brain-row self pj-row" + (S.project === p.slug ? " on" : "") + (p.status === "reading" ? " run" : ""));
-    const tick = el("span","tick"); tick.innerHTML = PJ_ICON[p.kind === "table" ? "table" : "doc"];
+    const tick = el("span","tick"); tick.innerHTML = pjIcon(p.kind);
     row.append(tick, el("span","nm",p.name), el("span","cnt", p.status === "reading" ? "reading" : p.memory ? String(p.memory) : ""));
-    row.title = p.file ? `${p.file}\n${p.kind === "table" ? "A table" : p.sections + " sections"}, ${p.memory} kept in memory` : "No file yet";
+    row.title = p.file ? `${p.file}\n${!p.chars ? "Empty: describe it in the chat" : p.kind === "table" ? "A table" : p.kind === "html" ? "A page" : p.sections + " sections"}, ${p.memory} kept in memory` : "No file yet";
     row.onclick = () => openProject(p.slug);
     box.append(row);
   }
@@ -7287,6 +7411,8 @@ async function loadProject(){
   /* A project with no file opens on the file side, where the drop is. */
   if (!d.file || d.file.status !== "ready") pj.seg = "doc";
   paintProject();
+  /* A file made here and not written yet waits for a description. */
+  if (d.file?.status === "ready" && !d.file.chars && window.matchMedia("(min-width: 861px)").matches) pj.input?.focus();
 }
 /** The project's list entry, kept in step after a change. */
 async function syncProjects(){ try { S.projects = (await api("/api/project/list")).projects || S.projects; } catch { /* the list catches up at the next refresh */ } renderProjects(); }
@@ -7298,7 +7424,7 @@ function paintProject(){
   if (!pj.data){ host.append(el("div","pj-loading","Opening the project")); return; }
   const root = el("div","pj"); root.dataset.seg = pj.seg; pj.root = root;
   const seg = el("div","pj-seg");
-  const kind = pj.data.file?.kind === "table" ? "Table" : "Document";
+  const kind = pj.data.file?.kind === "table" ? "Table" : pj.data.file?.kind === "html" ? "Page" : "Document";
   for (const [k, label] of [["doc", kind], ["chat", "Chat"]]){
     const b = el("button", pj.seg === k ? "on" : "", label); b.type = "button";
     b.onclick = () => { pj.seg = k; root.dataset.seg = k; [...seg.children].forEach(x => x.classList.toggle("on", x === b)); if (k === "doc"){ fillDoc(); fillGrid(); } };
@@ -7314,12 +7440,19 @@ function showDoc(){
   [...pj.root.querySelector(".pj-seg").children].forEach((x, i) => x.classList.toggle("on", i === 0));
   fillDoc(); fillGrid();
 }
+function showChat(){
+  const pj = S.pj; if (!pj?.root) return;
+  pj.seg = "chat"; pj.root.dataset.seg = "chat";
+  [...pj.root.querySelector(".pj-seg").children].forEach((x, i) => x.classList.toggle("on", i === 1));
+  pj.tab = "chat"; paintSide();
+  pj.input?.focus();
+}
 
 /* ---- the file, on the left ---- */
 
 function docPane(){
   const pj = S.pj, d = pj.data, f = d.file;
-  pj.page = pj.grid = pj.more = null;
+  pj.page = pj.grid = pj.more = pj.web = null;
   const pane = el("section","pj-doc");
   const h = el("div","pj-h"), t = el("div","pj-t");
   const title = el("h2",null,d.project.name); title.title = "Rename the project"; title.onclick = renameProject;
@@ -7328,16 +7461,65 @@ function docPane(){
   h.append(t);
   const acts = el("div","pj-acts");
   const btn = (label, fn, cls) => { const b = el("button","pj-b" + (cls ? " " + cls : ""),label); b.type = "button"; b.onclick = fn; acts.append(b); };
-  if (f?.status === "ready" && f.kind === "doc" && f.sections > 1) btn("Contents", openContents);
-  btn(f ? (f.kind === "table" ? "Replace table" : "Replace file") : "Add a file", () => chooseFile());
-  if (f?.status === "ready") btn("Download", downloadFile);
+  const ready = f?.status === "ready", written = ready && f.chars > 0;
+  if (written && f.kind === "html"){
+    /* A page is read as it renders, or as its code. */
+    const view = el("div","pj-view"); pj.viewBtns = [];
+    for (const [k, label] of [["page","Page"],["code","Code"]]){
+      const b = el("button", (pj.view || "page") === k ? "on" : "", label); b.type = "button";
+      b.onclick = () => { pj.view = k; applyView(); };
+      view.append(b); pj.viewBtns.push([k, b]);
+    }
+    acts.append(view);
+  }
+  if (written && f.kind === "doc" && f.sections > 1) btn("Contents", openContents);
+  btn(f ? (f.kind === "table" ? "Replace table" : f.kind === "html" ? "Replace page" : "Replace file") : "Add a file", () => chooseFile());
+  if (written) btn("Download", downloadFile);
   btn("Delete", deleteProject, "bad");
   h.append(acts); pane.append(h);
   const body = el("div","pj-body"); pj.body = body; pane.append(body);
-  if (!f || f.status !== "ready") body.append(dropZone(f));
+  if (!f || !ready) body.append(dropZone(f));
+  else if (!written) body.append(emptyFile(f));
   else if (f.kind === "table") paintGrid(body);
+  else if (f.kind === "html") paintPage(body);
   else paintPaper(body);
   return pane;
+}
+
+/** A file made here and not written yet: what to do, and a way to start. */
+function emptyFile(f){
+  const z = el("div","pj-empty");
+  z.append(el("h3",null,`This ${pjNoun(f.kind)} is empty`),
+    el("p",null,`Describe it in the chat. The chat writes it here, and changes it as you go. You can undo any change.`));
+  const b = el("button","go","Describe it"); b.type = "button"; b.onclick = () => showChat();
+  z.append(b);
+  return z;
+}
+
+/** A page: its code run in a frame of its own, which can reach nothing of this app; or its code as text. */
+function paintPage(body){
+  const pj = S.pj;
+  body.classList.add("web");
+  const frame = el("iframe","pj-frame"); frame.title = "The page"; frame.setAttribute("sandbox","allow-scripts allow-popups");
+  const code = el("pre","pj-code");
+  body.append(frame, code);
+  pj.web = { frame, code };
+  applyView();
+  loadPage();
+}
+function applyView(){
+  const pj = S.pj, w = pj?.web; if (!w) return;
+  const code = pj.view === "code";
+  w.frame.hidden = code; w.code.hidden = !code;
+  for (const [k, b] of pj.viewBtns || []) b.classList.toggle("on", (pj.view || "page") === k);
+}
+async function loadPage(){
+  const pj = S.pj, w = pj?.web; if (!w) return;
+  try {
+    const r = await api("/api/project/download", { brain: pj.slug });
+    if (S.pj !== pj || pj.web !== w) return;
+    w.frame.srcdoc = r.text; w.code.textContent = r.text;
+  } catch (e){ w.code.textContent = e.message; pj.view = "code"; applyView(); }
 }
 
 function dropZone(f){
@@ -7550,7 +7732,7 @@ function chatPane(){
   pane.append(tabs);
   const thread = el("div","pj-thread"); pj.thread = thread; pane.append(thread);
   const comp = el("div","pj-comp");
-  const ta = el("textarea"); ta.rows = 1; ta.placeholder = `Ask about the ${d.file?.kind === "table" ? "table" : "file"}, or brainstorm. Your folders are read when they help.`; ta.setAttribute("aria-label", "Message to the project");
+  const ta = el("textarea"); ta.rows = 1; ta.placeholder = askHint(d.file); ta.setAttribute("aria-label", "Message to the project");
   const send = el("button","pj-send"); send.type = "button"; send.setAttribute("aria-label", "Send"); send.disabled = true;
   send.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M8 3L4 7M8 3l4 4"/></svg>`;
   const size = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 170) + "px"; send.disabled = !ta.value.trim() || pj.busy || !pj.data.file || pj.data.file.status !== "ready"; };
@@ -7561,6 +7743,14 @@ function chatPane(){
   comp.append(ta, send); pane.append(comp);
   pj.comp = comp; pj.input = ta; pj.size = size;
   return pane;
+}
+
+/** What the message bar invites: a question about the file, or a description of one to make. */
+function askHint(f){
+  if (!f || f.status !== "ready") return "Add a file first, then ask about it here.";
+  const n = pjNoun(f.kind);
+  return f.chars ? `Ask about the ${n}, or ask for a change. Your folders are read when they help.`
+    : `Describe the ${n} you want. It is written here, then changed as you go.`;
 }
 
 function paintTabs(){
@@ -7582,15 +7772,20 @@ function paintSide(){
   if (pj.tab === "memory"){ paintMemory(box); return; }
   const turns = pj.data.turns;
   if (!turns.length){
-    const f = pj.data.file, tbl = f?.kind === "table";
+    const f = pj.data.file, tbl = f?.kind === "table", blank = f?.status === "ready" && !f.chars;
     const hint = el("div","pj-hint");
     hint.textContent = !f ? "Add the file or the table this project is built on, then ask about it here."
       : f.status !== "ready" ? "The file was not finished. Add it again."
+      : blank ? `Describe the ${pjNoun(f.kind)} you want. The chat writes it in the file beside this, then changes it as you go. Every change can be undone.`
+      : f.made ? `Ask for a change and it is made at once, with an Undo. Ask a question and you get the answer first, then what it rests on.`
       : `Ask about the ${tbl ? "table" : "file"}. Ask for a brainstorm and you get a proposal, with where each point comes from. Ask for a change and you see it before it is made.`;
     box.append(hint);
     if (f?.status === "ready"){
       const tries = el("div","pj-try");
-      for (const q of tbl ? ["Which rows stand out, and why?", "Brainstorm: what should I change in this table?"]
+      for (const q of blank ? (tbl ? ["A table of my monthly expenses, with a category, an amount and a date", "A content calendar for the next four weeks"]
+          : f.kind === "html" ? ["A landing page for my coaching business: a hero, three offers and a contact form", "A one page résumé with my experience and skills"]
+          : ["A one page project brief: goal, scope, risks and next steps", "A meeting notes template with decisions and actions"])
+        : tbl ? ["Which rows stand out, and why?", "Brainstorm: what should I change in this table?"]
         : ["Summarise this in five lines.", "Brainstorm: what is missing from this?"]){
         const b = el("button",null,q); b.type = "button"; b.onclick = () => { pj.input.value = q; pj.size(); pj.input.focus(); };
         tries.append(b);
@@ -7609,18 +7804,21 @@ function rowsLine(rows){
   return `rows ${shown}${rows.length > 6 ? ` and ${rows.length - 6} more` : ""}`;
 }
 function usedChips(t){
-  const u = t.used; if (!u) return null;
+  const u = t.used || (t.noted?.length ? {} : null); if (!u) return null;
   const box = el("div","pj-used");
   const f = u.file;
-  if (f){
+  /* A file not opened for this message shows no chip. */
+  if (f && (f.whole || f.map || f.rows?.length || f.sections?.length)){
     const what = f.rows?.length ? `: ${rowsLine(f.rows)}`
-      : f.sections?.length ? `: ${f.sections.slice(0, 2).map(s => s.title).join(" · ")}${f.sections.length > 2 ? ` +${f.sections.length - 2}` : ""}` : "";
+      : f.sections?.length ? `: ${f.sections.slice(0, 2).map(s => s.title).join(" · ")}${f.sections.length > 2 ? ` +${f.sections.length - 2}` : ""}`
+      : f.map ? ": its contents" : "";
     const b = el("button",null,`${f.name}${what}`); b.type = "button"; b.title = "Show it in the file";
     b.onclick = () => focusUsed(t, true);
     box.append(b);
   }
   for (const c of u.folders || []) box.append(el("span",null,`${c.name} folder · ${c.notes} note${c.notes === 1 ? "" : "s"}`));
   if (u.memory) box.append(el("span",null,`Memory · ${u.memory} note${u.memory === 1 ? "" : "s"}`));
+  if (Array.isArray(t.noted) && t.noted.length) box.append(el("span","noted",`Noted: ${t.noted.slice(0, 2).join(", ")}`));
   return box.children.length ? box : null;
 }
 
@@ -7629,7 +7827,12 @@ function turnEl(t){
   w.append(el("div","pj-q",t.q));
   const a = el("div","pj-a" + (t.proposal ? " prop" : ""));
   if (t.proposal) a.append(el("div","pj-k","Proposal"));
-  const md = el("div","pj-md"); md.innerHTML = mdView(t.a); a.append(md);
+  if (t.lead){
+    const lead = el("div","pj-lead"), line = el("div","pj-ld");
+    line.innerHTML = mdView(t.lead);
+    lead.append(el("span","pj-tl","TL;DR"), line); a.append(lead);
+  }
+  if (t.a){ const md = el("div","pj-md"); md.innerHTML = mdView(t.a); a.append(md); }
   if (t.edit) a.append(editCard(t));
   const chips = usedChips(t); if (chips) a.append(chips);
   const acts = el("div","pj-tact");
@@ -7659,8 +7862,10 @@ async function sendProject(q){
     const r = await api("/api/project/chat", { brain: pj.slug, q });
     if (S.pj !== pj) return;
     pj.data.turns = [...pj.data.turns, r.turn].slice(-10);
-    if (r.turn.edit) pj.data.edits = [{ id: r.turn.edit.id, at: Date.now(), status: "open", preview: r.turn.edit.preview }, ...pj.data.edits].slice(0, 10);
+    if (r.turn.edit) pj.data.edits = [{ id: r.turn.edit.id, at: Date.now(), status: r.turn.edit.status || "open", preview: r.turn.edit.preview }, ...pj.data.edits].slice(0, 10);
     w.replaceWith(turnEl(r.turn));
+    if (r.turn.edit?.status === "applied") { try { await refreshFile(); } catch { /* the page catches up at the next look */ } }
+    if (r.turn.noted?.length) refreshMemory();
     focusUsed(r.turn, false);
   } catch (e){
     if (S.pj !== pj) return;
@@ -7673,6 +7878,18 @@ async function sendProject(q){
 }
 
 /* ---- keeping, remembering, forgetting ---- */
+
+/** What the project remembers, read again after a message noted something. */
+async function refreshMemory(){
+  const pj = S.pj; if (!pj) return;
+  try {
+    const d = await api("/api/project/get", { brain: pj.slug });
+    if (S.pj !== pj) return;
+    pj.data.memory = d.memory; paintTabs();
+    if (pj.tab === "memory") paintSide();
+    syncProjects();
+  } catch { /* the list catches up the next time the project opens */ }
+}
 
 async function keepTurn(t, btn){
   const pj = S.pj;
@@ -7690,10 +7907,11 @@ async function keepTurn(t, btn){
 }
 function paintMemory(box){
   const pj = S.pj, mem = pj.data.memory;
-  if (!mem.length){ box.append(el("div","pj-hint","Nothing kept yet. Press Keep in memory under an answer, and the project files what it says here, in the format a folder has.")); return; }
+  if (!mem.length){ box.append(el("div","pj-hint","Nothing kept yet. The project writes a note on its file when it is read in, and files what you decide as you chat. Keep in memory under an answer files that answer too. Notes have the format a folder has.")); return; }
   for (const m of mem){
     const c = el("div","pj-mem");
-    c.append(el("b",null,m.title), el("p",null,m.position || m.summaryLine || ""), el("small",null,[m.updated, ...(m.dates || [])].filter((x, i, l) => x && l.indexOf(x) === i).slice(0, 3).join(" · ")));
+    c.append(el("b",null,m.title), el("p",null,m.position || m.summaryLine || ""),
+      el("small",null,[m.title === "The file" ? "From the file" : "", m.updated, ...(m.dates || [])].filter((x, i, l) => x && l.indexOf(x) === i).slice(0, 3).join(" · ")));
     const x = el("button","pj-b","Forget"); x.type = "button";
     x.onclick = async () => {
       x.disabled = true;
@@ -7749,8 +7967,10 @@ async function refreshFile(){
   const d = await api("/api/project/get", { brain: pj.slug });
   if (S.pj !== pj) return;
   pj.data.file = d.file; pj.data.cards = d.cards; pj.data.edits = d.edits;
-  pj.body.innerHTML = ""; pj.body.classList.remove("tbl");
-  if (d.file?.kind === "table") paintGrid(pj.body); else paintPaper(pj.body);
+  const old = pj.root?.querySelector(".pj-doc");
+  if (old) old.replaceWith(docPane());
+  if (pj.input) pj.input.placeholder = askHint(pj.data.file);
+  syncProjects();
 }
 
 /* ---- the file's own actions ---- */
@@ -7804,8 +8024,10 @@ async function downloadFile(){
   try {
     const r = await api("/api/project/download", { brain: pj.slug, sheet: f.kind === "table" ? pj.sheet : 0 });
     const base = String(r.name).replace(/\.[^.]+$/, "");
-    const name = r.kind === "table" ? `${base}${f.sheets.length > 1 ? " - " + r.sheet : ""}.csv` : /\.(md|markdown|txt)$/i.test(r.name) ? r.name : `${base}.md`;
-    const blob = new Blob([r.text], { type: r.kind === "table" ? "text/csv;charset=utf-8" : "text/markdown;charset=utf-8" });
+    const name = r.kind === "table" ? `${base}${f.sheets.length > 1 ? " - " + r.sheet : ""}.csv`
+      : r.kind === "html" ? (/\.(html?|xhtml)$/i.test(r.name) ? r.name : `${base}.html`)
+      : /\.(md|markdown|txt)$/i.test(r.name) ? r.name : `${base}.md`;
+    const blob = new Blob([r.text], { type: r.kind === "table" ? "text/csv;charset=utf-8" : r.kind === "html" ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   } catch (e){ pjNote(e.message); }
@@ -7858,10 +8080,12 @@ function openProjectSheet(){
   closeSide();
   const veil = el("div","veil");
   veil.innerHTML = `<div class="sheet roomy" role="dialog" aria-modal="true" aria-labelledby="npTitle">
-    <header><h3 id="npTitle">New project</h3><p>One file or one table, with a chat beside it and a memory of its own. Only this project and your personal folder read that memory.</p></header>
+    <header><h3 id="npTitle">New project</h3><p>One file, table or page, with a chat beside it and a memory of its own. Only this project and your personal folder read that memory.</p></header>
     <div class="f"><label for="npName">Name</label><input id="npName" autocomplete="off" maxlength="60"></div>
-    <div class="f"><label>The file or the table</label><div class="pj-pick"><button class="ghost" id="npPick" type="button">Choose a file</button><span class="pj-file" id="npFile">Word, PDF, text, Markdown, Excel or CSV</span></div>
+    <div class="f"><label>A file or a table you have</label><div class="pj-pick"><button class="ghost" id="npPick" type="button">Choose a file</button><span class="pj-file" id="npFile">Word, PDF, text, Markdown, HTML, Excel or CSV</span></div>
       <div class="hint">A file of any length works: it is filed in sections, and a question opens only the ones it needs.</div></div>
+    <div class="f"><label>Or start from nothing</label><div class="pj-make"><button class="ghost" data-make="doc" type="button">Document</button><button class="ghost" data-make="table" type="button">Table</button><button class="ghost" data-make="html" type="button">HTML page</button></div>
+      <div class="hint">Describe it in the chat. It is written, then changed as you go, and you can undo any change.</div></div>
     <div class="f"><div class="pj-step" id="npStep" role="status"></div><div class="bad" id="npBad"></div></div>
     <footer><button class="ghost" id="npCancel" type="button">Cancel</button><button class="go" id="npMake" type="button">Create project</button></footer></div>`;
   document.body.append(veil);
@@ -7876,25 +8100,28 @@ function openProjectSheet(){
     document.body.append(inp); inp.click();
   };
   cancel.onclick = shut; veil.onclick = e => { if (e.target === veil) shut(); };
-  make.onclick = async () => {
-    const nm = name.value.trim();
+  const start = veil.querySelectorAll("[data-make]");
+  const run = async (from) => {
+    const nm = name.value.trim() || (from ? `New ${pjNoun(from)}` : "");
     if (!nm){ name.focus(); return; }
-    busy = true; make.disabled = true; pick.disabled = true; cancel.disabled = true; bad.textContent = "";
+    busy = true; make.disabled = true; pick.disabled = true; cancel.disabled = true; start.forEach(b => { b.disabled = true; }); bad.textContent = "";
     let slug = "";
     try {
       /* The file is read first: one that cannot be read makes no project. */
-      const got = file ? await readProjectFile(file, t => { stepEl.textContent = t; }) : null;
-      slug = (await api("/api/project/new", { name: nm })).slug;
+      const got = !from && file ? await readProjectFile(file, t => { stepEl.textContent = t; }) : null;
+      slug = (await api("/api/project/new", { name: nm, ...(from ? { make: from } : {}) })).slug;
       if (got) await uploadProject(slug, got, t => { stepEl.textContent = t; });
       busy = false; veil.remove();
       await syncProjects();
       await openProject(slug);
     } catch (e){
-      busy = false; make.disabled = false; pick.disabled = false; cancel.disabled = false;
+      busy = false; make.disabled = false; pick.disabled = false; cancel.disabled = false; start.forEach(b => { b.disabled = false; });
       stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to add the file again.` : e.message;
       if (slug){ make.textContent = "Open the project"; make.onclick = async () => { veil.remove(); await syncProjects(); await openProject(slug); }; }
     }
   };
+  make.onclick = () => run("");
+  start.forEach(b => { b.onclick = () => run(b.dataset.make); });
   name.onkeydown = e => { if (e.key === "Enter") make.click(); };
   setTimeout(() => name.focus(), 30);
 }

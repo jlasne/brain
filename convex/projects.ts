@@ -15,8 +15,15 @@
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { readSpace, slug, today } from "./lib";
-import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8 } from "./sheet";
+import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
 import type { Col } from "./sheet";
+
+/** What a project's file can be: words, a page of HTML (words shown rendered), or a table. */
+export const FILE_KINDS = ["doc", "html", "table"];
+/** Rows one change may build a sheet from. */
+export const TABLE_OP_ROWS = 1000;
+/** A sheet this small has its column totals worked out again after a change. */
+const RECOUNT_CHARS = 1000000;
 
 /** Exchanges the running thread keeps. */
 export const THREAD_KEEP = 10;
@@ -57,7 +64,7 @@ export const projectsOf = internalQuery({
       const f = await fileOf(ctx, b.slug);
       const mem = await ctx.db.query("cards").withIndex("by_brain", (q: any) => q.eq("brain", b.slug)).collect();
       out.push({ slug: b.slug, name: b.name, created: b.created, kind: f?.kind ?? null, file: f?.name ?? "", status: f?.status ?? "empty",
-        chars: f?.chars ?? 0, sections: f?.parts ?? 0, memory: mem.length, at: f?.at ?? 0 });
+        made: !!f?.made, chars: f?.chars ?? 0, sections: f?.parts ?? 0, memory: mem.length, at: f?.at ?? 0 });
     }
     return out.sort((x, y) => y.at - x.at || x.name.localeCompare(y.name));
   },
@@ -80,7 +87,7 @@ export const projectGet = internalQuery({
       .map((e: any) => ({ id: String(e._id), at: e.at, status: e.status, preview: e.preview }));
     return {
       project: { slug: b.slug, name: b.name, created: b.created },
-      file: file ? { name: file.name, kind: file.kind, sheets: file.sheets, chars: file.chars, sections: file.parts, status: file.status, ver: file.ver, at: file.at } : null,
+      file: file ? { name: file.name, kind: file.kind, made: !!file.made, sheets: file.sheets, chars: file.chars, sections: file.parts, status: file.status, ver: file.ver, at: file.at } : null,
       cards: cards.map((c: any) => ({ sid: c.sid, ord: c.ord, sheet: c.sheet, title: c.title, summary: c.summary, chars: c.chars, ...(c.rows != null ? { rows: c.rows } : {}) })),
       turns: thread?.turns ?? [],
       edits,
@@ -299,7 +306,7 @@ export const fileBegin = internalMutation({
   args: { space: v.string(), brain: v.string(), name: v.string(), kind: v.string(), sheets: v.array(v.any()) },
   handler: async (ctx, a) => {
     await need(ctx, a.space, a.brain);
-    if (a.kind !== "doc" && a.kind !== "table") throw new Error("a file is a document or a table");
+    if (!FILE_KINDS.includes(a.kind)) throw new Error("a file is a document, a page or a table");
     const old = await fileOf(ctx, a.brain);
     const sheets = a.sheets.slice(0, 40).map((s: any) => ({ name: String(s?.name ?? "").slice(0, 60) || "Sheet",
       header: (Array.isArray(s?.header) ? s.header : []).slice(0, 60).map((x: any) => String(x ?? "").slice(0, 60)), cols: [], rows: 0 }));
@@ -307,6 +314,25 @@ export const fileBegin = internalMutation({
       chars: 0, parts: 0, next: 1, status: "reading", ver: (old?.ver ?? 0) + 1, at: Date.now() };
     if (old) await ctx.db.replace(old._id, doc); else await ctx.db.insert("projectFiles", doc);
     return { ver: doc.ver };
+  },
+});
+
+/**
+ * A project that starts from nothing: an empty file of the kind chosen, ready
+ * at once, for the chat to write by what the owner describes. Its changes
+ * apply as they come, since there is nothing to lose.
+ */
+export const fileMake = internalMutation({
+  args: { space: v.string(), brain: v.string(), kind: v.string(), name: v.string() },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    if (!FILE_KINDS.includes(a.kind)) throw new Error("make a document, a page or a table");
+    if (await fileOf(ctx, a.brain)) throw new Error("this project has a file already");
+    const name = a.name.replace(/\s+/g, " ").trim().slice(0, 200) || "Untitled";
+    await ctx.db.insert("projectFiles", { space: readSpace(a.space), brain: a.brain, name, kind: a.kind, made: true,
+      sheets: [{ name: a.kind === "table" ? "Sheet 1" : name.slice(0, 60), header: [], cols: [], rows: 0 }],
+      chars: 0, parts: 0, next: 1, status: "ready", ver: 1, at: Date.now() });
+    return { ver: 1 };
   },
 });
 
@@ -413,7 +439,8 @@ export const memoryForget = internalMutation({
 
 /** A change the model proposed, as written: checked in `check`, never trusted. */
 export type Op = { op: string; sid?: number; after?: number; find?: string; with?: string; text?: string; title?: string;
-  sheet?: number; row?: number; rows?: number[]; col?: string | number; value?: unknown; values?: Record<string, unknown> };
+  sheet?: number; row?: number; rows?: any; col?: string | number; value?: unknown; values?: Record<string, unknown>;
+  name?: string; columns?: string[] };
 
 const short = (t: string, n = 280) => { const s = String(t ?? "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n).replace(/\s+\S*$/, "") + "..." : s; };
 
@@ -432,12 +459,16 @@ async function check(ctx: any, brain: string, raw: any[]) {
   let chars = 0;
   const reject = (why: string) => { bad.push(why); };
   const pending = new Map<number, string>();   // a section changed twice in one go reads the first change
+  /* A sheet built whole in this change takes no other change in it. */
+  const rebuilt = new Set<number>();
+  const sheetOf = (o: any) => Math.max(0, Math.min(f.sheets.length - 1, Number(o?.sheet ?? 1) - 1 || 0));
+  if (f.kind === "table") for (const o of Array.isArray(raw) ? raw.slice(0, MAX_OPS) : []) if (String(o?.op ?? "").toLowerCase() === "table") rebuilt.add(sheetOf(o));
   for (const o of (Array.isArray(raw) ? raw : []).slice(0, MAX_OPS)) {
     const kind = String(o?.op ?? "").toLowerCase();
     const words = String(o?.with ?? o?.text ?? "");
-    chars += words.length + String(o?.find ?? "").length;
+    chars += words.length + String(o?.find ?? "").length + (kind === "table" && Array.isArray(o?.rows) ? o.rows.reduce((n: number, r: any) => n + (Array.isArray(r) ? r.join("").length : 0), 0) : 0);
     if (chars > EDIT_CHARS) { reject("that is more words than one change carries"); break; }
-    if (f.kind === "doc") {
+    if (f.kind !== "table") {
       const card = (sid: any) => cards.find((c: any) => c.sid === Number(sid) && c.sheet === 0);
       if (kind === "replace") {
         const c = card(o.sid), t = c ? (pending.get(c.sid) ?? await textOf(c.sid)) : undefined;
@@ -473,9 +504,22 @@ async function check(ctx: any, brain: string, raw: any[]) {
         preview.push({ label: `Remove "${c.title}"`, before: short(t), after: "" });
       } else reject(`"${kind}" is not a change a document takes`);
     } else {
-      const si = Math.max(0, Math.min(f.sheets.length - 1, Number(o?.sheet ?? 1) - 1 || 0));
+      const si = sheetOf(o);
       const sheet = f.sheets[si], cols: Col[] = sheet.cols ?? [];
       const sname = f.sheets.length > 1 ? ` (${sheet.name})` : "";
+      if (kind === "table") {
+        const names = colNames((Array.isArray(o.columns) ? o.columns : []).map((x: any) => String(x ?? "").slice(0, 60)).slice(0, 60));
+        if (!names.length || names.every((n: string) => /^Column \d+$/.test(n))) { reject("a table needs column names"); continue; }
+        const rows: string[][] = (Array.isArray(o.rows) ? o.rows : []).slice(0, TABLE_OP_ROWS)
+          .map((r: any) => Array.from({ length: names.length }, (_, i) => String((Array.isArray(r) ? r[i] : "") ?? "").slice(0, 2000)))
+          .filter((r: string[]) => r.some(c => c.trim()));
+        const name = short(String(o.name ?? ""), 60);
+        ops.push({ op: "table", sheet: si + 1, ...(name ? { name } : {}), columns: names, rows });
+        preview.push({ label: `${sheet.rows ? "Rebuild" : "New"} table${sname}`, before: sheet.rows ? `${sheet.rows} rows` : "",
+          after: `${names.length} column${names.length === 1 ? "" : "s"}: ${short(names.join(", "), 120)}. ${rows.length} row${rows.length === 1 ? "" : "s"}.` });
+        continue;
+      }
+      if (rebuilt.has(si)) { reject("that sheet is built whole in this change: it takes no other change in it"); continue; }
       if (kind === "set") {
         const row = Number(o.row), ci = colIndex(cols, o.col);
         const got = await rowsAt(ctx, brain, si, [row]);
@@ -498,7 +542,7 @@ async function check(ctx: any, brain: string, raw: any[]) {
         const after = o.after == null ? 0 : Number(o.after);
         const row = rowFrom(cols, (o.values && typeof o.values === "object") ? o.values as Record<string, unknown> : {});
         if (!row.some(c => c)) { reject("a new row needs values"); continue; }
-        if (!(sheet.rows > 0)) { reject("that sheet has no rows yet"); continue; }
+        if (!(sheet.rows > 0)) { reject("that sheet has no rows yet: build it with a table change"); continue; }
         if (after) { const got = await rowsAt(ctx, brain, si, [after]); if (!got.has(after)) { reject(`row ${after} is not in the table`); continue; } touched.add(got.get(after)!.sid); }
         ops.push({ op: "add", sheet: si + 1, after, values: Object.fromEntries(cols.map((c, i) => [c.name, row[i]]).filter(([, x]) => x)) });
         preview.push({ label: `New row ${after ? `after row ${after}` : "at the end"}${sname}`, before: "", after: short(row.join(" | "), 160) });
@@ -542,6 +586,20 @@ export const editDismiss = internalMutation({
   },
 });
 
+/** The characters a file holds, from its cards: what decides whether a question reads it whole. */
+const sizeOf = (cards: any[]) => cards.reduce((n: number, c: any) => n + (c.chars ?? 0), 0);
+
+/** A small sheet's column totals worked out again after a change, so the grid and the questions see what it holds now. */
+async function recount(ctx: any, brain: string, si: number) {
+  const f = await fileOf(ctx, brain);
+  const names = (f?.sheets?.[si]?.cols ?? []).map((c: Col) => c.name);
+  const cards = (await cardsOf(ctx, brain)).filter((c: any) => c.sheet === si);
+  if (!f || !names.length || sizeOf(cards) > RECOUNT_CHARS) return;
+  const rows: string[][] = [];
+  for (const c of cards) rows.push(...parseCsv((await ctx.db.query("projectSections").withIndex("by_brain_sid", (q: any) => q.eq("brain", brain).eq("sid", c.sid)).first())?.text ?? ""));
+  await ctx.db.patch(f._id, { sheets: f.sheets.map((s: any, i: number) => i === si ? { ...s, cols: columnsOf(names, rows) } : s) });
+}
+
 /** One section's card and words, read and written back whole. */
 async function sectionRow(ctx: any, brain: string, sid: number) {
   const card = await ctx.db.query("projectCards").withIndex("by_brain_sid", (q: any) => q.eq("brain", brain).eq("sid", sid)).first();
@@ -573,7 +631,7 @@ export const editApply = internalMutation({
       save({ sid, text: body.text, title: card.title, summary: card.summary, rows: card.rows ?? null, ord: card.ord, sheet: card.sheet });
       return { card, body };
     };
-    if (f.kind === "doc") {
+    if (f.kind !== "table") {
       for (const o of e.ops as Op[]) {
         if (o.op === "replace" || o.op === "rewrite") {
           const { card, body } = await touch(o.sid!);
@@ -600,7 +658,7 @@ export const editApply = internalMutation({
             title: (o.title || first.replace(/^#+\s*/, "")).slice(0, 90) || "New section", summary: short(text, 160), chars: text.length });
           await ctx.db.insert("projectSections", { brain: a.brain, sid, text });
           await ctx.db.patch(now._id, { next: sid + 1, chars: now.chars + text.length });
-          before.push({ sid, inserted: true });
+          before.push({ sid, inserted: true, wrote: fnv(text) });
         }
       }
     } else {
@@ -611,6 +669,30 @@ export const editApply = internalMutation({
       for (const o of e.ops as Op[]) bySheet.set((o.sheet ?? 1) - 1, [...(bySheet.get((o.sheet ?? 1) - 1) ?? []), o]);
       for (const [si, ops] of bySheet) {
         const sheet = f.sheets[si], cols: Col[] = sheet.cols ?? [];
+        const built = ops.find(x => x.op === "table");
+        if (built) {
+          /* The sheet is built whole: what it held goes, and comes back on Undo with its columns. */
+          const rows = (built.rows ?? []) as string[][], names = built.columns ?? [];
+          for (const c of (await cardsOf(ctx, a.brain)).filter((x: any) => x.sheet === si)) {
+            const { card, body } = await touch(c.sid);
+            await ctx.db.delete(card._id); await ctx.db.delete(body._id);
+            before.find(x => x.sid === c.sid)!.removed = true;
+          }
+          before.push({ meta: true, si, sheet });
+          const now = await fileOf(ctx, a.brain);
+          let sid = now.next;
+          for (const b of blocksOf(rows)) {
+            const text = csvOf(b);
+            await ctx.db.insert("projectCards", { brain: a.brain, sid, ord: sid, sheet: si, title: "Rows", summary: "", chars: text.length, rows: b.length });
+            await ctx.db.insert("projectSections", { brain: a.brain, sid, text });
+            before.push({ sid, inserted: true, wrote: fnv(text) });
+            sid++;
+          }
+          const mine = (await cardsOf(ctx, a.brain)).filter((x: any) => x.sheet === si);
+          await ctx.db.patch(now._id, { next: sid, sheets: now.sheets.map((s: any, i: number) => i === si
+            ? { ...s, name: built.name || s.name, header: names, cols: columnsOf(names, rows), rows: mine.reduce((n: number, x: any) => n + (x.rows ?? 0), 0) } : s) });
+          continue;
+        }
         const cards = (await cardsOf(ctx, a.brain)).filter((c: any) => c.sheet === si);
         const starts: number[] = []; let total = 0;
         for (const c of cards) { starts.push(total); total += c.rows ?? 0; }
@@ -650,13 +732,15 @@ export const editApply = internalMutation({
         const rowsNow = (await cardsOf(ctx, a.brain)).filter((c: any) => c.sheet === si).reduce((n: number, c: any) => n + (c.rows ?? 0), 0);
         const fresh = await fileOf(ctx, a.brain);
         await ctx.db.patch(fresh._id, { sheets: fresh.sheets.map((s: any, i: number) => i === si ? { ...s, rows: rowsNow } : s) });
+        await recount(ctx, a.brain, si);
       }
     }
     for (const b of before) if (wrote.has(b.sid)) b.wrote = fnv(wrote.get(b.sid)!);
     const fresh = await fileOf(ctx, a.brain);
-    await ctx.db.patch(fresh._id, { at: Date.now(), parts: (await cardsOf(ctx, a.brain)).length });
+    const all = await cardsOf(ctx, a.brain);
+    await ctx.db.patch(fresh._id, { at: Date.now(), parts: all.length, chars: sizeOf(all) });
     await ctx.db.patch(e._id, { status: "applied", before });
-    return { ok: true, sections: before.map(x => x.sid) };
+    return { ok: true, sections: before.filter(x => x.sid != null).map(x => x.sid) };
   },
 });
 
@@ -668,11 +752,13 @@ export const editUndo = internalMutation({
     const e = await editOf(ctx, a.brain, a.id);
     if (!e || e.status !== "applied") throw new Error("that change is not applied");
     for (const b of e.before ?? []) {
-      if (b.inserted || b.removed) continue;
+      if (b.meta || b.removed) continue;
       const { body } = await sectionRow(ctx, a.brain, b.sid);
       if (body && b.wrote && fnv(body.text) !== b.wrote) throw new Error("that part of the file changed since. Undo it by asking for the old words.");
     }
+    const metas = (e.before ?? []).filter((b: any) => b.meta);
     for (const b of e.before ?? []) {
+      if (b.meta) continue;
       const { card, body } = await sectionRow(ctx, a.brain, b.sid);
       if (b.inserted) { if (card) await ctx.db.delete(card._id); if (body) await ctx.db.delete(body._id); continue; }
       if (b.removed) {
@@ -685,8 +771,14 @@ export const editUndo = internalMutation({
     }
     const f = await fileOf(ctx, a.brain);
     const cards = await cardsOf(ctx, a.brain);
-    await ctx.db.patch(f._id, { parts: cards.length, at: Date.now(),
-      sheets: f.sheets.map((s: any, i: number) => f.kind === "table" ? { ...s, rows: cards.filter((c: any) => c.sheet === i).reduce((n: number, c: any) => n + (c.rows ?? 0), 0) } : s) });
+    await ctx.db.patch(f._id, { parts: cards.length, chars: sizeOf(cards), at: Date.now(),
+      sheets: f.sheets.map((s: any, i: number) => {
+        /* A sheet that was built whole gets back its name, columns and totals. */
+        const was = metas.find((m: any) => m.si === i);
+        const back = was ? was.sheet : s;
+        return f.kind === "table" ? { ...back, rows: cards.filter((c: any) => c.sheet === i).reduce((n: number, c: any) => n + (c.rows ?? 0), 0) } : s;
+      }) });
+    if (f.kind === "table") for (let i = 0; i < f.sheets.length; i++) if (!metas.some((m: any) => m.si === i)) await recount(ctx, a.brain, i);
     await ctx.db.patch(e._id, { status: "undone" });
     return { ok: true };
   },
@@ -698,6 +790,6 @@ export const fileMeta = internalQuery({
   handler: async (ctx, a) => {
     await need(ctx, a.space, a.brain);
     const f = await fileOf(ctx, a.brain);
-    return f ? { name: f.name, kind: f.kind, sheets: f.sheets.map((s: any) => ({ name: s.name, header: s.header ?? [] })) } : null;
+    return f ? { name: f.name, kind: f.kind, made: !!f.made, sheets: f.sheets.map((s: any) => ({ name: s.name, header: s.header ?? [] })) } : null;
   },
 });

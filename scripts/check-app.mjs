@@ -3441,6 +3441,8 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/project/rename") { P.project.name = body.name; arg.state.projects.find(x => x.slug === body.brain).name = body.name; return J({ slug: body.brain, name: body.name }); }
       if (path === "/api/project/delete") { arg.state.projects = arg.state.projects.filter(x => x.slug !== body.brain); return J({ ok: true }); }
       if (path === "/api/project/download") return J({ name: P.file.name, kind: P.file.kind, sheet: "Programs", text: "a,b\n1,2\n" });
+      if (path === "/api/chats/get") return J({ chat: { id: body.id, title: "Is gold a hedge?", brain: "all", pinned: false, turns: [{ q: "Is gold a hedge?", a: "Gold held its value over 20 years.", sources: 4, level: "normal" }] } });
+      if (path === "/api/chats") return J({ chats: [{ id: "k1", title: "Is gold a hedge?", brain: "all", pinned: false, updated: Date.now(), turns: 1 }] });
       return J({ chats: [] });
     };
     window.__reply = (b, P) => ({ id: "t" + (P.turns.length + 1), q: b.q, a: "Keep **€1,490** and sell it in two payments.", proposal: /brainstorm/i.test(b.q), quotes: ["Team 3 €1,490"],
@@ -3456,6 +3458,18 @@ for (const space of ["octopus", "squidgy"]) {
   check("a Projects panel sits between Chats and Folders, with its own plus and a row for each project", side.head === "Projects 3" && side.plus
     && side.before === "chatsPanel,projectsPanel,brainsPanel" && side.rows.join() === "Launch plan:doc,Pricing review:table,Newsletter plan:doc", JSON.stringify(side));
   check("no project is listed among the folders", !/Launch plan|Pricing review|Newsletter/.test(side.folders) && side.folders === "Me,Pricing", side.folders);
+
+  /* a chat is open, a project goes over it, and the chat's row brings the chat back: also when it is the chat already current */
+  await page.click("#chats .chat-row >> nth=0"); await page.waitForTimeout(500);
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(700);
+  const over = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, project: !document.getElementById("projectView").hidden }));
+  await page.click("#chats .chat-row >> nth=0"); await page.waitForTimeout(400);
+  const back = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, project: !document.getElementById("projectView").hidden, thread: !document.getElementById("thread").hidden,
+    says: document.getElementById("thread").textContent.includes("Gold held its value"), on: document.querySelector("#chats .chat-row").classList.contains("on"), row: document.querySelector("#projects .pj-row").classList.contains("on") }));
+  check("a click on the chat already current brings its screen back over a project", over.view === "project" && over.project && back.view === "chat" && !back.project && back.thread && back.says && back.on && !back.row, JSON.stringify({ over, back }));
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(600);
+  await page.click("#chats .chat-row >> nth=0"); await page.waitForTimeout(300);
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(700);
 
   await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(700);
   const lay = await page.evaluate(() => { const d = document.querySelector(".pj-doc").getBoundingClientRect(), c = document.querySelector(".pj-chat").getBoundingClientRect();
@@ -3589,7 +3603,7 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#npMake"); await page.waitForTimeout(500);
   const zip = await page.evaluate(() => ({ bad: document.getElementById("npBad").textContent, btn: document.getElementById("npMake").textContent,
     made: window.__calls.filter(x => x.s === "/api/project/new").length }));
-  check("a file the project cannot read says so, and makes no project", /is a \.zip\. A project reads Word, PDF, text, Markdown, Excel and CSV files\./.test(zip.bad) && zip.btn === "Create project" && !/was made/.test(zip.bad) && zip.made === newsBefore, JSON.stringify(zip));
+  check("a file the project cannot read says so, and makes no project", /is a \.zip\. A project reads Word, PDF, text, Markdown, HTML, Excel and CSV files\./.test(zip.bad) && zip.btn === "Create project" && !/was made/.test(zip.bad) && zip.made === newsBefore, JSON.stringify(zip));
   await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelector(".veil")?.remove());
   await page.evaluate(() => { window.__partFails = true; });
   await page.click("#newProject"); await page.waitForTimeout(200);
@@ -3656,6 +3670,149 @@ for (const space of ["octopus", "squidgy"]) {
   check("a project with no file opens on its Document tab, where the drop is", e.on === "Document" && e.drop && !e.wide, JSON.stringify(e));
   check("nothing threw on the phone", !bad.length, bad.join(" | "));
   await page.close();
+}
+
+/* ---- projects: a page, a table or a document made by describing it, and an answer in two parts ---- */
+{
+  const PAGE = "<!doctype html><html><body><h1>Coaching with Ana</h1><p>Three offers.</p></body></html>";
+  const st = { ...STATE, brains: [], concepts: [], projects: [] };
+  const init = arg => {
+    /* The init script runs in every frame, a page's own sandboxed frame too. */
+    if (window.top !== window) return;
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = []; window.__proj = {};
+    window.fetch = async (u, opt) => {
+      const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}");
+      window.__calls.push({ s: path, body });
+      const J = x => Response.json(x), P = window.__proj[body.brain];
+      if (path === "/api/state") return J(arg.state);
+      if (path === "/api/health") return J({ conflicted: [], health: [] });
+      if (path === "/api/project/list") return J({ projects: arg.state.projects });
+      if (path === "/api/project/new") {
+        const slug = "made-" + (body.make || "file"), kind = body.make || null;
+        window.__proj[slug] = { project: { slug, name: body.name, created: "2026-10-09" },
+          file: kind ? { name: `${body.name}.${kind === "html" ? "html" : kind === "table" ? "csv" : "md"}`, kind, made: true, sheets: [{ name: kind === "table" ? "Sheet 1" : body.name, header: [], cols: [], rows: 0 }], chars: 0, sections: 0, status: "ready", ver: 1, at: 1 } : null,
+          cards: [], turns: [], edits: [], memory: [] };
+        arg.state.projects.unshift({ slug, name: body.name, kind, file: window.__proj[slug].file?.name || "", status: kind ? "ready" : "empty", made: !!kind, chars: 0, sections: 0, memory: 0, at: Date.now() });
+        return J({ slug });
+      }
+      if (path === "/api/project/get") return J(P);
+      if (path === "/api/project/chat") {
+        const f = P.file, empty = !f.chars;
+        if (empty) { f.chars = 300; f.sections = 1; P.html = arg.page; P.cards = [{ sid: 1, ord: 1, sheet: 0, title: "Page", summary: "x", chars: 300 }]; }
+        const t = { id: "t" + (P.turns.length + 1), q: body.q, lead: empty ? "I made the page." : "Four offers now.",
+          a: "**Hero:** a title and a promise.\n\n### Next\n- Add a contact form\n  - with a phone field\n\n> Keep it short.", proposal: false, quotes: [],
+          used: { file: { name: f.name, whole: true }, folders: [], memory: 0 }, ...(empty ? { noted: ["Page purpose"] } : {}), intent: "change",
+          edit: { id: "e" + (P.edits.length + 1), status: "applied", preview: [{ label: "New section at the start", before: "", after: "<!doctype html>" }] } };
+        P.turns.push(t); P.edits.unshift({ id: t.edit.id, at: Date.now(), status: "applied", preview: t.edit.preview });
+        if (empty) P.memory.unshift({ slug: "page-purpose", title: "Page purpose", position: "A landing page for a coaching business (2026-10-09).", summaryLine: "", updated: "2026-10-09", dates: ["2026-10-09"] });
+        return J({ turn: t });
+      }
+      if (path === "/api/project/edit") { const e = P.edits.find(x => x.id === body.id); e.status = body.action === "undo" ? "undone" : "applied";
+        if (body.action === "undo") { P.file.chars = 0; P.file.sections = 0; P.cards = []; P.html = ""; } return J({ ok: true }); }
+      if (path === "/api/project/download") return J({ name: P.file.name, kind: P.file.kind, sheet: "", text: P.html || "" });
+      if (path === "/api/project/begin") return J({ ver: 1 });
+      if (path === "/api/project/part") return J({ sections: 1, chars: 10 });
+      if (path === "/api/project/finish") return J({ sections: 1, chars: 10 });
+      return J({ chats: [] });
+    };
+  };
+  const { page, bad } = await boot("/chat.html", init, { state: st, page: PAGE });
+  await page.waitForTimeout(400);
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  const sheet = await page.evaluate(() => ({ makes: [...document.querySelectorAll("[data-make]")].map(b => b.textContent).join(), file: document.getElementById("npFile").textContent }));
+  check("a new project can start from nothing: a document, a table or an HTML page", sheet.makes === "Document,Table,HTML page" && /HTML/.test(sheet.file), JSON.stringify(sheet));
+  await page.click("[data-make=html]"); await page.waitForTimeout(900);
+  const made = await page.evaluate(() => ({ call: window.__calls.find(x => x.s === "/api/project/new")?.body, view: document.querySelector("main").dataset.view, empty: document.querySelector(".pj-empty h3")?.textContent,
+    chip: document.querySelector(".pj-chip")?.textContent, acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), ph: document.querySelector(".pj-comp textarea").placeholder,
+    tries: [...document.querySelectorAll(".pj-try button")].map(b => b.textContent), icon: !!document.querySelector("#projects .pj-row path[d^='M9 8l-4']"), sheetGone: !document.querySelector(".veil"),
+    hint: document.querySelector(".pj-hint")?.textContent }));
+  check("it makes the project with the kind chosen, named for the kind when no name is typed", made.call?.name === "New page" && made.call?.make === "html" && made.view === "project" && made.sheetGone, JSON.stringify(made.call));
+  check("the page is empty and says so; there is nothing to download yet", made.empty === "This page is empty" && made.chip === "New page.html" && made.acts === "Replace page/Delete", JSON.stringify(made));
+  check("the message bar asks for a description, with examples to start from", /^Describe the page you want/.test(made.ph) && made.tries.length === 2 && /^A landing page/.test(made.tries[0]) && /Describe the page you want/.test(made.hint), JSON.stringify(made.tries));
+  check("a page has its own icon in the Projects panel", made.icon);
+
+  await page.click(".pj-try button >> nth=0"); await page.keyboard.press("Enter"); await page.waitForTimeout(900);
+  const ans = await page.evaluate(() => { const a = document.querySelector(".pj-a"), h = a.querySelector(".pj-md h4");
+    return { tl: a.querySelector(".pj-lead .pj-tl")?.textContent, lead: a.querySelector(".pj-ld")?.textContent, bold: a.querySelector(".pj-md strong")?.textContent, h4: h?.textContent, h4size: h && parseFloat(getComputedStyle(h).fontSize),
+      nested: a.querySelector(".pj-md ul ul li")?.textContent, quote: a.querySelector(".pj-md blockquote")?.textContent, chips: [...a.querySelectorAll(".pj-used > *")].map(c => c.textContent),
+      edit: a.querySelector(".pj-edit")?.className, ek: a.querySelector(".pj-ek")?.textContent, btns: [...a.querySelectorAll(".pj-edit button")].map(b => b.textContent),
+      leadFirst: a.firstElementChild?.classList.contains("pj-lead") }; });
+  check("an answer opens with a TL;DR line, then its support", ans.tl === "TL;DR" && ans.lead === "I made the page." && ans.leadFirst && ans.bold === "Hero:", JSON.stringify(ans));
+  check("headings in an answer read as small labels, lists nest, quotes stand apart", ans.h4 === "Next" && ans.h4size <= 12 && ans.nested === "with a phone field" && ans.quote === "Keep it short.", JSON.stringify(ans));
+  check("it says what the project noted from the message", JSON.stringify(ans.chips) === '["New page.html","Noted: Page purpose"]', JSON.stringify(ans.chips));
+  await page.waitForTimeout(300);
+  const mem = await page.evaluate(() => ({ badge: document.querySelector(".pj-tab i")?.textContent, listed: window.__calls.filter(x => x.s === "/api/project/list").length }));
+  check("the Memory tab counts what was noted, and the Projects panel is read again", mem.badge === "1" && mem.listed >= 1, JSON.stringify(mem));
+  check("a change made at once shows as applied, with an Undo", /applied/.test(ans.edit) && ans.ek === "Applied" && JSON.stringify(ans.btns) === '["Undo"]', JSON.stringify(ans));
+
+  const web = await page.evaluate(() => { const f = document.querySelector(".pj-frame"); return { sandbox: f?.getAttribute("sandbox"), src: f?.srcdoc, code: document.querySelector(".pj-code")?.hidden,
+    acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), empty: !!document.querySelector(".pj-empty") }; });
+  check("the page shows as it renders, in a frame that can reach nothing of the app", web.src === PAGE && web.sandbox === "allow-scripts allow-popups" && !/same-origin/.test(web.sandbox) && web.code === true && !web.empty, JSON.stringify(web));
+  check("the head offers Page and Code, and Download now", web.acts === "Page/Code/Replace page/Download/Delete", web.acts);
+  await page.click(".pj-view button >> text=Code"); await page.waitForTimeout(150);
+  const code = await page.evaluate(() => ({ text: document.querySelector(".pj-code").textContent, hidden: document.querySelector(".pj-code").hidden, frame: document.querySelector(".pj-frame").hidden, on: document.querySelector(".pj-view .on")?.textContent }));
+  check("Code shows the page's words as they are written", code.text === PAGE && !code.hidden && code.frame && code.on === "Code", JSON.stringify(code));
+  await page.click(".pj-view button >> text=Page"); await page.waitForTimeout(100);
+  check("and Page brings the rendering back", await page.evaluate(() => document.querySelector(".pj-code").hidden && !document.querySelector(".pj-frame").hidden));
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click(".pj-b >> text=Download")]);
+  check("a page downloads as an HTML file", dl.suggestedFilename() === "New page.html", dl.suggestedFilename());
+
+  await page.click(".pj-edit button >> text=Undo"); await page.waitForTimeout(900);
+  const undone = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/edit").pop()?.body, empty: document.querySelector(".pj-empty h3")?.textContent, frame: !!document.querySelector(".pj-frame"), ek: document.querySelector(".pj-ek")?.textContent }));
+  check("Undo empties the page again, and the file pane follows", undone.call?.action === "undo" && undone.empty === "This page is empty" && !undone.frame && undone.ek === "Undone", JSON.stringify(undone));
+
+  /* a table and a document, from nothing */
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  await page.fill("#npName", "Spending"); await page.click("[data-make=table]"); await page.waitForTimeout(800);
+  const tbl = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/new").pop()?.body, empty: document.querySelector(".pj-empty h3")?.textContent, ph: document.querySelector(".pj-comp textarea").placeholder,
+    seg: document.querySelector(".pj-seg button")?.textContent, tries: document.querySelector(".pj-try button")?.textContent }));
+  check("a table can be made from nothing under the name typed", tbl.call?.name === "Spending" && tbl.call?.make === "table" && tbl.empty === "This table is empty" && /^Describe the table you want/.test(tbl.ph) && /^A table of my monthly expenses/.test(tbl.tries) && tbl.seg === "Table", JSON.stringify(tbl));
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  await page.click("[data-make=doc]"); await page.waitForTimeout(800);
+  const dc = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/new").pop()?.body, empty: document.querySelector(".pj-empty h3")?.textContent, chip: document.querySelector(".pj-chip")?.textContent }));
+  check("and a document", dc.call?.make === "doc" && dc.call?.name === "New document" && dc.empty === "This document is empty" && dc.chip === "New document.md", JSON.stringify(dc));
+
+  /* an HTML file chosen is a page, kept as it is */
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  const [fc] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npPick")]);
+  await fc.setFiles({ name: "site.html", mimeType: "text/html", buffer: Buffer.from("<!doctype html>\n<html><body><p>Hello</p></body></html>") });
+  await page.fill("#npName", "Site"); await page.click("#npMake"); await page.waitForTimeout(900);
+  const up = await page.evaluate(() => window.__calls.filter(x => /api\/project\/(begin|part)/.test(x.s)).slice(-2).map(x => ({ s: x.s.split("/").pop(), b: x.body })));
+  check("an HTML file is a page: its code goes whole, as written", up[0].s === "begin" && up[0].b.kind === "html" && up[1].b.text === "<!doctype html>\n<html><body><p>Hello</p></body></html>", JSON.stringify(up));
+  check("nothing threw making files", !bad.length, bad.join(" | "));
+
+  /* the text view and the converter, run in the page */
+  const srcApp = await readFile(join(APP, "chat.html"), "utf8");
+  const grab = name => { const at = srcApp.indexOf(`function ${name}(`); let depth = 0, end = at; for (let i = srcApp.indexOf("{", at); i < srcApp.length; i++){ if (srcApp[i] === "{") depth++; if (srcApp[i] === "}" && --depth === 0){ end = i + 1; break; } } return srcApp.slice(at, end); };
+  const conv = `const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));` + grab("mdView") + grab("htmlToMd") + "; return { mdView, htmlToMd };";
+  const md = await page.evaluate(code => { const { mdView, htmlToMd } = new Function(code)(); return ({
+    nested: mdView("- a\n  - b\n- c"), ol: mdView("3. x\n4. y"), code: mdView("```\n<b>x</b>\n```"), quote: mdView("> hi\n> there"), hr: mdView("one\n\n---\n\ntwo"),
+    link: mdView("[a](https://x.com/?a=1&b=2) and [bad](javascript:alert(1))"),
+    web: htmlToMd('<html><head><title>My Page</title><style>p{color:red}</style><script>alert(1)</script></head><body><nav><a href="/">Home</a></nav><main><div>Loose words <b>bold</b> here</div><p>Para <a href="https://x.com">link</a></p><ul><li>One<ul><li>Nested</li></ul></li><li>Two</li></ul><pre>a  b\n c</pre><blockquote><p>Quoted</p></blockquote><table><tr><td>Only</td></tr></table></main><footer>Footer</footer></body></html>'),
+    grid: htmlToMd("<h2>Plans</h2><table><tr><th>Plan</th><th>Price</th></tr><tr><td>Team</td><td>1,490</td></tr></table><div>after</div>"),
+  }); }, conv);
+  check("lists nest, a list can start at its own number", md.nested === "<ul><li>a<ul><li>b</li></ul></li><li>c</li></ul>" && md.ol === '<ol start="3"><li>x</li><li>y</li></ol>', JSON.stringify(md));
+  check("code is shown as written, never run; quotes and rules are marked", md.code === "<pre><code>&lt;b&gt;x&lt;/b&gt;</code></pre>" && md.quote === "<blockquote><p>hi there</p></blockquote>" && md.hr === "<p>one</p><hr><p>two</p>", JSON.stringify(md));
+  check("a link opens in its own tab when it is a web address, and is only words otherwise", /<a href="https:\/\/x\.com\/\?a=1&amp;b=2" target="_blank" rel="noopener noreferrer">a<\/a>/.test(md.link) && !/href="javascript/.test(md.link) && /\[bad\]\(javascript:alert\(1\)\)/.test(md.link), md.link);
+  check("a web page comes out as its words: the title, loose text, links, nested lists, code and quotes; no script, style, menu or footer",
+    md.web === "# My Page\n\nLoose words **bold** here\n\nPara [link](https://x.com)\n\n- One\n  - Nested\n- Two\n\n```\na  b\n c\n```\n\n> Quoted\n\nOnly", JSON.stringify(md.web));
+  check("a table with columns keeps them, and the text after it still comes", md.grid === "## Plans\n\n| Plan | Price |\n| --- | --- |\n| Team | 1,490 |\n\nafter", JSON.stringify(md.grid));
+  await page.close();
+
+  /* Drop reads a saved web page for its words */
+  const dp = await hermetic(); const bad3 = [];
+  dp.on("pageerror", e => bad3.push(e.message));
+  await dp.addInitScript(state => { sessionStorage.setItem("octopus.token.v1", "test"); window.fetch = async u => String(u).includes("/api/state") ? Response.json(state) : Response.json({ chats: [] }); }, STATE);
+  await dp.goto(ORIGIN + "/chat.html", { waitUntil: "domcontentloaded" }); await dp.waitForTimeout(500);
+  await dp.click("#dropBtn"); await dp.waitForTimeout(200);
+  check("Drop offers web pages among the files it reads", /\.html/.test(await dp.getAttribute("#fileIn", "accept")) && /web page/.test(await dp.getAttribute("#fileBtn", "title")));
+  await dp.setInputFiles("#fileIn", { name: "post.html", mimeType: "text/html", buffer: Buffer.from("<html><head><title>On pricing</title><style>x{}</style></head><body><nav>Menu</nav><article><h2>Why 1,490</h2><p>Team costs <b>1,490</b> a seat.</p></article></body></html>") });
+  await dp.waitForTimeout(500);
+  const got = await dp.evaluate(() => ({ text: document.getElementById("input").value, src: document.getElementById("srcInput").value }));
+  check("a saved web page is read for its words, not its tags, named by its title, and names the source", got.text === "# On pricing\n\n## Why 1,490\n\nTeam costs **1,490** a seat." && got.src === "post.html", JSON.stringify(got));
+  check("nothing threw reading it", !bad3.length, bad3.join(" | "));
+  await dp.close();
 }
 
 await browser.close();

@@ -561,8 +561,10 @@ export default defineSchema({
     /* The project's folder: a brain of type "project". */
     brain: v.string(),
     name: v.string(),
-    /* "doc" or "table". */
+    /* "doc", "html" (a page, kept as text and shown rendered) or "table". */
     kind: v.string(),
+    /* Made in the project by describing it, not read from a file: the chat's changes to it apply at once, and can be undone. */
+    made: v.optional(v.boolean()),
     /* A table's sheets: name, columns with what they hold, and row count. A document has one with no columns. */
     sheets: v.array(v.any()),
     /* Characters read so far, sections stored so far, the id the next section takes. */

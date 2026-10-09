@@ -215,6 +215,8 @@ globalThis.fetch = async (_u, opt) => {
   else if (/You route questions to the right entries/.test(sys)) out = JSON.stringify(reply.folders ?? { picks: [], terms: [] });
   else if (/You are the chat of a project/.test(sys)) out = typeof reply.answer === "function" ? reply.answer(user) : JSON.stringify(reply.answer ?? { reply: "ok", proposal: false, quotes: [], edits: [] });
   else if (/You file notes into a project's memory/.test(sys)) out = JSON.stringify(reply.keep ?? { notes: [] });
+  else if (/You keep the memory of a project/.test(sys)) { if (reply.ownerFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.owner ?? { notes: [] }); }
+  else if (/You write the memory note of a file/.test(sys)) { if (reply.aboutFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.about ?? { notes: [] }); }
   else if (/You file notes into a person's own knowledge base/.test(sys)) out = JSON.stringify({ notes: [], people: [] });
   else if (/You are their AI twin/.test(sys)) out = reply.twin ?? "Noted.";
   else if (/You are the user's own knowledge base/.test(sys)) out = reply.kb ?? "Answer.";
@@ -309,11 +311,16 @@ const ask1 = async (q, extra = {}) => project.projectChat(W.ctx, { space: SPACE,
   await project.addDocPiece(w.ctx, { space: SPACE, brain: s2, ver: b2.ver, text: "# Goal\n\nFill 200 seats.\n\n## Offer\n\nTeam costs 1,490.", page: 0 });
   await project.finishFile(w.ctx, { space: SPACE, brain: s2, ver: b2.ver });
   const sentBefore = sent.length;
-  reply = { route: { intent: "ask", sections: [], query: null, folders: [], terms: [] }, answer: { reply: "Team costs 1,490.", proposal: false, quotes: [], edits: [] } };
+  reply = { route: { intent: "ask", sections: [], query: null, folders: [], terms: [] }, answer: { tldr: "Team costs 1,490.", reply: "Team costs 1,490.", proposal: false, quotes: [], edits: [] } };
   const turn = await project.projectChat(w.ctx, { space: SPACE, brain: s2, q: "What does Team cost?", english: false, embeds: false, shared: shared0 });
-  const a = last(/You are the chat of a project/), r = last(/You route a project's questions/);
-  check("a file under 48,000 characters is read whole, with no contents list for the router", a.user.includes("Fill 200 seats.") && a.user.includes("Team costs 1,490.") && /read whole/.test(a.user) && /is short: the answer reads all of it/.test(r.user) && turn.used.file.whole === true);
-  check("a short file costs the router and the answer: two calls", sent.length - sentBefore === 2, String(sent.length - sentBefore));
+  const a = last(/You are the chat of a project/);
+  check("a file under 8,000 characters is read whole", a.user.includes("Fill 200 seats.") && a.user.includes("Team costs 1,490.") && /read whole/.test(a.user) && turn.used.file.whole === true);
+  check("with no other folder a short file leaves nothing for a router to decide: one call, the answer", sent.length - sentBefore === 1, String(sent.length - sentBefore));
+  const withFolder = { brains: [{ slug: "pricing", name: "Pricing", type: "subject", scope: "Prices" }], cards: async () => [] };
+  const before2 = sent.length;
+  await project.projectChat(w.ctx, { space: SPACE, brain: s2, q: "What does Team cost?", english: false, embeds: false, shared: withFolder });
+  const r = last(/You route a project's questions/);
+  check("with a folder to consider the router runs and is told the file is short", sent.length - before2 === 2 && /is short: the answer reads all of it/.test(r.user) && !r.user.includes("Fill 200 seats."), String(sent.length - before2));
 }
 
 /* ---- the owner's other folders, asked only when the router says so ---- */
@@ -577,6 +584,290 @@ const gt = await T2.ctx.runQuery("projects.projectGet", { space: SPACE, brain: s
 }
 
 
+/* ================= cost: the contents list reads a file of 10 pages ================= */
+
+const part = (n, mark) => `## Part ${n}\n\nPart ${n} ${mark}. ` + "word ".repeat(880).trim() + ".";
+const midDoc = [1, 2, 3, 4, 5].map(n => part(n, n === 3 ? "NEEDLE" : "plain")).join("\n\n");   // about 22,000 characters
+const docProject = async (w, name, text, kind = "doc") => {
+  const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name });
+  const b = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p, name: `${name}.${kind === "html" ? "html" : "md"}`, kind, sheets: [{ name }] });
+  await project.addDocPiece(w.ctx, { space: SPACE, brain: p, ver: b.ver, text, page: 0 });
+  await project.finishFile(w.ctx, { space: SPACE, brain: p, ver: b.ver });
+  return p;
+};
+const answerOf = (extra = {}) => ({ tldr: "", reply: "You are welcome.", proposal: false, quotes: [], edits: [], ...extra });
+const routeOf = (extra = {}) => ({ intent: "ask", sections: [], all: false, query: null, folders: [], terms: [], ...extra });
+{
+  const w = makeCtx();
+  const p = await docProject(w, "Mid", midDoc);
+  const cards = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).cards;
+  const needle = w.T.projectSections.find(x => x.text.includes("NEEDLE"));
+  const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, ...extra });
+  check("a document of about 22,000 characters is cut in five sections", cards.length === 5 && midDoc.length > 20000 && midDoc.length < 48000, `${cards.length} sections, ${midDoc.length} characters`);
+
+  reply = { route: routeOf(), answer: answerOf() };
+  const before = sent.length;
+  const talk = await chat("ok thanks, that helps");
+  const a1 = last(/You are the chat of a project/), r1 = last(/You route a project's questions/);
+  check("small talk is routed over the contents list: a router call and an answer call", sent.length - before === 2 && r1.user.includes(`${cards[0].sid} | Part 1 |`) && !/is short: the answer reads all of it/.test(r1.user));
+  check("and it opens no section of the file", /\(not opened for this message\)/.test(a1.user) && !a1.user.includes("word word word") && talk.used.file.whole === false && !talk.used.file.sections, a1.user.slice(0, 300));
+  check("the answer still names what the file holds, by title", /ALSO IN THE FILE, not opened/.test(a1.user) && a1.user.includes(`${cards[4].sid}: Part 5`));
+  check("its prompt is a fraction of the file", a1.user.length < midDoc.length / 4, `${a1.user.length} of ${midDoc.length}`);
+
+  reply = { route: routeOf({ sections: [needle.sid], terms: ["needle"] }), answer: answerOf({ tldr: "Part 3 says needle.", reply: "See Part 3." }) };
+  const q1 = await chat("What does part 3 say?");
+  const a2 = last(/You are the chat of a project/);
+  check("a question opens the section it was sent to, and no other", a2.user.includes("NEEDLE") && !a2.user.includes("Part 1 plain") && !a2.user.includes("Part 5 plain") && q1.used.file.sections.length === 1 && q1.used.file.whole === false);
+  check("the turn keeps the one line answer apart from its support", q1.lead === "Part 3 says needle." && q1.a === "See Part 3.");
+
+  reply = { route: routeOf({ all: true }), answer: answerOf({ tldr: "Five parts." }) };
+  const q2 = await chat("Summarise the whole file");
+  const a3 = last(/You are the chat of a project/);
+  check("a message about the whole file reads it whole, since it fits", a3.user.includes("Part 1 plain") && a3.user.includes("NEEDLE") && a3.user.includes("Part 5 plain") && /read whole/.test(a3.user) && q2.used.file.whole === true);
+
+  const real = globalThis.fetch;
+  globalThis.fetch = async (u, opt) => { if (/You route a project's questions/.test(String(JSON.parse(opt.body).messages[0].content))) return new Response("busy", { status: 503 }); return real(u, opt); };
+  reply = { answer: answerOf() };
+  const q3 = await chat("What does it say about payments?");
+  globalThis.fetch = real;
+  check("when the router fails, a file of this size is read whole", last(/You are the chat of a project/).user.includes("Part 1 plain") && q3.used.file.whole === true);
+
+  w.T.projectCards.find(c => c.title === "Part 4").summary = "Pricing rules and the Team plan";
+  reply = { route: routeOf({ intent: "change", sections: [] }), answer: answerOf({ tldr: "Nothing to change." }) };
+  await chat("Rewrite the pricing rules");
+  const fb = last(/You are the chat of a project/).user;
+  check("a change with no section named falls back to the sections whose words match", /--- SECTION \d+: Part 4/.test(fb) && !fb.includes("Part 1 plain"), fb.slice(0, 200));
+}
+
+{
+  /* a page of 22,000 characters, changed: read whole, since a change needs the markup and its style together */
+  const w = makeCtx();
+  const p = await docProject(w, "Page", midDoc, "html");
+  reply = { route: routeOf({ intent: "change", sections: [] }), answer: answerOf({ tldr: "Done." }) };
+  const t = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "Make the heading blue", english: false, embeds: false, shared: shared0 });
+  const a = last(/You are the chat of a project/);
+  check("a page is read whole to change it", a.user.includes("Part 1 plain") && a.user.includes("Part 5 plain") && /an HTML page, 5 sections, read whole/.test(a.user) && t.used.file.whole === true);
+  reply = { route: routeOf({ sections: [] }), answer: answerOf() };
+  await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "thanks", english: false, embeds: false, shared: shared0 });
+  check("and not read at all for small talk", /\(not opened for this message\)/.test(last(/You are the chat of a project/).user));
+}
+
+{
+  /* a long file, asked about as a whole, answers from its contents lines */
+  reply = { route: routeOf({ all: true }), answer: answerOf({ tldr: "Seven parts." }) };
+  const t = await ask1("Summarise the whole file");
+  const a = last(/You are the chat of a project/);
+  const lines = a.user.split("\n").filter(l => /^\d+ \| About /.test(l));
+  check("a message about the whole of a long file is answered from its contents lines", /THE FILE'S CONTENTS/.test(a.user) && lines.length === sids.length && !/ALSO IN THE FILE/.test(a.user) && t.used.file.map === true && !t.used.file.whole, `${lines.length} lines of ${sids.length}`);
+}
+
+{
+  /* a table of about 18,000 characters: its columns and first rows, then a query, or all of it when asked */
+  const w = makeCtx();
+  const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Midtable" });
+  const rows = Array.from({ length: 600 }, (_, i) => [`Program ${i + 1}`, String(1 + (i % 5)), String(2 + (i % 7)), String(prices[i % 10] + i), i % 2 ? "Yes" : "No"]);
+  const b = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p, name: "m.csv", kind: "table", sheets: [{ name: "Programs", header: sheet.colNames(header) }] });
+  await project.addRowPiece(w.ctx, { space: SPACE, brain: p, ver: b.ver, sheet: 0, rows });
+  await project.finishFile(w.ctx, { space: SPACE, brain: p, ver: b.ver });
+  const f = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).file;
+  const chat = (q) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0 });
+  reply = { route: routeOf(), answer: answerOf() };
+  const t1 = await chat("thanks");
+  const a1 = last(/You are the chat of a project/);
+  check("a table of 600 rows is not read whole for small talk: its columns and first rows only", f.chars > 8000 && f.chars < 48000 && /First rows:/.test(a1.user) && !a1.user.includes("600 | Program 600") && t1.used.file.whole === false, String(f.chars));
+  reply = { route: routeOf({ all: true }), answer: answerOf() };
+  const t2 = await chat("Check every row");
+  check("and read whole when the message is about all of it", last(/You are the chat of a project/).user.includes("600 | Program 600") && t2.used.file.whole === true);
+}
+
+/* ================= memory: the file and the owner's words ================= */
+
+{
+  const rows = [
+    { slug: "a", title: "Team price", position: "Team is priced at 1,290 euros.", updated: "2026-10-01" },
+    { slug: "b", title: "Launch date", position: "The launch is on 3 November.", updated: "2026-10-05" },
+    { slug: "c", title: "The file", position: "A brief for the launch.", updated: "2026-09-01" },
+    { slug: "d", title: "Venue", position: "Held online.", updated: "2026-10-07" },
+  ];
+  const picked = project.memoryPick(rows, 6000, "when is the launch date?");
+  check("the note on the file leads, then the notes that share words with the question, then the newest", picked.map(r => r.title).join() === "The file,Launch date,Team price,Venue", picked.map(r => r.title).join());
+  check("a tight budget keeps what fits, the note on the file first", project.memoryPick(rows, 100, "team price").map(r => r.title).join() === "The file,Venue", project.memoryPick(rows, 100, "team price").map(r => r.title).join());
+  check("nothing kept reads as nothing kept", project.memoryText([], 6000, "x") === "(nothing kept yet)");
+}
+
+{
+  const w = makeCtx();
+  const p = await docProject(w, "Notes", "# Offer\n\nTeam costs 1,490 euros a seat.");
+  const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, note: true, ...extra });
+  const note = { title: "Team price", update: "", claim: "Team is priced at 1,290 euros.", position: "Team is priced at 1,290 euros (decided 2026-10-09).", summaryLine: "Team at 1,290" };
+  reply = { answer: answerOf({ tldr: "Noted." }), owner: { notes: [note] } };
+  const sentBefore = sent.length;
+  const t = await chat("Let's price Team at 1,290 euros from now on");
+  const filedCall = last(/You keep the memory of a project/);
+  const mem = await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p });
+  check("what the owner said is filed beside the answer, in the folder format", mem.length === 1 && mem[0].title === "Team price" && w.T.concepts[0].evidence[0].claim === "Team is priced at 1,290 euros." && w.T.concepts[0].evidence[0].author === "You" && sent.length - sentBefore === 2, JSON.stringify(mem));
+  check("the turn says what was noted", JSON.stringify(t.noted) === '["Team price"]' && !t.kept, JSON.stringify(t));
+  check("the call that files reads the owner's words and the notes held, never the file", filedCall.user.includes("THE OWNER SAID\nLet's price Team at 1,290") && !filedCall.user.includes("Team costs 1,490 euros a seat") && /HELD NOW, nearest first\n\(nothing yet\)/.test(filedCall.user));
+  reply = { answer: answerOf({ tldr: "Team is 1,290." }), owner: { notes: [] } };
+  await chat("What does Team cost now?");
+  check("the next answer reads it", /PROJECT MEMORY\n- Team price: Team is priced at 1,290 euros/.test(last(/You are the chat of a project/).user));
+  check("and the call that files is shown the note it may update", /"Team price": Team is priced at 1,290/.test(last(/You keep the memory of a project/).user));
+  reply = { answer: answerOf(), owner: { notes: [{ ...note, update: "Team price", position: "Team is priced at 1,190 euros (2026-10-10).", claim: "Now 1,190." }] } };
+  await chat("Make that 1,190 instead, please");
+  check("a later message on the same topic updates the note and keeps both days as evidence", w.T.concepts.length === 1 && /1,190/.test(w.T.concepts[0].position) && w.T.concepts[0].evidence.length === 2, JSON.stringify(w.T.concepts[0].evidence));
+  const n0 = sent.length;
+  await chat("ok");
+  check("a few words are not worth a call that files: only the answer", sent.length - n0 === 1, String(sent.length - n0));
+  reply = { answer: answerOf({ tldr: "Moved." }), ownerFails: true };
+  const failed = await chat("We moved the launch to 10 November for good");
+  check("when filing fails the answer still arrives", failed.lead === "Moved." && !failed.noted);
+  reply = { answer: answerOf() };
+  await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "We decided something about the launch here", english: false, embeds: false, shared: shared0 });
+  check("without the switch nothing is filed", !(sent.slice(-2).some(m => /You keep the memory of a project/.test(m.sys))));
+}
+
+{
+  /* the note on the file */
+  const w = makeCtx();
+  const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Brief" });
+  const b = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p, name: "brief.md", kind: "doc", sheets: [{ name: "brief.md" }] });
+  await project.addDocPiece(w.ctx, { space: SPACE, brain: p, ver: b.ver, text: "# Goal\n\nFill 200 seats.\n\n## Offer\n\nTeam costs 1,490.", page: 0 });
+  reply = { about: { notes: [{ title: "Whatever", claim: "A launch brief for the Build Games.", position: "A launch brief: 200 seats, Team at 1,490 euros. Sections: Goal, Offer.", summaryLine: "Launch brief of the Build Games" }] } };
+  await project.finishFile(w.ctx, { space: SPACE, brain: p, ver: b.ver, about: true });
+  const mem = await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p });
+  const call = last(/You write the memory note of a file/);
+  check("a file read in leaves a note on what it holds, titled The file", mem.length === 1 && mem[0].title === "The file" && /200 seats/.test(mem[0].position));
+  check("the note names the file as its author and its source", w.T.concepts[0].evidence[0].author === "The file" && w.T.sources.some(s => /^File, /.test(s.title)), JSON.stringify(w.T.sources.map(s => s.title)));
+  check("a short file is read whole to write it", call.user.includes("Fill 200 seats.") && call.user.includes('"brief.md", a document'));
+  reply = { route: routeOf(), answer: answerOf() };
+  await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "What is in here?", english: false, embeds: false, shared: shared0 });
+  check("the next answer reads it first", /PROJECT MEMORY\n- The file: A launch brief/.test(last(/You are the chat of a project/).user));
+  /* a long file is described from its contents lines, not its words */
+  const w2 = makeCtx();
+  const p2 = await w2.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Long" });
+  const b2 = await w2.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p2, name: "long.md", kind: "doc", sheets: [{ name: "long.md" }] });
+  await project.addDocPiece(w2.ctx, { space: SPACE, brain: p2, ver: b2.ver, text: midDoc, page: 0 });
+  await project.finishFile(w2.ctx, { space: SPACE, brain: p2, ver: b2.ver, about: true });
+  const call2 = last(/You write the memory note of a file/);
+  check("a long file is described from its contents lines, never its words", /One line a section: id \| title \| summary/.test(call2.user) && !call2.user.includes("word word word") && call2.user.split("\n").filter(l => /^\d+ \| Part \d \|/.test(l)).length === 5);
+  /* a model that fails never fails the file */
+  reply = { aboutFails: true };
+  const w3 = makeCtx();
+  const p3 = await w3.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Fails" });
+  const b3 = await w3.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p3, name: "f.md", kind: "doc", sheets: [{ name: "f.md" }] });
+  await project.addDocPiece(w3.ctx, { space: SPACE, brain: p3, ver: b3.ver, text: "Some words.", page: 0 });
+  const fin = await project.finishFile(w3.ctx, { space: SPACE, brain: p3, ver: b3.ver, about: true });
+  check("a note that could not be written never fails the file", fin.sections === 1 && (await w3.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p3 })).length === 0);
+  reply = {};
+}
+
+/* ================= a project made from nothing ================= */
+
+{
+  const w = makeCtx();
+  const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Landing" });
+  check("only a document, a page or a table can be made", /document, a page or a table/.test(String(await w.ctx.runMutation("projects.fileMake", { space: SPACE, brain: p, kind: "slides", name: "x" }).catch(e => e.message))));
+  await w.ctx.runMutation("projects.fileMake", { space: SPACE, brain: p, kind: "html", name: "Landing.html" });
+  const g = await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  check("a page made from nothing is ready, empty and marked made", g.file.status === "ready" && g.file.made === true && g.file.kind === "html" && g.file.chars === 0 && g.cards.length === 0);
+  check("the list names it with its kind", (await w.ctx.runQuery("projects.projectsOf", { space: SPACE }))[0].kind === "html");
+  check("a project that has a file cannot be made again", /has a file already/.test(String(await w.ctx.runMutation("projects.fileMake", { space: SPACE, brain: p, kind: "doc", name: "x" }).catch(e => e.message))));
+
+  const page = "<!doctype html><html><head><title>Coaching</title></head><body><h1>Coaching with Ana</h1><p>Three offers.</p></body></html>";
+  reply = { answer: answerOf({ tldr: "I made the page.", reply: "It has a title and three offers.", edits: [{ op: "insert", after: 0, title: "Page", text: page }] }) };
+  const t = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "A landing page for my coaching business", english: false, embeds: false, shared: shared0 });
+  const sys = last(/You are the chat of a project/);
+  check("the chat is told the file is empty, that changes apply at once, and what a page is", /THE FILE IS EMPTY/.test(sys.sys) && /apply at once/.test(sys.sys) && /<!doctype html>/.test(sys.sys) && /one HTML page|HTML page/.test(sys.sys) && sys.user.includes("(empty)"));
+  check("the page it wrote is applied at once", t.edit?.status === "applied" && w.T.projectSections.length === 1 && w.T.projectSections[0].text === page, JSON.stringify(t.edit));
+  const g2 = await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  check("the file knows its size and its section", g2.file.chars === page.length && g2.file.sections === 1 && g2.cards.length === 1);
+
+  reply = { answer: answerOf({ tldr: "Four offers now.", edits: [{ op: "replace", sid: g2.cards[0].sid, find: "Three offers.", with: "Four offers." }] }) };
+  const t2 = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "Make it four offers", english: false, embeds: false, shared: shared0 });
+  const sys2 = last(/You are the chat of a project/);
+  check("the second message reads the page it made", sys2.user.includes("Coaching with Ana") && /an HTML page, 1 section, read whole/.test(sys2.user) && !/THE FILE IS EMPTY/.test(sys2.sys));
+  check("a change to a page made here applies at once too", t2.edit?.status === "applied" && w.T.projectSections[0].text.includes("Four offers."));
+  check("an older change cannot be undone under a newer one that rests on it", /changed since/.test(String(await w.ctx.runMutation("projects.editUndo", { space: SPACE, brain: p, id: t.edit.id }).catch(e => e.message))) && w.T.projectSections.length === 1);
+  await w.ctx.runMutation("projects.editUndo", { space: SPACE, brain: p, id: t2.edit.id });
+  check("and Undo puts the words back", w.T.projectSections[0].text.includes("Three offers.") && !w.T.projectSections[0].text.includes("Four offers."));
+  await w.ctx.runMutation("projects.editUndo", { space: SPACE, brain: p, id: t.edit.id }).catch(() => {});
+  const g3 = await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  check("undoing the first change empties the page again, with its size", g3.cards.length === 0 && g3.file.chars === 0 && g3.file.sections === 0);
+
+  /* a change that cannot apply is kept to try again */
+  reply = { answer: answerOf({ tldr: "Done.", edits: [{ op: "insert", after: 0, title: "x", text: "<p>one</p>" }] }) };
+  const real = projects.editApply.handler;
+  projects.editApply.handler = async () => { throw new Error("the file moved"); };
+  const t4 = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "Add a paragraph", english: false, embeds: false, shared: shared0 });
+  projects.editApply.handler = real;
+  check("when the change cannot be applied at once it stays a proposal, and the reply says so", t4.edit?.status === "open" && /was not applied: the file moved/.test(t4.a), JSON.stringify(t4));
+}
+
+{
+  /* an uploaded file does not take changes by itself */
+  const w = makeCtx();
+  const p = await docProject(w, "Upload", "# Offer\n\nTeam costs 1,490 euros a seat.");
+  const g = await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  reply = { answer: answerOf({ tldr: "Proposed.", edits: [{ op: "replace", sid: g.cards[0].sid, find: "1,490", with: "1,290" }] }) };
+  const t = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "Make Team 1,290", english: false, embeds: false, shared: shared0 });
+  check("changes to an uploaded file wait for a click", g.file.made === false && t.edit.status === "open" && w.T.projectSections[0].text.includes("1,490") && /The owner applies the changes with a click/.test(last(/You are the chat of a project/).sys));
+}
+
+{
+  /* a table made from nothing */
+  const w = makeCtx();
+  const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Programs" });
+  await w.ctx.runMutation("projects.fileMake", { space: SPACE, brain: p, kind: "table", name: "Programs.csv" });
+  const chat = (q) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0 });
+  const build = { op: "table", sheet: 1, name: "Programs", columns: ["Program", "Price", "Plan"], rows: [["Pixel Forge", "1350", "Yes"], ["Ship It Camp", "1090", "No"], ["Craft", "1250", "Yes"]] };
+  reply = { answer: answerOf({ tldr: "I built the table.", edits: [build] }) };
+  const t = await chat("A table of programs with a price and a payment plan, three rows");
+  const s = last(/You are the chat of a project/);
+  check("the chat is told the table is empty and how to build one", /THE FILE IS EMPTY/.test(s.sys) && /"op":"table"/.test(s.sys) && s.user.includes("(empty)"));
+  let f = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).file;
+  check("the table is built at once: its columns, its rows, what each column holds", t.edit?.status === "applied" && f.sheets[0].header.join() === "Program,Price,Plan" && f.sheets[0].rows === 3 && f.sheets[0].cols[1].sum === 3690 && f.chars > 0, JSON.stringify(f.sheets[0]));
+  check("the grid reads its rows", (await w.ctx.runQuery("projects.rowsPage", { space: SPACE, brain: p, sheet: 0, from: 1, n: 10 })).rows.map(r => r.cells[0]).join() === "Pixel Forge,Ship It Camp,Craft");
+
+  reply = { answer: answerOf({ tldr: "Price changed.", edits: [{ op: "set", sheet: 1, row: 2, col: "Price", value: "1190" }] }) };
+  const t2 = await chat("Make Ship It Camp 1,190");
+  check("the next message reads the table whole, and a change to a cell applies at once", /1 \| Pixel Forge \| 1350 \| Yes/.test(last(/You are the chat of a project/).user) && t2.edit.status === "applied");
+  f = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).file;
+  check("the totals follow the change", f.sheets[0].cols[1].sum === 3790 && f.sheets[0].cols[1].min === 1190, JSON.stringify(f.sheets[0].cols[1]));
+  await w.ctx.runMutation("projects.editUndo", { space: SPACE, brain: p, id: t2.edit.id });
+  f = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).file;
+  check("and Undo brings the old totals back", f.sheets[0].cols[1].sum === 3690);
+
+  reply = { answer: answerOf({ tldr: "Restructured.", edits: [{ op: "table", sheet: 1, columns: ["Name", "Weeks"], rows: [["A", "4"], ["B", "6"]] }, { op: "set", sheet: 1, row: 1, col: "Price", value: "1" }] }) };
+  const t3 = await chat("Make it two columns, Name and Weeks");
+  check("a sheet built whole takes no other change in the same go", /built whole in this change/.test(t3.a) && t3.edit.preview.length === 1, t3.a);
+  f = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).file;
+  check("a rebuilt sheet replaces the old columns and rows, keeping its name", f.sheets[0].header.join() === "Name,Weeks" && f.sheets[0].rows === 2 && f.sheets[0].name === "Programs");
+  await w.ctx.runMutation("projects.editUndo", { space: SPACE, brain: p, id: t3.edit.id });
+  f = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).file;
+  check("Undo brings back the sheet as it was: columns, rows and totals", f.sheets[0].header.join() === "Program,Price,Plan" && f.sheets[0].rows === 3 && f.sheets[0].cols[1].sum === 3690 && f.sheets[0].cols.length === 3, JSON.stringify(f.sheets[0]));
+  const rows = (await project.readBlocks(w.ctx, { space: SPACE, brain: p, sheet: 0 })).flatMap(t => sheet.parseCsv(t));
+  check("and its rows", rows.length === 3 && rows[2][0] === "Craft");
+
+  reply = { answer: answerOf({ tldr: "x", edits: [{ op: "table", sheet: 1, columns: [], rows: [["a"]] }] }) };
+  const t5 = await chat("A table with no columns");
+  check("a table with no column names is left out", !t5.edit && /a table needs column names/.test(t5.a), t5.a);
+  await w.ctx.runMutation("projects.editUndo", { space: SPACE, brain: p, id: t.edit.id });
+  f = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).file;
+  check("undoing the first build empties the table again", f.sheets[0].rows === 0 && f.sheets[0].header.length === 0 && f.chars === 0);
+}
+
+{
+  /* a table with columns and no rows cannot take a row by the old way */
+  const w = makeCtx();
+  const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Columns only" });
+  await w.ctx.runMutation("projects.fileMake", { space: SPACE, brain: p, kind: "table", name: "c.csv" });
+  const first = await w.ctx.runMutation("projects.editPropose", { space: SPACE, brain: p, ops: [{ op: "table", sheet: 1, columns: ["A", "B"], rows: [] }] });
+  await w.ctx.runMutation("projects.editApply", { space: SPACE, brain: p, id: first.id });
+  const add = await w.ctx.runMutation("projects.editPropose", { space: SPACE, brain: p, ops: [{ op: "add", sheet: 1, values: { A: "x" } }] });
+  check("columns with no rows are kept, and a row is added by building the sheet", !add.id && /build it with a table change/.test(add.bad[0]), JSON.stringify(add));
+}
+
+
 /* ================= the routes, end to end ================= */
 
 {
@@ -668,8 +959,36 @@ const gt = await T2.ctx.runQuery("projects.projectGet", { space: SPACE, brain: s
   const csv = await call("/api/project/download", { brain: t, sheet: 0 });
   check("a sheet downloads as CSV with its header", csv.kind === "table" && csv.sheet === "Programs" && csv.text === "Program,Price,Program 2\nA,\"1,200\",x\nB,690,y\nC,\"2,400\",z\n", JSON.stringify(csv.text));
 
+  /* a project that starts from nothing, through the routes */
+  check("a project made from something that is not a document, a page or a table is refused, and leaves nothing", /document, a page or a table/.test((await call("/api/project/new", { name: "Odd one", make: "slides" })).error)
+    && !w.T.brains.some(b => b.name === "Odd one"));
+  const mk = await call("/api/project/new", { name: "Coach page", make: "html" });
+  const mg = await call("/api/project/get", { brain: mk.slug });
+  check("a project can start from nothing: a page, ready to be written", mg.file.kind === "html" && mg.file.made === true && mg.file.name === "Coach page.html" && mg.file.chars === 0 && mg.file.status === "ready", JSON.stringify(mg.file));
+  const pageText = "<!doctype html><html><body><h1>Coaching</h1></body></html>";
+  reply = { answer: { tldr: "I made the page.", reply: "A title.", proposal: false, quotes: [], edits: [{ op: "insert", after: 0, title: "Page", text: pageText }] } };
+  const mc = await call("/api/project/chat", { brain: mk.slug, q: "A landing page for my coaching business" });
+  check("the chat writes it, and it applies at once", mc.turn.edit?.status === "applied" && mc.turn.lead === "I made the page." && w.T.projectSections.some(x => x.text === pageText), JSON.stringify(mc.turn));
+  const hd = await call("/api/project/download", { brain: mk.slug });
+  check("a page downloads as it was written", hd.kind === "html" && hd.name === "Coach page.html" && hd.text === pageText + "\n", JSON.stringify(hd));
+  check("a table can be made too, named for a sheet", (await call("/api/project/get", { brain: (await call("/api/project/new", { name: "Made table", make: "table" })).slug })).file.sheets[0].name === "Sheet 1");
+  const hb = await call("/api/project/begin", { brain: mk.slug, name: "page.html", kind: "html" });
+  check("an HTML file is a file kind of its own, and a new file replaces the page made here", hb.ver >= 1 && !(await call("/api/project/get", { brain: mk.slug })).cards.length);
+  await call("/api/project/part", { brain: mk.slug, ver: hb.ver, text: "<!doctype html>\n<html><body><p>Uploaded</p></body></html>", page: 0 });
+  await call("/api/project/finish", { brain: mk.slug, ver: hb.ver });
+  const up = await call("/api/project/get", { brain: mk.slug });
+  check("and the uploaded page is not one made here: its changes wait for a click", up.file.kind === "html" && up.file.made === false && up.file.status === "ready");
+  reply = { about: { notes: [{ title: "x", claim: "A page.", position: "A page saying Uploaded.", summaryLine: "A page" }] } };
+  const hb2 = await call("/api/project/begin", { brain: mk.slug, name: "page2.html", kind: "html" });
+  await call("/api/project/part", { brain: mk.slug, ver: hb2.ver, text: "<p>Again</p>", page: 0 });
+  await call("/api/project/finish", { brain: mk.slug, ver: hb2.ver });
+  check("a file read in leaves its note, and a new file takes the old note away first", (await call("/api/project/get", { brain: mk.slug })).memory.filter(m => m.title === "The file").length === 1);
+  reply = { ...reply, about: undefined };
+  const hb3 = await call("/api/project/begin", { brain: mk.slug, name: "page3.html", kind: "html" });
+  check("the note on the old file is gone once a new file begins", (await call("/api/project/get", { brain: mk.slug })).memory.filter(m => m.title === "The file").length === 0 && hb3.ver >= 1);
+
   /* taking it all away */
-  check("deleting a project takes it away, and its memory with it", (await call("/api/project/delete", { brain: slugR })).ok === true && !w.T.brains.some(b => b.slug === slugR) && !(w.T.concepts ?? []).some(c => c.brain === slugR) && (await call("/api/project/list")).projects.length === 1);
+  check("deleting a project takes it away, and its memory with it", (await call("/api/project/delete", { brain: slugR })).ok === true && !w.T.brains.some(b => b.slug === slugR) && !(w.T.concepts ?? []).some(c => c.brain === slugR) && !(await call("/api/project/list")).projects.some(x => x.slug === slugR));
 }
 
 
