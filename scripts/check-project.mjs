@@ -868,6 +868,78 @@ const routeOf = (extra = {}) => ({ intent: "ask", sections: [], all: false, quer
 }
 
 
+/* ================= a project with no file: the first description makes one ================= */
+
+{
+  const w = makeCtx();
+  w.T.brains = [{ _id: "bp", slug: "pricing", name: "Pricing", type: "subject", scope: "Prices and offers", space: SPACE }];
+  w.T.concepts = [{ _id: "cp", brain: "pricing", slug: "payment-plans", n: 1, title: "Payment plans", position: "Offers above 1,000 euros convert better with a payment plan.", summaryLine: "Plans lift conversion",
+    evidence: [{ date: "2026-03-01", author: "A", claim: "plans lift conversion", source: "s1" }], data: [], conflicts: [], sources: ["s1"], related: [], updated: "2026-03-01" }];
+  w.T.cards = [{ _id: "cc", cid: "cp", brain: "pricing", slug: "payment-plans", n: 1, title: "Payment plans", summaryLine: "Plans lift conversion", lead: "Offers above 1,000 euros convert better", ev: 1, src: 1, srcIds: ["s1"], related: [], updated: "2026-03-01" }];
+  const withFolder = { brains: [{ slug: "pricing", name: "Pricing", type: "subject", scope: "Prices and offers" }], cards: async slugs => w.T.cards.filter(c => slugs.includes(c.brain)) };
+  const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Offers" });
+  const getP = () => w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  const chat = (q, shared = shared0) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared });
+  check("a project made with a name alone has no file", (await getP()).file === null);
+
+  /* a message that makes nothing leaves the project as it was */
+  reply = { route: routeOf({ kind: "doc" }), answer: answerOf({ tldr: "What should it hold?", reply: "Name the offers, or point at a folder." }) };
+  const before = sent.length;
+  const q1 = await chat("Make me something");
+  const r1 = last(/You route a project's questions/), a1 = last(/You are the chat of a project/);
+  check("the router runs even with no other folder, and is told there is no file and asked for the kind", sent.length - before >= 2 && /THERE IS NO FILE YET/.test(r1.user) && /"kind"/.test(r1.user));
+  check("the chat is told the file is empty, and that its changes apply at once", /THE FILE IS EMPTY/.test(a1.sys) && /apply at once/.test(a1.sys) && a1.user.includes("(empty)"));
+  check("a question back makes no file and keeps the exchange", (await getP()).file === null && !q1.edit && q1.lead === "What should it hold?" && (await getP()).turns.length === 1);
+  check("and the turn names no file it did not make", q1.used.file.whole === false);
+
+  /* the first description, from the words and a folder */
+  reply = { route: routeOf({ intent: "change", kind: "table", folders: ["pricing"], terms: ["payment plan"] }), folders: { picks: [1], terms: ["payment plan"] },
+    answer: answerOf({ tldr: "I built the table from your Pricing folder.", reply: "**Pricing folder:** the offers and their prices.",
+      edits: [{ op: "table", sheet: 1, name: "Offers", columns: ["Offer", "Price"], rows: [["Team", "1490"], ["Starter", "490"]] }] }) };
+  const t = await chat("A table of my offers and their prices, from my Pricing folder", withFolder);
+  const g = await getP();
+  const a2 = last(/You are the chat of a project/);
+  check("the first description makes the file: the kind the router chose, marked made, named for the project", g.file.kind === "table" && g.file.made === true && g.file.name === "Offers.csv" && g.file.status === "ready", JSON.stringify(g.file));
+  check("it is built at once, with Undo", t.edit?.status === "applied" && g.file.sheets[0].rows === 2 && g.file.sheets[0].header.join() === "Offer,Price" && g.file.sheets[0].cols[1].sum === 1980, JSON.stringify(g.file.sheets[0]));
+  check("the answer was written with the rules for a table and read the folder the router named", /"op":"table"/.test(a2.sys) && /Offers above 1,000 euros convert better/.test(a2.user) && JSON.stringify(t.used.folders) === JSON.stringify([{ slug: "pricing", name: "Pricing", notes: 1 }]), a2.user.slice(a2.user.indexOf("THEIR FOLDERS")));
+  check("the router was told the folders there are, to fill an empty file", /pricing \| Pricing \| Prices and offers/.test(last(/You route a project's questions/).user));
+  check("the rules say to build from the folders and to name them", /build from them/.test(a2.sys) && /which folder each part comes from/.test(a2.sys));
+  reply = { route: routeOf(), answer: answerOf({ tldr: "Starter is 490.", reply: "Row 2." }) };
+  await chat("What does Starter cost?");
+  check("the next message reads the table it made, and it is not told the file is empty", /Offer \| Price|1 \| Team \| 1490/.test(last(/You are the chat of a project/).user) && !/THE FILE IS EMPTY/.test(last(/You are the chat of a project/).sys));
+  const undone = await w.ctx.runMutation("projects.editUndo", { space: SPACE, brain: p, id: t.edit.id });
+  check("Undo empties the table, and the file stays", undone.ok === true && (await getP()).file.chars === 0 && (await getP()).file.kind === "table");
+}
+
+{
+  /* the kind comes from the words when the router cannot say */
+  const w = makeCtx();
+  const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Coaching site" });
+  const real = globalThis.fetch;
+  globalThis.fetch = async (u, opt) => { if (/You route a project's questions/.test(String(JSON.parse(opt.body).messages[0].content))) return new Response("busy", { status: 503 }); return real(u, opt); };
+  const page = "<!doctype html><html><body><h1>Coaching</h1></body></html>";
+  reply = { answer: answerOf({ tldr: "I made the page.", edits: [{ op: "insert", after: 0, title: "Page", text: page }] }) };
+  const t = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "A landing page for my coaching business", english: false, embeds: false, shared: shared0 });
+  globalThis.fetch = real;
+  const g = await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  check("with the router down, a landing page is made as a page, from the words", g.file.kind === "html" && g.file.name === "Coaching site.html" && t.edit?.status === "applied" && w.T.projectSections[0].text === page, JSON.stringify(g.file));
+  check("the guess reads English and French words", project.guessKind("A budget tracker") === "table" && project.guessKind("un tableau de mes depenses") === "table" && project.guessKind("my website") === "html" && project.guessKind("une page web") === "html" && project.guessKind("A one page brief") === "doc");
+  check("a router that names no real kind falls back to the words", await (async () => {
+    const w2 = makeCtx(); const p2 = await w2.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Odd" });
+    reply = { route: routeOf({ kind: "slides" }), answer: answerOf({ tldr: "Made.", edits: [{ op: "insert", after: 0, title: "Brief", text: "Goal: fill 200 seats." }] }) };
+    await project.projectChat(w2.ctx, { space: SPACE, brain: p2, q: "A project brief", english: false, embeds: false, shared: shared0 });
+    return (await w2.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p2 })).file.kind === "doc";
+  })());
+}
+
+{
+  /* a file that was not finished is not made again over the top */
+  const w = makeCtx();
+  const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Half read" });
+  await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p, name: "x.docx", kind: "doc", sheets: [{ name: "x.docx" }] });
+  check("a file left half read is told to be waited for or dropped again", /is not ready/.test(String(await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "Make a page", english: false, embeds: false, shared: shared0 }).catch(e => e.message))));
+}
+
 /* ================= the routes, end to end ================= */
 
 {
@@ -972,6 +1044,12 @@ const routeOf = (extra = {}) => ({ intent: "ask", sections: [], all: false, quer
   const hd = await call("/api/project/download", { brain: mk.slug });
   check("a page downloads as it was written", hd.kind === "html" && hd.name === "Coach page.html" && hd.text === pageText + "\n", JSON.stringify(hd));
   check("a table can be made too, named for a sheet", (await call("/api/project/get", { brain: (await call("/api/project/new", { name: "Made table", make: "table" })).slug })).file.sheets[0].name === "Sheet 1");
+  const bare = await call("/api/project/new", { name: "Say it" });
+  check("a project made with a name alone has no file, and the chat is open to it", (await call("/api/project/get", { brain: bare.slug })).file === null);
+  reply = { route: routeOf({ kind: "doc" }), answer: { tldr: "I wrote the brief.", reply: "One page.", proposal: false, quotes: [], edits: [{ op: "insert", after: 0, title: "Brief", text: "# Brief\n\nFill 200 seats." }] } };
+  const sayIt = await call("/api/project/chat", { brain: bare.slug, q: "A one page brief to fill 200 seats" });
+  const sg = await call("/api/project/get", { brain: bare.slug });
+  check("what is said in the chat makes the file, through the route", sayIt.turn.edit?.status === "applied" && sg.file.kind === "doc" && sg.file.made === true && sg.file.name === "Say it.md" && sg.cards.length === 1, JSON.stringify(sg.file));
   const hb = await call("/api/project/begin", { brain: mk.slug, name: "page.html", kind: "html" });
   check("an HTML file is a file kind of its own, and a new file replaces the page made here", hb.ver >= 1 && !(await call("/api/project/get", { brain: mk.slug })).cards.length);
   await call("/api/project/part", { brain: mk.slug, ver: hb.ver, text: "<!doctype html>\n<html><body><p>Uploaded</p></body></html>", page: 0 });

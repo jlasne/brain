@@ -3568,8 +3568,14 @@ for (const space of ["octopus", "squidgy"]) {
   /* a project with no file opens on the drop */
   await page.click("#projects .pj-row >> nth=2"); await page.waitForTimeout(500);
   const empty = await page.evaluate(() => ({ drop: !!document.querySelector(".pj-drop"), h: document.querySelector(".pj-drop h3")?.textContent, hint: document.querySelector(".pj-hint")?.textContent, send: document.querySelector(".pj-send").disabled,
-    btn: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/") }));
-  check("a project with no file shows where to drop it, and cannot be asked yet", empty.drop && /Drop the file or the table/.test(empty.h) && /Add the file or the table/.test(empty.hint) && empty.send && empty.btn === "Add a file/Delete", JSON.stringify(empty));
+    btn: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), ph: document.querySelector(".pj-comp textarea").placeholder, dropText: document.querySelector(".pj-drop p")?.textContent,
+    tries: [...document.querySelectorAll(".pj-try button")].map(b => b.textContent) }));
+  check("a project with no file shows where to drop one, and the chat is open to a description", empty.drop && /Drop the file or the table/.test(empty.h) && /^Describe what you want/.test(empty.hint) && /^Describe a document, a table or a page/.test(empty.ph) && empty.btn === "Add a file/Delete", JSON.stringify(empty));
+  check("the drop names HTML, and says the chat can make the file instead", /HTML/.test(empty.dropText) && /describe what you want in the chat/.test(empty.dropText), empty.dropText);
+  check("it offers three things to make, and one built from the biggest folder", empty.tries.length === 4 && /^A table of my monthly expenses/.test(empty.tries[0]) && empty.tries[3] === "A one page summary of my Pricing folder", JSON.stringify(empty.tries));
+  await page.fill(".pj-comp textarea", "A one page brief");
+  check("a description can be sent, with no file yet", !(await page.evaluate(() => document.querySelector(".pj-send").disabled)));
+  await page.fill(".pj-comp textarea", "");
 
   /* a new project: a name and a file, read here, sent a piece at a time */
   await page.click("#newProject"); await page.waitForTimeout(200);
@@ -3667,7 +3673,9 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#burger"); await page.waitForTimeout(300);
   await page.click("#projects .pj-row >> nth=1"); await page.waitForTimeout(600);
   const e = await page.evaluate(() => ({ on: document.querySelector(".pj-seg .on")?.textContent, drop: !!document.querySelector(".pj-drop"), wide: document.documentElement.scrollWidth > innerWidth + 1 }));
-  check("a project with no file opens on its Document tab, where the drop is", e.on === "Document" && e.drop && !e.wide, JSON.stringify(e));
+  check("a project with no file opens on its Chat tab, where it is described, with the drop on the Document tab", e.on === "Chat" && e.drop && !e.wide, JSON.stringify(e));
+  await page.click(".pj-seg button >> text=Document"); await page.waitForTimeout(300);
+  check("and the Document tab shows the drop", await page.evaluate(() => getComputedStyle(document.querySelector(".pj-doc")).display !== "none" && !!document.querySelector(".pj-drop")));
   check("nothing threw on the phone", !bad.length, bad.join(" | "));
   await page.close();
 }
@@ -3689,7 +3697,8 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/health") return J({ conflicted: [], health: [] });
       if (path === "/api/project/list") return J({ projects: arg.state.projects });
       if (path === "/api/project/new") {
-        const slug = "made-" + (body.make || "file"), kind = body.make || null;
+        /* An older server ignores what to make and leaves the project with no file. */
+        const kind = window.__oldServer ? null : (body.make || null), slug = "made-" + (body.make || "file") + "-" + (window.__n = (window.__n || 0) + 1);
         window.__proj[slug] = { project: { slug, name: body.name, created: "2026-10-09" },
           file: kind ? { name: `${body.name}.${kind === "html" ? "html" : kind === "table" ? "csv" : "md"}`, kind, made: true, sheets: [{ name: kind === "table" ? "Sheet 1" : body.name, header: [], cols: [], rows: 0 }], chars: 0, sections: 0, status: "ready", ver: 1, at: 1 } : null,
           cards: [], turns: [], edits: [], memory: [] };
@@ -3697,6 +3706,19 @@ for (const space of ["octopus", "squidgy"]) {
         return J({ slug });
       }
       if (path === "/api/project/get") return J(P);
+      if (path === "/api/project/doc") return J({ sections: P.file?.kind === "doc" && P.file.chars ? [{ sid: 1, ord: 1, sheet: 0, title: "Brief", text: "# Brief\n\nFill 200 seats." }] : [] });
+      if (path === "/api/project/delete") { arg.state.projects = arg.state.projects.filter(x => x.slug !== body.brain); delete window.__proj[body.brain]; return J({ ok: true }); }
+      if (path === "/api/project/chat" && !P.file) {
+        /* No file yet: the first description makes one, from the words and a folder. */
+        P.file = { name: `${P.project.name}.md`, kind: "doc", made: true, sheets: [{ name: P.project.name, header: [], cols: [], rows: 0 }], chars: 120, sections: 1, status: "ready", ver: 1, at: 1 };
+        P.cards = [{ sid: 1, ord: 1, sheet: 0, title: "Brief", summary: "x", chars: 120 }];
+        const t = { id: "t1", q: body.q, lead: "I wrote the brief from your Content folder.", a: "**Content folder:** the goal and the date.", proposal: false, quotes: [],
+          used: { file: { name: P.file.name, whole: false }, folders: [{ slug: "content", name: "Content", notes: 2 }], memory: 0 }, intent: "change",
+          edit: { id: "e1", status: "applied", preview: [{ label: "New section at the start", before: "", after: "# Brief" }] } };
+        P.turns.push(t); P.edits.unshift({ id: "e1", at: Date.now(), status: "applied", preview: t.edit.preview });
+        const row = arg.state.projects.find(x => x.slug === body.brain); if (row) Object.assign(row, { kind: "doc", file: P.file.name, status: "ready", made: true, chars: 120, sections: 1 });
+        return J({ turn: t });
+      }
       if (path === "/api/project/chat") {
         const f = P.file, empty = !f.chars;
         if (empty) { f.chars = 300; f.sections = 1; P.html = arg.page; P.cards = [{ sid: 1, ord: 1, sheet: 0, title: "Page", summary: "x", chars: 300 }]; }
@@ -3772,6 +3794,39 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("[data-make=doc]"); await page.waitForTimeout(800);
   const dc = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/new").pop()?.body, empty: document.querySelector(".pj-empty h3")?.textContent, chip: document.querySelector(".pj-chip")?.textContent }));
   check("and a document", dc.call?.make === "doc" && dc.call?.name === "New document" && dc.empty === "This document is empty" && dc.chip === "New document.md", JSON.stringify(dc));
+
+  /* the same name twice: the second takes a number */
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  await page.click("[data-make=table]"); await page.waitForTimeout(700);
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  await page.click("[data-make=table]"); await page.waitForTimeout(700);
+  const names = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/new" && x.body.make === "table").map(x => x.body.name));
+  check("a name left empty is New table, then New table 2, so a second one is never refused", names.slice(-2).join("|") === "New table|New table 2", JSON.stringify(names));
+
+  /* a project made with nothing chosen: the chat makes the file from what is said */
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  await page.click("#npMake"); await page.waitForTimeout(800);
+  const bare = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/new").pop()?.body, drop: !!document.querySelector(".pj-drop"), ph: document.querySelector(".pj-comp textarea").placeholder,
+    hint: document.querySelector(".pj-hint")?.textContent, view: document.querySelector("main").dataset.view, seg: document.querySelector(".pj-seg button")?.textContent }));
+  check("Create project with nothing chosen makes a project named New project, with no file, and opens its chat", bare.call?.name === "New project" && bare.call?.make === undefined && bare.drop && /^Describe a document, a table or a page/.test(bare.ph) && /^Describe what you want/.test(bare.hint) && bare.view === "project", JSON.stringify(bare));
+  await page.fill(".pj-comp textarea", "A one page brief for my launch, from my Content folder"); await page.keyboard.press("Enter"); await page.waitForTimeout(900);
+  const said = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/chat").pop()?.body, drop: !!document.querySelector(".pj-drop"), chip: document.querySelector(".pj-chip")?.textContent,
+    acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), page: !!document.querySelector(".pj-paper .pj-page"), seg: document.querySelector(".pj-seg button")?.textContent,
+    ph: document.querySelector(".pj-comp textarea").placeholder, lead: document.querySelector(".pj-ld")?.textContent, chips: [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent),
+    row: document.querySelector("#projects .pj-row.on")?.title }));
+  check("what is said makes the file: the drop gives way to the document, with its name, its buttons and its tab", !said.drop && said.page && said.chip === "New project.md" && said.acts === "Replace file/Download/Delete" && said.seg === "Document", JSON.stringify(said));
+  check("the message bar then asks about the document, the answer names the folder it used, and the list knows the file", /^Ask about the document/.test(said.ph) && said.lead === "I wrote the brief from your Content folder." && said.chips.includes("Content folder · 2 notes") && /New project\.md/.test(said.row), JSON.stringify(said));
+
+  /* a server older than this page: nothing is left behind, and the sheet says what to do */
+  await page.evaluate(() => { window.__oldServer = true; });
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  const newsBefore = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/new").length);
+  await page.click("[data-make=table]"); await page.waitForTimeout(700);
+  const old = await page.evaluate(() => ({ bad: document.getElementById("npBad").textContent, sheet: !!document.querySelector(".veil"), btn: document.getElementById("npMake").disabled,
+    made: window.__calls.filter(x => x.s === "/api/project/new").pop()?.body, del: window.__calls.filter(x => x.s === "/api/project/delete").pop()?.body }));
+  check("an older server leaves a project with no file: the sheet says so, deletes it, and stays open", /The server is older than this page/.test(old.bad) && /convex deploy/.test(old.bad) && old.sheet && !old.btn && old.made?.make === "table" && /^made-table-/.test(old.del?.brain), JSON.stringify(old));
+  check("and the list holds no half made project", await page.evaluate(() => ![...document.querySelectorAll("#projects .pj-row .nm")].some(n => n.textContent === "New table 3")));
+  await page.evaluate(() => { window.__oldServer = false; document.querySelector(".veil")?.remove(); });
 
   /* an HTML file chosen is a page, kept as it is */
   await page.click("#newProject"); await page.waitForTimeout(200);

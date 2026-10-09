@@ -23,6 +23,11 @@ export const MAX_SECTIONS = 1000;
 export const TINY_CHARS = 8000;
 /** A text up to this many characters is read whole when the question is about all of it. Longer, a question reads the sections it needs. */
 export const WHOLE_CHARS = 48000;
+/** What a project's file can be: words, a page of HTML (words shown rendered), or a table. */
+export const FILE_KINDS = ["doc", "html", "table"];
+/** The name of a file made from nothing, from the project's name: a page, a table or a document. */
+export const madeName = (name: string, kind: string) =>
+  `${String(name ?? "").replace(/\s+/g, " ").trim().slice(0, 56) || "Untitled"}.${kind === "html" ? "html" : kind === "table" ? "csv" : "md"}`;
 /** The line a PDF page starts with, so an answer can name its page. */
 export const PAGE_LINE = /^\[\[p\. (\d+)\]\]$/;
 

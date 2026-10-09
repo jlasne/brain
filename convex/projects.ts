@@ -15,11 +15,9 @@
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { readSpace, slug, today } from "./lib";
-import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
+import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, FILE_KINDS, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
 import type { Col } from "./sheet";
 
-/** What a project's file can be: words, a page of HTML (words shown rendered), or a table. */
-export const FILE_KINDS = ["doc", "html", "table"];
 /** Rows one change may build a sheet from. */
 export const TABLE_OP_ROWS = 1000;
 /** A sheet this small has its column totals worked out again after a change. */

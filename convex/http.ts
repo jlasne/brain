@@ -23,7 +23,7 @@ import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
 import { projectChat, keepTurn, addDocPiece, addRowPiece, finishFile, readBlocks } from "./project";
-import { colNames, downloadText, csvOf, parseCsv } from "./sheet";
+import { colNames, downloadText, csvOf, parseCsv, madeName } from "./sheet";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
@@ -1551,8 +1551,7 @@ route("/api/project/new", async (ctx, _req, b) => {
   const make = String(b.make ?? "");
   if (make) {
     try {
-      await ctx.runMutation(internal.projects.fileMake, { space: who.space, brain: slug, kind: make,
-        name: `${name.replace(/\s+/g, " ").trim().slice(0, 56)}.${make === "html" ? "html" : make === "table" ? "csv" : "md"}` });
+      await ctx.runMutation(internal.projects.fileMake, { space: who.space, brain: slug, kind: make, name: madeName(name, make) });
     } catch (e) { await wipeProject(ctx, who.space, slug, false); throw e; }
   }
   return { slug };

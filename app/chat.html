@@ -7476,6 +7476,8 @@ const PJ_ICON = {
 const pjIcon = k => PJ_ICON[k === "table" ? "table" : k === "html" ? "html" : "doc"];
 /** What a project's file is called: a document, a page or a table. */
 const pjNoun = k => k === "table" ? "table" : k === "html" ? "page" : "document";
+/** The name of the file's side in the phone's two tabs. */
+const pjSeg = f => f?.kind === "table" ? "Table" : f?.kind === "html" ? "Page" : "Document";
 
 /* ---- reading a file in this tab ---- */
 
@@ -7782,7 +7784,7 @@ function renderProjects(){
     const row = el("button","brain-row self pj-row" + (S.project === p.slug ? " on" : "") + (p.status === "reading" ? " run" : ""));
     const tick = el("span","tick"); tick.innerHTML = pjIcon(p.kind);
     row.append(tick, el("span","nm",p.name), el("span","cnt", p.status === "reading" ? "reading" : p.memory ? String(p.memory) : ""));
-    row.title = p.file ? `${p.file}\n${!p.chars ? "Empty: describe it in the chat" : p.kind === "table" ? "A table" : p.kind === "html" ? "A page" : p.sections + " sections"}, ${p.memory} kept in memory` : "No file yet";
+    row.title = p.file ? `${p.file}\n${!p.chars ? "Empty: describe it in the chat" : p.kind === "table" ? "A table" : p.kind === "html" ? "A page" : p.sections + " sections"}, ${p.memory} kept in memory` : "No file yet: describe it in the chat";
     row.onclick = () => openProject(p.slug);
     box.append(row);
   }
@@ -7808,11 +7810,11 @@ async function loadProject(){
   const pj = S.pj, d = await api("/api/project/get", { brain: pj.slug });
   if (S.pj !== pj) return;
   pj.data = d;
-  /* A project with no file opens on the file side, where the drop is. */
-  if (!d.file || d.file.status !== "ready") pj.seg = "doc";
+  /* A file not finished opens on the file side, where the drop is. A project with no file opens on its chat, where it is described. */
+  if (d.file && d.file.status !== "ready") pj.seg = "doc";
   paintProject();
-  /* A file made here and not written yet waits for a description. */
-  if (d.file?.status === "ready" && !d.file.chars && window.matchMedia("(min-width: 861px)").matches) pj.input?.focus();
+  /* A file made here and not written yet, or none yet, waits for a description. */
+  if ((!d.file || (d.file.status === "ready" && !d.file.chars)) && window.matchMedia("(min-width: 861px)").matches) pj.input?.focus();
 }
 /** The project's list entry, kept in step after a change. */
 async function syncProjects(){ try { S.projects = (await api("/api/project/list")).projects || S.projects; } catch { /* the list catches up at the next refresh */ } renderProjects(); }
@@ -7824,8 +7826,7 @@ function paintProject(){
   if (!pj.data){ host.append(el("div","pj-loading","Opening the project")); return; }
   const root = el("div","pj"); root.dataset.seg = pj.seg; pj.root = root;
   const seg = el("div","pj-seg");
-  const kind = pj.data.file?.kind === "table" ? "Table" : pj.data.file?.kind === "html" ? "Page" : "Document";
-  for (const [k, label] of [["doc", kind], ["chat", "Chat"]]){
+  for (const [k, label] of [["doc", pjSeg(pj.data.file)], ["chat", "Chat"]]){
     const b = el("button", pj.seg === k ? "on" : "", label); b.type = "button";
     b.onclick = () => { pj.seg = k; root.dataset.seg = k; [...seg.children].forEach(x => x.classList.toggle("on", x === b)); if (k === "doc"){ fillDoc(); fillGrid(); } };
     seg.append(b);
@@ -7926,7 +7927,7 @@ function dropZone(f){
   const z = el("div","pj-drop");
   z.append(el("h3",null, f ? "This file was not finished" : "Drop the file or the table this project is built on"),
     el("p",null, f ? "Its reading stopped part way. Drop it again to read it from the start."
-      : "Word, PDF, text, Markdown, Excel or CSV. It is read in this tab and filed in sections, so a long file answers fast."));
+      : "Word, PDF, text, Markdown, HTML, Excel or CSV. It is read in this tab and filed in sections, so a long file answers fast. Or describe what you want in the chat, and it is made here."));
   const b = el("button","go",f ? "Choose the file again" : "Choose a file"); b.type = "button"; b.onclick = () => chooseFile();
   z.append(b);
   z.ondragover = e => { e.preventDefault(); z.classList.add("over"); };
@@ -8135,7 +8136,7 @@ function chatPane(){
   const ta = el("textarea"); ta.rows = 1; ta.placeholder = askHint(d.file); ta.setAttribute("aria-label", "Message to the project");
   const send = el("button","pj-send"); send.type = "button"; send.setAttribute("aria-label", "Send"); send.disabled = true;
   send.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M8 3L4 7M8 3l4 4"/></svg>`;
-  const size = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 170) + "px"; send.disabled = !ta.value.trim() || pj.busy || !pj.data.file || pj.data.file.status !== "ready"; };
+  const size = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 170) + "px"; send.disabled = !ta.value.trim() || pj.busy || (!!pj.data.file && pj.data.file.status !== "ready"); };
   ta.oninput = size;
   ta.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); if (!send.disabled) go(); } };
   const go = () => { const q = ta.value.trim(); if (!q) return; ta.value = ""; size(); sendProject(q); };
@@ -8147,7 +8148,8 @@ function chatPane(){
 
 /** What the message bar invites: a question about the file, or a description of one to make. */
 function askHint(f){
-  if (!f || f.status !== "ready") return "Add a file first, then ask about it here.";
+  if (!f) return "Describe a document, a table or a page to make. Your folders are read when they help.";
+  if (f.status !== "ready") return "Drop the file again first, then ask about it here.";
   const n = pjNoun(f.kind);
   return f.chars ? `Ask about the ${n}, or ask for a change. Your folders are read when they help.`
     : `Describe the ${n} you want. It is written here, then changed as you go.`;
@@ -8174,19 +8176,24 @@ function paintSide(){
   if (!turns.length){
     const f = pj.data.file, tbl = f?.kind === "table", blank = f?.status === "ready" && !f.chars;
     const hint = el("div","pj-hint");
-    hint.textContent = !f ? "Add the file or the table this project is built on, then ask about it here."
+    hint.textContent = !f ? "Describe what you want: a document, a table or an HTML page. The chat makes it beside this, from your words and your folders, then changes it as you go. Every change can be undone. A file you have can be dropped instead."
       : f.status !== "ready" ? "The file was not finished. Add it again."
       : blank ? `Describe the ${pjNoun(f.kind)} you want. The chat writes it in the file beside this, then changes it as you go. Every change can be undone.`
       : f.made ? `Ask for a change and it is made at once, with an Undo. Ask a question and you get the answer first, then what it rests on.`
       : `Ask about the ${tbl ? "table" : "file"}. Ask for a brainstorm and you get a proposal, with where each point comes from. Ask for a change and you see it before it is made.`;
     box.append(hint);
-    if (f?.status === "ready"){
+    if (!f || f.status === "ready"){
       const tries = el("div","pj-try");
-      for (const q of blank ? (tbl ? ["A table of my monthly expenses, with a category, an amount and a date", "A content calendar for the next four weeks"]
+      /* A file still to make can be built from the owner's biggest folder: a start that shows the folders are read. */
+      const fold = !f || blank ? ordered().find(b => b.type !== "personal") : null;
+      const list = !f ? ["A table of my monthly expenses, with a category, an amount and a date", "A landing page for my coaching business: a hero, three offers and a contact form", "A one page project brief: goal, scope, risks and next steps"]
+        : blank ? (tbl ? ["A table of my monthly expenses, with a category, an amount and a date", "A content calendar for the next four weeks"]
           : f.kind === "html" ? ["A landing page for my coaching business: a hero, three offers and a contact form", "A one page résumé with my experience and skills"]
           : ["A one page project brief: goal, scope, risks and next steps", "A meeting notes template with decisions and actions"])
         : tbl ? ["Which rows stand out, and why?", "Brainstorm: what should I change in this table?"]
-        : ["Summarise this in five lines.", "Brainstorm: what is missing from this?"]){
+        : ["Summarise this in five lines.", "Brainstorm: what is missing from this?"];
+      if (fold) list.push(tbl ? `A table of the key points in my ${fold.name} folder, with the source of each` : f?.kind === "html" ? `A page presenting my ${fold.name} folder in five sections` : `A one page summary of my ${fold.name} folder`);
+      for (const q of list){
         const b = el("button",null,q); b.type = "button"; b.onclick = () => { pj.input.value = q; pj.size(); pj.input.focus(); };
         tries.append(b);
       }
@@ -8253,10 +8260,11 @@ function turnEl(t){
 async function sendProject(q){
   const pj = S.pj; if (!pj || pj.busy) return;
   pj.busy = true; pj.size();
+  const hadFile = !!pj.data.file;
   const box = pj.thread;
   box.querySelector(".pj-hint")?.remove(); box.querySelector(".pj-try")?.remove();
   const w = el("div","pj-turn"); w.append(el("div","pj-q",q));
-  const a = el("div","pj-a"); thinkInto(a, "Reading the file"); w.append(a);
+  const a = el("div","pj-a"); thinkInto(a, pj.data.file ? "Reading the file" : "Making it"); w.append(a);
   box.append(w); box.scrollTop = box.scrollHeight;
   try {
     const r = await api("/api/project/chat", { brain: pj.slug, q });
@@ -8264,7 +8272,8 @@ async function sendProject(q){
     pj.data.turns = [...pj.data.turns, r.turn].slice(-10);
     if (r.turn.edit) pj.data.edits = [{ id: r.turn.edit.id, at: Date.now(), status: r.turn.edit.status || "open", preview: r.turn.edit.preview }, ...pj.data.edits].slice(0, 10);
     w.replaceWith(turnEl(r.turn));
-    if (r.turn.edit?.status === "applied") { try { await refreshFile(); } catch { /* the page catches up at the next look */ } }
+    /* A change applied, or a file the first description just made: the file side follows. */
+    if (r.turn.edit?.status === "applied" || (!hadFile && r.turn.edit)) { try { await refreshFile(); } catch { /* the page catches up at the next look */ } }
     if (r.turn.noted?.length) refreshMemory();
     focusUsed(r.turn, false);
   } catch (e){
@@ -8369,6 +8378,8 @@ async function refreshFile(){
   pj.data.file = d.file; pj.data.cards = d.cards; pj.data.edits = d.edits;
   const old = pj.root?.querySelector(".pj-doc");
   if (old) old.replaceWith(docPane());
+  const first = pj.root?.querySelector(".pj-seg")?.children[0];
+  if (first) first.textContent = pjSeg(pj.data.file);
   if (pj.input) pj.input.placeholder = askHint(pj.data.file);
   syncProjects();
 }
@@ -8481,11 +8492,11 @@ function openProjectSheet(){
   const veil = el("div","veil");
   veil.innerHTML = `<div class="sheet roomy" role="dialog" aria-modal="true" aria-labelledby="npTitle">
     <header><h3 id="npTitle">New project</h3><p>One file, table or page, with a chat beside it and a memory of its own. Only this project and your personal folder read that memory.</p></header>
-    <div class="f"><label for="npName">Name</label><input id="npName" autocomplete="off" maxlength="60"></div>
+    <div class="f"><label for="npName">Name</label><input id="npName" autocomplete="off" maxlength="60" placeholder="New project"></div>
     <div class="f"><label>A file or a table you have</label><div class="pj-pick"><button class="ghost" id="npPick" type="button">Choose a file</button><span class="pj-file" id="npFile">Word, PDF, text, Markdown, HTML, Excel or CSV</span></div>
       <div class="hint">A file of any length works: it is filed in sections, and a question opens only the ones it needs.</div></div>
     <div class="f"><label>Or start from nothing</label><div class="pj-make"><button class="ghost" data-make="doc" type="button">Document</button><button class="ghost" data-make="table" type="button">Table</button><button class="ghost" data-make="html" type="button">HTML page</button></div>
-      <div class="hint">Describe it in the chat. It is written, then changed as you go, and you can undo any change.</div></div>
+      <div class="hint">Describe it in the chat, from your words and your folders. Every change can be undone. Press Create project with no type and the chat picks one.</div></div>
     <div class="f"><div class="pj-step" id="npStep" role="status"></div><div class="bad" id="npBad"></div></div>
     <footer><button class="ghost" id="npCancel" type="button">Cancel</button><button class="go" id="npMake" type="button">Create project</button></footer></div>`;
   document.body.append(veil);
@@ -8501,8 +8512,14 @@ function openProjectSheet(){
   };
   cancel.onclick = shut; veil.onclick = e => { if (e.target === veil) shut(); };
   const start = veil.querySelectorAll("[data-make]");
+  /* A name nothing else in the list has: New table, then New table 2. */
+  const free = base => {
+    const taken = new Set((S.projects || []).map(p => String(p.name).toLowerCase()));
+    let n = base, i = 1; while (taken.has(n.toLowerCase())) n = `${base} ${++i}`;
+    return n;
+  };
   const run = async (from) => {
-    const nm = name.value.trim() || (from ? `New ${pjNoun(from)}` : "");
+    const nm = name.value.trim() || (from ? free(`New ${pjNoun(from)}`) : file ? "" : free("New project"));
     if (!nm){ name.focus(); return; }
     busy = true; make.disabled = true; pick.disabled = true; cancel.disabled = true; start.forEach(b => { b.disabled = true; }); bad.textContent = "";
     let slug = "";
@@ -8510,6 +8527,11 @@ function openProjectSheet(){
       /* The file is read first: one that cannot be read makes no project. */
       const got = !from && file ? await readProjectFile(file, t => { stepEl.textContent = t; }) : null;
       slug = (await api("/api/project/new", { name: nm, ...(from ? { make: from } : {}) })).slug;
+      /* A server older than this page leaves the project with no file: say so, and leave nothing behind. */
+      if (from && !(await api("/api/project/get", { brain: slug })).file){
+        try { await api("/api/project/delete", { brain: slug }); slug = ""; } catch { /* the project stays, and the line below says so */ }
+        throw new Error("The server is older than this page and cannot start a file from nothing yet. Run convex deploy, then try again.");
+      }
       if (got) await uploadProject(slug, got, t => { stepEl.textContent = t; });
       busy = false; veil.remove();
       await syncProjects();

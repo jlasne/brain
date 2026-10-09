@@ -26,7 +26,7 @@ import { planDossier, writeDossier, idOf, OPEN_READ, keywords, stem } from "./wo
 import { embed, nearest } from "./graph";
 import { readNotes, fileNotes } from "./personal";
 import {
-  splitDoc, openingOf, withoutPages, pagesIn, WHOLE_CHARS, TINY_CHARS, SECTION_CHARS, columnsOf, colNames, parseCsv, csvOf, blocksOf,
+  splitDoc, openingOf, withoutPages, pagesIn, WHOLE_CHARS, TINY_CHARS, SECTION_CHARS, FILE_KINDS, madeName, columnsOf, colNames, parseCsv, csvOf, blocksOf,
   readQuery, runQuery, resultText, colLine, MAX_OPS,
 } from "./sheet";
 import type { Part, Sheet } from "./sheet";
@@ -173,14 +173,14 @@ async function aboutFile(ctx: any, o: { space: string; brain: string; key?: stri
 
 /* ---------- the step before an answer ---------- */
 
-export type Route = { intent: "ask" | "brainstorm" | "change"; sections: number[]; all: boolean; query: any | null; folders: string[]; terms: string[]; routed: boolean };
+export type Route = { intent: "ask" | "brainstorm" | "change"; sections: number[]; all: boolean; query: any | null; folders: string[]; terms: string[]; kind: string; routed: boolean };
 
-const NO_ROUTE: Route = { intent: "ask", sections: [], all: false, query: null, folders: [], terms: [], routed: false };
+const NO_ROUTE: Route = { intent: "ask", sections: [], all: false, query: null, folders: [], terms: [], kind: "", routed: false };
 
 const ROUTE_RULES = `You decide what a project's chat must read before it answers.
 The project is built on ONE file or table. Below are the message, the earlier questions, what the project remembers, the file's contents, and the folders the owner has.
 
-Reply with only JSON: {"intent":"ask","sections":[3,7],"all":false,"query":null,"folders":["pricing"],"terms":["price","payment plan"]}
+Reply with only JSON: {"intent":"ask","sections":[3,7],"all":false,"query":null,"folders":["pricing"],"terms":["price","payment plan"],"kind":""}
 
 - "intent": "ask" for a question, "brainstorm" when they want ideas, a choice or a decision, "change" when they ask to change the file or table.
 - "sections": for a document or a page. The ids of the sections the answer needs, best first, at most 8. For a change, the sections to change. Empty when the message needs none of the file: thanks, small talk, a question about this chat, or one the memory or the owner's folders answer.
@@ -190,8 +190,9 @@ Reply with only JSON: {"intent":"ask","sections":[3,7],"all":false,"query":null,
   ops: = != > >= < <= has in empty filled. "in" takes a list. "has" matches words inside a cell. Several conditions all hold unless "any" is true.
   calc fns: count sum avg min max, on a number column; "by" splits a total by a column. Name columns exactly as listed.
   Ask for the rows a change needs, so each carries its row number. Never ask for more than 100 rows.
-- "folders": the slugs of the owner's other folders that could add a fact, a number or a view the file lacks, at most 4. Empty when the file and the memory are enough.
+- "folders": the slugs of the owner's other folders that could add a fact, a number or a view the file lacks, at most 4. Empty when the file and the memory are enough. When the file is empty or there is none, the folders whose notes would fill it, the ones the owner names first.
 - "terms": the message as English search words: the subject, synonyms, abbreviations spelled out. Up to 12.
+- "kind": only when THE FILE says there is none yet. "table" for rows and columns (a budget, a tracker, a list with fields), "html" for a web page, "doc" for any other text, and "doc" when unsure. Otherwise "".
 - Match on meaning, whatever language the message is in.
 - The earlier questions only resolve a reference like "it" or "the second one".`;
 
@@ -228,9 +229,20 @@ const oneLine = (t: any, n: number) => String(t ?? "").replace(/\s+/g, " ").trim
 /** What an exchange said, as the next prompts read it: the one line answer, then its support. */
 const said = (t: any) => [t?.lead, t?.a].filter(Boolean).join(" ");
 
-async function route(o: { q: string; earlier: string[]; file: any; cards: any[]; tiny: boolean; firstRows: string[][][]; folders: any[]; memory: string[]; key?: string; model?: string }): Promise<Route> {
+/** What to make, from the words alone: the fallback when the router cannot say. */
+export function guessKind(q: string): string {
+  if (/\b(html|web ?page|landing|website|homepage|site web|page web)\b/i.test(q)) return "html";
+  if (/\b(tables?|tableaux?|spreadsheets?|csv|rows|columns|colonnes|lignes|tracker|budget)\b/i.test(q)) return "table";
+  return "doc";
+}
+
+async function route(o: { q: string; earlier: string[]; file: any; cards: any[]; tiny: boolean; firstRows: string[][][]; folders: any[]; memory: string[]; fresh?: boolean; empty?: boolean; key?: string; model?: string }): Promise<Route> {
   const doc = o.file.kind !== "table";
-  const fileBlock = o.tiny
+  const fileBlock = o.fresh
+    ? `THERE IS NO FILE YET. The owner describes what to make, and the chat makes it. Decide its "kind", the intent, the folders and the terms.`
+    : o.empty
+    ? `THE FILE "${o.file.name}" is empty. The owner describes what to write in it. Decide the intent, the folders and the terms.`
+    : o.tiny
     ? `THE FILE "${o.file.name}" is short: the answer reads all of it. Decide only the intent, the folders and the terms.`
     : doc
       ? `THE FILE "${o.file.name}", ${o.file.kind === "html" ? "an HTML page" : "a document"}. One line a section: id | title | summary\n${contentsText(o.cards)}`
@@ -255,11 +267,12 @@ async function route(o: { q: string; earlier: string[]; file: any; cards: any[];
       query: d?.query && typeof d.query === "object" ? d.query : null,
       folders: [...new Set<string>((Array.isArray(d?.folders) ? d.folders : []).map(String).filter((s: string) => slugs.has(s)))].slice(0, 4),
       terms: (Array.isArray(d?.terms) ? d.terms : []).map(String).slice(0, 12),
+      kind: !o.fresh ? "" : FILE_KINDS.includes(String(d?.kind)) ? String(d.kind) : guessKind(o.q),
       routed: true,
     };
   } catch (e: any) {
     console.log(`project router fell back to word matching: ${String(e?.message ?? e).slice(0, 160)}`);
-    return { ...NO_ROUTE, sections: doc ? pickByWords(o.cards, o.q) : [] };
+    return { ...NO_ROUTE, sections: doc ? pickByWords(o.cards, o.q) : [], kind: o.fresh ? guessKind(o.q) : "" };
   }
 }
 
@@ -316,7 +329,8 @@ WHEN THEY ASK TO CHANGE THE FILE
 ${kind === "html" ? `\n${HTML_PAGE}\n` : ""}${o.empty ? `
 THE FILE IS EMPTY
 - The owner will describe what they want. Build it complete in one go with the changes above. In "tldr", say what you made. In "reply", name the one thing to ask for next.
-- When the message does not say what to build, ask one question in "tldr" and make no change.
+- When THEIR FOLDERS hold what the owner points at, build from them: their names, numbers and dates as written. Say in "reply" which folder each part comes from. When a folder lacks something, build the rest and say what is missing.
+- A question is answered from THEIR FOLDERS and the memory, with no change. When the message says nothing to build, ask one question in "tldr" and make no change.
 ` : ""}
 Reply with only JSON: {"tldr":"","reply":"","proposal":false,"quotes":[],"edits":[]}
 - "quotes": up to 3 short passages of THE FILE, copied word for word, that the answer rests on. Empty when it rests on a folder or the memory alone, or when you changed the file.`;
@@ -418,9 +432,11 @@ export async function projectChat(ctx: any, o: ChatIn) {
   const q = String(o.q ?? "").trim().slice(0, 4000);
   if (!q) throw new Error("write something first");
   const got = await ctx.runQuery(internal.projects.projectGet, { space: o.space, brain: o.brain });
-  const file = got.file;
-  if (!file || file.status !== "ready") throw new Error("this project has no file yet. Make one or drop one first.");
-  const kind: string = file.kind, table = kind === "table", doc = !table, made = !!file.made;
+  if (got.file && got.file.status !== "ready") throw new Error("the file of this project is not ready: wait for it to be read, or drop it again");
+  /* No file yet: the first description makes one, of the kind its words call for. */
+  const fresh = !got.file;
+  const file = got.file ?? { name: got.project.name, kind: "doc", made: true, sheets: [], chars: 0, status: "ready" };
+  let kind: string = file.kind, table = kind === "table", doc = !table, made = !!file.made;
   const cards: any[] = got.cards;
   /* A file made here and not written yet, a short one, or one a message is about as a whole. */
   const empty = file.chars === 0 && !file.sheets.some((s: any) => (s.cols ?? []).length);
@@ -440,8 +456,13 @@ export async function projectChat(ctx: any, o: ChatIn) {
   const filing = o.note ? noteOwner(ctx, { space: o.space, brain: o.brain, q, last: earlierTurns[earlierTurns.length - 1], held: memory, key: o.key, model: o.model }) : Promise.resolve(null);
 
   /* 1. What the answer needs. A short file and no other folder leave nothing to decide. */
-  const skip = tiny && !o.shared.brains.length;
-  const r = skip ? NO_ROUTE : await route({ q, earlier, file, cards, tiny, firstRows, folders: o.shared.brains, memory: memory.map(m => m.title), key: o.key, model: o.model });
+  const skip = tiny && !fresh && !o.shared.brains.length;
+  const r = skip ? NO_ROUTE : await route({ q, earlier, file, cards, tiny, firstRows, folders: o.shared.brains, memory: memory.map(m => m.title), fresh, empty, key: o.key, model: o.model });
+  if (fresh) {
+    kind = r.kind || guessKind(q); table = kind === "table"; doc = !table; made = true;
+    file.kind = kind; file.name = madeName(got.project.name, kind);
+    file.sheets = [{ name: table ? "Sheet 1" : file.name.slice(0, 60), header: [], cols: [], rows: 0 }];
+  }
 
   /* 2. The file. */
   const whole = tiny || (mid && (r.all || !r.routed || (kind === "html" && r.intent === "change")));
@@ -535,7 +556,13 @@ export async function projectChat(ctx: any, o: ChatIn) {
   /* 5. The changes it proposed, checked against the file as it is now. A file made here takes them at once. */
   let edit: any = null;
   const ops = Array.isArray(d?.edits) ? d.edits.slice(0, MAX_OPS) : [];
-  if (ops.length) {
+  /* The file is made only when there is something to write in it. */
+  let ready = !fresh;
+  if (ops.length && fresh) {
+    try { await ctx.runMutation(internal.projects.fileMake, { space: o.space, brain: o.brain, kind, name: file.name }); ready = true; }
+    catch (err: any) { reply += `\n\nThe file was not made: ${String(err?.message ?? err).slice(0, 160)}`; }
+  }
+  if (ops.length && ready) {
     const e = await ctx.runMutation(internal.projects.editPropose, { space: o.space, brain: o.brain, ops });
     if (e.id) {
       let status = "open";
@@ -556,7 +583,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
   const turn = {
     q, ...(lead ? { lead } : {}), a: reply, proposal: d?.proposal === true && !edit,
     quotes,
-    used: { file: { name: file.name, whole, ...(opened.length ? { sections: opened } : {}), ...(mapText ? { map: true } : {}), ...(rowsUsed.length ? { rows: rowsUsed, sheet: rowsSheet } : {}) },
+    used: { file: { name: file.name, whole: whole && !empty, ...(opened.length ? { sections: opened } : {}), ...(mapText ? { map: true } : {}), ...(rowsUsed.length ? { rows: rowsUsed, sheet: rowsSheet } : {}) },
       folders: called, memory: picked.length },
     ...(edit ? { edit } : {}), intent: r.intent,
     ...(filed?.titles?.length ? { noted: filed.titles } : {}),
