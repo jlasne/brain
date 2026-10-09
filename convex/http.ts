@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
-import { projectChat, keepTurn, addDocPiece, addRowPiece, finishFile, readBlocks } from "./project";
+import { projectChat, addDocPiece, addRowPiece, finishFile, readBlocks } from "./project";
 import { colNames, downloadText, csvOf, parseCsv, madeName } from "./sheet";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
@@ -1631,13 +1631,6 @@ route("/api/project/chat", async (ctx, _req, b) => {
   return { turn: await projectChat(ctx, { space: who.space, brain: String(b.brain ?? ""), q: String(b.q ?? ""), key: mKey, model: mName,
     english: who.models?.reply === "en", embeds: !who.byok && !who.demo, note: true,
     shared: { brains: shared.brains, cards: (slugs: string[]) => cardsFor(ctx, slugs, head.ready) } }) };
-});
-
-/** An exchange kept in the project's memory. */
-route("/api/project/keep", async (ctx, _req, b) => {
-  const who = await gate(ctx, b, { ownerOnly: true });
-  const filed = await keepTurn(ctx, { space: who.space, brain: String(b.brain ?? ""), id: String(b.id ?? ""), key: keyFor(who), model: modelFor(who, b) });
-  return { kept: filed.titles, added: filed.new, updated: filed.updated };
 });
 
 route("/api/project/forget", async (ctx, _req, b) => {

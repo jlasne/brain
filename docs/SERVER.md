@@ -316,7 +316,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/project/begin`, `/part`, `/finish` | One file, page or table, read in the browser and sent in pieces. A piece of a document or a page is cut in sections of about 12,000 characters, each given a title and a line by one model call. A sheet's rows are cut in blocks. `finish` reads every row once for each column's totals, writes the note on the file, then the file opens. A new file clears the old sections and the old note, and keeps the rest of the memory and the thread | Owner. `part` and `finish` run a model |
 | `/api/project/get`, `/list`, `/doc`, `/rows`, `/download` | The project's file, contents, thread, changes, memory and the routes it learned; the list of projects; sections of a document and rows of a sheet as the screen scrolls; the file as Markdown, HTML or CSV, read in pages of 3 MB | Yes |
 | `/api/project/chat` | One message, to a project with a file or with none: with none, the first description makes the file. A cheap step reads the contents list (or a table's columns) and the titles in memory, and says which sections to open, which filter and totals to run over every row, whether the message needs none of the file, and whether the owner's other folders could help. The answer reads that, the memory that bears on the question and those folders, returns a tldr and its support, and may change the file: at once for a file made here, as a proposal for a file dropped. What the owner said is filed in memory beside it. The last 10 exchanges stay | Owner |
-| `/api/project/keep`, `/forget` | Files an exchange in the project's memory, in the folder format, or forgets one note | Owner |
+| `/api/project/forget` | Forgets one note of the project's memory. Notes are filed by the chat itself | Owner |
 | `/api/project/edit` | Applies, undoes or turns down a change the chat proposed, whole or not at all. The last 10 are kept to undo | Owner |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
 | `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
@@ -443,7 +443,7 @@ What one message costs, measured on this code with a recording model and DeepSee
 |---|---|---|
 | a project on a file of 1 page (3,000 characters) | 0.031 cent | 0.033 cent |
 | a project on a file of 13 pages (40,000 characters) | 0.030 cent | 0.044 cent |
-| a project on a file of 125 pages (375,000 characters, 111 sections) | 0.025 cent | 0.042 cent |
+| a project on a file of 125 pages (375,000 characters, 111 sections) | 0.023 cent | 0.041 cent |
 | a project on a table of 3,000 rows | 0.027 cent | 0.033 cent |
 | the folders chat, 400 notes | 0.051 cent | 0.059 cent |
 | the personal chat, 400 notes | 0.068 cent | 0.075 cent |
@@ -458,20 +458,20 @@ A file of 13 pages cost 0.085 cent for small talk when it was read whole at ever
 
 **The thread** keeps the last 10 exchanges, and older ones are deleted.
 
-**Memory** is filled three ways, always in the folder format, dated, and a note on a topic already held is updated, never doubled. When a file is read in, one call writes a note titled "The file": what it is, what it covers, its main numbers, where each topic sits. A new file replaces that note. After each message, a call reads what the owner said and files what is worth keeping: a decision, a number, a name, a limit. Most messages file nothing, and a message under 12 characters makes no call. It runs beside the answer, shows the nearest three notes whole and the others by title, and a failure never costs the answer. A click on Keep in memory files what an answer concluded. The answer reads the notes that share words with the question, the note on the file first, within 6,000 characters. The personal chat reads all of it.
+**Memory** fills itself, with no button, always in the folder format: concepts with a position and dated evidence, and a note on a topic already held is updated, never doubled. When a file is read in, one call writes a note titled "The file": what it is, what it covers, its main numbers, where each topic sits. A new file replaces that note. Then each answer files its own notes, in the same call as the answer: the model returns `notes`, at most 2 a message, and most messages file nothing. It files what the owner said that will matter later (a decision, a number, a name, a limit, a short yes or no to its last answer) and what it found in the file or the folders that the owner will need again. Each note names the sections of the file it rests on (`concepts.sections`), and the page shows "In Offer" under it. A change to those sections, applied or undone, marks the note `stale`: it is shown to the model as "[the file changed since]" and told to check the file, and a note filed again on the topic is up to date again. The call that used to read the owner's message and file it is gone, and so is the Keep in memory button and its route: one model call fewer a message. The router reads the nearest 8 notes with a line each, and a note that states the answer lets it open no section. A note that rests on sections also leads the short list to them, like a route. The answer reads the notes that share words with the question, the note on the file first, within 6,000 characters. The personal chat reads all of it. A note can be forgotten from the Memory tab.
 
 **Memory as a shortcut into a long file.** A project keeps what it learns about where things are, and uses it so that a long file is not read at every message. It is automatic and costs no model call. After an answer that opened sections, the project stores a route in `projectFiles.routes`: the stems of the words of the question and of the router's English search words, the sections that answered, how many times, when, and the question that last used it. A route resting on the same sections takes the new words; any other makes a route of its own; the latest 40 stay, and a new file takes them all away. A route is a pointer and never an answer: the answer is always written from the sections as they stand, so a changed file never makes it stale. Before the router runs on a file of more than 40 sections, `shortlist` builds a list of at most 24 lines: the routes that cover at least half the question's words (marked with a star), then the sections the last exchange opened, then the sections whose title or summary share words with the message. The router reads that list and a count of the others. When none fits it sets `more`, and the whole list is shown, once. The answer's list of titles it did not open is cut from 150 to 40, the likeliest first. Each turn records how many sections it read of how many, and whether memory led; the page shows "Read 2 of 111 sections", and the Memory tab lists the routes under "Where things are". Messages with no word in common with any section cost one short router call. A router that cannot answer teaches nothing.
 
-Measured on a file of 125 pages (375,000 characters, 111 sections), with a router that opens the sections a line names, and the memory call included:
+Measured on a file of 125 pages (375,000 characters, 111 sections), with a router that opens the sections a line names. Before is the version that showed the router every contents line and filed notes in a call of its own; now the notes come in the answer's own call:
 
 | A message | Before | Now |
 |---|---|---|
-| a first question on a subject its words name | 0.069 cent, 10,200 tokens | 0.042 cent, 6,000 tokens |
-| the same subject again | 0.071 cent | 0.044 cent |
-| small talk | 0.056 cent, 8,500 tokens | 0.025 cent, 3,700 tokens |
-| a question in other words, first time | 0.073 cent | 0.077 cent, the short list then the whole list |
-| the same other words again | 0.074 cent | 0.040 cent |
-| eight messages in all | 0.548 cent | 0.347 cent |
+| a first question on a subject its words name | 0.069 cent, 10,200 tokens | 0.041 cent, 5,900 tokens |
+| the same subject again | 0.071 cent | 0.042 cent |
+| small talk | 0.056 cent, 8,500 tokens | 0.023 cent, 3,500 tokens |
+| a question in other words, first time | 0.073 cent | 0.076 cent, the short list then the whole list |
+| the same other words again | 0.074 cent | 0.039 cent |
+| eight messages in all | 0.548 cent | 0.335 cent |
 
 A miss costs 5% more once. A hit saves 45%.
 

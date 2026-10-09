@@ -1997,7 +1997,6 @@
   .pj-used .noted{ border-color:var(--accent-line); color:var(--accent); }
   .pj-tact{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
   .pj-tact .go, .pj-tact .ghost{ min-height:34px; padding:0 13px; font-size:13px; }
-  .pj-tact .kept{ display:inline-flex; align-items:center; min-height:34px; font:500 12.5px/1 var(--sans); color:var(--good); }
   .pj-hint{ font:400 14px/1.55 var(--sans); color:var(--ink-3); }
   .pj-try{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin-top:14px; }
   .pj-try button{ text-align:left; padding:8px 12px; border:1px solid var(--accent-line); border-radius:12px 12px 12px 4px; background:var(--surface); font:400 13.5px/1.4 var(--sans); color:var(--ink); }
@@ -2221,7 +2220,7 @@ const TOKEN_KEY = "octopus.token.v1";
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
   "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle",
   "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview", "/api/personal/people", "/api/personal/open",
-  "/api/project/part", "/api/project/chat", "/api/project/keep"]);
+  "/api/project/part", "/api/project/chat"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -8244,14 +8243,8 @@ function turnEl(t){
   if (t.a){ const md = el("div","pj-md"); md.innerHTML = mdView(t.a); a.append(md); }
   if (t.edit) a.append(editCard(t));
   const chips = usedChips(t); if (chips) a.append(chips);
+  /* Nothing to press to keep an answer: the project files its own notes. */
   const acts = el("div","pj-tact");
-  if (Array.isArray(t.kept) && t.kept.length) acts.append(el("span","kept",`Kept in memory: ${t.kept.slice(0, 2).join(", ")}`));
-  else {
-    const keep = el("button", t.proposal ? "go" : "ghost", "Keep in memory"); keep.type = "button";
-    keep.title = "File what this says in the project's memory";
-    keep.onclick = () => keepTurn(t, keep);
-    acts.append(keep);
-  }
   const refine = el("button","ghost","Refine"); refine.type = "button";
   refine.onclick = () => { S.pj.input.value = "Refine: "; S.pj.size(); S.pj.input.focus(); };
   acts.append(refine);
@@ -8302,27 +8295,17 @@ async function refreshMemory(){
   } catch { /* the list catches up the next time the project opens */ }
 }
 
-async function keepTurn(t, btn){
-  const pj = S.pj;
-  btn.disabled = true; btn.textContent = "Keeping";
-  try {
-    await api("/api/project/keep", { brain: pj.slug, id: t.id });
-    const d = await api("/api/project/get", { brain: pj.slug });
-    if (S.pj !== pj) return;
-    pj.data.memory = d.memory; pj.data.turns = d.turns;
-    paintSide(); syncProjects();
-  } catch (e){
-    btn.disabled = false; btn.textContent = "Keep in memory";
-    btn.after(el("span","pj-msg", e.message));
-  }
-}
 function paintMemory(box){
   const pj = S.pj, mem = pj.data.memory, ways = pj.data.shortcuts || [];
-  if (!mem.length && !ways.length){ box.append(el("div","pj-hint","Nothing kept yet. The project writes a note on its file when it is read in, and files what you decide as you chat. Keep in memory under an answer files that answer too. Notes have the format a folder has. It also learns where things are in a long file, so it opens the right sections and not the whole file.")); return; }
+  if (!mem.length && !ways.length){ box.append(el("div","pj-hint","Nothing kept yet. The project files its notes by itself: what the file holds when it is read in, what you decide, and what its answers find, each with the sections it rests on. Notes have the format a folder has. It also learns where things are in a long file, so it opens the right sections and not the whole file.")); return; }
+  const named = new Map((pj.data.cards || []).map(c => [c.sid, c.title]));
   for (const m of mem){
     const c = el("div","pj-mem");
+    /* Where a note rests in the file, and whether the file changed there since. */
+    const rests = (m.sections || []).map(sid => named.get(sid)).filter(Boolean);
     c.append(el("b",null,m.title), el("p",null,m.position || m.summaryLine || ""),
-      el("small",null,[m.title === "The file" ? "From the file" : "", m.updated, ...(m.dates || [])].filter((x, i, l) => x && l.indexOf(x) === i).slice(0, 3).join(" · ")));
+      el("small",null,[m.title === "The file" ? "From the file" : "", ...(rests.length ? [`In ${rests.slice(0, 2).join(", ")}${rests.length > 2 ? ` +${rests.length - 2}` : ""}`] : []), m.stale ? "The file changed since" : "",
+        m.updated, ...(m.dates || [])].filter((x, i, l) => x && l.indexOf(x) === i).slice(0, 4).join(" · ")));
     const x = el("button","pj-b","Forget"); x.type = "button";
     x.onclick = async () => {
       x.disabled = true;

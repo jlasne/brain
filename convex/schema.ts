@@ -134,6 +134,9 @@ export default defineSchema({
     file: v.optional(v.any()),
     /* The day a contact's raw notes were last gathered from the saved chats. */
     rawScan: v.optional(v.string()),
+    /* In a project: the sections of its file this note rests on, and whether the file changed there since it was written. */
+    sections: v.optional(v.array(v.number())),
+    stale: v.optional(v.boolean()),
     updated: v.string(),
   }).index("by_brain", ["brain"])
     .index("by_brain_slug", ["brain", "slug"]),

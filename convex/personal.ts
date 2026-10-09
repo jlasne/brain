@@ -20,7 +20,7 @@
 import { internal } from "./_generated/api";
 import { sameTitle, idOf, fileText, FILE_SECTIONS, conceptSlug } from "./words";
 
-export type Note = { title: string; claim: string; position: string; summaryLine: string; update: string; orig?: string };
+export type Note = { title: string; claim: string; position: string; summaryLine: string; update: string; orig?: string; sections?: number[] };
 /* What the personal folder keeps: English whatever was written ("en"), or the language written in ("same"). */
 export type Lang = "en" | "same";
 /* A contact: one card per person, the whole of what was said about them. */
@@ -193,6 +193,8 @@ export function readNotes(raw: string, kind: Kind): Note[] {
     orig: clean(x?.orig, 600),
     position: clean(x?.position, 1400),
     summaryLine: clean(x?.summaryLine, 200),
+    /* In a project: the sections of its file the note rests on. */
+    ...(Array.isArray(x?.sections) ? { sections: [...new Set<number>(x.sections.map(Number).filter((n: number) => Number.isInteger(n) && n > 0))].slice(0, 8) } : {}),
   })).filter((x: Note) => x.title.length >= 2 && x.claim.length >= 2)
     .map((x: Note) => ({ ...x, position: x.position || x.claim, summaryLine: x.summaryLine || x.claim.slice(0, 120) }))
     .slice(0, MAX_NOTES[kind]);
@@ -331,7 +333,9 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
     await ctx.runMutation(internal.store.upsertConcept, {
       brain, title: seen?.title ?? n.title, ...(seen?.slug ? { slug: seen.slug } : {}),
       doc: { position: n.position, summaryLine: n.summaryLine, sources: [sid],
-             evidence: [{ date, author, claim: n.claim, source: sid, ...inTheirWords(n) }] },
+             evidence: [{ date, author, claim: n.claim, source: sid, ...inTheirWords(n) }],
+             /* A note that rests on a file says where, and is up to date as it is written. */
+             ...(n.sections ? { sections: n.sections, stale: false } : {}) },
     });
     if (seen) out.updated++; else out.new++;
     out.titles.push(seen?.title ?? n.title);

@@ -3409,7 +3409,7 @@ for (const space of ["octopus", "squidgy"]) {
     "launch-plan": { project: { slug: "launch-plan", name: "Launch plan", created: "2026-10-08" },
       file: { name: "brief-v3.docx", kind: "doc", sheets: [{ name: "brief-v3.docx", cols: [], rows: 0 }], chars: 900, sections: 3, status: "ready", ver: 1, at: 1 },
       cards: DOC.map(d => ({ sid: d.sid, ord: d.ord, sheet: 0, title: d.title, summary: "About " + d.title, chars: d.text.length })), turns: [], edits: [],
-      memory: [{ slug: "team-price", title: "Team price", position: "Team is priced at 1,490 euros.", summaryLine: "", updated: "2026-10-08", dates: ["2026-10-08"] }] },
+      memory: [{ slug: "team-price", title: "Team price", position: "Team is priced at 1,490 euros.", summaryLine: "", updated: "2026-10-08", sections: [2], stale: true, dates: ["2026-10-08"] }] },
     "pricing-review": { project: { slug: "pricing-review", name: "Pricing review", created: "2026-10-08" },
       file: { name: "competitors.xlsx", kind: "table", sheets: [{ name: "Programs", header: COLS.map(c => c.name), cols: COLS, rows: 4 }, { name: "Notes", header: ["Note"], cols: [{ name: "Note", kind: "text", filled: 1 }], rows: 1 }], chars: 300, sections: 2, status: "ready", ver: 1, at: 1 },
       cards: [], turns: [], edits: [], memory: [] },
@@ -3431,7 +3431,6 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/project/chat") {
         const t = window.__reply(body, P); P.turns.push(t); return J({ turn: t });
       }
-      if (path === "/api/project/keep") { P.turns.find(x => x.id === body.id).kept = ["Team price"]; P.memory.unshift({ slug: "kept", title: "Team price", position: "Team is priced at 1,290 euros.", summaryLine: "", updated: "2026-10-09", dates: [] }); return J({ kept: ["Team price"] }); }
       if (path === "/api/project/forget") { P.memory = P.memory.filter(x => x.slug !== body.slug); return J({ ok: true }); }
       if (path === "/api/project/edit") { const e = P.edits.find(x => x.id === body.id); if (window.__editFail) return J({ error: "the file changed since this was proposed. Ask again." }); e.status = { apply: "applied", undo: "undone", dismiss: "dismissed" }[body.action]; return J({ ok: true }); }
       if (path === "/api/project/new") return J({ slug: "fresh" });
@@ -3445,8 +3444,12 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/chats") return J({ chats: [{ id: "k1", title: "Is gold a hedge?", brain: "all", pinned: false, updated: Date.now(), turns: 1 }] });
       return J({ chats: [] });
     };
-    window.__reply = (b, P) => ({ id: "t" + (P.turns.length + 1), q: b.q, a: "Keep **€1,490** and sell it in two payments.", proposal: /brainstorm/i.test(b.q), quotes: ["Team 3 €1,490"],
-      used: { file: { name: P.file.name, whole: false, sections: [{ sid: 2, title: "Offer" }] }, folders: [{ slug: "pricing", name: "Pricing", notes: 2 }], memory: 1 } });
+    window.__reply = (b, P) => {
+      /* The project files its own notes: the server wrote one, resting on the Offer section. */
+      P.memory.unshift({ slug: "two-payments", title: "Team price", position: "Team stays at 1,490 euros, sold in two payments.", summaryLine: "", updated: "2026-10-09", sections: [2], dates: ["2026-10-09"] });
+      return { id: "t" + (P.turns.length + 1), q: b.q, a: "Keep **€1,490** and sell it in two payments.", proposal: /brainstorm/i.test(b.q), quotes: ["Team 3 €1,490"], noted: ["Team price"],
+        used: { file: { name: P.file.name, whole: false, sections: [{ sid: 2, title: "Offer" }] }, folders: [{ slug: "pricing", name: "Pricing", notes: 2 }], memory: 1 } };
+    };
   };
   const arg = { state: st, projects, doc: DOC, rows: ROWS };
   const { page, bad } = await boot("/chat.html", init, arg);
@@ -3489,19 +3492,20 @@ for (const space of ["octopus", "squidgy"]) {
   await page.fill(".pj-comp textarea", "Brainstorm: is Team too high?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
   const ans = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/chat").pop()?.body, prop: !!document.querySelector(".pj-a.prop .pj-k"), kind: document.querySelector(".pj-a.prop .pj-k")?.textContent,
     text: document.querySelector(".pj-a .pj-md")?.innerHTML, chips: [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent), used: [...document.querySelectorAll(".pj-sec.used")].map(x => x.dataset.sid),
-    marks: [...document.querySelectorAll("mark.pj-mark")].map(m => m.textContent), keep: document.querySelector(".pj-tact .go")?.textContent, ta: document.querySelector(".pj-comp textarea").value }));
+    marks: [...document.querySelectorAll("mark.pj-mark")].map(m => m.textContent), btns: [...document.querySelectorAll(".pj-a .pj-tact button")].map(b => b.textContent), ta: document.querySelector(".pj-comp textarea").value }));
   check("a question goes to the project's chat with the project named", ans.call?.brain === "launch-plan" && ans.call?.q === "Brainstorm: is Team too high?" && ans.ta === "", JSON.stringify(ans.call));
-  check("a brainstorm comes back as a proposal, in bold where it says so, with Keep in memory first", ans.prop && ans.kind === "Proposal" && /<strong>€1,490<\/strong>/.test(ans.text) && ans.keep === "Keep in memory", JSON.stringify(ans));
-  check("it says what it used: the file and its section, the folder and its notes, the memory", JSON.stringify(ans.chips) === '["brief-v3.docx: Offer","Pricing folder · 2 notes","Memory · 1 note"]', JSON.stringify(ans.chips));
+  check("a brainstorm comes back as a proposal, in bold where it says so, and nothing to press to keep it: only Refine", ans.prop && ans.kind === "Proposal" && /<strong>€1,490<\/strong>/.test(ans.text) && JSON.stringify(ans.btns) === '["Refine"]', JSON.stringify(ans));
+  check("it says what it used: the file and its section, the folder and its notes, the memory, and the note it filed by itself", JSON.stringify(ans.chips) === '["brief-v3.docx: Offer","Pricing folder · 2 notes","Memory · 1 note","Noted: Team price"]', JSON.stringify(ans.chips));
   check("the section it used is marked in the file, and the words it rests on, across the table's cells", JSON.stringify(ans.used) === '["2"]' && ans.marks.join(" ") === "Team 3 €1,490", JSON.stringify(ans));
 
-  /* keep it in memory */
-  await page.click(".pj-tact .go"); await page.waitForTimeout(500);
-  const kept = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/keep").pop()?.body, said: document.querySelector(".pj-tact .kept")?.textContent, tab: document.querySelector(".pj-tab i")?.textContent }));
-  check("Keep in memory files that answer, and says what it kept", kept.call?.brain === "launch-plan" && kept.call?.id === "t1" && kept.said === "Kept in memory: Team price" && kept.tab === "2", JSON.stringify(kept));
+  /* the memory fills by itself */
+  await page.waitForTimeout(300);
+  const auto = await page.evaluate(() => ({ tab: document.querySelector(".pj-tab i")?.textContent, keeps: window.__calls.filter(x => x.s === "/api/project/keep").length, offer: [...document.querySelectorAll("button")].some(b => /Keep in memory/.test(b.textContent)) }));
+  check("the project filed a note by itself: the Memory tab counts it, and nothing offers to keep an answer", auto.tab === "2" && auto.keeps === 0 && !auto.offer, JSON.stringify(auto));
   await page.click(".pj-tab >> text=Memory"); await page.waitForTimeout(200);
-  const mem = await page.evaluate(() => ({ items: [...document.querySelectorAll(".pj-mem b")].map(x => x.textContent), comp: document.querySelector(".pj-comp").hidden }));
+  const mem = await page.evaluate(() => ({ items: [...document.querySelectorAll(".pj-mem b")].map(x => x.textContent), comp: document.querySelector(".pj-comp").hidden, small: [...document.querySelectorAll(".pj-mem small")].map(x => x.textContent) }));
   check("the Memory tab lists what the project remembers, with the message bar out of the way", JSON.stringify(mem.items) === '["Team price","Team price"]' && mem.comp === true, JSON.stringify(mem));
+  check("each note says which section it rests on, and the file's change under it", mem.small[0] === "In Offer · 2026-10-09" && mem.small[1] === "In Offer · The file changed since · 2026-10-08", JSON.stringify(mem.small));
   await page.click(".pj-mem .pj-b >> nth=0"); await page.waitForTimeout(300);
   check("a note can be forgotten", (await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/forget").pop()?.body, left: document.querySelectorAll(".pj-mem").length })) ).left === 1);
   await page.click(".pj-tab >> text=Chat"); await page.waitForTimeout(200);

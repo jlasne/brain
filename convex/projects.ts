@@ -15,6 +15,7 @@
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { readSpace, slug, today } from "./lib";
+import { syncCard } from "./store";
 import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, FILE_KINDS, ROUTES_KEEP, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
 import type { Col } from "./sheet";
 
@@ -98,8 +99,20 @@ export const projectGet = internalQuery({
 async function memoryRows(ctx: any, brain: string) {
   const rows = await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", brain)).collect();
   return rows.map((c: any) => ({ slug: c.slug, title: c.title, position: c.position, summaryLine: c.summaryLine, updated: c.updated,
+    ...(c.sections?.length ? { sections: c.sections } : {}), ...(c.stale ? { stale: true } : {}),
     dates: (c.evidence ?? []).map((e: any) => e?.date).filter(Boolean).slice(0, 3) }))
     .sort((x: any, y: any) => String(y.updated).localeCompare(String(x.updated)) || x.title.localeCompare(y.title));
+}
+
+/** The notes that rest on sections the file just changed in: the change may have outdated them. */
+async function outdate(ctx: any, brain: string, sids: number[]) {
+  if (!sids.length) return;
+  const rows = await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", brain)).collect();
+  for (const c of rows) {
+    if (c.stale || !(c.sections ?? []).some((s: number) => sids.includes(s))) continue;
+    await ctx.db.patch(c._id, { stale: true });
+    await syncCard(ctx, c._id);
+  }
 }
 
 /** What a project remembers, whole, for the chat to read. */
@@ -428,29 +441,6 @@ export const threadPush = internalMutation({
   },
 });
 
-/** A mark on one exchange: the project kept it in memory, or a change from it was applied. */
-export const threadMark = internalMutation({
-  args: { space: v.string(), brain: v.string(), id: v.string(), mark: v.any() },
-  handler: async (ctx, a) => {
-    await need(ctx, a.space, a.brain);
-    const row = await ctx.db.query("projectThreads").withIndex("by_brain", (q: any) => q.eq("brain", a.brain)).first();
-    const turn = row?.turns.find((t: any) => t.id === a.id);
-    if (!row || !turn) return null;
-    await ctx.db.patch(row._id, { turns: row.turns.map((t: any) => t.id === a.id ? { ...t, ...a.mark } : t) });
-    return turn;
-  },
-});
-
-/** One exchange of the thread, by id. */
-export const threadTurn = internalQuery({
-  args: { space: v.string(), brain: v.string(), id: v.string() },
-  handler: async (ctx, a) => {
-    await need(ctx, a.space, a.brain);
-    const row = await ctx.db.query("projectThreads").withIndex("by_brain", (q: any) => q.eq("brain", a.brain)).first();
-    return row?.turns.find((t: any) => t.id === a.id) ?? null;
-  },
-});
-
 /** One thing the project remembers, forgotten: its concept, card and meaning. */
 export const memoryForget = internalMutation({
   args: { space: v.string(), brain: v.string(), slug: v.string() },
@@ -770,6 +760,7 @@ export const editApply = internalMutation({
     const all = await cardsOf(ctx, a.brain);
     await ctx.db.patch(fresh._id, { at: Date.now(), parts: all.length, chars: sizeOf(all) });
     await ctx.db.patch(e._id, { status: "applied", before });
+    await outdate(ctx, a.brain, before.filter(x => x.sid != null && !x.inserted).map(x => x.sid));
     return { ok: true, sections: before.filter(x => x.sid != null).map(x => x.sid) };
   },
 });
@@ -810,6 +801,7 @@ export const editUndo = internalMutation({
       }) });
     if (f.kind === "table") for (let i = 0; i < f.sheets.length; i++) if (!metas.some((m: any) => m.si === i)) await recount(ctx, a.brain, i);
     await ctx.db.patch(e._id, { status: "undone" });
+    await outdate(ctx, a.brain, (e.before ?? []).filter((b: any) => b.sid != null).map((b: any) => b.sid));
     return { ok: true };
   },
 });

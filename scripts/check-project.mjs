@@ -214,8 +214,6 @@ globalThis.fetch = async (_u, opt) => {
   else if (/You route a project's questions/.test(sys)) out = JSON.stringify(typeof reply.route === "function" ? reply.route(user) : reply.route ?? { intent: "ask", sections: [], query: null, folders: [], terms: [] });
   else if (/You route questions to the right entries/.test(sys)) out = JSON.stringify(reply.folders ?? { picks: [], terms: [] });
   else if (/You are the chat of a project/.test(sys)) out = typeof reply.answer === "function" ? reply.answer(user) : JSON.stringify(reply.answer ?? { reply: "ok", proposal: false, quotes: [], edits: [] });
-  else if (/You file notes into a project's memory/.test(sys)) out = JSON.stringify(reply.keep ?? { notes: [] });
-  else if (/You keep the memory of a project/.test(sys)) { if (reply.ownerFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.owner ?? { notes: [] }); }
   else if (/You write the memory note of a file/.test(sys)) { if (reply.aboutFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.about ?? { notes: [] }); }
   else if (/You file notes into a person's own knowledge base/.test(sys)) out = JSON.stringify({ notes: [], people: [] });
   else if (/You are their AI twin/.test(sys)) out = reply.twin ?? "Noted.";
@@ -224,6 +222,8 @@ globalThis.fetch = async (_u, opt) => {
   return Response.json({ choices: [{ message: { content: out }, finish_reason: "stop" }], usage: {} });
 };
 const last = what => [...sent].reverse().find(m => what.test(m.sys));
+const answerOf = (extra = {}) => ({ tldr: "", reply: "You are welcome.", proposal: false, quotes: [], edits: [], ...extra });
+const routeOf = (extra = {}) => ({ intent: "ask", sections: [], all: false, query: null, folders: [], terms: [], ...extra });
 
 const SPACE = "octopus";
 const para = (n, tag = "x") => `Paragraph ${n} ${tag}. ` + "word ".repeat(150).trim() + ".";
@@ -531,33 +531,75 @@ const gt = await T2.ctx.runQuery("projects.projectGet", { space: SPACE, brain: s
   check("a sheet downloads as its header and its rows", meta.sheets[0].header.join() === "Program,Price,Plan" && all.length === 700 && all[0][0] === "Program 1");
 }
 
-/* ---- keeping an answer in the project's memory ---- */
+/* ---- the project files its own notes ---- */
 {
   const w = makeCtx();
   const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Memory" });
   const b = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p, name: "n.md", kind: "doc", sheets: [{ name: "n.md" }] });
   await project.addDocPiece(w.ctx, { space: SPACE, brain: p, ver: b.ver, text: "# Offer\n\nTeam costs 1,490.", page: 0 });
   await project.finishFile(w.ctx, { space: SPACE, brain: p, ver: b.ver });
-  reply = { route: { intent: "brainstorm", sections: [], query: null, folders: [], terms: [] }, answer: { reply: "Price Team at 1,290 with a payment plan.", proposal: true, quotes: [], edits: [] } };
-  const turn = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "Where should Team sit?", english: false, embeds: false, shared: shared0 });
-  check("nothing is kept until the owner says so", (await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p })).length === 0);
-  reply = { keep: { notes: [{ title: "Team price", update: "", claim: "Price Team at 1,290 euros with a payment plan.", position: "Team is priced at 1,290 euros with a payment plan (decided 2026-10-09).", summaryLine: "Team at 1,290 with a plan" }] } };
-  const filed = await project.keepTurn(w.ctx, { space: SPACE, brain: p, id: turn.id });
-  const mem = await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p });
-  check("keeping files a note in the folder format: a position with dated evidence", filed.new === 1 && mem[0].title === "Team price" && /1,290 euros/.test(mem[0].position)
-    && w.T.concepts[0].evidence[0].claim === "Price Team at 1,290 euros with a payment plan." && w.T.concepts[0].sources.length === 1, JSON.stringify(w.T.concepts[0]));
-  check("the exchange says it was kept", (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).turns[0].kept[0] === "Team price");
+  const offer = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).cards[0].sid;
+  const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, ...extra });
+  const held = () => w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p });
+  const note = { title: "Team price", update: "", claim: "Price Team at 1,290 euros with a payment plan.", position: "Team is priced at 1,290 euros with a payment plan (decided 2026-10-09).", summaryLine: "Team at 1,290 with a plan", sections: [offer, 9999] };
+
+  reply = { route: routeOf({ intent: "brainstorm" }), answer: answerOf({ reply: "Price Team at 1,290 with a payment plan.", proposal: true, notes: [note] }) };
+  await chat("Where should Team sit?");
+  const quiet = last(/You are the chat of a project/);
+  check("without the switch the model is not asked for notes, and none is filed", !/THE MEMORY/.test(quiet.sys) && !/"notes":/.test(quiet.sys) && (await held()).length === 0);
+
+  const n0 = sent.length;
+  const t1 = await chat("Let's price Team at 1,290 with a payment plan", { note: true });
+  const a1 = last(/You are the chat of a project/);
+  check("with it, the model is told to file its own notes, what to file, and that the owner presses nothing", /THE MEMORY/.test(a1.sys) && /"notes":\[\{"title":""/.test(a1.sys) && /presses nothing/.test(a1.sys) && /File what the owner SAID/.test(a1.sys) && /what you FOUND/.test(a1.sys));
+  const mem = await held();
+  check("a note is filed with no click, in the folder format: a position with dated evidence", mem.length === 1 && mem[0].title === "Team price" && w.T.concepts[0].evidence[0].claim === note.claim && w.T.concepts[0].evidence[0].author === "You" && w.T.concepts[0].sources.length === 1, JSON.stringify(w.T.concepts[0]));
+  check("it says which section it rests on, and a section the file lacks is dropped", mem[0].sections.join() === String(offer) && w.T.concepts[0].stale === false, JSON.stringify(mem[0]));
+  check("the turn names what was noted, and the answer was one call: no second call files it", JSON.stringify(t1.noted) === '["Team price"]' && sent.length - n0 === 1, String(sent.length - n0));
   check("the card for the memory is written like any folder's", w.T.cards.some(c => c.brain === p && c.title === "Team price"));
-  reply = { route: { intent: "ask", sections: [], query: null, folders: [], terms: [] }, answer: { reply: "Noted.", proposal: false, quotes: [], edits: [] } };
-  const next = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "What did we decide?", english: false, embeds: false, shared: shared0 });
+
+  reply = { route: routeOf(), answer: answerOf({ tldr: "Team is 1,290.", notes: [] }) };
+  const next = await chat("What did we decide?", { note: true });
   check("the next answer reads what the project remembers", /PROJECT MEMORY\n- Team price: Team is priced at 1,290 euros/.test(last(/You are the chat of a project/).user) && next.used.memory === 1);
-  reply = { keep: { notes: [{ title: "Team price", update: "Team price", claim: "Now 1,190.", position: "Team is priced at 1,190 euros (2026-10-10).", summaryLine: "Team at 1,190" }] } };
-  const again = await project.keepTurn(w.ctx, { space: SPACE, brain: p, id: next.id });
-  check("keeping on the same topic updates the note and keeps both dates as evidence", again.updated === 1 && w.T.concepts.length === 1 && w.T.concepts[0].evidence.length === 2 && /1,190/.test(w.T.concepts[0].position), JSON.stringify(w.T.concepts[0].evidence));
-  reply = { keep: { notes: [] } };
-  check("an answer with nothing worth keeping says so", /nothing in that answer is worth keeping/.test(String(await project.keepTurn(w.ctx, { space: SPACE, brain: p, id: next.id }).catch(e => e.message))));
+  check("a message with nothing to keep files nothing", (await held()).length === 1 && !next.noted);
+
+  reply = { route: routeOf(), answer: answerOf({ notes: [{ ...note, update: "Team price", claim: "Now 1,190.", position: "Team is priced at 1,190 euros (2026-10-10).", summaryLine: "Team at 1,190", sections: [offer] }] }) };
+  await chat("Make that 1,190 instead", { note: true });
+  check("a later message on the same topic updates the note and keeps both days as evidence", w.T.concepts.length === 1 && w.T.concepts[0].evidence.length === 2 && /1,190/.test(w.T.concepts[0].position), JSON.stringify(w.T.concepts[0].evidence));
+
+  const three = [1, 2, 3].map(i => ({ title: `Topic ${i}`, claim: `Fact ${i}.`, position: `Fact ${i} stands.`, summaryLine: `Fact ${i}`, sections: [] }));
+  reply = { route: routeOf(), answer: answerOf({ notes: three }) };
+  const many = await chat("Here are three things to keep", { note: true });
+  check("at most two notes a message", many.noted.length === 2 && (await held()).length === 3, JSON.stringify(many.noted));
+  reply = { route: routeOf(), answer: answerOf({ notes: "nothing" }) };
+  const junk = await chat("Something odd came back", { note: true });
+  reply = { route: routeOf(), answer: answerOf({ notes: [{}, { title: "x" }, 7] }) };
+  const junk2 = await chat("Something odder came back", { note: true });
+  check("notes that are not notes are ignored, and the answer arrives", !junk.noted && !junk2.noted && (await held()).length === 3);
+  const realUpsert = store.upsertConcept.handler;
+  store.upsertConcept.handler = async () => { throw new Error("the store is down"); };
+  reply = { route: routeOf(), answer: answerOf({ tldr: "Done.", notes: [{ ...three[0], title: "Another topic" }] }) };
+  const down = await chat("Keep this one too please", { note: true });
+  store.upsertConcept.handler = realUpsert;
+  check("a filing that fails never costs the answer", down.lead === "Done." && !down.noted);
+
+  /* a change to the section a note rests on marks it, and the answer is told */
+  const e1 = await w.ctx.runMutation("projects.editPropose", { space: SPACE, brain: p, ops: [{ op: "replace", sid: offer, find: "1,490", with: "1,590" }] });
+  await w.ctx.runMutation("projects.editApply", { space: SPACE, brain: p, id: e1.id });
+  let rows = await held();
+  check("a change to the section a note rests on marks it as possibly outdated", rows.find(r => r.title === "Team price").stale === true && !rows.find(r => r.title === "Topic 1")?.stale, JSON.stringify(rows.map(r => [r.title, r.stale])));
+  reply = { route: routeOf(), answer: answerOf({ tldr: "Checking." }) };
+  await chat("What does Team cost?", { note: true });
+  check("the next answer is shown the mark, and told what to do with it", /- Team price: .*\[the file changed since\]/.test(last(/You are the chat of a project/).user) && /\[the file changed since\] may be out of date/.test(last(/You are the chat of a project/).sys));
+  check("the router reads the mark too", /- Team price: .*\[the file changed since\]/.test(project.memoryForRouter(rows, "Team price")));
+  await w.ctx.runMutation("projects.editUndo", { space: SPACE, brain: p, id: e1.id });
+  check("an undo leaves it marked, since the section moved again", (await held()).find(r => r.title === "Team price").stale === true);
+  reply = { route: routeOf(), answer: answerOf({ notes: [{ ...note, update: "Team price", claim: "Checked.", position: "Team costs 1,490 euros (checked 2026-10-11).", summaryLine: "Team at 1,490", sections: [offer] }] }) };
+  await chat("Check Team against the file again", { note: true });
+  check("a note filed again is up to date again", !(await held()).find(r => r.title === "Team price").stale);
+
   await w.ctx.runMutation("projects.memoryForget", { space: SPACE, brain: p, slug: "team-price" });
-  check("a note can be forgotten, with its card", (await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p })).length === 0 && !w.T.cards.some(c => c.brain === p));
+  check("a note can be forgotten, with its card", !(await held()).some(r => r.title === "Team price") && !w.T.cards.some(c => c.brain === p && c.title === "Team price"));
 
   /* ---- taking the project away ---- */
   await w.ctx.runMutation("store.upsertConcept", { brain: p, title: "Another", doc: { position: "x", summaryLine: "x", evidence: [], sources: [] } });
@@ -595,8 +637,6 @@ const docProject = async (w, name, text, kind = "doc") => {
   await project.finishFile(w.ctx, { space: SPACE, brain: p, ver: b.ver });
   return p;
 };
-const answerOf = (extra = {}) => ({ tldr: "", reply: "You are welcome.", proposal: false, quotes: [], edits: [], ...extra });
-const routeOf = (extra = {}) => ({ intent: "ask", sections: [], all: false, query: null, folders: [], terms: [], ...extra });
 {
   const w = makeCtx();
   const p = await docProject(w, "Mid", midDoc);
@@ -693,37 +733,11 @@ const routeOf = (extra = {}) => ({ intent: "ask", sections: [], all: false, quer
   check("the note on the file leads, then the notes that share words with the question, then the newest", picked.map(r => r.title).join() === "The file,Launch date,Team price,Venue", picked.map(r => r.title).join());
   check("a tight budget keeps what fits, the note on the file first", project.memoryPick(rows, 100, "team price").map(r => r.title).join() === "The file,Venue", project.memoryPick(rows, 100, "team price").map(r => r.title).join());
   check("nothing kept reads as nothing kept", project.memoryText([], 6000, "x") === "(nothing kept yet)");
-}
-
-{
-  const w = makeCtx();
-  const p = await docProject(w, "Notes", "# Offer\n\nTeam costs 1,490 euros a seat.");
-  const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, note: true, ...extra });
-  const note = { title: "Team price", update: "", claim: "Team is priced at 1,290 euros.", position: "Team is priced at 1,290 euros (decided 2026-10-09).", summaryLine: "Team at 1,290" };
-  reply = { answer: answerOf({ tldr: "Noted." }), owner: { notes: [note] } };
-  const sentBefore = sent.length;
-  const t = await chat("Let's price Team at 1,290 euros from now on");
-  const filedCall = last(/You keep the memory of a project/);
-  const mem = await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p });
-  check("what the owner said is filed beside the answer, in the folder format", mem.length === 1 && mem[0].title === "Team price" && w.T.concepts[0].evidence[0].claim === "Team is priced at 1,290 euros." && w.T.concepts[0].evidence[0].author === "You" && sent.length - sentBefore === 2, JSON.stringify(mem));
-  check("the turn says what was noted", JSON.stringify(t.noted) === '["Team price"]' && !t.kept, JSON.stringify(t));
-  check("the call that files reads the owner's words and the notes held, never the file", filedCall.user.includes("THE OWNER SAID\nLet's price Team at 1,290") && !filedCall.user.includes("Team costs 1,490 euros a seat") && /HELD NOW, nearest first\n\(nothing yet\)/.test(filedCall.user));
-  reply = { answer: answerOf({ tldr: "Team is 1,290." }), owner: { notes: [] } };
-  await chat("What does Team cost now?");
-  check("the next answer reads it", /PROJECT MEMORY\n- Team price: Team is priced at 1,290 euros/.test(last(/You are the chat of a project/).user));
-  check("and the call that files is shown the note it may update", /"Team price": Team is priced at 1,290/.test(last(/You keep the memory of a project/).user));
-  reply = { answer: answerOf(), owner: { notes: [{ ...note, update: "Team price", position: "Team is priced at 1,190 euros (2026-10-10).", claim: "Now 1,190." }] } };
-  await chat("Make that 1,190 instead, please");
-  check("a later message on the same topic updates the note and keeps both days as evidence", w.T.concepts.length === 1 && /1,190/.test(w.T.concepts[0].position) && w.T.concepts[0].evidence.length === 2, JSON.stringify(w.T.concepts[0].evidence));
-  const n0 = sent.length;
-  await chat("ok");
-  check("a few words are not worth a call that files: only the answer", sent.length - n0 === 1, String(sent.length - n0));
-  reply = { answer: answerOf({ tldr: "Moved." }), ownerFails: true };
-  const failed = await chat("We moved the launch to 10 November for good");
-  check("when filing fails the answer still arrives", failed.lead === "Moved." && !failed.noted);
-  reply = { answer: answerOf() };
-  await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "We decided something about the launch here", english: false, embeds: false, shared: shared0 });
-  check("without the switch nothing is filed", !(sent.slice(-2).some(m => /You keep the memory of a project/.test(m.sys))));
+  const many = Array.from({ length: 12 }, (_, i) => ({ title: `Note ${i}`, position: `Position ${i} about topic${i}.`, summaryLine: `Line ${i}`, stale: i === 2 }));
+  const routerSees = project.memoryForRouter(many, "topic5 please");
+  check("the router reads the nearest 8 notes with a line each, the rest by title", routerSees.split("\n").filter(l => l.startsWith("- ")).length === 8 && /^- Note 5: Line 5/.test(routerSees) && /Other notes, by title: .*Note \d+/.test(routerSees), routerSees);
+  check("and sees a note the file changed under", /- Note 2: Line 2 \[the file changed since\]/.test(project.memoryForRouter(many, "note 2")));
+  check("with nothing kept it reads nothing", project.memoryForRouter([], "x") === "");
 }
 
 {
@@ -849,6 +863,17 @@ const routeOf = (extra = {}) => ({ intent: "ask", sections: [], all: false, quer
   check("the sections not opened show 40 titles and a count of the rest", also.length === 41 && /^\.\.\. and \d+ more$/.test(also[40]), `${also.length} lines`);
   check("and the likeliest come first: the section the last exchange opened", also[0].startsWith(`${sid("payment")}:`), also[0]);
 
+  /* memory that states the answer: nothing of the file is opened */
+  const mem1 = { title: "Payment day", update: "", claim: "Payments leave on the 10th.", position: "Payments leave the account on the 10th of each month (Payment, clause 0).", summaryLine: "Payments on the 10th", sections: [sid("payment")] };
+  reply = { route: routeOf({ sections: [sid("payment")], terms: ["payment"] }), answer: answerOf({ tldr: "Paid on the 10th.", notes: [mem1] }) };
+  await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "When do payments leave the account?", english: false, embeds: false, shared: shared0, note: true });
+  check("an answer that found something files it, with the section it rests on", (await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p })).some(m => m.title === "Payment day" && m.sections.join() === String(sid("payment"))));
+  reply = { route: routeOf({ sections: [] }), answer: answerOf({ tldr: "On the 10th, from memory." }) };
+  const again = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "When do payments leave the account again?", english: false, embeds: false, shared: shared0, note: true });
+  const rr = last(/You route a project's questions/).user, aa = last(/You are the chat of a project/).user;
+  check("the router is shown that note with its line, and that note leads the short list to its section", /- Payment day: Payments on the 10th/.test(rr) && listed(rr).some(x => x.sid === sid("payment") && x.star), rr.slice(rr.indexOf("WHAT THE PROJECT REMEMBERS")).slice(0, 300));
+  check("when the note answers, the router opens nothing, and the answer reads the note and none of the file", !again.used.file.sections && /\(not opened for this message\)/.test(aa) && /- Payment day: Payments leave the account on the 10th/.test(aa) && !aa.includes("Section 0 about payment"), aa.slice(0, 400));
+
   /* the routes are the project's: a new file takes them away */
   await w.ctx.runMutation("projects.projectWipe", { space: SPACE, brain: p, file: true });
   const nb = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p, name: "next.md", kind: "doc", sheets: [{ name: "next" }] });
@@ -869,6 +894,11 @@ const routeOf = (extra = {}) => ({ intent: "ask", sections: [], all: false, quer
   check("a message with no subject keeps only what the last exchange opened, three sections at most", d.sids.join() === "140,141,142" && !d.memory.size, JSON.stringify(d.sids));
   const e = project.shortlist(cards, "royalty", routes, [], 24);
   check("the words of the title count more than the summary", e.sids.includes(130) && e.memory.has(130) && e.sids.length >= 2);
+  const notes = [{ title: "Late fee", summaryLine: "Two percent a week", position: "A late payment costs two percent a week.", sections: [141, 142, 9999] }, { title: "Venue", summaryLine: "Online", position: "Held online.", sections: [] }];
+  const f = project.shortlist(cards, "what is the late payment fee", [], [], 24, notes);
+  check("a note that rests on sections leads to them, starred, when it covers the message's words", f.sids.includes(141) && f.sids.includes(142) && !f.sids.includes(9999) && f.memory.has(141), JSON.stringify([...f.sids]));
+  const g = project.shortlist(cards, "who is on the venue", [], [], 24, notes);
+  check("a note that rests on no section leads nowhere", !g.memory.size);
 }
 
 {
@@ -1122,7 +1152,8 @@ const routeOf = (extra = {}) => ({ intent: "ask", sections: [], all: false, quer
     && /not in this workspace/.test((await call("/api/project/delete", { brain: slugR }, "squidgy-token")).error) && /not in this workspace/.test((await call("/api/project/begin", { brain: slugR, name: "x.md", kind: "doc" }, "squidgy-token")).error));
 
   reply = { route: { intent: "brainstorm", sections: [], query: null, folders: ["wealth"], terms: ["gold"] }, folders: { picks: [1], terms: ["gold"] },
-    answer: { reply: "Team costs **1,490** euros.", proposal: true, quotes: ["Team costs 1,490 euros a seat."], edits: [{ op: "replace", sid: w.T.projectCards[0].sid, find: "1,490 euros", with: "1,290 euros" }] } };
+    answer: { reply: "Team costs **1,490** euros.", proposal: true, quotes: ["Team costs 1,490 euros a seat."], edits: [{ op: "replace", sid: w.T.projectCards[0].sid, find: "1,490 euros", with: "1,290 euros" }],
+      notes: [{ title: "Team price", update: "", claim: "Team costs 1,490 euros.", position: "Team costs 1,490 euros a seat (2026-10-09).", summaryLine: "Team at 1,490", sections: [w.T.projectCards[0].sid] }] } };
   const chat = await call("/api/project/chat", { brain: slugR, q: "Is Team too high next to gold?" });
   const aprompt = last(/You are the chat of a project/).user;
   check("a message is answered with the file, the folder the router chose, and a change to check", chat.turn.proposal === false && chat.turn.edit?.id && /Team costs 1,490 euros a seat\./.test(aprompt) && /Gold holds its value over centuries\./.test(aprompt)
@@ -1134,9 +1165,8 @@ const routeOf = (extra = {}) => ({ intent: "ask", sections: [], all: false, quer
   const undone = await call("/api/project/edit", { brain: slugR, id: chat.turn.edit.id, action: "undo" });
   check("Undo puts it back", undone.ok === true && w.T.projectSections[0].text.includes("1,490 euros"));
 
-  reply = { ...reply, keep: { notes: [{ title: "Team price", update: "", claim: "Team costs 1,490 euros.", position: "Team costs 1,490 euros a seat (2026-10-09).", summaryLine: "Team at 1,490" }] } };
-  const kept = await call("/api/project/keep", { brain: slugR, id: chat.turn.id });
-  check("Keep in memory files a note and names it", JSON.stringify(kept.kept) === '["Team price"]' && kept.added === 1, JSON.stringify(kept));
+  check("the chat files its own note through the route, and names it", JSON.stringify(chat.turn.noted) === '["Team price"]' && (await call("/api/project/get", { brain: slugR })).memory.length === 1);
+  check("there is no route to press to keep an answer", !router.lookup("/api/project/keep", "POST"));
 
   /* who reads the project's memory */
   const memoText = "Team costs 1,490 euros a seat (2026-10-09).";
