@@ -4,7 +4,7 @@
  * A project is a folder of type "project". Its memory is the folder's own
  * concepts, in the format every folder has. Beside it sit one file, cut in
  * sections (projectFiles, projectCards, projectSections), one running thread
- * of the last 10 exchanges (projectThreads), and the changes its chat proposed
+ * of the last 4 exchanges (projectThreads), and the changes its chat proposed
  * to the file (projectEdits).
  *
  * A project belongs to one workspace and is never shared: no other folder,
@@ -25,7 +25,7 @@ export const TABLE_OP_ROWS = 1000;
 const RECOUNT_CHARS = 1000000;
 
 /** Exchanges the running thread keeps. */
-export const THREAD_KEEP = 10;
+export const THREAD_KEEP = 4;
 /** Changes kept to undo. */
 export const EDITS_KEEP = 10;
 /** Sections one change may touch, and the most words it may carry. */
@@ -427,7 +427,7 @@ export const fileFinish = internalMutation({
 
 /* ---------------- the thread ---------------- */
 
-/** One exchange added to the thread. Only the last 10 stay. */
+/** One exchange added to the thread. Only the last 4 stay. */
 export const threadPush = internalMutation({
   args: { space: v.string(), brain: v.string(), turn: v.any() },
   handler: async (ctx, a) => {

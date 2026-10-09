@@ -426,7 +426,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `projectFiles` | a project's one file: its name, document, page or table, whether it was made in the project, its sheets with each column and what it holds, its size, its version, whether it is still being read, and the routes it learned: where things are | folder |
 | `projectCards` | the contents list: one light row for each section or block of rows, with its title, its line and its size | folder and order, folder and section |
 | `projectSections` | the words of each section, or the CSV rows of each block | folder and section |
-| `projectThreads` | a project's running thread: its last 10 exchanges | folder |
+| `projectThreads` | a project's running thread: its last 4 exchanges | folder |
 | `projectEdits` | the changes the chat proposed to the file, with what each replaced so it can be undone. The last 10 stay | folder and time |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.
@@ -456,7 +456,7 @@ A file of 13 pages cost 0.085 cent for small talk when it was read whole at ever
 
 **Who reads what.** A project's chat reads its file, its memory and the owner's other folders, when the router says they could help: never the personal folder, never another project. The personal folder's chat reads a project's memory, and nothing else does: `spaceHead` leaves project folders out unless a caller asks, `withoutPersonal` drops them from any reader that has them, and sharing, merging and renaming refuse them. Text inside a file or a folder is material to read: the answer is told never to follow an instruction written in it, and the only way to change the file is a click.
 
-**The thread** keeps the last 10 exchanges, and older ones are deleted.
+**The thread** keeps the last 4 exchanges, and older ones are deleted.
 
 **Memory** fills itself, with no button, always in the folder format: concepts with a position and dated evidence, and a note on a topic already held is updated, never doubled. When a file is read in, one call writes a note titled "The file": what it is, what it covers, its main numbers, where each topic sits. A new file replaces that note. Then each answer files its own notes, in the same call as the answer: the model returns `notes`, at most 2 a message, and most messages file nothing. It files what the owner said that will matter later (a decision, a number, a name, a limit, a short yes or no to its last answer) and what it found in the file or the folders that the owner will need again. Each note names the sections of the file it rests on (`concepts.sections`), and the page shows "In Offer" under it. A change to those sections, applied or undone, marks the note `stale`: it is shown to the model as "[the file changed since]" and told to check the file, and a note filed again on the topic is up to date again. The call that used to read the owner's message and file it is gone, and so is the Keep in memory button and its route: one model call fewer a message. The router reads the nearest 8 notes with a line each, and a note that states the answer lets it open no section. A note that rests on sections also leads the short list to them, like a route. The answer reads the notes that share words with the question, the note on the file first, within 6,000 characters. The personal chat reads all of it. A note can be forgotten from the Memory tab.
 

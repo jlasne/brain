@@ -8264,7 +8264,7 @@ async function sendProject(q){
   try {
     const r = await api("/api/project/chat", { brain: pj.slug, q });
     if (S.pj !== pj) return;
-    pj.data.turns = [...pj.data.turns, r.turn].slice(-10);
+    pj.data.turns = [...pj.data.turns, r.turn].slice(-4);
     if (r.turn.edit) pj.data.edits = [{ id: r.turn.edit.id, at: Date.now(), status: r.turn.edit.status || "open", preview: r.turn.edit.preview }, ...pj.data.edits].slice(0, 10);
     w.replaceWith(turnEl(r.turn));
     /* A change applied, or a file the first description just made: the file side follows. */

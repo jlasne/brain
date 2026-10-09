@@ -294,11 +294,11 @@ const ask1 = async (q, extra = {}) => project.projectChat(W.ctx, { space: SPACE,
   reply = was;
 }
 
-/* ---- the thread keeps the last 10 exchanges ---- */
+/* ---- the thread keeps the last 4 exchanges ---- */
 {
   for (let i = 0; i < 12; i++) await ask1(`Question number ${i}`);
   const t = (await W.ctx.runQuery("projects.projectGet", { space: SPACE, brain: slugP })).turns;
-  check("the running thread keeps the last 10 exchanges, older ones are deleted", t.length === 10 && t[9].q === "Question number 11" && t[0].q === "Question number 2", t.map(x => x.q).join(","));
+  check("the running thread keeps the last 4 exchanges, older ones are deleted", t.length === 4 && t[3].q === "Question number 11" && t[0].q === "Question number 8", t.map(x => x.q).join(","));
   const router = last(/You route a project's questions/);
   check("a follow-up is read against the earlier questions", /ASKED BEFORE, oldest first/.test(router.user) && router.user.includes("Question number 10"));
 }

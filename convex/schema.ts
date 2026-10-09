@@ -607,7 +607,7 @@ export default defineSchema({
     text: v.string(),
   }).index("by_brain_sid", ["brain", "sid"]),
 
-  /* A project's one running thread: its last 10 exchanges, older ones gone. */
+  /* A project's one running thread: its last 4 exchanges, older ones gone. */
   projectThreads: defineTable({
     brain: v.string(),
     turns: v.array(v.any()),
