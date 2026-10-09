@@ -24,7 +24,7 @@
 import { internal } from "./_generated/api";
 import { ask, parseJson } from "./lib";
 import { routeQuestion } from "./route";
-import { planDossier, writeDossier, idOf, OPEN_READ, keywords, stem } from "./words";
+import { planDossier, writeDossier, idOf, OPEN_READ, keywords, stem, tagsOf, taggedLine } from "./words";
 import { embed, nearest } from "./graph";
 import { readNotes, fileNotes } from "./personal";
 import {
@@ -129,22 +129,25 @@ export async function finishFile(ctx: any, o: { space: string; brain: string; ve
 
 /* ---------- what the project knows of its file ---------- */
 
-const ABOUT_RULES = `You write the memory note of a file, so a project knows what the file holds without opening it.
+const ABOUT_RULES = `You write the memory notes of a file, so a project knows what the file holds without opening it.
 Below: the file's name and kind, then its words or its contents.
 Reply with only JSON: {"notes":[{"title":"The file","update":"","claim":"","position":"","summaryLine":""}]}
-- "title": exactly "The file".
-- "claim": one sentence saying what the file is and what it covers.
-- "position": 3 to 6 sentences. What it is, who or what it covers, its main numbers and dates, and where each topic sits, by section title or page.
-- "summaryLine": what the file is, in under 15 words.
+- The first note: "title" exactly "The file". "claim": one sentence saying what the file is and what it covers. "position": 3 to 6 sentences. What it is, who or what it covers, its main numbers and dates, and where each topic sits, by section title or page. "summaryLine": what the file is, in under 15 words.
 - Only what is given. Never guess. Write it in English. No em-dashes.`;
 
-/** The note on a file just read in. A failure here never fails the file. */
+/** Asked of a long file, after the note on the file: one note a topic, each saying where it sits. */
+const TOPIC_RULES = `
+- Then up to 8 more notes, one for each main topic of the file, so a question on it can go straight to its sections. "title": 2 to 6 words naming the topic. "claim": the topic in one sentence. "position": 1 or 2 sentences with its key numbers. "summaryLine": under 15 words. "sections": the ids of the sections where the topic sits, from the contents list. A topic with no section is left out.`;
+
+/** The note on a file just read in, and for a long one a note a topic. A failure here never fails the file. */
 async function aboutFile(ctx: any, o: { space: string; brain: string; key?: string; model?: string }) {
   try {
     const got = await ctx.runQuery(internal.projects.projectGet, { space: o.space, brain: o.brain });
     const file = got.file;
     if (!file || file.status !== "ready" || !file.chars) return;
     let body: string;
+    /* A long document is mapped by topic: the notes then lead a question to its sections. A short one is read whole anyway. */
+    const topics = file.kind !== "table" && file.chars > TINY_CHARS && got.cards.length > SHORT_AFTER;
     if (file.kind === "table") {
       const rows: string[][][] = [];
       for (let i = 0; i < file.sheets.length; i++) rows.push(((await ctx.runQuery(internal.projects.rowsPage, { space: o.space, brain: o.brain, sheet: i, from: 1, n: 4 })).rows ?? []).map((r: any) => r.cells));
@@ -155,14 +158,20 @@ async function aboutFile(ctx: any, o: { space: string; brain: string; key?: stri
     } else body = `One line a section: id | title | summary\n${contentsText(got.cards, 30000)}`;
     const noun = file.kind === "table" ? "a table" : file.kind === "html" ? "an HTML page" : "a document";
     const { text } = await ask([
-      { role: "system", content: "You write the memory note of a file. You reply with JSON only." },
-      { role: "user", content: `${ABOUT_RULES}\n\nTHE FILE "${file.name}", ${noun}, ${file.chars} characters\n${body}` },
-    ], { json: true, maxTokens: 900, temperature: 0, timeout: 90000, key: o.key, model: o.model });
-    /* One note, always under the same title, so a new file takes its place. */
+      { role: "system", content: "You write the memory notes of a file. You reply with JSON only." },
+      { role: "user", content: `${ABOUT_RULES}${topics ? TOPIC_RULES : ""}\n\nTHE FILE "${file.name}", ${noun}, ${file.chars} characters\n${body}` },
+    ], { json: true, maxTokens: topics ? 2500 : 900, temperature: 0, timeout: 90000, key: o.key, model: o.model });
+    /* The first note is always "The file", so a new file takes its place; the others are topics that name sections the file has. */
     let raw = String(text);
     try {
       const d = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
-      if (Array.isArray(d?.notes) && d.notes[0]) { d.notes = [{ ...d.notes[0], title: "The file", update: "" }]; raw = JSON.stringify(d); }
+      if (Array.isArray(d?.notes) && d.notes[0]) {
+        const have = new Set<number>(got.cards.map((c: any) => c.sid));
+        const rest = topics ? d.notes.slice(1, 9).map((n: any) => ({ ...n, update: "", sections: (Array.isArray(n?.sections) ? n.sections : []).map(Number).filter((x: number) => have.has(x)) }))
+          .filter((n: any) => n.sections.length && String(n.title ?? "").trim().toLowerCase() !== "the file") : [];
+        d.notes = [{ ...d.notes[0], title: "The file", update: "" }, ...rest];
+        raw = JSON.stringify(d);
+      }
     } catch { /* readNotes finds nothing in it either */ }
     const notes = readNotes(raw, "file");
     if (!notes.length) return;
@@ -176,31 +185,38 @@ async function aboutFile(ctx: any, o: { space: string; brain: string; key?: stri
 /* ---------- the step before an answer ---------- */
 
 /** Titles of sections not opened that the answer is shown, so it can point at them. */
-const ALSO_IN = 40;
+const ALSO_IN = 12;
 
 export type Route = { intent: "ask" | "brainstorm" | "change"; sections: number[]; all: boolean; query: any | null; folders: string[]; terms: string[]; kind: string; more: boolean; routed: boolean };
 
 const NO_ROUTE: Route = { intent: "ask", sections: [], all: false, query: null, folders: [], terms: [], kind: "", more: false, routed: false };
 
-const ROUTE_RULES = `You decide what a project's chat must read before it answers.
+/**
+ * What the router is told. The rules every message needs come first, the same each time, so a model that reuses what it was
+ * sent before can reuse them; then only the rules for this kind of file and this kind of message.
+ */
+function routeRules(o: { table: boolean; fresh: boolean; short: boolean }): string {
+  const shape = o.table ? `{"intent":"ask","all":false,"query":null,"folders":["pricing"],"terms":["price","payment plan"]}`
+    : `{"intent":"ask","sections":[3,7],"all":false,"folders":["pricing"],"terms":["price","payment plan"]${o.short ? `,"more":false` : ""}${o.fresh ? `,"kind":""` : ""}}`;
+  return `You decide what a project's chat must read before it answers.
 The project is built on ONE file or table. Below are the message, the earlier questions, what the project remembers, the file's contents, and the folders the owner has.
 
-Reply with only JSON: {"intent":"ask","sections":[3,7],"all":false,"query":null,"folders":["pricing"],"terms":["price","payment plan"],"kind":"","more":false}
+Reply with only JSON: ${shape}
 
 - "intent": "ask" for a question, "brainstorm" when they want ideas, a choice or a decision, "change" when they ask to change the file or table.
-- "sections": for a document or a page. The ids of the sections the answer needs, best first, at most 8. For a change, the sections to change. Empty when the message needs none of the file: thanks, small talk, a question about this chat, or one the owner's folders answer, or one that a note under WHAT THE PROJECT REMEMBERS answers, when the note is not marked [the file changed since].
 - "all": true only when the message is about the whole file: a summary, a review of everything, a change everywhere. Otherwise false.
-- "query": for a table. A filter and totals that run over EVERY row. Empty (null) when the message needs no row.
+- "folders": the slugs of the owner's other folders that could add a fact, a number or a view the file lacks, at most 4. Empty when the file and the memory are enough. When the file is empty or there is none, the folders whose notes would fill it, the ones the owner names first.
+- "terms": the message as English search words: the subject, synonyms, abbreviations spelled out. Up to 12.
+- Match on meaning, whatever language the message is in.
+- The earlier questions only resolve a reference like "it" or "the second one".
+${o.table ? `- "query": for a table. A filter and totals that run over EVERY row. Empty (null) when the message needs no row.
   {"sheet":1,"where":[{"col":"Price","op":">","value":1200}],"any":false,"show":["Program","Price"],"sort":{"col":"Price","desc":true},"limit":20,"calc":[{"fn":"avg","col":"Price"},{"fn":"count"}]}
   ops: = != > >= < <= has in empty filled. "in" takes a list. "has" matches words inside a cell. Several conditions all hold unless "any" is true.
   calc fns: count sum avg min max, on a number column; "by" splits a total by a column. Name columns exactly as listed.
-  Ask for the rows a change needs, so each carries its row number. Never ask for more than 100 rows.
-- "folders": the slugs of the owner's other folders that could add a fact, a number or a view the file lacks, at most 4. Empty when the file and the memory are enough. When the file is empty or there is none, the folders whose notes would fill it, the ones the owner names first.
-- "terms": the message as English search words: the subject, synonyms, abbreviations spelled out. Up to 12.
-- "more": only when the file's contents list is partial. True when the message needs the file and none of the sections listed fits: "sections" is then empty and the whole list is shown. Otherwise false.
-- "kind": only when THE FILE says there is none yet. "table" for rows and columns (a budget, a tracker, a list with fields), "html" for a web page, "doc" for any other text, and "doc" when unsure. Otherwise "".
-- Match on meaning, whatever language the message is in.
-- The earlier questions only resolve a reference like "it" or "the second one".`;
+  Ask for the rows a change needs, so each carries its row number. Never ask for more than 100 rows.` : `- "sections": for a document or a page. The ids of the sections the answer needs, best first, at most 8. For a change, the sections to change. Empty when the message needs none of the file: thanks, small talk, a question about this chat, or one the owner's folders answer, or one that a note under WHAT THE PROJECT REMEMBERS answers, when the note is not marked [the file changed since].`}${o.short ? `
+- "more": only when the file's contents list is partial. True when the message needs the file and none of the sections listed fits: "sections" is then empty and the whole list is shown. Otherwise false.` : ""}${o.fresh ? `
+- "kind": only when THE FILE says there is none yet. "table" for rows and columns (a budget, a tracker, a list with fields), "html" for a web page, "doc" for any other text, and "doc" when unsure. Otherwise "".` : ""}`;
+}
 
 /** Words of the question against a section's title and summary: the pick when the model could not route. */
 function pickByWords(cards: any[], q: string, n = 6): number[] {
@@ -229,6 +245,18 @@ export function sheetsText(sheets: Sheet[], firstRows: string[][][]): string {
     ...s.cols.map(c => `- ${colLine(c)}`),
     ...(firstRows[i]?.length ? ["First rows:", ...firstRows[i].map((r, k) => `${k + 1} | ${r.join(" | ").slice(0, 200)}`)] : []),
   ].join("\n")).join("\n\n");
+}
+
+/** What a message cost, from the usage each model call reports. */
+type Spent = { in: number; out: number; cached: number; usd: number; known: boolean; calls: number };
+const newSpent = (): Spent => ({ in: 0, out: 0, cached: 0, usd: 0, known: false, calls: 0 });
+function meter(s: Spent, u: any) {
+  if (!u) return;
+  s.calls++;
+  s.in += Number(u.prompt_tokens) || 0;
+  s.out += Number(u.completion_tokens) || 0;
+  s.cached += Number(u.prompt_tokens_details?.cached_tokens) || 0;
+  if (typeof u.cost === "number" && Number.isFinite(u.cost)) { s.usd += u.cost; s.known = true; }
 }
 
 const oneLine = (t: any, n: number) => String(t ?? "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -275,7 +303,7 @@ export function shortlist(cards: any[], q: string, routes: { t: string[]; s: num
 /** The part of a contents list the router reads first, and what it may ask for when none of it fits. */
 function shortBlock(file: any, cards: any[], short: { sids: number[]; memory: Set<number> }): string {
   const byId = new Map<number, any>(cards.map((c: any) => [c.sid, c]));
-  const lines = short.sids.map(sid => `${short.memory.has(sid) ? "* " : ""}${sid} | ${byId.get(sid)?.title} | ${String(byId.get(sid)?.summary ?? "").slice(0, 160)}`).join("\n");
+  const lines = short.sids.map(sid => `${short.memory.has(sid) ? "* " : ""}${sid} | ${byId.get(sid)?.title} | ${String(byId.get(sid)?.summary ?? "").slice(0, 120)}`).join("\n");
   return `THE FILE "${file.name}", ${file.kind === "html" ? "an HTML page" : "a document"} of ${cards.length} sections. Only the ${short.sids.length} likeliest are listed: a * marks one that answered a question with some of the same words before, the others share words with the message or were open in the last exchange. One line a section: id | title | summary\n${lines}\n${cards.length - short.sids.length} more sections are not listed. When the message needs the file and none of these fits, set "more" to true and the whole list is shown.`;
 }
 
@@ -286,7 +314,7 @@ export function guessKind(q: string): string {
   return "doc";
 }
 
-async function route(o: { q: string; earlier: string[]; file: any; cards: any[]; tiny: boolean; firstRows: string[][][]; folders: any[]; memory: string; fresh?: boolean; empty?: boolean; short?: { sids: number[]; memory: Set<number> } | null; key?: string; model?: string }): Promise<Route> {
+async function route(o: { q: string; earlier: string[]; file: any; cards: any[]; tiny: boolean; firstRows: string[][][]; folders: any[]; memory: string; fresh?: boolean; empty?: boolean; short?: { sids: number[]; memory: Set<number> } | null; meter?: (u: any) => void; key?: string; model?: string }): Promise<Route> {
   const doc = o.file.kind !== "table";
   const fileBlock = o.fresh
     ? `THERE IS NO FILE YET. The owner describes what to make, and the chat makes it. Decide its "kind", the intent, the folders and the terms.`
@@ -303,11 +331,12 @@ async function route(o: { q: string; earlier: string[]; file: any; cards: any[];
     ? o.folders.slice(0, 60).map((b: any) => `${b.slug} | ${b.name} | ${String(b.scope ?? "").slice(0, 100)}`).join("\n")
     : "(none)";
   try {
-    const { text, finish } = await ask([
+    const { text, finish, usage } = await ask([
       { role: "system", content: "You route a project's questions to what they need. You reply with JSON only." },
-      { role: "user", content: `${ROUTE_RULES}\n\nMESSAGE: ${o.q.slice(0, 800)}\n${o.earlier.length ? `ASKED BEFORE, oldest first:\n${o.earlier.map(x => `- ${x}`).join("\n")}\n` : ""}` +
+      { role: "user", content: `${routeRules({ table: !doc, fresh: !!o.fresh, short: !!o.short })}\n\nMESSAGE: ${o.q.slice(0, 800)}\n${o.earlier.length ? `ASKED BEFORE, oldest first:\n${o.earlier.map(x => `- ${x}`).join("\n")}\n` : ""}` +
         `${o.memory ? `WHAT THE PROJECT REMEMBERS (the nearest notes first, a line each):\n${o.memory}\n` : ""}\n${fileBlock}\n\nTHE OWNER'S FOLDERS: slug | name | what it holds\n${folderBlock}` },
     ], { json: true, maxTokens: 700, timeout: 45000, temperature: 0, key: o.key, model: o.model });
+    o.meter?.(usage);
     const d = parseJson(String(text), finish);
     const have = new Set(o.cards.map((c: any) => c.sid));
     const slugs = new Set(o.folders.map((b: any) => b.slug));
@@ -357,8 +386,10 @@ THE MEMORY
 - Only what was said or what THE FILE states. Never a guess or a proposal not yet agreed.
 `;
 
-export const ANSWER_RULES = (kind: string, english: boolean, o: { auto?: boolean; empty?: boolean; note?: boolean } = {}) => {
+export const ANSWER_RULES = (kind: string, english: boolean, o: { auto?: boolean; empty?: boolean; note?: boolean; edits?: boolean } = {}) => {
   const noun = kind === "table" ? "table" : kind === "html" ? "HTML page" : "document";
+  /* How to change the file is sent when the message may change it, or when the router could not say. The rules every message needs come first. */
+  const change = o.edits !== false;
   return `You are the chat of a project. The project is built on ONE ${noun}, shown beside this chat. You help its owner think about it, decide, and change it.
 
 WHAT YOU READ
@@ -383,47 +414,61 @@ WHEN THEY ASK FOR A BRAINSTORM, A DECISION OR A CHOICE
 - "tldr": your recommendation, in one sentence.
 - "reply": 2 to 4 numbered reasons. Each one: the point in bold, then the fact behind it with its source. Close with "**Check next:** ..." when one thing is worth checking.
 - A proposal does not change the file. Change the file only when they ask.
-
+${change ? `
 WHEN THEY ASK TO CHANGE THE FILE
 - Put each change in "edits", with exact words from THE FILE. Change nothing that was not asked.
 - ${o.auto ? `The changes apply at once and the owner can undo them. In "tldr", say what you changed, in one sentence.` : `The owner applies the changes with a click, so never say a change is made. In "tldr", say what the changes do, in one sentence.`}
 - ${kind === "table" ? TABLE_EDITS : docEdits(noun)}
-${kind === "html" ? `\n${HTML_PAGE}\n` : ""}${o.empty ? `
+${kind === "html" ? `\n${HTML_PAGE}\n` : ""}` : ""}${o.empty ? `
 THE FILE IS EMPTY
 - The owner will describe what they want. Build it complete in one go with the changes above. In "tldr", say what you made. In "reply", name the one thing to ask for next.
 - When THEIR FOLDERS hold what the owner points at, build from them: their names, numbers and dates as written. Say in "reply" which folder each part comes from. When a folder lacks something, build the rest and say what is missing.
 - A question is answered from THEIR FOLDERS and the memory, with no change. When the message says nothing to build, ask one question in "tldr" and make no change.
 ` : ""}${o.note ? MEMORY_RULES : ""}
-Reply with only JSON: {"tldr":"","reply":"","proposal":false,"quotes":[],"edits":[]${o.note ? `,"notes":[{"title":"","update":"","claim":"","position":"","summaryLine":"","sections":[]}]` : ""}}
-- "quotes": up to 3 short passages of THE FILE, copied word for word, that the answer rests on. Empty when it rests on a folder or the memory alone, or when you changed the file.`;
+Reply with only JSON: {"tldr":"","reply":"","proposal":false,"quotes":[]${change ? `,"edits":[]` : ""}${o.note ? `,"notes":[{"title":"","update":"","claim":"","position":"","summaryLine":"","sections":[]}]` : ""}}
+- "quotes": up to 3 short passages of THE FILE, copied word for word, that the answer rests on. Empty when it rests on a folder or the memory alone${change ? ", or when you changed the file" : ""}.`;
 };
 
 /** One note as the answer reads it. */
 const memoryLine = (r: any) => `- ${r.title}: ${oneLine(r.position || r.summaryLine, 500)}${r.updated ? ` (${r.updated})` : ""}${r.stale ? " [the file changed since]" : ""}`;
 
-/** The notes that bear on a question, within a budget. The note on the file leads; the rest follow by words shared with the question, then by date. */
-export function memoryPick(rows: any[], max = 6000, q = ""): any[] {
+/** Notes that share no word with the question, and are shown anyway: the newest ones, since a decision may bear on it in other words. */
+const LOOSE_NOTES = 2;
+
+/** Every note, the nearest to the question first: the note on the file, then the notes that share its words, then the rest in the order held. */
+function memoryRank(rows: any[], q: string): { r: any; s: number }[] {
   const want = new Set(keywords(q).map(stem));
   const fit = (r: any) => r.title === "The file" ? 1e6 : keywords(`${r.title} ${r.position || r.summaryLine || ""}`).map(stem).filter((w: string) => want.has(w)).length;
-  const ranked = rows.map((r, i) => ({ r, i, s: fit(r) })).sort((a, b) => b.s - a.s || a.i - b.i);
+  return rows.map((r, i) => ({ r, i, s: fit(r) })).sort((a, b) => b.s - a.s || a.i - b.i);
+}
+
+/**
+ * The notes that bear on a question, within a budget. The note on the file
+ * leads; then the notes that share words with the question, best first; then
+ * only the newest two of the others.
+ */
+export function memoryPick(rows: any[], max = 3000, q = ""): any[] {
+  const ranked = memoryRank(rows, q);
   const out: any[] = [];
-  let used = 0;
-  for (const { r } of ranked) {
+  let used = 0, loose = 0;
+  for (const { r, s } of ranked) {
+    if (s === 0 && loose >= LOOSE_NOTES) continue;
     const n = memoryLine(r).length + 1;
     if (used + n > max) continue;
     out.push(r); used += n;
+    if (s === 0) loose++;
   }
   return out;
 }
 
 /** What the project remembers, as the answer reads it. */
-export function memoryText(rows: any[], max = 6000, q = ""): string {
+export function memoryText(rows: any[], max = 3000, q = ""): string {
   return memoryPick(rows, max, q).map(memoryLine).join("\n") || "(nothing kept yet)";
 }
 
 /** The notes as the router reads them: the nearest few with a line each, so it can see when memory already answers, and the rest by title. */
 export function memoryForRouter(rows: any[], q: string): string {
-  const ranked = memoryPick(rows, Number.MAX_SAFE_INTEGER, q);
+  const ranked = memoryRank(rows, q).map(x => x.r);
   const near = ranked.slice(0, 8), rest = ranked.slice(8, 40);
   return [...near.map(r => `- ${r.title}: ${oneLine(r.summaryLine || r.position, 160)}${r.stale ? " [the file changed since]" : ""}`),
     ...(rest.length ? [`Other notes, by title: ${rest.map(r => r.title).join("; ")}`] : [])].join("\n");
@@ -444,6 +489,8 @@ export type ChatIn = {
   space: string; brain: string; q: string; key?: string; model?: string; english: boolean; embeds: boolean;
   /* The answer files its own notes in the project's memory: what the owner decided, and what the answer found. */
   note?: boolean;
+  /* The slugs of the folders the owner tagged with @ in the message: those are read, and no other. */
+  tags?: string[];
   /* The owner's other folders, with the personal folder and every project already left out.
      Their cards are read only when the router says the folders could help. */
   shared: { brains: any[]; cards: (slugs: string[]) => Promise<any[]> };
@@ -478,17 +525,21 @@ export async function projectChat(ctx: any, o: ChatIn) {
     }
   }
 
-  /* 1. What the answer needs. A short file and no other folder leave nothing to decide. */
-  const skip = tiny && !fresh && !o.shared.brains.length;
+  /* 1. What the answer needs. A short file and no other folder leave nothing to decide, and nor do folders the owner named. */
+  const tagged = tagsOf(o.tags, o.shared.brains);
+  const skip = tiny && !fresh && (!o.shared.brains.length || tagged.length > 0);
   /* A long file shows the router a short list first: what the project remembers about where things are, what the last exchange opened, and the sections that share words with the message. */
   const lastSids: number[] = (earlierTurns[earlierTurns.length - 1]?.used?.file?.sections ?? []).map((x: any) => Number(x?.sid)).filter(Number.isFinite);
   let short = doc && !tiny && cards.length > SHORT_AFTER ? shortlist(cards, q, got.shortcuts ?? [], lastSids, SHORT_N, memory) : null;
   /* A message in a script the lines share no word with (Chinese, Arabic, Cyrillic) can never meet a line: it gets the whole list at once, as before. */
   if (short && !keywords(q).length && !/[a-z]/i.test(q) && q.length >= 8) short = null;
-  const ask0 = { q, earlier, file, cards, tiny, firstRows, folders: o.shared.brains, memory: memoryForRouter(memory, q), fresh, empty, key: o.key, model: o.model };
+  const spent = newSpent();
+  const ask0 = { q, earlier, file, cards, tiny, firstRows, folders: o.shared.brains, memory: memoryForRouter(memory, q), fresh, empty, meter: (u: any) => meter(spent, u), key: o.key, model: o.model };
   let r: Route = skip ? NO_ROUTE : await route({ ...ask0, short });
   /* None of the short list fits: the whole list, once. */
   if (short && r.more) r = await route({ ...ask0, short: null });
+  /* The folders the owner tagged are the ones read: the router's own choice of folders stands aside. */
+  if (tagged.length) r = { ...r, folders: tagged };
   if (fresh) {
     kind = r.kind || guessKind(q); table = kind === "table"; doc = !table; made = true;
     file.kind = kind; file.name = madeName(got.project.name, kind);
@@ -537,8 +588,9 @@ export async function projectChat(ctx: any, o: ChatIn) {
   }
 
   /* 3. The owner's other folders, when the router said they could help. */
-  let dossier = "(not consulted)", called: { slug: string; name: string; notes: number }[] = [];
+  let dossier = "(not consulted)", called: { slug: string; name: string; notes: number }[] = [], taggedNote = "";
   const pool = o.shared.brains.filter((b: any) => r.folders.includes(b.slug));
+  const named = pool.filter((b: any) => tagged.includes(b.slug)).map((b: any) => ({ slug: b.slug, name: b.name }));
   if (pool.length) {
     try {
       const cs = await o.shared.cards(pool.map((b: any) => b.slug));
@@ -553,15 +605,24 @@ export async function projectChat(ctx: any, o: ChatIn) {
       const whole2 = await ctx.runQuery(internal.store.conceptsByIds, { space: o.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
       const pick = writeDossier(pool, plan, new Map(whole2.map((c: any) => [idOf(c), c])));
       dossier = pick.dossier;
-      called = pool.map((b: any) => ({ slug: b.slug, name: b.name, notes: pick.opened.filter((c: any) => c.brain === b.slug).length })).filter((x: any) => x.notes > 0);
+      taggedNote = taggedLine(named, pick.opened);
+      /* A folder the owner tagged shows even when it held nothing for this message: it was called. */
+      called = pool.map((b: any) => ({ slug: b.slug, name: b.name, notes: pick.opened.filter((c: any) => c.brain === b.slug).length })).filter((x: any) => x.notes > 0 || tagged.includes(x.slug));
     } catch (e: any) {
       console.log(`the folders were not read: ${String(e?.message ?? e).slice(0, 160)}`);
+      if (named.length) taggedNote = `THE OWNER TAGGED ${named.map((b: any) => `@${b.name}`).join(", ")} in the message, and ${named.length === 1 ? "that folder" : "those folders"} could not be read just now: say so in one sentence.`;
     }
   }
 
   /* 4. The answer. */
-  const picked = memoryPick(memory, 6000, q);
-  const history = earlierTurns.map(t => `Q: ${oneLine(t.q, 400)}\nA: ${oneLine(said(t), 900)}`).join("\n\n");
+  const picked = memoryPick(memory, 3000, q);
+  /* The last exchange whole; the ones before it as the question and the one line that answered it: the notes keep the rest. */
+  const history = earlierTurns.map((t, i) => i === earlierTurns.length - 1
+    ? `Q: ${oneLine(t.q, 400)}\nA: ${oneLine(said(t), 700)}`
+    : `Q: ${oneLine(t.q, 200)}\nA: ${oneLine(t.lead || t.a, 200)}`).join("\n\n");
+  /* How to change the file is sent when the message may change it, or when nothing said what it is. The memory rules are left out of small talk. */
+  const edits = !r.routed || r.intent === "change" || empty;
+  const talk = r.routed && r.intent === "ask" && !fresh && !r.sections.length && !r.all && !r.query && !r.folders.length && !r.terms.length;
   const date = new Date().toISOString().slice(0, 10);
   const noun = table ? `a table, ${file.sheets.length} sheet${file.sheets.length === 1 ? "" : "s"}`
     : `${kind === "html" ? "an HTML page" : "a document"}, ${cards.length} section${cards.length === 1 ? "" : "s"}${whole ? ", read whole" : ""}`;
@@ -569,13 +630,14 @@ export async function projectChat(ctx: any, o: ChatIn) {
     `THE FILE "${file.name}" (${noun})\n${fileText || (empty ? "(empty)" : "(not opened for this message)")}\n\n` +
     `${mapText ? `THE FILE'S CONTENTS, a line a section (id | title | summary), written when the file was read in\n${mapText}\n\n` : ""}` +
     `${alsoIn ? `ALSO IN THE FILE, not opened (id: title)\n${alsoIn}\n\n` : ""}` +
-    `PROJECT MEMORY\n${picked.map(memoryLine).join("\n") || "(nothing kept yet)"}\n\nTHEIR FOLDERS\n${dossier}\n\n` +
+    `PROJECT MEMORY\n${picked.map(memoryLine).join("\n") || "(nothing kept yet)"}\n\n${taggedNote ? taggedNote + "\n\n" : ""}THEIR FOLDERS\n${dossier}\n\n` +
     `${history ? `EARLIER IN THIS CHAT\n${history}\n\nThat is context for reading the question, never a source.\n\n` : ""}QUESTION: ${q}`;
   const writes = empty || kind === "html" || r.intent === "change";
-  const { text, finish } = await ask([
-    { role: "system", content: ANSWER_RULES(kind, o.english, { auto: made, empty, note: !!o.note }) },
+  const { text, finish, usage } = await ask([
+    { role: "system", content: ANSWER_RULES(kind, o.english, { auto: made, empty, note: !!o.note && !talk, edits }) },
     { role: "user", content: prompt },
   ], { json: true, maxTokens: writes ? 8000 : 3000, temperature: 0.2, key: o.key, model: o.model, timeout: Math.max(60000, 165000 - (Date.now() - t0)) });
+  meter(spent, usage);
   let d: any;
   try { d = parseJson(String(text), finish); }
   catch { d = { reply: String(text).replace(/^```(?:json)?|```$/g, "").trim() }; }
@@ -630,6 +692,8 @@ export async function projectChat(ctx: any, o: ChatIn) {
     quotes,
     used: { file: { name: file.name, whole: whole && !empty, ...(opened.length ? { sections: opened, of: cards.length } : {}), ...(opened.some(x => short?.memory.has(x.sid)) ? { via: "memory" } : {}), ...(mapText ? { map: true } : {}), ...(rowsUsed.length ? { rows: rowsUsed, sheet: rowsSheet } : {}) },
       folders: called, memory: picked.length },
+    /* What this message cost, as the model host reported it: tokens in and out, the part reused from before, and the price when it says it. */
+    ...(spent.in ? { cost: { in: spent.in, out: spent.out, ...(spent.cached ? { cached: spent.cached } : {}), ...(spent.known ? { cents: Math.round(spent.usd * 1e6) / 1e4 } : {}), calls: spent.calls } } : {}),
     ...(edit ? { edit } : {}), intent: r.intent,
     ...(filed?.titles?.length ? { noted: filed.titles } : {}),
   };

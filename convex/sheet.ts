@@ -25,7 +25,7 @@ export const TINY_CHARS = 8000;
 export const WHOLE_CHARS = 48000;
 /** A contents list this long or shorter goes to the router whole. A longer one goes as a short list first: what the project remembers, then the sections that share words with the message. */
 export const SHORT_AFTER = 40;
-export const SHORT_N = 24;
+export const SHORT_N = 12;
 /** Routes a project keeps: where things are, learned from its own answers. */
 export const ROUTES_KEEP = 40;
 /** What a project's file can be: words, a page of HTML (words shown rendered), or a table. */

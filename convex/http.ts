@@ -19,7 +19,7 @@ import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from 
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, translatePage, langOf, DOC_TYPES } from "./onepager";
 import type { DocType } from "./onepager";
-import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen } from "./words";
+import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
 import { projectChat, addDocPiece, addRowPiece, finishFile, readBlocks } from "./project";
@@ -727,9 +727,12 @@ route("/api/ask", async (ctx, _req, b) => {
      question reads those alone. A personal brain never joins it. */
   const ticked = Array.isArray(b.brains) ? [...new Set(b.brains.map(String))].slice(0, 60) : [];
   const many = ticked.length > 1;
-  const pool = many ? brains.filter((x: any) => ticked.includes(x.slug))
+  const scoped = many ? brains.filter((x: any) => ticked.includes(x.slug))
     : only ? brains.filter((x: any) => x.slug === only) : brains;
-  if (many && !pool.length) return { answer: "None of the ticked folders is here any more. Tick others, or ask them all." };
+  /* Folders tagged with @ in the message: the message named them, so they are read, and no other. */
+  const tags = tagsOf(b.tags, brains);
+  const pool = tags.length ? brains.filter((x: any) => tags.includes(x.slug)) : scoped;
+  if (many && !tags.length && !pool.length) return { answer: "None of the ticked folders is here any more. Tick others, or ask them all." };
   if (!pool.length) return { answer: "No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
 
   /**
@@ -768,6 +771,7 @@ route("/api/ask", async (ctx, _req, b) => {
     ? `\n\nWHAT FOLLOWS, Tasu's own conclusions from two linked concepts, never a source:\n` +
       derived.slice(0, 6).map((x: any) => `- ${x.title}: ${x.text}`).join("\n")
     : "");
+  const tagged = tags.length ? pool.map((x: any) => ({ slug: x.slug, name: x.name })) : [];
   const reading = pool.filter((x: any) => pick.opened.some((c: any) => c.brain === x.slug));
   const isPerson = reading.length === 1 && reading[0].type === "person";
   const nSources = new Set(sources.filter((s: any) => s.brains.some((x: string) => reading.some((c: any) => c.slug === x))).map((s: any) => s.sid)).size;
@@ -857,7 +861,7 @@ ${earlier}
 
 That is context for reading the question, never a source. Every claim in your answer comes from the stored knowledge below. A claim you made earlier that the stored knowledge does not carry is dropped, not repeated.
 ` : ""}
-STORED KNOWLEDGE
+${tagged.length ? taggedLine(tagged, pick.opened) + "\n\n" : ""}STORED KNOWLEDGE
 The concepts that bear on this question are opened in full. Others are named under ALSO HELD. Answer from the opened ones, and name an ALSO HELD concept when it is where the answer would continue.
 ${dossier}
 
@@ -874,12 +878,12 @@ QUESTION: ${String(b.q ?? "")}` },
   if ("chat" in b) {
     try {
       const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
-        id: typeof b.chat === "string" ? b.chat : null, brain: many ? pool.map((x: any) => x.slug).join(",") : only ?? "all",
-        turn: { q: String(b.q ?? "").slice(0, 2000), a: text, level, sources: nSources, at: Date.now() } });
+        id: typeof b.chat === "string" ? b.chat : null, brain: many ? scoped.map((x: any) => x.slug).join(",") : only ?? "all",
+        turn: { q: String(b.q ?? "").slice(0, 2000), a: text, level, sources: nSources, at: Date.now(), ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}) } });
       chat = r.id;
     } catch { /* the answer still goes out */ }
   }
-  return { answer: text, sources: nSources, level, ...(chat ? { chat } : {}) };
+  return { answer: text, sources: nSources, level, ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}), ...(chat ? { chat } : {}) };
 });
 
 /**
@@ -918,8 +922,12 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   const last = history.slice(-1).map((h: any) => `They said: ${String(h.q ?? "").slice(0, 500)}\nThe brain replied: ${String(h.a ?? "").slice(0, 600)}`).join("");
   /* This personal brain and every brain that is not personal: the reply may
      call on any of them without being asked. */
-  const pool = every.brains.filter((x: any) => x.type !== "personal" || x.slug === mine.slug);
+  const reach = every.brains.filter((x: any) => x.type !== "personal" || x.slug === mine.slug);
+  /* A folder or a project tagged with @ is called on purpose: the reply reads their notes and the folders tagged, and no other. */
+  const tags = tagsOf(b.tags, reach.filter((x: any) => x.slug !== mine.slug));
+  const pool = tags.length ? reach.filter((x: any) => x.slug === mine.slug || tags.includes(x.slug)) : reach;
   const others = pool.filter((x: any) => x.slug !== mine.slug);
+  const tagged = tags.length ? others.map((x: any) => ({ slug: x.slug, name: x.name })) : [];
   const cards = every.cards.filter((c: any) => pool.some((x: any) => x.slug === c.brain));
   const t0 = Date.now();
 
@@ -936,6 +944,7 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
       { role: "system", content: REPLY_RULES + (who.models?.reply === "en" ? "\n- Reply in English, whatever language they write in." : "") },
       { role: "user", content: `TODAY: ${date}\n\n${twinOf(row)}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}` +
         `THEIR OTHER BRAINS, yours to call on: ${others.map((x: any) => `${x.name} (${x.type})`).join(", ") || "none yet"}\n\n` +
+        `${tagged.length ? taggedLine(tagged, pick.opened, "THEY") + "\n\n" : ""}` +
         `WHAT THEIR NOTES AND BRAINS HOLD (entries "in ${mine.name}" are their own notes; every other entry comes from the brain it names)\n${pick.dossier}\n\n` +
         `${offer.length ? gapBlock(offer) + "\n\n" : ""}THEIR MESSAGE\n${q}` },
     ], { maxTokens: 1200, key: mKey, model: mName, timeout: Math.max(60000, 160000 - (Date.now() - t0)) });
@@ -944,7 +953,8 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   const [said, filed] = await Promise.all([reply, filing]);
   const { text: gapless, asked } = readGap(said, offer);
   const answer = plainReply(gapless);
-  const called = calledBrains(answer, others);
+  /* A brain they tagged was called, whatever the reply says; the others are the ones the reply names. */
+  const called = [...new Set([...tagged.map((x: any) => String(x.name)), ...calledBrains(answer, others)])];
 
   /* A question asked in passing counts as answered once the next message
      files something; one ignored is left to be asked again some day. */
@@ -1598,8 +1608,8 @@ route("/api/project/begin", async (ctx, _req, b) => {
     : [{ name: String(b.name ?? "").slice(0, 60), header: [] }];
   if (!sheets.length) return { error: "the table has no sheet to read" };
   if (!(await wipeProject(ctx, who.space, brain, true))) return { error: "the old file is large: ask again to clear it" };
-  /* The note on the old file goes with it; the rest of the memory stays. */
-  await ctx.runMutation(internal.projects.memoryForget, { space: who.space, brain, slug: "the-file" });
+  /* What the old file alone wrote goes with it (its note and its topics); what the chat kept stays. */
+  await ctx.runMutation(internal.projects.memoryForgetFile, { space: who.space, brain });
   return await ctx.runMutation(internal.projects.fileBegin, { space: who.space, brain, name: String(b.name ?? "file").slice(0, 200), kind, sheets });
 });
 
@@ -1629,7 +1639,7 @@ route("/api/project/chat", async (ctx, _req, b) => {
   const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
   const shared = withoutPersonal(head);
   return { turn: await projectChat(ctx, { space: who.space, brain: String(b.brain ?? ""), q: String(b.q ?? ""), key: mKey, model: mName,
-    english: who.models?.reply === "en", embeds: !who.byok && !who.demo, note: true,
+    english: who.models?.reply === "en", embeds: !who.byok && !who.demo, note: true, tags: Array.isArray(b.tags) ? b.tags.map(String).slice(0, 12) : [],
     shared: { brains: shared.brains, cards: (slugs: string[]) => cardsFor(ctx, slugs, head.ready) } }) };
 });
 

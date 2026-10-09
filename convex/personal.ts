@@ -37,7 +37,7 @@ export type Kind = "chat" | "import" | "interview" | "people" | "files" | "file"
 
 /* A chat message files a few notes at most; an interview answer, a long
    story told aloud, files more; an import more again per piece. */
-const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 20, people: 0, files: 0, file: 1 };
+const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 20, people: 0, files: 0, file: 9 };
 /* People are filed apart from notes, each on their own card. */
 const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, people: 12, files: 6, file: 0 };
 /* What one call reads: the message, the answer, and a piece of an import. */

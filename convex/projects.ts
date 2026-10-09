@@ -441,6 +441,13 @@ export const threadPush = internalMutation({
   },
 });
 
+/** One concept gone: its card and meaning with it. */
+async function dropConcept(ctx: any, c: any) {
+  for (const card of await ctx.db.query("cards").withIndex("by_cid", (q: any) => q.eq("cid", c._id)).collect()) await ctx.db.delete(card._id);
+  for (const vec of await ctx.db.query("vectors").withIndex("by_cid", (q: any) => q.eq("cid", c._id)).collect()) await ctx.db.delete(vec._id);
+  await ctx.db.delete(c._id);
+}
+
 /** One thing the project remembers, forgotten: its concept, card and meaning. */
 export const memoryForget = internalMutation({
   args: { space: v.string(), brain: v.string(), slug: v.string() },
@@ -448,10 +455,27 @@ export const memoryForget = internalMutation({
     await need(ctx, a.space, a.brain);
     const c = await ctx.db.query("concepts").withIndex("by_brain_slug", (q: any) => q.eq("brain", a.brain).eq("slug", a.slug)).unique();
     if (!c) return { ok: false };
-    for (const card of await ctx.db.query("cards").withIndex("by_cid", (q: any) => q.eq("cid", c._id)).collect()) await ctx.db.delete(card._id);
-    for (const vec of await ctx.db.query("vectors").withIndex("by_cid", (q: any) => q.eq("cid", c._id)).collect()) await ctx.db.delete(vec._id);
-    await ctx.db.delete(c._id);
+    await dropConcept(ctx, c);
     return { ok: true };
+  },
+});
+
+/**
+ * A new file takes the place of the old one: every note that only the old file wrote is forgotten (the note on the file and its
+ * topics). A note the chat also wrote to stays, since a decision outlives the file it was made about.
+ */
+export const memoryForgetFile = internalMutation({
+  args: { space: v.string(), brain: v.string() },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    let n = 0;
+    for (const c of await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", a.brain)).collect()) {
+      const ev: any[] = Array.isArray(c.evidence) ? c.evidence : [];
+      if (ev.length && ev.every(e => e?.author === "The file")) { await dropConcept(ctx, c); n++; continue; }
+      /* A note that stays no longer points at sections: they belonged to the old file. */
+      if (c.sections?.length) { await ctx.db.patch(c._id, { sections: [], stale: true }); await syncCard(ctx, c._id); }
+    }
+    return { ok: n > 0, forgotten: n };
   },
 });
 

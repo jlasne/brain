@@ -221,6 +221,30 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).map((x: any) => `${x.a} (${x.aDate}) vs ${
            picked: picked.length, linked: linked.filter((c: any) => openedIds.has(idOf(c))).length };
 }
 
+/* ---------- folders tagged with @ ---------- */
+
+/** The most folders one message can tag. */
+export const MAX_TAGS = 4;
+
+/** The folders a message tagged, from the slugs the page sent: only ones the chat may read, each once, in the order sent. */
+export function tagsOf(raw: unknown, allowed: { slug: string }[]): string[] {
+  const ok = new Set(allowed.map(b => b.slug));
+  return [...new Set((Array.isArray(raw) ? raw : []).map(String))].filter(s => ok.has(s)).slice(0, MAX_TAGS);
+}
+
+/**
+ * What was tagged, said to the model: those folders were named on purpose and
+ * are read below, and one that held nothing for this message says so. `who` is
+ * the one who tagged, as the prompt calls them.
+ */
+export function taggedLine(tagged: { slug: string; name: string }[], opened: { brain: string }[], who = "THE OWNER"): string {
+  if (!tagged.length) return "";
+  const held = new Set(opened.map(c => c.brain));
+  const none = tagged.filter(b => !held.has(b.slug)).map(b => b.name);
+  return `${who} TAGGED ${tagged.map(b => `@${b.name}`).join(", ")} in the message: ${tagged.length === 1 ? "that folder was" : "those folders were"} named on purpose, and what ${tagged.length === 1 ? "it holds" : "they hold"} is read below.` +
+    (none.length ? ` Nothing in ${none.join(", ")} bears on this message: say so in one sentence.` : "");
+}
+
 /* ---------- links between concepts ---------- */
 
 /* The same slug the server writes, kept here so this file stays free of the

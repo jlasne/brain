@@ -3448,7 +3448,8 @@ for (const space of ["octopus", "squidgy"]) {
       /* The project files its own notes: the server wrote one, resting on the Offer section. */
       P.memory.unshift({ slug: "two-payments", title: "Team price", position: "Team stays at 1,490 euros, sold in two payments.", summaryLine: "", updated: "2026-10-09", sections: [2], dates: ["2026-10-09"] });
       return { id: "t" + (P.turns.length + 1), q: b.q, a: "Keep **€1,490** and sell it in two payments.", proposal: /brainstorm/i.test(b.q), quotes: ["Team 3 €1,490"], noted: ["Team price"],
-        used: { file: { name: P.file.name, whole: false, sections: [{ sid: 2, title: "Offer" }] }, folders: [{ slug: "pricing", name: "Pricing", notes: 2 }], memory: 1 } };
+        used: { file: { name: P.file.name, whole: false, sections: [{ sid: 2, title: "Offer" }] }, folders: [{ slug: "pricing", name: "Pricing", notes: 2 }], memory: 1 },
+        cost: { in: 4120, out: 310, cached: 2048, cents: 0.052, calls: 2 } };
     };
   };
   const arg = { state: st, projects, doc: DOC, rows: ROWS };
@@ -3495,7 +3496,7 @@ for (const space of ["octopus", "squidgy"]) {
     marks: [...document.querySelectorAll("mark.pj-mark")].map(m => m.textContent), btns: [...document.querySelectorAll(".pj-a .pj-tact button")].map(b => b.textContent), ta: document.querySelector(".pj-comp textarea").value }));
   check("a question goes to the project's chat with the project named", ans.call?.brain === "launch-plan" && ans.call?.q === "Brainstorm: is Team too high?" && ans.ta === "", JSON.stringify(ans.call));
   check("a brainstorm comes back as a proposal, in bold where it says so, and nothing to press to keep it: only Refine", ans.prop && ans.kind === "Proposal" && /<strong>€1,490<\/strong>/.test(ans.text) && JSON.stringify(ans.btns) === '["Refine"]', JSON.stringify(ans));
-  check("it says what it used: the file and its section, the folder and its notes, the memory, and the note it filed by itself", JSON.stringify(ans.chips) === '["brief-v3.docx: Offer","Pricing folder · 2 notes","Memory · 1 note","Noted: Team price"]', JSON.stringify(ans.chips));
+  check("it says what it used: the file and its section, the folder and its notes, the memory, and the note it filed by itself, then what it cost", JSON.stringify(ans.chips) === '["brief-v3.docx: Offer","Pricing folder · 2 notes","Memory · 1 note","Noted: Team price","4.1k in · 310 out · 2k reused · 0.052¢"]', JSON.stringify(ans.chips));
   check("the section it used is marked in the file, and the words it rests on, across the table's cells", JSON.stringify(ans.used) === '["2"]' && ans.marks.join(" ") === "Team 3 €1,490", JSON.stringify(ans));
 
   /* the memory fills by itself */
@@ -3897,6 +3898,7 @@ for (const space of ["octopus", "squidgy"]) {
         const t = { id: "t" + window.__n, q: body.q, lead: "Payments are monthly.", a: "**Clause 1:** the 10th of each month.", proposal: false, quotes: [],
           used: { file: { name: "contract.pdf", whole: false, sections: [{ sid: 1, title: "Clause 1 payment" }, { sid: 4, title: "Clause 4 payment" }], of: 30, ...(via ? { via: "memory" } : {}) }, folders: [], memory: 0 }, intent: "ask" };
         window.__ways = [{ t: ["payment", "tim"], s: [1, 4], n: window.__n, at: Date.now(), q: body.q }];
+        if (via) t.cost = { in: 12500, out: 310, calls: 2 };
         return J({ turn: t });
       }
       return J({ chats: [] });
@@ -3921,6 +3923,96 @@ for (const space of ["octopus", "squidgy"]) {
   await page.fill(".pj-comp textarea", "What do the payments look like?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
   const second = await page.evaluate(() => [...document.querySelectorAll(".pj-turn")].pop().querySelector(".pj-used")?.textContent);
   check("when memory led, the answer says so", /Read 2 of 30 sections · led by memory/.test(second), second);
+  const cost = await page.evaluate(() => { const c = [...document.querySelectorAll(".pj-turn")].pop().querySelector(".pj-used .cost"); return c && { text: c.textContent, title: c.title }; });
+  check("and when the host gave no price, the cost shows tokens alone", cost?.text === "13k in · 310 out" && cost.title === "2 model calls for this message", JSON.stringify(cost));
+  check("nothing threw", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- @ a folder: the bar lists the folders, and the message carries the ones it names ---- */
+{
+  const mk = (slug, name, n) => [{ slug, name, type: "subject", scope: name }, Array.from({ length: n }, (_, i) => ({ brain: slug, slug: slug + i, n: i + 1, title: `${name} note ${i + 1}`, summaryLine: "", ev: 2 }))];
+  const [b1, c1] = mk("pricing", "Pricing", 3), [b2, c2] = mk("pricing-review", "Pricing review", 2), [b3, c3] = mk("health", "Health", 2);
+  const st = { ...STATE, brains: [b1, b2, b3, { slug: "me", name: "Me", type: "personal", scope: "" }], concepts: [...c1, ...c2, ...c3],
+    projects: [{ slug: "launch-plan", name: "Launch plan", kind: "doc", file: "brief.md", status: "ready", chars: 60, sections: 1, memory: 0, at: 3 }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}");
+      window.__calls.push({ s: path, body });
+      const J = x => Response.json(x);
+      if (path === "/api/state") return J(state);
+      if (path === "/api/health") return J({ conflicted: [], health: [] });
+      if (path === "/api/project/list") return J({ projects: state.projects });
+      if (path === "/api/ask") {
+        if (body.brain === "me") return J({ answer: "Noted.", sources: 0, level: "normal", personal: true, filed: { new: 0, updated: 0, titles: [] }, called: body.tags?.length ? ["Launch plan"] : [], chat: "c1" });
+        return J({ answer: "From the folders.", sources: 3, level: "normal", ...(body.tags?.length ? { tagged: ["Pricing review", "Health"] } : {}), chat: "c2" });
+      }
+      if (path === "/api/project/get") return J({ project: { slug: "launch-plan", name: "Launch plan", created: "2026-10-08" },
+        file: { name: "brief.md", kind: "doc", sheets: [{ name: "brief.md", cols: [], rows: 0 }], chars: 60, sections: 1, status: "ready", ver: 1, at: 1 },
+        cards: [{ sid: 1, ord: 1, sheet: 0, title: "Goal", summary: "About the goal", chars: 60 }], turns: [], edits: [], memory: [], shortcuts: [] });
+      if (path === "/api/project/doc") return J({ sections: [{ sid: 1, ord: 1, title: "Goal", text: "# Goal\n\nFill 200 seats." }] });
+      if (path === "/api/project/chat") return J({ turn: { id: "t1", q: body.q, lead: "Held.", a: "From the folder.", proposal: false, quotes: [], used: { file: { name: "brief.md", whole: true }, folders: [{ slug: "pricing", name: "Pricing", notes: 0 }], memory: 0 }, intent: "ask" } });
+      return J({ chats: [] });
+    };
+  }, st);
+  await page.waitForTimeout(300);
+  const rows = () => page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-row")].map(r => r.textContent));
+  const asks = () => page.evaluate(() => window.__calls.filter(c => c.s === "/api/ask").map(c => c.body));
+  await page.click("#input");
+  await page.keyboard.type("Compare @Pri");
+  check("typing @ in the main bar lists the folders that fit the word, never the personal one", JSON.stringify(await rows()) === '["Pricing","Pricing review"]', JSON.stringify(await rows()));
+  await page.keyboard.press("ArrowDown"); await page.keyboard.press("Enter");
+  const picked = await page.evaluate(() => ({ text: document.getElementById("input").value, menu: !!document.querySelector(".at-menu") }));
+  check("an arrow moves, Enter picks the folder, writes its name and sends nothing", picked.text === "Compare @Pricing review " && !picked.menu && (await asks()).length === 0, JSON.stringify(picked));
+  await page.keyboard.type("and @Hea");
+  check("the word is read where the caret is, and a folder already named is not offered again", JSON.stringify(await rows()) === '["Health"]');
+  await page.click(".at-menu .pk-row");
+  check("a click picks it too, and the caret stays in the bar", await page.evaluate(() => ({ t: document.getElementById("input").value, f: document.activeElement.id })).then(x => x.t === "Compare @Pricing review and @Health " && x.f === "input"));
+  await page.keyboard.type("now"); await page.keyboard.press("Enter"); await page.waitForTimeout(400);
+  const sent = (await asks()).pop();
+  check("the message goes with the folders it names, the longer name read first", sent.q === "Compare @Pricing review and @Health now" && JSON.stringify(sent.tags) === '["pricing-review","health"]' && sent.brain === "all", JSON.stringify(sent));
+  check("the answer says which folders were read", await page.evaluate(() => [...document.querySelectorAll(".msg.ai .filed.called")].pop()?.textContent) === "Read @Pricing review, @Health");
+
+  await page.click("#input"); await page.keyboard.type("Mail me@example.com about @Nowhere");
+  check("an email is no tag, and a name that is not a folder lists nothing", (await rows()).length === 0);
+  await page.keyboard.press("Enter"); await page.waitForTimeout(300);
+  check("and the message goes with no tag", !("tags" in (await asks()).pop()));
+  await page.keyboard.type("@");
+  check("a bare @ lists every folder, and Escape closes the list and keeps the words", JSON.stringify(await rows()) === '["Pricing","Pricing review","Health"]');
+  await page.keyboard.press("Escape");
+  check("Escape closes the list and sends nothing", (await rows()).length === 0 && await page.evaluate(() => document.getElementById("input").value) === "@" && (await asks()).length === 2);
+  await page.fill("#input", "");
+
+  /* the personal chat takes folders and projects */
+  await page.click('#brains .brain-row:has(.nm:text-is("Me"))'); await page.waitForTimeout(150);
+  await page.click("#input"); await page.keyboard.type("What did I decide @");
+  check("in the personal chat the list holds the folders and the projects, and the projects say so", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-row")].map(r => r.textContent))) === '["Pricing","Pricing review","Health","Launch planproject"]');
+  await page.click(".at-menu .pk-row >> text=Launch plan");
+  await page.keyboard.type("for Team"); await page.keyboard.press("Enter"); await page.waitForTimeout(400);
+  const mine = (await asks()).pop();
+  check("a project is named by its slug, to the personal chat", mine.brain === "me" && JSON.stringify(mine.tags) === '["launch-plan"]' && mine.q === "What did I decide @Launch plan for Team", JSON.stringify(mine));
+  check("and the reply names what it called", await page.evaluate(() => [...document.querySelectorAll(".msg.ai .filed.called")].pop()?.textContent) === "Called your Launch plan brain");
+
+  /* a drop takes a source, not a tag */
+  await page.click("#dropBtn"); await page.waitForTimeout(150);
+  await page.click("#input"); await page.keyboard.type("@Pri");
+  check("a drop lists no folder to tag", (await rows()).length === 0);
+  await page.fill("#input", "");
+
+  /* the bar of a project */
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(600);
+  await page.click(".pj-comp textarea"); await page.keyboard.type("What does @He");
+  check("a project's bar lists the folders, and not the personal one or the project", JSON.stringify(await rows()) === '["Health"]');
+  await page.keyboard.press("Tab");
+  check("Tab picks as well, and sends nothing", await page.evaluate(() => ({ t: document.querySelector(".pj-comp textarea").value, n: window.__calls.filter(c => c.s === "/api/project/chat").length })).then(x => x.t === "What does @Health " && x.n === 0));
+  await page.keyboard.type("say?"); await page.keyboard.press("Enter"); await page.waitForTimeout(500);
+  const pj = await page.evaluate(() => window.__calls.filter(c => c.s === "/api/project/chat").pop()?.body);
+  check("a project's message goes with the folders it names", pj?.brain === "launch-plan" && pj.q === "What does @Health say?" && JSON.stringify(pj.tags) === '["health"]', JSON.stringify(pj));
+  check("a folder tagged that held nothing still shows as called", await page.evaluate(() => [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent).includes("Pricing folder · 0 notes")));
+  await page.fill(".pj-comp textarea", "Plain question"); await page.keyboard.press("Enter"); await page.waitForTimeout(400);
+  check("a project's message with no tag carries none", !("tags" in (await page.evaluate(() => window.__calls.filter(c => c.s === "/api/project/chat").pop()?.body))));
   check("nothing threw", !bad.length, bad.join(" | "));
   await page.close();
 }

@@ -843,6 +843,7 @@
   .pick-menu .pk-nm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pick-menu .pk-sub{ display:block; margin-top:3px; font-size:11.5px; font-weight:400; color:var(--ink-3); white-space:normal; }
   .pick-menu .pk-ct{ flex:none; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
+  .pick-menu.at-menu{ max-height:min(40vh, 320px); }
 
 
 
@@ -1995,6 +1996,7 @@
     font:400 11.5px/1.25 var(--mono); color:var(--ink-3); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pj-used button:hover{ border-color:var(--accent-fill); color:var(--accent); }
   .pj-used .noted{ border-color:var(--accent-line); color:var(--accent); }
+  .pj-used .cost{ margin-left:auto; border-color:transparent; background:none; }
   .pj-tact{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
   .pj-tact .go, .pj-tact .ghost{ min-height:34px; padding:0 13px; font-size:13px; }
   .pj-hint{ font:400 14px/1.55 var(--sans); color:var(--ink-3); }
@@ -3322,9 +3324,9 @@ function renderComposer(){
     ? "Paste the text or the transcript here, or add a document. Leave it empty when the source is a link."
     : about ? (about.personal ? `Tell or ask anything about ${about.title}. What you say changes it.` : `Ask about ${about.title}.`)
     : asking ? "Your answer, in your own words"
-    : mine ? "Tell it anything: a plan, a decision, an idea. Or ask what you said."
+    : mine ? "Tell it anything: a plan, a decision, an idea. Or ask what you said. Type @ to call a folder."
     : S.picks.length > 1 ? `Ask ${picksName()}.`
-    : S.scope==="all" ? "Ask anything your folders have read."
+    : S.scope==="all" ? "Ask anything your folders have read. Type @ to name one."
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this folder") + ".";
   $("levelWrap").hidden = drop || mine || !!about || isPersonal(S.scope);
   /* A chat about one concept reads that one alone: its chip stands for the folders. */
@@ -4292,6 +4294,93 @@ function paintAbout(about){
   x.onclick = () => { newChat(); $("input").focus(); };
   line.append(el("span","ab-k", about.personal ? "Editing" : "About"), el("b",null, about.title), x);
 }
+
+/* ============ @ a folder ============
+   Typing @ in a message bar lists the folders that chat may read, and a pick writes the folder's name into the message.
+   The message goes out with the slugs of the folders it names: the chat reads those, and no other. */
+const MAX_TAGS = 4;   // the most folders one message names, as the server holds it
+let atMenu = null, atList = [], atAt = 0, atBox = null;
+function closeAt(){ atMenu?.remove(); atMenu = null; atList = []; atAt = 0; atBox = null; }
+document.addEventListener("pointerdown", e => { if (atMenu && !atMenu.contains(e.target) && e.target !== atBox) closeAt(); }, true);
+
+/** What a chat may be told to read: the folders, and in the personal chat the projects as well. */
+function tagChoices(personal){
+  const folders = S.brains.filter(b => b.type !== "personal").map(b => ({ slug: b.slug, name: b.name, tag: "" }));
+  return personal ? [...folders, ...(S.projects || []).map(p => ({ slug: p.slug, name: p.name, tag: "project" }))] : folders;
+}
+/** The slugs a message names with @, each once. The longest names are read first, so "@Pricing review" is not taken for "@Pricing". */
+function tagsIn(text, choices){
+  let rest = String(text ?? ""); const out = [];
+  const esc = t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const c of [...choices].sort((a, b) => b.name.length - a.name.length)){
+    for (const word of new Set([c.name, c.slug])){
+      const re = new RegExp(`(^|[\\s(\\[{"'])@${esc(word)}(?=$|[\\s.,;:!?)\\]}"'])`, "giu");
+      if (re.test(rest)){ if (!out.includes(c.slug)) out.push(c.slug); rest = rest.replace(re, "$1 "); }
+    }
+  }
+  return out.slice(0, MAX_TAGS);
+}
+/**
+ * A message bar that lists folders when @ is typed. `choices` is read at each keystroke, and returns nothing where this bar
+ * takes no tag. Arrows move, Enter or Tab picks, Escape closes.
+ */
+function attachMentions(ta, choices){
+  const plain = t => String(t ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  /* The word being typed after an @ at the caret, or nothing. */
+  const word = () => {
+    if (ta.selectionStart !== ta.selectionEnd) return null;
+    const pos = ta.selectionStart, m = /(^|[\s(])@([^@\n]{0,40})$/u.exec(ta.value.slice(0, pos));
+    return m ? { from: pos - m[2].length - 1, to: pos, q: plain(m[2]) } : null;
+  };
+  const choose = c => {
+    const w = word(); if (!w){ closeAt(); return; }
+    ta.setRangeText(`@${c.name} `, w.from, w.to, "end");
+    closeAt(); ta.focus(); ta.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const paint = () => {
+    if (!ta.isConnected){ if (atBox === ta) closeAt(); return; }
+    const w = word(), all = w ? choices() : [];
+    if (!w || !all.length){ if (atBox === ta) closeAt(); return; }
+    const named = tagsIn(ta.value, all);
+    if (named.length >= MAX_TAGS){ closeAt(); return; }
+    const left = all.filter(c => !named.includes(c.slug));
+    const first = left.filter(c => plain(c.name).startsWith(w.q));
+    const list = [...first, ...left.filter(c => !first.includes(c) && plain(c.name).includes(w.q))].slice(0, 8);
+    if (!list.length){ closeAt(); return; }
+    if (atBox !== ta) atAt = 0;
+    atBox = ta; atList = list; atAt = Math.min(atAt, list.length - 1);
+    if (!atMenu){ atMenu = el("div","pick-menu at-menu"); atMenu.setAttribute("role","listbox"); document.body.append(atMenu); }
+    atMenu.innerHTML = "";
+    list.forEach((c, i) => {
+      const b = el("button","pk-row" + (i === atAt ? " on" : "")); b.type = "button"; b.setAttribute("role","option");
+      b.append(el("span","pk-nm",c.name)); if (c.tag) b.append(el("span","pk-ct",c.tag));
+      /* A press keeps the focus in the field, so the caret stays where the word is. */
+      b.onmousedown = e => e.preventDefault();
+      b.onclick = () => choose(c);
+      atMenu.append(b);
+    });
+    const r = ta.getBoundingClientRect();
+    atMenu.style.left = Math.max(8, Math.min(r.left, innerWidth - 328)) + "px";
+    atMenu.style.width = Math.min(320, innerWidth - 16) + "px";
+    atMenu.style.bottom = (innerHeight - r.top + 8) + "px";
+  };
+  ta.addEventListener("input", () => { atAt = 0; paint(); });
+  ta.addEventListener("click", paint);
+  ta.addEventListener("keyup", e => { if (["ArrowLeft","ArrowRight","Home","End"].includes(e.key)) paint(); });
+  ta.addEventListener("blur", () => setTimeout(() => { if (atBox === ta && document.activeElement !== ta) closeAt(); }, 150));
+  /* First in line: a key that picks a folder never reaches the bar's own Enter, which sends. */
+  ta.addEventListener("keydown", e => {
+    if (!atMenu || atBox !== ta || e.isComposing) return;
+    const stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+    if (e.key === "ArrowDown" || e.key === "ArrowUp"){
+      stop(); atAt = (atAt + (e.key === "ArrowDown" ? 1 : atList.length - 1)) % atList.length; paint();
+    } else if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey){
+      stop(); choose(atList[atAt]);
+    } else if (e.key === "Escape"){ stop(); closeAt(); }
+  });
+}
+/* The main bar: asking, in a folder's chat, in all of them or in the personal one. Not a drop, a chat about one concept or an interview. */
+attachMentions($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on ? tagChoices(isPersonal(S.scope)) : []);
 
 /* ============ input ============ */
 function sizeBox(){ const t=$("input"); t.style.height="auto"; t.style.height=Math.min(t.scrollHeight,210)+"px"; }
@@ -8133,6 +8222,7 @@ function chatPane(){
   const thread = el("div","pj-thread"); pj.thread = thread; pane.append(thread);
   const comp = el("div","pj-comp");
   const ta = el("textarea"); ta.rows = 1; ta.placeholder = askHint(d.file); ta.setAttribute("aria-label", "Message to the project");
+  attachMentions(ta, () => pj.tab === "chat" ? tagChoices(false) : []);
   const send = el("button","pj-send"); send.type = "button"; send.setAttribute("aria-label", "Send"); send.disabled = true;
   send.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M8 3L4 7M8 3l4 4"/></svg>`;
   const size = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 170) + "px"; send.disabled = !ta.value.trim() || pj.busy || (!!pj.data.file && pj.data.file.status !== "ready"); };
@@ -8150,7 +8240,7 @@ function askHint(f){
   if (!f) return "Describe a document, a table or a page to make. Your folders are read when they help.";
   if (f.status !== "ready") return "Drop the file again first, then ask about it here.";
   const n = pjNoun(f.kind);
-  return f.chars ? `Ask about the ${n}, or ask for a change. Your folders are read when they help.`
+  return f.chars ? `Ask about the ${n}, or ask for a change. Your folders are read when they help. Type @ to name one.`
     : `Describe the ${n} you want. It is written here, then changed as you go.`;
 }
 
@@ -8209,8 +8299,14 @@ function rowsLine(rows){
   const shown = rows.slice(0, 6).join(", ");
   return `rows ${shown}${rows.length > 6 ? ` and ${rows.length - 6} more` : ""}`;
 }
+/** What a message cost, as the model host reported it: tokens in and out, the part it reused from before, the price when it said one. */
+function costLine(c){
+  const k = n => n >= 10000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n);
+  const price = c.cents == null ? "" : c.cents < 0.001 ? " · under 0.001¢" : ` · ${Number(c.cents.toPrecision(2))}¢`;
+  return `${k(c.in)} in · ${k(c.out)} out${c.cached ? ` · ${k(c.cached)} reused` : ""}${price}`;
+}
 function usedChips(t){
-  const u = t.used || (t.noted?.length ? {} : null); if (!u) return null;
+  const u = t.used || (t.noted?.length || t.cost?.in ? {} : null); if (!u) return null;
   const box = el("div","pj-used");
   const f = u.file;
   /* A file not opened for this message shows no chip. */
@@ -8227,6 +8323,7 @@ function usedChips(t){
   for (const c of u.folders || []) box.append(el("span",null,`${c.name} folder · ${c.notes} note${c.notes === 1 ? "" : "s"}`));
   if (u.memory) box.append(el("span",null,`Memory · ${u.memory} note${u.memory === 1 ? "" : "s"}`));
   if (Array.isArray(t.noted) && t.noted.length) box.append(el("span","noted",`Noted: ${t.noted.slice(0, 2).join(", ")}`));
+  if (t.cost?.in){ const c = el("span","cost",costLine(t.cost)); c.title = `${t.cost.calls || 1} model call${t.cost.calls === 1 ? "" : "s"} for this message`; box.append(c); }
   return box.children.length ? box : null;
 }
 
@@ -8262,7 +8359,8 @@ async function sendProject(q){
   const a = el("div","pj-a"); thinkInto(a, pj.data.file ? "Reading the file" : "Making it"); w.append(a);
   box.append(w); box.scrollTop = box.scrollHeight;
   try {
-    const r = await api("/api/project/chat", { brain: pj.slug, q });
+    const tags = tagsIn(q, tagChoices(false));
+    const r = await api("/api/project/chat", { brain: pj.slug, q, ...(tags.length ? { tags } : {}) });
     if (S.pj !== pj) return;
     pj.data.turns = [...pj.data.turns, r.turn].slice(-4);
     if (r.turn.edit) pj.data.edits = [{ id: r.turn.edit.id, at: Date.now(), status: r.turn.edit.status || "open", preview: r.turn.edit.preview }, ...pj.data.edits].slice(0, 10);
@@ -8587,9 +8685,10 @@ async function doAsk(q, again){
   try {
     /* "chat" files the turn in the chat on screen, or starts one. A chat
        about one concept sends that concept alone. */
+    const tags = about || S.iv[scope]?.on ? [] : tagsIn(q, tagChoices(isPersonal(scope)));
     const r = await api("/api/ask", about
       ? { q, concept: about.id, history: S.thread.slice(-4), chat: S.chatId }
-      : { q, brain: scope, ...(picks.length > 1 ? { brains: picks } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });
+      : { q, brain: scope, ...(picks.length > 1 ? { brains: picks } : {}), ...(tags.length ? { tags } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });
     const here = landed(job, r);
     if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, q, asked); }
     if (r.interview && isPersonal(scope)) S.iv[scope] = r.interview;
@@ -8618,6 +8717,8 @@ function showAnswer(body, r, q, asked){
   if (r.sources > 0 && r.sources < 10)
     body.append(el("div","smallbrain",`Small brain: ${r.sources} source${r.sources===1?"":"s"} behind this`));
   const out = el("div"); out.innerHTML = splitAnswer(r.answer ?? r.a ?? ""); body.append(out);
+  /* The folders the message tagged were read. A personal reply says it in its own line, below. */
+  if (!r.personal && Array.isArray(r.tagged) && r.tagged.length) body.append(el("div","filed called",`Read ${r.tagged.map(n => "@" + n).join(", ")}`));
   /* Two small actions: the answer to the clipboard, or the same question
      as a one-pager. */
   const text = String(r.answer ?? r.a ?? "");

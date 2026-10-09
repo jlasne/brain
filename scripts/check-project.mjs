@@ -163,6 +163,7 @@ const projects = await build("projects");
 const project = await build("project");
 const space = await build("space");
 const graph = await build("graph");
+const words = await build("words");
 const http = await build("http");
 process.env.OPENROUTER_API_KEY = "test-key";
 
@@ -214,12 +215,12 @@ globalThis.fetch = async (_u, opt) => {
   else if (/You route a project's questions/.test(sys)) out = JSON.stringify(typeof reply.route === "function" ? reply.route(user) : reply.route ?? { intent: "ask", sections: [], query: null, folders: [], terms: [] });
   else if (/You route questions to the right entries/.test(sys)) out = JSON.stringify(reply.folders ?? { picks: [], terms: [] });
   else if (/You are the chat of a project/.test(sys)) out = typeof reply.answer === "function" ? reply.answer(user) : JSON.stringify(reply.answer ?? { reply: "ok", proposal: false, quotes: [], edits: [] });
-  else if (/You write the memory note of a file/.test(sys)) { if (reply.aboutFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.about ?? { notes: [] }); }
+  else if (/You write the memory notes of a file/.test(sys)) { if (reply.aboutFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.about ?? { notes: [] }); }
   else if (/You file notes into a person's own knowledge base/.test(sys)) out = JSON.stringify({ notes: [], people: [] });
   else if (/You are their AI twin/.test(sys)) out = reply.twin ?? "Noted.";
   else if (/You are the user's own knowledge base/.test(sys)) out = reply.kb ?? "Answer.";
   else out = "{}";
-  return Response.json({ choices: [{ message: { content: out }, finish_reason: "stop" }], usage: {} });
+  return Response.json({ choices: [{ message: { content: out }, finish_reason: "stop" }], usage: typeof reply.usage === "function" ? reply.usage(sys) : reply.usage ?? {} });
 };
 const last = what => [...sent].reverse().find(m => what.test(m.sys));
 const answerOf = (extra = {}) => ({ tldr: "", reply: "You are welcome.", proposal: false, quotes: [], edits: [], ...extra });
@@ -749,7 +750,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   reply = { about: { notes: [{ title: "Whatever", claim: "A launch brief for the Build Games.", position: "A launch brief: 200 seats, Team at 1,490 euros. Sections: Goal, Offer.", summaryLine: "Launch brief of the Build Games" }] } };
   await project.finishFile(w.ctx, { space: SPACE, brain: p, ver: b.ver, about: true });
   const mem = await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p });
-  const call = last(/You write the memory note of a file/);
+  const call = last(/You write the memory notes of a file/);
   check("a file read in leaves a note on what it holds, titled The file", mem.length === 1 && mem[0].title === "The file" && /200 seats/.test(mem[0].position));
   check("the note names the file as its author and its source", w.T.concepts[0].evidence[0].author === "The file" && w.T.sources.some(s => /^File, /.test(s.title)), JSON.stringify(w.T.sources.map(s => s.title)));
   check("a short file is read whole to write it", call.user.includes("Fill 200 seats.") && call.user.includes('"brief.md", a document'));
@@ -762,7 +763,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   const b2 = await w2.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p2, name: "long.md", kind: "doc", sheets: [{ name: "long.md" }] });
   await project.addDocPiece(w2.ctx, { space: SPACE, brain: p2, ver: b2.ver, text: midDoc, page: 0 });
   await project.finishFile(w2.ctx, { space: SPACE, brain: p2, ver: b2.ver, about: true });
-  const call2 = last(/You write the memory note of a file/);
+  const call2 = last(/You write the memory notes of a file/);
   check("a long file is described from its contents lines, never its words", /One line a section: id \| title \| summary/.test(call2.user) && !call2.user.includes("word word word") && call2.user.split("\n").filter(l => /^\d+ \| Part \d \|/.test(l)).length === 5);
   /* a model that fails never fails the file */
   reply = { aboutFails: true };
@@ -860,7 +861,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   reply = { route: routeOf({ sections: [sid("audit")], terms: ["audit"] }), answer: answerOf() };
   await chat("What does the audit cover?");
   const also = last(/You are the chat of a project/).user.split("ALSO IN THE FILE, not opened (id: title)\n")[1].split("\n\n")[0].split("\n");
-  check("the sections not opened show 40 titles and a count of the rest", also.length === 41 && /^\.\.\. and \d+ more$/.test(also[40]), `${also.length} lines`);
+  check("the sections not opened show 12 titles and a count of the rest", also.length === 13 && /^\.\.\. and \d+ more$/.test(also[12]), `${also.length} lines`);
   check("and the likeliest come first: the section the last exchange opened", also[0].startsWith(`${sid("payment")}:`), also[0]);
 
   /* memory that states the answer: nothing of the file is opened */
@@ -1111,6 +1112,155 @@ const docProject = async (w, name, text, kind = "doc") => {
   check("a file left half read is told to be waited for or dropped again", /is not ready/.test(String(await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "Make a page", english: false, embeds: false, shared: shared0 }).catch(e => e.message))));
 }
 
+/* ================= cost: what a message sends, and what it reports ================= */
+
+{
+  /* what each call reports adds up on the turn */
+  const w = makeCtx();
+  const p = await docProject(w, "Usage", midDoc);
+  const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, ...extra });
+  reply = { route: routeOf(), answer: answerOf() };
+  const none = await chat("thanks");
+  check("a model host that reports no usage leaves the turn with no cost line", none.cost === undefined, JSON.stringify(none.cost));
+  const use = sys => /You route a project's questions/.test(sys) ? { prompt_tokens: 1000, completion_tokens: 50, cost: 0.0003 } : { prompt_tokens: 3000, completion_tokens: 200, prompt_tokens_details: { cached_tokens: 2000 }, cost: 0.001 };
+  reply = { route: routeOf(), answer: answerOf(), usage: use };
+  const t = await chat("thanks again");
+  check("a turn adds up the router and the answer: tokens in and out, the part reused, the price in cents", JSON.stringify(t.cost) === JSON.stringify({ in: 4000, out: 250, cached: 2000, cents: 0.13, calls: 2 }), JSON.stringify(t.cost));
+  reply = { route: routeOf(), answer: answerOf(), usage: () => ({ prompt_tokens: 900, completion_tokens: 40 }) };
+  const u = await chat("and again");
+  check("tokens alone are kept when the host gives no price, and 'reused' only when something was", JSON.stringify(u.cost) === JSON.stringify({ in: 1800, out: 80, calls: 2 }), JSON.stringify(u.cost));
+  const th = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).turns;
+  check("the cost stays with the exchange in the thread", th[th.length - 2].cost?.in === 4000 && th[th.length - 1].cost?.in === 1800);
+}
+
+{
+  /* the memory an answer reads: related notes, and only the newest two of the others */
+  const rows = [{ title: "Newest", position: "Ten.", updated: "2026-10-09" }, { title: "Older", position: "Nine.", updated: "2026-10-08" },
+    { title: "Oldest", position: "Eight.", updated: "2026-10-07" }, { title: "The file", position: "A brief.", updated: "2026-10-01" },
+    { title: "Late fee", position: "A late payment costs two percent.", updated: "2026-09-01" }];
+  const picked = project.memoryPick(rows, 3000, "what is the late fee");
+  check("the note on the file, the notes that share a word, then only the newest two of the others", picked.map(r => r.title).join() === "The file,Late fee,Newest,Older", picked.map(r => r.title).join());
+  check("a question that shares no word with any note reads the file's note and the newest two", project.memoryPick(rows, 3000, "zzz").map(r => r.title).join() === "The file,Newest,Older");
+  const big = rows.map(r => ({ ...r, position: "word ".repeat(120) }));
+  check("and the whole reading stays within 3,000 characters", project.memoryText(big, undefined, "late fee").length <= 3000 && project.memoryText(big, undefined, "late fee").length > 1000);
+  check("the router still sees every note by title", /Other notes, by title: Note 8; Note 9; Note 10; Note 11$/.test(project.memoryForRouter(Array.from({ length: 12 }, (_, i) => ({ title: `Note ${i}`, position: `Position ${i}.`, summaryLine: `Line ${i}` })), "zzz")));
+}
+
+{
+  /* the thread read by the next prompts: the last exchange whole, the ones before as the question and its one line */
+  const w = makeCtx();
+  const p = await docProject(w, "Talk", "# Offer\n\nTeam costs 1,490 euros a seat.");
+  const chat = q => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0 });
+  const body = "Because ".repeat(150);   // 1,200 characters
+  for (const n of [1, 2]) { reply = { route: routeOf(), answer: answerOf({ tldr: `Lead ${n}.`, reply: body }) }; await chat(`Question ${n} ${"pad ".repeat(80)}`); }
+  reply = { route: routeOf(), answer: answerOf() };
+  await chat("Question 3");
+  const h = last(/You are the chat of a project/).user.split("EARLIER IN THIS CHAT\n")[1].split("\n\nThat is context")[0].split("\n\n");
+  check("the exchange before the last is read as its question and the one line that answered it", h.length === 2 && h[0].includes("A: Lead 1.") && !h[0].includes("Because") && h[0].length < 460, h[0]);
+  check("the last exchange is read whole, its answer to 700 characters", h[1].includes("A: Lead 2. Because Because") && h[1].length > 700 && h[1].length < 1200, String(h[1].length));
+}
+
+{
+  /* the rules a message needs */
+  const w = makeCtx();
+  const p = await docProject(w, "Rules", midDoc);
+  const cards = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).cards;
+  const chat = (q, note = true) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, note });
+  const sys = () => last(/You are the chat of a project/).sys;
+  reply = { route: routeOf({ intent: "ask", sections: [cards[2].sid], terms: ["part"] }), answer: answerOf() };
+  await chat("What does part 3 say?");
+  const askSys = sys();
+  check("a question is answered without the rules for changing the file, or an edits field", !/WHEN THEY ASK TO CHANGE THE FILE/.test(askSys) && !/"edits"/.test(askSys) && /"quotes"/.test(askSys) && /WHEN THEY ASK FOR A BRAINSTORM/.test(askSys));
+  reply = { route: routeOf({ intent: "change", sections: [cards[2].sid], terms: ["part"] }), answer: answerOf() };
+  await chat("Change part 3");
+  const changeSys = sys();
+  check("a change brings them, with the edits field", /WHEN THEY ASK TO CHANGE THE FILE/.test(changeSys) && /"edits":\[\]/.test(changeSys));
+  let n = 0; while (n < askSys.length && askSys[n] === changeSys[n]) n++;
+  check("the rules every message needs come first and read the same each time", n > 1500 && askSys.slice(0, n).includes("A proposal does not change the file."), String(n));
+  reply = { route: routeOf({ intent: "ask", sections: [], terms: [] }), answer: answerOf() };
+  await chat("ok thanks");
+  check("small talk is answered without the rules for the memory", !/THE MEMORY\n/.test(sys()) && !/"notes"/.test(sys()), sys().slice(-300));
+  check("while a question keeps them", /THE MEMORY\n/.test(askSys) && /"notes"/.test(askSys));
+  const real = globalThis.fetch;
+  globalThis.fetch = async (u, opt) => { if (/You route a project's questions/.test(String(JSON.parse(opt.body).messages[0].content))) return new Response("busy", { status: 503 }); return real(u, opt); };
+  reply = { answer: answerOf() };
+  await chat("Make part 3 shorter");
+  globalThis.fetch = real;
+  check("when the router could not say, the rules for changing the file are there", /WHEN THEY ASK TO CHANGE THE FILE/.test(sys()));
+}
+
+{
+  /* the rules the router needs, by kind of file */
+  const route = () => last(/You route a project's questions/).user.split("\n\nMESSAGE:")[0];
+  const w = makeCtx();
+  const doc = await docProject(w, "Doc router", midDoc);
+  reply = { route: routeOf(), answer: answerOf() };
+  await project.projectChat(w.ctx, { space: SPACE, brain: doc, q: "thanks", english: false, embeds: false, shared: shared0 });
+  const d = route();
+  check("a document's router is asked for sections, and not for a query", /"sections": for a document/.test(d) && !/"query": for a table/.test(d) && !/"query"/.test(d.split("Reply with only JSON:")[1].split("\n")[0]));
+  check("and for neither 'more' nor 'kind', which belong to a long file and to no file", !/"more"/.test(d) && !/"kind"/.test(d));
+  const t = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Table router" });
+  const tb = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: t, name: "t.csv", kind: "table", sheets: [{ name: "T", header: sheet.colNames(["A", "B"]) }] });
+  await project.addRowPiece(w.ctx, { space: SPACE, brain: t, ver: tb.ver, sheet: 0, rows: Array.from({ length: 500 }, (_, i) => [`Program number ${i + 1}`, String(1000 + i)]) });
+  await project.finishFile(w.ctx, { space: SPACE, brain: t, ver: tb.ver });
+  await project.projectChat(w.ctx, { space: SPACE, brain: t, q: "thanks", english: false, embeds: false, shared: shared0 });
+  const tr = route();
+  check("a table's router is asked for a query, and not for sections", /"query": for a table/.test(tr) && !/"sections": for a document/.test(tr) && !/"more"/.test(tr) && !/"kind"/.test(tr));
+  const bare = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Bare router" });
+  await project.projectChat(w.ctx, { space: SPACE, brain: bare, q: "A one page brief to fill 200 seats", english: false, embeds: false, shared: shared0 });
+  const fr = route();
+  check("with no file the router is asked what kind to make", /"kind": only when THE FILE says there is none/.test(fr));
+  const many = await docProject(w, "Many", Array.from({ length: 45 }, (_, i) => `## Part ${i}\n\nSection ${i} about subject${i}. ${"word ".repeat(560)}`).join("\n\n"));
+  await project.projectChat(w.ctx, { space: SPACE, brain: many, q: "What does the part say?", english: false, embeds: false, shared: shared0 });
+  const lr = route();
+  check("a long file's router is told about 'more', since it is shown a short list", /"more": only when the file's contents list is partial/.test(lr) && !/"kind"/.test(lr));
+  check("and the short list is 12 lines", last(/You route a project's questions/).user.split("\n").filter(l => /^(\* )?\d+ \| /.test(l)).length === 12);
+}
+
+{
+  /* a long file is mapped by topic when it is read in; a short one is read whole anyway */
+  const w = makeCtx();
+  const make = async (name, text) => {
+    const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name });
+    const b = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p, name: `${name}.md`, kind: "doc", sheets: [{ name }] });
+    await project.addDocPiece(w.ctx, { space: SPACE, brain: p, ver: b.ver, text, page: 0 });
+    return { p, b };
+  };
+  const long = Array.from({ length: 45 }, (_, i) => `## Topic ${i}\n\nSection ${i} about subject${i}. ${"word ".repeat(560)}`).join("\n\n");
+  const { p, b } = await make("Mapped", long);
+  const cards = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).cards;
+  const topic = (title, ids) => ({ title, update: "ignored", claim: `${title} is covered.`, position: `${title}: the key numbers.`, summaryLine: `${title} in short`, sections: ids });
+  reply = { about: { notes: [{ title: "Whatever", claim: "A long brief.", position: "A long brief of 45 sections.", summaryLine: "A long brief" },
+    topic("Payment terms", [cards[3].sid, cards[4].sid, 99999]), topic("Ghost topic", [99999]), topic("No pointer", []), topic("The file", [cards[0].sid]), topic("Late fees", [cards[10].sid])] } };
+  await project.finishFile(w.ctx, { space: SPACE, brain: p, ver: b.ver, about: true });
+  const call = last(/You write the memory notes of a file/);
+  let mem = await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p });
+  const by = t => mem.find(m => m.title === t);
+  check("a long file is asked for a note on each main topic, as well as the one on the file", /Then up to 8 more notes/.test(call.user) && /sections/.test(call.user));
+  check("the notes are the file's, and the topics the file really has", mem.map(m => m.title).sort().join() === "Late fees,Payment terms,The file", mem.map(m => m.title).join());
+  check("a topic rests on the sections it names, those the file has", JSON.stringify(by("Payment terms").sections) === JSON.stringify([cards[3].sid, cards[4].sid]) && JSON.stringify(by("Late fees").sections) === JSON.stringify([cards[10].sid]));
+  check("the note on the file is the first one, and rests on no section", by("The file").position === "A long brief of 45 sections." && !by("The file").sections);
+  check("a topic note is the file's: its author, and an update of nothing", w.T.concepts.every(c => c.evidence.every(e => e.author === "The file")));
+
+  /* a short file: the overview alone, whatever the model returns */
+  const s = await make("Short", midDoc);
+  await project.finishFile(w.ctx, { space: SPACE, brain: s.p, ver: s.b.ver, about: true });
+  const call2 = last(/You write the memory notes of a file/);
+  const mem2 = await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: s.p });
+  check("a file of 5 sections is asked for its overview alone", !/Then up to 8 more notes/.test(call2.user) && mem2.length === 1 && mem2[0].title === "The file", JSON.stringify(mem2.map(m => m.title)));
+
+  /* the chat adds to a topic; a new file then forgets what the old file alone wrote */
+  reply = { route: routeOf({ sections: [cards[3].sid], terms: ["payment"] }), answer: answerOf({ tldr: "Net 30.", notes: [{ title: "Payment terms", update: "Payment terms", claim: "They agreed on net 30.", position: "Payment is net 30, agreed on 2026-10-09.", summaryLine: "Net 30", sections: [cards[3].sid] }] }) };
+  await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "We agreed net 30 for payment", english: false, embeds: false, shared: shared0, note: true });
+  mem = await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p });
+  check("the chat adds its own evidence to the topic note", w.T.concepts.find(c => c.title === "Payment terms").evidence.some(e => e.author === "You") && /net 30/.test(by("Payment terms").position));
+  const gone = await w.ctx.runMutation("projects.memoryForgetFile", { space: SPACE, brain: p });
+  mem = await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p });
+  check("a new file takes away the notes that only the old file wrote, and keeps what the chat kept", gone.forgotten === 2 && mem.map(m => m.title).join() === "Payment terms", JSON.stringify(mem.map(m => m.title)));
+  check("and a note kept no longer points at the old sections, and says the file changed", !by("Payment terms").sections && by("Payment terms").stale === true && w.T.cards.every(c => c.brain !== p || mem.some(m => m.title === c.title)), JSON.stringify(by("Payment terms")));
+  check("with nothing of the old file's left, nothing more is forgotten", (await w.ctx.runMutation("projects.memoryForgetFile", { space: SPACE, brain: p })).forgotten === 0);
+}
+
 /* ================= the routes, end to end ================= */
 
 {
@@ -1178,6 +1328,53 @@ const docProject = async (w, name, text, kind = "doc") => {
   const twin = last(/You are their AI twin/).user;
   check("the personal chat reads the project's memory, and names the project among the brains it can call", twin.includes(memoText) && /Launch plan \(project\)/.test(twin) && ask2.answer === "Noted, Team stays.", twin.slice(twin.indexOf("THEIR OTHER BRAINS")).slice(0, 400));
   check("the project's chat never reads the personal folder", !last(/You are the chat of a project/).user.includes("Noted, Team stays"));
+
+  /* ---- folders tagged with @ ---- */
+  w.T.brains.push({ _id: "b3", slug: "health", name: "Health", type: "subject", scope: "health", space: "octopus" }, { _id: "b4", slug: "empty", name: "Empty", type: "subject", scope: "nothing yet", space: "octopus" });
+  w.T.concepts.push({ _id: "c2", brain: "health", slug: "sleep", n: 1, title: "Sleep", position: "Sleep seven to nine hours a night.", summaryLine: "Seven to nine hours", evidence: [{ date: "2026-01-01", author: "B", claim: "sleep seven to nine hours", source: "s-b" }],
+    data: [], conflicts: [], sources: ["s-b"], related: [], updated: "2026-01-01" });
+  reply = { ...reply, kb: "From Health.", twin: "Noted, Health says seven hours.", folders: { picks: [1, 2], terms: ["gold", "sleep"] } };
+  const tagsAsk = await call("/api/ask", { q: "What do gold and sleep say?", brain: "all", tags: ["health"] });
+  const tagged1 = last(/You are the user's own knowledge base/).user;
+  check("a folder tagged in the chat is the one read, and no other", /seven to nine hours/i.test(tagged1) && !tagged1.includes("Gold holds its value"), tagged1.slice(tagged1.indexOf("STORED KNOWLEDGE")).slice(0, 300));
+  check("the answer is told which folder was tagged, and the page is told which was called", /THE OWNER TAGGED @Health in the message/.test(tagged1) && JSON.stringify(tagsAsk.tagged) === '["Health"]', JSON.stringify(tagsAsk));
+  await call("/api/ask", { q: "What do gold and sleep say?", brain: "all" });
+  const untagged = last(/You are the user's own knowledge base/).user;
+  check("with no tag the question reads what it read before, and says nothing of tags", !/TAGGED/.test(untagged) && /Gold holds its value/.test(untagged));
+  await call("/api/ask", { q: "What do gold and sleep say?", brain: "wealth", tags: ["health", "me", slugR, "nowhere"] });
+  const tagged2 = last(/You are the user's own knowledge base/).user;
+  check("a tag names a folder of this workspace and nothing else: not the personal folder, a project or a name that is not there", /THE OWNER TAGGED @Health in the message/.test(tagged2) && !/@Me|Launch plan|nowhere/.test(tagged2.split("STORED KNOWLEDGE")[0]), tagged2.slice(0, 200));
+  const none = await call("/api/ask", { q: "What do gold and sleep say?", brain: "all", tags: ["me", "nowhere"] });
+  check("tags that name nothing readable change nothing", !none.tagged && /Gold holds its value/.test(last(/You are the user's own knowledge base/).user));
+  check("at most 4 folders are tagged", words.tagsOf(["a", "b", "c", "d", "e", "a"], [{ slug: "a" }, { slug: "b" }, { slug: "c" }, { slug: "d" }, { slug: "e" }]).join() === "a,b,c,d");
+  const ticked = await call("/api/ask", { q: "Which?", brain: "all", brains: ["wealth", "health"], tags: ["health"], chat: null });
+  check("a tag wins over the folders ticked, and the chat keeps the folders ticked", JSON.stringify(ticked.tagged) === '["Health"]' && w.T.chats?.some(c => c.brain === "wealth,health") === true, JSON.stringify(w.T.chats?.map(c => c.brain)));
+
+  /* the personal chat calls what it is told to call */
+  const tagTwin0 = await call("/api/ask", { q: "What did I decide in my launch plan about Team?", brain: "me", tags: [slugR] });
+  const tagTwin = last(/You are their AI twin/).user;
+  check("the personal chat reads the project it tagged, and the folders it did not tag stay unread", tagTwin.includes(memoText) && !tagTwin.includes("Gold holds its value") && !/seven to nine hours/i.test(tagTwin), tagTwin.slice(tagTwin.indexOf("THEIR OTHER BRAINS")).slice(0, 400));
+  check("it is told what was tagged, and the brains it can call are the ones tagged", /THEY TAGGED @Launch plan in the message/.test(tagTwin) && /THEIR OTHER BRAINS, yours to call on: Launch plan \(project\)\n/.test(tagTwin));
+  check("the reply says what was called, whatever the twin wrote", JSON.stringify(tagTwin0.called) === '["Launch plan"]', JSON.stringify(tagTwin0.called));
+  await call("/api/ask", { q: "What do gold and sleep say?", brain: "me", tags: ["health", "wealth"] });
+  const tagTwin2 = last(/You are their AI twin/).user;
+  check("two folders tagged are the two it reads", /THEY TAGGED @Health, @Wealth|THEY TAGGED @Wealth, @Health/.test(tagTwin2) && tagTwin2.includes("Gold holds its value") && /seven to nine hours/i.test(tagTwin2) && !tagTwin2.includes(memoText), tagTwin2.slice(0, 900));
+  await call("/api/ask", { q: "What did I decide in my launch plan about Team?", brain: "me" });
+  check("with no tag the personal chat calls on every brain, as before", !/TAGGED/.test(last(/You are their AI twin/).user) && last(/You are their AI twin/).user.includes(memoText));
+
+  /* a project's chat reads the folders its owner tagged, and the router leaves the choice alone */
+  const calls0 = sent.length;
+  reply = { ...reply, route: { intent: "ask", sections: [], query: null, folders: ["wealth"], terms: ["gold"] }, answer: { tldr: "Held.", reply: "From Health.", proposal: false, quotes: [], edits: [] } };
+  const tp = await call("/api/project/chat", { brain: slugR, q: "What does sleep say?", tags: ["health"] });
+  const tpPrompt = last(/You are the chat of a project/).user;
+  check("a project's chat reads the folder tagged, not the one the router chose", tp.turn.used.folders.length === 1 && tp.turn.used.folders[0].name === "Health" && /seven to nine hours/i.test(tpPrompt) && !/Gold holds its value/.test(tpPrompt), JSON.stringify(tp.turn.used));
+  check("a short file with a folder tagged needs no router: one call for the answer", sent.slice(calls0).filter(m => /You route a project's questions/.test(m.sys)).length === 0, String(sent.length - calls0));
+  check("the answer is told what was tagged", /THE OWNER TAGGED @Health in the message/.test(tpPrompt), tpPrompt.slice(tpPrompt.indexOf("PROJECT MEMORY")).slice(0, 300));
+  const te = await call("/api/project/chat", { brain: slugR, q: "What does the empty folder say about sleep?", tags: ["empty"] });
+  check("a tagged folder that holds nothing is still shown as called, with no notes, and the answer is told to say so", JSON.stringify(te.turn.used.folders) === '[{"slug":"empty","name":"Empty","notes":0}]' && /Nothing in Empty bears on this message: say so in one sentence/.test(last(/You are the chat of a project/).user), JSON.stringify(te.turn.used.folders));
+  const tn = await call("/api/project/chat", { brain: slugR, q: "What does sleep say?", tags: ["me", slugR, "nowhere"] });
+  check("a tag is a folder: not the personal one, not the project itself, not a name that is not there", !tn.turn.used.folders.some(f => ["me", slugR, "nowhere"].includes(f.slug)) && !/TAGGED/.test(last(/You are the chat of a project/).user));
+  reply = { ...reply, route: undefined };
 
   const doc = await call("/api/project/doc", { brain: slugR, from: -1, n: 3 });
   check("a document's sections are read as the page scrolls", doc.sections.length === part.sections && doc.sections[0].text.startsWith("# The Build Games"), JSON.stringify({ doc, part }).slice(0, 400));
