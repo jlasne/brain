@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "convex dev",
     "deploy": "convex deploy",
-    "check": "node scripts/check-pages.mjs && node scripts/check-mcp.mjs && node scripts/check-store.mjs && node scripts/check-pager.mjs && node scripts/check-ask.mjs && node scripts/check-link.mjs && node scripts/check-health.mjs && node scripts/check-personal.mjs && node scripts/check-project.mjs && node scripts/check-app.mjs"
+    "check": "node scripts/check-pages.mjs && node scripts/check-mcp.mjs && node scripts/check-store.mjs && node scripts/check-pager.mjs && node scripts/check-ask.mjs && node scripts/check-link.mjs && node scripts/check-health.mjs && node scripts/check-personal.mjs && node scripts/check-project.mjs && node scripts/check-reading.mjs && node scripts/check-app.mjs"
   },
   "devDependencies": {
     "convex": "^1.17.0",
