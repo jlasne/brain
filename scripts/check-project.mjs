@@ -216,6 +216,7 @@ globalThis.fetch = async (_u, opt) => {
   else if (/You route questions to the right entries/.test(sys)) out = JSON.stringify(reply.folders ?? { picks: [], terms: [] });
   else if (/You are the chat of a project/.test(sys)) out = typeof reply.answer === "function" ? reply.answer(user) : JSON.stringify(reply.answer ?? { reply: "ok", proposal: false, quotes: [], edits: [] });
   else if (/You write the memory notes of a file/.test(sys)) { if (reply.aboutFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.about ?? { notes: [] }); }
+  else if (/You write the memory notes of an instruction file/.test(sys)) { if (reply.instructionsFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.instructions ?? { notes: [] }); }
   else if (/You file notes into a person's own knowledge base/.test(sys)) out = JSON.stringify({ notes: [], people: [] });
   else if (/You are their AI twin/.test(sys)) out = reply.twin ?? "Noted.";
   else if (/You are the user's own knowledge base/.test(sys)) out = reply.kb ?? "Answer.";
@@ -773,6 +774,101 @@ const docProject = async (w, name, text, kind = "doc") => {
   await project.addDocPiece(w3.ctx, { space: SPACE, brain: p3, ver: b3.ver, text: "Some words.", page: 0 });
   const fin = await project.finishFile(w3.ctx, { space: SPACE, brain: p3, ver: b3.ver, about: true });
   check("a note that could not be written never fails the file", fin.sections === 1 && (await w3.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p3 })).length === 0);
+  reply = {};
+}
+
+/* ================= the owner's instruction file ================= */
+
+{
+  const w = makeCtx();
+  /* A file too long to read whole, so each message is routed first. */
+  const p = await docProject(w, "Brief", midDoc);
+  const get = () => w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, note: true, ...extra });
+  const rules = "Write in a formal tone and address the reader as vous. The audience is CFOs of firms with 50 to 200 staff. Never quote a price below 490 euros.";
+  const first = [
+    { title: "Tone", claim: "Formal, with vous.", position: "Write in a formal tone and address the reader as vous.", summaryLine: "Formal tone, vous" },
+    { title: "Audience", claim: "CFOs of firms of 50 to 200 staff.", position: "The audience is CFOs of firms with 50 to 200 staff.", summaryLine: "CFOs, 50 to 200 staff" },
+    { title: "Price floor", claim: "No price below 490 euros.", position: "Never quote a price below 490 euros.", summaryLine: "Floor: 490 euros" },
+  ];
+  reply = { instructions: { notes: [...first, { title: "The file", claim: "x", position: "A note that takes the title of the note on the file.", summaryLine: "x" }] } };
+  const n0 = sent.length;
+  const r = await project.fileInstructions(w.ctx, { space: SPACE, brain: p, name: "brief-rules.docx", text: rules, key: "k" });
+  const asked = last(/You write the memory notes of an instruction file/);
+  check("an instruction file is read by one model call, which sees its name and its words", sent.length === n0 + 1 && asked.user.includes('"brief-rules.docx"') && asked.user.includes(rules), asked.user.slice(0, 160));
+  check("it files a note for each topic, and never one titled The file", r.notes === 3 && same(r.titles, ["Tone", "Audience", "Price floor"]), JSON.stringify(r));
+  const mem = (await get()).memory;
+  check("the notes are in the project's memory in the folder format: a position, a dated line of evidence, the instruction file as its source",
+    mem.length === 3 && mem.every(m => m.instructions === true && m.position) && w.T.concepts.every(c => c.tag === "instructions" && c.evidence[0].author === "Instructions" && c.evidence[0].claim && c.sources.length === 1)
+    && w.T.sources.some(s => /^Instructions: brief-rules\.docx, \d{4}-\d{2}-\d{2}$/.test(s.title) && s.author === "Instructions"), JSON.stringify(w.T.sources.map(s => s.title)));
+
+  /* every answer follows them */
+  reply = { route: routeOf(), answer: answerOf({ tldr: "200 seats.", reply: "**Goal:** 200 seats." }) };
+  const t1 = await chat("What is the goal?");
+  const a1 = last(/You are the chat of a project/);
+  check("the rules of the answer carry the instructions, in the order they were filed, under the owner's own heading",
+    /THE OWNER'S INSTRUCTIONS\nThe owner wrote them for this project\.[^\n]*\n- Tone: Write in a formal tone and address the reader as vous\.\n- Audience: The audience is CFOs of firms with 50 to 200 staff\.\n- Price floor: Never quote a price below 490 euros\.$/.test(a1.sys), a1.sys.slice(-520));
+  check("they say they never change the reply format and never allow a number that was not given", /never change the reply format above, and they never allow a number, a name or a date that you were not given/.test(a1.sys));
+  check("they are not read again as memory, and the router does not see them as notes", /PROJECT MEMORY\n\(nothing kept yet\)/.test(a1.user) && !/Price floor|Audience/.test(a1.user) && !/Price floor|Audience|Tone/.test(last(/You route a project's questions/).user), a1.user.slice(0, 300));
+  check("the turn says how many instructions it followed", t1.used.rules === 3 && t1.used.memory === 0, JSON.stringify(t1.used));
+  check("a file with no instruction carries no such heading", !/THE OWNER'S INSTRUCTIONS/.test(project.ANSWER_RULES("doc", false)) && /THE OWNER'S INSTRUCTIONS\n[^\n]*\n- X: y/.test(project.ANSWER_RULES("doc", false, { rules: "- X: y" })));
+  /* thanks reads no instruction, as it reads no note */
+  reply = { route: routeOf(), answer: answerOf() };
+  const t2 = await chat("thanks");
+  check("thanks reads no instruction", !/THE OWNER'S INSTRUCTIONS/.test(last(/You are the chat of a project/).sys) && t2.used.rules === undefined, JSON.stringify(t2.used));
+
+  /* a note filed by a chat never rewrites an instruction, and the other notes still read as before */
+  reply = { route: routeOf(), answer: answerOf({ notes: [{ title: "Tone", update: "", claim: "Casual.", position: "Use a casual tone.", summaryLine: "Casual" },
+    { title: "Team price", update: "", claim: "Team costs 1,490 euros.", position: "Team costs 1,490 euros (2026-10-09).", summaryLine: "Team at 1,490" }] }) };
+  await chat("Let us be casual, and Team stays at 1,490.");
+  const tone = w.T.concepts.filter(c => c.title === "Tone");
+  check("a note a chat files under an instruction's title never rewrites the instruction", tone.length === 1 && tone[0].position === "Write in a formal tone and address the reader as vous." && tone[0].tag === "instructions", JSON.stringify(tone.map(c => c.position)));
+  reply = { route: routeOf(), answer: answerOf() };
+  await chat("What does Team cost?");
+  const a2 = last(/You are the chat of a project/);
+  check("the other notes are read by the question, apart from the instructions, which are still all there", /PROJECT MEMORY\n- Team price: Team costs 1,490 euros/.test(a2.user) && !/- Tone:/.test(a2.user) && /- Tone: Write in a formal tone/.test(a2.sys));
+
+  /* what fits: the first notes, in order, up to 2,400 characters */
+  const big = Array.from({ length: 8 }, (_, i) => ({ n: i + 1, title: `Rule ${i + 1}`, position: "word ".repeat(120).trim() }));
+  const fit = project.rulesPick([...big].reverse());
+  check("the instructions a message carries are the first ones filed that fit in 2,400 characters", fit.map(x => x.title).join() === "Rule 1,Rule 2,Rule 3", fit.map(x => x.title).join());
+  check("with none, it carries none", project.rulesPick([]).length === 0);
+
+  /* adding the file again takes the place of the first; a file that gives nothing changes nothing */
+  const before = (await get()).memory.filter(m => m.instructions).map(m => m.title).join();
+  reply = { instructions: { notes: [] } };
+  const none = await project.fileInstructions(w.ctx, { space: SPACE, brain: p, name: "empty.md", text: "Some words." }).catch(e => e.message);
+  check("a reply with no note says so and leaves the instructions as they were", /could not be read into notes/.test(none) && (await get()).memory.filter(m => m.instructions).map(m => m.title).join() === before, String(none));
+  reply = { instructionsFail: true };
+  const down = await project.fileInstructions(w.ctx, { space: SPACE, brain: p, name: "down.md", text: "Some words." }).catch(e => e.message);
+  check("a model that fails leaves them as they were too", typeof down === "string" && (await get()).memory.filter(m => m.instructions).map(m => m.title).join() === before, String(down));
+  reply = { instructions: { notes: [{ title: "Language", claim: "French.", position: "Answer in French.", summaryLine: "French" }] } };
+  await project.fileInstructions(w.ctx, { space: SPACE, brain: p, name: "new-rules.md", text: "Answer in French." });
+  const after = (await get()).memory;
+  check("a file added again takes the place of the first: its notes go, the other notes stay", same(after.filter(m => m.instructions).map(m => m.title), ["Language"]) && after.some(m => m.title === "Team price" && !m.instructions), JSON.stringify(after.map(m => m.title)));
+
+  /* an instruction can be forgotten like any note, and the project's own note on its file is never one */
+  const lang = after.find(m => m.instructions);
+  await w.ctx.runMutation("projects.memoryForget", { space: SPACE, brain: p, slug: lang.slug });
+  reply = { route: routeOf(), answer: answerOf() };
+  await chat("What is the goal?");
+  check("an instruction is forgotten like any note, and the chat then carries none", !(await get()).memory.some(m => m.instructions) && !/THE OWNER'S INSTRUCTIONS/.test(last(/You are the chat of a project/).sys));
+
+  /* it survives a new file, which only takes the notes the old file wrote */
+  reply = { instructions: { notes: first } };
+  await project.fileInstructions(w.ctx, { space: SPACE, brain: p, name: "again.md", text: rules });
+  await w.ctx.runMutation("projects.memoryForgetFile", { space: SPACE, brain: p });
+  check("a new file leaves the instructions alone", (await get()).memory.filter(m => m.instructions).length === 3);
+
+  /* bounds: no text, a long text, another workspace */
+  const n1 = sent.length;
+  const blank = await project.fileInstructions(w.ctx, { space: SPACE, brain: p, name: "x.md", text: "  \n " }).catch(e => e.message);
+  const other = await project.fileInstructions(w.ctx, { space: "squidgy", brain: p, name: "x.md", text: "Words." }).catch(e => e.message);
+  check("no text is refused before a model is asked, and so is a project of another workspace", /gave no text/.test(blank) && /not in this workspace/.test(String(other)) && sent.length === n1, JSON.stringify([blank, other, sent.length - n1]));
+  reply = { instructions: { notes: first } };
+  const rLong = await project.fileInstructions(w.ctx, { space: SPACE, brain: p, name: "long.md", text: "word ".repeat(20000) });
+  const longAsk = last(/You write the memory notes of an instruction file/).user;
+  check("a long file is read up to 30,000 characters, and the reply says it was cut", /"long\.md", 30000 characters\n/.test(longAsk) && longAsk.slice(longAsk.indexOf("characters\n") + 11).length === 30000 && rLong.cut === true && r.cut === undefined, String(longAsk.length));
   reply = {};
 }
 
@@ -1548,8 +1644,21 @@ const docProject = async (w, name, text, kind = "doc") => {
   const hb3 = await call("/api/project/begin", { brain: mk.slug, name: "page3.html", kind: "html" });
   check("the note on the old file is gone once a new file begins", (await call("/api/project/get", { brain: mk.slug })).memory.filter(m => m.title === "The file").length === 0 && hb3.ver >= 1);
 
+  /* the owner's instruction file, through the route */
+  reply = { instructions: { notes: [{ title: "Tone", claim: "Formal.", position: "Write formally.", summaryLine: "Formal" }] } };
+  const closedTo = async (token) => (await call("/api/project/instructions", { brain: slugR, name: "r.md", text: "Write formally." }, token));
+  check("the instruction route is closed without a session, to the demo and to another workspace", (await closedTo(null)).status === 401
+    && /demo lets you ask/.test((await closedTo("demo-token")).error) && /not in this workspace/.test((await closedTo("squidgy-token")).error));
+  const ins = await call("/api/project/instructions", { brain: slugR, name: "rules.md", text: "Write formally." });
+  check("the owner files an instruction file: the notes come back, and the project's memory holds them, tagged", ins.notes === 1 && same(ins.titles, ["Tone"])
+    && (await call("/api/project/get", { brain: slugR })).memory.some(m => m.title === "Tone" && m.instructions === true), JSON.stringify(ins));
+  check("an empty one is refused with its reason", /gave no text/.test((await call("/api/project/instructions", { brain: slugR, name: "r.md", text: "" })).error));
+  const seenBy = await call("/api/state");
+  check("the project's list counts the instruction notes with the rest of its memory", seenBy.projects.find(x => x.slug === slugR).memory >= 1, JSON.stringify(seenBy.projects.map(x => [x.slug, x.memory])));
+
   /* taking it all away */
   check("deleting a project takes it away, and its memory with it", (await call("/api/project/delete", { brain: slugR })).ok === true && !w.T.brains.some(b => b.slug === slugR) && !(w.T.concepts ?? []).some(c => c.brain === slugR) && !(await call("/api/project/list")).projects.some(x => x.slug === slugR));
+  check("and the source its instruction notes rested on", !(w.T.sources ?? []).some(x => /^Instructions/.test(x.title) && (x.brains ?? []).includes(slugR)));
 }
 
 

@@ -2052,6 +2052,13 @@
   .sheet .pj-step{ margin-top:12px; font:400 13.5px/1.55 var(--sans); color:var(--ink-3); min-height:1.6em; }
   .sheet .pj-pick, .sheet .pj-make{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .sheet .pj-pick .pj-file{ min-width:0; font:400 13px/1.4 var(--sans); color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sheet .pj-make .ghost.on, .sheet .pj-pick .ghost.on{ border-color:var(--accent-fill); background:var(--accent-soft); color:var(--accent); }
+  .sheet .pj-x{ font:500 12.5px/1 var(--sans); color:var(--ink-3); text-decoration:underline; }
+  .sheet .pj-x:hover{ color:var(--ink); }
+  .sheet .pj-opt{ margin-left:6px; font:400 12px/1 var(--sans); color:var(--ink-4); }
+  .sheet #npFile, .sheet #npRulesFile{ overflow-wrap:anywhere; }
+  .sheet header p.bad{ color:var(--bad); }
+  #pmAdd{ margin-right:auto; }
 
   /* On a phone the file and its chat take turns, and what is pressed is as small as a thumb allows: 36px, not 44. */
   @media (max-width:860px){
@@ -2256,7 +2263,7 @@ const TOKEN_KEY = "octopus.token.v1";
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
   "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle",
   "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview", "/api/personal/people", "/api/personal/open",
-  "/api/project/part", "/api/project/chat"]);
+  "/api/project/part", "/api/project/finish", "/api/project/instructions", "/api/project/chat"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -7588,6 +7595,8 @@ async function takeDocument(file){
    to the file; only a click applies them. */
 
 const PJ_FILES = ".pdf,.txt,.md,.markdown,.text,.docx,.csv,.tsv,.xlsx,.xls,.html,.htm,.xhtml";
+/* Instructions are words: no table. */
+const RULE_FILES = ".pdf,.txt,.md,.markdown,.text,.docx,.html,.htm,.xhtml";
 const PJ_PIECE = 120000;            /* characters of a document sent at a time */
 const PJ_ROWS = 4000;               /* rows of a sheet sent at a time */
 const XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
@@ -8333,6 +8342,10 @@ function usedChips(t){
   /* How little of a long file was read, whether the long sections came as passages, and that memory led there. */
   if (f?.sections?.length && f.of > 4) box.append(el("span",null,`Read ${f.sections.length} of ${f.of} sections${f.passages ? " · passages" : ""}${f.via ? " · led by memory" : ""}`));
   for (const c of u.folders || []) box.append(el("span",null,`${c.name} folder · ${c.notes} note${c.notes === 1 ? "" : "s"}`));
+  if (u.rules){
+    const b = el("button",null,`Instructions · ${u.rules}`); b.type = "button"; b.title = "Show the instructions this project follows";
+    b.onclick = openMemory; box.append(b);
+  }
   if (u.memory){
     const b = el("button",null,`Memory · ${u.memory} note${u.memory === 1 ? "" : "s"}`); b.type = "button"; b.title = "Show what the project remembers";
     b.onclick = openMemory; box.append(b);
@@ -8415,9 +8428,9 @@ function openMemory(){
   veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pmTitle">
     <header><h3 id="pmTitle">Memory</h3><p id="pmSub"></p></header>
     <div class="pm-list" id="pmList"></div>
-    <footer><button class="ghost" id="pmClose">Close</button></footer></div>`;
+    <footer><button class="ghost" id="pmAdd" type="button"></button><button class="ghost" id="pmClose">Close</button></footer></div>`;
   document.body.append(veil);
-  const list = veil.querySelector("#pmList"), sub = veil.querySelector("#pmSub");
+  const list = veil.querySelector("#pmList"), sub = veil.querySelector("#pmSub"), add = veil.querySelector("#pmAdd");
   const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
   const shut = () => { document.removeEventListener("keydown", onKey); pj.memPaint = null; veil.remove(); };
   document.addEventListener("keydown", onKey);
@@ -8427,24 +8440,33 @@ function openMemory(){
   /* Where a note rests in the file, and whether the file changed there since. */
   const metaOf = m => {
     const rests = (m.sections || []).map(sid => named.get(sid)).filter(Boolean);
-    return [m.title === "The file" ? "From the file" : "", rests.length ? `In ${rests.slice(0, 2).join(", ")}${rests.length > 2 ? ` +${rests.length - 2}` : ""}` : "",
+    return [m.title === "The file" ? "From the file" : "", m.instructions ? "From the instructions" : "", rests.length ? `In ${rests.slice(0, 2).join(", ")}${rests.length > 2 ? ` +${rests.length - 2}` : ""}` : "",
       m.stale ? "The file changed since" : "", fileDay(m.updated, true)].filter(Boolean).join(" · ");
   };
   let note = null;
-  const paint = () => {
+  /* `msg` is a line for the header: what just happened. It is the count otherwise. */
+  const paint = (msg, isBad) => {
     note = null; list.innerHTML = "";
-    const mem = pj.data.memory.slice().sort((x, y) => String(y.updated || "").localeCompare(String(x.updated || "")) || x.title.localeCompare(y.title));
+    const rules = pj.data.memory.filter(m => m.instructions).sort((x, y) => (x.n ?? 0) - (y.n ?? 0));
+    const mem = pj.data.memory.filter(m => !m.instructions).sort((x, y) => String(y.updated || "").localeCompare(String(x.updated || "")) || x.title.localeCompare(y.title));
     const ways = pj.data.shortcuts || [];
-    sub.textContent = mem.length ? `${mem.length} note${mem.length === 1 ? "" : "s"}, the newest first.` : "";
-    if (!mem.length && !ways.length){ list.append(el("div","fv-none","Nothing kept yet. The project files its notes by itself: what the file holds, what you decide, what its answers find.")); return; }
-    for (const m of mem){
+    const many = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+    sub.classList.toggle("bad", !!isBad);
+    sub.textContent = typeof msg === "string" && msg ? msg : rules.length ? `${many(rules.length, "instruction")}${mem.length ? ` and ${many(mem.length, "note")}` : ""}.` : mem.length ? `${many(mem.length, "note")}, the newest first.` : "";
+    add.textContent = rules.length ? "Replace instructions" : "Add instructions";
+    if (!mem.length && !rules.length && !ways.length){ list.append(el("div","fv-none","Nothing kept yet. The project files its notes by itself: what the file holds, what you decide, what its answers find.")); return; }
+    const row = m => {
       const r = el("button","fv-row"); r.type = "button";
       r.append(el("b",null,m.title));
       if (m.summaryLine || m.position) r.append(el("span",null,m.summaryLine || m.position));
       r.append(el("small",null,metaOf(m)));
       r.onclick = () => open(m);
-      list.append(r);
-    }
+      return r;
+    };
+    /* The instructions come first, and say they are read at every message; the notes are read as they bear on a question. */
+    if (rules.length){ list.append(el("div","fv-eye","Instructions, read at every message")); for (const m of rules) list.append(row(m)); }
+    if (rules.length && mem.length) list.append(el("div","fv-eye","Notes"));
+    for (const m of mem) list.append(row(m));
     if (ways.length){
       /* Where things are: learned from the questions, free, and a pointer only: an answer is always written from the sections as they are. */
       list.append(el("div","fv-eye","Where things are"), el("div","fv-none","Learned from your questions, so the chat opens these sections first."));
@@ -8474,6 +8496,18 @@ function openMemory(){
   };
   /* A message that just finished may have added notes: the list follows, unless a note is open. */
   pj.memPaint = () => { if (!note) paint(); };
+  /* An instruction file added here is read in this tab, then filed as notes, and takes the place of the one before. */
+  add.onclick = () => pickFile(RULE_FILES, async file => {
+    add.disabled = true;
+    try {
+      const words = await readInstructions(file, t => { sub.classList.remove("bad"); sub.textContent = t; });
+      sub.textContent = "Filing the instructions in the memory";
+      const r = await sendInstructions(pj.slug, words);
+      await refreshMemory();
+      paint(r.cut ? "Only the first 30,000 characters were read, about 5,000 words." : `${r.notes} instruction${r.notes === 1 ? "" : "s"} filed. The chat follows them from the next message.`);
+    } catch (e){ paint(e.message, true); }
+    finally { add.disabled = false; }
+  });
   paint();
   (list.querySelector("button") || veil.querySelector("#pmClose")).focus();
   /* What it learned since the last answer is read again, so the list is current. */
@@ -9037,11 +9071,32 @@ function pjNote(text){
   pj.body.prepend(n); setTimeout(() => n.remove(), 7000);
 }
 
-/** A file picked for the open project: read here, filed in sections. */
-function chooseFile(){
-  const inp = document.createElement("input"); inp.type = "file"; inp.accept = PJ_FILES; inp.hidden = true;
-  inp.onchange = () => { const file = inp.files?.[0]; inp.remove(); if (file) fillProject(S.pj.slug, file); };
+/** A file picked in the browser's own window, and handed on. */
+function pickFile(accept, then){
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = accept; inp.hidden = true;
+  inp.onchange = () => { const file = inp.files?.[0] || null; inp.remove(); if (file) then(file); };
   document.body.append(inp); inp.click();
+}
+
+/** A file picked for the open project: read here, filed in sections. */
+function chooseFile(){ pickFile(PJ_FILES, file => fillProject(S.pj.slug, file)); }
+
+/** An instruction file read in this tab as words: Word, PDF, text, Markdown or HTML. A table is no instruction. */
+async function readInstructions(file, say){
+  if (/\.(csv|tsv|xlsx|xls)$/i.test(file.name)) throw new Error(`${file.name} is a table. Instructions are words: Word, PDF, text, Markdown or HTML.`);
+  const got = await readProjectFile(file, say);
+  const text = (got.kind === "html" ? htmlToMd(got.text) : got.text).replace(/^\[\[p\. \d+\]\]$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
+  if (!text) throw new Error(`${got.name} gave no text. A scanned PDF holds pictures of words, so it needs its text.`);
+  return { name: got.name, text };
+}
+
+/** The words of an instruction file sent to be filed as notes in the project's memory, which the chat then follows. */
+async function sendInstructions(slug, got){
+  try { return await api("/api/project/instructions", { brain: slug, name: got.name, text: got.text }); }
+  catch (e){
+    /* A server older than this page has no such route, and answers with something unreadable. */
+    throw new Error(/unreadable/.test(e.message) ? "The server is older than this page and cannot file instructions yet. Run convex deploy." : e.message);
+  }
 }
 
 /** A sheet that says where a file stands while it is read and filed. */
@@ -9073,65 +9128,87 @@ async function fillProject(slug, file){
   }
 }
 
-/** New project: a name, and the file or table it is built on. */
+/** New project: a name, the file it updates (one you have, or one started from nothing), and instructions when there are any. */
 function openProjectSheet(){
   closeSide();
   const veil = el("div","veil");
   veil.innerHTML = `<div class="sheet roomy" role="dialog" aria-modal="true" aria-labelledby="npTitle">
     <header><h3 id="npTitle">New project</h3><p>One file, table or page, with a chat beside it and a memory of its own. Only this project and your personal folder read that memory.</p></header>
     <div class="f"><label for="npName">Name</label><input id="npName" autocomplete="off" maxlength="60" placeholder="New project"></div>
-    <div class="f"><label>A file or a table you have</label><div class="pj-pick"><button class="ghost" id="npPick" type="button">Choose a file</button><span class="pj-file" id="npFile">Word, PDF, text, Markdown, HTML, Excel or CSV</span></div>
-      <div class="hint">A file of any length works: it is filed in sections, and a question opens only the ones it needs.</div></div>
-    <div class="f"><label>Or start from nothing</label><div class="pj-make"><button class="ghost" data-make="doc" type="button">Document</button><button class="ghost" data-make="table" type="button">Table</button><button class="ghost" data-make="html" type="button">HTML page</button></div>
-      <div class="hint">Describe it in the chat, from your words and your folders. Every change can be undone. Press Create project with no type and the chat picks one.</div></div>
+    <div class="f"><label>The file to update</label>
+      <div class="pj-make"><button class="ghost" id="npPick" type="button">Choose a file</button><button class="ghost" data-make="doc" type="button">Document</button><button class="ghost" data-make="table" type="button">Table</button><button class="ghost" data-make="html" type="button">HTML page</button></div>
+      <div class="hint" id="npFile"></div></div>
+    <div class="f"><label>Instructions <span class="pj-opt">optional</span></label>
+      <div class="pj-pick"><button class="ghost" id="npRules" type="button">Choose a file</button><button class="pj-x" id="npRulesX" type="button" hidden>Remove</button></div>
+      <div class="hint" id="npRulesFile"></div></div>
     <div class="f"><div class="pj-step" id="npStep" role="status"></div><div class="bad" id="npBad"></div></div>
     <footer><button class="ghost" id="npCancel" type="button">Cancel</button><button class="go" id="npMake" type="button">Create project</button></footer></div>`;
   document.body.append(veil);
   const name = veil.querySelector("#npName"), pick = veil.querySelector("#npPick"), fileEl = veil.querySelector("#npFile"),
+        rulesPick = veil.querySelector("#npRules"), rulesX = veil.querySelector("#npRulesX"), rulesEl = veil.querySelector("#npRulesFile"),
         stepEl = veil.querySelector("#npStep"), bad = veil.querySelector("#npBad"), make = veil.querySelector("#npMake"), cancel = veil.querySelector("#npCancel");
-  let file = null, busy = false, typed = false;
+  const start = veil.querySelectorAll("[data-make]");
+  /* The file to update is one thing: a file chosen, or a type to start from nothing, or neither, and the chat picks the type. */
+  let file = null, kind = "", rules = null, busy = false, typed = false;
+  const sync = () => {
+    pick.classList.toggle("on", !!file); pick.setAttribute("aria-pressed", String(!!file));
+    start.forEach(b => { b.classList.toggle("on", b.dataset.make === kind); b.setAttribute("aria-pressed", String(b.dataset.make === kind)); });
+    fileEl.textContent = file ? file.name : kind ? `An empty ${pjNoun(kind)}. Describe it in the chat, from your words and your folders. Every change can be undone.`
+      : "Word, PDF, text, Markdown, HTML, Excel or CSV, of any length. Or start from nothing and describe it in the chat: with no type, the chat picks one.";
+    rulesPick.classList.toggle("on", !!rules);
+    rulesEl.textContent = rules ? rules.name : "Rules and context for this project: tone, audience, limits, numbers that hold. They are filed in its memory, and the chat follows them.";
+    rulesX.hidden = !rules;
+  };
   const shut = () => { if (!busy) veil.remove(); };
   name.oninput = () => { typed = true; };
-  pick.onclick = () => {
-    const inp = document.createElement("input"); inp.type = "file"; inp.accept = PJ_FILES; inp.hidden = true;
-    inp.onchange = () => { file = inp.files?.[0] || null; inp.remove(); if (file){ fileEl.textContent = file.name; if (!typed || !name.value.trim()) name.value = file.name.replace(/\.[^.]+$/, "").slice(0, 60); } };
-    document.body.append(inp); inp.click();
-  };
+  pick.onclick = () => pickFile(PJ_FILES, f => {
+    file = f; kind = "";
+    if (!typed || !name.value.trim()) name.value = f.name.replace(/\.[^.]+$/, "").slice(0, 60);
+    sync();
+  });
+  start.forEach(b => { b.onclick = () => { kind = kind === b.dataset.make ? "" : b.dataset.make; if (kind) file = null; sync(); }; });
+  rulesPick.onclick = () => pickFile(RULE_FILES, f => { rules = f; sync(); });
+  rulesX.onclick = () => { rules = null; sync(); };
   cancel.onclick = shut; veil.onclick = e => { if (e.target === veil) shut(); };
-  const start = veil.querySelectorAll("[data-make]");
   /* A name nothing else in the list has: New table, then New table 2. */
   const free = base => {
     const taken = new Set((S.projects || []).map(p => String(p.name).toLowerCase()));
     let n = base, i = 1; while (taken.has(n.toLowerCase())) n = `${base} ${++i}`;
     return n;
   };
-  const run = async (from) => {
-    const nm = name.value.trim() || (from ? free(`New ${pjNoun(from)}`) : file ? "" : free("New project"));
+  const lock = on => { make.disabled = on; pick.disabled = on; rulesPick.disabled = on; rulesX.disabled = on; cancel.disabled = on; start.forEach(b => { b.disabled = on; }); };
+  const run = async () => {
+    const nm = name.value.trim() || (kind ? free(`New ${pjNoun(kind)}`) : file ? "" : free("New project"));
     if (!nm){ name.focus(); return; }
-    busy = true; make.disabled = true; pick.disabled = true; cancel.disabled = true; start.forEach(b => { b.disabled = true; }); bad.textContent = "";
-    let slug = "";
+    busy = true; lock(true); bad.textContent = "";
+    const say = t => { stepEl.textContent = t; };
+    let slug = "", phase = "file";
     try {
-      /* The file is read first: one that cannot be read makes no project. */
-      const got = !from && file ? await readProjectFile(file, t => { stepEl.textContent = t; }) : null;
-      slug = (await api("/api/project/new", { name: nm, ...(from ? { make: from } : {}) })).slug;
+      /* What is read here is read first: a file that cannot be read makes no project. */
+      const got = file ? await readProjectFile(file, say) : null;
+      const words = rules ? await readInstructions(rules, say) : null;
+      slug = (await api("/api/project/new", { name: nm, ...(kind ? { make: kind } : {}) })).slug;
       /* A server older than this page leaves the project with no file: say so, and leave nothing behind. */
-      if (from && !(await api("/api/project/get", { brain: slug })).file){
+      if (kind && !(await api("/api/project/get", { brain: slug })).file){
         try { await api("/api/project/delete", { brain: slug }); slug = ""; } catch { /* the project stays, and the line below says so */ }
         throw new Error("The server is older than this page and cannot start a file from nothing yet. Run convex deploy, then try again.");
       }
-      if (got) await uploadProject(slug, got, t => { stepEl.textContent = t; });
+      if (got) await uploadProject(slug, got, say);
+      let cut = false;
+      if (words){ phase = "instructions"; say("Filing the instructions in the memory"); cut = !!(await sendInstructions(slug, words)).cut; }
       busy = false; veil.remove();
       await syncProjects();
       await openProject(slug);
+      if (cut) pjNote("Only the first 30,000 characters of the instructions were read, about 5,000 words.");
     } catch (e){
-      busy = false; make.disabled = false; pick.disabled = false; cancel.disabled = false; start.forEach(b => { b.disabled = false; });
-      stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to add the file again.` : e.message;
+      busy = false; lock(false);
+      stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to ${phase === "instructions" ? "add the instructions again from Memory" : "add the file again"}.` : e.message;
       if (slug){ make.textContent = "Open the project"; make.onclick = async () => { veil.remove(); await syncProjects(); await openProject(slug); }; }
     }
   };
-  make.onclick = () => run("");
-  start.forEach(b => { b.onclick = () => run(b.dataset.make); });
+  make.onclick = run;
   name.onkeydown = e => { if (e.key === "Enter") make.click(); };
+  sync();
   setTimeout(() => name.focus(), 30);
 }
 

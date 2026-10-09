@@ -742,6 +742,8 @@ export const upsertConcept = internalMutation({
       /* Lists are joined with the row as it is now, not as the caller read it
          a minute ago, so a parallel write keeps what it added. */
       const d = a.doc ?? {};
+      /* An instruction of a project changes only when its owner adds the file again: a note a chat or a file filed under the same title never rewrites it. */
+      if (seen.tag === "instructions" && d.tag !== "instructions") return seen._id;
       await ctx.db.patch(seen._id, {
         ...d,
         ...(d.evidence ? { evidence: mergeEvidence(d.evidence, seen.evidence ?? []) } : {}),

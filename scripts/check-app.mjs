@@ -3773,6 +3773,16 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/project/get") return J(P);
       if (path === "/api/project/doc") return J({ sections: P.file?.kind === "doc" && P.file.chars ? [{ sid: 1, ord: 1, sheet: 0, title: "Brief", text: "# Brief\n\nFill 200 seats." }] : [] });
       if (path === "/api/project/delete") { arg.state.projects = arg.state.projects.filter(x => x.slug !== body.brain); delete window.__proj[body.brain]; return J({ ok: true }); }
+      if (path === "/api/project/instructions") {
+        window.__inst = body;
+        if (window.__instOld) return new Response("not found", { status: 404 });
+        if (window.__instFail) return J({ error: "the model host was unreachable" });
+        P.memory = P.memory.filter(m => !m.instructions);
+        P.memory.push({ slug: "tone", title: "Tone", position: "Write in a formal tone.", summaryLine: "Formal tone", updated: "2026-10-09", instructions: true, n: 1, dates: [] },
+          { slug: "audience", title: "Audience", position: "The audience is CFOs.", summaryLine: "CFOs", updated: "2026-10-09", instructions: true, n: 2, dates: [] });
+        const row = arg.state.projects.find(x => x.slug === body.brain); if (row) row.memory = P.memory.length;
+        return J({ notes: 2, titles: ["Tone", "Audience"], ...(window.__instCut ? { cut: true } : {}) });
+      }
       if (path === "/api/project/chat" && !P.file) {
         /* No file yet: the first description makes one, from the words and a folder. */
         P.file = { name: `${P.project.name}.md`, kind: "doc", made: true, sheets: [{ name: P.project.name, header: [], cols: [], rows: 0 }], chars: 120, sections: 1, status: "ready", ver: 1, at: 1 };
@@ -3789,7 +3799,7 @@ for (const space of ["octopus", "squidgy"]) {
         if (empty) { f.chars = 300; f.sections = 1; P.html = arg.page; P.cards = [{ sid: 1, ord: 1, sheet: 0, title: "Page", summary: "x", chars: 300 }]; }
         const t = { id: "t" + (P.turns.length + 1), q: body.q, lead: empty ? "I made the page." : "Four offers now.",
           a: "**Hero:** a title and a promise.\n\n### Next\n- Add a contact form\n  - with a phone field\n\n> Keep it short.", proposal: false, quotes: [],
-          used: { file: { name: f.name, whole: true }, folders: [], memory: 0 }, ...(empty ? { noted: ["Page purpose"] } : {}), intent: "change",
+          used: { file: { name: f.name, whole: true }, folders: [], memory: 0, ...(P.memory.some(m => m.instructions) ? { rules: P.memory.filter(m => m.instructions).length } : {}) }, ...(empty ? { noted: ["Page purpose"] } : {}), intent: "change",
           edit: { id: "e" + (P.edits.length + 1), status: "applied", preview: [{ label: "New section at the start", before: "", after: "<!doctype html>" }] } };
         P.turns.push(t); P.edits.unshift({ id: t.edit.id, at: Date.now(), status: "applied", preview: t.edit.preview });
         if (empty) P.memory.unshift({ slug: "page-purpose", title: "Page purpose", position: "A landing page for a coaching business (2026-10-09).", summaryLine: "", updated: "2026-10-09", dates: ["2026-10-09"] });
@@ -3813,7 +3823,35 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#newProject"); await page.waitForTimeout(200);
   const sheet = await page.evaluate(() => ({ makes: [...document.querySelectorAll("[data-make]")].map(b => b.textContent).join(), file: document.getElementById("npFile").textContent }));
   check("a new project can start from nothing: a document, a table or an HTML page", sheet.makes === "Document,Table,HTML page" && /HTML/.test(sheet.file), JSON.stringify(sheet));
-  await page.click("[data-make=html]"); await page.waitForTimeout(900);
+
+  /* one field for the file to update: a file you have, a type to start from nothing, or neither */
+  const oneField = await page.evaluate(() => ({ labels: [...document.querySelectorAll(".sheet label")].map(l => l.textContent.replace(/\s+/g, " ").trim()), row: [...document.querySelectorAll(".pj-make button")].map(b => b.textContent).join(),
+    sections: document.querySelectorAll(".sheet .f").length }));
+  check("the sheet asks for one file to update, with a file or a type in one row, and instructions apart, optional", JSON.stringify(oneField.labels) === '["Name","The file to update","Instructions optional"]' && oneField.row === "Choose a file,Document,Table,HTML page", JSON.stringify(oneField));
+  await page.click("[data-make=html]");
+  const kindOn = await page.evaluate(() => ({ on: [...document.querySelectorAll(".pj-make .on")].map(b => b.textContent).join(), file: document.getElementById("npFile").textContent, news: window.__calls.filter(x => x.s === "/api/project/new").length }));
+  check("a type is chosen, not made: it lights, says what it is, and nothing is created before Create project", kindOn.on === "HTML page" && /^An empty page\. Describe it in the chat/.test(kindOn.file) && kindOn.news === 0, JSON.stringify(kindOn));
+  await page.click("[data-make=html]");
+  check("pressed again it is let go, and the chat picks the type", await page.evaluate(() => document.querySelectorAll(".pj-make .on").length === 0 && /with no type, the chat picks one/.test(document.getElementById("npFile").textContent)));
+  await page.click("[data-make=table]");
+  const [fcM] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npPick")]);
+  await fcM.setFiles({ name: "plan.md", mimeType: "text/markdown", buffer: Buffer.from("# Plan\n\nWords.") });
+  await page.waitForTimeout(150);
+  const swap1 = await page.evaluate(() => ({ on: [...document.querySelectorAll(".pj-make .on")].map(b => b.textContent).join(), file: document.getElementById("npFile").textContent, name: document.getElementById("npName").value }));
+  check("a file chosen takes the place of a type, and names the project", swap1.on === "Choose a file" && swap1.file === "plan.md" && swap1.name === "plan", JSON.stringify(swap1));
+  await page.click("[data-make=doc]");
+  const swap2 = await page.evaluate(() => ({ on: [...document.querySelectorAll(".pj-make .on")].map(b => b.textContent).join(), file: document.getElementById("npFile").textContent }));
+  check("and a type takes the place of a file", swap2.on === "Document" && /^An empty document\./.test(swap2.file), JSON.stringify(swap2));
+  const [fcR0] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npRules")]);
+  await fcR0.setFiles({ name: "rules.md", mimeType: "text/markdown", buffer: Buffer.from("Write formally.") });
+  await page.waitForTimeout(150);
+  const rl = await page.evaluate(() => ({ text: document.getElementById("npRulesFile").textContent, x: !document.getElementById("npRulesX").hidden, on: document.getElementById("npRules").classList.contains("on"), accept: "" }));
+  check("an instruction file is chosen apart from the file to update, which keeps its type", rl.text === "rules.md" && rl.x && rl.on && (await page.evaluate(() => [...document.querySelectorAll(".pj-make .on")].map(b => b.textContent).join())) === "Document", JSON.stringify(rl));
+  await page.click("#npRulesX");
+  check("Remove lets it go", await page.evaluate(() => document.getElementById("npRulesX").hidden && /Rules and context/.test(document.getElementById("npRulesFile").textContent)));
+  await page.click("#npCancel"); await page.waitForTimeout(150);
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  await page.click("[data-make=html]"); await page.click("#npMake"); await page.waitForTimeout(900);
   const made = await page.evaluate(() => ({ call: window.__calls.find(x => x.s === "/api/project/new")?.body, view: document.querySelector("main").dataset.view, empty: document.querySelector(".pj-empty h3")?.textContent,
     chip: document.querySelector(".pj-chip")?.textContent, acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), ph: document.querySelector(".pj-comp textarea").placeholder,
     tries: [...document.querySelectorAll(".pj-try button")].map(b => b.textContent), icon: !!document.querySelector("#projects .pj-row path[d^='M9 8l-4']"), sheetGone: !document.querySelector(".veil"),
@@ -3863,20 +3901,20 @@ for (const space of ["octopus", "squidgy"]) {
 
   /* a table and a document, from nothing */
   await page.click("#newProject"); await page.waitForTimeout(200);
-  await page.fill("#npName", "Spending"); await page.click("[data-make=table]"); await page.waitForTimeout(800);
+  await page.fill("#npName", "Spending"); await page.click("[data-make=table]"); await page.click("#npMake"); await page.waitForTimeout(800);
   const tbl = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/new").pop()?.body, empty: document.querySelector(".pj-empty h3")?.textContent, ph: document.querySelector(".pj-comp textarea").placeholder,
     seg: document.querySelector(".pj-seg button")?.textContent, tries: document.querySelector(".pj-try button")?.textContent }));
   check("a table can be made from nothing under the name typed", tbl.call?.name === "Spending" && tbl.call?.make === "table" && tbl.empty === "This table is empty" && /^Describe the table you want/.test(tbl.ph) && /^A table of my monthly expenses/.test(tbl.tries) && tbl.seg === "Table", JSON.stringify(tbl));
   await page.click("#newProject"); await page.waitForTimeout(200);
-  await page.click("[data-make=doc]"); await page.waitForTimeout(800);
+  await page.click("[data-make=doc]"); await page.click("#npMake"); await page.waitForTimeout(800);
   const dc = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/new").pop()?.body, empty: document.querySelector(".pj-empty h3")?.textContent, chip: document.querySelector(".pj-chip")?.textContent }));
   check("and a document", dc.call?.make === "doc" && dc.call?.name === "New document" && dc.empty === "This document is empty" && dc.chip === "New document.md", JSON.stringify(dc));
 
   /* the same name twice: the second takes a number */
   await page.click("#newProject"); await page.waitForTimeout(200);
-  await page.click("[data-make=table]"); await page.waitForTimeout(700);
+  await page.click("[data-make=table]"); await page.click("#npMake"); await page.waitForTimeout(700);
   await page.click("#newProject"); await page.waitForTimeout(200);
-  await page.click("[data-make=table]"); await page.waitForTimeout(700);
+  await page.click("[data-make=table]"); await page.click("#npMake"); await page.waitForTimeout(700);
   const names = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/new" && x.body.make === "table").map(x => x.body.name));
   check("a name left empty is New table, then New table 2, so a second one is never refused", names.slice(-2).join("|") === "New table|New table 2", JSON.stringify(names));
 
@@ -3898,7 +3936,7 @@ for (const space of ["octopus", "squidgy"]) {
   await page.evaluate(() => { window.__oldServer = true; });
   await page.click("#newProject"); await page.waitForTimeout(200);
   const newsBefore = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/new").length);
-  await page.click("[data-make=table]"); await page.waitForTimeout(700);
+  await page.click("[data-make=table]"); await page.click("#npMake"); await page.waitForTimeout(700);
   const old = await page.evaluate(() => ({ bad: document.getElementById("npBad").textContent, sheet: !!document.querySelector(".veil"), btn: document.getElementById("npMake").disabled,
     made: window.__calls.filter(x => x.s === "/api/project/new").pop()?.body, del: window.__calls.filter(x => x.s === "/api/project/delete").pop()?.body }));
   check("an older server leaves a project with no file: the sheet says so, deletes it, and stays open", /The server is older than this page/.test(old.bad) && /convex deploy/.test(old.bad) && old.sheet && !old.btn && old.made?.make === "table" && /^made-table-/.test(old.del?.brain), JSON.stringify(old));
@@ -3912,10 +3950,89 @@ for (const space of ["octopus", "squidgy"]) {
   await page.fill("#npName", "Site"); await page.click("#npMake"); await page.waitForTimeout(900);
   const up = await page.evaluate(() => window.__calls.filter(x => /api\/project\/(begin|part)/.test(x.s)).slice(-2).map(x => ({ s: x.s.split("/").pop(), b: x.body })));
   check("an HTML file is a page: its code goes whole, as written", up[0].s === "begin" && up[0].b.kind === "html" && up[1].b.text === "<!doctype html>\n<html><body><p>Hello</p></body></html>", JSON.stringify(up));
+
+  /* an instruction file given at creation: read here, filed in the memory after the project and its file */
+  await page.evaluate(() => { window.__instFail = false; window.__instOld = false; window.__instCut = false; });
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  await page.fill("#npName", "Offer brief"); await page.click("[data-make=doc]");
+  const [fcR] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npRules")]);
+  await fcR.setFiles({ name: "rules.md", mimeType: "text/markdown", buffer: Buffer.from("# Rules\n\nWrite in a formal tone.\n\n[[p. 2]]\nThe audience is CFOs.") });
+  await page.click("#npMake"); await page.waitForTimeout(1000);
+  const given = await page.evaluate(() => { const c = window.__calls.map(x => x.s); const i = c.lastIndexOf("/api/project/instructions");
+    return { inst: window.__inst, order: c.slice(c.lastIndexOf("/api/project/new"), i + 1).filter(x => /project\/(new|instructions)/.test(x)), view: document.querySelector("main").dataset.view, sheet: !!document.querySelector(".veil"), badge: document.querySelector(".pj-memb i")?.textContent }; });
+  check("the instruction file is sent once the project is made, as its name and its words, with no page mark", given.order.join() === "/api/project/new,/api/project/instructions" && given.inst.name === "rules.md" && given.inst.text === "# Rules\n\nWrite in a formal tone.\n\nThe audience is CFOs." && given.inst.brain, JSON.stringify(given));
+  check("then the project opens, and its Memory button counts the notes the instructions made", given.view === "project" && !given.sheet && given.badge === "2", JSON.stringify(given));
+  await page.click(".pj-memb"); await page.waitForTimeout(300);
+  const grouped = await page.evaluate(() => ({ sub: document.getElementById("pmSub").textContent, eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), rows: [...document.querySelectorAll("#pmList .fv-row")].map(r => r.querySelector("b").textContent + "|" + r.querySelector("small").textContent), add: document.getElementById("pmAdd").textContent }));
+  check("the Memory sheet puts the instructions first, in their order, says they are read at every message, and offers to replace them",
+    grouped.sub === "2 instructions." && JSON.stringify(grouped.eyes) === '["Instructions, read at every message"]' && grouped.rows.join() === "Tone|From the instructions · 9 Oct,Audience|From the instructions · 9 Oct" && grouped.add === "Replace instructions", JSON.stringify(grouped));
+  await page.click("#pmList .fv-row >> nth=0"); await page.waitForTimeout(100);
+  check("an instruction opens like a note, with its words in full and a way to forget it", await page.evaluate(() => document.querySelector(".pm-t")?.textContent === "Tone" && document.querySelector(".pm-note .fv-pos")?.textContent === "Write in a formal tone." && !!document.querySelector(".pm-note .pj-b")));
+  await page.click("#pmClose"); await page.waitForTimeout(100);
+  await page.fill(".pj-comp textarea", "Write the brief"); await page.keyboard.press("Enter"); await page.waitForTimeout(900);
+  const chipsR = await page.evaluate(() => [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent));
+  check("an answer says how many instructions it followed", chipsR.includes("Instructions · 2"), JSON.stringify(chipsR));
+  await page.click('.pj-used button:has-text("Instructions")'); await page.waitForTimeout(300);
+  const withNotes = await page.evaluate(() => ({ eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), sub: document.getElementById("pmSub").textContent }));
+  check("the Instructions chip opens the Memory sheet, which keeps the instructions apart from the notes the project filed since", JSON.stringify(withNotes.eyes) === '["Instructions, read at every message","Notes"]' && withNotes.sub === "2 instructions and 1 note.", JSON.stringify(withNotes));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+
+  /* the project is made, and the instructions fail: the sheet says so, offers the project, and Memory adds them again */
+  await page.evaluate(() => { window.__instFail = true; });
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  await page.fill("#npName", "Second brief"); await page.click("[data-make=doc]");
+  const [fcR2] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npRules")]);
+  await fcR2.setFiles({ name: "rules.md", mimeType: "text/markdown", buffer: Buffer.from("Write in a formal tone.") });
+  await page.click("#npMake"); await page.waitForTimeout(900);
+  const failed = await page.evaluate(() => ({ bad: document.getElementById("npBad").textContent, btn: document.getElementById("npMake").textContent, disabled: document.getElementById("npMake").disabled, sheet: !!document.querySelector(".veil") }));
+  check("when the instructions fail, the project is made, and the sheet says why and how to add them again", /the model host was unreachable/.test(failed.bad) && /The project was made: open it to add the instructions again from Memory\./.test(failed.bad) && failed.btn === "Open the project" && !failed.disabled && failed.sheet, JSON.stringify(failed));
+  await page.click("#npMake"); await page.waitForTimeout(700);
+  await page.click(".pj-memb"); await page.waitForTimeout(300);
+  check("Memory then offers to add them, and the sheet holds none", await page.evaluate(() => document.getElementById("pmAdd").textContent === "Add instructions" && !document.querySelector("#pmList .fv-eye")));
+  await page.evaluate(() => { window.__instFail = false; });
+  const [fcR3] = await Promise.all([page.waitForEvent("filechooser"), page.click("#pmAdd")]);
+  await fcR3.setFiles({ name: "rules2.md", mimeType: "text/markdown", buffer: Buffer.from("Write in a formal tone. The audience is CFOs.") });
+  await page.waitForTimeout(700);
+  const added = await page.evaluate(() => ({ inst: window.__inst, sub: document.getElementById("pmSub").textContent, eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), add: document.getElementById("pmAdd").textContent, disabled: document.getElementById("pmAdd").disabled }));
+  check("an instruction file added from Memory is read here and filed, and the list shows them at once", added.inst.name === "rules2.md" && added.sub === "2 instructions filed. The chat follows them from the next message." && added.eyes.length === 1 && added.add === "Replace instructions" && !added.disabled, JSON.stringify(added));
+  await page.evaluate(() => { window.__instFail = true; });
+  const [fcR4] = await Promise.all([page.waitForEvent("filechooser"), page.click("#pmAdd")]);
+  await fcR4.setFiles({ name: "rules3.md", mimeType: "text/markdown", buffer: Buffer.from("More words.") });
+  await page.waitForTimeout(500);
+  const addBad = await page.evaluate(() => ({ sub: document.getElementById("pmSub").textContent, bad: document.getElementById("pmSub").classList.contains("bad"), rows: document.querySelectorAll("#pmList .fv-row").length }));
+  check("when it fails there, the header says why in red, and the instructions held stay", /unreachable/.test(addBad.sub) && addBad.bad && addBad.rows === 2, JSON.stringify(addBad));
+  await page.click("#pmClose"); await page.waitForTimeout(100);
+
+  /* what cannot be instructions: a table. A server older than the page. A file that is cut. */
+  await page.evaluate(() => { window.__instFail = false; });
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  const newsA = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/new").length);
+  const [fcR5] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npRules")]);
+  await fcR5.setFiles({ name: "prices.csv", mimeType: "text/csv", buffer: Buffer.from("a,b\n1,2\n") });
+  await page.fill("#npName", "Table rules"); await page.click("#npMake"); await page.waitForTimeout(500);
+  const tableRules = await page.evaluate(() => ({ bad: document.getElementById("npBad").textContent, news: window.__calls.filter(x => x.s === "/api/project/new").length }));
+  check("a table cannot be instructions: it is refused before any project is made", /prices\.csv is a table\. Instructions are words/.test(tableRules.bad) && tableRules.news === newsA, JSON.stringify([tableRules, newsA]));
+  await page.evaluate(() => { window.__instOld = true; });
+  await page.click("#npRulesX");
+  const [fcR6] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npRules")]);
+  await fcR6.setFiles({ name: "rules.md", mimeType: "text/markdown", buffer: Buffer.from("Words.") });
+  await page.fill("#npName", "Old server rules"); await page.click("#npMake"); await page.waitForTimeout(700);
+  const oldInst = await page.evaluate(() => document.getElementById("npBad").textContent);
+  check("a server older than the page says so, and says to deploy", /The server is older than this page and cannot file instructions yet\. Run convex deploy\./.test(oldInst), oldInst);
+  await page.evaluate(() => { window.__instOld = false; document.querySelector(".veil")?.remove(); });
+  await page.evaluate(() => { window.__instCut = true; });
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  const [fcR7] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npRules")]);
+  await fcR7.setFiles({ name: "long.md", mimeType: "text/markdown", buffer: Buffer.from("Words. ".repeat(100)) });
+  await page.fill("#npName", "Cut rules"); await page.click("[data-make=doc]"); await page.click("#npMake"); await page.waitForTimeout(1000);
+  check("an instruction file over 30,000 characters says that only its start was read", /Only the first 30,000 characters of the instructions were read/.test(await page.textContent(".pj-msg")));
+  await page.evaluate(() => { window.__instCut = false; });
   check("nothing threw making files", !bad.length, bad.join(" | "));
 
   /* the text view and the converter, run in the page */
   const srcApp = await readFile(join(APP, "chat.html"), "utf8");
+  const modelCalls = /const MODEL_CALLS = new Set\(\[([^\]]*)\]\)/.exec(srcApp)?.[1] ?? "";
+  check("every project call that spends a model carries a workspace's own key: a piece, the end of a file, instructions, the chat", ["part", "finish", "instructions", "chat"].every(n => modelCalls.includes(`"/api/project/${n}"`)), modelCalls.slice(-120));
   const grab = name => { const at = srcApp.indexOf(`function ${name}(`); let depth = 0, end = at; for (let i = srcApp.indexOf("{", at); i < srcApp.length; i++){ if (srcApp[i] === "{") depth++; if (srcApp[i] === "}" && --depth === 0){ end = i + 1; break; } } return srcApp.slice(at, end); };
   const conv = `const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));` + grab("mdView") + grab("htmlToMd") + "; return { mdView, htmlToMd };";
   const md = await page.evaluate(code => { const { mdView, htmlToMd } = new Function(code)(); return ({

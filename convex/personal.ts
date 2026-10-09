@@ -33,15 +33,18 @@ export type Person = { name: string; update: string; also: string[]; claim: stri
 export type Filed = { new: number; updated: number; titles: string[]; people?: string[]; kept?: string };
 /* "people" reads notes already held, for the people in them alone. */
 /* "files" builds the files of people already held from their cards and mentions. */
-export type Kind = "chat" | "import" | "interview" | "people" | "files" | "file";
+export type Kind = "chat" | "import" | "interview" | "people" | "files" | "file" | "instructions";
 
 /* A chat message files a few notes at most; an interview answer, a long
    story told aloud, files more; an import more again per piece. */
-const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 20, people: 0, files: 0, file: 9 };
+const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 20, people: 0, files: 0, file: 9, instructions: 8 };
 /* People are filed apart from notes, each on their own card. */
-const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, people: 12, files: 6, file: 0 };
+const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, people: 12, files: 6, file: 0, instructions: 0 };
 /* What one call reads: the message, the answer, and a piece of an import. */
-export const MAX_CHARS: Record<Kind, number> = { chat: 4000, interview: 8000, import: 8000, people: 12000, files: 20000, file: 4000 };
+export const MAX_CHARS: Record<Kind, number> = { chat: 4000, interview: 8000, import: 8000, people: 12000, files: 20000, file: 4000, instructions: 30000 };
+
+/** The tag a project's note carries when the owner's instruction file wrote it. */
+export const INSTRUCTIONS = "instructions";
 
 /** The tag a contact card carries. */
 export const CONTACT = "contact";
@@ -273,11 +276,11 @@ function contactFor(held: any[], p: Person) {
 const inTheirWords = (x: { claim: string; orig?: string }) => x.orig && x.orig.toLowerCase() !== x.claim.toLowerCase() ? { orig: x.orig } : {};
 
 export async function fileNotes(ctx: any, space: string, brain: string, held: any[], notes: Note[], kind: Kind, date: string, people: Person[] = [],
-  missed: any[] = [], said = "", asked = ""): Promise<Filed> {
+  missed: any[] = [], said = "", asked = "", from = ""): Promise<Filed> {
   const out: Filed = { new: 0, updated: 0, titles: [], people: [] };
   if (!notes.length && !people.length && !missed.length) return out;
   const sid = `${brain}-${kind}-${date}`;
-  const author = kind === "import" ? "You (imported)" : kind === "file" ? "The file" : "You";
+  const author = kind === "import" ? "You (imported)" : kind === "file" ? "The file" : kind === "instructions" ? "Instructions" : "You";
   /* Building files from what is held adds no mention and no source. */
   const quiet = kind === "files";
   /* What was said about a person goes to their raw notes word for word: a
@@ -293,7 +296,8 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
   };
   if (!quiet) await ctx.runMutation(internal.store.writeSource, { space, doc: {
     sid, link: "", linkKey: sid,
-    title: kind === "chat" ? `Chat, ${date}` : kind === "interview" ? `Interview, ${date}` : kind === "people" ? `People in your notes, ${date}` : kind === "file" ? `File, ${date}` : `Imported memory, ${date}`,
+    title: kind === "chat" ? `Chat, ${date}` : kind === "interview" ? `Interview, ${date}` : kind === "people" ? `People in your notes, ${date}` : kind === "file" ? `File, ${date}`
+      : kind === "instructions" ? `Instructions${from ? `: ${from}` : ""}, ${date}` : `Imported memory, ${date}`,
     author, date, location: "", brains: [brain],
   } });
   for (const p of people) {
@@ -335,7 +339,9 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
       doc: { position: n.position, summaryLine: n.summaryLine, sources: [sid],
              evidence: [{ date, author, claim: n.claim, source: sid, ...inTheirWords(n) }],
              /* A note that rests on a file says where, and is up to date as it is written. */
-             ...(n.sections ? { sections: n.sections, stale: false } : {}) },
+             ...(n.sections ? { sections: n.sections, stale: false } : {}),
+             /* An instruction note says so: the chat reads it at every message. */
+             ...(kind === "instructions" ? { tag: INSTRUCTIONS } : {}) },
     });
     if (seen) out.updated++; else out.new++;
     out.titles.push(seen?.title ?? n.title);

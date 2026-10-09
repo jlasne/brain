@@ -26,7 +26,7 @@ import { ask, parseJson } from "./lib";
 import { routeQuestion } from "./route";
 import { planDossier, writeDossier, idOf, OPEN_READ, keywords, stem, tagsOf, taggedLine } from "./words";
 import { embed, nearest } from "./graph";
-import { readNotes, fileNotes } from "./personal";
+import { readNotes, fileNotes, MAX_CHARS } from "./personal";
 import {
   splitDoc, openingOf, withoutPages, pagesIn, WHOLE_CHARS, TINY_CHARS, SECTION_CHARS, FILE_KINDS, SHORT_AFTER, SHORT_N, madeName, columnsOf, colNames, parseCsv, csvOf, blocksOf,
   readQuery, runQuery, resultText, colLine, MAX_OPS,
@@ -180,6 +180,56 @@ async function aboutFile(ctx: any, o: { space: string; brain: string; key?: stri
   } catch (e: any) {
     console.log(`the note on the file was not written: ${String(e?.message ?? e).slice(0, 160)}`);
   }
+}
+
+/* ---------- the owner's instructions ---------- */
+
+const INSTRUCTION_RULES = `You write the memory notes of an instruction file. The owner wrote it to say how a project must be handled: its goal, its audience, its tone, its limits, the words to use and to avoid, the numbers and the names that hold.
+Below: the file's name, then its words.
+Reply with only JSON: {"notes":[{"title":"","claim":"","position":"","summaryLine":""}]}
+- One note for each topic, at most 8, the one that matters most first. "title": 2 to 6 words naming the topic. "claim": one sentence with its numbers. "position": the instruction itself, in 1 to 3 sentences, with every number, name, limit and word to use or to avoid as written. "summaryLine": under 15 words.
+- Keep what the owner wrote. Never add a rule, never soften one, never join two different limits. Never guess.
+- Write it in English, and keep a word the owner wants used or avoided in its own language. No em-dashes.`;
+
+/** What the owner's instructions may add to a message, in characters: the notes that fit, in the order they were filed. */
+export const RULES_MAX = 2400;
+
+/** The instruction notes a message carries: the first ones, in the order filed, that fit. */
+export function rulesPick(rows: any[], max = RULES_MAX): any[] {
+  const out: any[] = [];
+  let used = 0;
+  for (const r of [...rows].sort((a, b) => (a.n ?? 0) - (b.n ?? 0))) {
+    const n = rulesLine(r).length + 1;
+    if (used + n > max) break;
+    out.push(r); used += n;
+  }
+  return out;
+}
+const rulesLine = (r: any) => `- ${r.title}: ${oneLine(r.position || r.summaryLine, 700)}`;
+
+/**
+ * The owner's instruction file, read into notes in the project's memory, in the format a folder has: a title, a position, a dated
+ * line of evidence and the file as its source. Each note is tagged, so the chat reads them at every message. A file added again
+ * takes the place of the first, and only when it was read.
+ */
+export async function fileInstructions(ctx: any, o: { space: string; brain: string; name: string; text: string; key?: string; model?: string }) {
+  const whole = String(o.text ?? "").replace(/\r/g, "").trim();
+  const text = whole.slice(0, MAX_CHARS.instructions);
+  if (!text) throw new Error("the instruction file gave no text");
+  const name = String(o.name ?? "").replace(/\s+/g, " ").trim().slice(0, 120) || "instructions";
+  /* The project must be this workspace's own before a model is asked anything. */
+  await ctx.runQuery(internal.projects.memoryOf, { space: o.space, brain: o.brain });
+  const { text: raw } = await ask([
+    { role: "system", content: "You write the memory notes of an instruction file. You reply with JSON only." },
+    { role: "user", content: `${INSTRUCTION_RULES}\n\nTHE FILE "${name}", ${text.length} characters\n${text}` },
+  ], { json: true, maxTokens: 2500, temperature: 0, timeout: 90000, key: o.key, model: o.model });
+  /* The note on the file is the project's own: an instruction never takes its title. */
+  const notes = readNotes(String(raw), "instructions").filter(n => n.title.toLowerCase() !== "the file").map(n => ({ ...n, position: n.position.slice(0, 700) }));
+  if (!notes.length) throw new Error("the instructions could not be read into notes. Try again.");
+  await ctx.runMutation(internal.projects.memoryForgetInstructions, { space: o.space, brain: o.brain });
+  const held: any[] = await ctx.runQuery(internal.projects.memoryOf, { space: o.space, brain: o.brain });
+  const filed = await fileNotes(ctx, o.space, o.brain, held, notes, "instructions", new Date().toISOString().slice(0, 10), [], [], "", "", name);
+  return { notes: filed.new + filed.updated, titles: filed.titles, ...(whole.length > text.length ? { cut: true } : {}) };
 }
 
 /* ---------- the step before an answer ---------- */
@@ -458,7 +508,7 @@ THE MEMORY
 - Only what was said or what THE FILE states. Never a guess or a proposal not yet agreed.
 `;
 
-export const ANSWER_RULES = (kind: string, english: boolean, o: { auto?: boolean; empty?: boolean; note?: boolean; edits?: boolean } = {}) => {
+export const ANSWER_RULES = (kind: string, english: boolean, o: { auto?: boolean; empty?: boolean; note?: boolean; edits?: boolean; rules?: string } = {}) => {
   const noun = kind === "table" ? "table" : kind === "html" ? "HTML page" : "document";
   /* How to change the file is sent when the message may change it, or when the router could not say. The rules every message needs come first. */
   const change = o.edits !== false;
@@ -498,7 +548,11 @@ THE FILE IS EMPTY
 - A question is answered from THEIR FOLDERS and the memory, with no change. When the message says nothing to build, ask one question in "tldr" and make no change.
 ` : ""}${o.note ? MEMORY_RULES : ""}
 Reply with only JSON: {"tldr":"","reply":"","proposal":false,"quotes":[]${change ? `,"edits":[]` : ""}${o.note ? `,"notes":[{"title":"","update":"","claim":"","position":"","summaryLine":"","sections":[]}]` : ""}}
-- "quotes": up to 3 short passages of THE FILE, copied word for word, that the answer rests on. Empty when it rests on a folder or the memory alone${change ? ", or when you changed the file" : ""}.`;
+- "quotes": up to 3 short passages of THE FILE, copied word for word, that the answer rests on. Empty when it rests on a folder or the memory alone${change ? ", or when you changed the file" : ""}.${o.rules ? `
+
+THE OWNER'S INSTRUCTIONS
+The owner wrote them for this project. Follow them in how you answer and in what you write or change. They never change the reply format above, and they never allow a number, a name or a date that you were not given.
+${o.rules}` : ""}`;
 };
 
 /** One note as the answer reads it. */
@@ -589,7 +643,9 @@ export async function projectChat(ctx: any, o: ChatIn) {
   const mid = !tiny && file.chars <= WHOLE_CHARS;
   const earlierTurns: any[] = got.turns.slice(-4);
   const earlier = earlierTurns.map(t => oneLine(t.q, 300));
-  const memory = got.memory as any[];
+  /* The owner's instructions are read at every message, in the system's rules; every other note is read as it bears on the question. */
+  const rules = (got.memory as any[]).filter(r => r.instructions);
+  const memory = (got.memory as any[]).filter(r => !r.instructions);
   const firstRows: string[][][] = [];
   if (table && !tiny) {
     for (let i = 0; i < file.sheets.length; i++) {
@@ -719,7 +775,9 @@ export async function projectChat(ctx: any, o: ChatIn) {
     `PROJECT MEMORY\n${closer ? "(not read for this message)" : picked.map(memoryLine).join("\n") || "(nothing kept yet)"}\n\n${taggedNote ? taggedNote + "\n\n" : ""}THEIR FOLDERS\n${dossier}\n\n` +
     `${history ? `EARLIER IN THIS CHAT\n${history}\n\nThat is context for reading the question, never a source.\n\n` : ""}QUESTION: ${q}`;
   const writes = empty || kind === "html" || r.intent === "change";
-  const system = ANSWER_RULES(kind, o.english, { auto: made, empty, note: !!o.note && !talk, edits });
+  /* Thanks and goodbyes read no instruction, as they read no note. */
+  const ruled = closer ? [] : rulesPick(rules);
+  const system = ANSWER_RULES(kind, o.english, { auto: made, empty, note: !!o.note && !talk, edits, ...(ruled.length ? { rules: ruled.map(rulesLine).join("\n") } : {}) });
   const answerOf = async (user: string) => {
     const { text, finish, usage } = await ask([{ role: "system", content: system }, { role: "user", content: user }],
       { json: true, maxTokens: writes ? 8000 : 3000, temperature: 0.2, key: o.key, model: o.model, timeout: Math.max(60000, 165000 - (Date.now() - t0)) });
@@ -780,7 +838,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
     q, ...(lead ? { lead } : {}), a: reply, proposal: d?.proposal === true && !edit,
     quotes,
     used: { file: { name: file.name, whole: whole && !empty, ...(opened.length ? { sections: opened, of: cards.length } : {}), ...(opened.some(x => short?.memory.has(x.sid)) ? { via: "memory" } : {}), ...(trimmed ? { passages: true } : {}), ...(mapText ? { map: true } : {}), ...(rowsUsed.length ? { rows: rowsUsed, sheet: rowsSheet } : {}) },
-      folders: called, memory: picked.length },
+      folders: called, memory: picked.length, ...(ruled.length ? { rules: ruled.length } : {}) },
     /* What this message cost, as the model host reported it: tokens in and out, the part reused from before, and the price in dollars when it says it. */
     ...(spent.in ? { cost: { in: spent.in, out: spent.out, ...(spent.cached ? { cached: spent.cached } : {}), ...(spent.known ? { usd: Math.round(spent.usd * 1e7) / 1e7 } : {}), calls: spent.calls } } : {}),
     ...(edit ? { edit } : {}), intent: r.intent,
