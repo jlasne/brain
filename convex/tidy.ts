@@ -42,7 +42,7 @@ export const REDERIVE_MAX = 8;
 /** The folders this caller may write to, by slug. */
 async function writable(ctx: any, who: Who) {
   const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
-  return new Map<string, any>(head.brains.filter((b: any) => canDrop(b, who) && b.type !== "personal")
+  return new Map<string, any>(head.brains.filter((b: any) => canDrop(b, who) && b.type !== "personal" && b.type !== "project")
     .map((b: any) => [b.slug, b]));
 }
 

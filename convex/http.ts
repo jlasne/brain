@@ -21,7 +21,9 @@ import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, tra
 import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen } from "./words";
 import { routeQuestion } from "./route";
-import { loadSpace, withoutPersonal } from "./space";
+import { loadSpace, withoutPersonal, cardsFor } from "./space";
+import { projectChat, keepTurn, addDocPiece, addRowPiece, finishFile } from "./project";
+import { colNames, downloadText, csvOf, parseCsv } from "./sheet";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
@@ -415,11 +417,13 @@ route("/api/state", async (ctx, _req, b) => {
       ...(c.tag === "contact" && c.open != null ? { open: c.open } : {}) };
   }) };
   const brand = await ctx.runQuery(internal.store.brandOf, { space: who.space });
+  /* The projects: their own list, so no folder list, picker or count ever holds one. */
+  const projects = who.demo ? [] : await ctx.runQuery(internal.projects.projectsOf, { space: who.space });
   /* The model in use, and the default Settings offers to go back to. */
   const models = { chat: who.models.chat || MODEL, chatDefault: MODEL,
     reply: who.models.reply === "en" ? "en" : "same", voice: who.models.voice ?? null,
     ...(who.models.favs?.length ? { favs: who.models.favs, favAt: who.models.favAt ?? null, favPrices: who.models.favPrices ?? [] } : {}) };
-  return { ...s, model: models.chat, models, chunk: CHUNK,
+  return { ...s, projects, model: models.chat, models, chunk: CHUNK,
            space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand };
 });
 
@@ -713,7 +717,8 @@ route("/api/ask", async (ctx, _req, b) => {
   if (b.concept) return await conceptChat(ctx, who, b);
   /* Every brain in this space answers questions, whoever is asking. A personal
      brain answers in its own chat only, and no other chat reads it. */
-  const every = await loadSpace(ctx, who.space, undefined, { personal: true });
+  /* Projects load too: only the personal chat reads their memory, and withoutPersonal drops them for every other chat. */
+  const every = await loadSpace(ctx, who.space, undefined, { personal: true, projects: true });
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
   const mine = only ? every.brains.find((x: any) => x.slug === only && x.type === "personal") : null;
   if (mine) return await personalChat(ctx, who, b, mine, every);
@@ -1527,6 +1532,133 @@ route("/api/personal/contact", async (ctx, _req, b) => {
     return { into, joined: r.joined, rewritten };
   }
   return { error: "that is not something a contact does" };
+});
+
+/* ---------- projects ---------- */
+
+/**
+ * A project: one file or one table, a chat beside it, and a memory of its own.
+ * Only the workspace's owner makes, fills, asks and changes one. A project is
+ * never shared and no other chat reads it; the personal chat reads its memory.
+ * The file is read in the browser and arrives a piece at a time, each piece
+ * cut in sections with a contents line, so a file of any size goes in.
+ */
+route("/api/project/new", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return { slug: await ctx.runMutation(internal.projects.projectCreate, { space: who.space, name: String(b.name ?? "") }) };
+});
+
+route("/api/project/get", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return await ctx.runQuery(internal.projects.projectGet, { space: who.space, brain: String(b.brain ?? "") });
+});
+
+route("/api/project/rename", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return await ctx.runMutation(internal.projects.projectRename, { space: who.space, brain: String(b.brain ?? ""), name: String(b.name ?? "") });
+});
+
+/** A project taken apart a batch at a time, until nothing is left. */
+async function wipeProject(ctx: any, space: string, brain: string, file: boolean) {
+  for (let i = 0; i < 500; i++) {
+    const r = await ctx.runMutation(internal.projects.projectWipe, { space, brain, ...(file ? { file: true } : {}) });
+    if (!r.more) return true;
+  }
+  return false;
+}
+
+route("/api/project/delete", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return (await wipeProject(ctx, who.space, String(b.brain ?? ""), false)) ? { ok: true }
+    : { error: "that project is large: ask again to finish deleting it" };
+});
+
+/** A new file, or a new version of it: the old sections go, the memory and the thread stay. */
+route("/api/project/begin", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const brain = String(b.brain ?? "");
+  const kind = b.kind === "table" ? "table" : "doc";
+  const sheets = kind === "table"
+    ? (Array.isArray(b.sheets) ? b.sheets : []).slice(0, 40).map((s: any) => ({ name: String(s?.name ?? "").slice(0, 60),
+        header: colNames((Array.isArray(s?.header) ? s.header : []).map((x: any) => String(x ?? "")).slice(0, 60)) }))
+    : [{ name: String(b.name ?? "").slice(0, 60), header: [] }];
+  if (!sheets.length) return { error: "the table has no sheet to read" };
+  if (!(await wipeProject(ctx, who.space, brain, true))) return { error: "the old file is large: ask again to clear it" };
+  return await ctx.runMutation(internal.projects.fileBegin, { space: who.space, brain, name: String(b.name ?? "file").slice(0, 200), kind, sheets });
+});
+
+/** One piece of the file: words of a document, or rows of a sheet. A document's piece costs a model call a section. */
+route("/api/project/part", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const brain = String(b.brain ?? ""), ver = Number(b.ver);
+  if (Array.isArray(b.rows)) {
+    const rows = b.rows.slice(0, 5000).map((r: any) => (Array.isArray(r) ? r : []).slice(0, 60).map((c: any) => String(c ?? "").slice(0, 2000)));
+    return await addRowPiece(ctx, { space: who.space, brain, ver, sheet: Math.max(0, Number(b.sheet) || 0), rows });
+  }
+  const text = String(b.text ?? "").slice(0, 400000);
+  if (!text.trim()) return { sections: 0, chars: 0 };
+  await demoCount(ctx, who, "step");
+  return await addDocPiece(ctx, { space: who.space, brain, ver, text, page: Math.max(0, Number(b.page) || 0), key: keyFor(who), model: modelFor(who, b) });
+});
+
+route("/api/project/finish", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return await finishFile(ctx, { space: who.space, brain: String(b.brain ?? ""), ver: Number(b.ver) });
+});
+
+/** A message in a project's chat: read what it needs, answered, kept in the thread. */
+route("/api/project/chat", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const mKey = keyFor(who), mName = modelFor(who, b);
+  /* The owner's other folders: none personal, none a project. Their cards load only if the router wants them. */
+  const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
+  const shared = withoutPersonal(head);
+  return { turn: await projectChat(ctx, { space: who.space, brain: String(b.brain ?? ""), q: String(b.q ?? ""), key: mKey, model: mName,
+    english: who.models?.reply === "en", embeds: !who.byok && !who.demo,
+    shared: { brains: shared.brains, cards: (slugs: string[]) => cardsFor(ctx, slugs, head.ready) } }) };
+});
+
+/** An exchange kept in the project's memory. */
+route("/api/project/keep", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const filed = await keepTurn(ctx, { space: who.space, brain: String(b.brain ?? ""), id: String(b.id ?? ""), key: keyFor(who), model: modelFor(who, b) });
+  return { kept: filed.titles, added: filed.new, updated: filed.updated };
+});
+
+route("/api/project/forget", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return await ctx.runMutation(internal.projects.memoryForget, { space: who.space, brain: String(b.brain ?? ""), slug: String(b.slug ?? "") });
+});
+
+/** Sections of a document, from a position on, for the page to show as it scrolls. */
+route("/api/project/doc", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return { sections: await ctx.runQuery(internal.projects.docPage, { space: who.space, brain: String(b.brain ?? ""), from: Number(b.from) || 0, n: Number(b.n) || 3 }) };
+});
+
+/** Rows of a sheet, from a row on, for the grid. */
+route("/api/project/rows", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return await ctx.runQuery(internal.projects.rowsPage, { space: who.space, brain: String(b.brain ?? ""),
+    sheet: Math.max(0, Number(b.sheet) || 0), from: Math.max(1, Number(b.from) || 1), n: Number(b.n) || 100 });
+});
+
+/** A change the chat proposed: applied, put back, or turned down. */
+route("/api/project/edit", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const fn = b.action === "apply" ? internal.projects.editApply : b.action === "undo" ? internal.projects.editUndo
+    : b.action === "dismiss" ? internal.projects.editDismiss : null;
+  if (!fn) return { error: "apply, undo or dismiss" };
+  return await ctx.runMutation(fn, { space: who.space, brain: String(b.brain ?? ""), id: String(b.id ?? "") });
+});
+
+/** The file as it stands, as text: a document in Markdown, a sheet as CSV. */
+route("/api/project/download", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const f = await ctx.runQuery(internal.projects.fileText, { space: who.space, brain: String(b.brain ?? ""), sheet: Math.max(0, Number(b.sheet) || 0) });
+  if (!f) return { error: "this project has no file yet" };
+  return { name: f.name, kind: f.kind, sheet: f.sheet,
+    text: f.kind === "doc" ? downloadText(f.texts) : csvOf([f.header, ...f.texts.flatMap((t: string) => parseCsv(t))]) + "\n" };
 });
 
 /* ---------- error reports ---------- */

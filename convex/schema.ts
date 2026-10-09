@@ -550,6 +550,75 @@ export default defineSchema({
     at: v.number(),
   }).index("by_lab", ["lab", "n"]),
 
+  /**
+   * A project's one file, or its one table. The text is never kept whole: it
+   * is cut in sections, each with a light row in projectCards for the contents
+   * list, and a heavy row in projectSections for the words. A question reads
+   * the cards and opens a few sections.
+   */
+  projectFiles: defineTable({
+    space: v.string(),
+    /* The project's folder: a brain of type "project". */
+    brain: v.string(),
+    name: v.string(),
+    /* "doc" or "table". */
+    kind: v.string(),
+    /* A table's sheets: name, columns with what they hold, and row count. A document has one with no columns. */
+    sheets: v.array(v.any()),
+    /* Characters read so far, sections stored so far, the id the next section takes. */
+    chars: v.number(),
+    parts: v.number(),
+    next: v.number(),
+    /* "reading" while pieces arrive, "ready" once the last one is in. */
+    status: v.string(),
+    /* Which read this is, so a new file replaces the old one whole. */
+    ver: v.number(),
+    at: v.number(),
+  }).index("by_brain", ["brain"]),
+
+  projectCards: defineTable({
+    brain: v.string(),
+    /* Stable for the life of the section; the order is `ord`, which a new section can fall between. */
+    sid: v.number(),
+    ord: v.number(),
+    /* A table's sheet, as its position. 0 for a document. */
+    sheet: v.number(),
+    title: v.string(),
+    summary: v.string(),
+    chars: v.number(),
+    /* A table's block: how many rows it holds. */
+    rows: v.optional(v.number()),
+  }).index("by_brain_ord", ["brain", "ord"])
+    .index("by_brain_sid", ["brain", "sid"]),
+
+  projectSections: defineTable({
+    brain: v.string(),
+    sid: v.number(),
+    /* A document's words as Markdown, or a table's rows as CSV with no header. */
+    text: v.string(),
+  }).index("by_brain_sid", ["brain", "sid"]),
+
+  /* A project's one running thread: its last 10 exchanges, older ones gone. */
+  projectThreads: defineTable({
+    brain: v.string(),
+    turns: v.array(v.any()),
+    updated: v.number(),
+  }).index("by_brain", ["brain"]),
+
+  /* A change the chat proposed to the file: what it would do, what it replaced
+     once applied, so it can be undone. The last 10 stay. */
+  projectEdits: defineTable({
+    brain: v.string(),
+    at: v.number(),
+    /* "open", "applied", "dismissed" or "undone". */
+    status: v.string(),
+    ops: v.array(v.any()),
+    /* What the app shows: a line each, with the words before and after. */
+    preview: v.array(v.any()),
+    /* What applying replaced, to put back. */
+    before: v.optional(v.array(v.any())),
+  }).index("by_brain_at", ["brain", "at"]),
+
   candidates: defineTable({
     brain: v.string(),
     slug: v.string(),

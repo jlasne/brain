@@ -188,7 +188,7 @@ export const shareState = internalQuery({
     ];
     return {
       targets,
-      brains: all.filter(b => readSpace(b.space) === space && b.type !== "personal")
+      brains: all.filter(b => readSpace(b.space) === space && b.type !== "personal" && b.type !== "project")
         .map(b => ({ slug: b.slug, name: b.name, type: b.type, to: [...(b.shared ?? []), ...(b.viewers ?? [])] })),
       joined: all.filter(b => readSpace(b.space) !== space && inSpace(b, space))
         .map(b => ({ slug: b.slug, name: b.name, type: b.type, from: readSpace(b.space), fromName: name(readSpace(b.space)),
@@ -212,6 +212,7 @@ export const shareBrain = internalMutation({
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
     if (!b || readSpace(b.space) !== home) throw new Error("that brain does not live in this workspace");
     if (b.type === "personal") throw new Error("a personal brain is never shared");
+    if (b.type === "project") throw new Error("a project is never shared");
     const to = String(a.to).trim().toLowerCase();
     const editor = to !== home && ((SPACES as readonly string[]).includes(to) || (await hostedSpaces(ctx)).some(h => h.slug === to));
     const viewer = !editor && to !== home && to === (await demoSlug(ctx));
@@ -493,6 +494,8 @@ export const renameBrain = internalMutation({
   handler: async (ctx, a) => {
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
     if (!b || readSpace(b.space) !== readSpace(a.space)) throw new Error("no such brain");
+    /* A project is renamed from its own screen: its file, thread and changes are kept under its slug. */
+    if (b.type === "project") throw new Error("rename a project from its own screen");
     if (a.account !== null && (b.owner ?? null) !== a.account) {
       throw new Error("that brain belongs to someone else");
     }
@@ -587,7 +590,7 @@ async function ownConcept(ctx: any, space: string, id: string) {
   const cut = id.indexOf("/");
   if (cut < 1) return null;
   const b = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", id.slice(0, cut))).unique();
-  if (!b || !inSpace(b, space) || isViewer(b, space) || b.type === "personal") return null;
+  if (!b || !inSpace(b, space) || isViewer(b, space) || b.type === "personal" || b.type === "project") return null;
   return await ctx.db.query("concepts")
     .withIndex("by_brain_slug", (q: any) => q.eq("brain", id.slice(0, cut)).eq("slug", id.slice(cut + 1))).unique();
 }
@@ -650,6 +653,7 @@ export async function mergeInto(ctx: any, a: { from: string; into: string; space
   if (!bFrom || readSpace(bFrom.space) !== space) throw new Error(`no folder "${a.from}" in this workspace`);
   if (!bInto || readSpace(bInto.space) !== space) throw new Error(`no folder "${a.into}" in this workspace`);
   if (bFrom.type === "personal" || bInto.type === "personal") throw new Error("a personal folder never merges");
+  if (bFrom.type === "project" || bInto.type === "project") throw new Error("a project never merges");
   const write = !a.dry;
   const done = { moved: 0, joined: 0, links: 0, sources: 0, candidates: 0, chats: 0 };
   /* Where each old concept now lives, so links into it can follow. */
@@ -934,10 +938,11 @@ const CARDS_READY = "cards:v1", CARDS_BUILDING = "cards:building";
  * stopped at 8,192, the most a single returned list may hold.
  */
 export const spaceHead = internalQuery({
-  args: { space: v.optional(v.string()) },
+  args: { space: v.optional(v.string()), projects: v.optional(v.boolean()) },
   handler: async (ctx, a) => {
     const space = readSpace(a.space);
-    const brains = (await ctx.db.query("brains").collect()).filter(b => inSpace(b, space));
+    /* A project's folder is read by its own chat and by the personal chat, and by nothing else: callers ask for it. */
+    const brains = (await ctx.db.query("brains").collect()).filter(b => inSpace(b, space) && (a.projects || b.type !== "project"));
     const mine = new Set(brains.map(b => b.slug));
     const ready = !!(await ctx.db.query("config").withIndex("by_key", q => q.eq("key", CARDS_READY)).unique());
     /* A source filed in two workspaces lists only this one's brains here. */
