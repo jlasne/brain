@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
-import { projectChat, keepTurn, addDocPiece, addRowPiece, finishFile } from "./project";
+import { projectChat, keepTurn, addDocPiece, addRowPiece, finishFile, readBlocks } from "./project";
 import { colNames, downloadText, csvOf, parseCsv } from "./sheet";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
@@ -1548,6 +1548,11 @@ route("/api/project/new", async (ctx, _req, b) => {
   return { slug: await ctx.runMutation(internal.projects.projectCreate, { space: who.space, name: String(b.name ?? "") }) };
 });
 
+route("/api/project/list", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return { projects: who.demo ? [] : await ctx.runQuery(internal.projects.projectsOf, { space: who.space }) };
+});
+
 route("/api/project/get", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   return await ctx.runQuery(internal.projects.projectGet, { space: who.space, brain: String(b.brain ?? "") });
@@ -1597,7 +1602,6 @@ route("/api/project/part", async (ctx, _req, b) => {
   }
   const text = String(b.text ?? "").slice(0, 400000);
   if (!text.trim()) return { sections: 0, chars: 0 };
-  await demoCount(ctx, who, "step");
   return await addDocPiece(ctx, { space: who.space, brain, ver, text, page: Math.max(0, Number(b.page) || 0), key: keyFor(who), model: modelFor(who, b) });
 });
 
@@ -1633,7 +1637,8 @@ route("/api/project/forget", async (ctx, _req, b) => {
 /** Sections of a document, from a position on, for the page to show as it scrolls. */
 route("/api/project/doc", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return { sections: await ctx.runQuery(internal.projects.docPage, { space: who.space, brain: String(b.brain ?? ""), from: Number(b.from) || 0, n: Number(b.n) || 3 }) };
+  return { sections: await ctx.runQuery(internal.projects.docPage, { space: who.space, brain: String(b.brain ?? ""),
+    from: Number.isFinite(Number(b.from)) ? Number(b.from) : -1, n: Number(b.n) || 3, ...(b.sid != null ? { sid: Number(b.sid) } : {}) }) };
 });
 
 /** Rows of a sheet, from a row on, for the grid. */
@@ -1655,10 +1660,13 @@ route("/api/project/edit", async (ctx, _req, b) => {
 /** The file as it stands, as text: a document in Markdown, a sheet as CSV. */
 route("/api/project/download", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const f = await ctx.runQuery(internal.projects.fileText, { space: who.space, brain: String(b.brain ?? ""), sheet: Math.max(0, Number(b.sheet) || 0) });
-  if (!f) return { error: "this project has no file yet" };
-  return { name: f.name, kind: f.kind, sheet: f.sheet,
-    text: f.kind === "doc" ? downloadText(f.texts) : csvOf([f.header, ...f.texts.flatMap((t: string) => parseCsv(t))]) + "\n" };
+  const brain = String(b.brain ?? "");
+  const meta = await ctx.runQuery(internal.projects.fileMeta, { space: who.space, brain });
+  if (!meta) return { error: "this project has no file yet" };
+  if (meta.kind === "doc") return { name: meta.name, kind: "doc", sheet: "", text: downloadText(await readBlocks(ctx, { space: who.space, brain })) };
+  const si = Math.max(0, Math.min(meta.sheets.length - 1, Number(b.sheet) || 0));
+  const rows = (await readBlocks(ctx, { space: who.space, brain, sheet: si })).flatMap((t: string) => parseCsv(t));
+  return { name: meta.name, kind: "table", sheet: meta.sheets[si].name, text: csvOf([meta.sheets[si].header, ...rows]) + "\n" };
 });
 
 /* ---------- error reports ---------- */

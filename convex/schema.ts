@@ -569,6 +569,8 @@ export default defineSchema({
     chars: v.number(),
     parts: v.number(),
     next: v.number(),
+    /* A table's size as stored, in bytes: a table may hold 6,000,000. */
+    bytes: v.optional(v.number()),
     /* "reading" while pieces arrive, "ready" once the last one is in. */
     status: v.string(),
     /* Which read this is, so a new file replaces the old one whole. */

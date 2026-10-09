@@ -129,8 +129,12 @@ export const lastPage = (text: string): number => pagesIn(text)?.to ?? 0;
 
 /** A block of rows runs up to this long, written as CSV. */
 export const BLOCK_CHARS = 12000;
-/** A table's rows, in every sheet together, up to this many characters of CSV. About 40,000 rows of 10 columns. */
-export const TABLE_CHARS = 6000000;
+/** A table's rows, in every sheet together, up to this many bytes of CSV. About 40,000 rows of 10 columns. */
+export const TABLE_BYTES = 6000000;
+/** What one read of a file's sections returns at most, in bytes: a query reads 8 MiB at most. */
+export const PAGE_BYTES = 3000000;
+/** The bytes a text takes as stored. */
+export const utf8 = (t: string): number => new TextEncoder().encode(String(t ?? "")).length;
 /** Most columns a sheet keeps. */
 export const MAX_COLS = 60;
 

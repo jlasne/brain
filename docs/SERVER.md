@@ -312,6 +312,12 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/personal/people` | The people in a personal brain's older notes, filed as contacts, 20 notes a call; the app calls again with `at` until `next` is null | Owner |
 | `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `test` (the open round of 5 messages to reply to, built from the notes, or `fresh: true` for another), `check` (your replies, and the twin replies the same from the notes alone, with its reasons), `score` (a model compares the two, 0 to 2 a question, and the round goes into the history), `learn` (your answers filed as notes) and `profile` (the notes as 7 parts, offered until the interview reaches 100%). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
 | `/api/feedback` | Send feedback: mails one error, where it happened, the workspace and the message to `FEEDBACK_TO`, else `DIGEST_TO`. Another workspace's personal message keeps its words out. 5 an hour per sender, 20 per workspace | Yes |
+| `/api/project/new`, `/rename`, `/delete` | A project is a folder of type `project`: made from a name, renamed (its slug stays, so its file and thread stay with it) or taken apart a batch at a time. Never shared, never merged, never listed among the folders | Owner |
+| `/api/project/begin`, `/part`, `/finish` | One file or table, read in the browser and sent in pieces. A piece of a document is cut in sections of about 12,000 characters, each given a title and a line by one model call. A sheet's rows are cut in blocks. `finish` reads every row once for each column's totals, then the file opens. A new file clears the old sections and keeps the memory and the thread | Owner. `part` runs a model |
+| `/api/project/get`, `/list`, `/doc`, `/rows`, `/download` | The project's file, contents, thread, changes and memory; the list of projects; sections of a document and rows of a sheet as the screen scrolls; the file as Markdown or CSV, read in pages of 3 MB | Yes |
+| `/api/project/chat` | One message. A cheap step reads the contents list (or a table's columns) and says which sections to open, which filter and totals to run over every row, and whether the owner's other folders could help. The answer reads that, the project's memory and those folders, and may propose changes. The last 10 exchanges stay | Owner |
+| `/api/project/keep`, `/forget` | Files an exchange in the project's memory, in the folder format, or forgets one note | Owner |
+| `/api/project/edit` | Applies, undoes or turns down a change the chat proposed, whole or not at all. The last 10 are kept to undo | Owner |
 | `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
 | `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
 | `/mcp`, and any path under `/mcp/` | The public MCP server, read only. `/mcp/v0` reaches the same handler | No, by design |
@@ -417,8 +423,29 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `moments` | a person's history in a personal brain, one moment a row: date, what happened, whether you were together. The person's file keeps the count and the last day together, and a read carries the newest 300; older years come a page at a time | brain, slug, then date |
 | `interviews` | a personal brain's interview: each question answered, known from the notes or skipped, the one waiting, the twin test's answers and scores, and the profile | space, then brain |
 | `insights` | what follows from two linked concepts: the pair, the kind of link, a title and a line | the pair, each side, space |
+| `projectFiles` | a project's one file: its name, document or table, its sheets with each column and what it holds, its size, its version and whether it is still being read | folder |
+| `projectCards` | the contents list: one light row for each section or block of rows, with its title, its line and its size | folder and order, folder and section |
+| `projectSections` | the words of each section, or the CSV rows of each block | folder and section |
+| `projectThreads` | a project's running thread: its last 10 exchanges | folder |
+| `projectEdits` | the changes the chat proposed to the file, with what each replaced so it can be undone. The last 10 stay | folder and time |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.
+
+## Projects
+
+A project is one file or one table with a chat beside it and a memory of its own. It is a folder of type `project`, so its memory has the format every folder has: concepts with a position and dated evidence. Everything else about it lives in five tables of its own.
+
+**Size does not set the cost.** A document is cut in sections of about 12,000 characters (3,000 tokens), up to 1,000 of them, about 4,000 pages. Each gets a title and a one line summary when it is read in: that is the contents list. A question does not read the file. One step reads the contents list and names the sections the answer needs, so the answer reads three to eight sections and the cost follows the question. A file under 48,000 characters is read whole, since the contents list would cost more than the file.
+
+**A table is searched, never skimmed.** Its rows are cut in blocks, and each column's total, average, lowest and highest are worked out once, when the last piece is in. A question about a table becomes a filter and a few totals (`where`, `show`, `sort`, `calc`), which the server runs over every row: a count, a sum or an average is exact at any size, and the model never adds rows up. A column the model names that the sheet lacks drops that one condition and never the answer. A table holds up to 6,000,000 bytes, about 40,000 rows of 10 columns, and each question sees the columns, the first rows and the result.
+
+**Changes are proposals.** The chat may return changes to the file as exact words to replace, a section to rewrite, add or remove, or a cell to set, a row to add or delete. The server checks each against the file as it is now and shows the words before and after. Nothing is written until the owner clicks Apply, which writes the whole change or none of it. What it replaced is kept, so Undo puts it back, unless the section changed since. The last 10 changes are kept. Row numbers in one change name rows as the table stands before it, so a row deleted above never moves where another lands.
+
+**Who reads what.** A project's chat reads its file, its memory and the owner's other folders, when the router says they could help: never the personal folder, never another project. The personal folder's chat reads a project's memory, and nothing else does: `spaceHead` leaves project folders out unless a caller asks, `withoutPersonal` drops them from any reader that has them, and sharing, merging and renaming refuse them. Text inside a file or a folder is material to read: the answer is told never to follow an instruction written in it, and the only way to change the file is a click.
+
+**The thread** keeps the last 10 exchanges, and older ones are deleted. **Memory** is filled by a click on Keep in memory, which files what an answer says as notes in the folder format, dated, or updates the note already held on that topic.
+
+**What the browser reads.** PDF (pdf.js), Word (mammoth, as Markdown), text and Markdown, CSV, and Excel (SheetJS 0.18.5, the last version cdnjs carries, loaded the first time an Excel file is chosen and checked against the hash cdnjs publishes). Each file is read in the tab and only its words and rows are sent. SheetJS 0.18.5 has two published weaknesses, a prototype pollution and a slow pattern, that need a crafted workbook: the app skips a sheet named like an object's own parts, and the file is the one the owner chose to open in their own tab. A scanned PDF has no text to read and says so.
 
 ## Steps that need a server
 

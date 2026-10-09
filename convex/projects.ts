@@ -15,7 +15,7 @@
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { readSpace, slug, today } from "./lib";
-import { MAX_SECTIONS, TABLE_CHARS, MAX_OPS, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex } from "./sheet";
+import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8 } from "./sheet";
 import type { Col } from "./sheet";
 
 /** Exchanges the running thread keeps. */
@@ -109,7 +109,7 @@ export const sectionsRead = internalQuery({
     await need(ctx, a.space, a.brain);
     const out: any[] = [];
     let chars = 0;
-    for (const sid of [...new Set<number>(a.sids as number[])].slice(0, 30)) {
+    for (const sid of [...new Set<number>(a.sids as number[])].slice(0, 100)) {
       const card = await ctx.db.query("projectCards").withIndex("by_brain_sid", (q: any) => q.eq("brain", a.brain).eq("sid", sid)).first();
       const body = await ctx.db.query("projectSections").withIndex("by_brain_sid", (q: any) => q.eq("brain", a.brain).eq("sid", sid)).first();
       if (!card || !body) continue;
@@ -121,12 +121,17 @@ export const sectionsRead = internalQuery({
   },
 });
 
-/** The sections of a document from one position on, in reading order, for the page to show. */
+/**
+ * The sections of a document in reading order, for the page to show as it
+ * scrolls: from the start, after a given place, or from a given section on.
+ */
 export const docPage = internalQuery({
-  args: { space: v.string(), brain: v.string(), from: v.number(), n: v.number() },
+  args: { space: v.string(), brain: v.string(), from: v.number(), n: v.number(), sid: v.optional(v.number()) },
   handler: async (ctx, a) => {
     await need(ctx, a.space, a.brain);
-    const cards = (await cardsOf(ctx, a.brain)).filter((c: any) => c.ord >= a.from).slice(0, Math.max(1, Math.min(6, a.n)));
+    const all = await cardsOf(ctx, a.brain);
+    const start = a.sid != null ? all.find((c: any) => c.sid === a.sid) : null;
+    const cards = all.filter((c: any) => start ? c.ord >= start.ord : c.ord > a.from).slice(0, Math.max(1, Math.min(6, a.n)));
     const out: any[] = [];
     for (const c of cards) {
       const body = await ctx.db.query("projectSections").withIndex("by_brain_sid", (q: any) => q.eq("brain", a.brain).eq("sid", c.sid)).first();
@@ -136,18 +141,27 @@ export const docPage = internalQuery({
   },
 });
 
-/** A table sheet's blocks of CSV in order, to run a question over every row. */
-export const blocksRead = internalQuery({
-  args: { space: v.string(), brain: v.string(), sheet: v.number() },
+/**
+ * A page of the words of a file's sections in order, at most about 3 MB, for
+ * what must read every row or every section: a question over a table, the
+ * columns' totals, a download. The caller asks again from `next` until it is
+ * null, so a file of any size is read in pages no query refuses.
+ */
+export const blocksPage = internalQuery({
+  args: { space: v.string(), brain: v.string(), sheet: v.optional(v.number()), from: v.number() },
   handler: async (ctx, a) => {
     await need(ctx, a.space, a.brain);
-    const cards = (await cardsOf(ctx, a.brain)).filter((c: any) => c.sheet === a.sheet);
-    const out: string[] = [];
-    for (const c of cards) {
-      const body = await ctx.db.query("projectSections").withIndex("by_brain_sid", (q: any) => q.eq("brain", a.brain).eq("sid", c.sid)).first();
-      out.push(body?.text ?? "");
+    const cards = (await cardsOf(ctx, a.brain)).filter((c: any) => a.sheet == null || c.sheet === a.sheet);
+    const items: string[] = [];
+    let bytes = 0, i = a.from;
+    for (; i < cards.length; i++) {
+      const body = await ctx.db.query("projectSections").withIndex("by_brain_sid", (q: any) => q.eq("brain", a.brain).eq("sid", cards[i].sid)).first();
+      const text = body?.text ?? "";
+      const size = utf8(text);
+      if (items.length && bytes + size > PAGE_BYTES) break;
+      items.push(text); bytes += size;
     }
-    return out;
+    return { items, next: i < cards.length ? i : null };
   },
 });
 
@@ -309,8 +323,8 @@ export const sectionAdd = internalMutation({
     const f = await fileOf(ctx, a.brain);
     if (!f || f.ver !== a.ver || f.status !== "reading") throw new Error("this file was replaced or finished: start it again");
     if (f.parts + a.items.length > MAX_SECTIONS) throw new Error(`this file is longer than the ${MAX_SECTIONS} sections a project reads. Drop it in two projects.`);
-    const add = a.items.reduce((s, x) => s + x.text.length, 0);
-    if (f.kind === "table" && f.chars + add > TABLE_CHARS) throw new Error("this table is bigger than a project reads: about 40,000 rows of 10 columns");
+    const add = a.items.reduce((s, x) => s + x.text.length, 0), bytes = a.items.reduce((s, x) => s + utf8(x.text), 0);
+    if (f.kind === "table" && (f.bytes ?? 0) + bytes > TABLE_BYTES) throw new Error("this table is bigger than a project reads: about 40,000 rows of 10 columns");
     let sid = f.next, at = f.sheets[a.sheet]?.rows ?? 0;
     for (const x of a.items) {
       /* A block of rows is named by the rows it holds. */
@@ -322,8 +336,9 @@ export const sectionAdd = internalMutation({
       sid++;
     }
     const sheets = f.sheets.map((s: any, i: number) => i === a.sheet ? { ...s, rows: (s.rows ?? 0) + a.items.reduce((n, x) => n + (x.rows ?? 0), 0) } : s);
-    await ctx.db.patch(f._id, { next: sid, parts: f.parts + a.items.length, chars: f.chars + add, sheets });
-    return { sections: f.parts + a.items.length, chars: f.chars + add };
+    const parts = f.parts + a.items.length, chars = f.chars + add;
+    await ctx.db.patch(f._id, { next: sid, parts, chars, ...(f.kind === "table" ? { bytes: (f.bytes ?? 0) + bytes } : {}), sheets });
+    return { sections: parts, chars };
   },
 });
 
@@ -677,23 +692,12 @@ export const editUndo = internalMutation({
   },
 });
 
-/** A file's text whole, in order, to download. A table is rows; a document is its sections. */
-export const fileText = internalQuery({
-  args: { space: v.string(), brain: v.string(), sheet: v.optional(v.number()) },
+/** A file's name, kind and sheets, to name a download. */
+export const fileMeta = internalQuery({
+  args: { space: v.string(), brain: v.string() },
   handler: async (ctx, a) => {
     await need(ctx, a.space, a.brain);
     const f = await fileOf(ctx, a.brain);
-    if (!f) return null;
-    const cards = (await cardsOf(ctx, a.brain)).filter((c: any) => f.kind === "doc" || c.sheet === (a.sheet ?? 0));
-    const texts: string[] = [];
-    let chars = 0;
-    for (const c of cards) {
-      const body = await ctx.db.query("projectSections").withIndex("by_brain_sid", (q: any) => q.eq("brain", a.brain).eq("sid", c.sid)).first();
-      chars += (body?.text ?? "").length;
-      if (chars > 7000000) break;
-      texts.push(body?.text ?? "");
-    }
-    return { name: f.name, kind: f.kind, sheet: f.sheets[a.sheet ?? 0]?.name ?? "", header: f.sheets[a.sheet ?? 0]?.header ?? [], texts };
+    return f ? { name: f.name, kind: f.kind, sheets: f.sheets.map((s: any) => ({ name: s.name, header: s.header ?? [] })) } : null;
   },
 });
-

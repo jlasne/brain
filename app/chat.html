@@ -1858,6 +1858,187 @@
   }
 
   .sheet .ghost.sure{ border-color:var(--bad); color:var(--bad); }
+
+  /* ======================================================================
+     PROJECTS
+
+     One file or one table, a chat beside it, and a memory of its own. The
+     file takes two thirds of the screen and the chat one third. On a phone
+     they are two tabs. Last in the sheet, so it settles what came before it.
+     ====================================================================== */
+  .p-proj{ background:var(--surface); color:var(--ink-2); box-shadow:0 0 0 1px var(--line), 0 1px 2px rgba(0,0,0,.05); }
+  .pj-row .cnt{ margin-left:auto; font:400 10.5px/1 var(--mono); color:var(--ink-4); white-space:nowrap; }
+  .pj-row .cnt:empty{ display:none; }
+  .pj-row.run .cnt{ color:var(--warn); }
+
+  .project-view{ flex:1; min-height:0; display:flex; flex-direction:column; }
+  .project-view[hidden]{ display:none; }
+  main[data-view="project"] .composer-wrap, main[data-view="project"] .foot-note, main[data-view="project"] .demo-bar{ display:none; }
+  .pj-loading{ margin:auto; font:400 14px/1.5 var(--sans); color:var(--ink-3); }
+  .pj{ flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,2fr) minmax(320px,1fr); }
+  .pj-doc, .pj-chat{ display:flex; flex-direction:column; min-width:0; min-height:0; }
+  .pj-doc{ background:var(--surface-2); border-right:1px solid var(--line); }
+  .pj-chat{ background:var(--bg); }
+  .pj-seg{ display:none; }
+
+  .pj-h{ flex:none; display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; padding:10px 20px; min-height:57px; border-bottom:1px solid var(--line); background:var(--bg); }
+  .pj-t{ display:flex; align-items:center; gap:10px; min-width:0; flex:1 1 200px; }
+  .pj-t h2{ min-width:0; font:600 16px/1.25 var(--sans); color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:text; }
+  .pj-t h2:hover{ color:var(--accent); }
+  .pj-chip{ flex:0 1 auto; min-width:0; padding:3px 8px; border:1px solid var(--line-2); border-radius:999px; font:500 10.5px/1.2 var(--mono);
+    letter-spacing:.04em; text-transform:uppercase; color:var(--ink-4); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pj-acts{ display:flex; flex-wrap:wrap; gap:7px; }
+  .pj-b{ min-height:34px; padding:0 11px; border:1px solid var(--line-2); border-radius:8px; background:var(--surface);
+    font:500 12.5px/1 var(--sans); color:var(--ink-2); white-space:nowrap; }
+  .pj-b:hover{ border-color:var(--accent-fill); color:var(--accent); }
+  .pj-b.bad:hover{ border-color:var(--bad); color:var(--bad); }
+  .pj-body{ flex:1; min-height:0; overflow-y:auto; }
+  .pj-body.tbl{ display:flex; flex-direction:column; overflow:hidden; }
+
+  /* A document: its sections read on, one page of paper. */
+  .pj-paper{ padding:24px 28px 12px; display:flex; justify-content:center; }
+  .pj-page{ width:min(740px,100%); background:var(--surface); border:1px solid var(--line-2); border-radius:12px; padding:30px 40px 34px; box-shadow:var(--shadow); min-width:0; }
+  .pj-sec{ position:relative; }
+  .pj-sec + .pj-sec{ margin-top:1.2em; }
+  .pj-sec.used::before{ content:""; position:absolute; left:-18px; top:2px; bottom:2px; width:3px; border-radius:2px; background:var(--accent-fill); }
+  .pj-more{ padding:6px 0 40px; text-align:center; font:400 12px/1 var(--mono); color:var(--ink-4); }
+  .pj-md{ font:400 15px/1.7 var(--sans); color:var(--ink-2); overflow-wrap:anywhere; }
+  .pj-md > *:first-child{ margin-top:0; }
+  .pj-md > *:last-child{ margin-bottom:0; }
+  .pj-md p{ margin:.75em 0; }
+  .pj-md h2{ margin:1.1em 0 .4em; font:400 27px/1.2 var(--serif); color:var(--ink); }
+  .pj-md h3{ margin:1.2em 0 .3em; font:600 16.5px/1.3 var(--sans); color:var(--ink); }
+  .pj-md h4{ margin:1.1em 0 .25em; font:600 14.5px/1.3 var(--sans); color:var(--ink); }
+  .pj-md ul, .pj-md ol{ margin:.6em 0; padding-left:22px; }
+  .pj-md li{ margin:.2em 0; }
+  .pj-md strong{ color:var(--ink); font-weight:600; }
+  .pj-md code{ font:400 .9em var(--mono); padding:1px 5px; border-radius:5px; background:var(--surface-2); }
+  .pj-tw{ max-width:100%; overflow-x:auto; margin:.9em 0; }
+  .pj-md table{ width:100%; border-collapse:collapse; font:400 14px/1.4 var(--sans); }
+  .pj-md th{ text-align:left; font:600 11px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-4); padding:8px 10px; border-bottom:1px solid var(--line-2); white-space:nowrap; }
+  .pj-md td{ padding:9px 10px; border-bottom:1px solid var(--line); color:var(--ink-2); }
+  .pj-pg{ display:flex; align-items:center; gap:10px; margin:1.3em 0 .5em; font:500 10.5px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-4); }
+  .pj-pg::after{ content:""; flex:1; height:1px; background:var(--line); }
+  mark.pj-mark{ background:var(--accent-soft); color:inherit; box-shadow:0 0 0 2px var(--accent-soft); border-bottom:1.5px solid var(--accent-fill); border-radius:2px; }
+
+  /* A table: sheets as tabs, a grid with its row numbers, the totals below. */
+  .pj-sheets{ flex:none; display:flex; gap:4px; padding:10px 20px 0; background:var(--bg); border-bottom:1px solid var(--line); overflow-x:auto; }
+  .pj-sheets button{ flex:none; padding:8px 14px; margin-bottom:-1px; border:1px solid var(--line-2); border-radius:8px 8px 0 0; background:var(--surface-2);
+    font:500 12.5px/1 var(--sans); color:var(--ink-3); }
+  .pj-sheets button.on{ background:var(--surface); color:var(--ink); border-bottom-color:var(--surface); }
+  .pj-gridwrap{ flex:1; min-height:0; overflow:auto; background:var(--surface); }
+  .pj-grid{ width:100%; border-collapse:collapse; font:400 13.5px/1.4 var(--sans); }
+  .pj-grid th{ position:sticky; top:0; z-index:1; background:var(--surface-2); text-align:left; font:600 11px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase;
+    color:var(--ink-4); padding:12px 16px; border-bottom:1px solid var(--line-2); white-space:nowrap; }
+  .pj-grid td{ padding:11px 16px; border-bottom:1px solid var(--line); color:var(--ink-2); white-space:nowrap; font-variant-numeric:tabular-nums; max-width:340px; overflow:hidden; text-overflow:ellipsis; }
+  .pj-grid .n{ text-align:right; }
+  .pj-grid .r{ position:sticky; left:0; width:44px; text-align:right; color:var(--ink-4); font:400 11.5px/1 var(--mono); border-right:1px solid var(--line); background:var(--surface-2); }
+  .pj-grid tr.used td{ background:var(--accent-soft); color:var(--ink); }
+  .pj-grid tr.used td.r{ color:var(--accent); font-weight:600; }
+  .pj-foot{ flex:none; padding:10px 20px; border-top:1px solid var(--line); background:var(--bg); font:400 12px/1.5 var(--mono); color:var(--ink-3); }
+  .pj-foot summary{ cursor:pointer; list-style:none; }
+  .pj-foot summary::-webkit-details-marker{ display:none; }
+  .pj-foot summary b{ color:var(--ink); font-weight:600; }
+  .pj-foot[open] summary{ margin-bottom:6px; }
+  .pj-foot .ln{ display:block; padding:2px 0; }
+  .pj-foot .ln b{ color:var(--ink); font-weight:600; }
+
+  /* No file yet, or one not finished: a place to drop it. */
+  .pj-drop{ margin:28px; padding:44px 24px; border:1.5px dashed var(--line-2); border-radius:14px; background:var(--surface); text-align:center; }
+  .pj-drop.over{ border-color:var(--accent-fill); background:var(--accent-soft); }
+  .pj-drop h3{ font:600 17px/1.3 var(--sans); color:var(--ink); }
+  .pj-drop p{ margin:8px auto 16px; max-width:46ch; font:400 14px/1.55 var(--sans); color:var(--ink-3); }
+
+  /* The chat beside it. */
+  .pj-tabs{ flex:none; display:flex; align-items:center; gap:4px; padding:10px 64px 10px 16px; min-height:57px; border-bottom:1px solid var(--line); }
+  body.has-still .pj-tabs{ padding-right:106px; }
+  .pj-tab{ display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:0 12px; border-radius:8px; font:500 13px/1 var(--sans); color:var(--ink-3); }
+  .pj-tab:hover{ color:var(--ink); }
+  .pj-tab.on{ background:var(--surface-3); color:var(--ink); }
+  .pj-tab i{ font-style:normal; padding:2px 6px; border-radius:99px; background:var(--accent-solid); color:var(--accent-on); font:600 10.5px/1.2 var(--sans); }
+  .pj-thread{ flex:1; min-height:0; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:14px; }
+  .pj-turn{ display:flex; flex-direction:column; gap:10px; }
+  .pj-q{ align-self:flex-end; max-width:90%; padding:10px 13px; border:1px solid var(--accent-line); border-radius:14px 14px 4px 14px; background:var(--accent-soft);
+    font:400 14px/1.5 var(--sans); color:var(--ink); white-space:pre-wrap; overflow-wrap:anywhere; }
+  .pj-a{ padding:13px 14px 12px; border:1px solid var(--line-2); border-radius:14px; background:var(--surface); min-width:0; }
+  .pj-a.prop{ border-color:var(--accent-line); }
+  .pj-k{ margin-bottom:8px; font:500 10.5px/1 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--accent); }
+  .pj-a .pj-md{ font-size:14px; line-height:1.58; color:var(--ink); }
+  .pj-a .pj-md p{ margin:.5em 0; }
+  .pj-a .pj-md li{ margin:.35em 0; }
+  .pj-used{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .pj-used > *{ max-width:100%; padding:4px 8px; border:1px solid var(--line-2); border-radius:7px; background:var(--surface-2);
+    font:400 11.5px/1.25 var(--mono); color:var(--ink-3); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pj-used button:hover{ border-color:var(--accent-fill); color:var(--accent); }
+  .pj-tact{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .pj-tact .go, .pj-tact .ghost{ min-height:34px; padding:0 13px; font-size:13px; }
+  .pj-tact .kept{ display:inline-flex; align-items:center; min-height:34px; font:500 12.5px/1 var(--sans); color:var(--good); }
+  .pj-hint{ font:400 14px/1.55 var(--sans); color:var(--ink-3); }
+  .pj-try{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin-top:14px; }
+  .pj-try button{ text-align:left; padding:8px 12px; border:1px solid var(--accent-line); border-radius:12px 12px 12px 4px; background:var(--surface); font:400 13.5px/1.4 var(--sans); color:var(--ink); }
+  .pj-try button:hover{ border-color:var(--accent-fill); }
+  .pj-err{ display:grid; gap:6px; font:400 13.5px/1.5 var(--sans); color:var(--ink-2); }
+  .pj-err b{ color:var(--bad); font-weight:600; }
+  .pj-comp{ flex:none; display:flex; align-items:flex-end; gap:8px; margin:10px 12px 12px; padding:8px 8px 8px 14px; border:1px solid var(--line-2); border-radius:16px; background:var(--surface); box-shadow:var(--shadow); }
+  .pj-comp:focus-within{ border-color:var(--accent-fill); }
+  .pj-comp textarea{ flex:1; min-width:0; max-height:170px; padding:6px 0; resize:none; outline:none; font:400 14px/1.45 var(--sans); color:var(--ink); }
+  .pj-comp textarea::placeholder{ color:var(--ink-4); }
+  .pj-send{ flex:none; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; background:var(--accent-solid); color:var(--accent-on); }
+  .pj-send:disabled{ opacity:.4; cursor:default; }
+  .pj-send svg{ width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+  /* A change the chat proposes: the words before and after, and a click. */
+  .pj-edit{ margin-top:12px; border:1px solid var(--accent-line); border-radius:12px; background:var(--accent-soft); overflow:hidden; }
+  .pj-edit.dismissed, .pj-edit.undone{ opacity:.65; background:var(--surface-2); border-color:var(--line-2); }
+  .pj-ek{ padding:9px 12px 0; font:500 10.5px/1 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--accent); }
+  .pj-edit.applied .pj-ek{ color:var(--good); }
+  .pj-ed{ padding:9px 12px; border-top:1px solid var(--line); font:400 13px/1.5 var(--sans); color:var(--ink-2); }
+  .pj-ed:first-of-type{ border-top:0; }
+  .pj-ed b{ display:block; margin-bottom:3px; font:600 12.5px/1.35 var(--sans); color:var(--ink); }
+  .pj-ed del, .pj-ed ins{ display:block; padding:3px 7px; margin-top:3px; border-radius:6px; text-decoration:none; overflow-wrap:anywhere; white-space:pre-wrap; }
+  .pj-ed del{ background:rgba(179,55,42,.10); color:var(--bad); text-decoration:line-through; text-decoration-color:rgba(179,55,42,.45); }
+  .pj-ed ins{ background:rgba(63,125,92,.12); color:var(--good); }
+  .pj-edit .pj-tact{ margin:0; padding:10px 12px 12px; border-top:1px solid var(--line); }
+  .pj-edit .pj-msg{ padding:0 12px 10px; font:400 12.5px/1.45 var(--sans); color:var(--bad); }
+
+  /* What the project remembers. */
+  .pj-mem{ padding:12px 14px; border:1px solid var(--line-2); border-radius:12px; background:var(--surface); }
+  .pj-mem b{ display:block; font:600 14px/1.3 var(--sans); color:var(--ink); }
+  .pj-mem p{ margin-top:4px; font:400 13.5px/1.55 var(--sans); color:var(--ink-2); }
+  .pj-mem small{ display:block; margin-top:6px; font:400 11px/1 var(--mono); color:var(--ink-4); }
+  .pj-mem .pj-b{ margin-top:8px; min-height:30px; font-size:12px; }
+
+  /* A file being read: where it stands. */
+  .sheet .pj-step{ margin-top:12px; font:400 13.5px/1.55 var(--sans); color:var(--ink-3); min-height:1.6em; }
+  .sheet .pj-pick{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .sheet .pj-pick .pj-file{ min-width:0; font:400 13px/1.4 var(--sans); color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  @media (max-width:860px){
+    .pj{ display:flex; flex-direction:column; }
+    .pj-seg{ flex:none; display:flex; gap:6px; padding:8px 12px; border-bottom:1px solid var(--line); background:var(--bg); }
+    .pj-seg button{ flex:1; min-height:44px; border:1px solid var(--line-2); border-radius:9px; background:var(--surface); font:500 14px/1 var(--sans); color:var(--ink-3); }
+    .pj-seg button.on{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
+    .pj-doc, .pj-chat{ flex:1; border-right:0; }
+    .pj[data-seg="chat"] .pj-doc{ display:none; }
+    .pj[data-seg="doc"] .pj-chat{ display:none; }
+    .pj-h{ padding:10px 14px; }
+    .pj-b{ min-height:40px; }
+    .pj-tabs{ padding-right:16px; min-height:52px; }
+    .pj-tab{ min-height:40px; }
+    .pj-paper{ padding:12px 12px 8px; }
+    .pj-page{ padding:20px 18px 24px; }
+    .pj-md h2{ font-size:24px; }
+    .pj-sheets{ padding:8px 12px 0; }
+    .pj-grid th, .pj-grid td{ padding:10px 12px; }
+    .pj-foot{ padding:10px 14px; }
+    .pj-drop{ margin:14px; padding:30px 16px; }
+    .pj-comp textarea{ font-size:16px; }
+    .pj-send{ width:40px; height:40px; }
+    .pj-tact .go, .pj-tact .ghost{ min-height:44px; }
+    .pj-used > *{ padding:7px 10px; }
+  }
+  .pj-comp[hidden]{ display:none; }
+  .pj-msg{ font:400 12.5px/1.45 var(--sans); color:var(--bad); }
 </style>
 
 
@@ -1886,6 +2067,13 @@
           <button class="fold-t" id="chatsFold" aria-expanded="true" aria-controls="chatsBox"><span class="p-ic p-chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg></span>Chats <b id="ccount"></b><span class="chev"></span></button>
         </div>
         <div class="panel-b" id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="chats"></div></div>
+      </section>
+      <section class="panel" id="projectsPanel">
+        <div class="panel-h" id="projectsH" title="One file or one table, with a chat beside it and a memory of its own.">
+          <button class="fold-t" id="projectsFold" aria-expanded="true" aria-controls="projectsBox"><span class="p-ic p-proj"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg></span>Projects <b id="pcount"></b><span class="chev"></span></button>
+          <button class="side-plus" id="newProject" type="button" title="New project" aria-label="New project"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+        </div>
+        <div class="panel-b" id="projectsBox"><div id="projects"></div></div>
       </section>
       <section class="panel" id="brainsPanel">
         <div class="panel-h" id="brainsH">
@@ -1934,6 +2122,7 @@
       <div><h2>Drop</h2><p>A link, a PDF, a Word file, a video or a transcript. It is read once, filed under the right folders, and each clash waits for your call.</p></div>
       <button class="mini" id="dropClose" type="button">Back to the chat</button></div></div>
     <section class="folder-view" id="folderView" hidden></section>
+    <section class="project-view" id="projectView" hidden></section>
     <div class="thread" id="thread"></div>
     <div class="thread" id="dropThread" hidden></div>
 
@@ -2005,7 +2194,8 @@ const TOKEN_KEY = "octopus.token.v1";
    copy of it. */
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
   "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle",
-  "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview", "/api/personal/people", "/api/personal/open"]);
+  "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview", "/api/personal/people", "/api/personal/open",
+  "/api/project/part", "/api/project/chat", "/api/project/keep"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -2020,6 +2210,8 @@ const S = {
   picks: [],
   /* The folder open in the main area, or null for the chat. */
   folder: null,
+  /* The projects, the slug of the one open in the main space, and what it holds on screen. */
+  projects: [], project: null, pj: null,
   /* The last few turns of the current thread. It travels with each question so
      a follow-up means something, and it is never written down: closing the tab
      ends it. */
@@ -2039,6 +2231,9 @@ const S = {
      the door decided it, and the app only reports it. */
   space: document.documentElement.dataset.space || "", spaceName: "Tasu",
 };
+
+/* One screen at a time: opening a folder, or going back to the chat, leaves the open project. */
+{ let folder = S.folder; Object.defineProperty(S, "folder", { enumerable: true, get: () => folder, set(v){ folder = v; S.project = null; } }); }
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
    falls back to normal. */
@@ -2288,6 +2483,7 @@ async function refresh(){
   const d = await api("/api/state");
   S.brains = d.brains || []; S.concepts = d.concepts || []; S.sources = d.sources || [];
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
+  S.projects = d.projects || [];
   /* The model in use, and its default. */
   S.models = d.models || { chat: S.model, chatDefault: S.model };
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
@@ -2325,7 +2521,7 @@ async function loadChats(){
 const conceptsOf = b => S.concepts.filter(c => c.brain === b).sort((x,y)=>(x.n||0)-(y.n||0));
 const sourcesOf  = b => S.sources.filter(s => (s.brains||[]).includes(b));
 
-function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); renderView(); }
+function render(){ renderSide(); renderProjects(); renderScope(); renderComposer(); renderZero(); renderView(); }
 
 /**
  * One screen at a time in the main area: the chat, a folder open, or Drop.
@@ -2333,12 +2529,14 @@ function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); 
  */
 function renderView(){
   if (S.folder && !S.brains.some(b => b.slug === S.folder)) S.folder = null;
-  const drop = S.mode === "drop", folder = !drop && !!S.folder;
+  if (S.project && !S.projects.some(p => p.slug === S.project)){ S.project = null; S.pj = null; }
+  const drop = S.mode === "drop", folder = !drop && !!S.folder, project = !drop && !folder && !!S.project;
   $("dropHead").hidden = !drop; $("dropThread").hidden = !drop;
   $("folderView").hidden = !folder;
-  $("thread").hidden = drop || folder;
+  $("projectView").hidden = !project;
+  $("thread").hidden = drop || folder || project;
   $("dropBtn").classList.toggle("on", drop);
-  document.querySelector("main").dataset.view = drop ? "drop" : folder ? "folder" : "chat";
+  document.querySelector("main").dataset.view = drop ? "drop" : folder ? "folder" : project ? "project" : "chat";
   markSeen();
 }
 /** Drop, on the folders ticked. A personal folder takes no drop. */
@@ -2578,13 +2776,13 @@ function folds(){
   return folds.v;
 }
 function paintFolds(){
-  for (const k of ["chats","brains"]){
+  for (const k of ["chats","projects","brains"]){
     const shut = !!folds()[k];
     $(k + "Fold").setAttribute("aria-expanded", String(!shut));
     $(k + "Box").hidden = shut;
   }
 }
-for (const k of ["chats","brains"]) $(k + "Fold").onclick = () => {
+for (const k of ["chats","projects","brains"]) $(k + "Fold").onclick = () => {
   folds()[k] = !$(k + "Box").hidden;
   try { localStorage.setItem("octopus.fold", JSON.stringify(folds())); } catch {}
   paintFolds();
@@ -4194,6 +4392,7 @@ $("burger").onclick = () => $("side").classList.toggle("open");
 $("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
+$("newProject").onclick = () => openProjectSheet();
 
 {
   const wrap = document.querySelector(".composer-wrap");
@@ -6741,18 +6940,22 @@ async function pdfText(file, say){
   return pages.filter(Boolean).join("\n\n");
 }
 
-/** A Word file. mammoth carries no types, so it goes in as a plain script. */
+/** The Word reader, loaded the first time a Word file is chosen. mammoth carries no types, so it goes in as a plain script. */
+async function loadMammoth(){
+  if (window.mammoth) return;
+  await new Promise((ok, no) => {
+    const t = document.createElement("script");
+    /* The file cdnjs published, byte for byte, or nothing runs. */
+    t.integrity = MAMMOTH_SRI; t.crossOrigin = "anonymous";
+    t.src = MAMMOTH; t.onload = ok;
+    t.onerror = () => no(new Error("the Word reader did not load. Check the connection."));
+    document.head.append(t);
+  });
+}
+
+/** A Word file. */
 async function docxText(file){
-  if (!window.mammoth){
-    await new Promise((ok, no) => {
-      const t = document.createElement("script");
-      /* The file cdnjs published, byte for byte, or nothing runs. */
-      t.integrity = MAMMOTH_SRI; t.crossOrigin = "anonymous";
-      t.src = MAMMOTH; t.onload = ok;
-      t.onerror = () => no(new Error("the Word reader did not load. Check the connection."));
-      document.head.append(t);
-    });
-  }
+  await loadMammoth();
   const r = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
   return String(r?.value ?? "").trim();
 }
@@ -6808,6 +7011,893 @@ async function takeDocument(file){
   dbottom();
 }
 
+
+/* ============ projects ============
+   A project is one file or one table, a chat beside it, and a memory of its
+   own. The file is read in this tab and goes to the server a piece at a time,
+   cut in sections. A question reads only the sections it needs, so a file of
+   any size answers at the cost of the question. The chat can propose changes
+   to the file; only a click applies them. */
+
+const PJ_FILES = ".pdf,.txt,.md,.markdown,.text,.docx,.csv,.tsv,.xlsx,.xls";
+const PJ_PIECE = 120000;            /* characters of a document sent at a time */
+const PJ_ROWS = 4000;               /* rows of a sheet sent at a time */
+const XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+const XLSX_SRI = "sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==";
+const PJ_ICON = {
+  doc: `<svg class="b-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>`,
+  table: `<svg class="b-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="1"/><path d="M4 10h16M10 5v14"/></svg>`,
+};
+
+/* ---- reading a file in this tab ---- */
+
+/** Text with Markdown's marks, as a page of HTML: headings, lists, tables, bold, italic, a PDF's page marks. */
+function mdView(text){
+  const inline = s => esc(s).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[\s(])\*([^*\s][^*]*?)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>").replace(/`([^`]+)`/g, "<code>$1</code>");
+  const out = []; let para = [], list = null, table = [];
+  /* A PDF or a plain text file breaks its lines where the page ended: a long line with no stop is read on into the next. */
+  const flushP = () => {
+    if (!para.length) return;
+    const soft = l => l.length >= 50 && !/[.!?:;]["')\]]?$/.test(l);
+    out.push("<p>" + para.map((l, i) => (i ? (soft(para[i - 1]) ? " " : "<br>") : "") + inline(l)).join("") + "</p>");
+    para = [];
+  };
+  const flushL = () => { if (list){ out.push(`<${list.t}>` + list.items.map(i => `<li>${inline(i)}</li>`).join("") + `</${list.t}>`); list = null; } };
+  const cells = r => r.replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+  const flushT = () => {
+    if (!table.length) return;
+    const sep = table.findIndex(r => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(r));
+    const head = sep > 0 ? table.slice(0, sep) : [], body = table.filter((r, i) => i !== sep && !head.includes(r));
+    out.push("<div class=\"pj-tw\"><table>" + (head.length ? "<thead>" + head.map(r => "<tr>" + cells(r).map(c => `<th>${inline(c)}</th>`).join("") + "</tr>").join("") + "</thead>" : "") +
+      "<tbody>" + body.map(r => "<tr>" + cells(r).map(c => `<td>${inline(c)}</td>`).join("") + "</tr>").join("") + "</tbody></table></div>");
+    table = [];
+  };
+  const flush = () => { flushP(); flushL(); flushT(); };
+  for (const raw of String(text ?? "").replace(/\r/g, "").split("\n")){
+    const line = raw.trimEnd(), t = line.trim();
+    const pg = /^\[\[p\. (\d+)\]\]$/.exec(t);
+    if (pg){ flush(); out.push(`<div class="pj-pg">p. ${pg[1]}</div>`); continue; }
+    if (!t){ flush(); continue; }
+    const h = /^(#{1,3})\s+(.+)$/.exec(t);
+    if (h){ flush(); out.push(`<h${h[1].length + 1}>${inline(h[2])}</h${h[1].length + 1}>`); continue; }
+    const ul = /^[-*•]\s+(.+)$/.exec(t), ol = /^(\d+)[.)]\s+(.+)$/.exec(t);
+    if (ul || ol){ flushP(); flushT(); const kind = ul ? "ul" : "ol"; if (!list || list.t !== kind){ flushL(); list = { t: kind, items: [] }; } list.items.push(ul ? ul[1] : ol[2]); continue; }
+    if (/^\|.*\|$/.test(t)){ flushP(); flushL(); table.push(t); continue; }
+    flushL(); flushT(); para.push(t);
+  }
+  flush();
+  return out.join("");
+}
+
+/** Word's HTML as Markdown: headings, paragraphs, lists, tables, bold and italic. */
+function htmlToMd(html){
+  const d = new DOMParser().parseFromString(html, "text/html"), out = [];
+  const text = n => (n.textContent || "").replace(/\s+/g, " ").trim();
+  const inl = n => {
+    let s = "";
+    for (const c of n.childNodes){
+      if (c.nodeType === 3){ s += c.nodeValue.replace(/\s+/g, " "); continue; }
+      if (c.nodeType !== 1) continue;
+      const t = c.tagName.toLowerCase(), inner = inl(c), core = inner.trim();
+      s += (t === "strong" || t === "b") && core ? `**${core}**` : (t === "em" || t === "i") && core ? `*${core}*` : t === "br" ? "\n" : inner;
+    }
+    return s;
+  };
+  const block = n => {
+    if (n.nodeType !== 1) return;
+    const t = n.tagName.toLowerCase();
+    if (/^h[1-6]$/.test(t)) out.push("#".repeat(Math.min(3, Number(t[1]))) + " " + text(n));
+    else if (t === "p"){ const s = inl(n).trim(); if (s) out.push(s); }
+    else if (t === "ul" || t === "ol") out.push([...n.children].filter(li => li.tagName === "LI").map((li, i) => (t === "ol" ? `${i + 1}. ` : "- ") + inl(li).trim().replace(/\s*\n+\s*/g, " ")).join("\n"));
+    else if (t === "table"){
+      const rows = [...n.querySelectorAll("tr")].map(tr => [...tr.children].map(td => text(td).replace(/\|/g, "/")));
+      if (rows.length){
+        const w = rows.reduce((m, r) => Math.max(m, r.length), 0);
+        const pad = r => `| ${Array.from({ length: w }, (_, i) => r[i] ?? "").join(" | ")} |`;
+        out.push([pad(rows[0]), `| ${Array(w).fill("---").join(" | ")} |`, ...rows.slice(1).map(pad)].join("\n"));
+      }
+    } else for (const c of n.children) block(c);
+  };
+  for (const c of d.body.children) block(c);
+  return out.join("\n\n").trim();
+}
+
+/** A Word file as Markdown. */
+async function docxMarkdown(file){
+  await loadMammoth();
+  const r = await window.mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
+  return htmlToMd(String(r?.value ?? ""));
+}
+
+/** A PDF as text, each page opening with its mark so an answer can name its page. */
+async function pdfPages(file, say){
+  const pdfjs = await import(PDFJS + "pdf.min.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.mjs";
+  const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const pages = [];
+  for (let n = 1; n <= doc.numPages; n++){
+    if (n === 1 || n % 5 === 0 || n === doc.numPages) say(`Reading page ${n} of ${doc.numPages}`);
+    const c = await (await doc.getPage(n)).getTextContent();
+    const t = c.items.map(i => (i.str || "") + (i.hasEOL ? "\n" : "")).join("").trim();
+    if (t) pages.push(`[[p. ${n}]]\n${t}`);
+  }
+  return pages.join("\n\n");
+}
+
+/** Comma, semicolon or tab separated text as rows. A quoted cell may hold the separator, quotes and line breaks. */
+function parseDelimited(text, sep){
+  const s = String(text ?? "").replace(/^﻿/, ""), out = [];
+  let row = [], cell = "", q = false;
+  for (let i = 0; i < s.length; i++){
+    const ch = s[i];
+    if (q){ if (ch === '"'){ if (s[i + 1] === '"'){ cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === sep){ row.push(cell); cell = ""; }
+    else if (ch === "\n" || ch === "\r"){ if (ch === "\r" && s[i + 1] === "\n") i++; row.push(cell); cell = ""; out.push(row); row = []; }
+    else cell += ch;
+  }
+  if (cell !== "" || row.length){ row.push(cell); out.push(row); }
+  return out;
+}
+
+/** The Excel reader, loaded the first time an Excel file is chosen and checked against the file cdnjs published. */
+async function loadXlsx(){
+  if (window.XLSX) return;
+  await new Promise((ok, no) => {
+    const t = document.createElement("script");
+    t.integrity = XLSX_SRI; t.crossOrigin = "anonymous"; t.src = XLSX_URL; t.onload = ok;
+    t.onerror = () => no(new Error("the Excel reader did not load. Check the connection."));
+    document.head.append(t);
+  });
+}
+
+/** A workbook's sheets as rows of text, as Excel shows them. */
+async function workbookSheets(file){
+  await loadXlsx();
+  const wb = window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+  const sheets = [];
+  for (const name of wb.SheetNames.slice(0, 40)){
+    /* The one published weakness of this reader needs a sheet named like an object's own parts. */
+    if (/^(__proto__|constructor|prototype)$/i.test(name)) continue;
+    const rows = window.XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: "", blankrows: false });
+    sheets.push({ name, rows: rows.map(r => r.map(c => String(c ?? ""))) });
+  }
+  return sheets;
+}
+
+/** Sheets of rows as a table: the first row is the header, empty rows and columns at the edge are cut. */
+function tableOf(name, sheets){
+  const out = [];
+  for (const s of sheets){
+    const rows = s.rows.filter(r => r.some(c => String(c).trim()));
+    if (!rows.length) continue;
+    /* The widest row, found one by one: a spread of 300,000 rows into one call overflows the stack. */
+    let widest = 0;
+    for (const r of rows){ let n = r.length; while (n && !String(r[n - 1]).trim()) n--; if (n > widest) widest = n; }
+    const width = Math.min(60, widest);
+    const fit = r => Array.from({ length: width }, (_, i) => String(r[i] ?? ""));
+    out.push({ name: String(s.name).slice(0, 60), header: fit(rows[0]), rows: rows.slice(1).map(fit) });
+  }
+  if (!out.length) throw new Error(`${name} holds no rows to read.`);
+  return { kind: "table", name, sheets: out };
+}
+
+/** A chosen file as a document or a table, read here. The file itself is never uploaded: its text and rows are. */
+async function readProjectFile(file, say){
+  const name = file.name || "file", ext = name.toLowerCase().split(".").pop();
+  if (file.size > 30 * 1024 * 1024) throw new Error(`${name} is ${Math.round(file.size / 1048576)}MB. 30MB is the ceiling.`);
+  say(`Reading ${name}`);
+  if (ext === "pdf") return { kind: "doc", name, text: await pdfPages(file, say) };
+  if (ext === "docx") return { kind: "doc", name, text: await docxMarkdown(file) };
+  if (ext === "csv" || ext === "tsv"){
+    const text = await file.text();
+    const first = text.split("\n", 1)[0] || "";
+    const sep = ext === "tsv" ? "\t" : (first.split(";").length > first.split(",").length ? ";" : ",");
+    return tableOf(name, [{ name: name.replace(/\.[^.]+$/, ""), rows: parseDelimited(text, sep) }]);
+  }
+  if (ext === "xlsx" || ext === "xls"){ say("Loading the Excel reader"); return tableOf(name, await workbookSheets(file)); }
+  if (["txt", "md", "markdown", "text"].includes(ext) || file.type.startsWith("text/")) return { kind: "doc", name, text: (await file.text()).trim() };
+  throw new Error(`${name} is a .${ext}. A project reads Word, PDF, text, Markdown, Excel and CSV files.`);
+}
+
+/** A text cut in pieces of about `max` characters, on paragraph breaks. */
+function cutText(t, max){
+  const out = []; let cur = "";
+  for (const p of String(t).split(/\n{2,}/)){
+    if (cur && cur.length + p.length + 2 > max){ out.push(cur); cur = ""; }
+    if (p.length > max){ for (let i = 0; i < p.length; i += max) out.push(p.slice(i, i + max)); continue; }
+    cur = cur ? cur + "\n\n" + p : p;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/** The file sent to the server a piece at a time. `step` says where it stands. */
+async function uploadProject(slug, got, step){
+  /* What a project holds is said before the first piece goes, not after most of them have. */
+  if (got.kind === "doc" && got.text.length > 12000000) throw new Error(`${got.name} is longer than a project reads: about 4,000 pages.`);
+  if (got.kind === "table" && got.sheets.reduce((n, s) => n + s.rows.reduce((a, r) => a + r.reduce((b, c) => b + c.length + 1, 0), 0), 0) > 6000000)
+    throw new Error(`${got.name} is bigger than a project reads: about 40,000 rows of 10 columns.`);
+  const begin = await api("/api/project/begin", { brain: slug, name: got.name, kind: got.kind,
+    ...(got.kind === "table" ? { sheets: got.sheets.map(s => ({ name: s.name, header: s.header })) } : {}) });
+  if (got.kind === "doc"){
+    const pieces = cutText(got.text, PJ_PIECE);
+    if (!pieces.length) throw new Error(`${got.name} gave no text. A scanned PDF holds pictures of words, so it needs its text.`);
+    let page = 0;
+    for (let i = 0; i < pieces.length; i++){
+      step(pieces.length > 1 ? `Cutting it in sections: part ${i + 1} of ${pieces.length}` : "Cutting it in sections");
+      await api("/api/project/part", { brain: slug, ver: begin.ver, text: pieces[i], page });
+      const last = [...pieces[i].matchAll(/^\[\[p\. (\d+)\]\]$/gm)].pop();
+      if (last) page = Number(last[1]);
+    }
+  } else {
+    for (const [si, s] of got.sheets.entries()){
+      for (let at = 0; at < s.rows.length;){
+        let n = 0, chars = 0;
+        while (at + n < s.rows.length && n < PJ_ROWS && chars < 150000){ chars += s.rows[at + n].reduce((a, c) => a + c.length + 1, 0); n++; }
+        step(`Storing ${s.name}: rows ${at + 1} to ${at + n} of ${s.rows.length}`);
+        await api("/api/project/part", { brain: slug, ver: begin.ver, sheet: si, rows: s.rows.slice(at, at + n) });
+        at += n;
+      }
+    }
+  }
+  step("Counting what each column holds");
+  return await api("/api/project/finish", { brain: slug, ver: begin.ver });
+}
+
+/* ---- the side panel ---- */
+
+function renderProjects(){
+  const panel = $("projectsPanel");
+  panel.hidden = S.demo;
+  const box = $("projects"); box.innerHTML = "";
+  $("pcount").textContent = S.projects.length || "";
+  if (!S.projects.length){ box.append(el("div","empty-side","None yet. A project holds one file or one table, with a chat beside it.")); return; }
+  for (const p of S.projects){
+    const row = el("button","brain-row self pj-row" + (S.project === p.slug ? " on" : "") + (p.status === "reading" ? " run" : ""));
+    const tick = el("span","tick"); tick.innerHTML = PJ_ICON[p.kind === "table" ? "table" : "doc"];
+    row.append(tick, el("span","nm",p.name), el("span","cnt", p.status === "reading" ? "reading" : p.memory ? String(p.memory) : ""));
+    row.title = p.file ? `${p.file}\n${p.kind === "table" ? "A table" : p.sections + " sections"}, ${p.memory} kept in memory` : "No file yet";
+    row.onclick = () => openProject(p.slug);
+    box.append(row);
+  }
+}
+
+/* ---- opening a project ---- */
+
+async function openProject(slug){
+  closeSide();
+  S.folder = null; S.mode = "ask"; S.project = slug;
+  S.pj = { slug, data: null, tab: "chat", seg: "chat", sheet: 0, busy: false, marks: null };
+  render(); paintProject();
+  try { await loadProject(); }
+  catch (e){
+    if (S.pj?.slug !== slug) return;
+    const host = $("projectView"); host.innerHTML = "";
+    const err = el("div","pj-loading"); err.append(el("p",null,e.message));
+    const again = el("button","mini","Try again"); again.type = "button"; again.style.marginTop = "10px"; again.onclick = () => openProject(slug);
+    err.append(again); host.append(err);
+  }
+}
+async function loadProject(){
+  const pj = S.pj, d = await api("/api/project/get", { brain: pj.slug });
+  if (S.pj !== pj) return;
+  pj.data = d;
+  /* A project with no file opens on the file side, where the drop is. */
+  if (!d.file || d.file.status !== "ready") pj.seg = "doc";
+  paintProject();
+}
+/** The project's list entry, kept in step after a change. */
+async function syncProjects(){ try { S.projects = (await api("/api/project/list")).projects || S.projects; } catch { /* the list catches up at the next refresh */ } renderProjects(); }
+
+function paintProject(){
+  const host = $("projectView"), pj = S.pj;
+  host.innerHTML = "";
+  if (!pj) return;
+  if (!pj.data){ host.append(el("div","pj-loading","Opening the project")); return; }
+  const root = el("div","pj"); root.dataset.seg = pj.seg; pj.root = root;
+  const seg = el("div","pj-seg");
+  const kind = pj.data.file?.kind === "table" ? "Table" : "Document";
+  for (const [k, label] of [["doc", kind], ["chat", "Chat"]]){
+    const b = el("button", pj.seg === k ? "on" : "", label); b.type = "button";
+    b.onclick = () => { pj.seg = k; root.dataset.seg = k; [...seg.children].forEach(x => x.classList.toggle("on", x === b)); if (k === "doc"){ fillDoc(); fillGrid(); } };
+    seg.append(b);
+  }
+  root.append(seg, docPane(), chatPane());
+  host.append(root);
+  paintSide();
+}
+function showDoc(){
+  const pj = S.pj; if (!pj?.root) return;
+  pj.seg = "doc"; pj.root.dataset.seg = "doc";
+  [...pj.root.querySelector(".pj-seg").children].forEach((x, i) => x.classList.toggle("on", i === 0));
+  fillDoc(); fillGrid();
+}
+
+/* ---- the file, on the left ---- */
+
+function docPane(){
+  const pj = S.pj, d = pj.data, f = d.file;
+  pj.page = pj.grid = pj.more = null;
+  const pane = el("section","pj-doc");
+  const h = el("div","pj-h"), t = el("div","pj-t");
+  const title = el("h2",null,d.project.name); title.title = "Rename the project"; title.onclick = renameProject;
+  t.append(title);
+  if (f) t.append(el("span","pj-chip",f.name));
+  h.append(t);
+  const acts = el("div","pj-acts");
+  const btn = (label, fn, cls) => { const b = el("button","pj-b" + (cls ? " " + cls : ""),label); b.type = "button"; b.onclick = fn; acts.append(b); };
+  if (f?.status === "ready" && f.kind === "doc" && f.sections > 1) btn("Contents", openContents);
+  btn(f ? (f.kind === "table" ? "Replace table" : "Replace file") : "Add a file", () => chooseFile());
+  if (f?.status === "ready") btn("Download", downloadFile);
+  btn("Delete", deleteProject, "bad");
+  h.append(acts); pane.append(h);
+  const body = el("div","pj-body"); pj.body = body; pane.append(body);
+  if (!f || f.status !== "ready") body.append(dropZone(f));
+  else if (f.kind === "table") paintGrid(body);
+  else paintPaper(body);
+  return pane;
+}
+
+function dropZone(f){
+  const z = el("div","pj-drop");
+  z.append(el("h3",null, f ? "This file was not finished" : "Drop the file or the table this project is built on"),
+    el("p",null, f ? "Its reading stopped part way. Drop it again to read it from the start."
+      : "Word, PDF, text, Markdown, Excel or CSV. It is read in this tab and filed in sections, so a long file answers fast."));
+  const b = el("button","go",f ? "Choose the file again" : "Choose a file"); b.type = "button"; b.onclick = () => chooseFile();
+  z.append(b);
+  z.ondragover = e => { e.preventDefault(); z.classList.add("over"); };
+  z.ondragleave = () => z.classList.remove("over");
+  z.ondrop = e => { e.preventDefault(); z.classList.remove("over"); const file = e.dataTransfer?.files?.[0]; if (file) fillProject(S.pj.slug, file); };
+  return z;
+}
+
+/** A document: its sections, read on as the page scrolls. */
+function paintPaper(body){
+  const pj = S.pj;
+  const paper = el("div","pj-paper"), page = el("article","pj-page");
+  paper.append(page);
+  const more = el("div","pj-more");
+  body.append(paper, more);
+  pj.page = page; pj.more = more; pj.docLast = -1; pj.docEnd = false; pj.docBusy = false;
+  body.onscroll = () => { if (!pj.docEnd && body.scrollTop + body.clientHeight > body.scrollHeight - 700) loadSections(); };
+  loadSections();
+}
+async function loadSections(o = {}){
+  const pj = S.pj;
+  if (!pj?.page || pj.docBusy) return;
+  pj.docBusy = true;
+  try {
+    const r = await api("/api/project/doc", { brain: pj.slug, n: 3, ...(o.sid != null ? { sid: o.sid } : { from: pj.docLast }) });
+    if (S.pj !== pj) return;
+    if (o.replace){ pj.page.innerHTML = ""; pj.docEnd = false; }
+    for (const s of r.sections){
+      const a = el("section","pj-sec"); a.dataset.sid = s.sid;
+      const md = el("div","pj-md"); md.innerHTML = mdView(s.text); a.append(md);
+      pj.page.append(a); pj.docLast = s.ord;
+    }
+    if (r.sections.length < 3) pj.docEnd = true;
+    pj.more.textContent = pj.docEnd ? "End of the file" : "";
+    applyMarks();
+  } catch (e){ pj.more.textContent = "Could not load more: " + e.message; pj.docEnd = true; }
+  finally { pj.docBusy = false; }
+  fillDoc();
+}
+/** A tall screen shows more than three sections: keep reading while the page is on screen and not yet full. */
+function fillDoc(){
+  const pj = S.pj, b = pj?.body;
+  if (pj?.page && !pj.docEnd && !pj.docBusy && b.clientHeight > 0 && b.scrollHeight <= b.clientHeight + 700) loadSections();
+}
+
+/** A table: a tab for each sheet, a grid with its row numbers, and what each column holds. */
+function paintGrid(body){
+  const pj = S.pj, f = pj.data.file, si = Math.min(pj.sheet, f.sheets.length - 1), sh = f.sheets[si];
+  body.classList.add("tbl");
+  if (f.sheets.length > 1){
+    const tabs = el("div","pj-sheets");
+    f.sheets.forEach((s, i) => { const b = el("button", i === si ? "on" : "", s.name); b.type = "button"; b.onclick = () => { pj.sheet = i; body.innerHTML = ""; body.classList.remove("tbl"); paintGrid(body); }; tabs.append(b); });
+    body.append(tabs);
+  }
+  const wrap = el("div","pj-gridwrap"), tbl = el("table","pj-grid"), thead = el("thead"), tr = el("tr");
+  tr.append(Object.assign(el("th","r"), { textContent: "#" }));
+  for (const c of sh.cols.length ? sh.cols : (sh.header || []).map(n => ({ name: n, kind: "text" }))) tr.append(el("th", c.kind === "num" ? "n" : "", c.name));
+  thead.append(tr);
+  const tb = el("tbody");
+  tbl.append(thead, tb); wrap.append(tbl); body.append(wrap);
+  const foot = el("details","pj-foot"), sum = el("summary");
+  sum.innerHTML = `<b>${sh.rows.toLocaleString("en-US")}</b> rows · <b>${sh.cols.length}</b> columns · what each column holds`;
+  foot.append(sum);
+  const n = x => (x ?? 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  for (const c of sh.cols){
+    const ln = el("span","ln");
+    ln.innerHTML = c.kind === "num"
+      ? `<b>${esc(c.name)}</b>: total ${n(c.sum)} · average ${n(c.avg)} · lowest ${n(c.min)} · highest ${n(c.max)}`
+      : `<b>${esc(c.name)}</b>${c.values ? ": " + esc(c.values.join(", ")) : ""}`;
+    foot.append(ln);
+  }
+  body.append(foot);
+  pj.grid = { tb, wrap, sheet: si, last: 0, total: sh.rows, busy: false, cols: sh.cols };
+  wrap.onscroll = () => { if (wrap.scrollTop + wrap.clientHeight > wrap.scrollHeight - 500) loadRows(); };
+  loadRows();
+}
+async function loadRows(o = {}){
+  const pj = S.pj, g = pj?.grid;
+  if (!g || g.busy || g.last >= g.total && !o.from) return;
+  g.busy = true;
+  try {
+    const from = o.from ?? g.last + 1;
+    const r = await api("/api/project/rows", { brain: pj.slug, sheet: g.sheet, from, n: 100 });
+    if (S.pj !== pj || pj.grid !== g) return;
+    if (o.replace) g.tb.innerHTML = "";
+    for (const row of r.rows){
+      const tr = el("tr"); tr.dataset.n = row.n;
+      tr.append(Object.assign(el("td","r"), { textContent: row.n }));
+      row.cells.forEach((c, i) => tr.append(Object.assign(el("td", g.cols[i]?.kind === "num" ? "n" : ""), { textContent: c, title: c.length > 40 ? c : "" })));
+      g.tb.append(tr); g.last = row.n;
+    }
+    g.total = r.total;
+    applyMarks();
+  } catch (e){ /* the grid keeps what it has */ }
+  finally { g.busy = false; }
+  fillGrid();
+}
+function fillGrid(){
+  const g = S.pj?.grid;
+  if (g && !g.busy && g.last < g.total && g.wrap.clientHeight > 0 && g.wrap.scrollHeight <= g.wrap.clientHeight + 500) loadRows();
+}
+
+/* ---- what an answer used, marked in the file ---- */
+
+/** Wrap each quote the answer rests on, where the words stand in the file. */
+function markQuotes(root, quotes){
+  root.querySelectorAll("mark.pj-mark").forEach(m => m.replaceWith(...m.childNodes));
+  root.normalize();
+  for (const q of quotes || []){
+    const needle = q.replace(/[|*_`#>]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+    if (needle.length < 6) continue;
+    const nodes = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) nodes.push(n);
+    let hay = ""; const at = [];
+    for (const t of nodes){
+      const s = t.nodeValue;
+      for (let i = 0; i < s.length; i++){
+        const c = /\s/.test(s[i]) ? " " : s[i].toLowerCase();
+        if (c === " " && hay.endsWith(" ")) continue;
+        hay += c; at.push([t, i]);
+      }
+      /* Two cells or two paragraphs read as separate words. */
+      if (at.length && !hay.endsWith(" ")){ hay += " "; at.push(at[at.length - 1]); }
+    }
+    const k = hay.indexOf(needle);
+    if (k < 0) continue;
+    /* One mark for each stretch of text inside one node, so words that run across two cells or two paragraphs are marked in both. */
+    const spans = new Map();
+    for (let i = k; i < k + needle.length; i++){
+      const [t, o] = at[i], cur = spans.get(t);
+      if (cur) cur[1] = Math.max(cur[1], o + 1); else spans.set(t, [o, o + 1]);
+    }
+    for (const [t, [from, to]] of spans){
+      if (!t.nodeValue.slice(from, to).trim()) continue;
+      try {
+        const r = document.createRange(); r.setStart(t, from); r.setEnd(t, to);
+        const m = document.createElement("mark"); m.className = "pj-mark"; r.surroundContents(m);
+      } catch { /* the section's bar still shows where it was found */ }
+    }
+  }
+}
+function applyMarks(){
+  const pj = S.pj; if (!pj) return;
+  const m = pj.marks || { sids: new Set(), rows: new Set(), quotes: [] };
+  pj.page?.querySelectorAll(".pj-sec").forEach(s => s.classList.toggle("used", m.sids.has(Number(s.dataset.sid))));
+  if (pj.page && m.quotes.length) markQuotes(pj.page, m.quotes); else if (pj.page) markQuotes(pj.page, []);
+  pj.grid?.tb.querySelectorAll("tr").forEach(r => r.classList.toggle("used", m.rows.has(Number(r.dataset.n))));
+}
+/** Show what an answer used: its sections and quotes, or its rows, marked and brought into view. */
+async function focusUsed(t, scroll){
+  const pj = S.pj, u = t?.used?.file; if (!pj || !u) return;
+  pj.marks = { sids: new Set((u.sections || []).map(s => s.sid)), rows: new Set(u.rows || []), quotes: t.quotes || [] };
+  const f = pj.data.file;
+  if (f?.kind === "table" && u.rows?.length){
+    const sheet = u.sheet ?? 0;
+    if (pj.sheet !== sheet){ pj.sheet = sheet; pj.body.innerHTML = ""; pj.body.classList.remove("tbl"); paintGrid(pj.body); }
+    const first = u.rows[0];
+    if (scroll && !pj.grid.tb.querySelector(`tr[data-n="${first}"]`)) await loadRows({ from: Math.max(1, first - 5), replace: true });
+    applyMarks();
+    if (scroll){ showDoc(); pj.grid.tb.querySelector(`tr[data-n="${first}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }); }
+  } else if (f?.kind === "doc" && u.sections?.length){
+    const first = u.sections[0].sid;
+    if (scroll && !pj.page.querySelector(`[data-sid="${first}"]`)) await loadSections({ sid: first, replace: true });
+    applyMarks();
+    if (scroll){ showDoc(); pj.page.querySelector(`[data-sid="${first}"]`)?.scrollIntoView({ block: "start", behavior: "smooth" }); }
+  } else applyMarks();
+}
+
+/** The contents list: every section's title and line, to jump to one. */
+function openContents(){
+  const pj = S.pj, cards = pj.data.cards;
+  const veil = el("div","veil");
+  veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pcTitle">
+    <header><h3 id="pcTitle">Contents</h3><p>${cards.length} sections. Pick one to read from there.</p></header>
+    <div class="f"><input id="pcFind" type="search" placeholder="Find a section" autocomplete="off"></div>
+    <div class="f" id="pcList" style="max-height:52vh;overflow-y:auto"></div>
+    <footer><button class="ghost" id="pcClose">Close</button></footer></div>`;
+  document.body.append(veil);
+  const list = veil.querySelector("#pcList"), find = veil.querySelector("#pcFind");
+  const shut = () => veil.remove();
+  const paint = () => {
+    const q = find.value.trim().toLowerCase(); list.innerHTML = "";
+    for (const c of cards.filter(c => !q || `${c.title} ${c.summary}`.toLowerCase().includes(q)).slice(0, 300)){
+      const b = el("button","fv-row"); b.type = "button";
+      b.append(el("b",null,c.title), el("span",null,c.summary || ""));
+      b.onclick = async () => { shut(); showDoc(); pj.marks = null; await loadSections({ sid: c.sid, replace: true }); pj.body.scrollTop = 0; };
+      list.append(b);
+    }
+    if (!list.children.length) list.append(el("div","fv-none","No section matches."));
+  };
+  find.oninput = paint; paint();
+  veil.querySelector("#pcClose").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  setTimeout(() => find.focus(), 30);
+}
+
+/* ---- the chat, on the right ---- */
+
+function chatPane(){
+  const pj = S.pj, d = pj.data;
+  const pane = el("section","pj-chat");
+  const tabs = el("div","pj-tabs"); pj.tabs = tabs;
+  pane.append(tabs);
+  const thread = el("div","pj-thread"); pj.thread = thread; pane.append(thread);
+  const comp = el("div","pj-comp");
+  const ta = el("textarea"); ta.rows = 1; ta.placeholder = `Ask about the ${d.file?.kind === "table" ? "table" : "file"}, or brainstorm. Your folders are read when they help.`; ta.setAttribute("aria-label", "Message to the project");
+  const send = el("button","pj-send"); send.type = "button"; send.setAttribute("aria-label", "Send"); send.disabled = true;
+  send.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M8 3L4 7M8 3l4 4"/></svg>`;
+  const size = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 170) + "px"; send.disabled = !ta.value.trim() || pj.busy || !pj.data.file || pj.data.file.status !== "ready"; };
+  ta.oninput = size;
+  ta.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); if (!send.disabled) go(); } };
+  const go = () => { const q = ta.value.trim(); if (!q) return; ta.value = ""; size(); sendProject(q); };
+  send.onclick = go;
+  comp.append(ta, send); pane.append(comp);
+  pj.comp = comp; pj.input = ta; pj.size = size;
+  return pane;
+}
+
+function paintTabs(){
+  const pj = S.pj; if (!pj?.tabs) return;
+  pj.tabs.innerHTML = "";
+  for (const [k, label] of [["chat","Chat"],["memory","Memory"]]){
+    const b = el("button","pj-tab" + (pj.tab === k ? " on" : ""),label); b.type = "button";
+    if (k === "memory" && pj.data.memory.length) b.append(el("i",null,String(pj.data.memory.length)));
+    b.onclick = () => { pj.tab = k; paintSide(); };
+    pj.tabs.append(b);
+  }
+}
+/** The right side: the thread of the chat, or what the project remembers. */
+function paintSide(){
+  const pj = S.pj; if (!pj?.thread) return;
+  paintTabs();
+  pj.comp.hidden = pj.tab !== "chat";
+  const box = pj.thread; box.innerHTML = "";
+  if (pj.tab === "memory"){ paintMemory(box); return; }
+  const turns = pj.data.turns;
+  if (!turns.length){
+    const f = pj.data.file, tbl = f?.kind === "table";
+    const hint = el("div","pj-hint");
+    hint.textContent = !f ? "Add the file or the table this project is built on, then ask about it here."
+      : f.status !== "ready" ? "The file was not finished. Add it again."
+      : `Ask about the ${tbl ? "table" : "file"}. Ask for a brainstorm and you get a proposal, with where each point comes from. Ask for a change and you see it before it is made.`;
+    box.append(hint);
+    if (f?.status === "ready"){
+      const tries = el("div","pj-try");
+      for (const q of tbl ? ["Which rows stand out, and why?", "Brainstorm: what should I change in this table?"]
+        : ["Summarise this in five lines.", "Brainstorm: what is missing from this?"]){
+        const b = el("button",null,q); b.type = "button"; b.onclick = () => { pj.input.value = q; pj.size(); pj.input.focus(); };
+        tries.append(b);
+      }
+      box.append(tries);
+    }
+  }
+  for (const t of turns) box.append(turnEl(t));
+  box.scrollTop = box.scrollHeight;
+  pj.size();
+}
+
+/** Row numbers as a short phrase: "rows 4, 5, 10" and "and 3 more". */
+function rowsLine(rows){
+  const shown = rows.slice(0, 6).join(", ");
+  return `rows ${shown}${rows.length > 6 ? ` and ${rows.length - 6} more` : ""}`;
+}
+function usedChips(t){
+  const u = t.used; if (!u) return null;
+  const box = el("div","pj-used");
+  const f = u.file;
+  if (f){
+    const what = f.rows?.length ? `: ${rowsLine(f.rows)}`
+      : f.sections?.length ? `: ${f.sections.slice(0, 2).map(s => s.title).join(" · ")}${f.sections.length > 2 ? ` +${f.sections.length - 2}` : ""}` : "";
+    const b = el("button",null,`${f.name}${what}`); b.type = "button"; b.title = "Show it in the file";
+    b.onclick = () => focusUsed(t, true);
+    box.append(b);
+  }
+  for (const c of u.folders || []) box.append(el("span",null,`${c.name} folder · ${c.notes} note${c.notes === 1 ? "" : "s"}`));
+  if (u.memory) box.append(el("span",null,`Memory · ${u.memory} note${u.memory === 1 ? "" : "s"}`));
+  return box.children.length ? box : null;
+}
+
+function turnEl(t){
+  const w = el("div","pj-turn"); w.dataset.id = t.id || "";
+  w.append(el("div","pj-q",t.q));
+  const a = el("div","pj-a" + (t.proposal ? " prop" : ""));
+  if (t.proposal) a.append(el("div","pj-k","Proposal"));
+  const md = el("div","pj-md"); md.innerHTML = mdView(t.a); a.append(md);
+  if (t.edit) a.append(editCard(t));
+  const chips = usedChips(t); if (chips) a.append(chips);
+  const acts = el("div","pj-tact");
+  if (Array.isArray(t.kept) && t.kept.length) acts.append(el("span","kept",`Kept in memory: ${t.kept.slice(0, 2).join(", ")}`));
+  else {
+    const keep = el("button", t.proposal ? "go" : "ghost", "Keep in memory"); keep.type = "button";
+    keep.title = "File what this says in the project's memory";
+    keep.onclick = () => keepTurn(t, keep);
+    acts.append(keep);
+  }
+  const refine = el("button","ghost","Refine"); refine.type = "button";
+  refine.onclick = () => { S.pj.input.value = "Refine: "; S.pj.size(); S.pj.input.focus(); };
+  acts.append(refine);
+  a.append(acts); w.append(a);
+  return w;
+}
+
+async function sendProject(q){
+  const pj = S.pj; if (!pj || pj.busy) return;
+  pj.busy = true; pj.size();
+  const box = pj.thread;
+  box.querySelector(".pj-hint")?.remove(); box.querySelector(".pj-try")?.remove();
+  const w = el("div","pj-turn"); w.append(el("div","pj-q",q));
+  const a = el("div","pj-a"); thinkInto(a, "Reading the file"); w.append(a);
+  box.append(w); box.scrollTop = box.scrollHeight;
+  try {
+    const r = await api("/api/project/chat", { brain: pj.slug, q });
+    if (S.pj !== pj) return;
+    pj.data.turns = [...pj.data.turns, r.turn].slice(-10);
+    if (r.turn.edit) pj.data.edits = [{ id: r.turn.edit.id, at: Date.now(), status: "open", preview: r.turn.edit.preview }, ...pj.data.edits].slice(0, 10);
+    w.replaceWith(turnEl(r.turn));
+    focusUsed(r.turn, false);
+  } catch (e){
+    if (S.pj !== pj) return;
+    a.innerHTML = "";
+    const err = el("div","pj-err"); err.append(el("b",null,"That did not work"), el("span",null,e.message));
+    const row = el("div","pj-tact");
+    const again = el("button","ghost","Try again"); again.type = "button"; again.onclick = () => { w.remove(); pj.busy = false; sendProject(q); };
+    row.append(again); err.append(row); a.append(err);
+  } finally { pj.busy = false; pj.size(); box.scrollTop = box.scrollHeight; }
+}
+
+/* ---- keeping, remembering, forgetting ---- */
+
+async function keepTurn(t, btn){
+  const pj = S.pj;
+  btn.disabled = true; btn.textContent = "Keeping";
+  try {
+    await api("/api/project/keep", { brain: pj.slug, id: t.id });
+    const d = await api("/api/project/get", { brain: pj.slug });
+    if (S.pj !== pj) return;
+    pj.data.memory = d.memory; pj.data.turns = d.turns;
+    paintSide(); syncProjects();
+  } catch (e){
+    btn.disabled = false; btn.textContent = "Keep in memory";
+    btn.after(el("span","pj-msg", e.message));
+  }
+}
+function paintMemory(box){
+  const pj = S.pj, mem = pj.data.memory;
+  if (!mem.length){ box.append(el("div","pj-hint","Nothing kept yet. Press Keep in memory under an answer, and the project files what it says here, in the format a folder has.")); return; }
+  for (const m of mem){
+    const c = el("div","pj-mem");
+    c.append(el("b",null,m.title), el("p",null,m.position || m.summaryLine || ""), el("small",null,[m.updated, ...(m.dates || [])].filter((x, i, l) => x && l.indexOf(x) === i).slice(0, 3).join(" · ")));
+    const x = el("button","pj-b","Forget"); x.type = "button";
+    x.onclick = async () => {
+      x.disabled = true;
+      try { await api("/api/project/forget", { brain: pj.slug, slug: m.slug }); pj.data.memory = pj.data.memory.filter(y => y.slug !== m.slug); paintSide(); syncProjects(); }
+      catch (e){ x.disabled = false; x.after(el("span","pj-msg", e.message)); }
+    };
+    c.append(x); box.append(c);
+  }
+}
+
+/* ---- changes to the file ---- */
+
+function editCard(t){
+  const pj = S.pj;
+  const e = pj.data.edits.find(x => x.id === t.edit.id) || { id: t.edit.id, status: t.edit.status || "open", preview: t.edit.preview };
+  const c = el("div","pj-edit " + e.status);
+  c.append(el("div","pj-ek", { open: "Proposed change", applied: "Applied", undone: "Undone", dismissed: "Turned down" }[e.status] || e.status));
+  for (const p of e.preview || []){
+    const l = el("div","pj-ed"); l.append(el("b",null,p.label));
+    if (p.before) l.append(el("del",null,p.before));
+    if (p.after) l.append(el("ins",null,p.after));
+    c.append(l);
+  }
+  const act = async (action, btns) => {
+    btns.forEach(b => { b.disabled = true; });
+    c.querySelector(".pj-msg")?.remove();
+    try {
+      await api("/api/project/edit", { brain: pj.slug, id: e.id, action });
+      e.status = action === "apply" ? "applied" : action === "undo" ? "undone" : "dismissed";
+      const known = pj.data.edits.find(x => x.id === e.id); if (known) known.status = e.status; else pj.data.edits.unshift(e);
+      c.replaceWith(editCard(t));
+      if (action !== "dismiss") await refreshFile();
+    } catch (err){
+      btns.forEach(b => { b.disabled = false; });
+      c.append(el("div","pj-msg",err.message));
+    }
+  };
+  if (e.status === "open"){
+    const row = el("div","pj-tact"), yes = el("button","go","Apply"), no = el("button","ghost","Turn down");
+    yes.type = no.type = "button";
+    yes.onclick = () => act("apply", [yes, no]); no.onclick = () => act("dismiss", [yes, no]);
+    row.append(yes, no); c.append(row);
+  } else if (e.status === "applied"){
+    const row = el("div","pj-tact"), undo = el("button","ghost","Undo"); undo.type = "button";
+    undo.onclick = () => act("undo", [undo]);
+    row.append(undo); c.append(row);
+  }
+  return c;
+}
+/** The file read again after a change, so the page shows what it holds now. */
+async function refreshFile(){
+  const pj = S.pj; if (!pj) return;
+  const d = await api("/api/project/get", { brain: pj.slug });
+  if (S.pj !== pj) return;
+  pj.data.file = d.file; pj.data.cards = d.cards; pj.data.edits = d.edits;
+  pj.body.innerHTML = ""; pj.body.classList.remove("tbl");
+  if (d.file?.kind === "table") paintGrid(pj.body); else paintPaper(pj.body);
+}
+
+/* ---- the file's own actions ---- */
+
+function renameProject(){
+  const pj = S.pj;
+  const veil = el("div","veil");
+  veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="prTitle">
+    <header><h3 id="prTitle">Rename the project</h3></header>
+    <div class="f"><label for="prName">Name</label><input id="prName" autocomplete="off" maxlength="60"></div>
+    <div class="bad" id="prBad"></div>
+    <footer><button class="ghost" id="prCancel">Cancel</button><button class="go" id="prSave">Save</button></footer></div>`;
+  document.body.append(veil);
+  const inp = veil.querySelector("#prName"), bad = veil.querySelector("#prBad"), save = veil.querySelector("#prSave");
+  inp.value = pj.data.project.name;
+  const shut = () => veil.remove();
+  const run = async () => {
+    const name = inp.value.trim(); if (!name) return;
+    save.disabled = true;
+    try { await api("/api/project/rename", { brain: pj.slug, name }); pj.data.project.name = name; shut(); paintProject(); await syncProjects(); }
+    catch (e){ save.disabled = false; bad.textContent = e.message; }
+  };
+  save.onclick = run; inp.onkeydown = e => { if (e.key === "Enter") run(); if (e.key === "Escape") shut(); };
+  veil.querySelector("#prCancel").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  setTimeout(() => { inp.focus(); inp.select(); }, 30);
+}
+
+function deleteProject(){
+  const pj = S.pj, name = pj.data.project.name;
+  const veil = el("div","veil");
+  veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pdTitle">
+    <header><h3 id="pdTitle">Delete ${esc(name)}?</h3><p>Its file, its memory, its chat and its changes go. This cannot be undone.</p></header>
+    <div class="bad" id="pdBad"></div>
+    <footer><button class="ghost" id="pdCancel">Cancel</button><button class="go" id="pdYes">Delete the project</button></footer></div>`;
+  document.body.append(veil);
+  const yes = veil.querySelector("#pdYes"), bad = veil.querySelector("#pdBad"), shut = () => veil.remove();
+  yes.onclick = async () => {
+    yes.disabled = true; yes.textContent = "Deleting";
+    try {
+      await api("/api/project/delete", { brain: pj.slug });
+      shut(); S.project = null; S.pj = null; await refresh();
+    } catch (e){ yes.disabled = false; yes.textContent = "Delete the project"; bad.textContent = e.message; }
+  };
+  veil.querySelector("#pdCancel").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+}
+
+async function downloadFile(){
+  const pj = S.pj, f = pj.data.file;
+  try {
+    const r = await api("/api/project/download", { brain: pj.slug, sheet: f.kind === "table" ? pj.sheet : 0 });
+    const base = String(r.name).replace(/\.[^.]+$/, "");
+    const name = r.kind === "table" ? `${base}${f.sheets.length > 1 ? " - " + r.sheet : ""}.csv` : /\.(md|markdown|txt)$/i.test(r.name) ? r.name : `${base}.md`;
+    const blob = new Blob([r.text], { type: r.kind === "table" ? "text/csv;charset=utf-8" : "text/markdown;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } catch (e){ pjNote(e.message); }
+}
+/** A line at the top of the file, for what did not work. It goes by itself. */
+function pjNote(text){
+  const pj = S.pj; if (!pj?.body) return;
+  const n = el("div","pj-msg",text); n.style.cssText = "padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--line)";
+  pj.body.prepend(n); setTimeout(() => n.remove(), 7000);
+}
+
+/** A file picked for the open project: read here, filed in sections. */
+function chooseFile(){
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = PJ_FILES; inp.hidden = true;
+  inp.onchange = () => { const file = inp.files?.[0]; inp.remove(); if (file) fillProject(S.pj.slug, file); };
+  document.body.append(inp); inp.click();
+}
+
+/** A sheet that says where a file stands while it is read and filed. */
+function progressSheet(title){
+  const veil = el("div","veil");
+  veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ppTitle"><header><h3 id="ppTitle"></h3>
+    <p>The file is read in this tab. Only its words and rows are sent.</p></header><div class="f"><div class="pj-step" role="status"></div><div class="bad"></div></div>
+    <footer hidden><button class="ghost">Close</button></footer></div>`;
+  veil.querySelector("h3").textContent = title;
+  document.body.append(veil);
+  const step = veil.querySelector(".pj-step"), bad = veil.querySelector(".bad"), foot = veil.querySelector("footer");
+  foot.querySelector("button").onclick = () => veil.remove();
+  return { say: t => { step.textContent = t; tabTitle(t.startsWith("Reading") ? "Reading" : ""); }, fail: msg => { step.textContent = ""; bad.textContent = msg; foot.hidden = false; tabTitle(""); }, close: () => { veil.remove(); tabTitle(""); } };
+}
+
+/** Read a file and fill a project with it. */
+async function fillProject(slug, file){
+  const sh = progressSheet(`Reading ${file.name}`);
+  try {
+    const got = await readProjectFile(file, sh.say);
+    await uploadProject(slug, got, sh.say);
+    sh.close();
+    await syncProjects();
+    if (S.project === slug){ S.pj.marks = null; S.pj.sheet = 0; S.pj.data = null; paintProject(); await loadProject(); }
+  } catch (e){
+    sh.fail(e.message);
+    await syncProjects();
+    if (S.project === slug) { try { await loadProject(); } catch { /* the sheet says what failed */ } }
+  }
+}
+
+/** New project: a name, and the file or table it is built on. */
+function openProjectSheet(){
+  closeSide();
+  const veil = el("div","veil");
+  veil.innerHTML = `<div class="sheet roomy" role="dialog" aria-modal="true" aria-labelledby="npTitle">
+    <header><h3 id="npTitle">New project</h3><p>One file or one table, with a chat beside it and a memory of its own. Only this project and your personal folder read that memory.</p></header>
+    <div class="f"><label for="npName">Name</label><input id="npName" autocomplete="off" maxlength="60"></div>
+    <div class="f"><label>The file or the table</label><div class="pj-pick"><button class="ghost" id="npPick" type="button">Choose a file</button><span class="pj-file" id="npFile">Word, PDF, text, Markdown, Excel or CSV</span></div>
+      <div class="hint">A file of any length works: it is filed in sections, and a question opens only the ones it needs.</div></div>
+    <div class="f"><div class="pj-step" id="npStep" role="status"></div><div class="bad" id="npBad"></div></div>
+    <footer><button class="ghost" id="npCancel" type="button">Cancel</button><button class="go" id="npMake" type="button">Create project</button></footer></div>`;
+  document.body.append(veil);
+  const name = veil.querySelector("#npName"), pick = veil.querySelector("#npPick"), fileEl = veil.querySelector("#npFile"),
+        stepEl = veil.querySelector("#npStep"), bad = veil.querySelector("#npBad"), make = veil.querySelector("#npMake"), cancel = veil.querySelector("#npCancel");
+  let file = null, busy = false, typed = false;
+  const shut = () => { if (!busy) veil.remove(); };
+  name.oninput = () => { typed = true; };
+  pick.onclick = () => {
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = PJ_FILES; inp.hidden = true;
+    inp.onchange = () => { file = inp.files?.[0] || null; inp.remove(); if (file){ fileEl.textContent = file.name; if (!typed || !name.value.trim()) name.value = file.name.replace(/\.[^.]+$/, "").slice(0, 60); } };
+    document.body.append(inp); inp.click();
+  };
+  cancel.onclick = shut; veil.onclick = e => { if (e.target === veil) shut(); };
+  make.onclick = async () => {
+    const nm = name.value.trim();
+    if (!nm){ name.focus(); return; }
+    busy = true; make.disabled = true; pick.disabled = true; cancel.disabled = true; bad.textContent = "";
+    let slug = "";
+    try {
+      /* The file is read first: one that cannot be read makes no project. */
+      const got = file ? await readProjectFile(file, t => { stepEl.textContent = t; }) : null;
+      slug = (await api("/api/project/new", { name: nm })).slug;
+      if (got) await uploadProject(slug, got, t => { stepEl.textContent = t; });
+      busy = false; veil.remove();
+      await syncProjects();
+      await openProject(slug);
+    } catch (e){
+      busy = false; make.disabled = false; pick.disabled = false; cancel.disabled = false;
+      stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to add the file again.` : e.message;
+      if (slug){ make.textContent = "Open the project"; make.onclick = async () => { veil.remove(); await syncProjects(); await openProject(slug); }; }
+    }
+  };
+  name.onkeydown = e => { if (e.key === "Enter") make.click(); };
+  setTimeout(() => name.focus(), 30);
+}
 
 /* ============ go ============ */
 async function go(){

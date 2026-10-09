@@ -239,9 +239,8 @@ async function boot(path, init, arg) {
   });
   check("the side panel opens on New chat, then Drop, One-pager and Settings as rows", top.acts === "startBtn:New chat,dropBtn:Drop,pagerBtn:One-pager,keyBtn:Settings"
     && await page.evaluate(() => document.getElementById("startBtn").classList.contains("go") && !document.getElementById("dropBtn").classList.contains("go")), top.acts);
-  check("then Chats and Folders, each a list of its own, and no Projects", top.panels === "chatsPanel:Chats,brainsPanel:Folders" && top.gone
-    && !(await page.$("#projectsPanel")), top.panels);
-  check("New chat on top is the one way to start a chat; Folders keeps its +", top.plus === "newBrain", top.plus);
+  check("then Chats, Projects and Folders, each a list of its own", top.panels === "chatsPanel:Chats,projectsPanel:Projects,brainsPanel:Folders" && top.gone, top.panels);
+  check("New chat on top is the one way to start a chat; Projects and Folders keep their +", top.plus === "newProject,newBrain", top.plus);
   await page.click("#chatsFold");
   check("a list folds", await page.evaluate(() => document.getElementById("chatsBox").hidden));
   await page.click("#chatsFold");
@@ -1948,7 +1947,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     panels: [...document.querySelectorAll("aside .panel")].filter(p => !p.hidden).map(p => p.id).join(","),
     folders: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent).join(","),
     acts: [...document.querySelectorAll("aside .side-acts button")].map(b => b.textContent.trim()).join(",") }));
-  check("every workspace shows Chats and Folders", seen.panels === "chatsPanel,brainsPanel", seen.panels);
+  check("every workspace shows Chats, Projects and Folders", seen.panels === "chatsPanel,projectsPanel,brainsPanel", seen.panels);
   check("with New chat, Drop, One-pager and Settings on top", seen.acts === "New chat,Drop,One-pager,Settings", seen.acts);
   check("and every folder listed, the personal one first", seen.folders === "Me,Content,Health", seen.folders);
   await page.click('#brains .brain-row:has(.nm:text-is("Me"))'); await page.waitForTimeout(80);
@@ -3390,6 +3389,273 @@ for (const space of ["octopus", "squidgy"]) {
   check("it merges the suggested name into the other card, and says so", done.call?.into === "me/paul" && JSON.stringify(done.call?.from) === '["me/paul-martin"]' && JSON.stringify(done.said) === '["Paul and Paul Martin: Merged into Paul."]', JSON.stringify(done));
   check("nothing threw seeing both people", !d.bad.length && !ph.bad.length, d.bad.concat(ph.bad).join(" | "));
   await d.page.close();
+}
+
+/* ---- projects: a file or a table at two thirds, its chat at one third, a memory of its own ---- */
+{
+  const mk = (slug, name, n) => [{ slug, name, type: "subject", scope: name }, Array.from({ length: n }, (_, i) => ({ brain: slug, slug: slug + i, n: i + 1, title: `${name} note ${i + 1}`, summaryLine: "", ev: 2 }))];
+  const [b1, c1] = mk("pricing", "Pricing", 5);
+  const DOC = [
+    { sid: 1, ord: 1, title: "Goal", text: "# The Build Games: launch brief\n\n## 1. Goal\n\nFill 200 seats by 30 November. <img src=x onerror=\"window.__pwned=1\">\n\nThe cohort runs for four weeks and every team of three ships a game before the\nlast day. Seats are limited.\nBy Ana" },
+    { sid: 2, ord: 2, title: "Offer", text: "## 2. Offer\n\n| Plan | Seats | Price |\n| --- | --- | --- |\n| Starter | 1 | €490 |\n| Team | 3 | €1,490 |" },
+    { sid: 3, ord: 3, title: "Timeline", text: "## 3. Timeline\n\n- 20 Oct: the waitlist opens\n- 3 Nov: early-bird pricing closes\n\n[[p. 4]]\nSecond page words." }];
+  const COLS = [{ name: "Program", kind: "text", filled: 4 }, { name: "Price", kind: "num", filled: 4, sum: 5130, min: 490, max: 2400, avg: 1282.5 }, { name: "Plan", kind: "text", filled: 4, values: ["Yes", "No"] }];
+  const ROWS = [["Game Jam Pro", "1,200", "Yes"], ["Indie Sprint", "690", "No"], ["Studio Lab", "2,400", "Yes"], ["Prototype Club", "490", "No"]];
+  const st = { ...STATE, brains: [b1, { slug: "me", name: "Me", type: "personal", scope: "" }], concepts: c1,
+    projects: [{ slug: "launch-plan", name: "Launch plan", kind: "doc", file: "brief-v3.docx", status: "ready", chars: 900, sections: 3, memory: 1, at: 3 },
+      { slug: "pricing-review", name: "Pricing review", kind: "table", file: "competitors.xlsx", status: "ready", chars: 300, sections: 1, memory: 0, at: 2 },
+      { slug: "newsletter", name: "Newsletter plan", kind: null, file: "", status: "empty", chars: 0, sections: 0, memory: 0, at: 0 }] };
+  const projects = {
+    "launch-plan": { project: { slug: "launch-plan", name: "Launch plan", created: "2026-10-08" },
+      file: { name: "brief-v3.docx", kind: "doc", sheets: [{ name: "brief-v3.docx", cols: [], rows: 0 }], chars: 900, sections: 3, status: "ready", ver: 1, at: 1 },
+      cards: DOC.map(d => ({ sid: d.sid, ord: d.ord, sheet: 0, title: d.title, summary: "About " + d.title, chars: d.text.length })), turns: [], edits: [],
+      memory: [{ slug: "team-price", title: "Team price", position: "Team is priced at 1,490 euros.", summaryLine: "", updated: "2026-10-08", dates: ["2026-10-08"] }] },
+    "pricing-review": { project: { slug: "pricing-review", name: "Pricing review", created: "2026-10-08" },
+      file: { name: "competitors.xlsx", kind: "table", sheets: [{ name: "Programs", header: COLS.map(c => c.name), cols: COLS, rows: 4 }, { name: "Notes", header: ["Note"], cols: [{ name: "Note", kind: "text", filled: 1 }], rows: 1 }], chars: 300, sections: 2, status: "ready", ver: 1, at: 1 },
+      cards: [], turns: [], edits: [], memory: [] },
+    "newsletter": { project: { slug: "newsletter", name: "Newsletter plan", created: "2026-10-08" }, file: null, cards: [], turns: [], edits: [], memory: [] },
+  };
+  const init = arg => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = []; window.__proj = JSON.parse(JSON.stringify(arg.projects));
+    window.fetch = async (u, opt) => {
+      const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}");
+      window.__calls.push({ s: path, body });
+      const P = window.__proj[body.brain], J = x => Response.json(x);
+      if (path === "/api/state") return J({ ...arg.state, projects: arg.state.projects });
+      if (path === "/api/health") return J({ conflicted: [], health: [] });
+      if (path === "/api/project/list") return J({ projects: arg.state.projects });
+      if (path === "/api/project/get") return J(P);
+      if (path === "/api/project/doc") { const at = body.sid != null ? arg.doc.findIndex(d => d.sid === body.sid) : arg.doc.findIndex(d => d.ord > (body.from ?? -1)); return J({ sections: at < 0 ? [] : arg.doc.slice(at, at + (body.n || 3)) }); }
+      if (path === "/api/project/rows") { const f = body.from || 1; return J({ rows: arg.rows.slice(f - 1, f - 1 + (body.n || 100)).map((cells, i) => ({ n: f + i, cells })), total: arg.rows.length }); }
+      if (path === "/api/project/chat") {
+        const t = window.__reply(body, P); P.turns.push(t); return J({ turn: t });
+      }
+      if (path === "/api/project/keep") { P.turns.find(x => x.id === body.id).kept = ["Team price"]; P.memory.unshift({ slug: "kept", title: "Team price", position: "Team is priced at 1,290 euros.", summaryLine: "", updated: "2026-10-09", dates: [] }); return J({ kept: ["Team price"] }); }
+      if (path === "/api/project/forget") { P.memory = P.memory.filter(x => x.slug !== body.slug); return J({ ok: true }); }
+      if (path === "/api/project/edit") { const e = P.edits.find(x => x.id === body.id); if (window.__editFail) return J({ error: "the file changed since this was proposed. Ask again." }); e.status = { apply: "applied", undo: "undone", dismiss: "dismissed" }[body.action]; return J({ ok: true }); }
+      if (path === "/api/project/new") return J({ slug: "fresh" });
+      if (path === "/api/project/begin") return J({ ver: 1 });
+      if (path === "/api/project/part") { if (window.__partFails) return J({ error: "the model host was unreachable" }); return J({ sections: 1, chars: 10 }); }
+      if (path === "/api/project/finish") return J({ sections: 1, chars: 10 });
+      if (path === "/api/project/rename") { P.project.name = body.name; arg.state.projects.find(x => x.slug === body.brain).name = body.name; return J({ slug: body.brain, name: body.name }); }
+      if (path === "/api/project/delete") { arg.state.projects = arg.state.projects.filter(x => x.slug !== body.brain); return J({ ok: true }); }
+      if (path === "/api/project/download") return J({ name: P.file.name, kind: P.file.kind, sheet: "Programs", text: "a,b\n1,2\n" });
+      return J({ chats: [] });
+    };
+    window.__reply = (b, P) => ({ id: "t" + (P.turns.length + 1), q: b.q, a: "Keep **€1,490** and sell it in two payments.", proposal: /brainstorm/i.test(b.q), quotes: ["Team 3 €1,490"],
+      used: { file: { name: P.file.name, whole: false, sections: [{ sid: 2, title: "Offer" }] }, folders: [{ slug: "pricing", name: "Pricing", notes: 2 }], memory: 1 } });
+  };
+  const arg = { state: st, projects, doc: DOC, rows: ROWS };
+  const { page, bad } = await boot("/chat.html", init, arg);
+  await page.waitForTimeout(400);
+  const side = await page.evaluate(() => ({ head: document.getElementById("projectsFold").textContent.trim().replace(/\s+/g, " "), n: document.getElementById("pcount").textContent,
+    rows: [...document.querySelectorAll("#projects .pj-row")].map(r => r.querySelector(".nm").textContent + ":" + (r.querySelector(".b-ic path[d^='M7 3']") ? "doc" : "table")),
+    plus: !!document.getElementById("newProject"), before: [...document.querySelectorAll(".panel")].map(x => x.id).join(","),
+    folders: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent).join(",") }));
+  check("a Projects panel sits between Chats and Folders, with its own plus and a row for each project", side.head === "Projects 3" && side.plus
+    && side.before === "chatsPanel,projectsPanel,brainsPanel" && side.rows.join() === "Launch plan:doc,Pricing review:table,Newsletter plan:doc", JSON.stringify(side));
+  check("no project is listed among the folders", !/Launch plan|Pricing review|Newsletter/.test(side.folders) && side.folders === "Me,Pricing", side.folders);
+
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(700);
+  const lay = await page.evaluate(() => { const d = document.querySelector(".pj-doc").getBoundingClientRect(), c = document.querySelector(".pj-chat").getBoundingClientRect();
+    return { view: document.querySelector("main").dataset.view, ratio: d.width / c.width, bar: getComputedStyle(document.querySelector(".composer-wrap")).display, thread: document.getElementById("thread").hidden,
+      sections: document.querySelectorAll(".pj-sec").length, title: document.querySelector(".pj-t h2").textContent, chip: document.querySelector(".pj-chip").textContent,
+      h2: document.querySelector(".pj-sec h2")?.textContent, table: !!document.querySelector(".pj-tw table th"), li: document.querySelectorAll(".pj-sec li").length, page: document.querySelector(".pj-pg")?.textContent,
+      end: document.querySelector(".pj-more").textContent, pwned: !!window.__pwned, img: document.querySelectorAll(".pj-page img").length, row: document.querySelector("#projects .pj-row").classList.contains("on"),
+      btns: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/") }; });
+  check("a project opens with its file at two thirds of the screen and its chat at one third, the chat bar of the app gone", lay.view === "project" && lay.ratio > 1.8 && lay.ratio < 2.2 && lay.bar === "none" && lay.thread && lay.row, JSON.stringify(lay));
+  check("the document reads in sections: headings, a table, a list, a page mark, to its end", lay.sections === 3 && lay.h2 === "The Build Games: launch brief" && lay.table && lay.li === 2 && lay.page === "p. 4" && lay.end === "End of the file", JSON.stringify(lay));
+  check("words in the file are text, never markup", !lay.pwned && lay.img === 0, JSON.stringify(lay));
+  const wrapped = await page.evaluate(() => [...document.querySelectorAll('.pj-sec[data-sid="1"] p')].pop().innerHTML);
+  check("lines a PDF broke at the page's edge read on, and a line that ends a sentence still breaks", /ships a game before the last day\. Seats are limited\.<br>By Ana/.test(wrapped), wrapped);
+  check("the head names the project and its file, with Contents, Replace, Download and Delete", lay.title === "Launch plan" && lay.chip === "brief-v3.docx" && lay.btns === "Contents/Replace file/Download/Delete", lay.btns);
+
+  /* a question: sent, answered as a proposal, with what it used marked in the file */
+  await page.fill(".pj-comp textarea", "Brainstorm: is Team too high?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
+  const ans = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/chat").pop()?.body, prop: !!document.querySelector(".pj-a.prop .pj-k"), kind: document.querySelector(".pj-a.prop .pj-k")?.textContent,
+    text: document.querySelector(".pj-a .pj-md")?.innerHTML, chips: [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent), used: [...document.querySelectorAll(".pj-sec.used")].map(x => x.dataset.sid),
+    marks: [...document.querySelectorAll("mark.pj-mark")].map(m => m.textContent), keep: document.querySelector(".pj-tact .go")?.textContent, ta: document.querySelector(".pj-comp textarea").value }));
+  check("a question goes to the project's chat with the project named", ans.call?.brain === "launch-plan" && ans.call?.q === "Brainstorm: is Team too high?" && ans.ta === "", JSON.stringify(ans.call));
+  check("a brainstorm comes back as a proposal, in bold where it says so, with Keep in memory first", ans.prop && ans.kind === "Proposal" && /<strong>€1,490<\/strong>/.test(ans.text) && ans.keep === "Keep in memory", JSON.stringify(ans));
+  check("it says what it used: the file and its section, the folder and its notes, the memory", JSON.stringify(ans.chips) === '["brief-v3.docx: Offer","Pricing folder · 2 notes","Memory · 1 note"]', JSON.stringify(ans.chips));
+  check("the section it used is marked in the file, and the words it rests on, across the table's cells", JSON.stringify(ans.used) === '["2"]' && ans.marks.join(" ") === "Team 3 €1,490", JSON.stringify(ans));
+
+  /* keep it in memory */
+  await page.click(".pj-tact .go"); await page.waitForTimeout(500);
+  const kept = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/keep").pop()?.body, said: document.querySelector(".pj-tact .kept")?.textContent, tab: document.querySelector(".pj-tab i")?.textContent }));
+  check("Keep in memory files that answer, and says what it kept", kept.call?.brain === "launch-plan" && kept.call?.id === "t1" && kept.said === "Kept in memory: Team price" && kept.tab === "2", JSON.stringify(kept));
+  await page.click(".pj-tab >> text=Memory"); await page.waitForTimeout(200);
+  const mem = await page.evaluate(() => ({ items: [...document.querySelectorAll(".pj-mem b")].map(x => x.textContent), comp: document.querySelector(".pj-comp").hidden }));
+  check("the Memory tab lists what the project remembers, with the message bar out of the way", JSON.stringify(mem.items) === '["Team price","Team price"]' && mem.comp === true, JSON.stringify(mem));
+  await page.click(".pj-mem .pj-b >> nth=0"); await page.waitForTimeout(300);
+  check("a note can be forgotten", (await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/forget").pop()?.body, left: document.querySelectorAll(".pj-mem").length })) ).left === 1);
+  await page.click(".pj-tab >> text=Chat"); await page.waitForTimeout(200);
+
+  /* a change the chat proposes: the words before and after, a click to apply, a click to undo */
+  await page.evaluate(() => { window.__reply = (b, P) => { const e = { id: "e1", at: 1, status: "open", preview: [{ label: 'In "Offer"', before: "€1,490", after: "€1,290" }, { label: 'New section after "Offer"', before: "", after: "Early-bird week: 3 Nov." }] };
+    P.edits.unshift(e); return { id: "t" + (P.turns.length + 1), q: b.q, a: "I changed the Team price to **€1,290**.", proposal: false, quotes: [], edit: { id: "e1", preview: e.preview, status: "open" },
+      used: { file: { name: P.file.name, whole: false, sections: [{ sid: 2, title: "Offer" }] }, folders: [], memory: 0 } }; }; });
+  await page.fill(".pj-comp textarea", "Make Team 1,290"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
+  const ed = await page.evaluate(() => ({ kind: document.querySelector(".pj-edit .pj-ek").textContent, lines: [...document.querySelectorAll(".pj-edit .pj-ed")].map(x => x.innerText.replace(/\s+/g, " ")),
+    del: document.querySelector(".pj-edit del")?.textContent, ins: document.querySelector(".pj-edit ins")?.textContent, btns: [...document.querySelectorAll(".pj-edit .pj-tact button")].map(b => b.textContent).join("/") }));
+  check("a proposed change shows each place with its words before and after, and nothing is changed yet", ed.kind === "Proposed change" && ed.lines.length === 2 && /In "Offer" €1,490 €1,290/.test(ed.lines[0]) && ed.del === "€1,490" && ed.ins === "€1,290" && ed.btns === "Apply/Turn down"
+    && !(await page.evaluate(() => window.__calls.some(x => x.s === "/api/project/edit"))), JSON.stringify(ed));
+  await page.evaluate(() => { window.__editFail = true; });
+  await page.click(".pj-edit .go"); await page.waitForTimeout(400);
+  const refused = await page.evaluate(() => ({ msg: document.querySelector(".pj-edit .pj-msg")?.textContent, btns: [...document.querySelectorAll(".pj-edit .pj-tact button")].map(b => b.disabled).join(), kind: document.querySelector(".pj-edit .pj-ek").textContent }));
+  check("a change the server refuses says why, and stays open to ask again", /changed since this was proposed/.test(refused.msg) && refused.btns === "false,false" && refused.kind === "Proposed change", JSON.stringify(refused));
+  await page.evaluate(() => { window.__editFail = false; });
+  await page.click(".pj-edit .go"); await page.waitForTimeout(500);
+  const applied = await page.evaluate(() => ({ calls: window.__calls.filter(x => x.s === "/api/project/edit").map(x => x.body.action).join(), kind: document.querySelector(".pj-edit .pj-ek").textContent, btns: [...document.querySelectorAll(".pj-edit .pj-tact button")].map(b => b.textContent).join("/"),
+    reloaded: window.__calls.filter(x => x.s === "/api/project/get").length }));
+  check("Apply writes the change, the page reads the file again, and Undo is offered", applied.calls === "apply,apply" && applied.kind === "Applied" && applied.btns === "Undo" && applied.reloaded >= 2, JSON.stringify(applied));
+  await page.click(".pj-edit .ghost"); await page.waitForTimeout(500);
+  check("Undo puts it back", (await page.evaluate(() => ({ kind: document.querySelector(".pj-edit .pj-ek").textContent, last: window.__calls.filter(x => x.s === "/api/project/edit").pop()?.body.action }))).kind === "Undone");
+
+  /* the contents list jumps to a section */
+  await page.click(".pj-acts button >> text=Contents"); await page.waitForTimeout(250);
+  const toc = await page.evaluate(() => [...document.querySelectorAll("#pcList .fv-row b")].map(b => b.textContent).join(","));
+  await page.click("#pcList .fv-row >> text=Timeline"); await page.waitForTimeout(500);
+  const jumped = await page.evaluate(() => ({ first: document.querySelector(".pj-sec")?.dataset.sid, call: window.__calls.filter(x => x.s === "/api/project/doc").pop()?.body }));
+  check("Contents lists every section and opens the file from the one picked", toc === "Goal,Offer,Timeline" && jumped.first === "3" && jumped.call?.sid === 3, JSON.stringify({ toc, jumped }));
+
+  /* the title renames, Download gives the file, Delete asks first */
+  await page.click(".pj-t h2"); await page.fill("#prName", "Launch brief"); await page.click("#prSave"); await page.waitForTimeout(400);
+  const ren = await page.evaluate(() => ({ title: document.querySelector(".pj-t h2").textContent, row: document.querySelector("#projects .pj-row .nm").textContent, call: window.__calls.filter(x => x.s === "/api/project/rename").pop()?.body }));
+  check("a project is renamed from its title, and the list follows", ren.title === "Launch brief" && ren.row === "Launch brief" && ren.call?.name === "Launch brief", JSON.stringify(ren));
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.click(".pj-acts button >> text=Download")]);
+  check("Download gives the file as it stands: a document as Markdown", dl.suggestedFilename() === "brief-v3.md", dl.suggestedFilename());
+
+  /* leaving: a folder, or a new chat, takes the screen back */
+  await page.evaluate(() => document.querySelectorAll("#brains .brain-row .op")[1].click()); await page.waitForTimeout(300);
+  const leave = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, project: document.getElementById("projectView").hidden, on: document.querySelector("#projects .pj-row.on") !== null }));
+  check("opening a folder leaves the project, which is no longer marked open", leave.view === "folder" && leave.project && !leave.on, JSON.stringify(leave));
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(500);
+  await page.click("#startBtn"); await page.waitForTimeout(300);
+  check("New chat takes the screen back from a project", (await page.evaluate(() => document.querySelector("main").dataset.view)) === "chat");
+
+  /* a table: sheets as tabs, a grid with row numbers, what each column holds, the rows an answer used marked */
+  await page.click("#projects .pj-row >> nth=1"); await page.waitForTimeout(700);
+  const tbl = await page.evaluate(() => ({ tabs: [...document.querySelectorAll(".pj-sheets button")].map(b => b.textContent).join(), head: [...document.querySelectorAll(".pj-grid th")].map(t => t.textContent).join("|"),
+    nums: [...document.querySelectorAll(".pj-grid tbody tr:first-child td")].map(t => t.className).join("|"), rows: document.querySelectorAll(".pj-grid tbody tr").length, first: document.querySelector(".pj-grid tbody tr td.r").textContent,
+    foot: document.querySelector(".pj-foot summary").textContent.replace(/\s+/g, " "), stats: [...document.querySelectorAll(".pj-foot .ln")].map(x => x.textContent), btn: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"),
+    seg: [...document.querySelectorAll(".pj-seg button")].map(b => b.textContent).join() }));
+  check("a table shows a tab for each sheet, a grid with row numbers, numbers on the right", tbl.tabs === "Programs,Notes" && tbl.head === "#|Program|Price|Plan" && tbl.nums === "r||n|" && tbl.rows === 4 && tbl.first === "1" && tbl.seg === "Table,Chat", JSON.stringify(tbl));
+  check("and what each column holds, computed when it was read", /4<\/b>|4 rows/.test(tbl.foot) || /^4 rows · 3 columns/.test(tbl.foot) ? tbl.stats[1] === "Price: total 5,130 · average 1,282.5 · lowest 490 · highest 2,400" && tbl.stats[2] === "Plan: Yes, No" : false, JSON.stringify(tbl));
+  check("Replace table is offered, never Contents", tbl.btn === "Replace table/Download/Delete", tbl.btn);
+  await page.evaluate(() => { window.__reply = (b, P) => ({ id: "t1", q: b.q, a: "Two programs charge more than 1,200.", proposal: false, quotes: [], used: { file: { name: P.file.name, whole: false, rows: [1, 3], sheet: 0 }, folders: [], memory: 0 } }); });
+  await page.fill(".pj-comp textarea", "Which cost more than 1,200?"); await page.keyboard.press("Enter"); await page.waitForTimeout(600);
+  const marked = await page.evaluate(() => ({ rows: [...document.querySelectorAll(".pj-grid tr.used")].map(r => r.dataset.n).join(), chip: document.querySelector(".pj-used button")?.textContent }));
+  check("the rows an answer used are marked in the grid, and the chip names them", marked.rows === "1,3" && marked.chip === "competitors.xlsx: rows 1, 3", JSON.stringify(marked));
+  await page.click(".pj-sheets button >> text=Notes"); await page.waitForTimeout(400);
+  check("a second sheet reads from its own first row", (await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/rows").pop()?.body))?.sheet === 1);
+
+  /* a project with no file opens on the drop */
+  await page.click("#projects .pj-row >> nth=2"); await page.waitForTimeout(500);
+  const empty = await page.evaluate(() => ({ drop: !!document.querySelector(".pj-drop"), h: document.querySelector(".pj-drop h3")?.textContent, hint: document.querySelector(".pj-hint")?.textContent, send: document.querySelector(".pj-send").disabled,
+    btn: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/") }));
+  check("a project with no file shows where to drop it, and cannot be asked yet", empty.drop && /Drop the file or the table/.test(empty.h) && /Add the file or the table/.test(empty.hint) && empty.send && empty.btn === "Add a file/Delete", JSON.stringify(empty));
+
+  /* a new project: a name and a file, read here, sent a piece at a time */
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  const [fc] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npPick")]);
+  await fc.setFiles({ name: "offers.csv", mimeType: "text/csv", buffer: Buffer.from("Program,Price\nGame Jam,1200\nIndie Sprint,690\n\n") });
+  await page.waitForTimeout(200);
+  check("a file chosen names the project, and shows its own name", (await page.inputValue("#npName")) === "offers" && (await page.textContent("#npFile")) === "offers.csv");
+  await page.fill("#npName", "Offer list"); await page.click("#npMake"); await page.waitForTimeout(900);
+  const up = await page.evaluate(() => window.__calls.filter(x => /api\/project\/(new|begin|part|finish)/.test(x.s)).map(x => ({ s: x.s.split("/").pop(), b: x.body })));
+  check("it makes the project, opens a table, sends its rows, and finishes", JSON.stringify(up.map(x => x.s)) === '["new","begin","part","finish"]' && up[0].b.name === "Offer list"
+    && up[1].b.kind === "table" && up[1].b.sheets[0].name === "offers" && JSON.stringify(up[1].b.sheets[0].header) === '["Program","Price"]'
+    && JSON.stringify(up[2].b.rows) === '[["Game Jam","1200"],["Indie Sprint","690"]]' && up[2].b.sheet === 0 && up[2].b.ver === 1 && up[3].b.ver === 1, JSON.stringify(up));
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  const [fcBig] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npPick")]);
+  const callsBefore = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/begin").length);
+  await fcBig.setFiles({ name: "huge.csv", mimeType: "text/csv", buffer: Buffer.from("A,B\n" + "0123456789,abcdefghij\n".repeat(300000)) });
+  await page.fill("#npName", "Huge table"); await page.click("#npMake"); await page.waitForTimeout(1500);
+  const huge = await page.evaluate(() => ({ bad: document.getElementById("npBad").textContent, begins: window.__calls.filter(x => x.s === "/api/project/begin").length }));
+  check("a table past what a project reads is refused before its first piece goes", /is bigger than a project reads: about 40,000 rows of 10 columns/.test(huge.bad) && huge.begins === callsBefore, JSON.stringify(huge));
+  await page.evaluate(() => document.querySelector(".veil")?.remove());
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  const [fc2] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npPick")]);
+  await fc2.setFiles({ name: "brief.md", mimeType: "text/markdown", buffer: Buffer.from("# Goal\n\nFill 200 seats.\n\n[[p. 1]]\nWords") });
+  await page.fill("#npName", "Brief"); await page.click("#npMake"); await page.waitForTimeout(800);
+  const doc = await page.evaluate(() => window.__calls.filter(x => /api\/project\/(begin|part)/.test(x.s)).slice(-2).map(x => ({ s: x.s.split("/").pop(), b: x.body })));
+  check("a Markdown file is a document: its text goes whole, in a piece, from page 0", doc[0].b.kind === "doc" && doc[1].b.text === "# Goal\n\nFill 200 seats.\n\n[[p. 1]]\nWords" && doc[1].b.page === 0, JSON.stringify(doc));
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  const [fc3] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npPick")]);
+  await fc3.setFiles({ name: "x.zip", mimeType: "application/zip", buffer: Buffer.from("PK") });
+  const newsBefore = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/new").length);
+  await page.click("#npMake"); await page.waitForTimeout(500);
+  const zip = await page.evaluate(() => ({ bad: document.getElementById("npBad").textContent, btn: document.getElementById("npMake").textContent,
+    made: window.__calls.filter(x => x.s === "/api/project/new").length }));
+  check("a file the project cannot read says so, and makes no project", /is a \.zip\. A project reads Word, PDF, text, Markdown, Excel and CSV files\./.test(zip.bad) && zip.btn === "Create project" && !/was made/.test(zip.bad) && zip.made === newsBefore, JSON.stringify(zip));
+  await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelector(".veil")?.remove());
+  await page.evaluate(() => { window.__partFails = true; });
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  const [fc4] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npPick")]);
+  await fc4.setFiles({ name: "late.md", mimeType: "text/markdown", buffer: Buffer.from("Some words") });
+  await page.click("#npMake"); await page.waitForTimeout(700);
+  check("a piece the server cannot store ends the read with the reason, not a silent half file", /unreachable/.test(await page.textContent("#npBad")));
+  check("nothing threw in the projects", !bad.length, bad.join(" | "));
+  await page.close();
+
+  /* Word's HTML as Markdown, run in the page with the app's own converter */
+  const p2 = await hermetic(); const bad2 = [];
+  p2.on("pageerror", e => bad2.push(e.message));
+  await p2.goto(ORIGIN + "/chat.html", { waitUntil: "domcontentloaded" });
+  const src = (await readFile(join(APP, "chat.html"), "utf8"));
+  const at = src.indexOf("function htmlToMd(html){"); let depth = 0, end = at;
+  for (let i = src.indexOf("{", at); i < src.length; i++){ if (src[i] === "{") depth++; if (src[i] === "}" && --depth === 0){ end = i + 1; break; } }
+  const md = await p2.evaluate(code => { const f = new Function(code + "; return htmlToMd;")(); return f("<h1>Goal</h1><p>Fill <strong>200</strong> seats, <em>fast</em>.</p><ul><li>One</li><li>Two</li></ul><ol><li>A</li><li>B</li></ol><table><tr><th>Plan</th><th>Price</th></tr><tr><td>Team</td><td>1,490</td></tr></table><h4>Deep</h4><p></p>"); }, src.slice(at, end));
+  check("Word's headings, bold, italic, lists and tables come out as Markdown", md === "# Goal\n\nFill **200** seats, *fast*.\n\n- One\n- Two\n\n1. A\n2. B\n\n| Plan | Price |\n| --- | --- |\n| Team | 1,490 |\n\n### Deep", JSON.stringify(md));
+  check("nothing threw converting", !bad2.length, bad2.join(" | "));
+  await p2.close();
+}
+
+/* ---- projects on a phone: two tabs, the drawer closes, nothing leaves the screen ---- */
+{
+  const DOC = [{ sid: 1, ord: 1, title: "Goal", text: "# Brief\n\nFill 200 seats by 30 November. " + "word ".repeat(80) }];
+  const st = { ...STATE, brains: [], concepts: [], projects: [{ slug: "launch-plan", name: "Launch plan", kind: "doc", file: "brief-v3.docx", status: "ready", chars: 900, sections: 1, memory: 0, at: 3 },
+    { slug: "newsletter", name: "Newsletter plan", kind: null, file: "", status: "empty", chars: 0, sections: 0, memory: 0, at: 0 }] };
+  const projects = { "launch-plan": { project: { slug: "launch-plan", name: "Launch plan", created: "2026-10-08" },
+      file: { name: "brief-v3.docx", kind: "doc", sheets: [{ name: "brief-v3.docx", cols: [], rows: 0 }], chars: 900, sections: 1, status: "ready", ver: 1, at: 1 },
+      cards: [{ sid: 1, ord: 1, sheet: 0, title: "Goal", summary: "x", chars: 100 }], turns: [{ id: "t1", q: "What is the goal?", a: "Fill **200** seats.", proposal: false, quotes: [], used: { file: { name: "brief-v3.docx", whole: true }, folders: [], memory: 0 } }], edits: [], memory: [] },
+    "newsletter": { project: { slug: "newsletter", name: "Newsletter plan", created: "2026-10-08" }, file: null, cards: [], turns: [], edits: [], memory: [] } };
+  const page = await hermetic(); const bad = [];
+  await page.setViewportSize({ width: 390, height: 844 }); page.on("pageerror", e => bad.push(e.message));
+  await page.addInitScript(arg => {
+    sessionStorage.setItem("octopus.token.v1", "test"); window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s: path, body });
+      const J = x => Response.json(x);
+      if (path === "/api/state") return J(arg.state);
+      if (path === "/api/health") return J({ conflicted: [], health: [] });
+      if (path === "/api/project/get") return J(arg.projects[body.brain]);
+      if (path === "/api/project/doc") return J({ sections: body.from >= 1 ? [] : arg.doc });
+      return J({ chats: [] });
+    };
+  }, { state: st, projects, doc: DOC });
+  await page.goto(ORIGIN + "/chat.html", { waitUntil: "domcontentloaded" }); await page.waitForTimeout(600);
+  await page.click("#burger"); await page.waitForTimeout(300);
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(700);
+  const m = await page.evaluate(() => { const seg = [...document.querySelectorAll(".pj-seg button")], doc = document.querySelector(".pj-doc"), chat = document.querySelector(".pj-chat");
+    return { drawer: document.getElementById("side").classList.contains("open"), seg: seg.map(b => b.textContent).join(), on: seg.filter(b => b.classList.contains("on")).map(b => b.textContent).join(),
+      segH: Math.min(...seg.map(b => b.getBoundingClientRect().height)), docShown: getComputedStyle(doc).display !== "none", chatShown: getComputedStyle(chat).display !== "none",
+      wide: document.documentElement.scrollWidth > innerWidth + 1, ta: parseFloat(getComputedStyle(document.querySelector(".pj-comp textarea")).fontSize), turn: document.querySelectorAll(".pj-turn").length,
+      send: document.querySelector(".pj-send").getBoundingClientRect().width }; });
+  check("on a phone the drawer closes on the project, which opens as two tabs on its chat", !m.drawer && m.seg === "Document,Chat" && m.on === "Chat" && m.chatShown && !m.docShown && m.turn === 1, JSON.stringify(m));
+  check("the tabs and the send button are thumb sized, the field never zooms the page, nothing runs off the screen", m.segH >= 44 && m.send >= 40 && m.ta >= 16 && !m.wide, JSON.stringify(m));
+  await page.click(".pj-seg button >> text=Document"); await page.waitForTimeout(500);
+  const d = await page.evaluate(() => ({ docShown: getComputedStyle(document.querySelector(".pj-doc")).display !== "none", chatShown: getComputedStyle(document.querySelector(".pj-chat")).display !== "none",
+    secs: document.querySelectorAll(".pj-sec").length, wide: document.documentElement.scrollWidth > innerWidth + 1, page: document.querySelector(".pj-page").getBoundingClientRect() }));
+  check("the Document tab shows the file alone, inside the screen", d.docShown && !d.chatShown && d.secs === 1 && !d.wide && d.page.left >= 0 && d.page.right <= 390, JSON.stringify(d));
+  await page.click("#burger"); await page.waitForTimeout(300);
+  await page.click("#projects .pj-row >> nth=1"); await page.waitForTimeout(600);
+  const e = await page.evaluate(() => ({ on: document.querySelector(".pj-seg .on")?.textContent, drop: !!document.querySelector(".pj-drop"), wide: document.documentElement.scrollWidth > innerWidth + 1 }));
+  check("a project with no file opens on its Document tab, where the drop is", e.on === "Document" && e.drop && !e.wide, JSON.stringify(e));
+  check("nothing threw on the phone", !bad.length, bad.join(" | "));
+  await page.close();
 }
 
 await browser.close();
