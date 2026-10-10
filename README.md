@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="2417 checks passing" src="https://img.shields.io/badge/checks-2417%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="2450 checks passing" src="https://img.shields.io/badge/checks-2450%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -40,7 +40,7 @@ Drop compiles each source once. Ask reads what was compiled. The [white paper](h
 - **Lightweight.** It keeps the claims and drops the raw transcript. Search reads a 1 KB card per concept.
 - **Fast search.** The question is embedded first, so the router reads the 120 titles nearest in meaning, then at most 30 concepts open in full. A brain of 1,000 concepts costs the router 1,750 tokens, not 12,700.
 - **Scalable.** A question reads 69,000 characters of your brain at most, at any size. Thanks and greetings read none of it.
-- **Your data.** In your own database or as markdown files, exported in one click. Open source, on your own key.
+- **Your data.** In your own database or as markdown files, exported in one click and restored in one. Open source, on your own key.
 
 ## Compared
 
@@ -93,6 +93,9 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 - **What follows.** Two linked ideas from different folders can add up to a third. Each drop writes up to 5, marked as Tasu's own conclusion, never a source, and answers can use them.
 - **One page, any shape.** A brain or a question becomes a summary, a quiz, a deep dive or use cases, in 9 languages.
 - **Chats that stay.** Reopen, rename, pin up to 5. Old ones clear after 30 days.
+- **Ask twice, pay once.** The same question on folders that have not changed gets the answer it got before, for no model call, for 14 days. A drop or an edit in those folders makes the next answer fresh. A follow-up is always answered anew.
+- **Every cost in one place.** Settings, Cost shows this month in dollars for each kind of work: folder chat, personal chat, drops, upkeep, one-pagers and projects, with the answers given again for free.
+- **Restore in one step.** Settings, Restore reads an export back: the folders, concepts and sources missing come back with their links, and what is already there stays as it is.
 - **Questions run in the background.** Ask, then open another chat, a folder or Drop: the answer lands in its own chat. A drop reads on while you chat.
 - **An error says what to do.** A dropped connection or a timeout offers Try again, which sends the same message once more in place. Every error offers Send feedback, which mails the error, where it happened and the message behind it, 5 an hour at most.
 - **An inbox, top right.** A bubble counts what waits for you and opens a panel: answers ready and unread, questions on their way, a drop not finished, the personal folder's weekly audit, and the decisions. A ring turns on it while something runs.
@@ -215,7 +218,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 ```
 app/            the landing, the app (one file), the white paper and the connector page
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        2417 checks, the app driven in a real browser included
+scripts/        2450 checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a brain
@@ -229,7 +232,7 @@ templates/      the markdown shape of a brain
 npm run check
 ```
 
-2417 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, projects, and the app itself driven in a real browser.
+2450 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, projects, and the app itself driven in a real browser.
 
 <br>
 

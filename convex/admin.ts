@@ -20,6 +20,7 @@ import { syncCard, mergeInto, mergeOpenLines, putModels } from "./store";
 import { loadSpace } from "./space";
 import { rederive, needsPosition, REDERIVE_MAX } from "./tidy";
 import { embedConcepts, nearest, writeInsights, buildTopics } from "./graph";
+import { withChatSpend } from "./spend";
 
 /**
  * Turn every waiting candidate into a position.
@@ -756,7 +757,7 @@ export const linkAll = internalAction({
  * The model reads each concept with its shortlist and keeps the real links,
  * which are written. Returns how many were added, or null when the call failed.
  */
-async function confirmLinks(ctx: any, items: any[]): Promise<{ added: number; pairs: { a: string; b: string; type: string }[] } | null> {
+async function confirmLinks(ctx: any, items: any[], meter?: (usage: any) => void): Promise<{ added: number; pairs: { a: string; b: string; type: string }[] } | null> {
   const job = items.map((it: any, n: number) =>
     `### ${n + 1} | ${it.title} [${it.brainName}]\n${it.summary}\ncandidates:\n` +
     it.cands.map((c: any, k: number) => `  ${k + 1}) ${c.title} [${c.brainName}]: ${c.summary}`).join("\n")).join("\n\n");
@@ -765,7 +766,7 @@ async function confirmLinks(ctx: any, items: any[]): Promise<{ added: number; pa
     const { text } = await ask([
       { role: "system", content: "You connect the concepts of a knowledge base. You reply with JSON only." },
       { role: "user", content: `${LINK_RULES}\n\n${job}` },
-    ], { json: true, maxTokens: 2000, timeout: 90000 });
+    ], { json: true, maxTokens: 2000, timeout: 90000, meter });
     links = parseJson(String(text))?.links ?? {};
   } catch (e: any) {
     console.log(`linking failed: ${String(e?.message ?? e).slice(0, 200)}`);
@@ -818,7 +819,8 @@ export const linkStep = internalAction({
  */
 export const linkConcepts = internalAction({
   args: { space: v.string(), ids: v.array(v.string()), sid: v.optional(v.string()) },
-  handler: async (ctx, a) => {
+  /* What it costs is counted as upkeep, for Settings. */
+  handler: async (ctx, a) => await withChatSpend(ctx, { space: a.space, kind: "upkeep" }, async meter => {
     /* Every concept is reached, however many. The shortlists are worked out
        once, for what the drop wrote, and walked 30 at a time. After four
        batches the rest is handed to a fresh run, so no run nears the
@@ -845,23 +847,23 @@ export const linkConcepts = internalAction({
     let added = 0;
     const pairs: { a: string; b: string; type: string }[] = [];
     for (let i = 0; i < work.length; i += LINK_BATCH) {
-      const r = await confirmLinks(ctx, toItems(work.slice(i, i + LINK_BATCH), name));
+      const r = await confirmLinks(ctx, toItems(work.slice(i, i + LINK_BATCH), name), meter);
       if (r){ added += r.added; pairs.push(...r.pairs); }
     }
     const rest = [...want].sort().slice(RUN);
     if (rest.length) await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: a.space, ids: rest, ...(a.sid ? { sid: a.sid } : {}) });
     /* What follows from the new links across folders, then the topics of the
        folders this run touched, read from the links as they stand now. */
-    const insights = await writeInsights(ctx, a.space, pairs);
+    const insights = await writeInsights(ctx, a.space, pairs, 5, meter);
     let topics = 0;
     const touched = new Set(mine.map(id => id.split("/")[0]));
     const after = touched.size ? (await spaceOf(ctx, a.space)).concepts : [];
     for (const b of brains.filter((x: any) => touched.has(x.slug))) {
-      try { topics += await buildTopics(ctx, a.space, b, after); } catch (e: any) { console.log(`topics ${b.slug}: ${String(e?.message ?? e).slice(0, 120)}`); }
+      try { topics += await buildTopics(ctx, a.space, b, after, meter); } catch (e: any) { console.log(`topics ${b.slug}: ${String(e?.message ?? e).slice(0, 120)}`); }
     }
     console.log(`linked ${added} for ${mine.length} concepts just stored, ${insights} new insights, ${topics} topics` +
       `${rest.length ? `, ${rest.length} handed on` : ""}`);
-  },
+  }),
 });
 
 /**

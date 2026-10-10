@@ -14,7 +14,7 @@
 
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { readSpace, slug, today } from "./lib";
+import { readSpace, slug, today, SPEND_KINDS } from "./lib";
 import { syncCard } from "./store";
 import { keysOf } from "./find";
 import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, FILE_KINDS, ROUTES_KEEP, BRIEF_MAX, STATE_MAX, ASKS_MAX, ASK_CHARS, MAX_FILES, KEY_RE, FILE_SPAN, fileKey, splitKey, pointerOf, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
@@ -196,14 +196,17 @@ export const spendAdd = internalMutation({
 
 /** What one chat message cost, added to the month's row for its kind of chat. */
 export const chatSpendAdd = internalMutation({
-  args: { space: v.string(), kind: v.string(), usd: v.number(), priced: v.number(), calls: v.number(), tokensIn: v.number(), tokensOut: v.number(), cached: v.number() },
+  args: { space: v.string(), kind: v.string(), usd: v.number(), priced: v.number(), calls: v.number(), tokensIn: v.number(), tokensOut: v.number(), cached: v.number(),
+          reused: v.optional(v.number()) },
   handler: async (ctx, a) => {
-    if (!["folders", "personal"].includes(a.kind)) throw new Error("a chat is the folders' or the personal brain's");
+    if (!(SPEND_KINDS as readonly string[]).includes(a.kind)) throw new Error(`a cost is counted as one of ${SPEND_KINDS.join(", ")}`);
     const space = readSpace(a.space), month = monthOf();
     const row = (await ctx.db.query("chatSpend").withIndex("by_space_month", (q: any) => q.eq("space", space).eq("month", month)).collect()).find((r: any) => r.kind === a.kind);
     const add = { usd: a.usd, priced: a.priced, calls: a.calls, tokensIn: a.tokensIn, tokensOut: a.tokensOut, cached: a.cached };
-    if (row) await ctx.db.patch(row._id, { usd: row.usd + add.usd, priced: row.priced + add.priced, calls: row.calls + add.calls, tokensIn: row.tokensIn + add.tokensIn, tokensOut: row.tokensOut + add.tokensOut, cached: row.cached + add.cached, at: Date.now() });
-    else await ctx.db.insert("chatSpend", { space, month, kind: a.kind, ...add, at: Date.now() });
+    const reused = a.reused ?? 0;
+    if (row) await ctx.db.patch(row._id, { usd: row.usd + add.usd, priced: row.priced + add.priced, calls: row.calls + add.calls, tokensIn: row.tokensIn + add.tokensIn, tokensOut: row.tokensOut + add.tokensOut, cached: row.cached + add.cached,
+      ...(reused ? { reused: (row.reused ?? 0) + reused } : {}), at: Date.now() });
+    else await ctx.db.insert("chatSpend", { space, month, kind: a.kind, ...add, ...(reused ? { reused } : {}), at: Date.now() });
     return { ok: true };
   },
 });
@@ -246,7 +249,8 @@ export const spendOf = internalQuery({
     const cap = (await budgetOf(ctx, a.space))?.cap ?? null;
     /* The chats' own rows: what the folders' chat and the personal chat cost this month, apart from the projects, which the cap is about. */
     const chats = (await ctx.db.query("chatSpend").withIndex("by_space_month", (q: any) => q.eq("space", readSpace(a.space)).eq("month", month)).collect())
-      .map((r: any) => ({ kind: r.kind as string, usd: r.usd as number, calls: r.calls as number, priced: r.priced as number, tokensIn: r.tokensIn as number, tokensOut: r.tokensOut as number, cached: r.cached as number }));
+      .map((r: any) => ({ kind: r.kind as string, usd: r.usd as number, calls: r.calls as number, priced: r.priced as number, tokensIn: r.tokensIn as number, tokensOut: r.tokensOut as number, cached: r.cached as number,
+        ...(r.reused ? { reused: r.reused as number } : {}) }));
     return {
       month, usd: sum("usd"), calls: sum("calls"), priced: sum("priced"), tokensIn: sum("tokensIn"), tokensOut: sum("tokensOut"), cached: sum("cached"), chats,
       last: { month: before, usd: last }, cap, over: cap != null && sum("usd") >= cap,

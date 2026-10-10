@@ -447,7 +447,7 @@ async function boot(path, init, arg) {
   await page.waitForTimeout(150);
   const setup = await page.evaluate(() => ({ model: document.querySelector("#setModel .val")?.textContent,
     exp: !!document.getElementById("setExport"), order: [...document.querySelectorAll(".sheet .set-row button")].map(b => b.id).join(",") }));
-  check("Settings holds the model and the export; Audit has its own section", setup.order === "setModel,setExport" && setup.model === "model"
+  check("Settings holds the model, the export and Restore; Audit has its own section", setup.order === "setModel,setExport,setRestore" && setup.model === "model"
     && await page.evaluate(() => !!document.getElementById("auditBlock") && !document.getElementById("setTidy")), JSON.stringify(setup));
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#setExport")]);
   const { readFileSync } = await import("node:fs");
@@ -456,6 +456,7 @@ async function boot(path, init, arg) {
   check("with each brain's concepts whole, read on demand", /sold out twice/.test(exported) && /31 percent/.test(exported),
     exported.slice(0, 200));
   check("page after page, until the brain is read to its end", /70% of watch time/.test(exported), exported.slice(-300));
+  check("it names each folder and gives each concept its title and line word for word, so Restore gives them back", /\| Brain \| Name \| Type \| Concepts \| Scope \|/.test(exported) && /\*\*Title:\*\* /.test(exported) && /\*\*Summary:\*\* /.test(exported) && /\| Id \| Date \| Author \| Title \| Link \| Brains \|/.test(exported), exported.slice(0, 300));
   await page.waitForTimeout(100);
   check("the export says it is done", await page.textContent("#setExport .val") === "downloaded", await page.textContent("#setExport .val"));
   await page.click("#setModel"); await page.waitForTimeout(150);
@@ -1302,7 +1303,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   }, STATE);
   await page.waitForTimeout(200);
   const listed = await page.evaluate(() => ({ rows: [...document.querySelectorAll("#chats .chat-row")].map(r => ({
-    t: r.querySelector(".nm").textContent, b: r.querySelector(".cb").textContent, pin: !!r.querySelector(".pin") })),
+    t: r.querySelector(".nm").textContent, b: r.title.split("\n")[1], pin: !!r.querySelector(".pin") })),
     count: document.getElementById("ccount").textContent }));
   check("the chats are listed, pinned first, each with the brain it asked", listed.count === "2" && listed.rows[0].t === "Is gold a hedge?"
     && listed.rows[0].pin && /^Content · 2 questions$/.test(listed.rows[0].b) && /^All folders · 1 question$/.test(listed.rows[1].b), JSON.stringify(listed));
@@ -4950,6 +4951,16 @@ for (const space of ["octopus", "squidgy"]) {
   const o1 = await over.page.evaluate(() => ({ sum: document.getElementById("spendSum").textContent, bad: document.getElementById("spendSum").classList.contains("bad"), v: document.getElementById("spendCap").value, off: document.getElementById("spendOff").hidden }));
   check("a cap already reached shows in the closed fold, with the cap in the field", o1.sum === "cap reached" && o1.bad && o1.v === "0.4" && !o1.off, JSON.stringify(o1));
   await over.page.close();
+
+  /* every kind of work outside the projects has its row, in a fixed order, and answers given again say so */
+  const wide = await mk({ ...STATE, brains: [], concepts: [], projects: [] }, { ...SPEND, usd: 0, calls: 0, priced: 0, tokensIn: 0, tokensOut: 0, cached: 0, projects: [],
+    chats: [{ kind: "pager", usd: 0.004, calls: 2, priced: 2, tokensIn: 9000, tokensOut: 900, cached: 0 }, { kind: "drops", usd: 0.05, calls: 30, priced: 30, tokensIn: 400000, tokensOut: 60000, cached: 200000 },
+      { kind: "folders", usd: 0.01, calls: 12, priced: 12, tokensIn: 70000, tokensOut: 5000, cached: 0, reused: 7 }, { kind: "upkeep", usd: 0.002, calls: 4, priced: 4, tokensIn: 8000, tokensOut: 800, cached: 0 }] });
+  await wide.page.waitForTimeout(400); await open(wide.page); await wide.page.click("#spendBlock > summary"); await wide.page.waitForTimeout(150);
+  const wr = await wide.page.evaluate(() => [...document.querySelectorAll("#spendBody .sp-row")].map(r => r.textContent));
+  check("drops, upkeep and one-pagers have their rows beside the chats, in a fixed order, and the folder chat says how many answers it gave again for free",
+    JSON.stringify(wr.slice(1, 5)) === JSON.stringify(["Folder chat$0.01012 calls, 7 reused free", "Drops$0.05030 calls", "Upkeep$0.00204 calls", "One-pagers$0.00402 calls"]), JSON.stringify(wr));
+  await wide.page.close();
 }
 
 /* ---- the side panel, light or dark, dialogs and the keyboard ---- */
@@ -4960,11 +4971,12 @@ for (const space of ["octopus", "squidgy"]) {
     const { page, bad } = await boot("/chat.html", arg => {
       sessionStorage.setItem("octopus.token.v1", "test");
       if (arg.theme) localStorage.setItem("octopus.theme", arg.theme);
-      window.fetch = async u => {
+      window.fetch = async (u, opt) => {
         const path = String(u).replace(/^https?:\/\/[^/]+/, ""), J = x => Response.json(x);
         if (path === "/api/state") return J(arg.state);
         if (path === "/api/health") return J({ conflicted: [], health: arg.state.brains.map(b => ({ slug: b.slug, score: 7.4, best: "Keep feeding it.", parts: {} })) });
         if (path === "/api/project/list") return J({ projects: [] });
+        if (path === "/api/restore") { window.__restore = JSON.parse(opt?.body || "{}"); return J({ brains: { added: 1, kept: 2, skipped: 0 }, concepts: { added: 40, kept: 3, skipped: 0 }, sources: { added: 12, kept: 0 }, linking: 40 }); }
         return J({ chats: [{ id: "c1", title: "A chat", brain: "all", pinned: false, updated: Date.now(), n: 1 }] });
       };
     }, { state, theme: opts.theme || "" });
@@ -4997,6 +5009,12 @@ for (const space of ["octopus", "squidgy"]) {
   check("Light turns it back", d2.theme === "light" && lum(d2.bg) > 600, JSON.stringify(d2));
   await page.click('#themePick button[data-v="system"]'); await page.waitForTimeout(100);
   check("System forgets the choice and follows the device again", await page.evaluate(() => !document.documentElement.dataset.theme && localStorage.getItem("octopus.theme") === null));
+  /* Restore: an export picked here is sent whole, and what came back is said */
+  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.click("#setRestore")]);
+  await chooser.setFiles({ name: "octopus-brains-2026-10-01.md", mimeType: "text/markdown", buffer: Buffer.from("# MAP\n\n| Brain | Type | Concepts | Scope |\n|---|---|---|---|\n| brain-subject-wealth | subject | 1 | money |\n") });
+  await page.waitForTimeout(300);
+  const rsd = await page.evaluate(() => ({ sent: window.__restore?.text?.slice(0, 5), msg: document.getElementById("restoreMsg").textContent }));
+  check("Restore sends the export picked and says what it added and what it kept", rsd.sent === "# MAP" && rsd.msg === "Restored 1 folder, 40 concepts and 12 sources. 5 already here, kept as they are. Their links follow in a minute.", JSON.stringify(rsd));
   await page.keyboard.press("Escape"); await page.waitForTimeout(150);
   check("Escape closes Settings and the focus goes back to the button that opened it", await page.evaluate(() => !document.querySelector(".veil") && document.activeElement?.id === "keyBtn"));
 

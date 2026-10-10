@@ -370,7 +370,6 @@
   .chat-row + .chat-row{ margin-top:2px; }
   .chat-row .cm{ flex:1; min-width:0; }
   .chat-row .nm{ display:block; font:500 13px/1.35 var(--sans); color:var(--ink-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .chat-row .cb{ display:block; margin-top:2px; font:400 10.5px/1.3 var(--mono); color:var(--ink-4); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .chat-row .pin{ flex:none; width:12px; height:12px; fill:var(--accent-fill); }
   /* One button per row holds pin, rename and delete. */
   .chat-row .more{ flex:none; display:none; width:26px; height:26px; border-radius:6px; text-align:center;
@@ -836,10 +835,6 @@
   .panel .fold-t:hover{ color:var(--ink); }
   .panel .fold-t b{ margin-left:0; font:400 11.5px/1 var(--mono); color:var(--ink-4); }
   .panel .chev{ margin-left:auto; color:var(--ink-4); }
-  .p-ic{ width:24px; height:24px; flex:none; display:grid; place-items:center; border-radius:7px; }
-  .p-ic svg{ width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-  .p-chat{ background:rgba(63,125,92,.12); color:var(--good); }
-  .p-fold{ background:var(--accent-soft); color:var(--accent); }
   .panel .side-plus{ width:26px; height:26px; padding:0; display:grid; place-items:center; border-radius:7px; background:var(--surface-2); color:var(--ink-3); }
   .panel .side-plus:hover{ background:var(--accent-soft); color:var(--accent); }
   .panel .side-plus svg{ width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; }
@@ -1779,7 +1774,6 @@
   .panel-h:hover{ background:var(--side-hover); }
   .panel .fold-t{ flex:1; gap:7px; padding:7px 0; font:600 11.5px/1 var(--sans); letter-spacing:.075em; text-transform:uppercase; color:var(--ink-4); }
   .panel .fold-t:hover{ color:var(--ink-2); }
-  .p-ic{ display:none; }
   .panel .fold-t b{ min-width:0; padding:0; border-radius:0; background:none; font:500 11.5px/1 var(--mono); letter-spacing:0; color:var(--ink-4); opacity:.85; }
   .panel .fold-t b:empty{ display:none; }
   .panel .chev{ width:6px; height:6px; margin:0 8px 0 auto; border:0; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor;
@@ -1808,9 +1802,7 @@
   .chat-row:hover, .brain-row:hover{ background:var(--side-hover); }
   .chat-row.on, .brain-row.on{ background:var(--side-on); border:0; box-shadow:inset 2px 0 0 var(--accent-fill); }
   .chat-row .nm, .brain-row .nm{ font:400 13.5px/1.35 var(--sans); color:var(--ink-2); }
-  .chat-row .cb{ display:none; }
   .chat-row.on .nm, .brain-row.on .nm{ font-weight:500; color:var(--ink); }
-  .brain-row:hover .nm{ color:var(--ink); }
   .brain-row.on .b-ic, .brain-row .b-ic{ color:var(--ink-4); }
 
   /* The foot: Settings, then Sign out, on one line. */
@@ -1959,7 +1951,6 @@
     .box .tbar{ flex-wrap:wrap; row-gap:8px; }
     .box .tbar .ctrls{ flex:1 1 auto; min-width:0; order:0; flex-wrap:wrap; }
     .box .tbar .t:not(:empty){ flex:1 0 100%; order:-1; }
-    .box .tbar .t:empty{ display:none; }
     .box .tbar .pick-btn, .box .tbar .fresh{ height:44px; }
     .zero h2{ font-size:30px; }
     .fv-t h2{ font-size:26px; }
@@ -1986,7 +1977,6 @@
     .box .tbar #memBtn{ flex:none; height:42px; }
     .box .tbar #freshBtn{ display:none; }
     .box .tbar .t{ order:9; flex:1 0 100%; }
-    .box .tbar .t:empty{ display:none; }
     .box .tbar .tools{ flex:none; }
     .box .tbar .mic, .box .tbar .send{ flex:none; width:42px; height:42px; margin-left:0; }
   }
@@ -2000,7 +1990,6 @@
      file takes two thirds of the screen and the chat one third. On a phone
      they are two tabs. Last in the sheet, so it settles what came before it.
      ====================================================================== */
-  .p-proj{ background:var(--surface); color:var(--ink-2); box-shadow:0 0 0 1px var(--line), 0 1px 2px rgba(0,0,0,.05); }
   .pj-row .cnt{ margin-left:auto; font:400 10.5px/1 var(--mono); color:var(--ink-4); white-space:nowrap; }
   .pj-row .cnt:empty{ display:none; }
   .pj-row.run .cnt{ color:var(--warn); }
@@ -2307,20 +2296,20 @@
       </div>
       <section class="panel" id="chatsPanel">
         <div class="panel-h" id="chatsH" title="Unpinned chats go 30 days after their last question, or past the newest 20. Up to 5 pinned chats stay.">
-          <button class="fold-t" id="chatsFold" aria-expanded="true" aria-controls="chatsBox"><span class="p-ic p-chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg></span>Chats <b id="ccount"></b><span class="chev"></span></button>
+          <button class="fold-t" id="chatsFold" aria-expanded="true" aria-controls="chatsBox">Chats <b id="ccount"></b><span class="chev"></span></button>
         </div>
         <div class="panel-b" id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="chats"></div></div>
       </section>
       <section class="panel" id="projectsPanel">
         <div class="panel-h" id="projectsH" title="One file or one table, with a chat beside it and a memory of its own.">
-          <button class="fold-t" id="projectsFold" aria-expanded="true" aria-controls="projectsBox"><span class="p-ic p-proj"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg></span>Projects <b id="pcount"></b><span class="chev"></span></button>
+          <button class="fold-t" id="projectsFold" aria-expanded="true" aria-controls="projectsBox">Projects <b id="pcount"></b><span class="chev"></span></button>
           <button class="side-plus" id="newProject" type="button" title="New project" aria-label="New project"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
         </div>
         <div class="panel-b" id="projectsBox"><div id="projects"></div></div>
       </section>
       <section class="panel" id="brainsPanel">
         <div class="panel-h" id="brainsH">
-          <button class="fold-t" id="brainsFold" aria-expanded="true" aria-controls="brainsBox"><span class="p-ic p-fold"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg></span>Folders <b id="bcount"></b><span class="chev"></span></button>
+          <button class="fold-t" id="brainsFold" aria-expanded="true" aria-controls="brainsBox">Folders <b id="bcount"></b><span class="chev"></span></button>
           <button class="side-plus" id="newBrain" type="button" title="New folder" aria-label="New folder"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
         </div>
         <div class="panel-b" id="brainsBox"><div id="brains"></div></div>
@@ -3107,12 +3096,12 @@ function chatRow(c){
   row.tabIndex = 0; row.setAttribute("role","button");
   if (c.pinned){ const p = el("span"); p.innerHTML = PIN_SVG; row.append(p.firstChild); }
   const main = el("span","cm");
-  main.append(el("span","nm",c.title),
-    el("span","cb",`${c.concept ? "About one concept" : brainLabel(c.brain)} \u00b7 ${c.turns} question${c.turns === 1 ? "" : "s"}`));
+  main.append(el("span","nm",c.title));
   row.append(main);
   const job = S.jobs.find(j => j.key === c.id && (j.status === "running" || !j.seen));
   if (job){ const d = el("span","cr-dot" + (job.status === "running" ? " run" : "")); d.title = job.status === "running" ? "On its way" : "Answer unread"; row.append(d); }
-  row.title = c.title;
+  /* The pointer shows what it asked and how often. */
+  row.title = `${c.title}\n${c.concept ? "About one concept" : brainLabel(c.brain)} \u00b7 ${c.turns} question${c.turns === 1 ? "" : "s"}`;
   /* The chat already current still has to bring its screen back when a project, a folder or Drop is on top of it. */
   const open = () => {
     if (S.chatId !== c.id) openChat(c.id);
@@ -3308,9 +3297,7 @@ function openHealthSheet(b){
       : `<div class="hb-top">${NAMES[k]}<span>not counted</span></div><div class="hb-say">${esc(p.say)}</div>`;
     parts.append(row);
   }
-  const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
-  const shut = () => { document.removeEventListener("keydown", onKey); veil.remove(); };
-  document.addEventListener("keydown", onKey);
+  const shut = () => { veil.remove(); };
   veil.querySelector("#hbDone").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
   veil.querySelector("#hbOpen").onclick = () => { shut(); openFolder(b); };
@@ -4085,9 +4072,7 @@ async function openStill(){
     </div>`;
   document.body.append(veil);
   const list = veil.querySelector("#opList"), say = veil.querySelector("#opSay"), send = veil.querySelector("#opSend");
-  const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
-  const shut = () => { document.removeEventListener("keydown", onKey); veil.remove(); };
-  document.addEventListener("keydown", onKey);
+  const shut = () => { veil.remove(); };
   veil.querySelector("#opDone").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
   const tell = (text, cls = "") => { say.textContent = text; say.className = "dc-state " + cls; };
@@ -4334,9 +4319,7 @@ async function openDecide(){
     </div>`;
   document.body.append(veil);
   const list = veil.querySelector("#dcList"), say = veil.querySelector("#dcSay"), all = veil.querySelector("#dcAll"), state = veil.querySelector("#dcState"), swipe = veil.querySelector("#dcSwipe");
-  const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
-  const shut = () => { document.removeEventListener("keydown", onKey); S.dcPaint = null; veil.remove(); };
-  document.addEventListener("keydown", onKey);
+  const shut = () => { S.dcPaint = null; veil.remove(); };
   veil.querySelector("#dcDone").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
   all.onclick = () => acceptAll();
@@ -5104,7 +5087,10 @@ async function openSetupSheet(opts = {}){
           <span class="lbl">Model</span><span class="val">${esc(modelLabel().val)}</span></button>
         <button class="foot-btn" id="setExport" title="Every folder of this workspace, as one markdown file">
           <span class="lbl">Export</span><span class="val">markdown</span></button>
+        <button class="foot-btn" id="setRestore" title="Read an export back: the folders, concepts and sources this workspace is missing are added, and what it holds is kept" ${S.demo ? "hidden" : ""}>
+          <span class="lbl">Restore</span><span class="val">from an export</span></button>
       </div>
+      <div class="hint" id="restoreMsg" role="status" style="margin:4px 0 0"></div>
       <div class="f lang-row theme-row" style="margin-top:10px"><span>Appearance</span>
         <div class="seg" id="themePick" role="radiogroup" aria-label="Light or dark">
           <button type="button" role="radio" data-v="system">System</button><button type="button" role="radio" data-v="light">Light</button><button type="button" role="radio" data-v="dark">Dark</button></div></div>
@@ -5133,7 +5119,7 @@ async function openSetupSheet(opts = {}){
 
       <details class="f sh-fold" id="spendBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${S.demo ? "hidden" : ""}>
         <summary><span>Cost</span><b id="spendSum" class="sh-count"></b></summary>
-        <div class="hint" style="margin:8px 0 10px">What your projects and your chats cost this month, as the model host reports it. A cap on the projects stops them for the rest of the month.</div>
+        <div class="hint" style="margin:8px 0 10px">What this workspace cost this month, as the model host reports it: projects, chats, drops, upkeep and one-pagers. A cap on the projects stops them for the rest of the month.</div>
         <div id="spendBody"><div class="hint">Loading</div></div>
         <div class="sp-cap"><label for="spendCap">Monthly cap on projects</label>
           <div class="urlbox"><span aria-hidden="true">$</span><input id="spendCap" inputmode="decimal" autocomplete="off" placeholder="No cap" aria-label="Monthly cap in dollars"><button id="spendSave" type="button">Save</button><button id="spendOff" type="button">No cap</button></div></div>
@@ -5208,10 +5194,11 @@ async function openSetupSheet(opts = {}){
   if (!spendBlock.hidden){
     const sum = veil.querySelector("#spendSum"), body = veil.querySelector("#spendBody"), note = veil.querySelector("#spendMsg");
     const capIn = veil.querySelector("#spendCap"), save = veil.querySelector("#spendSave"), off = veil.querySelector("#spendOff");
-    const KINDS = { folders: "Folder chat", personal: "Personal chat" };
+    /* Everything outside the projects that asks a model, by kind, in this order. */
+    const KINDS = { folders: "Folder chat", personal: "Personal chat", drops: "Drops", upkeep: "Upkeep", pager: "One-pagers" };
     const paint = r => {
       /* The projects and the chats, added: what the month cost in all. The cap is about the projects alone. */
-      const chats = (r.chats || []).filter(c => KINDS[c.kind]);
+      const chats = (r.chats || []).filter(c => KINDS[c.kind]).sort((a, b) => Object.keys(KINDS).indexOf(a.kind) - Object.keys(KINDS).indexOf(b.kind));
       const all = { usd: r.usd, calls: r.calls, priced: r.priced, tokensIn: r.tokensIn, tokensOut: r.tokensOut, cached: r.cached };
       for (const c of chats) for (const k of Object.keys(all)) all[k] += c[k] || 0;
       sum.textContent = r.over ? "cap reached" : `${spendUsd(all.usd)} this month`; sum.classList.toggle("bad", !!r.over);
@@ -5222,7 +5209,7 @@ async function openSetupSheet(opts = {}){
       row("This month", spendUsd(all.usd), all.calls ? calls(all.calls) : "");
       if (chats.length || r.calls){
         if (r.calls) row("Projects", spendUsd(r.usd), calls(r.calls), "sub");
-        for (const c of chats) row(KINDS[c.kind], spendUsd(c.usd), calls(c.calls), "sub");
+        for (const c of chats) row(KINDS[c.kind], spendUsd(c.usd), calls(c.calls) + (c.reused ? `, ${c.reused.toLocaleString("en-US")} reused free` : ""), "sub");
       }
       if (all.calls) row("Tokens", `${spendTok(all.tokensIn)} in, ${spendTok(all.tokensOut)} out`, reused ? `${reused}% reused` : "");
       if (r.projects.length) body.append(el("div","sp-note","By project"));
@@ -5436,6 +5423,26 @@ async function openSetupSheet(opts = {}){
     veil.querySelector("#langMsg").textContent = "Pick the language the mic listens in. It hears one language at a time.";
     setTimeout(() => row.scrollIntoView({ block: "center" }), 60);
   }
+
+  /* Restore: an export picked here goes to the server whole, which adds what this workspace is missing and keeps what it has. */
+  const rst = veil.querySelector("#setRestore"), rmsg = veil.querySelector("#restoreMsg");
+  rst.onclick = () => pickFile(".md,.markdown,.txt,text/markdown,text/plain", async file => {
+    const v = rst.querySelector(".val");
+    rst.disabled = true; v.textContent = "reading"; rmsg.className = "hint"; rmsg.textContent = "";
+    try {
+      const text = await file.text();
+      v.textContent = "restoring";
+      const r = await api("/api/restore", { text });
+      const n = (k, one, many) => `${r[k].added} ${r[k].added === 1 ? one : many}`;
+      const kept = r.brains.kept + r.concepts.kept + r.sources.kept;
+      rmsg.textContent = `Restored ${n("brains", "folder", "folders")}, ${n("concepts", "concept", "concepts")} and ${n("sources", "source", "sources")}.` +
+        (kept ? ` ${kept} already here, kept as they are.` : "") + (r.brains.skipped ? ` ${r.brains.skipped} folder${r.brains.skipped === 1 ? "" : "s"} named in another workspace left out.` : "") +
+        (r.linking ? ` Their links follow in a minute.` : "");
+      v.textContent = "done";
+      refresh().catch(() => {});
+    } catch (e) { v.textContent = "failed"; rmsg.className = "hint bad"; rmsg.textContent = /unreadable|404/.test(e.message) ? "The server is older than this page and cannot restore yet. Run convex deploy." : e.message; }
+    finally { rst.disabled = false; setTimeout(() => { v.textContent = "from an export"; }, 2500); }
+  });
 
   const exp = veil.querySelector("#setExport");
   exp.onclick = async () => {
@@ -9013,9 +9020,7 @@ function openMemory(opts = {}){
     <footer><button class="ghost" id="pmAdd" type="button"></button><button class="ghost" id="pmClose">Close</button></footer></div>`;
   document.body.append(veil);
   const list = veil.querySelector("#pmList"), sub = veil.querySelector("#pmSub"), add = veil.querySelector("#pmAdd");
-  const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
-  const shut = () => { document.removeEventListener("keydown", onKey); if (rec?.bar?.sheet) endVoice(); pj.memPaint = null; veil.remove(); };
-  document.addEventListener("keydown", onKey);
+  const shut = () => { if (rec?.bar?.sheet) endVoice(); pj.memPaint = null; veil.remove(); };
   veil.querySelector("#pmClose").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
   const named = new Map((pj.data.cards || []).map(c => [c.sid, c.title]));
@@ -11244,20 +11249,28 @@ async function exportAll(){
     }
     catch (_) { whole[b.slug] = conceptsOf(b.slug); }
   }
-  const out = ["# MAP\n\n| Brain | Type | Concepts | Scope |\n|---|---|---|---|"];
-  for (const b of S.brains) out.push(`| brain-${b.type}-${b.slug} | ${b.type} | ${conceptsOf(b.slug).length} | ${b.scope} |`);
-  out.push("\n# SOURCES\n\n| Id | Date | Author | Link | Brains |\n|---|---|---|---|---|");
-  for (const s of S.sources) out.push(`| ${s.sid} | ${s.date||""} | ${s.author||""} | ${s.link||""} | ${(s.brains||[]).join(", ")} |`);
+  /* A cell of a table: one line, with no bar that would split it. */
+  const cell = t => String(t ?? "").replace(/[|\n\r]+/g, " ").trim();
+  const out = ["# MAP\n\n| Brain | Name | Type | Concepts | Scope |\n|---|---|---|---|---|"];
+  for (const b of S.brains) out.push(`| brain-${b.type}-${b.slug} | ${cell(b.name)} | ${b.type} | ${conceptsOf(b.slug).length} | ${cell(b.scope)} |`);
+  out.push("\n# SOURCES\n\n| Id | Date | Author | Title | Link | Brains |\n|---|---|---|---|---|---|");
+  for (const s of S.sources) out.push(`| ${s.sid} | ${s.date||""} | ${cell(s.author)} | ${cell(s.title)} | ${s.link||""} | ${(s.brains||[]).join(", ")} |`);
   for (const b of S.brains){
     out.push(`\n# brain-${b.type}-${b.slug}/SUMMARY.md\n\n**Scope:** ${b.scope}\n`);
     for (const c of whole[b.slug]) out.push(`- ${c.title}: ${c.summaryLine||c.position||"no position yet"}. \`${pad2(c.n||1)}-${c.slug||conceptSlug(c.title)}.md\``);
     for (const c of whole[b.slug]){
       out.push(`\n## brain-${b.type}-${b.slug}/${pad2(c.n||1)}-${c.slug||conceptSlug(c.title)}.md\n`);
+      /* Its title and line, word for word, so Restore gives them back as they were. */
+      out.push(`**Title:** ${cell(c.title)}\n**Summary:** ${cell(c.summaryLine)}\n`);
       out.push(`### Position\n\n${c.position||"none yet"}\n`);
       out.push(`### Evidence\n\n${(c.evidence||[]).map(e=>`- ${e.date||"?"}, ${e.author||"?"}: ${e.claim||""}`).join("\n")||"- none"}\n`);
       out.push(`### Data\n\n${(c.data||[]).map(x=>"- "+x).join("\n")||"- none"}\n`);
       out.push(`### Open conflicts\n\n${(c.conflicts||[]).map(x=>`- ${x.a} (${x.aDate}) against ${x.b} (${x.bDate}). They differ because ${x.why}.`).join("\n")||"- none"}\n`);
       out.push(`### Sources\n\n${(c.sources||[]).map(x=>"- `notes/"+x+".md`").join("\n")||"- none"}\n`);
+      const kind = new Map((c.kinds||[]).map(k => [k.to, k.type]));
+      const links = (c.related||[]).filter(r => /^[a-z0-9-]+\/[a-z0-9-]+$/.test(r)).map(r => `- ${kind.get(r) || "related"}: ${r}`);
+      if (links.length) out.push(`### Links\n\n${links.join("\n")}\n`);
+      if ((c.aliases||[]).length) out.push(`### Also called\n\n${c.aliases.map(a => "- " + cell(a)).join("\n")}\n`);
       out.push(`### Updated\n\n${c.updated||""}\n`);
     }
   }

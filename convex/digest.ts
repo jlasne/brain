@@ -16,7 +16,7 @@
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { SPACES, spaceName, HOME, readSpace } from "./lib";
+import { SPACES, spaceName, HOME, readSpace, DAY_MS } from "./lib";
 import type { Space } from "./lib";
 import { loadSpace } from "./space";
 import { mail, asText, looksLikeMail } from "./onepager";
@@ -26,7 +26,6 @@ import type { Pager, Bullet } from "./onepager";
 export const LIST_MAX = 12;
 /* Concepts opened whole per space. Past this, a fed concept is counted only. */
 const OPEN_MAX = 300;
-const DAY = 86400000;
 
 export type SpaceWeek = {
   space: Space;
@@ -107,7 +106,7 @@ export const send = internalAction({
   args: { days: v.optional(v.number()), dry: v.optional(v.boolean()) },
   handler: async (ctx, a): Promise<any> => {
     const days = Math.max(1, Math.min(31, Math.round(a.days ?? 7)));
-    const now = Date.now(), sinceMs = now - days * DAY;
+    const now = Date.now(), sinceMs = now - days * DAY_MS;
     const since = new Date(sinceMs).toISOString().slice(0, 10);
     const today = new Date(now).toISOString().slice(0, 10);
 

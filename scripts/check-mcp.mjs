@@ -35,7 +35,7 @@ const { handleRpc, versionOk } = await import(pathToFileURL(join(dir, "bundle.mj
 const MENTIONS = 1;
 await esbuild.build({ entryPoints: [join(dir, "drop.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle-drop.mjs"), logLevel: "silent" });
-const { dropSettle, fetchPage, planContext, dropMerge, dropPlan, youtubeChannel, plainClaim, PLAN_RULES: RULES_P, REWRITE_RULES, untagged, rewriteOf } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
+const { dropSettle, fetchPage, planContext, dropMerge, dropPlan, youtubeChannel, plainClaim, PLAN_RULES: RULES_P, REWRITE_RULES, untagged, rewriteOf, excerptFor } = await import(pathToFileURL(join(dir, "bundle-drop.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle-words.mjs"), logLevel: "silent" });
 const { findByTitle, cardOf } = await import(pathToFileURL(join(dir, "bundle-words.mjs")).href);
@@ -661,7 +661,31 @@ let job = "";
   check("and sees only those brains", /id=content/.test(prompt) && /id=health/.test(prompt) && !/id=other/.test(prompt));
   await dropPlan(ctx, WHO, { ext: EXT, brain: "content", key: "k" });
   check("one brain gets no such line", !/THE OWNER CHOSE/.test(prompt) && !/## Health/.test(prompt));
+
+  /* Two batches of one source open with the same text up to the concept list and the earlier sources: a host that reuses the start of a
+     prompt bills the list once at full price. What changes (the titles so far, the topics) comes after it. */
+  await dropPlan(ctx, WHO, { ext: { ...EXT, topics: [{ topic: "First batch topic", ideas: ["a"] }] }, brain: "content", key: "k" });
+  const p1 = prompt;
+  await dropPlan(ctx, WHO, { ext: { ...EXT, topics: [{ topic: "Second batch topic", ideas: ["b"] }] }, brain: "content", key: "k", proposed: ["content | Earlier title"] });
+  const p2 = prompt;
+  let same = 0; while (same < p1.length && p1[same] === p2[same]) same++;
+  check("two batches of one source share the rules, the concept list and the earlier sources, word for word, before anything that changes",
+    same > p1.lastIndexOf("EARLIER SOURCES") && p1.lastIndexOf("BRAINS AND THEIR CONCEPTS") < same && p2.lastIndexOf("ALREADY PROPOSED") > p2.lastIndexOf("EARLIER SOURCES") && p2.lastIndexOf("THE NEW SOURCE") > p2.lastIndexOf("ALREADY PROPOSED"),
+    `${same} of ${p1.length} shared`);
   globalThis.fetch = real;
+
+  /* The store step: the source before the concepts, whole when it fits, so two batches of one drop share it; a long one keeps only the
+     topics a batch shares words with. */
+  const small = [{ topic: "Hook rate", ideas: ["hooks that open on a number hold 30% longer"] }, { topic: "Posting time", ideas: ["7am posts reach 2x"] }];
+  const ex1 = excerptFor(small, [{ c: { title: "Hook rate" }, adds: "hooks" }]), ex2 = excerptFor(small, [{ c: { title: "Posting time" }, adds: "posts" }]);
+  check("a source that fits is the same excerpt for every batch, whole and in order", ex1 === ex2 && /^Hook rate[\s\S]*Posting time/.test(ex1));
+  const long = Array.from({ length: 40 }, (_, i) => ({ topic: i === 33 ? "Refund window rule" : `Filler topic ${i}`, ideas: ["x".repeat(900)] }));
+  const exL = excerptFor(long, [{ c: { title: "Refund window" }, adds: "refund window" }]);
+  check("a long source sends a batch only the topics it shares words with, not filler up to the limit", /Refund window rule/.test(exL) && !/Filler topic/.test(exL) && exL.length < 2000, String(exL.length));
+  const none = excerptFor(long, [{ c: { title: "Unrelated" }, adds: "nothing shared" }]);
+  check("and a batch that shares no word with it still gets the opening topics", /Filler topic 0/.test(none) && none.length <= 20000);
+  const job = await dropSettle(ctx, WHO, { sid: "s-order", ext: { ...EXT, topics: small }, plan: { brains: ["content"], matched: [{ conceptId: "content/personal-brand", whatItAdds: "z" }], new: [], echo: [], conflicts: [], candidates: [] }, fullPlan: { brains: ["content"] }, packetOnly: true });
+  check("the store job puts the source before the concepts", (job.job ?? "").indexOf("NEW SOURCE") > 0 && job.job.indexOf("NEW SOURCE") < job.job.indexOf("CONCEPTS\n"), (job.job ?? JSON.stringify(job)).slice(0, 120));
 
   /* A plan that lists one brain but files an idea in another still files it there. */
   const plan = { brains:["content"], matched:[], new:["x"], echo:[], conflicts:[],

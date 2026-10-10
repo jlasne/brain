@@ -66,7 +66,7 @@ export function ruleHint(c: Clash): Hint {
 }
 
 /** Every open conflict of a space, each marked real or not, the unmarked ones checked once. */
-export async function listConflicts(ctx: any, space: string, model?: string, key?: string, opts: { hints?: boolean } = {}): Promise<{ conflicts: Clash[]; others: number }> {
+export async function listConflicts(ctx: any, space: string, model?: string, key?: string, opts: { hints?: boolean; meter?: (usage: any) => void } = {}): Promise<{ conflicts: Clash[]; others: number }> {
   const head = await ctx.runQuery(internal.store.spaceHead, { space });
   const all: Clash[] = [];
   for (const br of head.brains) {
@@ -94,7 +94,7 @@ export async function listConflicts(ctx: any, space: string, model?: string, key
         { role: "system", content: "You judge whether two claims contradict. You reply with JSON only." },
         { role: "user", content: `${CHECK_RULES}\n\n` + part.map((c, k) =>
           `${k + 1}. A: "${c.a.slice(0, 300)}" | B: "${c.b.slice(0, 300)}" | recorded because: ${c.why.slice(0, 200)}`).join("\n") },
-      ], { json: true, maxTokens: 600, timeout: 60000, model, key });
+      ], { json: true, maxTokens: 600, timeout: 60000, model, key, meter: opts.meter });
       const real = parseJson(text)?.real;
       if (!Array.isArray(real) || real.length !== part.length) continue;
       part.forEach((c, k) => { c.real = real[k] === true; });
@@ -116,7 +116,7 @@ export async function listConflicts(ctx: any, space: string, model?: string, key
           { role: "system", content: "You suggest how to settle contradictions in a knowledge base. You reply with JSON only." },
           { role: "user", content: `${HINT_RULES}\n\n` + part.map((c, k) =>
             `${k + 1}. Concept: ${c.title.slice(0, 120)} | A (${c.aDate || "undated"}): "${c.a.slice(0, 300)}" | B (${c.bDate || "undated"}): "${c.b.slice(0, 300)}" | recorded because: ${c.why.slice(0, 200)}`).join("\n") },
-        ], { json: true, maxTokens: 1200, timeout: 60000, model, key });
+        ], { json: true, maxTokens: 1200, timeout: 60000, model, key, meter: opts.meter });
         const got = parseJson(text)?.hints;
         if (!Array.isArray(got) || got.length !== part.length) continue;
         const keep: any[] = [];
@@ -135,7 +135,7 @@ export async function listConflicts(ctx: any, space: string, model?: string, key
 }
 
 /** Settle one: "a" or "b" holds, and the position is rewritten; "both" only clears it. */
-export async function settleConflict(ctx: any, space: string, b: any, model?: string, key?: string) {
+export async function settleConflict(ctx: any, space: string, b: any, model?: string, key?: string, meter?: (usage: any) => void) {
   const id = String(b.id ?? ""), a = String(b.a ?? ""), bb = String(b.b ?? ""), pick = String(b.pick ?? "");
   if (!["a", "b", "both"].includes(pick)) return { error: "pick a, b or both" };
   if (pick === "both") return await ctx.runMutation(internal.store.settleConflict, { space, id, a, b: bb });
@@ -150,7 +150,7 @@ export async function settleConflict(ctx: any, space: string, b: any, model?: st
   const { text } = await ask([
     { role: "system", content: "You maintain a knowledge base. You write in English. You reply with JSON only." },
     { role: "user", content: REWRITE(String(c.position ?? ""), held, heldDate, other, otherDate) },
-  ], { json: true, maxTokens: 1200, timeout: 90000, model, key });
+  ], { json: true, maxTokens: 1200, timeout: 90000, model, key, meter });
   const out = parseJson(text) ?? {};
   const position = plainClaim(out.position), summaryLine = plainClaim(out.summaryLine);
   if (!position) return { error: "the rewrite came back empty, so nothing changed. Try again." };

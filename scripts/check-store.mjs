@@ -17,7 +17,7 @@ import * as esbuild from "esbuild";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dir = mkdtempSync(join(tmpdir(), "octo-store-"));
 mkdirSync(join(dir, "_generated"));
-for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "tidy.ts", "graph.ts", "price.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
+for (const f of ["store.ts", "lib.ts", "words.ts", "admin.ts", "space.ts", "digest.ts", "onepager.ts", "route.ts", "conflicts.ts", "drop.ts", "tidy.ts", "graph.ts", "price.ts", "spend.ts", "sheet.ts", "restore.ts"]) copyFileSync(join(ROOT, "convex", f), join(dir, f));
 writeFileSync(join(dir, "_generated/api.ts"),
   "export const internal = new Proxy({}, { get: (_t, m) => new Proxy({}, { get: (_t2, f) => `${String(m)}.${String(f)}` }) });\n");
 /* A query or mutation is its definition, so a test can call its handler. */
@@ -32,6 +32,9 @@ const admin = await import(pathToFileURL(join(dir, "admin.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "price.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "price.mjs"), logLevel: "silent" });
 const price = await import(pathToFileURL(join(dir, "price.mjs")).href);
+await esbuild.build({ entryPoints: [join(dir, "restore.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
+  platform: "node", outfile: join(dir, "restore.mjs"), logLevel: "silent" });
+const { parseExport } = await import(pathToFileURL(join(dir, "restore.mjs")).href);
 await esbuild.build({ entryPoints: [join(dir, "digest.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "digest.mjs"), logLevel: "silent" });
 const digest = await import(pathToFileURL(join(dir, "digest.mjs")).href);
@@ -124,6 +127,202 @@ function seed() {
       topics: [{ topic: "private" }], quotes: [], thin: [], connections: [], findings: { kind: "study" }, written: "x" },
   ];
   return { T, ctx: { db } };
+}
+
+/* ---- an export read back ---- */
+{
+  /* The file as Settings, Export writes it now: names, titles, links and other names included. */
+  const NOW = `# MAP
+
+| Brain | Name | Type | Concepts | Scope |
+|---|---|---|---|---|
+| brain-subject-wealth | Wealth | subject | 2 | money and assets |
+| brain-subject-valuation | Valuation, the craft | subject | 1 | how a business is priced |
+| brain-personal-me-old | Me | personal | 1 | What I say |
+
+# SOURCES
+
+| Id | Date | Author | Title | Link | Brains |
+|---|---|---|---|---|---|
+| yt-abc | 2026-01-01 | A | Octo video | https://youtu.be/abc | wealth |
+| s-new | 2026-02-02 | Aswath Damodaran | Narrative and numbers | https://example.com/n | valuation |
+
+# brain-subject-wealth/SUMMARY.md
+
+**Scope:** money and assets
+
+- Gold: Gold holds. \`01-gold.md\`
+- Copper: Copper tracks industry. \`03-copper.md\`
+
+## brain-subject-wealth/01-gold.md
+
+**Title:** Gold
+**Summary:** Gold holds.
+
+### Position
+
+A changed position that must not overwrite the stored one.
+
+### Evidence
+
+- 2026-01-01, A: gold kept value
+
+### Data
+
+- none
+
+### Open conflicts
+
+- none
+
+### Sources
+
+- \`notes/yt-abc.md\`
+
+### Updated
+
+2026-01-01
+
+## brain-subject-wealth/03-copper.md
+
+**Title:** Copper: the industrial metal
+**Summary:** Copper tracks industry.
+
+### Position
+
+Copper rises with factory orders, about 1.5 times as fast.
+
+### Evidence
+
+- 2025-03-01, B: copper follows PMI
+- ?, ?: an unsigned claim
+
+### Data
+
+- 1.5x beta to PMI
+
+### Open conflicts
+
+- Copper leads (2025-03-01) against Copper lags (2024-01-01). They differ because of the window.
+
+### Sources
+
+- \`notes/yt-abc.md\`
+
+### Links
+
+- causes: wealth/gold
+- related: valuation/dcf
+
+### Also called
+
+- Dr. Copper
+
+### Updated
+
+2025-03-02
+
+# brain-subject-valuation/SUMMARY.md
+
+**Scope:** how a business is priced
+
+## brain-subject-valuation/01-dcf.md
+
+**Title:** Discounted cash flow
+**Summary:** Value is the cash a business returns.
+
+### Position
+
+A business is worth the cash it will return, discounted.
+
+### Evidence
+
+- 2026-02-02, Aswath Damodaran: value follows cash
+
+### Data
+
+- none
+
+### Open conflicts
+
+- none
+
+### Sources
+
+- \`notes/s-new.md\`
+
+### Updated
+
+2026-02-02
+
+# brain-personal-me-old/SUMMARY.md
+
+**Scope:** What I say
+
+## brain-personal-me-old/01-plan.md
+
+**Title:** My plan
+**Summary:** Run in May.
+
+### Position
+
+I run a marathon in May.
+
+### Evidence
+
+- 2026-01-05, me: I said so
+
+### Data
+
+- none
+
+### Open conflicts
+
+- none
+
+### Sources
+
+- none
+
+### Updated
+
+2026-01-05
+`;
+  const got = parseExport(NOW);
+  check("an export is read back: its folders with their names, types and scopes", JSON.stringify(got.brains.map(b => [b.slug, b.name, b.type])) === JSON.stringify([["wealth", "Wealth", "subject"], ["valuation", "Valuation, the craft", "subject"], ["me-old", "Me", "personal"]]), JSON.stringify(got.brains));
+  const cu = got.concepts.find(c => c.slug === "copper");
+  check("each concept with its title, line, position, evidence, data, clash, sources, links and other names", cu.title === "Copper: the industrial metal" && cu.summaryLine === "Copper tracks industry."
+    && /1\.5 times/.test(cu.position) && cu.evidence.length === 2 && cu.evidence[1].author === "" && cu.data[0] === "1.5x beta to PMI"
+    && cu.conflicts[0].aDate === "2025-03-01" && cu.conflicts[0].why === "of the window" && cu.sources[0] === "yt-abc"
+    && JSON.stringify(cu.kinds) === JSON.stringify([{ to: "wealth/gold", type: "causes" }]) && cu.related.length === 2 && cu.aliases[0] === "Dr. Copper" && cu.updated === "2025-03-02", JSON.stringify(cu));
+  check("and its sources with their titles and folders", got.sources.length === 2 && got.sources[1].title === "Narrative and numbers" && got.sources[1].brains[0] === "valuation");
+
+  /* An older export: no names, no titles in the concepts, no links. */
+  const OLD = NOW.replace("| Brain | Name | Type | Concepts | Scope |\n|---|---|---|---|---|", "| Brain | Type | Concepts | Scope |\n|---|---|---|---|")
+    .replace(/\| brain-(\w+)-([a-z0-9-]+) \| [^|]+ \| /g, "| brain-$1-$2 | ").replace(/\*\*Title:\*\* .*\n\*\*Summary:\*\* .*\n/g, "");
+  const old = parseExport(OLD);
+  check("an export written before names and titles still restores: the name from the slug, the title from the folder's list",
+    old.brains[1].name === "Valuation" && old.concepts.find(c => c.slug === "gold").title === "Gold" && old.concepts.find(c => c.slug === "copper").title === "Copper", JSON.stringify([old.brains[1], old.concepts.map(c => c.title)]));
+  check("a file that is not an export holds nothing", parseExport("just some notes\n- a list").brains.length === 0 && parseExport("").concepts.length === 0);
+
+  /* Written back: what is missing is added, what is held is kept. */
+  const { T, ctx } = seed();
+  T.brains.push({ _id: "b9", slug: "me", name: "Me", type: "personal", scope: "s", space: undefined });
+  for (const c of T.concepts) await store.syncCard(ctx, c._id);
+  const head = await run(store.restoreBatch, ctx, { space: "octopus", brains: got.brains, sources: got.sources, concepts: [] });
+  const body = await run(store.restoreBatch, ctx, { space: "octopus", concepts: got.concepts });
+  check("a missing folder is made, one held is kept, and a second personal folder is not made", head.brains.added === 1 && head.brains.kept === 2 && T.brains.some(b => b.slug === "valuation" && b.name === "Valuation, the craft" && b.space === "octopus") && !T.brains.some(b => b.slug === "me-old"), JSON.stringify(head.brains));
+  check("a missing source is added, one held is kept", head.sources.added === 1 && head.sources.kept === 1 && T.sources.some(s => s.sid === "s-new" && s.title === "Narrative and numbers"));
+  const gold = T.concepts.find(c => c.slug === "gold" && c.brain === "wealth");
+  check("a concept held is kept as it is, never overwritten by the file", gold.position === "Gold holds." && body.concepts.kept === 1, JSON.stringify(body.concepts));
+  const copper = T.concepts.find(c => c.slug === "copper" && c.brain === "wealth");
+  check("a missing concept comes back whole, numbered after the folder's last, with its card", !!copper && copper.title === "Copper: the industrial metal" && copper.n === 3 && copper.evidence.length === 2 && copper.aliases[0] === "Dr. Copper"
+    && T.cards.some(c => c.slug === "copper" && c.title === "Copper: the industrial metal"), JSON.stringify(copper));
+  check("the personal folder's notes join the one this workspace has", T.concepts.some(c => c.brain === "me" && c.title === "My plan") && body.ids.includes("me/plan") && body.ids.includes("wealth/copper"), JSON.stringify(body.ids));
+  const again = await run(store.restoreBatch, ctx, { space: "octopus", brains: got.brains, sources: got.sources, concepts: got.concepts });
+  check("restoring the same file twice adds nothing the second time", again.brains.added === 0 && again.sources.added === 0 && again.concepts.added === 0, JSON.stringify(again));
+  const other = await run(store.restoreBatch, ctx, { space: "squidgy", brains: [{ slug: "wealth", name: "Wealth", type: "subject", scope: "x" }], concepts: [{ brain: "wealth", slug: "z", title: "Z", position: "z" }] });
+  check("a folder whose name another workspace holds is left out, with its concepts", other.brains.skipped === 1 && other.concepts.skipped === 1 && !T.concepts.some(c => c.title === "Z"), JSON.stringify(other));
 }
 
 /* ---- the meaning of a concept follows it ---- */

@@ -9,20 +9,22 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
   ask, json, cors, sha256, slug, randomHex, parseJson,
-  readSpace, SPACE_NAME, HOME, spaceName, slugOfName, SPACE_RE, SPACES,
+  readSpace, SPACE_NAME, HOME, spaceName, slugOfName, SPACE_RE, SPACES, today, DAY_MS, OPENROUTER,
   MODEL, MODEL_ID, CHUNK,
   canDrop,
 } from "./lib";
-import type { Who } from "./lib";
+import type { Who, SpendKind } from "./lib";
 import { handleRpc, versionOk, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
 import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from "./drop";
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, translatePage, langOf, DOC_TYPES } from "./onepager";
 import type { DocType } from "./onepager";
-import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine, isCloser, threadOf, priorOf, checkSources, INDEX_SHORT, NEAR_SHORT, NEAR_NEEDED, NEAR_FLOOR, PRIOR_MAX } from "./words";
+import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine, isCloser, threadOf, priorOf, checkSources, askKey, poolPrint, INDEX_SHORT, NEAR_SHORT, NEAR_NEEDED, NEAR_FLOOR, PRIOR_MAX } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
-import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, writeBrief, gapsOf, readBlocks, withSpend, withChatSpend, guardBudget } from "./project";
+import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, writeBrief, gapsOf, readBlocks } from "./project";
+import { withSpend, withChatSpend, guardBudget } from "./spend";
+import { parseExport, RESTORE_CHARS } from "./restore";
 import { colNames, downloadText, csvOf, parseCsv, madeName, splitKey, fileKey } from "./sheet";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
@@ -102,13 +104,33 @@ const modelFor = (who: Caller, b: any) => {
 };
 
 /**
+ * Runs what asks a model and counts what it cost under its kind, for Settings: a drop, a one-pager, the upkeep, the personal brain's
+ * interview and people. The demo is not counted.
+ */
+const metered = <T>(ctx: any, who: Caller, kind: SpendKind, run: (meter: (u: any) => void) => Promise<T>) =>
+  withChatSpend(ctx, { space: who.space, kind, skip: who.demo }, run);
+
+/**
+ * The app keeps its conversations: a message sent with "chat" joins that chat, or starts one, and its id comes back. In the demo the
+ * chat is the visitor's own. A failed save is only a chat that does not list it: the answer still goes out.
+ */
+async function saveTurn(ctx: any, who: Caller, b: any, where: { brain: string; concept?: string; title?: string }, turn: Record<string, unknown>): Promise<string | undefined> {
+  if (!("chat" in b)) return undefined;
+  try {
+    const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
+      id: typeof b.chat === "string" ? b.chat : null, ...where, turn: { q: String(b.q ?? "").trim().slice(0, 2000), at: Date.now(), ...turn } });
+    return r.id;
+  } catch { return undefined; }
+}
+
+/**
  * What the demo may spend, shared by every visitor, over 30 days: 30 drops
  * and 300 questions. A drop counts once, when it starts; a question, a
  * one-pager the model writes and a settled conflict each count as one.
  * The steps inside a drop are capped too, so no call can go around the
  * drop count.
  */
-const MONTH = 30 * 24 * 60 * 60 * 1000;
+const MONTH = 30 * DAY_MS;
 const DEMO_DROPS = Number(process.env.DEMO_MONTHLY_DROPS || 30);
 const DEMO_ASKS = Number(process.env.DEMO_MONTHLY_ASKS || 300);
 /* Pages and transcripts fetched for every workspace but the owner's, together, a day. */
@@ -226,7 +248,7 @@ route("/api/enter", async (ctx, req, b) => {
 route("/api/demo", async (ctx) => {
   const ws = await ctx.runQuery(internal.store.demoWorkspace, {});
   if (!ws) return { error: "the demo is not open yet" };
-  const r = await ctx.runMutation(internal.store.mcpRate, { who: "demo:sessions", max: 2000, windowMs: 24 * 60 * 60 * 1000 });
+  const r = await ctx.runMutation(internal.store.mcpRate, { who: "demo:sessions", max: 2000, windowMs: DAY_MS });
   if (!r.allowed) return { error: "the demo is full for today. Create your own workspace with your own key." };
   return { token: await ctx.runMutation(internal.store.newSession, { kind: "demo", space: ws.slug }), space: ws.slug };
 });
@@ -245,10 +267,10 @@ route("/api/workspace/create", async (ctx, _req, b) => {
   if (!name || slugged.length < 2) return { error: "give the workspace a name of 2 letters or more" };
   if (pass.length < 8) return { error: "use a passphrase of at least 8 characters" };
   if (!KEY_RE.test(key)) return { error: "that is not an OpenRouter key. It starts with sk-or-" };
-  const r = await ctx.runMutation(internal.store.mcpRate, { who: "ws:create", max: 100, windowMs: 24 * 60 * 60 * 1000 });
+  const r = await ctx.runMutation(internal.store.mcpRate, { who: "ws:create", max: 100, windowMs: DAY_MS });
   if (!r.allowed) return { error: "too many workspaces were made today. Try again tomorrow." };
   try {
-    const ok = await fetch("https://openrouter.ai/api/v1/key", { headers: { Authorization: "Bearer " + key } });
+    const ok = await fetch(`${OPENROUTER}/key`, { headers: { Authorization: "Bearer " + key } });
     if (!ok.ok) return { error: "OpenRouter refused that key. Check it and try again." };
   } catch { return { error: "OpenRouter did not answer. Try again in a minute." }; }
   const salt = randomHex(16);
@@ -517,14 +539,14 @@ route("/api/topics", async (ctx, _req, b) => {
 route("/api/conflicts", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   await demoCount(ctx, who, "step");
-  return await listConflicts(ctx, who.space, modelFor(who, b), keyFor(who), { hints: b.hints === true && !who.demo });
+  return await metered(ctx, who, "upkeep", meter => listConflicts(ctx, who.space, modelFor(who, b), keyFor(who), { hints: b.hints === true && !who.demo, meter }));
 });
 
 /** Settle one conflict: a side holds and the position is rewritten, or both hold. */
 route("/api/conflicts/settle", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   await demoCount(ctx, who, "ask");
-  return await settleConflict(ctx, who.space, b, modelFor(who, b), keyFor(who));
+  return await metered(ctx, who, "upkeep", meter => settleConflict(ctx, who.space, b, modelFor(who, b), keyFor(who), meter));
 });
 
 /** One page of a brain's concepts whole, for the markdown export. The app
@@ -533,6 +555,31 @@ route("/api/export", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   return await ctx.runQuery(internal.store.conceptsOfBrain,
     { space: who.space, brain: String(b.brain ?? ""), cursor: typeof b.cursor === "string" ? b.cursor : null });
+});
+
+/**
+ * Restore: an export read back. The markdown is read here, then written a piece at a time; what the workspace is missing is added, what
+ * it holds is kept. The concepts added are linked and given their meaning in the background, as after a drop.
+ */
+route("/api/restore", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const text = String(b.text ?? "");
+  if (!text.trim()) return { error: "pick the markdown file an export wrote" };
+  if (text.length > RESTORE_CHARS) return { error: "this export is over 15 MB; restore it in two files" };
+  const got = parseExport(text);
+  if (!got.brains.length && !got.concepts.length) return { error: "this file holds no folder: it is not an export of this app" };
+  const sum = { brains: { added: 0, kept: 0, skipped: 0 }, sources: { added: 0, kept: 0 }, concepts: { added: 0, kept: 0, skipped: 0 } };
+  const add = (r: any) => { for (const k of ["brains", "sources", "concepts"] as const) for (const [f, n] of Object.entries(r[k])) (sum[k] as any)[f] += n as number; };
+  const ids: string[] = [];
+  const head = await ctx.runMutation(internal.store.restoreBatch, { space: who.space, brains: got.brains, sources: got.sources, concepts: [] });
+  add(head);
+  for (let i = 0; i < got.concepts.length; i += 40) {
+    const r = await ctx.runMutation(internal.store.restoreBatch, { space: who.space, concepts: got.concepts.slice(i, i + 40) });
+    add(r); ids.push(...r.ids);
+  }
+  /* Their meaning and their links, on the deployment's key: a workspace on its own key keeps them as they came. */
+  if (ids.length && !who.byok && !who.demo) await ctx.scheduler.runAfter(0, internal.admin.linkConcepts, { space: who.space, ids });
+  return { ...sum, linking: !who.byok && !who.demo ? ids.length : 0 };
 });
 
 route("/api/brain", async (ctx, _req, b) => {
@@ -563,10 +610,10 @@ route("/api/brain/merge", async (ctx, _req, b) => {
  */
 route("/api/brain/tidy", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  const r: any = await tidyScan(ctx, who, String(b.brain ?? ""), keyFor(who), modelFor(who, b));
+  const r: any = await metered(ctx, who, "upkeep", meter => tidyScan(ctx, who, String(b.brain ?? ""), keyFor(who), modelFor(who, b), meter));
   /* Kept on the folder, so the inbox offers each finding until it is decided. */
   if (!r.error) await ctx.runMutation(internal.store.findingsSet, { space: who.space, brain: r.brain,
-    findings: { at: new Date().toISOString().slice(0, 10), same: r.same, english: r.english, blank: r.blank.slice(0, 40) } });
+    findings: { at: today(), same: r.same, english: r.english, blank: r.blank.slice(0, 40) } });
   return r;
 });
 
@@ -579,7 +626,7 @@ route("/api/concept/merge", async (ctx, _req, b) => {
   /* The joined evidence holds more than the kept position says. If the model
      fails, the join stands and the old position stays until the next drop. */
   let rewritten = false;
-  try { rewritten = (await rederive(ctx, who, [into], keyFor(who), modelFor(who, b))).written.length > 0; } catch (_) {}
+  try { rewritten = (await metered(ctx, who, "upkeep", meter => rederive(ctx, who, [into], keyFor(who), modelFor(who, b), meter))).written.length > 0; } catch (_) {}
   return { ...r, rewritten };
 });
 
@@ -595,7 +642,7 @@ route("/api/concept/rename", async (ctx, _req, b) => {
 route("/api/concept/rederive", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   await demoCount(ctx, who, "step");
-  return await rederive(ctx, who, (Array.isArray(b.ids) ? b.ids : []).map(String), keyFor(who), modelFor(who, b));
+  return await metered(ctx, who, "upkeep", meter => rederive(ctx, who, (Array.isArray(b.ids) ? b.ids : []).map(String), keyFor(who), modelFor(who, b), meter));
 });
 
 route("/api/brain/rename", async (ctx, _req, b) => {
@@ -620,11 +667,10 @@ route("/api/brain/rename", async (ctx, _req, b) => {
  */
 async function fetchAllowed(ctx: any, who: Caller): Promise<string> {
   if (owners.includes(who.space)) return "";
-  const day = 24 * 60 * 60 * 1000;
   let r = await ctx.runMutation(internal.store.mcpRate, who.demo
     ? { who: "fetch:demo", max: DEMO_DROPS + 10, windowMs: MONTH }
-    : { who: "fetch:" + who.space, max: 20, windowMs: day });
-  if (r.allowed && !who.demo) r = await ctx.runMutation(internal.store.mcpRate, { who: "fetch:others", max: OTHERS_FETCH_DAY, windowMs: day });
+    : { who: "fetch:" + who.space, max: 20, windowMs: DAY_MS });
+  if (r.allowed && !who.demo) r = await ctx.runMutation(internal.store.mcpRate, { who: "fetch:others", max: OTHERS_FETCH_DAY, windowMs: DAY_MS });
   return r.allowed ? "" : "today's allowance of fetched pages and transcripts is used. Paste the text instead.";
 }
 
@@ -663,28 +709,28 @@ route("/api/drop/again", async (ctx, _req, b) => {
 route("/api/drop/read", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   await demoCount(ctx, who, "step");
-  return await dropRead(ctx, who, b, keyFor(who), modelFor(who, b));
+  return await metered(ctx, who, "drops", m => dropRead(ctx, who, b, keyFor(who), modelFor(who, b), m));
 });
 
 /** R3. Summaries only, never whole brains, so this costs the same at any size. */
 route("/api/drop/plan", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   await demoCount(ctx, who, "step");
-  return await dropPlan(ctx, who, b, keyFor(who), modelFor(who, b));
+  return await metered(ctx, who, "drops", m => dropPlan(ctx, who, b, keyFor(who), modelFor(who, b), m));
 });
 
 /** Parts planned in parallel can name one idea twice. This groups them. */
 route("/api/drop/merge", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   await demoCount(ctx, who, "step");
-  return await dropMerge(ctx, who, b, keyFor(who), modelFor(who, b));
+  return await metered(ctx, who, "drops", m => dropMerge(ctx, who, b, keyFor(who), modelFor(who, b), m));
 });
 
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
 route("/api/drop/settle", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   await demoCount(ctx, who, "step");
-  return await dropSettle(ctx, who, b, keyFor(who), modelFor(who, b));
+  return await metered(ctx, who, "drops", m => dropSettle(ctx, who, b, keyFor(who), modelFor(who, b), m));
 });
 
 
@@ -714,7 +760,7 @@ route("/api/drop/link", async (ctx, _req, b) => {
 route("/api/ask", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   /* A chat opened on one concept reads that concept alone. */
-  if (b.concept) return await conceptChat(ctx, who, b);
+  if (b.concept) return await metered(ctx, who, "folders", meter => conceptChat(ctx, who, b, meter));
   /* Every brain in this space answers questions, whoever is asking. A personal
      brain answers in its own chat only, and no other chat reads it. */
   /* Projects load too: only the personal chat reads their memory, and withoutPersonal drops them for every other chat. */
@@ -802,18 +848,9 @@ async function folderChat(ctx: any, who: Caller, b: any, every: any, only: strin
   const learning = level === "learning";
   const tagged = tags.length ? pool.map((x: any) => ({ slug: x.slug, name: x.name })) : [];
 
-  /* The app keeps its conversations: a question sent with "chat" joins that
-     chat, or starts one. A failed save is only a chat that does not list it. */
-  const keep = async (text: string, nSources: number, opened: string[] = []): Promise<string | undefined> => {
-    if (!("chat" in b)) return undefined;
-    try {
-      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
-        id: typeof b.chat === "string" ? b.chat : null, brain: many ? scoped.map((x: any) => x.slug).join(",") : only ?? "all",
-        turn: { q: q.slice(0, 2000), a: text, level, sources: nSources, at: Date.now(), ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}),
-          ...(opened.length ? { opened } : {}) } });
-      return r.id;
-    } catch { return undefined; /* the answer still goes out */ }
-  };
+  /* The turn joins the chat on screen, under the folders it asked. */
+  const keep = (text: string, nSources: number, opened: string[] = []) => saveTurn(ctx, who, b, { brain: many ? scoped.map((x: any) => x.slug).join(",") : only ?? "all" },
+    { q: q.slice(0, 2000), a: text, level, sources: nSources, ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}), ...(opened.length ? { opened } : {}) });
 
   /* Thanks, a greeting or a goodbye needs no concept and no router: one short line, in the language it came in. */
   if (isCloser(q) && !tags.length) {
@@ -824,6 +861,20 @@ async function folderChat(ctx: any, who: Caller, b: any, every: any, only: strin
     tally(usage);
     const chat = await keep(text.trim(), 0);
     return { answer: text.trim(), sources: 0, level, ...(chat ? { chat } : {}) };
+  }
+
+  /* The same question, asked the same way, on folders that have not changed since: the answer given then, for no model call. A follow-up
+     reads its thread, so only a question that opens a chat is given again. */
+  const fresh = !(Array.isArray(b.history) && b.history.length) && q.trim().length >= 3;
+  const cacheKey = fresh ? askKey({ q, scope: many ? scoped.map((x: any) => x.slug).sort().join(",") : only ?? "all", tags, level, lang: english ? "en" : "same", model: mName ?? MODEL }) : "";
+  const fp = fresh ? poolPrint(pool, concepts) : "";
+  if (fresh) {
+    const hit = await ctx.runQuery(internal.store.answerGet, { space: who.space, key: cacheKey }).catch(() => null);
+    if (hit && hit.fp === fp) {
+      tally({ reused: 1 });
+      const chat = await keep(hit.answer, hit.sources, hit.opened);
+      return { answer: hit.answer, sources: hit.sources, level, opened: hit.opened, reused: true, ...(hit.tagged?.length ? { tagged: hit.tagged } : {}), ...(chat ? { chat } : {}) };
+    }
   }
 
   /* The concepts closest in meaning to the question, found before the router runs: it is then shown those titles, and the dossier opens them. */
@@ -943,6 +994,9 @@ ${tagged.length ? taggedLine(tagged, pick.opened) + "\n" : ""}${isPerson ? "- It
   const answer = checkSources(text, pick.opened);
   const opened = pick.opened.map(idOf).slice(0, PRIOR_MAX);
   const chat = await keep(answer, nSources, opened);
+  /* Kept to give again. A failed save only means the next one asks again. */
+  if (fresh) await ctx.runMutation(internal.store.answerPut, { space: who.space, key: cacheKey, fp, answer, sources: nSources, opened,
+    ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}) }).catch(() => {});
   return { answer, sources: nSources, level, opened, ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}), ...(chat ? { chat } : {}) };
 }
 
@@ -969,21 +1023,13 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   if (!String(b.q ?? "").trim()) return { error: "write something first" };
   /* An interview under way takes the message as its answer. */
   const row = who.demo ? null : await ctx.runQuery(internal.store.interviewGet, { space: who.space, brain: mine.slug });
-  if (row?.on) return await interviewTurn(ctx, who, b, mine, every.cards, row, false);
+  if (row?.on) return await interviewTurn(ctx, who, b, mine, every.cards, row, false, tally);
   const q = String(b.q ?? "").slice(0, MAX_CHARS.chat).trim();
   await demoCount(ctx, who, "ask");
-  const date = new Date().toISOString().slice(0, 10);
+  const date = today();
   const history = (Array.isArray(b.history) ? b.history : []).slice(-4);
   const last = history.slice(-1).map((h: any) => `They said: ${String(h.q ?? "").slice(0, 500)}\nThe brain replied: ${String(h.a ?? "").slice(0, 600)}`).join("");
-  const saveTurn = async (answer: string, extra: Record<string, unknown>): Promise<string | undefined> => {
-    if (!("chat" in b)) return undefined;
-    try {
-      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
-        id: typeof b.chat === "string" ? b.chat : null, brain: mine.slug,
-        turn: { q: q.slice(0, 2000), a: answer, level: "normal", sources: 0, at: Date.now(), ...extra } });
-      return r.id;
-    } catch { return undefined; /* the reply still goes out */ }
-  };
+  const keep = (answer: string, extra: Record<string, unknown>) => saveTurn(ctx, who, b, { brain: mine.slug }, { q: q.slice(0, 2000), a: answer, level: "normal", sources: 0, ...extra });
 
   /* Thanks, a greeting or a goodbye: nothing to file, nothing to read, no question to ask in passing. One short line, in their voice. */
   if (isCloser(q)) {
@@ -993,7 +1039,7 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
     ], { maxTokens: 120, key: mKey, model: mName, temperature: 0.3, timeout: 30000 });
     tally(usage);
     const answer = plainReply(text);
-    const chat = await saveTurn(answer, { filed: { new: 0, updated: 0, titles: [] }, called: [] });
+    const chat = await keep(answer, { filed: { new: 0, updated: 0, titles: [] }, called: [] });
     return { answer, sources: 0, level: "normal", personal: true, filed: { new: 0, updated: 0, titles: [] }, called: [], ...(chat ? { chat } : {}) };
   }
 
@@ -1067,7 +1113,7 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
     } catch { /* the reply still goes out */ }
   }
 
-  const chat = await saveTurn(answer, { filed: filed ?? null, called, ...(opened.length ? { opened } : {}) });
+  const chat = await keep(answer, { filed: filed ?? null, called, ...(opened.length ? { opened } : {}) });
   return { answer, sources: 0, level: "normal", personal: true, filed: filed ?? { new: 0, updated: 0, titles: [], failed: true },
            called, opened, ...(interview ? { interview } : {}), ...(chat ? { chat } : {}) };
 }
@@ -1101,7 +1147,7 @@ async function fileTwice<T>(run: (timeout: number) => Promise<T>, o: { budget?: 
  * or corrects is written to the note or the person's file at once, dated,
  * in English, with the message kept word for word in a person's raw notes.
  */
-async function conceptChat(ctx: any, who: Caller, b: any) {
+async function conceptChat(ctx: any, who: Caller, b: any, meter?: (u: any) => void) {
   const id = String(b.concept ?? "");
   const q = String(b.q ?? "").slice(0, MAX_CHARS.chat).trim();
   if (!q) return { error: "write something first" };
@@ -1113,7 +1159,7 @@ async function conceptChat(ctx: any, who: Caller, b: any) {
   const contact = personal && c.tag === "contact";
   const mKey = keyFor(who), mName = modelFor(who, b);
   await demoCount(ctx, who, "ask");
-  const date = new Date().toISOString().slice(0, 10);
+  const date = today();
   const english = who.models?.reply === "en";
   const raw = contact ? (await ctx.runQuery(internal.store.rawOf, { space: who.space, id, n: 40 })).notes : [];
   const history = (Array.isArray(b.history) ? b.history : []).slice(-6);
@@ -1126,7 +1172,7 @@ async function conceptChat(ctx: any, who: Caller, b: any) {
       { role: "system", content: "You keep a person's own notes and the files of the people they know. You reply with JSON only." },
       { role: "user", content: `${conceptRules(c.title, contact, english)}\n\nTODAY: ${date}\n\n` +
         `${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}THE ${contact ? "PERSON" : "NOTE"}\n${dump}\n\nTHEIR MESSAGE\n${q}` },
-    ], { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: 120000, temperature: 0.2 });
+    ], { json: true, maxTokens: 4000, key: mKey, model: mName, meter, timeout: 120000, temperature: 0.2 });
     const d = parseJson(String(text), finish);
     if (!d || typeof d !== "object") return { error: "the reply could not be read. Send it again." };
     answer = String(d.reply ?? "").replace(/\s*—\s*/g, ", ").trim();
@@ -1156,21 +1202,13 @@ THE CONCEPT
 ${dump}
 
 QUESTION: ${q}` },
-    ], { maxTokens: 1600, key: mKey, model: mName, temperature: 0.2, timeout: 150000 });
+    ], { maxTokens: 1600, key: mKey, model: mName, meter, temperature: 0.2, timeout: 150000 });
     answer = r.text;
   }
 
   const nSources = new Set((c.evidence ?? []).map((e: any) => e.source).filter(Boolean)).size;
-  let chat: string | undefined;
-  if ("chat" in b) {
-    try {
-      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
-        id: typeof b.chat === "string" ? b.chat : null, brain: folder.slug, concept: id, title: `About ${c.title}`,
-        turn: { q: q.slice(0, 2000), a: answer, level: "normal", sources: personal ? 0 : nSources, at: Date.now(), concept: id,
-                ...(changed ? { changed } : {}) } });
-      chat = r.id;
-    } catch { /* the answer still goes out */ }
-  }
+  const chat = await saveTurn(ctx, who, b, { brain: folder.slug, concept: id, title: `About ${c.title}` },
+    { q: q.slice(0, 2000), a: answer, level: "normal", sources: personal ? 0 : nSources, concept: id, ...(changed ? { changed } : {}) });
   return { answer, sources: personal ? 0 : nSources, level: "normal", concept: { id, title: c.title, brain: folder.slug, personal },
            changed, ...(chat ? { chat } : {}) };
 }
@@ -1181,27 +1219,20 @@ QUESTION: ${q}` },
  * One turn of a personal brain's interview, with the chat it lands in. The
  * turn itself, what it files, asks and marks, is interviewStep's.
  */
-async function interviewTurn(ctx: any, who: Caller, b: any, mine: any, cards: any[], row: any, opening: boolean) {
+async function interviewTurn(ctx: any, who: Caller, b: any, mine: any, cards: any[], row: any, opening: boolean, meter?: (u: any) => void) {
   const mKey = keyFor(who), mName = modelFor(who, b);
   const q = opening ? "" : String(b.q ?? "").slice(0, MAX_CHARS.interview).trim();
-  const date = new Date().toISOString().slice(0, 10);
+  const date = today();
   const step = await interviewStep(ctx, { space: who.space, brain: mine.slug, cards, row, q, opening, date, english: who.models?.reply === "en",
-    model: async m => (await ask(m, { json: true, maxTokens: 900, key: mKey, model: mName, timeout: 90000, temperature: 0.4 })).text,
+    model: async m => (await ask(m, { json: true, maxTokens: 900, key: mKey, model: mName, meter, timeout: 90000, temperature: 0.4 })).text,
     /* A filing that fails is tried once more: an answer lost costs the owner a retype. */
     file: async (text, context) => {
       const run = (t: number) => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date, lang: storeLang(who),
-        model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: t })).text });
+        model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, meter, timeout: t })).text });
       return await fileTwice(run);
     } });
-  let chat: string | undefined;
-  if ("chat" in b) {
-    try {
-      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, id: typeof b.chat === "string" ? b.chat : null, brain: mine.slug,
-        turn: { q: q.slice(0, 2000), a: step.reply, level: "normal", sources: 0, at: Date.now(), filed: step.filed ?? null, called: [],
-                interview: true, ...(opening ? { title: "Interview" } : {}) } });
-      chat = r.id;
-    } catch { /* the reply still goes out */ }
-  }
+  const chat = await saveTurn(ctx, who, b, { brain: mine.slug },
+    { q: q.slice(0, 2000), a: step.reply, level: "normal", sources: 0, filed: step.filed ?? null, called: [], interview: true, ...(opening ? { title: "Interview" } : {}) });
   return { answer: step.reply, sources: 0, level: "normal", personal: true, filed: step.filed, called: [],
            interview: summary(step.saved), ...(chat ? { chat } : {}) };
 }
@@ -1252,121 +1283,124 @@ async function wholeNotes(ctx: any, space: string, brain: string) {
  */
 route("/api/interview", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  const got = await personalOf(ctx, who.space, String(b.brain ?? ""));
-  if (!got) return { error: "that is not a personal brain of this workspace" };
-  const { mine, cards } = got;
-  const row = await ctx.runQuery(internal.store.interviewGet, { space: who.space, brain: mine.slug });
-  const save = (patch: any) => ctx.runMutation(internal.store.interviewSet, { space: who.space, brain: mine.slug, patch });
-  const today = new Date().toISOString().slice(0, 10);
-  const test = { ...(row?.test ?? {}) };
-  const view = (r: any) => ({ interview: summary(r), test: testView(r), profile: r?.profile ?? null });
-  switch (String(b.action ?? "state")) {
-    case "state": return view(row);
-    case "start": {
-      if (!ahead(row?.marks ?? {}, 1).length && row) return { error: "every question is answered or skipped. Start over to go again." };
-      const r = await save({ on: true });
-      /* The first start explains how it works: the count goes up after it. */
-      const out = await interviewTurn(ctx, who, b, mine, cards, { ...r, opens: row?.opens ?? 0 }, true);
-      await save({ opens: (row?.opens ?? 0) + 1 });
-      return out;
-    }
-    case "stop": {
-      const r = await save({ on: false });
-      return { ...view(r), answer: pausedLine(summary(r)) };
-    }
-    case "restart": return view(await save({ on: false, marks: {}, pending: null, sinceCheck: 0, sinceAsk: 0 }));
-    case "test": {
-      const t = test as any, history = Array.isArray(t.history) ? t.history : [];
-      if (t.round && b.fresh !== true) return view(row);
-      /* The seed is what came before: the same history gives the same round, a new one a new round. */
-      const seed = history.length * 7919 + Number(today.replace(/-/g, "")) + (b.fresh === true && t.round ? 1 : 0);
-      /* A round put aside counts as asked, so the new one never repeats it. */
-      const put = t.round ? roundQs(t.round) : [];
-      const seen = t.round ? [{ items: put.map(x => ({ id: x.id })) }, ...history] : history;
-      /* The items are messages you could receive, built from what you said: the notes imply the reply and never state it.
-         One model call, only when a round opens. Too few notes, or no answer from the model, and the bank asks them. */
-      const asked = [...put.map(x => x.q), ...history.flatMap((h: any) => (h.items ?? []).map((i: any) => String(i.q ?? "")))].filter(Boolean).slice(0, 40);
-      const held = await wholeNotes(ctx, who.space, mine.slug);
-      const own = held.filter((c: any) => c.tag !== "contact"), people = held.filter((c: any) => c.tag === "contact");
-      let qs: RoundQ[] = [], note: string | null = own.length < DEDUCE_MIN ? "thin" : null;
-      if (!note) {
-        try {
-          const { text } = await ask([
-            { role: "system", content: "You write situations that test whether an AI twin could reply to a person's emails and messages from their notes. You reply with JSON only." },
-            { role: "user", content: `${DEDUCE_RULES}\n\nTHEIR NOTES\n${notesText(own, 28000).text}${people.length ? `\n\nTHE PEOPLE THEY KNOW\n${notesText(people, 10000).text}` : ""}${asked.length ? `\n\nALREADY ASKED, never again\n${asked.map(q => `- ${q}`).join("\n")}` : ""}` },
-          ], { json: true, maxTokens: 2000, key: keyFor(who), model: modelFor(who, b), timeout: 100000, temperature: 0.7 });
-          qs = readQuestions(text, held.map((c: any) => String(c.title)), asked);
-        } catch { /* the bank asks them */ }
-        if (!qs.length) note = "failed";
+  /* What it asks a model is counted for the personal brain, in Settings. */
+  return await metered(ctx, who, "personal", async meter => {
+    const got = await personalOf(ctx, who.space, String(b.brain ?? ""));
+    if (!got) return { error: "that is not a personal brain of this workspace" };
+    const { mine, cards } = got;
+    const row = await ctx.runQuery(internal.store.interviewGet, { space: who.space, brain: mine.slug });
+    const save = (patch: any) => ctx.runMutation(internal.store.interviewSet, { space: who.space, brain: mine.slug, patch });
+    const day = today();
+    const test = { ...(row?.test ?? {}) };
+    const view = (r: any) => ({ interview: summary(r), test: testView(r), profile: r?.profile ?? null });
+    switch (String(b.action ?? "state")) {
+      case "state": return view(row);
+      case "start": {
+        if (!ahead(row?.marks ?? {}, 1).length && row) return { error: "every question is answered or skipped. Start over to go again." };
+        const r = await save({ on: true });
+        /* The first start explains how it works: the count goes up after it. */
+        const out = await interviewTurn(ctx, who, b, mine, cards, { ...r, opens: row?.opens ?? 0 }, true, meter);
+        await save({ opens: (row?.opens ?? 0) + 1 });
+        return out;
       }
-      for (const q of pickTest(row?.marks ?? {}, seen, seed)) { if (qs.length >= TEST_N) break; qs.push({ id: q.id, q: q.text }); }
-      return view(await save({ test: { history, round: { at: today, qs, ...(note ? { note } : {}) } } }));
+      case "stop": {
+        const r = await save({ on: false });
+        return { ...view(r), answer: pausedLine(summary(r)) };
+      }
+      case "restart": return view(await save({ on: false, marks: {}, pending: null, sinceCheck: 0, sinceAsk: 0 }));
+      case "test": {
+        const t = test as any, history = Array.isArray(t.history) ? t.history : [];
+        if (t.round && b.fresh !== true) return view(row);
+        /* The seed is what came before: the same history gives the same round, a new one a new round. */
+        const seed = history.length * 7919 + Number(day.replace(/-/g, "")) + (b.fresh === true && t.round ? 1 : 0);
+        /* A round put aside counts as asked, so the new one never repeats it. */
+        const put = t.round ? roundQs(t.round) : [];
+        const seen = t.round ? [{ items: put.map(x => ({ id: x.id })) }, ...history] : history;
+        /* The items are messages you could receive, built from what you said: the notes imply the reply and never state it.
+           One model call, only when a round opens. Too few notes, or no answer from the model, and the bank asks them. */
+        const asked = [...put.map(x => x.q), ...history.flatMap((h: any) => (h.items ?? []).map((i: any) => String(i.q ?? "")))].filter(Boolean).slice(0, 40);
+        const held = await wholeNotes(ctx, who.space, mine.slug);
+        const own = held.filter((c: any) => c.tag !== "contact"), people = held.filter((c: any) => c.tag === "contact");
+        let qs: RoundQ[] = [], note: string | null = own.length < DEDUCE_MIN ? "thin" : null;
+        if (!note) {
+          try {
+            const { text } = await ask([
+              { role: "system", content: "You write situations that test whether an AI twin could reply to a person's emails and messages from their notes. You reply with JSON only." },
+              { role: "user", content: `${DEDUCE_RULES}\n\nTHEIR NOTES\n${notesText(own, 28000).text}${people.length ? `\n\nTHE PEOPLE THEY KNOW\n${notesText(people, 10000).text}` : ""}${asked.length ? `\n\nALREADY ASKED, never again\n${asked.map(q => `- ${q}`).join("\n")}` : ""}` },
+            ], { json: true, maxTokens: 2000, key: keyFor(who), model: modelFor(who, b), meter, timeout: 100000, temperature: 0.7 });
+            qs = readQuestions(text, held.map((c: any) => String(c.title)), asked);
+          } catch { /* the bank asks them */ }
+          if (!qs.length) note = "failed";
+        }
+        for (const q of pickTest(row?.marks ?? {}, seen, seed)) { if (qs.length >= TEST_N) break; qs.push({ id: q.id, q: q.text }); }
+        return view(await save({ test: { history, round: { at: day, qs, ...(note ? { note } : {}) } } }));
+      }
+      case "check": {
+        const t = test as any, round = t.round;
+        if (!round) return { error: "start a test first" };
+        const qs = roundQs(round);
+        const answers = cleanAnswers(b.answers, qs.map(x => x.id));
+        if (Object.keys(answers).length < 3) return { error: `answer at least 3 of the ${TEST_N} questions first` };
+        const notes = notesText(await wholeNotes(ctx, who.space, mine.slug));
+        if (notes.used < 5) return { error: "your twin needs at least 5 notes to answer. Talk to it or run the interview first." };
+        const ids = Object.keys(answers), asked = qs.filter(x => answers[x.id]);
+        const { text, finish } = await ask([
+          { role: "system", content: "You answer as one person would, from their own notes. You reply with JSON only." },
+          { role: "user", content: `${TWIN_RULES}\n\nTHEIR NOTES\n${notes.text}\n\nQUESTIONS\n${asked.map(x => `${x.id}: ${x.q}`).join("\n")}` },
+        ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), meter, timeout: 150000, temperature: 0.3 });
+        const { answers: twin, because } = readTwin(text, ids);
+        if (Object.keys(twin).length < Math.min(3, ids.length)) return { error: finish === "length" ? "the answer ran out of room. Try again." : "your twin could not answer this time. Try again." };
+        return view(await save({ test: { history: t.history ?? [], round: { ...round, qs, mine: answers, twin, because } } }));
+      }
+      case "score": {
+        /* A model compares the two answers to each question: no one scores their own twin. */
+        const t = test as any, round = t.round;
+        if (!round?.mine || !round?.twin) return { error: "let your twin answer first" };
+        const qs = roundQs(round), ids: string[] = qs.map(x => x.id).filter(id => round.mine[id]);
+        const pairs = pairsText(qs, round.mine, round.twin);
+        if (!pairs) return { error: "let your twin answer first" };
+        const { text, finish } = await ask([
+          { role: "system", content: "You compare two answers to the same question and score how well they match. You reply with JSON only." },
+          { role: "user", content: `${JUDGE_RULES}\n\nQUESTIONS\n${pairs}` },
+        ], { json: true, maxTokens: 1200, key: keyFor(who), model: modelFor(who, b), meter, timeout: 120000, temperature: 0 });
+        const scores = readScores(text, round.twin);
+        if (!Object.keys(scores).length) return { error: finish === "length" ? "the comparison ran out of room. Try again." : "the answers could not be compared this time. Try again." };
+        const entry = { at: day, pct: scorePct(scores), learned: false,
+          items: qs.filter(x => round.mine[x.id]).map(x => ({ id: x.id, q: x.q, mine: round.mine[x.id], twin: round.twin[x.id] ?? "",
+            ...(round.because?.[x.id] ? { because: round.because[x.id] } : {}), score: scores[x.id] ?? null })) };
+        return view(await save({ test: { history: [entry, ...(t.history ?? [])].slice(0, HISTORY_MAX), round: null } }));
+      }
+      case "learn": {
+        /* The answers just given go into the notes, the way an interview answer does, and count as answered. */
+        const t = test as any, history: any[] = Array.isArray(t.history) ? t.history : [];
+        const entry = history[0];
+        if (!entry || entry.learned !== false) return { ...view(row), filed: { new: 0, updated: 0, titles: [], people: [] } };
+        const items = (entry.items ?? []).filter((i: any) => i.mine);
+        const mKey = keyFor(who), mName = modelFor(who, b);
+        const text = items.map((i: any, n: number) => `${n + 1}. ${i.mine}`).join("\n");
+        const context = `Each numbered answer below is the owner's own reply to the message or question with the same number. File what it shows: the decision, the numbers, the rule behind it, and how they write to that person.\n${items.map((i: any, n: number) => `${n + 1}. ${i.q}`).join("\n")}`;
+        const run = (tm: number) => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date: day, lang: storeLang(who),
+          model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, meter, timeout: tm })).text });
+        const filed = await fileTwice(run);
+        const marks: any = { ...(row?.marks ?? {}) };
+        for (const i of items) if (questionOf(i.id)) marks[i.id] = "a";
+        const next = [{ ...entry, learned: true }, ...history.slice(1)];
+        return { ...view(await save({ marks, test: { history: next, round: t.round ?? null } })), filed };
+      }
+      case "profile": {
+        const notes = notesText(await wholeNotes(ctx, who.space, mine.slug));
+        if (notes.used < 5) return { error: "the profile needs at least 5 notes. Talk to it or run the interview first." };
+        const { text, finish } = await ask([
+          { role: "system", content: "You write a person's profile from their own notes. You reply with JSON only." },
+          { role: "user", content: `${PROFILE_RULES}\n\nTHEIR NOTES\n${notes.text}` },
+        ], { json: true, maxTokens: 4000, key: keyFor(who), model: modelFor(who, b), meter, timeout: 150000, temperature: 0.3 });
+        const parts = readProfile(text);
+        if (parts.length < 3) return { error: finish === "length" ? "the profile ran out of room. Try again." : "the profile could not be written this time. Try again." };
+        return view(await save({ profile: { parts, at: day, notes: notes.used } }));
+      }
+      default: return { error: "that is not something the interview does" };
     }
-    case "check": {
-      const t = test as any, round = t.round;
-      if (!round) return { error: "start a test first" };
-      const qs = roundQs(round);
-      const answers = cleanAnswers(b.answers, qs.map(x => x.id));
-      if (Object.keys(answers).length < 3) return { error: `answer at least 3 of the ${TEST_N} questions first` };
-      const notes = notesText(await wholeNotes(ctx, who.space, mine.slug));
-      if (notes.used < 5) return { error: "your twin needs at least 5 notes to answer. Talk to it or run the interview first." };
-      const ids = Object.keys(answers), asked = qs.filter(x => answers[x.id]);
-      const { text, finish } = await ask([
-        { role: "system", content: "You answer as one person would, from their own notes. You reply with JSON only." },
-        { role: "user", content: `${TWIN_RULES}\n\nTHEIR NOTES\n${notes.text}\n\nQUESTIONS\n${asked.map(x => `${x.id}: ${x.q}`).join("\n")}` },
-      ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), timeout: 150000, temperature: 0.3 });
-      const { answers: twin, because } = readTwin(text, ids);
-      if (Object.keys(twin).length < Math.min(3, ids.length)) return { error: finish === "length" ? "the answer ran out of room. Try again." : "your twin could not answer this time. Try again." };
-      return view(await save({ test: { history: t.history ?? [], round: { ...round, qs, mine: answers, twin, because } } }));
-    }
-    case "score": {
-      /* A model compares the two answers to each question: no one scores their own twin. */
-      const t = test as any, round = t.round;
-      if (!round?.mine || !round?.twin) return { error: "let your twin answer first" };
-      const qs = roundQs(round), ids: string[] = qs.map(x => x.id).filter(id => round.mine[id]);
-      const pairs = pairsText(qs, round.mine, round.twin);
-      if (!pairs) return { error: "let your twin answer first" };
-      const { text, finish } = await ask([
-        { role: "system", content: "You compare two answers to the same question and score how well they match. You reply with JSON only." },
-        { role: "user", content: `${JUDGE_RULES}\n\nQUESTIONS\n${pairs}` },
-      ], { json: true, maxTokens: 1200, key: keyFor(who), model: modelFor(who, b), timeout: 120000, temperature: 0 });
-      const scores = readScores(text, round.twin);
-      if (!Object.keys(scores).length) return { error: finish === "length" ? "the comparison ran out of room. Try again." : "the answers could not be compared this time. Try again." };
-      const entry = { at: today, pct: scorePct(scores), learned: false,
-        items: qs.filter(x => round.mine[x.id]).map(x => ({ id: x.id, q: x.q, mine: round.mine[x.id], twin: round.twin[x.id] ?? "",
-          ...(round.because?.[x.id] ? { because: round.because[x.id] } : {}), score: scores[x.id] ?? null })) };
-      return view(await save({ test: { history: [entry, ...(t.history ?? [])].slice(0, HISTORY_MAX), round: null } }));
-    }
-    case "learn": {
-      /* The answers just given go into the notes, the way an interview answer does, and count as answered. */
-      const t = test as any, history: any[] = Array.isArray(t.history) ? t.history : [];
-      const entry = history[0];
-      if (!entry || entry.learned !== false) return { ...view(row), filed: { new: 0, updated: 0, titles: [], people: [] } };
-      const items = (entry.items ?? []).filter((i: any) => i.mine);
-      const mKey = keyFor(who), mName = modelFor(who, b);
-      const text = items.map((i: any, n: number) => `${n + 1}. ${i.mine}`).join("\n");
-      const context = `Each numbered answer below is the owner's own reply to the message or question with the same number. File what it shows: the decision, the numbers, the rule behind it, and how they write to that person.\n${items.map((i: any, n: number) => `${n + 1}. ${i.q}`).join("\n")}`;
-      const run = (tm: number) => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "interview", date: today, lang: storeLang(who),
-        model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: tm })).text });
-      const filed = await fileTwice(run);
-      const marks: any = { ...(row?.marks ?? {}) };
-      for (const i of items) if (questionOf(i.id)) marks[i.id] = "a";
-      const next = [{ ...entry, learned: true }, ...history.slice(1)];
-      return { ...view(await save({ marks, test: { history: next, round: t.round ?? null } })), filed };
-    }
-    case "profile": {
-      const notes = notesText(await wholeNotes(ctx, who.space, mine.slug));
-      if (notes.used < 5) return { error: "the profile needs at least 5 notes. Talk to it or run the interview first." };
-      const { text, finish } = await ask([
-        { role: "system", content: "You write a person's profile from their own notes. You reply with JSON only." },
-        { role: "user", content: `${PROFILE_RULES}\n\nTHEIR NOTES\n${notes.text}` },
-      ], { json: true, maxTokens: 4000, key: keyFor(who), model: modelFor(who, b), timeout: 150000, temperature: 0.3 });
-      const parts = readProfile(text);
-      if (parts.length < 3) return { error: finish === "length" ? "the profile ran out of room. Try again." : "the profile could not be written this time. Try again." };
-      return view(await save({ profile: { parts, at: today, notes: notes.used } }));
-    }
-    default: return { error: "that is not something the interview does" };
-  }
+  });
 });
 
 /**
@@ -1375,26 +1409,29 @@ route("/api/interview", async (ctx, _req, b) => {
  */
 route("/api/personal/remember", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  const every = await loadSpace(ctx, who.space, undefined, { personal: true });
-  const mine = every.brains.find((x: any) => x.slug === String(b.brain ?? "") && x.type === "personal");
-  if (!mine) return { error: "that is not a personal brain of this workspace" };
-  const text = String(b.text ?? "").trim();
-  /* A chat message that was not filed, sent again from its reply, is filed
-     as the message it was; anything else is a memory brought in. */
-  const kind = b.kind === "chat" ? "chat" : "import";
-  if (!text) return { error: "there is nothing to remember in that" };
-  if (text.length > MAX_CHARS[kind]) return { error: `send at most ${MAX_CHARS[kind]} characters at a time` };
-  const date = new Date().toISOString().slice(0, 10);
-  /* What two filings of an import still left out, kept as written: no model call. */
-  if (b.verbatim === true && kind === "import")
-    return { filed: await fileVerbatim(ctx, who.space, mine.slug, text.split("\n"), date) };
-  const mKey = keyFor(who), mName = modelFor(who, b);
-  /* "gaps": the passages a first filing of this import left out, filed again. */
-  const filed = await fileTwice(t => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text, kind, lang: storeLang(who),
-    date, gaps: kind === "import" && b.gaps === true,
-    model: async m => (await ask(m, { json: true, maxTokens: kind === "chat" ? 4000 : 6000, key: mKey, model: mName, timeout: t })).text }),
-    { budget: 160000, first: 120000 });
-  return { filed };
+  /* What it asks a model is counted for the personal brain, in Settings. */
+  return await metered(ctx, who, "personal", async meter => {
+    const every = await loadSpace(ctx, who.space, undefined, { personal: true });
+    const mine = every.brains.find((x: any) => x.slug === String(b.brain ?? "") && x.type === "personal");
+    if (!mine) return { error: "that is not a personal brain of this workspace" };
+    const text = String(b.text ?? "").trim();
+    /* A chat message that was not filed, sent again from its reply, is filed
+       as the message it was; anything else is a memory brought in. */
+    const kind = b.kind === "chat" ? "chat" : "import";
+    if (!text) return { error: "there is nothing to remember in that" };
+    if (text.length > MAX_CHARS[kind]) return { error: `send at most ${MAX_CHARS[kind]} characters at a time` };
+    const date = today();
+    /* What two filings of an import still left out, kept as written: no model call. */
+    if (b.verbatim === true && kind === "import")
+      return { filed: await fileVerbatim(ctx, who.space, mine.slug, text.split("\n"), date) };
+    const mKey = keyFor(who), mName = modelFor(who, b);
+    /* "gaps": the passages a first filing of this import left out, filed again. */
+    const filed = await fileTwice(t => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text, kind, lang: storeLang(who),
+      date, gaps: kind === "import" && b.gaps === true,
+      model: async m => (await ask(m, { json: true, maxTokens: kind === "chat" ? 4000 : 6000, key: mKey, model: mName, meter, timeout: t })).text }),
+      { budget: 160000, first: 120000 });
+    return { filed };
+  });
 });
 
 /**
@@ -1407,93 +1444,96 @@ route("/api/personal/remember", async (ctx, _req, b) => {
  */
 route("/api/personal/open", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  const got = await personalOf(ctx, who.space, String(b.brain ?? ""));
-  if (!got) return { error: "that is not a personal brain of this workspace" };
-  const { mine, cards } = got;
-  /* Each person's card carries how many lines are open, so the app counts them without reading a file.
-     Cards made before that read it here, once: the ones that differ are written. */
-  const list = async (held?: any[]) => {
-    held = held ?? await wholeNotes(ctx, who.space, mine.slug);
-    /* Lines that say the same thing are made one, in the file and in what is listed. */
-    for (const c of held) {
-      if (c.tag !== "contact" || !c.file?.open?.length) continue;
-      const r = dedupeOpen(c.file.open, [c.title, ...(c.aliases ?? [])]);
-      if (!r.merged) continue;
-      try { await ctx.runMutation(internal.store.contactOpenMerge, { space: who.space, id: `${mine.slug}/${c.slug}` }); c.file = { ...c.file, open: r.open }; } catch { /* listed merged, saved next time */ }
-    }
-    const people = openByPerson(held, mine.slug);
-    const n = new Map(people.map(p => [p.id.split("/")[1], p.items.length]));
-    const stale = cards.filter((c: any) => c.tag === "contact" && (c.open ?? -1) !== (n.get(c.slug) ?? 0)).map((c: any) => ({ slug: c.slug, n: n.get(c.slug) ?? 0 }));
-    for (let i = 0; i < stale.length; i += 200) await ctx.runMutation(internal.store.setOpenCounts, { brain: mine.slug, counts: stale.slice(i, i + 200) });
-    for (const c of cards) if (c.tag === "contact") c.open = n.get(c.slug) ?? 0;
-    return people;
-  };
-  if (b.action !== "send") return { people: await list() };
-
-  const date = new Date().toISOString().slice(0, 10);
-  const asked = (Array.isArray(b.updates) ? b.updates : []).slice(0, 25)
-    .map((u: any) => ({ id: String(u?.id ?? ""), k: String(u?.k ?? ""), comment: oneLine(u?.comment, 500) }))
-    .filter((u: any) => u.comment && u.k && u.id.split("/")[0] === mine.slug);
-  if (!asked.length) return { error: "write a comment on at least one line first" };
-  const held = await wholeNotes(ctx, who.space, mine.slug);
-  const byId = new Map<string, any>(held.filter((c: any) => c.tag === "contact").map((c: any) => [`${mine.slug}/${c.slug}`, c]));
-  const lines = asked.map((u: any) => {
-    const c = byId.get(u.id), it = (c?.file?.open ?? []).find((x: any) => x.k === u.k && !x.done);
-    return it ? { ...u, c, it } : null;
-  }).filter(Boolean) as any[];
-  if (!lines.length) return { error: "those lines are already gone", people: await list(held) };
-
-  const groups = new Map<string, any[]>();
-  for (const l of lines) (groups.get(l.id) || groups.set(l.id, []).get(l.id)!).push(l);
-  /* The items are numbered 1, 2, 3 in the order told, so the model echoes a number and no key. */
-  const order: any[] = [...groups.values()].flat();
-  order.forEach((l, i) => { l.n = i + 1; });
-  const text = [...groups].map(([, ls]) => {
-    /* The person's other open lines, so a follow-up never repeats one. */
-    const rest = (ls[0].c.file?.open ?? []).filter((x: any) => !x.done && !ls.some((l: any) => l.it.k === x.k)).map((x: any) => x.t);
-    return `PERSON: ${ls[0].c.title}${ls[0].c.summaryLine ? `, ${ls[0].c.summaryLine}` : ""}\n` +
-      ls.map((l: any) => `${l.n}. ITEM: ${l.it.t} (open since ${l.it.at ?? "?"}). COMMENT: "${l.comment}"`).join("\n") +
-      (rest.length ? `\nALREADY OPEN, not commented: ${rest.slice(0, 15).join("; ")}` : "");
-  }).join("\n\n");
-  /* One more try when the first reply cannot be read, with the shape said again. */
-  let decided: ReturnType<typeof readOpenUpdates> = [], finish = "";
-  for (let attempt = 0; attempt < 2 && !decided.length; attempt++) {
-    const r = await ask([
-      { role: "system", content: "You keep the open items of a person's contacts up to date from what their owner says. You reply with JSON only." },
-      { role: "user", content: `${OPEN_RULES}\n\nTODAY: ${date}\n\n${text}${attempt ? `\n\nYour last reply could not be read. Reply with only the JSON, {"items":[...]}, one entry per numbered item, 1 to ${order.length}.` : ""}` },
-    ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), timeout: 90000, temperature: 0.2 });
-    finish = r.finish;
-    decided = readOpenUpdates(r.text, order.length);
-    if (!decided.length) console.log(`open lines: no decision read, try ${attempt + 1}, finish ${r.finish}, ${String(r.text ?? "").length} characters`);
-    if (finish === "length") break;
-  }
-  if (!decided.length) return { error: finish === "length" ? "the answer ran out of room. Send fewer lines." : "the comments could not be read this time. Try again." };
-
-  const sum = { done: 0, dropped: 0, changed: 0, followed: 0, moments: 0, kept: 0 };
-  /* The lines to send again: the ones the model passed over, and the ones that did not save. */
-  const retry: { id: string; k: string }[] = order.filter((l: any) => !decided.some(d => d.n === l.n)).map((l: any) => ({ id: l.id, k: l.k }));
-  for (const [id, ls] of groups) {
-    const mine1 = ls.map((l: any) => ({ l, d: decided.find(d => d.n === l.n) })).filter((x: any) => x.d);
-    if (!mine1.length) continue;
-    const change: any = { open: [], events: [] };
-    try {
-      /* A line closes, goes or is reworded by its key, so the words need no matching. */
-      for (const { l, d } of mine1) {
-        const at = { space: who.space, id, part: "open", key: l.k };
-        if (d.status === "done") { await ctx.runMutation(internal.store.contactPart, { ...at, done: true }); sum.done++; }
-        else if (d.status === "drop") { await ctx.runMutation(internal.store.contactPart, at); sum.dropped++; }
-        else if (d.text && d.text.toLowerCase() !== String(l.it.t).toLowerCase()) { await ctx.runMutation(internal.store.contactPart, { ...at, text: d.text }); sum.changed++; }
-        else sum.kept++;
-        for (const f of d.follow) if (change.open.length < 10) { change.open.push({ text: f }); sum.followed++; }
-        if (d.moment && change.events.length < 20) { change.events.push(d.moment); sum.moments++; }
+  /* What it asks a model is counted for the personal brain, in Settings. */
+  return await metered(ctx, who, "personal", async meter => {
+    const got = await personalOf(ctx, who.space, String(b.brain ?? ""));
+    if (!got) return { error: "that is not a personal brain of this workspace" };
+    const { mine, cards } = got;
+    /* Each person's card carries how many lines are open, so the app counts them without reading a file.
+       Cards made before that read it here, once: the ones that differ are written. */
+    const list = async (held?: any[]) => {
+      held = held ?? await wholeNotes(ctx, who.space, mine.slug);
+      /* Lines that say the same thing are made one, in the file and in what is listed. */
+      for (const c of held) {
+        if (c.tag !== "contact" || !c.file?.open?.length) continue;
+        const r = dedupeOpen(c.file.open, [c.title, ...(c.aliases ?? [])]);
+        if (!r.merged) continue;
+        try { await ctx.runMutation(internal.store.contactOpenMerge, { space: who.space, id: `${mine.slug}/${c.slug}` }); c.file = { ...c.file, open: r.open }; } catch { /* listed merged, saved next time */ }
       }
-      /* What follows, and the owner's own words, dated, in the person's notes. */
-      const said = mine1.map(({ l }: any) => `Re "${l.it.t}": ${l.comment}`);
-      change.claim = oneLine(said.join(" "), 600);
-      await applyChange(ctx, { space: who.space, brain: mine.slug, c: ls[0].c, q: said.join("\n"), change, date });
-    } catch { retry.push(...mine1.map(({ l }: any) => ({ id, k: l.k }))); }
-  }
-  return { ...sum, retry, people: await list() };
+      const people = openByPerson(held, mine.slug);
+      const n = new Map(people.map(p => [p.id.split("/")[1], p.items.length]));
+      const stale = cards.filter((c: any) => c.tag === "contact" && (c.open ?? -1) !== (n.get(c.slug) ?? 0)).map((c: any) => ({ slug: c.slug, n: n.get(c.slug) ?? 0 }));
+      for (let i = 0; i < stale.length; i += 200) await ctx.runMutation(internal.store.setOpenCounts, { brain: mine.slug, counts: stale.slice(i, i + 200) });
+      for (const c of cards) if (c.tag === "contact") c.open = n.get(c.slug) ?? 0;
+      return people;
+    };
+    if (b.action !== "send") return { people: await list() };
+
+    const date = today();
+    const asked = (Array.isArray(b.updates) ? b.updates : []).slice(0, 25)
+      .map((u: any) => ({ id: String(u?.id ?? ""), k: String(u?.k ?? ""), comment: oneLine(u?.comment, 500) }))
+      .filter((u: any) => u.comment && u.k && u.id.split("/")[0] === mine.slug);
+    if (!asked.length) return { error: "write a comment on at least one line first" };
+    const held = await wholeNotes(ctx, who.space, mine.slug);
+    const byId = new Map<string, any>(held.filter((c: any) => c.tag === "contact").map((c: any) => [`${mine.slug}/${c.slug}`, c]));
+    const lines = asked.map((u: any) => {
+      const c = byId.get(u.id), it = (c?.file?.open ?? []).find((x: any) => x.k === u.k && !x.done);
+      return it ? { ...u, c, it } : null;
+    }).filter(Boolean) as any[];
+    if (!lines.length) return { error: "those lines are already gone", people: await list(held) };
+
+    const groups = new Map<string, any[]>();
+    for (const l of lines) (groups.get(l.id) || groups.set(l.id, []).get(l.id)!).push(l);
+    /* The items are numbered 1, 2, 3 in the order told, so the model echoes a number and no key. */
+    const order: any[] = [...groups.values()].flat();
+    order.forEach((l, i) => { l.n = i + 1; });
+    const text = [...groups].map(([, ls]) => {
+      /* The person's other open lines, so a follow-up never repeats one. */
+      const rest = (ls[0].c.file?.open ?? []).filter((x: any) => !x.done && !ls.some((l: any) => l.it.k === x.k)).map((x: any) => x.t);
+      return `PERSON: ${ls[0].c.title}${ls[0].c.summaryLine ? `, ${ls[0].c.summaryLine}` : ""}\n` +
+        ls.map((l: any) => `${l.n}. ITEM: ${l.it.t} (open since ${l.it.at ?? "?"}). COMMENT: "${l.comment}"`).join("\n") +
+        (rest.length ? `\nALREADY OPEN, not commented: ${rest.slice(0, 15).join("; ")}` : "");
+    }).join("\n\n");
+    /* One more try when the first reply cannot be read, with the shape said again. */
+    let decided: ReturnType<typeof readOpenUpdates> = [], finish = "";
+    for (let attempt = 0; attempt < 2 && !decided.length; attempt++) {
+      const r = await ask([
+        { role: "system", content: "You keep the open items of a person's contacts up to date from what their owner says. You reply with JSON only." },
+        { role: "user", content: `${OPEN_RULES}\n\nTODAY: ${date}\n\n${text}${attempt ? `\n\nYour last reply could not be read. Reply with only the JSON, {"items":[...]}, one entry per numbered item, 1 to ${order.length}.` : ""}` },
+      ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), meter, timeout: 90000, temperature: 0.2 });
+      finish = r.finish;
+      decided = readOpenUpdates(r.text, order.length);
+      if (!decided.length) console.log(`open lines: no decision read, try ${attempt + 1}, finish ${r.finish}, ${String(r.text ?? "").length} characters`);
+      if (finish === "length") break;
+    }
+    if (!decided.length) return { error: finish === "length" ? "the answer ran out of room. Send fewer lines." : "the comments could not be read this time. Try again." };
+
+    const sum = { done: 0, dropped: 0, changed: 0, followed: 0, moments: 0, kept: 0 };
+    /* The lines to send again: the ones the model passed over, and the ones that did not save. */
+    const retry: { id: string; k: string }[] = order.filter((l: any) => !decided.some(d => d.n === l.n)).map((l: any) => ({ id: l.id, k: l.k }));
+    for (const [id, ls] of groups) {
+      const mine1 = ls.map((l: any) => ({ l, d: decided.find(d => d.n === l.n) })).filter((x: any) => x.d);
+      if (!mine1.length) continue;
+      const change: any = { open: [], events: [] };
+      try {
+        /* A line closes, goes or is reworded by its key, so the words need no matching. */
+        for (const { l, d } of mine1) {
+          const at = { space: who.space, id, part: "open", key: l.k };
+          if (d.status === "done") { await ctx.runMutation(internal.store.contactPart, { ...at, done: true }); sum.done++; }
+          else if (d.status === "drop") { await ctx.runMutation(internal.store.contactPart, at); sum.dropped++; }
+          else if (d.text && d.text.toLowerCase() !== String(l.it.t).toLowerCase()) { await ctx.runMutation(internal.store.contactPart, { ...at, text: d.text }); sum.changed++; }
+          else sum.kept++;
+          for (const f of d.follow) if (change.open.length < 10) { change.open.push({ text: f }); sum.followed++; }
+          if (d.moment && change.events.length < 20) { change.events.push(d.moment); sum.moments++; }
+        }
+        /* What follows, and the owner's own words, dated, in the person's notes. */
+        const said = mine1.map(({ l }: any) => `Re "${l.it.t}": ${l.comment}`);
+        change.claim = oneLine(said.join(" "), 600);
+        await applyChange(ctx, { space: who.space, brain: mine.slug, c: ls[0].c, q: said.join("\n"), change, date });
+      } catch { retry.push(...mine1.map(({ l }: any) => ({ id, k: l.k }))); }
+    }
+    return { ...sum, retry, people: await list() };
+  });
 });
 
 /**
@@ -1503,35 +1543,38 @@ route("/api/personal/open", async (ctx, _req, b) => {
  */
 route("/api/personal/people", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  const got = await personalOf(ctx, who.space, String(b.brain ?? ""));
-  if (!got) return { error: "that is not a personal brain of this workspace" };
-  const whole = await wholeNotes(ctx, who.space, got.mine.slug);
-  const mKey = keyFor(who), mName = modelFor(who, b);
-  const date = new Date().toISOString().slice(0, 10);
-  /* Second phase: the people held with no file yet get one, built from their
-     card and every dated mention, 5 people a call. */
-  if (b.phase === "files") {
-    const bare = whole.filter((c: any) => c.tag === "contact" && !c.file).sort((x: any, y: any) => (x.n ?? 0) - (y.n ?? 0));
-    const part = bare.slice(0, 5);
-    if (!part.length) return { filed: { new: 0, updated: 0, titles: [], people: [] }, next: null, left: 0 };
-    const text = part.map((c: any) => `- CONTACT "${c.title}"${(c.aliases ?? []).length ? ` (also: ${c.aliases.join(", ")})` : ""}\n  CARD: ${String(c.position || c.summaryLine || "").replace(/\s+/g, " ").slice(0, 2500)}\n  WHAT YOU SAID ABOUT THEM:\n` +
-      (c.evidence ?? []).slice(0, 60).map((e: any) => `  - ${e.date ?? "?"}: ${String(e.claim ?? "").replace(/\s+/g, " ").slice(0, 400)}`).join("\n")).join("\n\n");
-    const filed = await fileTwice(t => remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "files", date, lang: storeLang(who),
-      model: async m => (await ask(m, { json: true, maxTokens: 12000, key: mKey, model: mName, timeout: t })).text }),
-      { budget: 160000, first: 150000 });
-    /* A person the model passed over gets an empty file, so the run moves on. */
-    for (const c of part) if (!(filed.people ?? []).some(t => t === c.title))
-      await ctx.runMutation(internal.store.fileContact, { brain: got.mine.slug, title: c.title, slug: c.slug, date, doc: {}, add: {} });
-    return { filed, next: bare.length > part.length ? 0 : null, left: Math.max(0, bare.length - part.length), total: bare.length };
-  }
-  const all = whole.filter((c: any) => c.tag !== "contact").sort((x: any, y: any) => (x.n ?? 0) - (y.n ?? 0));
-  const at = Math.max(0, Math.floor(Number(b.at) || 0)), part = all.slice(at, at + 20);
-  const next = at + 20 < all.length ? at + 20 : null;
-  if (!part.length) return { filed: { new: 0, updated: 0, titles: [], people: [] }, next: null, read: all.length, total: all.length };
-  const text = part.map((c: any) => `- ${c.title} (${c.evidence?.[0]?.date || c.updated || "?"}): ${String(c.position || c.summaryLine || "").replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
-  const filed = await remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "people", date, lang: storeLang(who),
-    model: async m => (await ask(m, { json: true, maxTokens: 8000, key: mKey, model: mName, timeout: 150000 })).text });
-  return { filed, next, read: Math.min(at + 20, all.length), total: all.length };
+  /* What it asks a model is counted for the personal brain, in Settings. */
+  return await metered(ctx, who, "personal", async meter => {
+    const got = await personalOf(ctx, who.space, String(b.brain ?? ""));
+    if (!got) return { error: "that is not a personal brain of this workspace" };
+    const whole = await wholeNotes(ctx, who.space, got.mine.slug);
+    const mKey = keyFor(who), mName = modelFor(who, b);
+    const date = today();
+    /* Second phase: the people held with no file yet get one, built from their
+       card and every dated mention, 5 people a call. */
+    if (b.phase === "files") {
+      const bare = whole.filter((c: any) => c.tag === "contact" && !c.file).sort((x: any, y: any) => (x.n ?? 0) - (y.n ?? 0));
+      const part = bare.slice(0, 5);
+      if (!part.length) return { filed: { new: 0, updated: 0, titles: [], people: [] }, next: null, left: 0 };
+      const text = part.map((c: any) => `- CONTACT "${c.title}"${(c.aliases ?? []).length ? ` (also: ${c.aliases.join(", ")})` : ""}\n  CARD: ${String(c.position || c.summaryLine || "").replace(/\s+/g, " ").slice(0, 2500)}\n  WHAT YOU SAID ABOUT THEM:\n` +
+        (c.evidence ?? []).slice(0, 60).map((e: any) => `  - ${e.date ?? "?"}: ${String(e.claim ?? "").replace(/\s+/g, " ").slice(0, 400)}`).join("\n")).join("\n\n");
+      const filed = await fileTwice(t => remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "files", date, lang: storeLang(who),
+        model: async m => (await ask(m, { json: true, maxTokens: 12000, key: mKey, model: mName, meter, timeout: t })).text }),
+        { budget: 160000, first: 150000 });
+      /* A person the model passed over gets an empty file, so the run moves on. */
+      for (const c of part) if (!(filed.people ?? []).some(t => t === c.title))
+        await ctx.runMutation(internal.store.fileContact, { brain: got.mine.slug, title: c.title, slug: c.slug, date, doc: {}, add: {} });
+      return { filed, next: bare.length > part.length ? 0 : null, left: Math.max(0, bare.length - part.length), total: bare.length };
+    }
+    const all = whole.filter((c: any) => c.tag !== "contact").sort((x: any, y: any) => (x.n ?? 0) - (y.n ?? 0));
+    const at = Math.max(0, Math.floor(Number(b.at) || 0)), part = all.slice(at, at + 20);
+    const next = at + 20 < all.length ? at + 20 : null;
+    if (!part.length) return { filed: { new: 0, updated: 0, titles: [], people: [] }, next: null, read: all.length, total: all.length };
+    const text = part.map((c: any) => `- ${c.title} (${c.evidence?.[0]?.date || c.updated || "?"}): ${String(c.position || c.summaryLine || "").replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
+    const filed = await remember(ctx, { space: who.space, brain: got.mine.slug, cards: got.cards, text, kind: "people", date, lang: storeLang(who),
+      model: async m => (await ask(m, { json: true, maxTokens: 8000, key: mKey, model: mName, meter, timeout: 150000 })).text });
+    return { filed, next, read: Math.min(at + 20, all.length), total: all.length };
+  });
 });
 
 /**
@@ -1584,52 +1627,55 @@ Reply with only JSON: {"position":"","summaryLine":""}`;
  */
 route("/api/personal/contact", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  const brain = String(b.id ?? b.into ?? (Array.isArray(b.ids) ? b.ids[0] : "") ?? "").split("/")[0];
-  const got = await personalOf(ctx, who.space, brain);
-  if (!got) return { error: "that is not a personal brain of this workspace" };
-  /* Up to 20 cards of this brain, each as a short file, so a call on two of them is made by looking. */
-  if (b.action === "peek") {
-    const ids = (Array.isArray(b.ids) ? b.ids : []).map(String).filter((x: string) => x.split("/")[0] === brain).slice(0, 20);
-    const cards = ids.length ? await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids }) : [];
-    return { people: cards.filter((c: any) => c.tag === "contact").map(personPeek) };
-  }
-  if (b.action === "edit") {
-    return await ctx.runMutation(internal.store.contactEdit, { space: who.space, id: String(b.id ?? ""),
-      ...(typeof b.title === "string" ? { title: b.title } : {}),
-      ...(Array.isArray(b.aliases) ? { aliases: b.aliases.map(String).slice(0, 20) } : {}),
-      ...(typeof b.position === "string" ? { position: b.position } : {}),
-      ...(typeof b.summaryLine === "string" ? { summaryLine: b.summaryLine } : {}) });
-  }
-  if (b.action === "part") {
-    return await ctx.runMutation(internal.store.contactPart, { space: who.space, id: String(b.id ?? ""), part: String(b.part ?? ""),
-      key: String(b.key ?? ""), ...(typeof b.done === "boolean" ? { done: b.done } : {}) });
-  }
-  if (b.action === "merge") {
-    const into = String(b.into ?? ""), from = (Array.isArray(b.from) ? b.from : []).map(String).filter((x: string) => x.split("/")[0] === brain).slice(0, 10);
-    if (!from.length) return { error: "pick the card to merge into this one" };
-    const before = await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids: [into, ...from] });
-    const r = await ctx.runMutation(internal.store.contactMerge, { space: who.space, into, from });
-    if (!r.joined) return { error: "those cards could not be merged" };
-    /* The two texts sit side by side until the joined card is written as one. */
-    let rewritten = false;
-    try {
-      const cards = before.map((c: any) => `CARD "${c.title}"${(c.aliases ?? []).length ? ` (also: ${c.aliases.join(", ")})` : ""}\n${String(c.position || c.summaryLine || "").slice(0, 3000)}`).join("\n\n");
-      const said = before.flatMap((c: any) => (c.evidence ?? []).map((e: any) => `- ${e.date ?? "?"}: ${String(e.claim ?? "").slice(0, 300)}`)).slice(0, 80).join("\n");
-      const { text, finish } = await ask([
-        { role: "system", content: "You keep a person's own contact cards. You reply with JSON only." },
-        { role: "user", content: `${MERGE_RULES}\nLANGUAGE: English.\n\n${cards}\n\nWHAT THEY SAID, DATED\n${said || "(nothing)"}` },
-      ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), timeout: 90000, temperature: 0.2 });
-      const d = parseJson(String(text), finish) ?? {};
-      const position = String(d.position ?? "").replace(/\s*—\s*/g, ", ").trim();
-      const line = String(d.summaryLine ?? "").replace(/\s*—\s*/g, ", ").trim().slice(0, 200);
-      if (position.length > 20) {
-        await ctx.runMutation(internal.store.contactEdit, { space: who.space, id: into, position, ...(line ? { summaryLine: line } : {}) });
-        rewritten = true;
-      }
-    } catch { /* the joined card keeps both texts */ }
-    return { into, joined: r.joined, rewritten };
-  }
-  return { error: "that is not something a contact does" };
+  /* What it asks a model is counted for the personal brain, in Settings. */
+  return await metered(ctx, who, "personal", async meter => {
+    const brain = String(b.id ?? b.into ?? (Array.isArray(b.ids) ? b.ids[0] : "") ?? "").split("/")[0];
+    const got = await personalOf(ctx, who.space, brain);
+    if (!got) return { error: "that is not a personal brain of this workspace" };
+    /* Up to 20 cards of this brain, each as a short file, so a call on two of them is made by looking. */
+    if (b.action === "peek") {
+      const ids = (Array.isArray(b.ids) ? b.ids : []).map(String).filter((x: string) => x.split("/")[0] === brain).slice(0, 20);
+      const cards = ids.length ? await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids }) : [];
+      return { people: cards.filter((c: any) => c.tag === "contact").map(personPeek) };
+    }
+    if (b.action === "edit") {
+      return await ctx.runMutation(internal.store.contactEdit, { space: who.space, id: String(b.id ?? ""),
+        ...(typeof b.title === "string" ? { title: b.title } : {}),
+        ...(Array.isArray(b.aliases) ? { aliases: b.aliases.map(String).slice(0, 20) } : {}),
+        ...(typeof b.position === "string" ? { position: b.position } : {}),
+        ...(typeof b.summaryLine === "string" ? { summaryLine: b.summaryLine } : {}) });
+    }
+    if (b.action === "part") {
+      return await ctx.runMutation(internal.store.contactPart, { space: who.space, id: String(b.id ?? ""), part: String(b.part ?? ""),
+        key: String(b.key ?? ""), ...(typeof b.done === "boolean" ? { done: b.done } : {}) });
+    }
+    if (b.action === "merge") {
+      const into = String(b.into ?? ""), from = (Array.isArray(b.from) ? b.from : []).map(String).filter((x: string) => x.split("/")[0] === brain).slice(0, 10);
+      if (!from.length) return { error: "pick the card to merge into this one" };
+      const before = await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids: [into, ...from] });
+      const r = await ctx.runMutation(internal.store.contactMerge, { space: who.space, into, from });
+      if (!r.joined) return { error: "those cards could not be merged" };
+      /* The two texts sit side by side until the joined card is written as one. */
+      let rewritten = false;
+      try {
+        const cards = before.map((c: any) => `CARD "${c.title}"${(c.aliases ?? []).length ? ` (also: ${c.aliases.join(", ")})` : ""}\n${String(c.position || c.summaryLine || "").slice(0, 3000)}`).join("\n\n");
+        const said = before.flatMap((c: any) => (c.evidence ?? []).map((e: any) => `- ${e.date ?? "?"}: ${String(e.claim ?? "").slice(0, 300)}`)).slice(0, 80).join("\n");
+        const { text, finish } = await ask([
+          { role: "system", content: "You keep a person's own contact cards. You reply with JSON only." },
+          { role: "user", content: `${MERGE_RULES}\nLANGUAGE: English.\n\n${cards}\n\nWHAT THEY SAID, DATED\n${said || "(nothing)"}` },
+        ], { json: true, maxTokens: 3000, key: keyFor(who), model: modelFor(who, b), meter, timeout: 90000, temperature: 0.2 });
+        const d = parseJson(String(text), finish) ?? {};
+        const position = String(d.position ?? "").replace(/\s*—\s*/g, ", ").trim();
+        const line = String(d.summaryLine ?? "").replace(/\s*—\s*/g, ", ").trim().slice(0, 200);
+        if (position.length > 20) {
+          await ctx.runMutation(internal.store.contactEdit, { space: who.space, id: into, position, ...(line ? { summaryLine: line } : {}) });
+          rewritten = true;
+        }
+      } catch { /* the joined card keeps both texts */ }
+      return { into, joined: r.joined, rewritten };
+    }
+    return { error: "that is not something a contact does" };
+  });
 });
 
 /* ---------- projects ---------- */
@@ -2017,11 +2063,12 @@ route("/api/onepager", async (ctx, _req, b) => {
      picked; a summary laid out from the stored positions is translated. */
   const lang = langOf(b.lang);
   if (q || kind !== "summary" || lang !== "English") await demoCount(ctx, who, "ask");
-  const page = q || kind !== "summary"
+  /* Counted as a one-pager, for Settings. */
+  const page = await metered(ctx, who, "pager", async meter => q || kind !== "summary"
     ? await fromModel(who.space, brains, concepts, sources, { q, kind, doc, note, pick, lang },
-                      keyFor(who), modelFor(who, b), load)
+                      keyFor(who), modelFor(who, b), load, meter)
     : await translatePage(assemble(who.space, brains, concepts, sources, pick,
-               new Map((await load(pageIds(brains, concepts))).map((c: any) => [idOf(c), c]))), lang, undefined, lang === "English" ? undefined : keyFor(who), modelFor(who, b));
+               new Map((await load(pageIds(brains, concepts))).map((c: any) => [idOf(c), c]))), lang, undefined, lang === "English" ? undefined : keyFor(who), modelFor(who, b), undefined, meter));
 
   if (!hasBody(page)) {
     return { error: "those brains hold no positions yet, so the page would be empty" };
@@ -2035,7 +2082,7 @@ route("/api/onepager", async (ctx, _req, b) => {
      reason, so a question already paid for is not thrown away with the mail. */
   /* Thirty mails a day per space, so this address cannot be used to spam. */
   const quota = await ctx.runMutation(internal.store.mcpRate,
-    { who: "mail:" + who.space, max: 30, windowMs: 24 * 60 * 60 * 1000 });
+    { who: "mail:" + who.space, max: 30, windowMs: DAY_MS });
   if (!quota.allowed) {
     return { page, text: asText(page), sent: false, to, ...said,
              mailError: `30 pages were mailed today. Mail opens again in ${Math.ceil(quota.retryAfter / 3600)} hours.` };

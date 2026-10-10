@@ -12,7 +12,7 @@
 
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
-import { MODEL } from "./lib";
+import { MODEL, OPENROUTER } from "./lib";
 
 type Result = {
   label: string;
@@ -49,7 +49,7 @@ async function call(opts: {
 
   const t0 = Date.now();
   try {
-    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const r = await fetch(`${OPENROUTER}/chat/completions`, {
       method: "POST",
       headers: {
         Authorization: "Bearer " + key,

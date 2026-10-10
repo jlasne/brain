@@ -23,8 +23,8 @@
 import { knownAuthor, looksForeign } from "./drop";
 import { needsPosition } from "./tidy";
 import { keywords, stem } from "./words";
+import { DAY_MS } from "./lib";
 
-const DAY = 86400000;
 const WEIGHT = { variety: 3, depth: 3, fresh: 2, conflicts: 2, tidy: 2 } as const;
 type Key = keyof typeof WEIGHT;
 const KEYS: Key[] = ["variety", "depth", "fresh", "conflicts", "tidy"];
@@ -102,7 +102,7 @@ export function healthOf(brains: any[], cards: any[], sources: any[], open: Map<
     const deep = cs.filter((c: any) => Number(c.src ?? 0) >= 2).length;
     const share = cs.length ? deep / cs.length : 0;
     const last = own.map((s: any) => String(s.stored || s.date || "")).filter(d => /^\d{4}-\d\d-\d\d/.test(d)).sort().pop();
-    const days = last ? Math.max(0, Math.floor((now - Date.parse(last.slice(0, 10))) / DAY)) : null;
+    const days = last ? Math.max(0, Math.floor((now - Date.parse(last.slice(0, 10))) / DAY_MS)) : null;
     const nOpen = open.get(b.slug) ?? 0;
     const mess = messOf(cs);
     const person = b.type === "person";

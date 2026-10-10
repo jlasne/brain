@@ -13,7 +13,7 @@
  * the same page.
  */
 
-import { ask, parseJson, spaceName } from "./lib";
+import { ask, parseJson, spaceName, today } from "./lib";
 import type { Who, Space } from "./lib";
 import { planDossier, writeDossier, keywords, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
@@ -45,7 +45,7 @@ export const langOf = (x: any) => LANGS.includes(String(x)) ? String(x) : "Engli
  * whole page in English, marked untranslated, so the reader is told.
  */
 export async function translatePage(p: Pager, lang: string, only?: "chrome",
-  key?: string, model?: string, timeout?: number): Promise<Pager> {
+  key?: string, model?: string, timeout?: number, meter?: (usage: any) => void): Promise<Pager> {
   if (langOf(lang) === "English") return p;
   const strings: string[] = [];
   const put = (t: any) => { const x = String(t ?? ""); if (!x.trim()) return -1; strings.push(x); return strings.length - 1; };
@@ -70,7 +70,7 @@ export async function translatePage(p: Pager, lang: string, only?: "chrome",
 Reply with only JSON: {"t":["..."]}, exactly ${list.length} strings, in the same order.
 
 ${JSON.stringify(list)}` },
-        ], { json: true, maxTokens: Math.min(8000, 600 + list.join(" ").length), key, model, timeout: timeout ?? 75000 });
+        ], { json: true, maxTokens: Math.min(8000, 600 + list.join(" ").length), key, model, timeout: timeout ?? 75000, meter });
         const got = parseJson(text)?.t;
         if (Array.isArray(got) && got.length === list.length) return got.map(String);
       } catch { /* one more try */ }
@@ -239,7 +239,6 @@ export function pickName(space: Space, brains: any[], pick?: string): string {
 export function assemble(
   space: Space, brains: any[], concepts: any[], sources: any[], pick: string, full?: Map<string, any>,
 ): Pager {
-  const today = new Date().toISOString().slice(0, 10);
   const conceptsOf = (slug: string) => concepts.filter((c: any) => c.brain === slug).sort(rank);
   const sourceCount = (slugs: string[]) =>
     new Set(sources.filter((s: any) => (s.brains ?? []).some((x: string) => slugs.includes(x)))
@@ -263,7 +262,7 @@ export function assemble(
   const foot = [
     `${shown} of ${ideas} position${ideas === 1 ? "" : "s"}`,
     `${read} source${read === 1 ? "" : "s"} read`,
-    today,
+    today(),
   ].join(" · ");
 
   return { title, line, sections, foot };
@@ -405,9 +404,8 @@ export type PageKind = "summary" | "custom";
 export async function fromModel(
   space: Space, brains: any[], concepts: any[], sources: any[],
   opts: { q?: string; kind: PageKind; doc?: DocType; note?: string; pick?: string; lang?: string },
-  key?: string, model?: string, load?: (ids: string[]) => Promise<any[]>,
+  key?: string, model?: string, load?: (ids: string[]) => Promise<any[]>, meter?: (usage: any) => void,
 ): Promise<Pager> {
-  const today = new Date().toISOString().slice(0, 10);
   const lang = langOf(opts.lang);
   const q = String(opts.q ?? "").trim(), kind = opts.kind, note = String(opts.note ?? "").trim();
   const doc: DocType = DOC_TYPES.includes(opts.doc as DocType) ? opts.doc as DocType : "other";
@@ -422,7 +420,7 @@ export async function fromModel(
   const t0 = Date.now();
   let plan: any;
   if (q) {
-    const route = await routeQuestion(brains, concepts, q, undefined, key, model);
+    const route = await routeQuestion(brains, concepts, q, undefined, key, model, { meter });
     plan = planDossier(brains, concepts, q, undefined, route);
   } else {
     plan = fullestPlan(inPool);
@@ -440,7 +438,7 @@ export async function fromModel(
 STORED KNOWLEDGE
 ${found.dossier}
 ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
-  ], { maxTokens: kind === "summary" ? 2000 : doc === "quiz" ? 2600 : 3200, key, model,
+  ], { maxTokens: kind === "summary" ? 2000 : doc === "quiz" ? 2600 : 3200, key, model, meter,
        /* Router, answer and mail stay inside the browser's 3 minutes. */
        timeout: Math.max(60000, 145000 - (Date.now() - t0)) });
 
@@ -478,14 +476,14 @@ ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
     foot: [
       `${found.opened.length} of ${inPool.length} position${inPool.length === 1 ? "" : "s"}`,
       `${read} source${read === 1 ? "" : "s"} read`,
-      today,
+      today(),
     ].join(" · "),
   };
   /* The body came back in the language picked; the title, the line under it
      and the foot are made here in English, so they follow in one small call.
      It gets half the time left, so its second try still ends inside the wait. */
   return lang === "English" ? page
-    : await translatePage(page, lang, "chrome", key, model, Math.max(20000, Math.round((170000 - (Date.now() - t0)) / 2)));
+    : await translatePage(page, lang, "chrome", key, model, Math.max(20000, Math.round((170000 - (Date.now() - t0)) / 2)), meter);
 }
 
 /** "Core concept: what it says", with the markdown a model adds taken off. */

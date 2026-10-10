@@ -22,7 +22,8 @@
  */
 
 import { internal } from "./_generated/api";
-import { ask, parseJson } from "./lib";
+import { ask, parseJson, today } from "./lib";
+import { newSpent, meter } from "./spend";
 import { routeQuestion } from "./route";
 import { planDossier, writeDossier, idOf, OPEN_READ, keywords, stem, tagsOf, taggedLine, isCloser, NEAR_SHORT } from "./words";
 import { embed, nearest } from "./graph";
@@ -249,7 +250,7 @@ async function aboutFile(ctx: any, o: { space: string; brain: string; key?: stri
     const notes = readNotes(raw, "file");
     if (!notes.length) return;
     const held: any[] = await ctx.runQuery(internal.projects.memoryOf, { space: o.space, brain: o.brain });
-    await fileNotes(ctx, o.space, o.brain, held, notes, "file", new Date().toISOString().slice(0, 10));
+    await fileNotes(ctx, o.space, o.brain, held, notes, "file", today());
   } catch (e: any) {
     console.log(`the note on the file was not written: ${String(e?.message ?? e).slice(0, 160)}`);
   }
@@ -303,7 +304,7 @@ export async function fileInstructions(ctx: any, o: { space: string; brain: stri
   if (!notes.length) throw new Error("the instructions could not be read into notes. Try again.");
   await ctx.runMutation(internal.projects.memoryForgetInstructions, { space: o.space, brain: o.brain });
   const held: any[] = await ctx.runQuery(internal.projects.memoryOf, { space: o.space, brain: o.brain });
-  const filed = await fileNotes(ctx, o.space, o.brain, held, notes, "instructions", new Date().toISOString().slice(0, 10), [], [], "", "", name);
+  const filed = await fileNotes(ctx, o.space, o.brain, held, notes, "instructions", today(), [], [], "", "", name);
   return { notes: filed.new + filed.updated, titles: filed.titles, ...(whole.length > text.length ? { cut: true } : {}) };
 }
 
@@ -337,7 +338,7 @@ export async function fileResource(ctx: any, o: { space: string; brain: string; 
   const taken = new Set(held.filter(r => r.instructions).map(r => String(r.title).toLowerCase()));
   const notes = readNotes(String(raw), "resource").filter(n => n.title.toLowerCase() !== "the file" && !taken.has(n.title.toLowerCase())).map(n => ({ ...n, position: n.position.slice(0, 900) }));
   if (!notes.length) throw new Error("the resource could not be read into notes. Try again.");
-  const filed = await fileNotes(ctx, o.space, o.brain, held, notes, "resource", new Date().toISOString().slice(0, 10), [], [], "", "", name);
+  const filed = await fileNotes(ctx, o.space, o.brain, held, notes, "resource", today(), [], [], "", "", name);
   return { notes: filed.new + filed.updated, titles: filed.titles, ...(whole.length > text.length ? { cut: true } : {}) };
 }
 
@@ -382,7 +383,6 @@ export async function gapsOf(ctx: any, o: { space: string; brain: string }) {
   const got = await ctx.runQuery(internal.projects.projectGet, { space: o.space, brain: o.brain });
   const file = got.file;
   if (!file || file.status !== "ready" || !file.chars) return { gaps: [], total: 0, file: file?.name ?? "" };
-  const today = new Date().toISOString().slice(0, 10);
   if (file.kind === "table") {
     const blocks: string[][] = [];
     for (let i = 0; i < file.sheets.length; i++) blocks.push(await readBlocks(ctx, { space: o.space, brain: o.brain, sheet: i }));
@@ -390,7 +390,7 @@ export async function gapsOf(ctx: any, o: { space: string; brain: string }) {
   }
   const texts = await readBlocks(ctx, { space: o.space, brain: o.brain });
   const pieces = got.cards.map((c: any, i: number) => ({ sid: c.sid, title: c.title, text: texts[i] ?? "" }));
-  return { ...gapList(scanDoc(pieces, today, file.kind === "html")), file: file.name };
+  return { ...gapList(scanDoc(pieces, today(), file.kind === "html")), file: file.name };
 }
 
 /* ---------- the step before an answer ---------- */
@@ -522,63 +522,6 @@ export { isCloser };
 const FOLDER_INDEX = 120;
 /** What a project's answer holds of the folders: they support the file, and never carry the message. */
 const FOLDER_DOSSIER = { fullMax: 10, fullChars: 16000, titleMax: 25, titleChars: 2500 };
-
-/** What a message cost, from the usage each model call reports. */
-type Spent = { in: number; out: number; cached: number; usd: number; known: boolean; calls: number; priced: number };
-const newSpent = (): Spent => ({ in: 0, out: 0, cached: 0, usd: 0, known: false, calls: 0, priced: 0 });
-function meter(s: Spent, u: any) {
-  if (!u) return;
-  s.calls++;
-  s.in += Number(u.prompt_tokens) || 0;
-  s.out += Number(u.completion_tokens) || 0;
-  s.cached += Number(u.prompt_tokens_details?.cached_tokens) || 0;
-  if (typeof u.cost === "number" && Number.isFinite(u.cost)) { s.usd += u.cost; s.known = true; s.priced++; }
-}
-
-/** Dollars as a person reads them: cents from a cent up, more places below. */
-const dollars = (n: number) => n >= 0.1 ? n.toFixed(2) : n >= 0.01 ? n.toFixed(3) : n.toFixed(4);
-
-/**
- * A workspace's projects may be given a monthly cap. Before a message, a file read in, a resource or a Brief asks a model anything,
- * the month's cost so far is read, and a cap that is reached stops it with a sentence that says where to change it.
- */
-export async function guardBudget(ctx: any, space: string) {
-  const b: { cap: number | null; usd: number } = await ctx.runQuery(internal.projects.budgetState, { space });
-  if (b.cap != null && b.usd >= b.cap) throw new Error(`The projects have used this month's budget: $${dollars(b.usd)} of $${b.cap.toFixed(2)}. Raise the cap in Settings, or wait for the 1st.`);
-}
-
-/**
- * Runs a chat message that is not a project's (the folders' chat, the personal brain's) and adds what it cost to the month's row for that
- * kind of chat: tokens always, dollars as the model host reported them. Added whether the message finished or failed, since a call that
- * answered was paid for, and recording never fails the message. The demo is not counted.
- */
-export async function withChatSpend<T>(ctx: any, o: { space: string; kind: "folders" | "personal"; skip?: boolean }, run: (tally: (u: any) => void) => Promise<T>): Promise<T> {
-  const s = newSpent();
-  try { return await run(u => meter(s, u)); }
-  finally {
-    if (s.calls && !o.skip) {
-      try { await ctx.runMutation(internal.projects.chatSpendAdd, { space: o.space, kind: o.kind, usd: s.usd, priced: s.priced, calls: s.calls, tokensIn: s.in, tokensOut: s.out, cached: s.cached }); }
-      catch (e: any) { console.log(`the cost of a chat message was not recorded: ${String(e?.message ?? e).slice(0, 140)}`); }
-    }
-  }
-}
-
-/**
- * Runs what asks a model for a project, once the cap allows it, and adds what it cost to the project's row for the month: tokens always,
- * dollars as the model host reported them. It is added whether the run finished or failed, since a call that answered was paid for, and
- * recording never fails what it records.
- */
-export async function withSpend<T>(ctx: any, o: { space: string; brain: string }, run: (tally: (u: any) => void) => Promise<T>): Promise<T> {
-  await guardBudget(ctx, o.space);
-  const s = newSpent();
-  try { return await run(u => meter(s, u)); }
-  finally {
-    if (s.calls) {
-      try { await ctx.runMutation(internal.projects.spendAdd, { space: o.space, brain: splitKey(o.brain).base, usd: s.usd, priced: s.priced, calls: s.calls, tokensIn: s.in, tokensOut: s.out, cached: s.cached }); }
-      catch (e: any) { console.log(`the cost of a call was not recorded: ${String(e?.message ?? e).slice(0, 140)}`); }
-    }
-  }
-}
 
 const oneLine = (t: any, n: number) => String(t ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 /** What an exchange said, as the next prompts read it: the one line answer, then its support. */
@@ -1098,7 +1041,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
   /* Where the project stands and what is still open are read by a message that has something to do with them: not thanks, and not small talk, unless a question waits for an answer. */
   const showFrame = !closer && (!talk || open.length > 0);
   const framed = !!o.note && showFrame;
-  const date = new Date().toISOString().slice(0, 10);
+  const date = today();
   const noun = table ? `a table, ${file.sheets.length} sheet${file.sheets.length === 1 ? "" : "s"}`
     : `${kind === "html" ? "an HTML page" : "a document"}, ${cards.length} section${cards.length === 1 ? "" : "s"}${whole ? ", read whole" : ""}`;
   /* What stays the same from one message to the next comes first, and what changes with the message comes last (the date, what they seem to want, the question), so a host that reuses the start of a prompt can. */

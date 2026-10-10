@@ -219,12 +219,16 @@ function makeCtx() {
     return rows("projectVectors").filter(r => conds.every(([f, v]) => r[f] === v)).map(r => ({ _id: r._id, _score: cos(vector, r.vec) })).sort((a, b) => b._score - a._score).slice(0, limit);
   };
   const call = (name, args) => { const [m, f] = name.split("."); if (!mods[m]?.[f]) throw new Error(`no ${name}`); return mods[m][f].handler({ db, runQuery: call, runMutation: call, vectorSearch }, args); };
-  return { T, db, ctx: { db, runQuery: call, runMutation: call, vectorSearch } };
+  /* What a route hands on to run later is kept, to be looked at. */
+  const scheduler = { runAfter: async (_ms, fn, args) => { (T.scheduled ??= []).push({ fn: String(fn), args }); } };
+  return { T, db, ctx: { db, runQuery: call, runMutation: call, vectorSearch, scheduler } };
 }
 
 /* A model that answers by what it is asked, and keeps every prompt it was shown. */
 const sent = [];
 let reply = {};
+/* Answers given again are kept between two questions only where a check asks for it. */
+let KEEP_ANSWERS = false;
 const realFetch = globalThis.fetch;
 /* Meaning as numbers, for a fake: a text about a refund points one way, a text about payment another, everything else a third. */
 const vecOf = text => { const v = new Array(1024).fill(0); v[/refund|rembours/i.test(text) ? 7 : /payment|paiement/i.test(text) ? 8 : /depreciation|amortissement/i.test(text) ? 3 : 9] = 1; return v; };
@@ -2130,6 +2134,8 @@ const docProject = async (w, name, text, kind = "doc") => {
   const call = async (path, body = {}, token = "owner-token") => {
     const hit = router.lookup(path, "POST");
     if (!hit) throw new Error("no route " + path);
+    /* An answer given again would skip what these checks look at: each question is asked afresh unless a check keeps them. */
+    if (!KEEP_ANSWERS) w.T.answerCache = [];
     const res = await hit[0](w.ctx, new Request("https://x" + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(token ? { token } : {}), ...body }) }));
     return { status: res.status, ...(await res.json()) };
   };
@@ -2390,6 +2396,8 @@ const docProject = async (w, name, text, kind = "doc") => {
   const call = async (path, body = {}, token = "owner-token") => {
     const hit = router.lookup(path, "POST");
     if (!hit) throw new Error("no route " + path);
+    /* An answer given again would skip what these checks look at: each question is asked afresh unless a check keeps them. */
+    if (!KEEP_ANSWERS) w.T.answerCache = [];
     const res = await hit[0](w.ctx, new Request("https://x" + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(token ? { token } : {}), ...body }) }));
     return { status: res.status, ...(await res.json()) };
   };
@@ -2531,6 +2539,8 @@ const docProject = async (w, name, text, kind = "doc") => {
   const call = async (path, body = {}, token = "owner-token") => {
     const hit = router.lookup(path, "POST");
     if (!hit) throw new Error("no route " + path);
+    /* An answer given again would skip what these checks look at: each question is asked afresh unless a check keeps them. */
+    if (!KEEP_ANSWERS) w.T.answerCache = [];
     const res = await hit[0](w.ctx, new Request("https://x" + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(token ? { token } : {}), ...body }) }));
     return { status: res.status, ...(await res.json()) };
   };
@@ -2674,6 +2684,52 @@ const docProject = async (w, name, text, kind = "doc") => {
   reply = { usage: price, kb: "Money ideas hold.\n\nSources: Nobody Real, 2024", folders: { picks: [1], terms: ["money"] } };
   const src2 = await call("/api/ask", { q: "what do we know about money ideas?", brain: "all" });
   check("a Sources line with no author that was read goes whole", src2.answer === "Money ideas hold.", JSON.stringify(src2.answer));
+
+  /* answers given again: the same question, the same way, on folders that have not changed */
+  KEEP_ANSWERS = true; w.T.answerCache = [];
+  reply = { usage: price, kb: "Money ideas hold.", folders: { picks: [1], terms: ["money"] } };
+  const a1 = await call("/api/ask", { q: "What do we know about money ideas?", brain: "all" });
+  let s0 = sent.length;
+  const a2 = await call("/api/ask", { q: "  what do we know about MONEY ideas ", brain: "all", chat: null });
+  check("the same question asked again, on folders that have not changed, is answered from what was kept: no model call", sent.length === s0 && a2.answer === a1.answer && a2.reused === true && JSON.stringify(a2.opened) === JSON.stringify(a1.opened), JSON.stringify({ calls: sent.length - s0, a2 }));
+  check("and its turn is saved in the chat like any other", w.T.chats.at(-1).turns.at(-1).a === a1.answer);
+  const folders = (await call("/api/project/spend")).chats.find(c => c.kind === "folders");
+  check("Settings counts it as reused, for nothing", folders.reused >= 1, JSON.stringify(folders));
+  s0 = sent.length; await call("/api/ask", { q: "What do we know about money ideas?", brain: "all", level: "educational" });
+  check("another level is another question", sent.length > s0);
+  s0 = sent.length; await call("/api/ask", { q: "What do we know about money ideas?", brain: "wealth" });
+  check("so is another place to ask it", sent.length > s0);
+  s0 = sent.length; await call("/api/ask", { q: "What do we know about money ideas?", brain: "all", history: [{ q: "x", a: "y" }] });
+  check("a follow-up reads its thread, so it is asked afresh", sent.length > s0);
+  const changed = w.T.concepts.find(c => c.brain === "health" && c.slug === "n3"), was = changed.position;
+  changed.position = "Sleep idea 3, now with a new finding.";
+  s0 = sent.length; await call("/api/ask", { q: "What do we know about money ideas?", brain: "all" });
+  check("once anything it could read changes, even in another folder it reads, the question is asked afresh", sent.length > s0);
+  changed.position = was;
+  KEEP_ANSWERS = false;
+
+  /* everything that asks a model is counted, by kind */
+  reply = { usage: price, kb: "ok" };
+  await call("/api/drop/plan", { ext: { title: "A source", topics: [{ topic: "Money", ideas: ["an idea"] }] }, brain: "wealth" });
+  const kinds2 = Object.fromEntries((await call("/api/project/spend")).chats.map(c => [c.kind, c]));
+  check("a drop's model calls are counted under drops", kinds2.drops?.calls >= 1 && near(kinds2.drops.usd, 0.001 * kinds2.drops.calls), JSON.stringify(kinds2.drops));
+  reply = { usage: price, kb: "A page.", folders: { picks: [1], terms: ["money"] } };
+  await call("/api/onepager", { q: "money ideas", pick: "all", kind: "summary" });
+  const kinds3 = Object.fromEntries((await call("/api/project/spend")).chats.map(c => [c.kind, c]));
+  check("a one-pager's under one-pagers", kinds3.pager?.calls >= 1, JSON.stringify(kinds3.pager));
+
+  /* Restore: an export read back through the route */
+  const md = ["# MAP", "", "| Brain | Name | Type | Concepts | Scope |", "|---|---|---|---|---|", "| brain-subject-energy | Energy | subject | 1 | oil and power |", "",
+    "# brain-subject-energy/SUMMARY.md", "", "**Scope:** oil and power", "", "## brain-subject-energy/01-oil-cycle.md", "", "**Title:** Oil cycle", "**Summary:** Oil runs in 7 year cycles.", "",
+    "### Position", "", "Oil prices turn about every 7 years.", "", "### Evidence", "", "- 2026-03-01, C: seven year turns", "", "### Updated", "", "2026-03-01"].join("\n");
+  const rs = await call("/api/restore", { text: md });
+  check("Restore reads an export and adds the folder and concept this workspace is missing, then links them in the background",
+    rs.brains.added === 1 && rs.concepts.added === 1 && rs.linking === 1 && w.T.brains.some(b => b.slug === "energy" && b.space === "octopus") && w.T.concepts.some(c => c.brain === "energy" && c.title === "Oil cycle")
+    && (w.T.scheduled ?? []).some(x => /linkConcepts/.test(x.fn) && x.args.ids.includes("energy/oil-cycle")), JSON.stringify(rs));
+  const rs2 = await call("/api/restore", { text: md });
+  check("the same file again adds nothing", rs2.brains.added === 0 && rs2.concepts.added === 0 && rs2.brains.kept === 1 && rs2.concepts.kept === 1, JSON.stringify(rs2));
+  check("a file that is not an export is said so, and nothing is written", /not an export/.test((await call("/api/restore", { text: "hello" })).error ?? ""));
+  check("the demo cannot restore", !!(await call("/api/restore", { text: md }, "demo-token")).error);
 }
 
 

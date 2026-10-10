@@ -378,6 +378,8 @@ export default defineSchema({
     /* A person's lines still open: the app counts them without reading a file. */
     open: v.optional(v.number()),
     updated: v.string(),
+    /* A print of what an answer reads of the concept, so a saved answer knows when it is stale. */
+    sig: v.optional(v.string()),
   }).index("by_cid", ["cid"])
     .index("by_brain", ["brain"])
     .index("by_brain_title", ["brain", "title"]),
@@ -689,8 +691,26 @@ export default defineSchema({
     tokensIn: v.number(),
     tokensOut: v.number(),
     cached: v.number(),
+    /* Answers given again from the cache, for no call. */
+    reused: v.optional(v.number()),
     at: v.number(),
   }).index("by_space_month", ["space", "month"]),
+
+  /**
+   * Answers given again: a question asked a second time, in the same place and the same way, on folders that have not changed since
+   * (`fp`, the print of every card it could read), is answered from here for no model call. Kept 14 days.
+   */
+  answerCache: defineTable({
+    space: v.string(),
+    key: v.string(),
+    fp: v.string(),
+    answer: v.string(),
+    sources: v.number(),
+    opened: v.array(v.string()),
+    tagged: v.optional(v.array(v.string())),
+    at: v.number(),
+  }).index("by_space_key", ["space", "key"])
+    .index("by_space_at", ["space", "at"]),
 
   /* The most a workspace's projects may cost in a month, when the owner set one. */
   projectBudget: defineTable({

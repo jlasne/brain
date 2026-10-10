@@ -102,6 +102,16 @@ const PLAN_LIST_CHARS = 60000;
 const PLAN_FULL_CHARS = 36000, PLAN_MAX = 1000;
 
 export function planContext(pool: any[], concepts: any[], sources: any[], ext: any) {
+  const { held, source } = planParts(pool, concepts, sources, ext);
+  return held + source;
+}
+
+/**
+ * The plan's context in two parts. `held`, the folders, their concepts and the earlier sources, is the same for every batch of one source
+ * while the concept list fits; `source`, this batch's topics, changes each time. The held part goes first, so a model host that reuses the
+ * start of a prompt bills the list once at full price and every batch after it at its lower rate for what it has already read.
+ */
+export function planParts(pool: any[], concepts: any[], sources: any[], ext: any): { held: string; source: string } {
   const line = (c: any) => `- id=${c.brain}/${c.slug} | ${c.title}: ${c.summaryLine || c.position || c.lead || "no position yet"}`;
   const bare = (c: any) => `- id=${c.brain}/${c.slug} | ${c.title}`;
   const all = concepts.filter((c: any) => pool.some((b: any) => b.slug === c.brain));
@@ -131,19 +141,19 @@ export function planContext(pool: any[], concepts: any[], sources: any[], ext: a
   }).join("\n\n");
   const recent = sources.slice(-40).map((s: any) => `${s.sid} | ${s.author || "?"} | ${s.title || ""}`).join("\n") || "none";
 
-  return `
+  return { held: `
 BRAINS AND THEIR CONCEPTS
 ${summaries}
 
 EARLIER SOURCES
 ${recent}
-
+`, source: `
 THE NEW SOURCE
 SOURCE KIND: ${ext?.kind === "study" || ext?.kind === "argument" ? ext.kind : "unknown"}
 title: ${ext?.title ?? ""}
 author: ${ext?.author ?? ""}
 date: ${ext?.date ?? ""}
-${(ext?.topics ?? []).map((t: any, i: number) => `### T${i + 1}. ${t.topic}\n${(t.ideas ?? []).join("\n")}\n${(t.data ?? []).join("\n")}`).join("\n\n").slice(0, 30000)}`;
+${(ext?.topics ?? []).map((t: any, i: number) => `### T${i + 1}. ${t.topic}\n${(t.ideas ?? []).join("\n")}\n${(t.data ?? []).join("\n")}`).join("\n\n").slice(0, 30000)}` };
 }
 
 export const REWRITE_RULES =
@@ -421,7 +431,7 @@ export async function dropCheck(ctx: any, b: any, space: string = HOME) {
 }
 
 /** R2. One pass over one chunk. The caller loops, the transcript is never stored. */
-export async function dropRead(ctx: any, who: Who, b: any, key?: string, model?: string) {
+export async function dropRead(ctx: any, who: Who, b: any, key?: string, model?: string, meter?: (usage: any) => void) {
   const part = Number(b.part ?? 1), total = Number(b.total ?? 1);
   /* ONE model call per request. Several inside one request runs past the
      response deadline, and the caller sees a dead connection rather than an
@@ -445,12 +455,12 @@ THESE PASSAGES ARE WHAT A FIRST READ OF THIS PART LEFT OUT. Extract everything t
 
 SOURCE${total > 1 ? ` (part ${part} of ${total})` : ""}${b.gaps ? ", PASSAGES LEFT OUT" : ""}:
 ${chunk}` },
-  ], { json: true, maxTokens: 24000, key, model });
+  ], { json: true, maxTokens: 24000, key, model, meter });
   return { part: parseJson(text, finish) };
 }
 
 /** R3. Summaries only, never whole brains, so this costs the same at any size. */
-export async function dropPlan(ctx: any, who: Who, b: any, key?: string, model?: string) {
+export async function dropPlan(ctx: any, who: Who, b: any, key?: string, model?: string, meter?: (usage: any) => void) {
   const { brains: seen, cards: concepts, sources } = await loadSpace(ctx, who.space);
   /* Only brains this caller may feed. Everyone reads more than they can write. */
   const brains = seen.filter((x: any) => canDrop(x, who));
@@ -494,12 +504,15 @@ THESE TOPICS WERE LEFT OUT OF THE FIRST FILING OF THIS SOURCE.
 File every one under "matched" or "candidates", with its number in "from". A topic outside every brain's scope goes into the brain closest to it.
 ` : "";
 
+  /* What every batch of this source shares comes first (the rules, the folders chosen, the concept list, the earlier sources), what changes
+     with the batch last (the titles proposed so far, a second try, the topics), so the list is read at full price once per source. */
+  const parts = planParts(pool, concepts, sources, ext);
   const { text, finish } = await ask([
     { role: "system", content: PLAN_SYSTEM },
     { role: "user", content:
 `${PLAN_RULES}
-${PICKED}${SO_FAR}${AGAIN}${planContext(pool, concepts, sources, ext)}` },
-  ], { json: true, maxTokens: 16000, key, model });
+${PICKED}${parts.held}${SO_FAR}${AGAIN}${parts.source}` },
+  ], { json: true, maxTokens: 16000, key, model, meter });
 
   return { plan: parseJson(text, finish) };
 }
@@ -508,9 +521,11 @@ ${PICKED}${SO_FAR}${AGAIN}${planContext(pool, concepts, sources, ext)}` },
  * The part of the source a batch of concepts needs, within 20,000 characters.
  *
  * The rewrite used the first 20,000 characters of the extraction, so concepts
- * from late in a long document were rewritten without their own numbers. The
- * topics sharing the most words with this batch's titles and additions go in
- * first, then the rest in order while room remains. Kept in document order.
+ * from late in a long document were rewritten without their own numbers. A
+ * source that fits is sent whole, the same to every batch. A longer one sends
+ * the topics sharing words with this batch's titles and additions, the most
+ * first, and no others: the topics it shared nothing with were filler that
+ * every batch paid for. Kept in document order.
  */
 export function excerptFor(topics: any[], touched: any[], limit = 20000): string {
   const words = (s: string) => new Set(String(s).toLowerCase().match(/[a-z0-9]{4,}/g) ?? []);
@@ -524,7 +539,10 @@ export function excerptFor(topics: any[], touched: any[], limit = 20000): string
   });
   const picked: typeof rows = [];
   let used = 0;
-  for (const r of [...rows].sort((a, b) => b.hit - a.hit || a.i - b.i)) {
+  const fits = rows.reduce((n, r) => n + r.text.length + 1, 0) <= limit;
+  /* With no word in common at all, the opening topics stand in, as before. */
+  const pool = fits || !rows.some(r => r.hit > 0) ? rows : rows.filter(r => r.hit > 0);
+  for (const r of [...pool].sort((a, b) => b.hit - a.hit || a.i - b.i)) {
     if (used + r.text.length + 1 > limit) continue;
     picked.push(r); used += r.text.length + 1;
   }
@@ -559,7 +577,7 @@ const MERGE_NEAR = 3, MERGE_EXISTING = 300;
  * words. One cheap call reads the new titles with what each says, beside the
  * closest concepts already held. If it fails, every concept is kept as it is.
  */
-export async function dropMerge(ctx: any, who: Who, b: any, key?: string, model?: string) {
+export async function dropMerge(ctx: any, who: Who, b: any, key?: string, model?: string, meter?: (usage: any) => void) {
   const items = (Array.isArray(b.candidates) ? b.candidates : []).slice(0, 600)
     .map((c: any) => ({ brain: String(c?.brain ?? ""), title: String(c?.title ?? "").slice(0, 200),
                         why: plainClaim(c?.why).slice(0, 160) }));
@@ -587,7 +605,7 @@ export async function dropMerge(ctx: any, who: Who, b: any, key?: string, model?
       { role: "system", content: "You find duplicate entries in a knowledge base and titles not in English. You reply with JSON only." },
       { role: "user", content: `${MERGE_RULES}\n\nNEW (number|folder|title|what it says)\n${list}` +
         (held ? `\n\nEXISTING (id|folder|title|what it holds)\n${held}` : "") },
-    ], { json: true, maxTokens: 4000, timeout: 60000, key, model });
+    ], { json: true, maxTokens: 4000, timeout: 60000, key, model, meter });
     const d = parseJson(String(text), finish) ?? {};
     const at = (n: any) => { const i = Number(n) - 1; return Number.isInteger(i) && i >= 0 && i < items.length ? i : -1; };
 
@@ -741,7 +759,7 @@ export function lineOf(t: string): string {
 }
 
 /** R5. Re-derive, never append, then write. One pass, before the receipt. */
-export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model?: string) {
+export async function dropSettle(ctx: any, who: Who, b: any, key?: string, model?: string, meter?: (usage: any) => void) {
   /* Checked first, before a single read: nothing is written without it. */
   if (!b.packetOnly && !knownAuthor(b.ext?.author)) {
     return { error: "name the author before storing: who wrote or said this source?", needAuthor: true };
@@ -885,14 +903,16 @@ THIS SOURCE ADDS: ${adds ?? ""}
 MY DECISION: ${decisions.length ? decisions.join("\n") : "no contradiction here"}`;
     }).join("\n\n");
 
+    /* The source before the concepts: a source that fits is the same text for every batch of the drop, so a model host that reuses the
+       start of a prompt reads it at full price once. */
     const job = `${REWRITE_RULES}
-
-CONCEPTS
-${packet}
 
 NEW SOURCE
 author: ${ext.author || "unknown"} | date: ${ext.date || today()}
-${excerptFor(ext.topics ?? [], touched)}`;
+${excerptFor(ext.topics ?? [], touched)}
+
+CONCEPTS
+${packet}`;
 
     /* Three ways to get the rewrites.
        - handed in: the caller's own model already did this work, so no model
@@ -909,7 +929,7 @@ ${excerptFor(ext.topics ?? [], touched)}`;
       const { text, finish } = await ask([
         { role: "system", content: REWRITE_SYSTEM },
         { role: "user", content: job },
-      ], { json: true, maxTokens: 24000, key, model });
+      ], { json: true, maxTokens: 24000, key, model, meter });
       rewrites = listOf(parseJson(text, finish)?.rewrites);
     }
   } else if (b.packetOnly) {

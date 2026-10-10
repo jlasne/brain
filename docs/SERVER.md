@@ -242,6 +242,8 @@ convex/
   lib.ts           the model call, the hash, the link key, CORS
   store.ts         every read and write, reached only through internal functions
   http.ts          the routes, and the gate every one of them passes
+  spend.ts         the cost meter: a tally per kind of work, added once the work is done
+  restore.ts       an export read back into folders, concepts and sources
 app/
   index.html       the interface, pointed at the deployment
 vercel.json        serves app/ as the site root
@@ -280,6 +282,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/enter` | The landing's one field: the workspace a passphrase opens, or `demo: true` when it opens none. Counted apart from the doors, so a wrong guess never locks one | Rate limited, 10 tries an hour per address and 120 from everyone |
 | `/api/state` | Brains, concept names and summary lines, sources | Yes |
 | `/api/export` | One brain's concepts whole, 100 a page, for the markdown export | Yes |
+| `/api/restore` | Reads an export back (`text`, up to 15 million characters): the folders, concepts and sources the workspace is missing are added, and what it already holds stays as it is. A personal folder in the file joins the workspace's own. A slug another workspace holds is left out. The links between new concepts are rebuilt in the background. Returns the counts added and kept | Owner, never the demo |
 | `/api/concept` | One concept whole, its links with their kinds, and what follows from it, for the brain viewer. A person of a personal folder also brings the people linking to them and their raw notes, the newest 300; the first open gathers those from the chats still kept | Yes |
 | `/api/topics` | One folder's topics: a title, a line and its concepts. Never a personal folder | Yes |
 | `/api/conflicts` | The open conflicts that are real contradictions. Each clash is checked once and marked. With `hints`, each gets a suggested ruling and its reason, 20 clashes to a model call, kept on the clash so it is asked once; with no answer, the later date suggests one | Yes |
@@ -434,7 +437,8 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `projectThreads` | a project's running thread: its last 4 exchanges | folder |
 | `projectEdits` | the changes the chat proposed to a file, with what each replaced so it can be undone. The last 10 of each file stay | file and time |
 | `projectSpend` | what the projects cost: one row a project a month (UTC, "2026-10") with the dollars the model host reported, the calls it gave a price for and all the calls, the tokens in and out and the part reused. A project taken away keeps its rows, so the month's total is what was spent | workspace and month, project and month |
-| `chatSpend` | what the chats cost: one row a kind of chat ("folders" for the main chat and a folder's, "personal") a month, with the dollars the model host reported, the calls it gave a price for and all the calls, and the tokens in, out and reused. The demo is not counted | workspace and month |
+| `chatSpend` | what everything but the projects costs: one row a kind a month, with the dollars the model host reported, the calls it gave a price for and all the calls, the tokens in, out and reused, and `reused`, the answers given again for no call. The kinds: `folders` (the main chat, a folder's, a concept's), `personal` (the personal chat, the interview, remember, people and contacts), `drops` (read, plan, merge, settle), `upkeep` (linking, topics, conflicts, tidy, rederive) and `pager` (one-pagers). The demo is not counted | workspace and month |
+| `answerCache` | a question asked to open a chat, and its answer: the key (the question in lower case, the folders, the tags, the level, the language and the model), the print of the folders it read, the answer, its source count, the concepts it opened and the folders tagged. A row is replaced when the same key is asked again, and rows older than 14 days go 20 at a time | workspace and key, workspace and time |
 | `projectBudget` | the most a workspace's projects may cost in a month, when its owner set one | workspace |
 | `projectBriefs` | what belongs to the project as a whole: the Brief, the State of play, the questions waiting for the owner, whether answers end with a next step, and the number the next file takes | folder |
 | `projectVectors` | the meaning of each section of each file, one row of 1024 numbers a section, searched inside one project | project |
@@ -450,11 +454,12 @@ The folders' chat (the main chat, one folder, or the folders ticked) and the per
 - **What opens.** What the router picked, the concepts the question names in their title, the 6 nearest in meaning and the ones they link to open first, up to 30 within 60,000 characters. When the router picked something, a concept that only shares a word with the question fills the answer up to 8 concepts in all and no further: loose matches were most of what an answer held. A router that picked nothing or failed leaves every match to open, as before. Up to 40 more are named by title, within 4,000 characters, under ALSO HELD.
 - **The thread.** The last turn is read in full, its question to 400 characters and its answer to 900. The three before it are read as the question to 200 characters and the first line of the answer, which is the answer itself in this chat. The thread only says what "the second one" points at: every claim still comes from what is stored.
 - **The order.** What stays the same comes first: the rules, then the stored knowledge, then the thread, then what changes with this answer (the folders tagged, whether it reads a person's folder, how few sources it rests on, under ABOUT THIS ANSWER), then the question. A model host that reuses the start of a prompt can then reuse the rules and the knowledge of a follow-up that opens the same concepts.
-- **The cost.** Each message is counted from the usage the model host reports, by kind of chat, and added once the message is done, finished or not. Settings shows it beside the projects.
+- **The cost.** Each message is counted from the usage the model host reports, by kind, and added once the message is done, finished or not. Settings shows it beside the projects.
 - **A follow-up keeps its subject.** Each answer returns `opened`, the ids of the concepts it read (12 at most), and the page sends them back with the thread. The next message lists them first to the router, and shows it the first 300 characters of the last answer, so "and the second one?" finds what the last answer named. With no router, they open again. Only ids the chat may read are taken. A saved chat keeps them with each turn.
 - **Close in meaning is not enough.** A concept the router saw and passed over opens on its meaning alone only at a cosine of 0.45 or more, the floor the project search uses for the same model. A router that read the titles and picked none opens nothing, rather than the 30 concepts with the most evidence. When nothing was picked, nothing is close enough and no title carries the question's words, ABOUT THIS ANSWER says that nothing stored answers it directly, and the answer says so first, then gives what comes closest. The personal chat says it only for a question.
 - **The Sources line is checked.** An entry whose author is in none of the opened concepts' evidence is taken out; a line left empty goes whole. One shared name is enough, so "Damodaran" counts for "Aswath Damodaran".
 - **A number or a question mark is a question.** "Great, thanks. For 2025?" is answered, not thanked.
+- **The same question twice costs nothing.** A question that opens a chat is saved with its answer, under a key made of the question (lower case, spaces and end marks trimmed), the folders asked, the tags, the level, the language and the model. Asked again within 14 days, on folders whose print has not moved, the saved answer comes back for no model call, and Settings counts it as reused. The print covers each card of the folders asked (its title, position, summary line, evidence, data, conflicts, links and file) and each folder's name and scope, so a drop, an edit, a rename or a new concept makes the next answer fresh. A follow-up reads its thread, so it is always answered anew.
 - **The meaning follows the concept.** A rename or a merge moves each concept's vector to its new folder as the concept moves, and a concept that goes takes its vector with it.
 
 Measured on the code with a recording model: 12 folders, concepts of about 2,000 characters, a thread of 4, tokens as characters over 4, $0.065 in and $0.18 out per million. Before is the version that showed the router every title and opened every word match. Messages are in tokens sent, with the price of one message in cents.
@@ -472,6 +477,24 @@ Measured on the code with a recording model: 12 folders, concepts of about 2,000
 | personal, thanks, 1,000 concepts | 19,395, 0.127 cents | 438, 0.003 cents |
 
 The size of the brains no longer moves the price of a question: 400 and 1,000 concepts send the same. One folder of 100 concepts, which the router read whole already, changes little (4,428 tokens to 3,952).
+
+## What everything else costs
+
+Every model call outside the projects is counted in `chatSpend`, by kind, from the usage the model host reports. `spend.ts` holds the meter: `withChatSpend` opens a tally, each call adds its usage through the `meter` option of `ask`, and the row is added once the work is done, finished or failed. Settings, Cost lists each kind with its dollars and calls, and the answers given again for free.
+
+| Kind | Counts |
+|---|---|
+| Folder chat | the main chat, a folder's chat, a concept's chat |
+| Personal chat | the personal chat, the interview and twin test, remember, people and contacts |
+| Drops | reading a source, the plan, the merge, the settle |
+| Upkeep | linking, topics, what follows, conflicts and their hints, tidy, rederive |
+| One-pagers | the page, its translation, the route of its question |
+
+**What a drop sends.** A long source is planned in batches of topics, and every batch carries the concept list of the folders. The list now comes right after the rules and the folders chosen, and what changes with the batch comes last: the titles filed so far, a second try, the topics. A model host that reuses the start of a prompt bills the list at full price once per source, and at its lower rate for every batch after the first, while the list fits whole. The settle sends the new source first and the concept last. A source that fits the limit goes whole; a longer one sends only the topics the concept draws on, and all of them when none matches.
+
+## Restore from export
+
+Settings, Export writes every folder of the workspace as one markdown file: a MAP of the folders with their names, the SOURCES with their titles, each folder's SUMMARY, and each concept with its title, summary line, position, evidence, data, open conflicts, sources, typed links and other names. Settings, Restore reads that file back in one step. `restore.ts` reads it by its headings, so an export from before titles, names and links were written still restores: a title then comes from the folder's summary list, and a name from the slug. `restoreBatch` in `store.ts` adds what is missing and keeps what is there, so a restore run twice adds nothing the second time. Projects are not restored: they hold files, which an export does not.
 
 ## Projects
 
@@ -587,72 +610,6 @@ That last property matters because the endpoint is open. At 4 to 6 calls per
 question, the Convex free tier covers roughly 50,000 questions a month, and the
 overage beyond it runs $0.22 per extra gigabyte moved.
 
-## Three doors, and whose credit pays
-
-| Door | Credential | Model calls paid by |
-|---|---|---|
-| Member | A name and a password | Their own key: pasted, or remembered on the account |
-| Guest | A model key, nothing else | Their own key, held in their tab only |
-| Owner | The passphrase, no longer offered on screen | `OPENROUTER_API_KEY` on this deployment |
-
-One kind of session opens the app: a passphrase, one per door. The owner feeds
-every brain of that door's space, and this deployment's key pays for every
-model call. Member accounts, guest keys and saved personal keys were removed.
-One account record per project remains, without a password, only to hold that
-project's connector address; it is made the first time Settings asks for one.
-
-
-### Who may do what
-
-`canRead` and `canDrop` in `lib.ts` decide, and 22 tests cover them.
-
-| | Owner's brains | Their own | Another member's |
-|---|---|---|---|
-| Owner reads | yes | yes | yes |
-| Owner feeds | yes | yes | yes |
-| Member reads | public only | yes, private included | public only |
-| Member feeds | no | yes | only if set to `drop` |
-
-A brain with no `owner` predates accounts and belongs to the owner, so a member
-cannot feed it. That closes the path where an outside drop rewrites the owner's
-positions. Opening a brain to `drop` is the deliberate exception.
-
-Every source row records `by`, the account that fed it, so a contribution can be
-traced and undone.
-
-## Every brain is readable. Feeding is the guarded act.
-
-Reading is never restricted, on this site or through the connector. That is the
-point of the place: the brains are published.
-
-A source rewrites positions, so feeding is what needs a rule. `visibility` says
-who may feed one brain.
-
-| Value | Who may feed it |
-|---|---|
-| absent, `closed` | The account that created it. The owner, for brains made before accounts |
-| `open` | Any signed-in account |
-
-`ask`, `private` and `drop` are earlier spellings still in the store. `isOpen`
-in `lib.ts` reads `drop` as `open` and everything else as closed, so no row
-needs migrating.
-
-`canDrop` is the whole rule, and 30 tests cover it, the three caller kinds, and the key sealing:
-
-| | Owner's brains | Their own | Another account's |
-|---|---|---|---|
-| Owner feeds | yes | yes | yes |
-| Member feeds | no | yes | only if open |
-| Guest feeds | no | no brain to own | no |
-
-A brain with no `owner` predates accounts and belongs to the owner, so a member
-cannot feed it. Opening a brain is the deliberate exception, and the only way
-an outside source reaches someone else's positions.
-
-Every source row records `by`, the account that fed it, so a contribution can be
-traced and undone.
-
-
 The tools:
 
 | Tool | Returns |
@@ -689,6 +646,23 @@ curl -s -X POST https://<deployment>.convex.site/mcp \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
+
+## Who may feed a folder
+
+One kind of session opens the app: a workspace passphrase. That owner reads and
+feeds every folder of the workspace, and the workspace's model key pays for
+every call. Member accounts, guest keys and saved personal keys were removed.
+One account record per project remains, without a password, only to hold that
+project's connector address.
+
+`canDrop` in `lib.ts` is the whole rule: the caller owns the session, and the
+folder is not a read-only share from another workspace (`isViewer`). A folder
+shared with a second workspace can be fed from there; a share given to the demo
+stays read only. `check-store` covers each case.
+
+Every source row records `by`, the account that fed it, so a contribution can be
+traced and undone. Old rows keep a `visibility` field from the account era; no
+code reads it, so no row needs migrating.
 
 ## Export stays the contract
 

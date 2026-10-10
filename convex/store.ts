@@ -2,9 +2,9 @@
 
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap, cardOf, mergeFile, dedupeOpen } from "./words";
+import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap, cardOf, mergeFile, dedupeOpen, CACHE_DAYS } from "./words";
 import { sha256, randomHex, today, slug, gateKey, readSpace, HOME, SPACE_RE, SPACES,
-         SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, inSpace, isViewer, SPACE_NAME } from "./lib";
+         SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, inSpace, isViewer, SPACE_NAME, linkKey, DAY_MS } from "./lib";
 
 /* ---------------- the gate ---------------- */
 
@@ -847,7 +847,7 @@ export const logFetch = internalMutation({
 export const fetchCount = internalQuery({
   args: { days: v.number() },
   handler: async (ctx, a) => {
-    const since = Date.now() - a.days * 24 * 60 * 60 * 1000;
+    const since = Date.now() - a.days * DAY_MS;
     const rows = await ctx.db.query("fetches")
       .withIndex("by_at", q => q.gte("at", since)).collect();
     const ok = rows.filter(r => r.ok);
@@ -1238,7 +1238,7 @@ const ownerOf = (c: any) => c.owner ?? "";
 async function pruneChats(ctx: any, space: string, owner = "") {
   const rows = await ctx.db.query("chats").withIndex("by_space_updated", (q: any) => q.eq("space", space))
     .order("desc").collect();
-  const cut = Date.now() - CHAT_DAYS * 86400000;
+  const cut = Date.now() - CHAT_DAYS * DAY_MS;
   let kept = 0;
   for (const c of rows) {
     if (c.pinned) continue;
@@ -1276,6 +1276,92 @@ export const chatGet = internalQuery({
   handler: async (ctx, a) => {
     const c = await chatIn(ctx, readSpace(a.space), a.id, a.owner ?? "");
     return c ? { id: String(c._id), title: c.title, brain: c.brain, pinned: c.pinned, turns: c.turns, ...(c.concept ? { concept: c.concept } : {}) } : null;
+  },
+});
+
+/**
+ * A piece of an export, read back: the folders, sources and concepts this workspace is missing are added, and what it holds already is
+ * kept as it is. A folder whose name another workspace holds is left out, with its concepts. A second personal folder is not made: its
+ * notes join the one this workspace has. Returns what was added and kept, and the ids of the concepts added, for linking.
+ */
+export const restoreBatch = internalMutation({
+  args: { space: v.string(), brains: v.optional(v.array(v.any())), sources: v.optional(v.array(v.any())), concepts: v.optional(v.array(v.any())) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const done = { brains: { added: 0, kept: 0, skipped: 0 }, sources: { added: 0, kept: 0 }, concepts: { added: 0, kept: 0, skipped: 0 }, ids: [] as string[] };
+    const all = await ctx.db.query("brains").collect();
+    const personal = all.find(b => b.type === "personal" && readSpace(b.space) === space);
+    /* Where a folder of the file lands here: its own slug, the personal folder this workspace has, or nowhere. */
+    const home = (slugIn: string, type?: string): string | null => {
+      const b = all.find(x => x.slug === slugIn);
+      if (b) return inSpace(b, space) && b.type !== "project" ? b.slug : null;
+      if (type === "personal" && personal) return personal.slug;
+      return null;
+    };
+    for (const r of a.brains ?? []) {
+      const s0 = slug(String(r.slug ?? "")), type = ["subject", "person", "personal"].includes(r.type) ? r.type : "subject";
+      if (!s0) continue;
+      const b = all.find(x => x.slug === s0);
+      if (b) { if (inSpace(b, space)) done.brains.kept++; else done.brains.skipped++; continue; }
+      if (type === "personal" && personal) { done.brains.kept++; continue; }
+      const row = { slug: s0, name: String(r.name ?? "").trim().slice(0, 80) || s0, type,
+        scope: String(r.scope ?? "").trim().slice(0, 300) || "Restored from an export.", created: today(), visibility: "ask", space };
+      await ctx.db.insert("brains", row); all.push(row as any); done.brains.added++;
+    }
+    for (const r of a.sources ?? []) {
+      const sid = String(r.sid ?? "").trim();
+      if (!sid) continue;
+      if (await ctx.db.query("sources").withIndex("by_sid", q => q.eq("sid", sid)).first()) { done.sources.kept++; continue; }
+      const brains = (Array.isArray(r.brains) ? r.brains : []).map((x: any) => home(String(x))).filter((x: any): x is string => !!x);
+      if (!brains.length) continue;
+      const link = String(r.link ?? "");
+      await ctx.db.insert("sources", { sid, link, linkKey: linkKey(link), title: String(r.title ?? "").slice(0, 300), author: String(r.author ?? "").slice(0, 200),
+        date: String(r.date ?? ""), location: "", brains: [...new Set<string>(brains)], stored: today() });
+      done.sources.added++;
+    }
+    for (const r of a.concepts ?? []) {
+      const brain = home(String(r.brain ?? ""), r.type ?? all.find(x => x.slug === r.brain)?.type);
+      const title = String(r.title ?? "").trim();
+      if (!brain || !title) { done.concepts.skipped++; continue; }
+      const cslug = conceptSlug(title);
+      const had = await ctx.db.query("concepts").withIndex("by_brain_slug", q => q.eq("brain", brain).eq("slug", String(r.slug ?? cslug))).first()
+        ?? await byTitle(ctx, "concepts", brain, title);
+      if (had) { done.concepts.kept++; continue; }
+      const last = await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", brain)).order("desc").first();
+      const list = (x: any) => Array.isArray(x) ? x : [];
+      const id = await ctx.db.insert("concepts", {
+        brain, slug: /^[a-z0-9-]+$/.test(String(r.slug ?? "")) ? String(r.slug) : cslug, n: (last?.n ?? 0) + 1, title: title.slice(0, 200),
+        position: String(r.position ?? ""), summaryLine: String(r.summaryLine ?? ""),
+        evidence: list(r.evidence).slice(0, 2000), data: list(r.data).map(String).slice(0, 200), conflicts: list(r.conflicts).slice(0, 50),
+        sources: list(r.sources).map(String), related: list(r.related).map(String).slice(0, 12),
+        ...(list(r.kinds).length ? { kinds: list(r.kinds).slice(0, 12) } : {}), ...(list(r.aliases).length ? { aliases: list(r.aliases).map(String).slice(0, 12) } : {}),
+        updated: String(r.updated ?? "") || today(),
+      });
+      await syncCard(ctx, id);
+      done.concepts.added++; done.ids.push(`${brain}/${(await ctx.db.get(id))!.slug}`);
+    }
+    return done;
+  },
+});
+
+/** An answer given before to the same question, in the same place and the same way, or null. */
+export const answerGet = internalQuery({
+  args: { space: v.string(), key: v.string() },
+  handler: async (ctx, a) => {
+    const row = await ctx.db.query("answerCache").withIndex("by_space_key", q => q.eq("space", readSpace(a.space)).eq("key", a.key)).first();
+    return row && row.at > Date.now() - CACHE_DAYS * DAY_MS ? row : null;
+  },
+});
+
+/** Keeps an answer to give again, in place of an older one to the same question; answers past 14 days go, a few at each write. */
+export const answerPut = internalMutation({
+  args: { space: v.string(), key: v.string(), fp: v.string(), answer: v.string(), sources: v.number(), opened: v.array(v.string()), tagged: v.optional(v.array(v.string())) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space), now = Date.now();
+    const doc = { space, key: a.key, fp: a.fp, answer: a.answer.slice(0, 20000), sources: a.sources, opened: a.opened.slice(0, 12), ...(a.tagged?.length ? { tagged: a.tagged } : {}), at: now };
+    const had = await ctx.db.query("answerCache").withIndex("by_space_key", q => q.eq("space", space).eq("key", a.key)).first();
+    if (had) await ctx.db.replace(had._id, doc); else await ctx.db.insert("answerCache", doc);
+    for (const old of await ctx.db.query("answerCache").withIndex("by_space_at", q => q.eq("space", space).lt("at", now - CACHE_DAYS * DAY_MS)).take(20)) await ctx.db.delete(old._id);
   },
 });
 
@@ -1820,7 +1906,7 @@ export const feedbackLog = internalMutation({
   handler: async (ctx, a) => {
     const space = readSpace(a.space), now = Date.now(), owner = a.owner ?? "";
     const rows = await ctx.db.query("feedback").withIndex("by_space_at", (q: any) => q.eq("space", space)).collect();
-    for (const r of rows) if (r.at < now - 7 * 86400000) await ctx.db.delete(r._id);
+    for (const r of rows) if (r.at < now - 7 * DAY_MS) await ctx.db.delete(r._id);
     const hour = rows.filter((r: any) => r.at >= now - 3600000);
     if (hour.length >= FEEDBACK_SPACE_PER_HOUR || hour.filter((r: any) => (r.owner ?? "") === owner).length >= FEEDBACK_PER_HOUR) return { ok: false };
     await ctx.db.insert("feedback", { space, ...(owner ? { owner } : {}), error: a.error.slice(0, 200), at: now });

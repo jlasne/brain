@@ -629,7 +629,39 @@ export function cardOf(c: any) {
     /* A person's file: the last day you were with them, whether it is built, and how many lines are still open. */
     ...(c.tag === "contact" ? { seen: String(c.file?.seen ?? ""), full: !!c.file, open: (c.file?.open ?? []).filter((x: any) => x && !x.done).length } : {}),
     updated: String(c.updated ?? ""),
+    /* A short print of everything an answer reads of it: a change to any of it changes the print, which lets a saved answer go stale. */
+    sig: hashOf(JSON.stringify([c.title, c.position, c.summaryLine, c.evidence, c.data, c.conflicts, c.related, c.file ?? null])),
   };
+}
+
+/* ---------- answers given again ---------- */
+
+/** A short print of a text: two 32-bit FNV-1a passes with different starting points, enough to tell one state from another. */
+export function hashOf(t: string): string {
+  let a = 0x811c9dc5, b = 0x9747b28c;
+  for (let i = 0; i < t.length; i++) { const c = t.charCodeAt(i); a = Math.imul(a ^ c, 0x01000193) >>> 0; b = Math.imul(b ^ c, 0x5bd1e995) >>> 0; }
+  return a.toString(36) + b.toString(36);
+}
+
+/** How long an answer given once may be given again, while what it read has not changed. */
+export const CACHE_DAYS = 14;
+
+/**
+ * What makes two questions the same question: the words (case, spacing and the closing punctuation aside), where it is asked, the
+ * folders named with @, the level, the language of the answer and the model that writes it.
+ */
+export function askKey(o: { q: string; scope: string; tags: string[]; level: string; lang: string; model: string }): string {
+  const q = String(o.q ?? "").toLowerCase().normalize("NFC").replace(/\s+/g, " ").trim().replace(/[\s?!.;:]+$/, "");
+  return hashOf(JSON.stringify([q, o.scope, [...o.tags].sort(), o.level, o.lang, o.model]));
+}
+
+/** The state of what a question can read: every card of the folders asked, by its print. A drop, an edit or a new concept changes it. */
+export function poolPrint(pool: any[], cards: any[]): string {
+  const at = new Set(pool.map((b: any) => b.slug));
+  /* A card made before prints were kept, or a whole concept, is printed from what it holds. */
+  const sig = (c: any) => c.sig ?? (c.position !== undefined ? hashOf(JSON.stringify([c.position, c.evidence, c.data, c.conflicts])) : "");
+  const rows = cards.filter((c: any) => at.has(c.brain)).map((c: any) => `${c.brain}/${c.slug}|${sig(c)}|${c.ev ?? 0}|${c.src ?? 0}|${c.title ?? ""}|${c.lead ?? ""}`).sort();
+  return hashOf(rows.join("\n") + "\n" + pool.map((b: any) => `${b.slug}|${b.name}|${b.type}|${b.scope ?? ""}`).sort().join("\n"));
 }
 
 /** The kinds a link may carry, from the concept holding it to the one it names. */

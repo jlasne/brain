@@ -52,7 +52,7 @@ async function writable(ctx: any, who: Who) {
  * For a concept left with no position, one whose position is a note about
  * the filing, and one that just took in a twin's evidence. One model call.
  */
-export async function rederive(ctx: any, who: Who, ids: string[], key?: string, model?: string) {
+export async function rederive(ctx: any, who: Who, ids: string[], key?: string, model?: string, meter?: (usage: any) => void) {
   const mine = await writable(ctx, who);
   const want = [...new Set(ids.map(String))].filter(id => mine.has(id.split("/")[0])).slice(0, REDERIVE_MAX);
   if (!want.length) return { written: [] };
@@ -75,7 +75,7 @@ OPEN CONFLICTS: ${(c.conflicts ?? []).length ? c.conflicts.map((x: any) => `${x.
   const { text, finish } = await ask([
     { role: "system", content: REDERIVE_SYSTEM },
     { role: "user", content: `${REDERIVE_RULES}\n\nCONCEPTS\n${packet}` },
-  ], { json: true, maxTokens: 12000, key, model });
+  ], { json: true, maxTokens: 12000, key, model, meter });
   const got = parseJson(text, finish)?.rewrites;
   const rewrites = Array.isArray(got) ? got.filter((r: any) => r && typeof r === "object") : [];
 
@@ -123,7 +123,7 @@ export const needsPosition = (c: any) => !(c.summaryLine || c.lead) || filler(c.
  * Read only: it proposes, and the owner rules on each group before anything
  * is joined or renamed. One model call.
  */
-export async function tidyScan(ctx: any, who: Who, brain: string, key?: string, model?: string) {
+export async function tidyScan(ctx: any, who: Who, brain: string, key?: string, model?: string, meter?: (usage: any) => void) {
   const mine = await writable(ctx, who);
   if (!mine.has(brain)) return { error: "that folder is not one you can tidy" };
   const apart = new Set<string>(mine.get(brain)?.apart ?? []);
@@ -139,7 +139,7 @@ export async function tidyScan(ctx: any, who: Who, brain: string, key?: string, 
   const { text, finish } = await ask([
     { role: "system", content: "You tidy a knowledge base: you find concepts filed twice and titles not in English. You reply with JSON only." },
     { role: "user", content: `${TIDY_RULES}\n\nCONCEPTS (number|title|line|evidence)\n${lines}` },
-  ], { json: true, maxTokens: 6000, timeout: 120000, key, model });
+  ], { json: true, maxTokens: 6000, timeout: 120000, key, model, meter });
   const d = parseJson(String(text), finish) ?? {};
 
   const at = (n: any) => { const i = Number(n) - 1; return Number.isInteger(i) && i >= 0 && i < list.length ? i : -1; };

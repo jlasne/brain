@@ -22,7 +22,7 @@
 import { internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { ask, parseJson, readSpace, today } from "./lib";
+import { ask, parseJson, readSpace, today, OPENROUTER } from "./lib";
 import { idOf } from "./words";
 
 /* ---------- embeddings ---------- */
@@ -43,7 +43,7 @@ export async function embed(texts: string[], key?: string): Promise<number[][]> 
   if (!k) throw new Error("no model key for embeddings");
   const out: number[][] = [];
   for (let i = 0; i < texts.length; i += 64) {
-    const r = await fetch("https://openrouter.ai/api/v1/embeddings", {
+    const r = await fetch(`${OPENROUTER}/embeddings`, {
       method: "POST",
       headers: { Authorization: "Bearer " + k, "Content-Type": "application/json", "X-Title": "Octopus" },
       body: JSON.stringify({ model: EMBED_MODEL, input: texts.slice(i, i + 64) }),
@@ -193,7 +193,7 @@ export const setTopics = internalMutation({
  * name and summary, so only new or reshaped groups cost a model call, all of
  * a folder's in one.
  */
-export async function buildTopics(ctx: any, space: string, brain: any, cards: any[]) {
+export async function buildTopics(ctx: any, space: string, brain: any, cards: any[], meter?: (usage: any) => void) {
   const own = cards.filter((c: any) => c.brain === brain.slug);
   const groups = groupsOf(own);
   const was: any[] = await ctx.runQuery(internal.graph.topicsOf, { brain: brain.slug });
@@ -221,7 +221,7 @@ For each group give:
 Reply with only JSON: {"topics":[{"n":1,"title":"","summary":""}]}
 
 ${list}` },
-      ], { json: true, maxTokens: 1500, timeout: 90000, temperature: 0.2 });
+      ], { json: true, maxTokens: 1500, timeout: 90000, temperature: 0.2, meter });
       const got = parseJson(String(text), finish)?.topics;
       for (const [i, g] of fresh.entries()) {
         const t = (Array.isArray(got) ? got : []).find((x: any) => Number(x?.n) === i + 1);
@@ -281,7 +281,7 @@ export const putInsights = internalMutation({
  * drop, the kinds that carry a conclusion first, in one model call. A pair
  * whose two concepts only restate each other gets nothing.
  */
-export async function writeInsights(ctx: any, space: string, pairs: { a: string; b: string; type: string }[], max = 5) {
+export async function writeInsights(ctx: any, space: string, pairs: { a: string; b: string; type: string }[], max = 5, meter?: (usage: any) => void) {
   const seen = new Set<string>();
   const pick = pairs.filter(p => p.a.split("/")[0] !== p.b.split("/")[0])
     .sort((x, y) => (TYPE_RANK[y.type] ?? 0) - (TYPE_RANK[x.type] ?? 0))
@@ -314,7 +314,7 @@ For each, write what FOLLOWS from holding both: one conclusion neither states al
 Reply with only JSON: {"insights":[{"n":1,"title":"","text":""}]}
 
 ${job}` },
-    ], { json: true, maxTokens: 1500, timeout: 90000, temperature: 0.3 });
+    ], { json: true, maxTokens: 1500, timeout: 90000, temperature: 0.3, meter });
     const got = parseJson(String(text), finish)?.insights;
     const items = rows.map((p, i) => {
       const x = (Array.isArray(got) ? got : []).find((y: any) => Number(y?.n) === i + 1);
