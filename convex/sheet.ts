@@ -168,8 +168,6 @@ export function splitDoc(text: string, max = SECTION_CHARS, firstPage = 0): Part
   return out;
 }
 
-/** The last page marker in a text, so the next piece of the same file starts from it. */
-export const lastPage = (text: string): number => pagesIn(text)?.to ?? 0;
 
 /* ---------- a table, in blocks of rows ---------- */
 
@@ -465,7 +463,6 @@ export function resultText(r: Result, cols: Col[], sheet: string, total: number)
 /* ---------- changing a file ---------- */
 
 export const MAX_OPS = 12;
-export const MAX_NEW_CHARS = 30000;
 
 /** `find` replaced by `to` when it stands exactly once in the text, else why not. */
 export function replaceOnce(text: string, find: string, to: string): { text: string } | { error: string } {

@@ -108,6 +108,13 @@ export const MIN_OPEN = 8;
  * router runs), then by words. It needs the meaning of the folders to be kept: with fewer than NEAR_NEEDED found, the router reads every title.
  */
 export const INDEX_SHORT = 120, NEAR_SHORT = 40, NEAR_NEEDED = 20;
+/**
+ * How close in meaning a concept must be to open on that alone once the router has read its title and passed it over: the floor the
+ * project search uses for the same model. Below it, a near concept only shares a field with the question ("Tax shield" for a VAT rate).
+ */
+export const NEAR_FLOOR = 0.45;
+/** The concepts the last answer opened, carried to the next message so "the second one" still finds its subject: this many at most. */
+export const PRIOR_MAX = 12;
 /* One concept opens at most this much, so no single one eats the budget. */
 export const ROW_MAX = 8000;
 
@@ -121,7 +128,9 @@ const CLOSE_FILL = new Set(["ok", "okay", "great", "perfect", "super", "parfait"
  * answer the question before it.
  */
 export function isCloser(q: string): boolean {
-  const w = String(q ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
+  /* A number or a question mark asks something: "Great, thanks. For 2025?" is a question. */
+  if (/[0-9?¿]/.test(String(q ?? ""))) return false;
+  const w =String(q ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
   return w.length > 0 && w.length <= 6 && w.some(x => CLOSE_WORDS.has(x)) && w.every(x => CLOSE_WORDS.has(x) || CLOSE_FILL.has(x));
 }
 
@@ -141,6 +150,50 @@ export function threadOf(history: any, max = 4, last = 900): { q: string; a: str
 }
 
 /**
+ * The concepts the last answer opened, as the page sent them back with the thread: only ids this chat may read, each once. They are a
+ * hint for the next message, never a source: what opens is still read from the store.
+ */
+export function priorOf(history: any, allowed: Set<string>): string[] {
+  const last = (Array.isArray(history) ? history : []).slice(-1)[0];
+  const ids = Array.isArray(last?.opened) ? last.opened : [];
+  return [...new Set<string>(ids.map((x: any) => String(x ?? "").slice(0, 200)))].filter(id => allowed.has(id)).slice(0, PRIOR_MAX);
+}
+
+/* Words that name no one in particular, so two sources sharing one are not the same source. */
+const SOURCE_STOP = new Set(["the", "and", "for", "inc", "ltd", "llc", "report", "blog", "news", "university", "company", "group", "team", "unknown", "source", "sources", "none", "des", "les", "von", "van"]);
+const nameOf = (s: string) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+const nameWords = (s: string) => nameOf(s).split(" ").filter(w => w.length >= 3 && !SOURCE_STOP.has(w) && !/^\d+$/.test(w));
+
+/**
+ * The Sources line of an answer, held to what was read: an entry whose author is in none of the opened concepts' evidence goes, and a
+ * line left empty goes whole. The model writes the line; this checks it. A name written a little differently ("Damodaran" for "Aswath
+ * Damodaran") still counts, since one shared name is enough.
+ */
+export function checkSources(text: string, opened: any[]): string {
+  const lines = String(text ?? "").split("\n");
+  let at = -1;
+  for (let i = lines.length - 1; i >= 0; i--) if (/^\s*[*_]*sources?[*_]*\s*:/i.test(lines[i])) { at = i; break; }
+  if (at < 0) return String(text ?? "");
+  const held = opened.flatMap((c: any) => (c.evidence ?? []).map((e: any) => nameOf(String(e?.author ?? "")))).filter(Boolean);
+  const body = lines[at].replace(/^\s*[*_]*sources?[*_]*\s*:\s*[*_]*\s*/i, "").replace(/\s*[*_]+\s*$/, "");
+  const entries = body.split(/\s+[-–—·|]\s+|\s*;\s*/).map(x => x.trim()).filter(Boolean);
+  const keep = entries.filter(e => {
+    const who = e.includes(",") ? e.slice(0, e.lastIndexOf(",")) : e;
+    const n = nameOf(who), words = nameWords(who);
+    if (!n) return false;
+    /* Whole words only: "A" is not inside "Invented Author". */
+    return held.some(h => ` ${h} `.includes(` ${n} `) || ` ${n} `.includes(` ${h} `) || nameWords(h).some(w => words.includes(w)));
+  });
+  if (keep.length === entries.length && entries.length) return String(text ?? "");
+  if (keep.length) lines[at] = `Sources: ${keep.join(" - ")}`;
+  else {
+    lines.splice(at, 1);
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  }
+  return lines.join("\n");
+}
+
+/**
  * The stored knowledge a question reads.
  *
  * Every brain in the pool is searched. The concepts that bear on the question
@@ -148,7 +201,7 @@ export function threadOf(history: any, max = 4, last = 900): { q: string; a: str
  * is held, and a follow-up borrows the words of the question before it.
  */
 export function dossierFor(pool: any[], concepts: any[], q: string, history?: any,
-                           opts: { picked?: string[]; terms?: string[]; routed?: boolean; near?: string[] } = {}) {
+                           opts: { picked?: string[]; terms?: string[]; routed?: boolean; ran?: boolean; near?: string[]; prior?: string[] } = {}) {
   return writeDossier(pool, planDossier(pool, concepts, q, history, opts),
     new Map(concepts.map((c: any) => [idOf(c), c])));
 }
@@ -159,7 +212,7 @@ export function dossierFor(pool: any[], concepts: any[], q: string, history?: an
  * then read whole, by writeDossier.
  */
 export function planDossier(pool: any[], concepts: any[], q: string, history?: any,
-                            opts: { picked?: string[]; terms?: string[]; routed?: boolean; near?: string[] } = {}) {
+                            opts: { picked?: string[]; terms?: string[]; routed?: boolean; ran?: boolean; near?: string[]; prior?: string[] } = {}) {
   const last = (Array.isArray(history) ? history : []).slice(-1)[0];
   const words = keywords(q);
   const echo = last ? keywords(String(last.q ?? "")).filter(w => !words.includes(w)) : [];
@@ -192,8 +245,11 @@ export function planDossier(pool: any[], concepts: any[], q: string, history?: a
   /* The closest by meaning, found from the question's embedding: a question
      in another language, or in other words, still reaches its concept. */
   const near = (opts.near ?? []).map(id => byId.get(id)).filter(Boolean).slice(0, 6);
+  /* What the last answer opened, given when no router read this message: a follow-up with no words of its own ("and the second one?")
+     keeps its subject. */
+  const prior = (opts.prior ?? []).map(id => byId.get(id)).filter(Boolean).slice(0, 4);
   const seeds = picked.length ? [...new Set([...picked, ...named, ...near])]
-    : [...new Set([...titleHits.slice(0, 10), ...near])];
+    : [...new Set([...titleHits.slice(0, 10), ...near, ...prior])];
   const linked = neighbours(seeds, inPool).slice(0, 10);
   /* The seeds lead: the picks, or with none the best word matches. Then what
      they link to, then the rest of the matches: with picks, only as many as it
@@ -201,8 +257,10 @@ export function planDossier(pool: any[], concepts: any[], q: string, history?: a
   const firm = new Set<any>([...seeds, ...linked]);
   const fill = picked.length ? titleHits.filter((c: any) => !firm.has(c)).slice(0, Math.max(0, MIN_OPEN - firm.size)) : titleHits;
   const lead0 = [...seeds, ...linked, ...fill];
-  const lead = [...new Set(lead0.length || judgedEmpty ? lead0 : ranked.map(r => r.c))];
-  return { lead, ranked, inPool, hits, picked, linked, words };
+  /* With nothing to go on, the fullest positions open, unless a router read the titles: one that saw them and picked none (on the whole list,
+     or on the nearest in meaning, `ran`) leaves nothing to open, rather than thirty concepts that only happen to hold the most evidence. */
+  const lead = [...new Set(lead0.length || judgedEmpty || opts.ran ? lead0 : ranked.map(r => r.c))];
+  return { lead, ranked, inPool, hits, picked, linked, words, titled: named.length };
 }
 
 /* How many of the leading concepts a caller reads whole: the 30 that can
@@ -356,12 +414,12 @@ export function indexFor(pool: any[], concepts: any[], q: string, opts: { cap?: 
   const lead = new Set(opts.first ?? []);
   const ranked = rankConcepts(inPool, [...keywords(q), ...keywords((opts.extra ?? []).join(" "))], pool)
     .sort((a, b) => b.score - a.score || String(b.c.updated ?? "").localeCompare(String(a.c.updated ?? "")));
-  /* What the caller always wants listed (the personal notes of the personal chat, whose meaning is not kept) comes first and is not counted in
-     the cap; then the nearest in meaning, the nearest first; then the rest, by words. */
-  const must = new Set(opts.keep ?? []);
+  /* What the caller always wants listed (what the last answer opened, the personal notes of the personal chat, whose meaning is not kept)
+     comes first, in the caller's order, and is not counted in the cap; then the nearest in meaning, the nearest first; then the rest, by words. */
+  const must = new Map((opts.keep ?? []).map((id, i) => [id, i] as [string, number]));
   const rank = new Map((opts.first ?? []).map((id, i) => [id, i]));
   const rest = ranked.filter(x => !must.has(idOf(x.c)));
-  const order = [...ranked.filter(x => must.has(idOf(x.c))),
+  const order = [...ranked.filter(x => must.has(idOf(x.c))).sort((a, b) => must.get(idOf(a.c))! - must.get(idOf(b.c))!),
     ...(lead.size ? [...rest.filter(x => lead.has(idOf(x.c))).sort((a, b) => rank.get(idOf(a.c))! - rank.get(idOf(b.c))!), ...rest.filter(x => !lead.has(idOf(x.c)))] : rest)];
   let others = 0;
   for (const { c } of order) {

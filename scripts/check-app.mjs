@@ -237,7 +237,7 @@ async function boot(path, init, arg) {
     return { acts, panels, plus: [...document.querySelectorAll("aside .panel .side-plus")].map(b => b.id).join(","),
       gone: !document.getElementById("gapsBtn") && !document.getElementById("mapBtn") };
   });
-  check("the side panel opens on New chat, then Drop, One-pager and Settings as rows", top.acts === "startBtn:New chat,dropBtn:Drop,pagerBtn:One-pager,keyBtn:Settings"
+  check("the side panel opens on New chat, then Drop and One-pager side by side", top.acts === "startBtn:New chat,dropBtn:Drop,pagerBtn:One-pager"
     && await page.evaluate(() => document.getElementById("startBtn").classList.contains("go") && !document.getElementById("dropBtn").classList.contains("go")), top.acts);
   check("then Chats, Projects and Folders, each a list of its own", top.panels === "chatsPanel:Chats,projectsPanel:Projects,brainsPanel:Folders" && top.gone, top.panels);
   check("New chat on top is the one way to start a chat; Projects and Folders keep their +", top.plus === "newProject,newBrain", top.plus);
@@ -425,7 +425,7 @@ async function boot(path, init, arg) {
   });
   check("a question shows the waiting mark while it waits", !!loader, "no .spinner");
   check("with Octopus's first waiting line and the step it stands for",
-    loader?.line === "Octopus is reaching into every brain... (searching)", loader?.line);
+    loader?.line === "Octopus is reaching into every folder... (searching)", loader?.line);
   if (loader) {
     check("and it is the octopus's own loop, not a turning mark", /octopus-loop-64\.webp/.test(loader.bg) && loader.anim === "none", `${loader.bg} ${loader.anim}`);
   }
@@ -441,7 +441,7 @@ async function boot(path, init, arg) {
   /* ---- the export reads whole concepts only when asked ---- */
   const side = await page.evaluate(() => ({ gone: !document.getElementById("exportBtn") && !document.getElementById("stat"),
     foot: [...document.querySelectorAll(".side-foot button:not([hidden])")].map(b => b.textContent.trim()).join(",") }));
-  check("the foot of the side panel keeps Sign out only", side.gone && side.foot === "Sign out", side.foot);
+  check("the foot of the side panel holds Settings and Sign out", side.gone && side.foot === "Settings,Sign out", side.foot);
   await page.click("#burger").catch(() => {});
   await page.evaluate(() => document.getElementById("keyBtn").click());
   await page.waitForTimeout(150);
@@ -1395,7 +1395,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
                    depth: { counted: true, pct: 30, say: "30% of 40 concepts rest on 2+ sources. Best: Charles Gave, 100%" },
                    fresh: { counted: true, pct: 60, say: "Last source 9 days ago. Best: Charles Gave, today" },
                    conflicts: { counted: true, pct: 80, say: "1 open conflict in 40 concepts" } } },
-        { slug: "gave", score: 10, top: true, person: true, open: 0, best: "The best brain: every other score is measured against it.",
+        { slug: "gave", score: 10, top: true, person: true, open: 0, best: "The best folder: every other score is measured against it.",
           parts: { variety: { counted: false, pct: 100, say: "Not counted: a person brain is one voice, fed from the same channels." },
                    depth: { counted: true, pct: 100, say: "100% of 12 concepts rest on 2+ sources" },
                    fresh: { counted: true, pct: 100, say: "Last source today" }, conflicts: { counted: true, pct: 100, say: "No open conflict" } } }] });
@@ -1413,7 +1413,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     parts: [...document.querySelectorAll(".hb-row")].map(r => r.querySelector(".hb-top").textContent + " | " + r.querySelector(".hb-say").textContent),
     bar: document.querySelectorAll(".hb-row")[1]?.querySelector(".hb-bar i")?.style.width,
     best: document.querySelector(".hb-best")?.textContent, settle: !!document.getElementById("hbSettle"), scope: !!document.querySelector(".brain-row.on") }));
-  check("tapping the ring shows each part as a share of the best, and the move", sheet.h === "Content: 6.5/10" && /best brain, Charles Gave, which reads 10/.test(sheet.p)
+  check("tapping the ring shows each part as a share of the best, and the move", sheet.h === "Content: 6.5/10" && /best folder, Charles Gave, which reads 10/.test(sheet.p)
     && sheet.parts.length === 4 && /^Depth30% of the best \| 30% of 40 concepts/.test(sheet.parts[1]) && sheet.bar === "30%"
     && /Best moveBack more concepts with a second source/.test(sheet.best) && sheet.settle && !sheet.scope, JSON.stringify(sheet));
   await page.click("#hbDone");
@@ -1421,7 +1421,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.waitForTimeout(150);
   const person = await page.evaluate(() => ({ p: document.querySelector(".sheet header p")?.textContent,
     v: document.querySelector(".hb-row")?.textContent }));
-  check("the best brain says it sets the bar, and a person skips variety", /The best brain here/.test(person.p) && /Variety\s*not counted/.test(person.v)
+  check("the best brain says it sets the bar, and a person skips variety", /The best folder here/.test(person.p) && /Variety\s*not counted/.test(person.v)
     && /one voice/.test(person.v), JSON.stringify(person));
   check("nothing threw on health", !bad.length, bad.join(" | "));
   await page.close();
@@ -1948,7 +1948,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     folders: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent).join(","),
     acts: [...document.querySelectorAll("aside .side-acts button")].map(b => b.textContent.trim()).join(",") }));
   check("every workspace shows Chats, Projects and Folders", seen.panels === "chatsPanel,projectsPanel,brainsPanel", seen.panels);
-  check("with New chat, Drop, One-pager and Settings on top", seen.acts === "New chat,Drop,One-pager,Settings", seen.acts);
+  check("with New chat, Drop and One-pager on top", seen.acts === "New chat,Drop,One-pager", seen.acts);
   check("and every folder listed, the personal one first", seen.folders === "Me,Content,Health", seen.folders);
   await page.click('#brains .brain-row:has(.nm:text-is("Me"))'); await page.waitForTimeout(80);
   check("which opens its chat", await page.evaluate(() => /Tell it anything/.test(document.getElementById("input").placeholder)));
@@ -1993,7 +1993,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     filed: document.querySelector(".msg.ai:last-child .filed")?.textContent, called: document.querySelector(".msg.ai:last-child .filed.called")?.textContent, pager: [...document.querySelectorAll(".msg.ai:last-child .ans-acts .mini")].map(b => b.textContent) }));
   check("a message goes to the personal brain, and the reply says what it filed", a.sent?.brain === "me" && a.filed === "Filed: 1 new note, 1 note updated",
     JSON.stringify(a));
-  check("and names the other brain it called on its own", a.called === "Called your Health brain", JSON.stringify(a.called));
+  check("and names the other brain it called on its own", a.called === "Called your Health folder", JSON.stringify(a.called));
   check("a personal reply offers no one-pager", JSON.stringify(a.pager) === '["Copy"]', JSON.stringify(a.pager));
 
   /* Add memory: a long paste goes in pieces of 6,000 characters at most.
@@ -3595,6 +3595,15 @@ for (const space of ["octopus", "squidgy"]) {
   check("Web page gives the document as a page of its own: a title, its headings, bold and a table, and no script", dWeb.name === "brief-v3.html" && /^<!doctype html>/.test(wt) && /<title>brief-v3<\/title>/.test(wt)
     && /<h1>Brief<\/h1>/.test(wt) && /<strong>200<\/strong>/.test(wt) && /<th>Plan<\/th>/.test(wt) && /<td>€1,490<\/td>/.test(wt) && !/<script/i.test(wt), wt.slice(0, 200));
 
+  await page.click(".pj-acts button >> text=Download"); await page.waitForTimeout(80);
+  const busy = await page.evaluate(() => { document.querySelector('.pj-menu button[data-fmt="pdf"]').click();
+    const b = [...document.querySelectorAll(".pj-acts button[aria-haspopup]")].find(x => x.textContent === "Download");
+    return { dis: b.disabled, busy: b.getAttribute("aria-busy"), wait: document.querySelector(".pj-wait")?.textContent || "" }; });
+  check("while a file is prepared the button waits and one quiet line says what is coming", busy.dis && busy.busy === "true" && busy.wait === "Preparing the PDF file", JSON.stringify(busy));
+  await page.waitForTimeout(700);
+  const done = await page.evaluate(() => { const b = [...document.querySelectorAll(".pj-acts button[aria-haspopup]")].find(x => x.textContent === "Download"); return { dis: b.disabled, wait: !!document.querySelector(".pj-wait") }; });
+  check("and both go once it is saved", !done.dis && !done.wait, JSON.stringify(done));
+
   /* leaving: a folder, or a new chat, takes the screen back */
   await page.evaluate(() => document.querySelectorAll("#brains .brain-row .op")[1].click()); await page.waitForTimeout(300);
   const leave = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, project: document.getElementById("projectView").hidden, on: document.querySelector("#projects .pj-row.on") !== null }));
@@ -4609,7 +4618,7 @@ for (const space of ["octopus", "squidgy"]) {
   await page.keyboard.type("for Team"); await page.keyboard.press("Enter"); await page.waitForTimeout(400);
   const mine = (await asks()).pop();
   check("a project is named by its slug, to the personal chat", mine.brain === "me" && JSON.stringify(mine.tags) === '["launch-plan"]' && mine.q === "What did I decide @Launch plan for Team", JSON.stringify(mine));
-  check("and the reply names what it called", await page.evaluate(() => [...document.querySelectorAll(".msg.ai .filed.called")].pop()?.textContent) === "Called your Launch plan brain");
+  check("and the reply names what it called", await page.evaluate(() => [...document.querySelectorAll(".msg.ai .filed.called")].pop()?.textContent) === "Called your Launch plan folder");
 
   /* a drop takes a source, not a tag */
   await page.click("#dropBtn"); await page.waitForTimeout(150);
@@ -4781,6 +4790,9 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#pjFileMore"); await page.click('.pj-menu [data-act="remove"]'); await page.waitForTimeout(150);
   const rm = await page.evaluate(() => ({ title: document.querySelector("#rmTitle").textContent, note: document.querySelector(".sheet header p").textContent }));
   check("Remove asks first, names the file, and says the other files stay", rm.title === "Remove Launch plan.md?" && /The other files stay\. This cannot be undone/.test(rm.note), JSON.stringify(rm));
+  await page.waitForTimeout(80);
+  const rmf = await page.evaluate(() => ({ danger: document.getElementById("rmYes").classList.contains("danger"), focus: document.activeElement?.id }));
+  check("its button says it deletes by its colour, and the focus starts on Cancel, so Enter takes nothing away", rmf.danger && rmf.focus === "rmCancel", JSON.stringify(rmf));
   const removes = () => page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/file" && x.body.action === "remove").length);
   await page.click("#rmCancel"); await page.waitForTimeout(100);
   check("Cancel removes nothing", (await removes()) === 0 && !(await page.$(".veil")) && (await strip()).tabs.length === 5);
@@ -4938,6 +4950,85 @@ for (const space of ["octopus", "squidgy"]) {
   const o1 = await over.page.evaluate(() => ({ sum: document.getElementById("spendSum").textContent, bad: document.getElementById("spendSum").classList.contains("bad"), v: document.getElementById("spendCap").value, off: document.getElementById("spendOff").hidden }));
   check("a cap already reached shows in the closed fold, with the cap in the field", o1.sum === "cap reached" && o1.bad && o1.v === "0.4" && !o1.off, JSON.stringify(o1));
   await over.page.close();
+}
+
+/* ---- the side panel, light or dark, dialogs and the keyboard ---- */
+{
+  const state = { ...STATE, brains: [{ slug: "me", name: "Me", type: "personal", scope: "" }, { slug: "wealth", name: "Wealth", type: "subject", scope: "money" }, { slug: "health", name: "Health", type: "subject", scope: "sleep" }],
+    concepts: ["wealth", "health"].flatMap(b => [0, 1, 2].map(i => ({ brain: b, slug: `c${i}`, n: i, title: `${b} idea ${i}`, summaryLine: "x", lead: "x", ev: 2, src: 1, related: [] }))) };
+  const mk = async (opts = {}) => {
+    const { page, bad } = await boot("/chat.html", arg => {
+      sessionStorage.setItem("octopus.token.v1", "test");
+      if (arg.theme) localStorage.setItem("octopus.theme", arg.theme);
+      window.fetch = async u => {
+        const path = String(u).replace(/^https?:\/\/[^/]+/, ""), J = x => Response.json(x);
+        if (path === "/api/state") return J(arg.state);
+        if (path === "/api/health") return J({ conflicted: [], health: arg.state.brains.map(b => ({ slug: b.slug, score: 7.4, best: "Keep feeding it.", parts: {} })) });
+        if (path === "/api/project/list") return J({ projects: [] });
+        return J({ chats: [{ id: "c1", title: "A chat", brain: "all", pinned: false, updated: Date.now(), n: 1 }] });
+      };
+    }, { state, theme: opts.theme || "" });
+    return { page, bad };
+  };
+  const dark = () => ({ theme: document.documentElement.dataset.theme || "", bg: getComputedStyle(document.body).backgroundColor });
+  const lum = c => (c.match(/\d+/g) || []).slice(0, 3).map(Number).reduce((a, b) => a + b, 0);
+
+  const { page, bad } = await mk();
+  await page.waitForTimeout(500);
+  const sp = await page.evaluate(() => ({ foot: !!document.querySelector(".side-foot #keyBtn"), acts: [...document.querySelectorAll(".side-acts button")].map(b => b.id).join(","),
+    cols: getComputedStyle(document.querySelector(".side-acts")).gridTemplateColumns.split(" ").length, nested: document.querySelectorAll("button button").length }));
+  check("the side panel: New chat across, Drop and One-pager side by side under it, Settings at the foot", sp.foot && sp.acts === "startBtn,dropBtn,pagerBtn" && sp.cols === 2, JSON.stringify(sp));
+  check("no button sits inside another button anywhere on the page", sp.nested === 0, String(sp.nested));
+
+  /* light by default, dark from Settings, and back */
+  const l0 = await page.evaluate(dark);
+  check("with no choice made the page follows the device, here light", l0.theme === "" && lum(l0.bg) > 600, JSON.stringify(l0));
+  await page.click("#keyBtn"); await page.waitForTimeout(250);
+  const seg = await page.evaluate(() => ({ opts: [...document.querySelectorAll("#themePick button")].map(b => b.textContent + ":" + b.getAttribute("aria-checked")).join(","), focusIn: !!document.activeElement?.closest(".veil") }));
+  check("Settings offers System, Light and Dark, System on", seg.opts === "System:true,Light:false,Dark:false", seg.opts);
+  check("and the focus moves into it when it opens", seg.focusIn);
+  for (let i = 0; i < 60; i++) await page.keyboard.press("Tab");
+  check("Tab goes round inside it and never leaves it", await page.evaluate(() => !!document.activeElement?.closest(".veil")));
+  await page.click('#themePick button[data-v="dark"]'); await page.waitForTimeout(100);
+  const d1 = await page.evaluate(() => ({ ...(({ theme, bg }) => ({ theme, bg }))({ theme: document.documentElement.dataset.theme || "", bg: getComputedStyle(document.body).backgroundColor }), kept: localStorage.getItem("octopus.theme"), on: document.querySelector("#themePick .on")?.dataset.v }));
+  check("Dark turns the page dark at once and is kept in this browser", d1.theme === "dark" && lum(d1.bg) < 120 && d1.kept === "dark" && d1.on === "dark", JSON.stringify(d1));
+  await page.click('#themePick button[data-v="light"]'); await page.waitForTimeout(100);
+  const d2 = await page.evaluate(dark);
+  check("Light turns it back", d2.theme === "light" && lum(d2.bg) > 600, JSON.stringify(d2));
+  await page.click('#themePick button[data-v="system"]'); await page.waitForTimeout(100);
+  check("System forgets the choice and follows the device again", await page.evaluate(() => !document.documentElement.dataset.theme && localStorage.getItem("octopus.theme") === null));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(150);
+  check("Escape closes Settings and the focus goes back to the button that opened it", await page.evaluate(() => !document.querySelector(".veil") && document.activeElement?.id === "keyBtn"));
+
+  /* a folder row is reached with the keyboard: Enter ticks it, and its ring and open are buttons of their own */
+  const row = await page.evaluate(() => { const r = [...document.querySelectorAll("#brains .brain-row")].find(x => /Wealth/.test(x.textContent));
+    return { role: r.getAttribute("role"), tab: r.tabIndex, op: r.querySelector(".ed.op")?.tagName, ring: r.querySelector(".hring")?.tagName, label: r.querySelector(".ed.op")?.getAttribute("aria-label") }; });
+  check("a folder row is a button to the keyboard, its open and its health ring are buttons of their own", row.role === "button" && row.tab === 0 && row.op === "BUTTON" && row.ring === "BUTTON" && row.label === "Open Wealth", JSON.stringify(row));
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(x => /Wealth/.test(x.textContent)).focus());
+  await page.keyboard.press("Enter"); await page.waitForTimeout(150);
+  check("Enter on a folder row ticks it", await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(x => /Wealth/.test(x.textContent)).getAttribute("aria-pressed") === "true"));
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(x => /Health/.test(x.textContent)).querySelector(".hring").focus());
+  await page.keyboard.press("Enter"); await page.waitForTimeout(200);
+  check("Enter on its ring opens the health sheet, and leaves the row as it was", await page.evaluate(() => !!document.querySelector(".veil") && [...document.querySelectorAll("#brains .brain-row")].find(x => /Health/.test(x.textContent)).getAttribute("aria-pressed") === "false"));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(150);
+
+  /* a phone: every control in the drawer reaches a thumb */
+  await page.setViewportSize({ width: 390, height: 800 }); await page.waitForTimeout(250);
+  const ph = await page.evaluate(() => { const h = q => Math.round(document.querySelector(q).getBoundingClientRect().height);
+    return { plus: h(".panel .side-plus"), sa: h("#dropBtn"), go: h("#startBtn"), row: h("#brains .brain-row"), set: h("#keyBtn"), out: h("#lockBtn"), chat: h("#chats .chat-row") }; });
+  check("on a phone the + of a list is 40 pixels, and Drop, New chat, a row, Settings and Sign out at least 44", ph.plus >= 40 && ph.sa >= 44 && ph.go >= 44 && ph.row >= 44 && ph.set >= 44 && ph.out >= 44 && ph.chat >= 44, JSON.stringify(ph));
+  check("nothing threw", bad.length === 0, bad.join(" | "));
+  await page.close();
+
+  /* a choice made before is worn from the first paint, and the device's dark is followed with none */
+  const again = await mk({ theme: "dark" });
+  await again.page.waitForTimeout(300);
+  check("a page opened again is dark from the start when Dark was picked", await again.page.evaluate(() => document.documentElement.dataset.theme === "dark" && (getComputedStyle(document.body).backgroundColor.match(/\d+/g) || []).slice(0, 3).map(Number).reduce((a, b) => a + b, 0) < 120));
+  await again.page.close();
+  const sys = await mk();
+  await sys.page.emulateMedia({ colorScheme: "dark" }); await sys.page.waitForTimeout(200);
+  check("with System, a device set to dark gets the dark page", await sys.page.evaluate(() => !document.documentElement.dataset.theme && (getComputedStyle(document.body).backgroundColor.match(/\d+/g) || []).slice(0, 3).map(Number).reduce((a, b) => a + b, 0) < 120));
+  await sys.page.close();
 }
 
 await browser.close();

@@ -211,8 +211,9 @@ export default defineSchema({
    * gaps, scouts, finds, heat, labs and labTurns further down, are no longer written or read:
    * Projects, saved one-pagers, the side panel's mode, the old blind-spot log,
    * the scouts and the map are gone. Their definitions stay only so a deploy
-   * accepts the rows still there. Run `npx convex run admin:clearRemoved --prod`
-   * until it says runAgain: false, then delete these ten definitions.
+   * accepts the rows still there. The nightly upkeep (admin:upkeep) empties
+   * them once, on its own, and marks it done in config
+   * ("upkeep:removed-cleared:v1"); after that these ten definitions can go.
    */
 
   /* A workspace's side panel mode. Removed. */

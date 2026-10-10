@@ -126,6 +126,43 @@ function seed() {
   return { T, ctx: { db } };
 }
 
+/* ---- the meaning of a concept follows it ---- */
+{
+  const { T, ctx } = seed();
+  T.brains.push({ _id: "b3", slug: "metals", name: "Metals", type: "subject", scope: "s", space: undefined });
+  T.concepts.push({ _id: "c3", brain: "metals", slug: "platinum", n: 1, title: "Platinum", position: "Platinum is rare.", summaryLine: "",
+    evidence: [], data: [], conflicts: [], sources: [], related: [], updated: "2026-01-01" });
+  for (const c of T.concepts) await store.syncCard(ctx, c._id);
+  T.vectors = T.concepts.map((c, i) => ({ _id: `v${i}`, cid: c._id, brain: c.brain, vec: [1, 0] }));
+  await run(store.renameBrain, ctx, { slug: "wealth", name: "Money", account: null, space: "octopus" });
+  check("a rename moves the meaning of each concept with it, so the search by meaning still finds the folder", T.vectors.filter(v => v.cid !== "c3").every(v => v.brain === "money") && T.vectors.find(v => v.cid === "c3").brain === "metals",
+    JSON.stringify(T.vectors.map(v => v.brain)));
+  await store.mergeInto(ctx, { from: "metals", into: "money", space: "octopus" });
+  check("so does a merge", T.vectors.every(v => v.brain === "money"), JSON.stringify(T.vectors.map(v => v.brain)));
+  await ctx.db.delete("c2"); await store.syncCard(ctx, "c2");
+  check("a concept that goes takes its meaning with it, so it no longer takes a place among the nearest", !T.vectors.some(v => v.cid === "c2") && T.vectors.length === 2);
+
+  /* what moved before this was fixed is put right once, by the nightly upkeep, a page at a time */
+  T.vectors[0].brain = "wealth";
+  T.vectors.push({ _id: "v-gone", cid: "c-gone", brain: "money", vec: [1, 0] });
+  T.pages = [{ _id: "p1" }]; T.heat = Array.from({ length: 301 }, (_, i) => ({ _id: `h${i}` }));
+  const later = [];
+  ctx.scheduler = { runAfter: async (_ms, _fn, args) => { later.push(args); } };
+  const runs = [];
+  let args = {};
+  for (let i = 0; i < 20; i++) {
+    const r = await run(admin.upkeep, ctx, args);
+    runs.push(r.job);
+    if (r.job === "none") break;
+    args = later.shift() ?? {};
+  }
+  check("upkeep points every vector at its concept's folder again, and drops the ones whose concept is gone", T.vectors.every(v => v.brain === "money") && !T.vectors.some(v => v._id === "v-gone"), JSON.stringify(T.vectors.map(v => v._id + ":" + v.brain)));
+  check("then empties the tables of removed features, more than one call's worth included", (T.pages ?? []).length === 0 && (T.heat ?? []).length === 0, runs.join(","));
+  check("and once both are done it reads its two flags and does nothing more", runs.at(-1) === "none" && T.config.filter(c => /^upkeep:/.test(c.key)).length === 2, runs.join(","));
+  const again = await run(admin.upkeep, ctx, {});
+  check("a later night finds nothing to do", again.job === "none" && later.length === 0);
+}
+
 /* ---- sources stay in their space ---- */
 {
   const { T, ctx } = seed();

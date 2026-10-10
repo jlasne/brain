@@ -236,7 +236,7 @@ globalThis.fetch = async (_u, opt) => {
   let out;
   if (/You write contents lines/.test(sys)) out = JSON.stringify({ title: "About " + user.split("SECTION\n")[1].split(/\s+/).slice(0, 2).join(" "), summary: "Covers " + user.split("SECTION\n")[1].split(/\s+/).slice(0, 5).join(" ") + "." });
   else if (/You route a project's questions/.test(sys)) out = JSON.stringify(typeof reply.route === "function" ? reply.route(user) : reply.route ?? { intent: "ask", sections: [], query: null, folders: [], terms: [] });
-  else if (/You route questions to the right entries/.test(sys)) out = JSON.stringify(reply.folders ?? { picks: [], terms: [] });
+  else if (/You route questions to the right entries/.test(sys)) { if (reply.routerFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.folders ?? { picks: [], terms: [] }); }
   else if (/You are the chat of a project/.test(sys)) out = typeof reply.answer === "function" ? reply.answer(user) : JSON.stringify(reply.answer ?? { reply: "ok", proposal: false, quotes: [], edits: [] });
   else if (/You write the memory notes of a file/.test(sys)) { if (reply.aboutFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.about ?? { notes: [] }); }
   else if (/You write the memory notes of a resource/.test(sys)) { if (reply.resourceFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.resource ?? { notes: [] }); }
@@ -2605,7 +2605,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   w.T.sources = [{ sid: "a", brains: ["health"] }, { sid: "b", brains: ["health"] }];
   await call("/api/ask", { q: "what do we know about sleep ideas?", brain: "health" });
   const small = last(/You are the user's own knowledge base/).user;
-  check("a brain with few sources says so under ABOUT THIS ANSWER, after the knowledge and before the question: the rules stay as they were", /ABOUT THIS ANSWER\n- It rests on 2 sources only\. Open by saying it is a small brain\.\n\nQUESTION:/.test(small) && small.indexOf("STORED KNOWLEDGE") < small.lastIndexOf("ABOUT THIS ANSWER"), small.slice(small.lastIndexOf("ABOUT THIS ANSWER") - 50).slice(0, 300));
+  check("a brain with few sources says so under ABOUT THIS ANSWER, after the knowledge and before the question: the rules stay as they were", /ABOUT THIS ANSWER\n- It rests on 2 sources only\. Open by saying it is a small folder\.\n\nQUESTION:/.test(small) && small.indexOf("STORED KNOWLEDGE") < small.lastIndexOf("ABOUT THIS ANSWER"), small.slice(small.lastIndexOf("ABOUT THIS ANSWER") - 50).slice(0, 300));
   w.T.sources = [];
 
   /* the personal chat */
@@ -2636,6 +2636,44 @@ const docProject = async (w, name, text, kind = "doc") => {
   const f0 = (await call("/api/project/spend")).chats.find(c => c.kind === "folders").calls;
   const failed = await call("/api/ask", { q: "what is the money idea 4?", brain: "all" });
   check("a message that fails after the router answered still counts the router", !!failed.error && (await call("/api/project/spend")).chats.find(c => c.kind === "folders").calls === f0 + 1, JSON.stringify([failed.error, f0]));
+
+  /* what opens on meaning alone: a concept far off in meaning stays shut once the router read its title and passed it over */
+  const kbUser = () => last(/You are the user's own knowledge base/).user;
+  reply = { usage: price, kb: "ok", folders: { picks: [], terms: [] } };
+  await call("/api/ask", { q: "what is our refund policy in Lisbon?", brain: "all" });
+  check("a question nothing bears on opens nothing: the nearest in meaning, far off, stay shut once the router passed them over", !/^### /m.test(kbUser()), (kbUser().match(/^### .*/gm) ?? []).slice(0, 3).join(" / "));
+  check("and the answer is told that nothing stored answers it directly, under ABOUT THIS ANSWER", /ABOUT THIS ANSWER\n- Nothing stored answers this question directly/.test(kbUser()));
+  await call("/api/ask", { q: FR, brain: "all" });
+  check("a concept close in meaning still opens when the router passed it over, and nothing is said to be missing", /### Straight line depreciation in Wealth/.test(kbUser()) && !/Nothing stored answers/.test(kbUser()));
+  reply = { usage: price, kb: "ok", routerFail: true };
+  await call("/api/ask", { q: "what is our refund policy in Lisbon?", brain: "all" });
+  check("with no router to judge them, the nearest in meaning open as they come, and nothing is said to be missing", (kbUser().match(/^### /gm) ?? []).length >= 1 && !/Nothing stored answers/.test(kbUser()));
+
+  /* follow-ups: what the last answer opened travels with the thread */
+  reply = { usage: price, kb: "ok", folders: { picks: [1], terms: ["money"] } };
+  const firstQ = await call("/api/ask", { q: "what do we know about money ideas?", brain: "all", chat: null });
+  check("an answer says which concepts it opened, as ids", Array.isArray(firstQ.opened) && firstQ.opened.length > 0 && firstQ.opened.length <= 12 && firstQ.opened.every(id => /^(wealth|health)\/n\d+$/.test(id)), JSON.stringify(firstQ.opened));
+  check("and the saved chat keeps them with the turn, so a chat opened again still knows them", JSON.stringify(w.T.chats.at(-1).turns.at(-1).opened) === JSON.stringify(firstQ.opened));
+  reply = { usage: price, kb: "ok", folders: { picks: [], terms: [] } };
+  const thread = [{ q: "what do we know about money ideas?", a: "Two ideas: idea 7 and idea 9.", opened: ["wealth/n7", "wealth/n9", "me/n1", "nowhere/x"] }];
+  await call("/api/ask", { q: "and the second one?", brain: "all", history: thread });
+  const rf = routerPrompt();
+  check("a follow-up shows the router what the last answer opened, first, and the start of that answer", /^1\|Wealth idea 7 on money/.test(lines(rf)[0]) && /^2\|Wealth idea 9 on money/.test(lines(rf)[1]) && /THE LAST ANSWER BEGAN: Two ideas: idea 7 and idea 9\./.test(rf.user), lines(rf).slice(0, 2).join(" / "));
+  check("an id the chat may not read is dropped: a personal note in the folders' chat, a folder that is not there", !lines(rf).some(l => /My note 1 /.test(l)) && !rf.user.includes("nowhere"));
+  reply = { usage: price, kb: "ok", routerFail: true, embedFail: true };
+  await call("/api/ask", { q: "and the second one?", brain: "all", history: thread });
+  check("with no router and no meaning, what the last answer opened opens again: the follow-up keeps its subject", /### Wealth idea 7 on money in Wealth/.test(kbUser()) && /### Wealth idea 9 on money in Wealth/.test(kbUser()));
+  reply = { usage: price, twin: "Noted.", folders: { picks: [1], terms: [] } };
+  const pOpen = await call("/api/ask", { q: "what are my plans?", brain: "me", history: [{ q: "Q", a: "A", opened: ["me/n3"] }] });
+  check("the personal chat says what it opened too, and lists the last reply's notes to the router first", Array.isArray(pOpen.opened) && /^1\|My note 3 \[Me\]$/.test(lines(routerPrompt())[0]), lines(routerPrompt())[0]);
+
+  /* the Sources line names only what was read */
+  reply = { usage: price, kb: "Money ideas hold.\n\nSources: A, 2026-01-01 - Invented Author, 2025-05-05", folders: { picks: [1], terms: ["money"] } };
+  const src = await call("/api/ask", { q: "what do we know about money ideas?", brain: "all" });
+  check("the Sources line keeps an author found in what was opened and drops one the model made up", /\nSources: A, 2026-01-01$/.test(src.answer) && !/Invented/.test(src.answer), JSON.stringify(src.answer));
+  reply = { usage: price, kb: "Money ideas hold.\n\nSources: Nobody Real, 2024", folders: { picks: [1], terms: ["money"] } };
+  const src2 = await call("/api/ask", { q: "what do we know about money ideas?", brain: "all" });
+  check("a Sources line with no author that was read goes whole", src2.answer === "Money ideas hold.", JSON.stringify(src2.answer));
 }
 
 

@@ -51,7 +51,7 @@ const hs = Object.fromEntries(healthOf(brains, all, sources, new Map([["crypto",
 
 /* ---- the best brain reads 10, the others against it ---- */
 {
-  check("the best brain reads 10 and says so", hs.gave.score === 10 && hs.gave.top && /best brain/.test(hs.gave.best), JSON.stringify(hs.gave));
+  check("the best brain reads 10 and says so", hs.gave.score === 10 && hs.gave.top && /best folder/.test(hs.gave.best), JSON.stringify(hs.gave));
   check("the others read against it", hs.wealth.score === 8.8 && hs.crypto.score === 3.8 && !hs.wealth.top,
     `${hs.wealth.score} ${hs.crypto.score}`);
   check("a person brain is not marked down for one voice", hs.gave.parts.variety.counted === false && /one voice/.test(hs.gave.parts.variety.say));
@@ -59,7 +59,7 @@ const hs = Object.fromEntries(healthOf(brains, all, sources, new Map([["crypto",
 
 /* ---- each part against the best on it ---- */
 {
-  check("variety names the best subject", hs.wealth.parts.variety.pct === 100 && /6 named authors\. The most of any brain/.test(hs.wealth.parts.variety.say)
+  check("variety names the best subject", hs.wealth.parts.variety.pct === 100 && /6 named authors\. The most of any folder/.test(hs.wealth.parts.variety.say)
     && hs.crypto.parts.variety.pct === 17 && /1 named author\. Best: Wealth, 6/.test(hs.crypto.parts.variety.say), JSON.stringify(hs.crypto.parts.variety));
   check("depth compares with the deepest brain, a person included", hs.wealth.parts.depth.pct === 50
     && /50% of 10 concepts rest on 2\+ sources\. Best: Charles Gave, 100%/.test(hs.wealth.parts.depth.say), hs.wealth.parts.depth.say);

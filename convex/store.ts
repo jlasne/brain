@@ -922,13 +922,31 @@ export const addRelated = internalMutation({
  * Rewrite one concept's card from the concept as stored now. Every mutation
  * that inserts, changes or deletes a concept calls this, so the cards never
  * drift from what they copy.
+ *
+ * Its meaning follows it too. The search by meaning filters on the folder a
+ * vector names, so a concept moved by a rename or a merge took its vector's
+ * old folder along and was never found again; a concept gone left a vector
+ * that still took a place among the nearest.
  */
 export async function syncCard(ctx: any, id: any) {
   const c = await ctx.db.get(id);
   const card = await ctx.db.query("cards").withIndex("by_cid", (q: any) => q.eq("cid", id)).unique();
-  if (!c) { if (card) await ctx.db.delete(card._id); return; }
+  if (!c) {
+    if (card) await ctx.db.delete(card._id);
+    for (const vec of await ctx.db.query("vectors").withIndex("by_cid", (q: any) => q.eq("cid", id)).collect()) await ctx.db.delete(vec._id);
+    return;
+  }
   const doc = cardOf(c);
-  if (card) await ctx.db.patch(card._id, doc);
+  if (card) {
+    const moved = card.brain !== doc.brain;
+    await ctx.db.patch(card._id, doc);
+    /* Read only when the folder changed: a vector is 8 KB, and most writes leave the folder as it was. */
+    if (moved) {
+      for (const vec of await ctx.db.query("vectors").withIndex("by_cid", (q: any) => q.eq("cid", id)).collect()) {
+        if (vec.brain !== doc.brain) await ctx.db.patch(vec._id, { brain: doc.brain });
+      }
+    }
+  }
   else await ctx.db.insert("cards", { cid: id, ...doc });
 }
 

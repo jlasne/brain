@@ -20,7 +20,6 @@ filters by it, so a passphrase shows one space and never the other.
 | | Reads |
 |---|---|
 | A session | the space its passphrase opened |
-| `/api/public/brains` | Octopus |
 | The MCP server, with a project's key | that project |
 | The MCP server, with no key | Octopus, read only |
 
@@ -146,9 +145,11 @@ brain's own folder and chat reads any of it.
 
 Projects, saved one-pagers, the Limited or Full side panel, the map, the scouts and the lab are gone from
 the code. Their tables stay in `schema.ts` until emptied, so a deploy accepts
-the rows still there: run `npx convex run admin:clearRemoved --prod` until it
-says `runAgain: false`, then delete the definitions of `modes`, `projects`,
-`onepagers`, `pages`, `gaps`, `heat`, `scouts`, `finds`, `labs` and `labTurns`.
+the rows still there. The nightly upkeep (`admin:upkeep`, 05:40 UTC) empties them
+once, on its own, and marks it done in `config` as `upkeep:removed-cleared:v1`;
+`npx convex run admin:upkeep --prod` runs it now. Once that row is there, delete
+the definitions of `modes`, `projects`, `onepagers`, `pages`, `gaps`, `heat`,
+`scouts`, `finds`, `labs` and `labTurns`.
 
 Doubled "Still open" lines are made one when the list opens. To do a whole
 workspace at once, from a terminal, with no model call:
@@ -292,7 +293,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
 | `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
 | `/api/drop/merge` | Before storing: groups new titles that name one idea twice, joins a new idea to the concept already holding it, and gives a title not in English its English one | Yes |
-| `/api/ask` | The answer (see The chats). Thanks, a greeting or a goodbye is answered in one short call that reads nothing. With `concept`, it reads that one concept alone; in a personal folder, what the message adds or corrects is written to the note or the person's file at once, and `changed` says what moved. With `tags`, the slugs of folders named with @ in the message, it reads those folders and no other (in the personal chat: the personal folder, those folders and those projects), and `tagged` (`called` in the personal chat) names them | Yes |
+| `/api/ask` | The answer (see The chats), with `opened`, the concepts it read, for the page to send back with the thread. Thanks, a greeting or a goodbye is answered in one short call that reads nothing. With `concept`, it reads that one concept alone; in a personal folder, what the message adds or corrects is written to the note or the person's file at once, and `changed` says what moved. With `tags`, the slugs of folders named with @ in the message, it reads those folders and no other (in the personal chat: the personal folder, those folders and those projects), and `tagged` (`called` in the personal chat) names them | Yes |
 | `/api/models` | The workspace's model, and the languages of its answers and its mic. `null` goes back to the default. A model picked here ends the daily choice among favourites, and the answer says so (`favs: null`) | Owner |
 | `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Built, shown and never stored. Sends it too, when given an address | Yes |
 | `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |
@@ -324,8 +325,6 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/project/resource` | A resource the owner dropped into the project, typed, pasted or read from a file in the browser: one model call writes up to 8 notes in the project's memory, in the folder format, each resting on the resource as its source (`Resource: name, date`, one source for each, `Resource, date` when typed). The page sends a long text in pieces of at most 20,000 characters, up to 5. A note on a topic already held is updated, never doubled; a note never takes the title of an instruction or of the note on the file. The notes are read like any note: by the question | Owner. Runs a model |
 | `/api/project/forget` | Forgets one note of the project's memory, an instruction too. Notes are filed by the chat itself | Owner |
 | `/api/project/edit` | Applies, undoes or turns down a change the chat proposed, whole or not at all. `brain` is the key of the file the change was made for. The last 10 of each file are kept to undo | Owner |
-| `/api/brain/visibility` | Hides a brain from the public endpoints, or shows it again | Yes |
-| `/api/public/brains` | Every brain and its concepts, for the `/brains` page | No, by design |
 | `/mcp`, and any path under `/mcp/` | The public MCP server, read only. `/mcp/v0` reaches the same handler | No, by design |
 
 ## Why the key has to be server side
@@ -452,6 +451,11 @@ The folders' chat (the main chat, one folder, or the folders ticked) and the per
 - **The thread.** The last turn is read in full, its question to 400 characters and its answer to 900. The three before it are read as the question to 200 characters and the first line of the answer, which is the answer itself in this chat. The thread only says what "the second one" points at: every claim still comes from what is stored.
 - **The order.** What stays the same comes first: the rules, then the stored knowledge, then the thread, then what changes with this answer (the folders tagged, whether it reads a person's folder, how few sources it rests on, under ABOUT THIS ANSWER), then the question. A model host that reuses the start of a prompt can then reuse the rules and the knowledge of a follow-up that opens the same concepts.
 - **The cost.** Each message is counted from the usage the model host reports, by kind of chat, and added once the message is done, finished or not. Settings shows it beside the projects.
+- **A follow-up keeps its subject.** Each answer returns `opened`, the ids of the concepts it read (12 at most), and the page sends them back with the thread. The next message lists them first to the router, and shows it the first 300 characters of the last answer, so "and the second one?" finds what the last answer named. With no router, they open again. Only ids the chat may read are taken. A saved chat keeps them with each turn.
+- **Close in meaning is not enough.** A concept the router saw and passed over opens on its meaning alone only at a cosine of 0.45 or more, the floor the project search uses for the same model. A router that read the titles and picked none opens nothing, rather than the 30 concepts with the most evidence. When nothing was picked, nothing is close enough and no title carries the question's words, ABOUT THIS ANSWER says that nothing stored answers it directly, and the answer says so first, then gives what comes closest. The personal chat says it only for a question.
+- **The Sources line is checked.** An entry whose author is in none of the opened concepts' evidence is taken out; a line left empty goes whole. One shared name is enough, so "Damodaran" counts for "Aswath Damodaran".
+- **A number or a question mark is a question.** "Great, thanks. For 2025?" is answered, not thanked.
+- **The meaning follows the concept.** A rename or a merge moves each concept's vector to its new folder as the concept moves, and a concept that goes takes its vector with it.
 
 Measured on the code with a recording model: 12 folders, concepts of about 2,000 characters, a thread of 4, tokens as characters over 4, $0.065 in and $0.18 out per million. Before is the version that showed the router every title and opened every word match. Messages are in tokens sent, with the price of one message in cents.
 
@@ -557,6 +561,7 @@ A hit saves 45% and a miss 23%.
 | The settle write | Positions must be rewritten in one pass, atomically |
 | The weekly digest | It runs on a schedule, with no browser open. `crons.ts` calls `digest:send` every Monday at 06:00 UTC and mails `DIGEST_TO` |
 | The daily model check | It runs on a schedule too. `crons.ts` calls `admin:pickCheapest` every day at 05:30 UTC: each workspace with favourite models is set to the cheapest of them |
+| Upkeep | `crons.ts` calls `admin:upkeep` every day at 05:40 UTC. It runs each one-time repair it has not finished, a page at a time, then marks it done in `config`: every vector pointed at its concept's folder again (a rename or a merge once left them behind), and the tables of removed features emptied. Once both are done it reads two rows and stops |
 
 Reading brains and rendering the card can stay client side, because that data is already yours.
 

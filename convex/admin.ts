@@ -326,16 +326,62 @@ export const forgetOldKeys = internalMutation({
  */
 export const clearRemoved = internalMutation({
   args: {},
-  handler: async (ctx) => {
-    const deleted: Record<string, number> = {};
-    let runAgain = false;
-    for (const t of ["pages", "projects", "onepagers", "modes", "gaps", "heat", "scouts", "finds", "labTurns", "labs"]) {
-      const rows = await (ctx.db as any).query(t).take(300);
-      for (const r of rows) await ctx.db.delete(r._id);
-      deleted[t] = rows.length;
-      if (rows.length === 300) runAgain = true;
+  handler: async (ctx) => await clearSome(ctx),
+});
+
+const REMOVED = ["pages", "projects", "onepagers", "modes", "gaps", "heat", "scouts", "finds", "labTurns", "labs"];
+async function clearSome(ctx: any) {
+  const deleted: Record<string, number> = {};
+  let runAgain = false;
+  for (const t of REMOVED) {
+    const rows = await (ctx.db as any).query(t).take(300);
+    for (const r of rows) await ctx.db.delete(r._id);
+    deleted[t] = rows.length;
+    if (rows.length === 300) runAgain = true;
+  }
+  return { deleted, runAgain };
+}
+
+/* Each job of upkeep runs until it is done once, then marks it here and is never read again. */
+export const VECTORS_FOLLOW = "upkeep:vectors-follow:v1", REMOVED_CLEARED = "upkeep:removed-cleared:v1";
+
+/**
+ * Work that runs once, on its own, from the nightly cron, a page at a time
+ * until each job marks itself done; after that the cron reads two flags and
+ * stops.
+ *
+ * 1. Every vector names its concept's folder again. A rename or a merge moved
+ *    concepts without their vectors, so a renamed folder was never found by
+ *    meaning; a vector whose concept is gone goes. New moves keep them in step
+ *    as they happen (syncCard).
+ * 2. The tables of removed features are emptied, so their definitions can
+ *    leave schema.ts.
+ *
+ *     npx convex run admin:upkeep --prod      (to run it now, not at 05:40 UTC)
+ */
+export const upkeep = internalMutation({
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, a) => {
+    const done = async (key: string) => !!(await ctx.db.query("config").withIndex("by_key", q => q.eq("key", key)).unique());
+    if (!(await done(VECTORS_FOLLOW))) {
+      const page = await ctx.db.query("vectors").paginate({ cursor: a.cursor ?? null, numItems: 100 });
+      let fixed = 0, gone = 0;
+      for (const vec of page.page) {
+        const c = await ctx.db.get(vec.cid);
+        if (!c) { await ctx.db.delete(vec._id); gone++; }
+        else if (c.brain !== vec.brain) { await ctx.db.patch(vec._id, { brain: c.brain }); fixed++; }
+      }
+      if (page.isDone) await ctx.db.insert("config", { key: VECTORS_FOLLOW, setAt: today() });
+      await ctx.scheduler.runAfter(0, internal.admin.upkeep, { cursor: page.isDone ? null : page.continueCursor });
+      return { job: "vectors", read: page.page.length, fixed, gone, done: page.isDone };
     }
-    return { deleted, runAgain };
+    if (!(await done(REMOVED_CLEARED))) {
+      const r = await clearSome(ctx);
+      if (r.runAgain) await ctx.scheduler.runAfter(0, internal.admin.upkeep, {});
+      else await ctx.db.insert("config", { key: REMOVED_CLEARED, setAt: today() });
+      return { job: "removed", ...r };
+    }
+    return { job: "none" };
   },
 });
 

@@ -145,10 +145,10 @@ export function healthOf(brains: any[], cards: any[], sources: any[], open: Map<
 
     const parts: Record<Key, Part> = {
       variety: x.person
-        ? { counted: false, pct: 100, say: "Not counted: a person brain is one voice, fed from the same channels." }
+        ? { counted: false, pct: 100, say: "Not counted: a person folder is one voice, fed from the same channels." }
         : { counted: true, pct: pct("variety"),
             say: `${plural(x.authors, "named author")}${x.unsigned ? `, ${x.unsigned} unsigned` : ""}` +
-                 (bestOf("variety") ? `. Best: ${leadName("variety")}, ${lead.variety.x!.authors}` : x.authors ? ". The most of any brain" : "") },
+                 (bestOf("variety") ? `. Best: ${leadName("variety")}, ${lead.variety.x!.authors}` : x.authors ? ". The most of any folder" : "") },
       depth: { counted: true, pct: pct("depth"),
         say: (x.concepts ? `${Math.round(x.share * 100)}% of ${plural(x.concepts, "concept")} rest on 2+ sources` : "No concept yet") +
              (bestOf("depth") ? `. Best: ${leadName("depth")}, ${Math.round(lead.depth.x!.share * 100)}%` : "") },
@@ -179,7 +179,7 @@ export function healthOf(brains: any[], cards: any[], sources: any[], open: Map<
     return {
       slug: x.b.slug, score, top: topRaw > 0 && raw[i] === topRaw, person: x.person, parts, open: x.nOpen,
       best: x.days == null ? "Add a first source."
-        : first ? say[first[1]]() : score === 10 ? "The best brain: every other score is measured against it." : "Keep feeding it.",
+        : first ? say[first[1]]() : score === 10 ? "The best folder: every other score is measured against it." : "Keep feeding it.",
     };
   });
 }

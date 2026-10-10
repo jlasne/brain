@@ -8,7 +8,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
-  ask, json, cors, sha256, slug, randomHex, isOpen, parseJson,
+  ask, json, cors, sha256, slug, randomHex, parseJson,
   readSpace, SPACE_NAME, HOME, spaceName, slugOfName, SPACE_RE, SPACES,
   MODEL, MODEL_ID, CHUNK,
   canDrop,
@@ -19,7 +19,7 @@ import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from 
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, translatePage, langOf, DOC_TYPES } from "./onepager";
 import type { DocType } from "./onepager";
-import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine, isCloser, threadOf, INDEX_SHORT, NEAR_SHORT, NEAR_NEEDED } from "./words";
+import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine, isCloser, threadOf, priorOf, checkSources, INDEX_SHORT, NEAR_SHORT, NEAR_NEEDED, NEAR_FLOOR, PRIOR_MAX } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
 import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, writeBrief, gapsOf, readBlocks, withSpend, withChatSpend, guardBudget } from "./project";
@@ -730,11 +730,11 @@ route("/api/ask", async (ctx, _req, b) => {
  * The embedding of a question and the concepts nearest to it in meaning, for a chat to read: they lead what the router is shown and what
  * the dossier opens. Embeddings run on the deployment's key, so a workspace on its own key and the demo go by words and the router alone.
  */
-async function nearTo(ctx: any, who: Caller, q: string, pool: any[]): Promise<string[]> {
+async function nearTo(ctx: any, who: Caller, q: string, pool: any[]): Promise<{ id: string; score: number }[]> {
   if (who.byok || who.demo) return [];
   try {
     const [vec] = await embed([q.slice(0, 1000)]);
-    return (await nearest(ctx, vec, pool.map((x: any) => x.slug), NEAR_SHORT)).map(x => x.id);
+    return await nearest(ctx, vec, pool.map((x: any) => x.slug), NEAR_SHORT);
   } catch (e: any) { console.log(`question embedding skipped: ${String(e?.message ?? e).slice(0, 120)}`); return []; }
 }
 /**
@@ -742,8 +742,21 @@ async function nearTo(ctx: any, who: Caller, q: string, pool: any[]): Promise<st
  * of its concepts is kept (20 or more found); a short one, or one whose meaning is not kept yet, is shown whole.
  */
 const shortList = (near: string[]) => near.length >= NEAR_NEEDED ? { cap: INDEX_SHORT, first: near } : {};
+/** Said to the model when nothing held answers the message: what opened only sits near it. */
+const NOT_HELD = "Nothing stored answers this question directly: what is opened above only sits near it. Say so in the first sentence, then give what comes closest, as related.";
 /** Whether the router judged every title: a router that read them all and picked nothing has judged that nothing is held; one shown a short list has not. */
 const judged = (route: { routed: boolean; picked: string[] }, short: { cap?: number }) => route.routed && (!short.cap || route.picked.length > 0);
+/**
+ * What opens on its meaning alone. The router is shown the nearest titles; one it passed over opens only when it is close enough
+ * (NEAR_FLOOR), so "Tax shield" stays shut for a VAT rate. With no router, or one that failed, the nearest open as they come.
+ */
+const nearOpen = (near: { id: string; score: number }[], route: { routed: boolean }) =>
+  near.filter(x => !route.routed || x.score >= NEAR_FLOOR).map(x => x.id);
+/** Nothing held answers the message: the router read the titles and picked none, nothing is close enough in meaning, and no title carries its words. */
+const heldNothing = (route: { routed: boolean; picked: string[] }, open: string[], plan: { titled: number }) =>
+  route.routed && !route.picked.length && !open.length && !plan.titled;
+/** The concepts a chat may read, by id: what the last answer opened is carried to the next message only when it is one of them. */
+const readable = (pool: any[], cards: any[]) => { const at = new Set(pool.map((x: any) => x.slug)); return new Set<string>(cards.filter((c: any) => at.has(c.brain)).map(idOf)); };
 
 /**
  * A message in the folders' chat: the main chat, or one folder, or the folders ticked. What it reads is found first, and it is answered from
@@ -761,7 +774,7 @@ async function folderChat(ctx: any, who: Caller, b: any, every: any, only: strin
   const tags = tagsOf(b.tags, brains);
   const pool = tags.length ? brains.filter((x: any) => tags.includes(x.slug)) : scoped;
   if (many && !tags.length && !pool.length) return { answer: "None of the ticked folders is here any more. Tick others, or ask them all." };
-  if (!pool.length) return { answer: "No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
+  if (!pool.length) return { answer: "No folders exist yet, so there is nothing to read. Create one, drop a few sources, then ask again." };
 
   /**
    * What the answer reads.
@@ -791,12 +804,13 @@ async function folderChat(ctx: any, who: Caller, b: any, every: any, only: strin
 
   /* The app keeps its conversations: a question sent with "chat" joins that
      chat, or starts one. A failed save is only a chat that does not list it. */
-  const keep = async (text: string, nSources: number): Promise<string | undefined> => {
+  const keep = async (text: string, nSources: number, opened: string[] = []): Promise<string | undefined> => {
     if (!("chat" in b)) return undefined;
     try {
       const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
         id: typeof b.chat === "string" ? b.chat : null, brain: many ? scoped.map((x: any) => x.slug).join(",") : only ?? "all",
-        turn: { q: q.slice(0, 2000), a: text, level, sources: nSources, at: Date.now(), ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}) } });
+        turn: { q: q.slice(0, 2000), a: text, level, sources: nSources, at: Date.now(), ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}),
+          ...(opened.length ? { opened } : {}) } });
       return r.id;
     } catch { return undefined; /* the answer still goes out */ }
   };
@@ -813,12 +827,17 @@ async function folderChat(ctx: any, who: Caller, b: any, every: any, only: strin
   }
 
   /* The concepts closest in meaning to the question, found before the router runs: it is then shown those titles, and the dossier opens them. */
-  const near = await nearTo(ctx, who, q, pool);
+  const nearHits = await nearTo(ctx, who, q, pool);
+  const near = nearHits.map(x => x.id);
   const short = shortList(near);
-  const route = await routeQuestion(pool, concepts, q, b.history, mKey, mName, { ...short, meter: tally });
+  /* What the last answer opened leads the router's list, so "and the second one?" still finds its subject. */
+  const prior = priorOf(b.history, readable(pool, concepts));
+  const route = await routeQuestion(pool, concepts, q, b.history, mKey, mName, { ...short, keep: prior, meter: tally });
   /* Ranked on the slim copies; only the concepts that lead are read whole. A router shown a short list that picks nothing has not judged that
      nothing is held: the words of the question and its English terms still find what bears on it, in every title. */
-  const plan = planDossier(pool, concepts, q, b.history, { ...route, routed: judged(route, short), near });
+  const open = nearOpen(nearHits, route);
+  const plan = planDossier(pool, concepts, q, b.history, { ...route, routed: judged(route, short), ran: route.routed, near: open, ...(route.routed ? {} : { prior }) });
+  const notHeld = heldNothing(route, open, plan);
   const whole = await ctx.runQuery(internal.store.conceptsByIds,
     { space: who.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
   const pick = writeDossier(pool, plan, new Map(whole.map((c: any) => [idOf(c), c])));
@@ -910,8 +929,8 @@ ${earlier}
 
 That is context for reading the question, never a source. Every claim in your answer comes from the stored knowledge above.
 
-` : ""}${tagged.length || isPerson || (nSources > 0 && nSources < 10) ? `ABOUT THIS ANSWER
-${tagged.length ? taggedLine(tagged, pick.opened) + "\n" : ""}${isPerson ? "- It reads a PERSON brain, so name that person throughout. Their view is the subject.\n" : ""}${nSources > 0 && nSources < 10 ? `- It rests on ${nSources} source${nSources === 1 ? "" : "s"} only. Open by saying it is a small brain.\n` : ""}
+` : ""}${tagged.length || isPerson || (nSources > 0 && nSources < 10) || notHeld ? `ABOUT THIS ANSWER
+${tagged.length ? taggedLine(tagged, pick.opened) + "\n" : ""}${isPerson ? "- It reads a PERSON brain, so name that person throughout. Their view is the subject.\n" : ""}${nSources > 0 && nSources < 10 ? `- It rests on ${nSources} source${nSources === 1 ? "" : "s"} only. Open by saying it is a small folder.\n` : ""}${notHeld ? `- ${NOT_HELD}\n` : ""}
 ` : ""}QUESTION: ${q}` },
   /* Low temperature: the same question, on the same knowledge, reads the same. */
   ], { maxTokens: level === "normal" ? 2000 : learning ? 2400 : 3200, key: mKey, model: mName, temperature: 0.2,
@@ -920,8 +939,11 @@ ${tagged.length ? taggedLine(tagged, pick.opened) + "\n" : ""}${isPerson ? "- It
        timeout: Math.max(60000, 165000 - (Date.now() - t0)) });
   tally(usage);
 
-  const chat = await keep(text, nSources);
-  return { answer: text, sources: nSources, level, ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}), ...(chat ? { chat } : {}) };
+  /* The Sources line names only authors found in what was opened. */
+  const answer = checkSources(text, pick.opened);
+  const opened = pick.opened.map(idOf).slice(0, PRIOR_MAX);
+  const chat = await keep(answer, nSources, opened);
+  return { answer, sources: nSources, level, opened, ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}), ...(chat ? { chat } : {}) };
 }
 
 /**
@@ -996,12 +1018,17 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
     .catch(() => null);
   const reply = (async () => {
     /* The question is embedded first: the router is shown the titles nearest in meaning, and the notes nearest open first. */
-    const near = await nearTo(ctx, who, q, pool);
-    const short = shortList(near);
-    /* Their own notes are always listed to the router, the newest 150: their meaning is not kept as they are filed, so the nearest in meaning cannot find them. */
-    const keep = cards.filter((c: any) => c.brain === mine.slug).sort((x: any, y: any) => String(y.updated ?? "").localeCompare(String(x.updated ?? ""))).slice(0, 150).map(idOf);
+    const nearHits = await nearTo(ctx, who, q, pool);
+    const short = shortList(nearHits.map(x => x.id));
+    /* What the last reply opened leads the router's list, then their own notes, the newest 150: their meaning is not kept as they are
+       filed, so the nearest in meaning cannot find them. */
+    const prior = priorOf(b.history, readable(pool, cards));
+    const keep = [...new Set([...prior, ...cards.filter((c: any) => c.brain === mine.slug).sort((x: any, y: any) => String(y.updated ?? "").localeCompare(String(x.updated ?? ""))).slice(0, 150).map(idOf)])];
     const route = await routeQuestion(pool, cards, q, b.history, mKey, mName, { ...short, keep, meter: tally });
-    const plan = planDossier(pool, cards, q, b.history, { ...route, routed: judged(route, short), near });
+    const open = nearOpen(nearHits, route);
+    const plan = planDossier(pool, cards, q, b.history, { ...route, routed: judged(route, short), ran: route.routed, near: open, ...(route.routed ? {} : { prior }) });
+    /* Said only for a question: a message that tells them something is filed, and needs nothing held to answer it. */
+    const notHeld = /\?\s*$/.test(q) && heldNothing(route, open, plan);
     const whole = await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
     const pick = writeDossier(pool, plan, new Map(whole.map((c: any) => [idOf(c), c])));
     const earlier = threadOf(b.history).map(h => `They said: ${h.q}\nYou replied: ${h.a}`).join("\n\n");
@@ -1013,12 +1040,13 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
         `WHAT THEIR NOTES AND BRAINS HOLD (entries "in ${mine.name}" are their own notes; every other entry comes from the brain it names)\n${pick.dossier}\n\n` +
         `${tagged.length ? taggedLine(tagged, pick.opened, "THEY") + "\n\n" : ""}` +
         `${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}` +
+        `${notHeld ? "NOTHING HELD: their notes and brains hold nothing that answers this directly; what is above only sits near it. Say so in a few words, then what comes closest.\n\n" : ""}` +
         `${offer.length ? gapBlock(offer) + "\n\n" : ""}THEIR MESSAGE\n${q}` },
     ], { maxTokens: 1200, key: mKey, model: mName, timeout: Math.max(60000, 160000 - (Date.now() - t0)) });
     tally(usage);
-    return text;
+    return { text, opened: pick.opened.map(idOf).slice(0, PRIOR_MAX) };
   })();
-  const [said, filed] = await Promise.all([reply, filing]);
+  const [{ text: said, opened }, filed] = await Promise.all([reply, filing]);
   const { text: gapless, asked } = readGap(said, offer);
   const answer = plainReply(gapless);
   /* A brain they tagged was called, whatever the reply says; the others are the ones the reply names. */
@@ -1039,9 +1067,9 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
     } catch { /* the reply still goes out */ }
   }
 
-  const chat = await saveTurn(answer, { filed: filed ?? null, called });
+  const chat = await saveTurn(answer, { filed: filed ?? null, called, ...(opened.length ? { opened } : {}) });
   return { answer, sources: 0, level: "normal", personal: true, filed: filed ?? { new: 0, updated: 0, titles: [], failed: true },
-           called, ...(interview ? { interview } : {}), ...(chat ? { chat } : {}) };
+           called, opened, ...(interview ? { interview } : {}), ...(chat ? { chat } : {}) };
 }
 
 /**
@@ -2018,47 +2046,6 @@ route("/api/onepager", async (ctx, _req, b) => {
   } catch (e: any) {
     return { page, text: asText(page), sent: false, to, ...said, mailError: String(e?.message ?? e).slice(0, 300) };
   }
-});
-
-/* ---------- the public read the /brains page uses ---------- */
-
-/**
- * Same exposure as the MCP server, in one JSON document, so a static page can
- * render the brains without a passphrase. Every Octopus brain is published
- * here; a personal brain never is.
- */
-router.route({
-  path: "/api/public/brains", method: "GET",
-  handler: httpAction(async (ctx, req) => {
-    /* Octopus only. Squidgy sits behind its own passphrase and is published
-       nowhere, so no unsigned route reads it. */
-    const { brains, cards: concepts, sources } = await loadSpace(ctx, HOME);
-    return new Response(JSON.stringify({
-      brains: brains.map((b: any) => ({
-        slug: b.slug, name: b.name, type: b.type, scope: b.scope,
-        open: isOpen(b),
-        concepts: concepts.filter((c: any) => c.brain === b.slug).length,
-        sources: sources.filter((s: any) => (s.brains ?? []).includes(b.slug)).length,
-      })),
-      concepts: concepts.map((c: any) => ({
-        brain: c.brain, slug: c.slug, n: c.n, title: c.title,
-        summaryLine: c.summaryLine, position: c.lead,
-        sources: c.src, updated: c.updated,
-      })),
-    }), {
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "public, max-age=60",
-      },
-    });
-  }),
-});
-router.route({
-  path: "/api/public/brains", method: "OPTIONS",
-  handler: httpAction(async () => new Response(null, { status: 204, headers: {
-    "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, OPTIONS",
-  }})),
 });
 
 /* ---------- the public MCP endpoint ---------- */

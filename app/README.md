@@ -40,9 +40,6 @@ reaches a browser.
 | `/doc` | `/api/unlock` with the Octopus passphrase, then `/api/doc` for its own words | Yes |
 | `/chat` | `/api/status`, `/api/brand/public` and `/api/unlock` before the passphrase; every other `/api/*` route after it | Yes, a passphrase |
 
-`/api/public/brains` reads Octopus, because every Octopus brain is published. It
-never writes, and it never reads Squidgy.
-
 ## The four actions in the app
 
 **Drop.** A drop is a source and its content. A link on the source line is

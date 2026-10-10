@@ -13,13 +13,23 @@
      for, or else the one this tab last opened. An address with an empty w asks
      for a workspace by name, in Tasu's own greys. */
   try {
+    /* Light, dark, or as the device is set: chosen in Settings, kept in this browser. */
+    const t = localStorage.getItem("octopus.theme");
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+  } catch {}
+  try {
     const q = new URLSearchParams(location.search);
     const s = (q.has("w") ? q.get("w") : sessionStorage.getItem("octopus.space") || "").toLowerCase();
     if (/^[a-z0-9][a-z0-9-]{1,31}$/.test(s)) {
       document.documentElement.dataset.space = s;
-      /* A workspace with a look of its own: the colours it last wore here. */
+      /* A workspace with a look of its own: the colours it last wore here. In the dark its page colours stay out, and its accent is
+         the colour itself, which reads on a dark page. */
       const look = JSON.parse(localStorage.getItem("octopus.look." + s) || "null");
-      if (look) for (const k in look) document.documentElement.style.setProperty(k, look[k]);
+      const t = document.documentElement.dataset.theme;
+      const dark = t === "dark" || (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      const PAGE = ["--bg", "--surface-2", "--surface-3", "--line", "--line-2", "--accent"];
+      if (look) for (const k in look) if (!dark || !PAGE.includes(k)) document.documentElement.style.setProperty(k, look[k]);
+      if (look && dark && look["--accent-fill"]) document.documentElement.style.setProperty("--accent", look["--accent-fill"]);
     }
   } catch {}
 </script>
@@ -51,6 +61,10 @@
     --bg:#ffffff; --side:#f7f7f8; --surface:#ffffff; --surface-2:#f4f4f5; --surface-3:#e9e9ec;
     --ink:#09090b; --ink-2:#27272a; --ink-3:#52525b; --ink-4:#6b6b74;
     --line:#ececef; --line-2:#e1e1e5;
+    /* A side panel row under the pointer, and the one you are on. */
+    --side-hover:rgba(0,0,0,.045); --side-on:rgba(0,0,0,.065);
+    /* The chat bar's edge when it has the focus, and a health ring's three tones. */
+    --focus-line:#d4d4d8; --ring-hi:#27272a; --ring-mid:#8a8a93; --ring-lo:#c4c4cb;
     --accent:#18181b; --accent-fill:#3f3f46; --accent-solid:#18181b; --accent-on:#ffffff;
     --accent-soft:rgba(24,24,27,.05); --accent-line:rgba(24,24,27,.16);
     --good:#3f7d5c; --warn:#94650f; --bad:#b3372a;
@@ -77,6 +91,68 @@
     --accent:#7a4e36; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
     --accent-soft:rgba(168,112,78,.09); --accent-line:rgba(168,112,78,.36);
   }
+
+  /* ======================================================================
+     DARK
+
+     The same greys, turned over: near-black pages, a side panel a step
+     lighter, text a step off white. Picked in Settings (System, Light or
+     Dark); System follows the device. A workspace's accent stays its own,
+     lifted so it reads on a dark page.
+     ====================================================================== */
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#111113; --side:#161618; --surface:#1b1b1e; --surface-2:#222226; --surface-3:#2c2c31;
+      --ink:#f4f4f5; --ink-2:#e4e4e7; --ink-3:#b4b4bc; --ink-4:#8e8e98;
+      --line:#27272c; --line-2:#34343b;
+      --accent:#f4f4f5; --accent-fill:#d4d4d8; --accent-solid:#f4f4f5; --accent-on:#18181b;
+      --accent-soft:rgba(244,244,245,.07); --accent-line:rgba(244,244,245,.24);
+      --good:#6fbf8f; --warn:#d9a441; --bad:#f07466;
+      --shadow:0 1px 2px rgba(0,0,0,.5), 0 1px 6px rgba(0,0,0,.3);
+      --shadow-lift:0 8px 30px -4px rgba(0,0,0,.65), 0 4px 10px rgba(0,0,0,.35);
+      --side-hover:rgba(255,255,255,.055); --side-on:rgba(255,255,255,.085);
+      --focus-line:#4a4a52; --ring-hi:#e4e4e7; --ring-mid:#8e8e98; --ring-lo:#4a4a52;
+      color-scheme:dark;
+    }
+    :root:not([data-theme="light"])[data-space="octopus"]{
+      --accent:#ef9e7f; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#ffffff;
+      --accent-soft:rgba(217,119,87,.15); --accent-line:rgba(217,119,87,.45);
+    }
+    :root:not([data-theme="light"])[data-space="squidgy"]{
+      --accent:#d6a688; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
+      --accent-soft:rgba(168,112,78,.16); --accent-line:rgba(168,112,78,.48);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#111113; --side:#161618; --surface:#1b1b1e; --surface-2:#222226; --surface-3:#2c2c31;
+    --ink:#f4f4f5; --ink-2:#e4e4e7; --ink-3:#b4b4bc; --ink-4:#8e8e98;
+    --line:#27272c; --line-2:#34343b;
+    --accent:#f4f4f5; --accent-fill:#d4d4d8; --accent-solid:#f4f4f5; --accent-on:#18181b;
+    --accent-soft:rgba(244,244,245,.07); --accent-line:rgba(244,244,245,.24);
+    --good:#6fbf8f; --warn:#d9a441; --bad:#f07466;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 1px 6px rgba(0,0,0,.3);
+    --shadow-lift:0 8px 30px -4px rgba(0,0,0,.65), 0 4px 10px rgba(0,0,0,.35);
+    --side-hover:rgba(255,255,255,.055); --side-on:rgba(255,255,255,.085);
+    --focus-line:#4a4a52; --ring-hi:#e4e4e7; --ring-mid:#8e8e98; --ring-lo:#4a4a52;
+    color-scheme:dark;
+  }
+  :root[data-theme="dark"][data-space="octopus"]{
+    --accent:#ef9e7f; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#ffffff;
+    --accent-soft:rgba(217,119,87,.15); --accent-line:rgba(217,119,87,.45);
+  }
+  :root[data-theme="dark"][data-space="squidgy"]{
+    --accent:#d6a688; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
+    --accent-soft:rgba(168,112,78,.16); --accent-line:rgba(168,112,78,.48);
+  }
+  /* The kinds of link keep their colours, lighter, on a dark page. */
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) .vw-link i.lk-needs{ color:#facc15; } :root:not([data-theme="light"]) .vw-link i.lk-causes{ color:#c4b5fd; }
+    :root:not([data-theme="light"]) .vw-link i.lk-supports{ color:#86efac; } :root:not([data-theme="light"]) .vw-link i.lk-contradicts{ color:#fca5a5; }
+    :root:not([data-theme="light"]) .vw-link i.lk-example{ color:#7dd3fc; }
+  }
+  :root[data-theme="dark"] .vw-link i.lk-needs{ color:#facc15; } :root[data-theme="dark"] .vw-link i.lk-causes{ color:#c4b5fd; }
+  :root[data-theme="dark"] .vw-link i.lk-supports{ color:#86efac; } :root[data-theme="dark"] .vw-link i.lk-contradicts{ color:#fca5a5; }
+  :root[data-theme="dark"] .vw-link i.lk-example{ color:#7dd3fc; }
 
   /* The dog greets an empty thread. */
   .zero-mark{ display:block; height:92px; width:auto; margin-bottom:22px; }
@@ -238,7 +314,6 @@
     font:500 13.5px/1.35 var(--sans); color:var(--ink-2);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
-  .brain-row .ct{ margin-left:auto; font:400 10.5px/1 var(--mono); color:var(--ink-4); white-space:nowrap; }
   /* The one control a row carries, on the row you are pointing at. */
   /* Hidden, they take no room, so a long name shows whole until the row is
      pointed at. */
@@ -246,14 +321,16 @@
     display:none; font:500 10.5px/1 var(--sans); color:var(--ink-4); padding:3px 5px; border-radius:5px;
     transition:color .12s var(--ease), background .12s var(--ease);
   }
-  .brain-row:hover .ed, .brain-row:focus-visible .ed, .brain-row.on .ed{ display:inline-block; }
+  .brain-row:hover .ed, .brain-row:focus-visible .ed, .brain-row:focus-within .ed, .brain-row.on .ed{ display:inline-block; }
+  .brain-row{ cursor:pointer; }
+  .hring{ padding:0; }
   /* A touch screen has no hover, so its row shows the controls. */
   @media (hover:none){ .brain-row .ed{ display:inline-block; } }
   .brain-row .ed:hover{ color:var(--accent); background:var(--accent-soft); }
   .brain-row:hover{ background:var(--surface); }
   .brain-row:hover .nm{ color:var(--ink); }
   .brain-row.on{ background:var(--surface); border-color:var(--accent-line); }
-  .brain-row.on .nm, .brain-row.on .ct{ color:var(--accent); }
+  .brain-row.on .nm{ color:var(--accent); }
   .empty-side{ padding:6px 3px; font:400 12.5px/1.55 var(--sans); color:var(--ink-4); }
 
   /* The demo says what it is, above the thread. */
@@ -1181,6 +1258,8 @@
   }
   .go:hover{ filter:brightness(1.12); }
   .go[disabled]{ opacity:.4; cursor:default; filter:none; }
+  /* A button that deletes for good says so by its colour. */
+  .go.danger{ background:var(--bad); color:#fff; }
   .ghost{
     font:500 14px/1 var(--sans); padding:10px 15px; border-radius:9px;
     border:1px solid var(--line-2); color:var(--ink-2);
@@ -1575,7 +1654,7 @@
 
     /* The sidebar, with 44 pixel rows. */
     .brain-row{ min-height:44px; align-items:center; }
-    .brain-row .ct, .brain-row .ed{ font-size:12px; }
+    .brain-row .ed{ font-size:12px; }
     .brain-row .ed{ padding:8px 9px; }
     .foot-btn, .side-acts .sa{ min-height:44px; }
     .panel .side-plus{ width:36px; height:36px; }
@@ -1664,66 +1743,107 @@
      pointer, and the chat bar floating over the thread. Last in the sheet,
      so it settles what came before it.
      ====================================================================== */
+  /* ---- the side panel ----
+     One column, three layers: who you are (the workspace), what you do (New chat, then Drop and One-pager side by side), and what you
+     have (Chats, Projects, Folders). Settings and Sign out sit at the foot, where an account lives. A list is named by a quiet label, so the
+     rows carry the eye; the row you are on is filled, with a thin accent at its edge. */
   aside{ background:var(--side); border-right:1px solid var(--line); }
-  .brand{ padding:16px 16px 12px; gap:10px; }
-  .brand .mark{ width:22px; height:22px; }
-  .brand h1{ font:600 15px/1 var(--sans); letter-spacing:-.01em; }
-  .side-scroll{ padding:4px 10px 14px; }
+  .brand{ padding:14px 12px 10px 16px; gap:10px; min-height:58px; }
+  .brand .mark{ width:24px; height:24px; }
+  .brand h1{ flex:1; min-width:0; font:600 15.5px/1.2 var(--sans); letter-spacing:-.012em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .navtoggle{ width:30px; height:30px; border-radius:8px; color:var(--ink-4); }
+  .navtoggle:hover{ color:var(--ink); background:var(--side-hover); }
+  .side-scroll{ padding:4px 10px 16px; }
 
-  .side-acts{ gap:1px; margin:0 0 16px; }
-  .side-acts .sa{ min-height:34px; padding:0 10px; border:0; border-radius:8px; background:transparent;
-    font:500 14px/1 var(--sans); color:var(--ink-2); }
-  .side-acts .sa:hover{ background:rgba(0,0,0,.045); color:var(--ink); }
-  .side-acts .sa.go{ min-height:38px; margin-bottom:8px; justify-content:center; border-radius:10px;
-    background:var(--accent-solid); color:var(--accent-on); box-shadow:0 1px 2px rgba(0,0,0,.10), inset 0 1px 0 rgba(255,255,255,.08); }
-  .side-acts .sa.go:hover{ background:var(--accent-solid); color:var(--accent-on); filter:brightness(1.12); }
-  .side-acts .sa.go{ min-height:42px; font-size:14.5px; }
-  .side-acts .sa.on{ background:rgba(0,0,0,.055); color:var(--ink); }
+  .side-acts{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:0 0 20px; }
+  .side-acts .sa{ display:flex; align-items:center; gap:8px; min-height:36px; padding:0 11px; border:1px solid var(--line-2); border-radius:9px;
+    background:var(--surface); box-shadow:0 1px 1px rgba(0,0,0,.025); font:500 13.5px/1 var(--sans); color:var(--ink-2);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;
+    transition:border-color .15s ease, color .15s ease, background .15s ease; }
+  .side-acts .sa:hover{ border-color:var(--ink-4); color:var(--ink); background:var(--surface); }
+  .side-acts .sa svg{ color:var(--ink-3); }
+  .side-acts .sa:hover svg{ color:var(--ink); }
+  .side-acts .sa.go{ grid-column:1 / -1; justify-content:center; min-height:40px; border-color:transparent; border-radius:10px;
+    background:var(--accent-solid); color:var(--accent-on); font-size:14px;
+    box-shadow:0 1px 2px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.10); }
+  .side-acts .sa.go svg{ color:currentColor; }
+  .side-acts .sa.go:hover{ background:var(--accent-solid); color:var(--accent-on); border-color:transparent; filter:brightness(1.1); }
+  .side-acts .sa.on{ border-color:var(--accent-line); background:var(--accent-soft); color:var(--accent); }
+  .side-acts .sa.on svg{ color:var(--accent); }
+  .side-acts .sa.go.on{ box-shadow:0 0 0 2px var(--side), 0 0 0 4px var(--accent-line); }
 
   .panel{ background:transparent; border:0; border-radius:0; box-shadow:none; }
-  .panel + .panel{ margin-top:14px; }
-  /* A section head: its mark, its name, a count, and a chevron that turns. */
-  .panel-h{ min-height:36px; padding:0 4px 0 6px; border-radius:10px; transition:background .15s ease; }
-  .panel-h:hover{ background:rgba(0,0,0,.035); }
-  .panel .fold-t{ flex:1; gap:9px; padding:7px 0; font:600 13.5px/1 var(--sans); letter-spacing:-.005em; text-transform:none; color:var(--ink-2); }
-  .panel .fold-t:hover{ color:var(--ink); }
-  .p-ic{ display:grid; width:24px; height:24px; border-radius:7px; }
-  .p-chat, .p-fold{ background:var(--surface); color:var(--ink-2); box-shadow:0 0 0 1px var(--line), 0 1px 2px rgba(0,0,0,.05); }
-  .panel .fold-t b{ min-width:22px; padding:3px 7px; border-radius:999px; background:rgba(0,0,0,.05); text-align:center;
-    font:600 11px/1 var(--mono); letter-spacing:0; color:var(--ink-3); }
+  .panel + .panel{ margin-top:20px; }
+  /* A list's head: a quiet label, how many, a chevron that shows on the pointer, and its +. */
+  .panel-h{ min-height:30px; padding:0 2px 0 10px; border-radius:8px; transition:background .15s ease; }
+  .panel-h:hover{ background:var(--side-hover); }
+  .panel .fold-t{ flex:1; gap:7px; padding:7px 0; font:600 11.5px/1 var(--sans); letter-spacing:.075em; text-transform:uppercase; color:var(--ink-4); }
+  .panel .fold-t:hover{ color:var(--ink-2); }
+  .p-ic{ display:none; }
+  .panel .fold-t b{ min-width:0; padding:0; border-radius:0; background:none; font:500 11.5px/1 var(--mono); letter-spacing:0; color:var(--ink-4); opacity:.85; }
   .panel .fold-t b:empty{ display:none; }
-  .panel .chev{ width:7px; height:7px; margin:0 6px 0 auto; border:0; border-right:1.6px solid var(--ink-4); border-bottom:1.6px solid var(--ink-4);
-    transform:translateY(-2px) rotate(45deg); transition:transform .25s var(--ease, ease); }
+  .panel .chev{ width:6px; height:6px; margin:0 8px 0 auto; border:0; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor;
+    opacity:0; transform:translateY(-2px) rotate(45deg); transition:transform .25s var(--ease, ease), opacity .15s ease; }
+  .panel-h:hover .chev, .panel .fold-t:focus-visible .chev, .panel .fold-t[aria-expanded="false"] .chev{ opacity:1; }
   .panel .fold-t[aria-expanded="false"] .chev{ transform:rotate(-45deg); }
-  .panel .side-plus{ width:26px; height:26px; border-radius:8px; background:transparent; color:var(--ink-4); }
-  .panel .side-plus:hover{ background:var(--surface); color:var(--ink); box-shadow:0 0 0 1px var(--line); }
+  .panel .side-plus{ width:28px; height:28px; border-radius:7px; background:transparent; color:var(--ink-4); }
+  .panel .side-plus:hover{ background:var(--surface); color:var(--ink); box-shadow:0 0 0 1px var(--line-2); }
   .panel-b{ border-top:0; padding:4px 0 0; }
   .panel-b:not([hidden]){ animation:pbOpen .26s var(--ease, ease) both; }
   @keyframes pbOpen{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:none; } }
   /* A group inside Folders: its name, how many, and a hairline to the edge. */
-  .panel .group-h{ display:flex; align-items:center; gap:8px; margin:14px 10px 5px; font:600 10.5px/1 var(--sans); letter-spacing:.08em;
-    text-transform:uppercase; color:var(--ink-4); }
-  .panel .group-h::after{ content:attr(data-n); order:1; font:500 10.5px/1 var(--mono); letter-spacing:0; color:var(--ink-4); opacity:.8; }
+  .panel .group-h{ display:flex; align-items:center; gap:8px; margin:12px 10px 4px; font:500 11px/1 var(--sans); letter-spacing:.04em;
+    text-transform:none; color:var(--ink-4); }
+  .panel .group-h::after{ content:attr(data-n); order:1; font:500 11px/1 var(--mono); letter-spacing:0; color:var(--ink-4); opacity:.75; }
   .panel .group-h::before{ content:""; order:2; flex:1; height:1px; background:var(--line); }
-  .panel .group-h:first-child{ margin-top:6px; }
-  .brain-row .cnt{ margin-left:auto; font:500 11px/1 var(--mono); color:var(--ink-4); }
+  .panel .group-h:first-child{ margin-top:4px; }
+  .brain-row .cnt{ margin-left:auto; font:500 11.5px/1 var(--mono); color:var(--ink-4); }
   .brain-row .cnt:empty{ display:none; }
   .brain-row .cnt + .hring{ margin-left:8px; }
-  .brain-row .ro-tag{ flex:none; padding:2px 6px; border-radius:6px; background:rgba(0,0,0,.05); font:500 10.5px/1.2 var(--sans); color:var(--ink-3); }
+  .brain-row .ro-tag{ flex:none; padding:2px 6px; border-radius:6px; background:var(--side-hover); font:500 11px/1.2 var(--sans); color:var(--ink-3); }
   .panel .empty-side{ padding:4px 10px; }
 
-  .chat-row, .brain-row{ border:0; border-radius:8px; padding:6px 10px; }
+  .chat-row, .brain-row{ min-height:34px; align-items:center; border:0; border-radius:8px; padding:6px 10px; }
   .chat-row + .chat-row, .brain-row + .brain-row{ margin-top:1px; }
-  .chat-row:hover, .brain-row:hover{ background:rgba(0,0,0,.045); }
-  .chat-row.on, .brain-row.on{ background:rgba(0,0,0,.06); border:0; }
+  .chat-row:hover, .brain-row:hover{ background:var(--side-hover); }
+  .chat-row.on, .brain-row.on{ background:var(--side-on); border:0; box-shadow:inset 2px 0 0 var(--accent-fill); }
   .chat-row .nm, .brain-row .nm{ font:400 13.5px/1.35 var(--sans); color:var(--ink-2); }
   .chat-row .cb{ display:none; }
-  .chat-row.on .nm, .brain-row.on .nm, .brain-row.on .ct, .brain-row:hover .nm{ color:var(--ink); }
+  .chat-row.on .nm, .brain-row.on .nm{ font-weight:500; color:var(--ink); }
+  .brain-row:hover .nm{ color:var(--ink); }
   .brain-row.on .b-ic, .brain-row .b-ic{ color:var(--ink-4); }
-  .side-foot{ border-top:0; padding:8px 14px 12px; }
-  .foot-link{ color:var(--ink-4); }
-  .foot-link:hover{ color:var(--ink); }
+
+  /* The foot: Settings, then Sign out, on one line. */
+  .side-foot{ display:flex; flex-wrap:wrap; align-items:center; gap:4px; border-top:1px solid var(--line); padding:8px 10px 10px; }
+  .side-foot .side-go{ flex:1 0 100%; }
+  .sf-btn{ flex:1; min-width:0; display:flex; align-items:center; gap:9px; min-height:36px; padding:0 10px; border-radius:8px;
+    font:500 13.5px/1 var(--sans); color:var(--ink-2); transition:background .15s ease, color .15s ease; }
+  .sf-btn svg{ width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; color:var(--ink-3); }
+  .sf-btn:hover{ background:var(--side-hover); color:var(--ink); }
+  .sf-btn.on{ background:var(--side-on); color:var(--ink); }
+  .foot-link{ justify-self:auto; min-height:36px; padding:0 10px; border-radius:8px; font:500 12.5px/1 var(--sans); color:var(--ink-4); }
+  .foot-link:hover{ background:var(--side-hover); color:var(--ink); }
   .side-go{ background:var(--surface); color:var(--ink); }
+
+  /* On a phone the side panel is a drawer, and every control in it reaches 44 pixels. Last, so nothing above undoes it. */
+  @media (max-width:860px){
+    .side-acts .sa{ min-height:44px; font-size:14.5px; }
+    .side-acts .sa.go{ min-height:46px; }
+    .panel-h{ min-height:40px; }
+    .panel .fold-t{ font-size:12px; padding:12px 0; }
+    .panel .chev{ opacity:1; }
+    .panel .side-plus{ width:40px; height:40px; }
+    .chat-row, .brain-row{ min-height:44px; }
+    .chat-row .nm, .brain-row .nm{ font-size:15px; }
+    .sf-btn, .foot-link{ min-height:44px; font-size:14.5px; }
+    .brand{ min-height:60px; }
+  }
+  /* A touch screen has no pointer to aim with: the small controls of a row grow to 36 pixels. */
+  @media (hover:none){
+    .chat-row .more{ width:36px; height:36px; line-height:36px; }
+    .ab-x{ width:36px; height:36px; }
+    .mini{ min-height:36px; }
+  }
 
   /* The page, white, and the chat bar floating over it. */
   main{ position:relative; background:var(--bg); }
@@ -1735,7 +1855,7 @@
   .composer{ pointer-events:auto; max-width:780px; padding:22px 24px 0; }
   .box{ border:1px solid var(--line-2); border-radius:18px; background:var(--surface);
     box-shadow:0 8px 30px -6px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.04); }
-  .box:focus-within{ border-color:#d4d4d8; box-shadow:0 12px 36px -6px rgba(0,0,0,.13), 0 3px 8px rgba(0,0,0,.05); }
+  .box:focus-within{ border-color:var(--focus-line); box-shadow:0 12px 36px -6px rgba(0,0,0,.13), 0 3px 8px rgba(0,0,0,.05); }
   .box textarea{ padding-top:15px; }
   .box .tbar{ gap:8px; padding:4px 10px 10px 12px; }
   .box .tbar .ctrls{ margin:0; gap:6px; flex-wrap:nowrap; }
@@ -1786,7 +1906,7 @@
   .composer-wrap.compact .composer{ max-width:600px; }
   .composer-wrap.compact .box{ display:flex; align-items:center; border-radius:999px; cursor:text;
     box-shadow:0 6px 24px -8px rgba(0,0,0,.14), 0 1px 3px rgba(0,0,0,.05); }
-  .composer-wrap.compact .box:hover{ border-color:#d4d4d8; box-shadow:0 10px 30px -8px rgba(0,0,0,.18), 0 2px 4px rgba(0,0,0,.05); }
+  .composer-wrap.compact .box:hover{ border-color:var(--focus-line); box-shadow:0 10px 30px -8px rgba(0,0,0,.18), 0 2px 4px rgba(0,0,0,.05); }
   .composer-wrap.compact .box textarea{ flex:1; min-width:0; height:50px !important; padding:15px 8px 0 22px; overflow:hidden; cursor:text; }
   .composer-wrap.compact .box .tbar{ flex:none; padding:0 7px 0 0; gap:6px; }
   .composer-wrap.compact .tbar .ctrls, .composer-wrap.compact .tbar .t, .composer-wrap.compact .tbar .tools,
@@ -1846,8 +1966,8 @@
   }
 
   /* Health in grey shades: the fuller the ring, the darker. */
-  .h-hi{ stroke:#27272a; } .h-mid{ stroke:#8a8a93; } .h-lo{ stroke:#c4c4cb; }
-  .hb-bar .h-hi{ background:#27272a; } .hb-bar .h-mid{ background:#8a8a93; } .hb-bar .h-lo{ background:#c4c4cb; }
+  .h-hi{ stroke:var(--ring-hi); } .h-mid{ stroke:var(--ring-mid); } .h-lo{ stroke:var(--ring-lo); }
+  .hb-bar .h-hi{ background:var(--ring-hi); } .hb-bar .h-mid{ background:var(--ring-mid); } .hb-bar .h-lo{ background:var(--ring-lo); }
 
   /* On a phone the open bar keeps one row of controls under the field: the
      folders, the three levels as icons, the mic and send. The folder name
@@ -2160,6 +2280,10 @@
     .pj-vh{ margin:6px 12px -2px; }
   }
   .pj-msg{ font:400 12.5px/1.45 var(--sans); color:var(--bad); }
+  /* A download on its way: one quiet line at the top of the file, with a dot that pulses. */
+  .pj-wait{ display:flex; align-items:center; gap:8px; padding:10px 20px; background:var(--surface); border-bottom:1px solid var(--line); font:400 12.5px/1.45 var(--sans); color:var(--ink-3); }
+  .pj-wait::before{ content:""; width:7px; height:7px; border-radius:50%; background:var(--accent-fill); animation:pjPulse 1s ease-in-out infinite alternate; }
+  @keyframes pjPulse{ from{ opacity:.3; } to{ opacity:1; } }
 </style>
 
 
@@ -2172,7 +2296,7 @@
       <button class="navtoggle" id="navToggle" aria-label="Hide the side panel" title="Hide the side panel">&#171;</button>
     </div>
     <div class="side-scroll">
-      <!-- Three things to do, above the three lists. -->
+      <!-- What to do, above the three lists: New chat, then Drop and One-pager side by side. -->
       <div class="side-acts">
         <button class="sa go" id="startBtn" type="button" title="Start a new chat">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
@@ -2180,8 +2304,6 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>Drop</button>
         <button class="sa" id="pagerBtn" type="button" title="A folder, a group, or a question, as bullets on one page">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>One-pager</button>
-        <button class="sa" id="keyBtn" type="button" title="The model, the export, the audit and its decisions, the MCP address and the transcript service">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>Settings</button>
       </div>
       <section class="panel" id="chatsPanel">
         <div class="panel-h" id="chatsH" title="Unpinned chats go 30 days after their last question, or past the newest 20. Up to 5 pinned chats stay.">
@@ -2206,6 +2328,8 @@
     </div>
     <div class="side-foot">
       <button class="side-go" id="sideGo" type="button" hidden></button>
+      <button class="sf-btn" id="keyBtn" type="button" title="The model, the look, the export, the audit and its decisions, the MCP address and the transcript service">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>Settings</button>
       <button class="foot-link" id="lockBtn" type="button" title="Sign out and forget your key">Sign out</button>
     </div>
   </aside>
@@ -2379,6 +2503,51 @@ function paintNav(){
 
 const $ = id => document.getElementById(id);
 const el = (t,c,txt) => { const n=document.createElement(t); if(c)n.className=c; if(txt!=null)n.textContent=txt; return n; };
+
+/* ---- every dialog, the same way ----
+   A dialog is a .veil on the page. When one opens, the focus moves into it: to Cancel when it deletes something, else to its first field,
+   else to its first button. Tab stays inside it. Escape closes it the way a press outside it does. When it goes, the focus returns to what
+   had it before. Each dialog keeps its own closing; this only presses it. */
+const FOCUSABLE = "button:not([disabled]):not([hidden]), [href], input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
+const topVeil = () => [...document.querySelectorAll(".veil")].pop() || null;
+/* What can take the focus in a dialog: on screen, and not in a fold that is shut. */
+const shown = x => {
+  if (!x.getClientRects().length) return false;
+  for (let d = x.closest("details"); d; d = d.parentElement?.closest("details")) if (!d.open && !d.querySelector(":scope > summary")?.contains(x)) return false;
+  return true;
+};
+const inVeil = v => [...v.querySelectorAll(FOCUSABLE)].filter(x => shown(x) || x === document.activeElement);
+new MutationObserver(list => {
+  for (const m of list){
+    for (const n of m.addedNodes){
+      if (!(n instanceof HTMLElement) || !n.classList.contains("veil")) continue;
+      n._back = document.activeElement;
+      setTimeout(() => {
+        if (!n.isConnected || n.contains(document.activeElement)) return;
+        const all = inVeil(n), danger = n.querySelector(".go.danger");
+        const first = danger ? n.querySelector("footer .ghost") : all.find(x => /^(INPUT|TEXTAREA|SELECT)$/.test(x.tagName)) || all[0];
+        first?.focus();
+      }, 40);
+    }
+    for (const n of m.removedNodes){
+      if (!(n instanceof HTMLElement) || !n.classList.contains("veil")) continue;
+      const back = n._back;
+      if (back?.isConnected && (document.activeElement === document.body || !document.activeElement)) back.focus();
+    }
+  }
+}).observe(document.body, { childList: true });
+document.addEventListener("keydown", e => {
+  const v = topVeil(); if (!v) return;
+  if (e.key === "Tab"){
+    const all = inVeil(v); if (!all.length) return;
+    const i = all.indexOf(document.activeElement);
+    if (e.shiftKey && (i <= 0)){ e.preventDefault(); all[all.length - 1].focus(); }
+    else if (!e.shiftKey && (i === -1 || i === all.length - 1)){ e.preventDefault(); all[0].focus(); }
+  } else if (e.key === "Escape"){
+    /* After the dialog's own handlers: one that closed it on Escape has already done so. */
+    setTimeout(() => { if (v.isConnected) v.dispatchEvent(new MouseEvent("click", { bubbles: true })); }, 0);
+  }
+}, true);
 const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
 const slug = s => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,48)||"item";
 /** A short fingerprint of a text. */
@@ -2724,7 +2893,10 @@ function applyLook(look, opts = {}){
   for (const k of LOOK_VARS) root.style.removeProperty(k);
   if (!opts.preview) S.brand = look || null;
   const vars = lookVars(look);
-  for (const [k, val] of Object.entries(vars)) root.style.setProperty(k, val);
+  /* In the dark a look keeps its accent and its logo: its page colours are for a light page, and its accent reads as itself. */
+  const worn = isDark() ? Object.fromEntries(Object.entries(vars).filter(([k]) => !["--bg", "--surface-2", "--surface-3", "--line", "--line-2", "--accent"].includes(k))) : vars;
+  if (isDark() && vars["--accent-fill"]) worn["--accent"] = vars["--accent-fill"];
+  for (const [k, val] of Object.entries(worn)) root.style.setProperty(k, val);
   root.dataset.logo = look?.logo ? "1" : "";
   S.logo = look?.logo || null;
   if (!opts.preview) {
@@ -2832,8 +3004,12 @@ function brainRow(b){
   const on = self ? S.scope === b.slug : S.picks.includes(b.slug);
   const home = b.space || "octopus", label = x => x.charAt(0).toUpperCase() + x.slice(1);
   const out = [...(b.shared || []), ...(b.viewers || [])].map(label), from = home !== S.space ? label(home) : "";
-  const row = el("button","brain-row" + (on ? " on" : "") + (self ? " self" : "") + (out.length || from ? " shared" : ""));
+  /* A row that holds two buttons of its own (its health and open) cannot be a button itself: it is one to the keyboard and to a
+     screen reader, and Enter or Space ticks it. */
+  const row = el("div","brain-row" + (on ? " on" : "") + (self ? " self" : "") + (out.length || from ? " shared" : ""));
+  row.setAttribute("role","button"); row.tabIndex = 0;
   if (!self) row.setAttribute("aria-pressed", String(on));
+  row.onkeydown = e => { if (e.target === row && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); row.click(); } };
   const ideas = conceptsOf(b.slug).length, read = sourcesOf(b.slug).length;
   /* The score stands for what the brain holds, so the row shows the ring and
      leaves the counts to its title. */
@@ -2865,8 +3041,8 @@ function brainRow(b){
   };
   /* One control on the row, so a click anywhere else ticks it. Its name and
      scope are edited from the folder it opens. */
-  const op = el("span","ed op","open");
-  op.title = "See what this folder holds";
+  const op = el("button","ed op","open");
+  op.type = "button"; op.title = "See what this folder holds"; op.setAttribute("aria-label", `Open ${b.name}`);
   op.onclick = e => { e.stopPropagation(); openFolder(b); };
   row.append(op);
   return row;
@@ -3049,7 +3225,7 @@ async function openChat(id){
     if (t.q) says(t.q);
     push("ai", body => showAnswer(body, t, t.q, t.concept ? t.concept.split("/")[0] : asked.join(",") || "all"));
   }
-  S.thread = (c.turns || []).slice(-6).map(t => ({ q: t.q, a: String(t.a ?? "") }));
+  S.thread = (c.turns || []).slice(-6).map(t => ({ q: t.q, a: String(t.a ?? ""), ...(Array.isArray(t.opened) && t.opened.length ? { opened: t.opened } : {}) }));
   /* A question still on its way here gets its waiting line back, and lands in it. */
   for (const j of S.jobs) if (j.status === "running" && j.key === c.id){ if (j.q) says(j.q); j.body = thinking(j.label); }
   render(); renderChats(); bottom();
@@ -3086,15 +3262,16 @@ function renameChat(c){
 function healthTone(x){ return x >= 7 ? "h-hi" : x >= 4 ? "h-mid" : "h-lo"; }
 function fmtScore(x){ return Number.isInteger(x) ? String(x) : x.toFixed(1); }
 /** The ring on a brain row: it fills with the score, and opens the breakdown. */
-function healthRing(h, b){
-  const r = el("span","hring");
+/** The ring, as a button of its own; `alone` false gives the ring alone, for a button that already holds it. */
+function healthRing(h, b, alone = true){
+  const r = el(alone ? "button" : "span","hring"); if (alone) r.type = "button";
   const C = 2 * Math.PI * 9, fill = Math.max(0, Math.min(1, h.score / 10)) * C;
   r.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="tr" cx="12" cy="12" r="9"/>
     <circle class="ar ${healthTone(h.score)}" cx="12" cy="12" r="9" stroke-dasharray="${fill.toFixed(2)} ${C.toFixed(2)}"/>
     <text x="12" y="12.4">${fmtScore(h.score)}</text></svg>`;
-  r.title = `Health ${fmtScore(h.score)}/10 against the best brain. ${h.best}`;
-  r.setAttribute("role","button"); r.setAttribute("aria-label", `Health of ${b.name}: ${fmtScore(h.score)} out of 10`);
-  r.onclick = e => { e.stopPropagation(); openHealthSheet(b); };
+  r.title = `Health ${fmtScore(h.score)}/10 against the best folder. ${h.best}`;
+  r.setAttribute("aria-label", `Health of ${b.name}: ${fmtScore(h.score)} out of 10`);
+  if (alone) r.onclick = e => { e.stopPropagation(); openHealthSheet(b); };
   return r;
 }
 
@@ -3113,8 +3290,8 @@ function openHealthSheet(b){
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>${esc(b.name)}: ${fmtScore(h.score)}/10</h3>
-        <p>${h.top ? "The best brain here. Every other score is measured against it."
-                   : `Measured against the best brain${leadName ? `, ${esc(leadName)},` : ""} which reads 10.`}</p></header>
+        <p>${h.top ? "The best folder here. Every other score is measured against it."
+                   : `Measured against the best folder${leadName ? `, ${esc(leadName)},` : ""} which reads 10.`}</p></header>
       <div class="f" id="hbParts"></div>
       <div class="f"><div class="hb-best"><b>Best move</b>${esc(h.best)}</div></div>
       <footer>${h.open ? `<button class="ghost" id="hbSettle">Settle conflicts</button>` : ""}${messy && !S.demo ? `<button class="ghost" id="hbTidy">Tidy it</button>` : ""}<button class="ghost" id="hbOpen">Open the folder</button><button class="go" id="hbDone">Done</button></footer>
@@ -3576,7 +3753,7 @@ const dbottom = () => bottom($("dropThread"));
    two, which is where a long answer spends its time. */
 const WAITING = {
   octopus: [
-    ["Octopus is reaching into every brain...", "searching"],
+    ["Octopus is reaching into every folder...", "searching"],
     ["Octopus is feeling for the right concepts...", "matching"],
     ["Eight arms, sorting the notes...", "reading"],
     ["Octopus is untangling the answer...", "weighing"],
@@ -4610,6 +4787,19 @@ function voiceLang(){
 }
 function voiceName(){ return (VOICE_LANGS.find(x => x[0] === voiceLang()) || ["", "", ""])[2]; }
 function localVoice(){ try { return localStorage.getItem("octopus.voice") || ""; } catch { return ""; } }
+
+/* ---- light or dark ---- */
+/** The choice made in Settings: "light", "dark", or "system" to follow the device. */
+function themeOf(){ try { const t = localStorage.getItem("octopus.theme"); return t === "light" || t === "dark" ? t : "system"; } catch { return "system"; } }
+/** Whether the page is dark now, by the choice or by the device. */
+function isDark(){ const t = themeOf(); return t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches); }
+function setTheme(t){
+  try { t === "system" ? localStorage.removeItem("octopus.theme") : localStorage.setItem("octopus.theme", t); } catch {}
+  if (t === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  /* A workspace's own colours are worked out again for the page they now sit on. */
+  if (S.brand) applyLook(S.brand, { preview: true });
+}
+try { window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (themeOf() === "system" && S.brand) applyLook(S.brand, { preview: true }); }); } catch {}
 function setLocalVoice(v){ try { localStorage.setItem("octopus.voice", v); } catch { /* kept for this visit only */ } S.models = { ...(S.models || {}), voice: v }; }
 $("micBtn").onclick = () => listeningIn(mainBar) ? stopVoice() : startVoice(mainBar);
 $("scopeBtn").onclick = e => { e.stopPropagation(); openPick(); };
@@ -4906,15 +5096,18 @@ async function openSetupSheet(opts = {}){
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Settings</h3>
-      <p>${S.demo ? `The demo runs on the default model. Export its brains and pick the language of the mic.`
-        : `The model that answers, the export of every ${esc(S.spaceName)} brain, the audit with the clashes and the decisions it leaves${ownerWs() ? ", and the MCP address for Claude" : ""}.`}</p></header>
+      <p>${S.demo ? `The demo runs on the default model. Export its folders and pick the language of the mic.`
+        : `The model that answers, the export of every ${esc(S.spaceName)} folder, the audit with the clashes and the decisions it leaves${ownerWs() ? ", and the MCP address for Claude" : ""}.`}</p></header>
 
       <div class="f set-row">
         <button class="foot-btn${modelLabel().picked ? " pick" : ""}" id="setModel" title="${esc(modelLabel().title)}">
           <span class="lbl">Model</span><span class="val">${esc(modelLabel().val)}</span></button>
-        <button class="foot-btn" id="setExport" title="Every brain of this workspace, as one markdown file">
+        <button class="foot-btn" id="setExport" title="Every folder of this workspace, as one markdown file">
           <span class="lbl">Export</span><span class="val">markdown</span></button>
       </div>
+      <div class="f lang-row theme-row" style="margin-top:10px"><span>Appearance</span>
+        <div class="seg" id="themePick" role="radiogroup" aria-label="Light or dark">
+          <button type="button" role="radio" data-v="system">System</button><button type="button" role="radio" data-v="light">Light</button><button type="button" role="radio" data-v="dark">Dark</button></div></div>
 
       <details class="f sh-fold" id="auditBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${S.demo ? "hidden" : ""}>
         <summary><span>Audit</span><b id="auditSum" class="sh-count"></b></summary>
@@ -4970,8 +5163,8 @@ async function openSetupSheet(opts = {}){
       </details>
 
       <details class="f sh-fold" id="shareBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${ownerWs() ? "" : "hidden"}>
-        <summary><span>Share brain</span><b id="shareCount" class="sh-count"></b></summary>
-        <div class="hint" style="margin:8px 0 10px">Pick a workspace, then which brains go to it. It stays one brain, not a copy. A personal brain is never shared.</div>
+        <summary><span>Share folders</span><b id="shareCount" class="sh-count"></b></summary>
+        <div class="hint" style="margin:8px 0 10px">Pick a workspace, then which folders go to it. It stays one folder, not a copy. A personal folder is never shared.</div>
         <label for="shareTo">Workspace</label>
         <select class="pick" id="shareTo" aria-label="The workspace to share with"></select>
         <div class="hint" id="shareNote" style="margin:7px 0 4px"></div>
@@ -5133,9 +5326,9 @@ async function openSetupSheet(opts = {}){
     const r = shareData, t = r.targets.find(x => x.slug === shareTo.value);
     shareSlot.innerHTML = "";
     shareNote.textContent = !t ? "There is no other workspace to share with." : t.mode === "read"
-      ? `Everyone who opens ${t.name} can read the brains you share there. Nobody there can change them.`
-      : `${t.name} can read these brains and feed them. A drop there fills them here too.`;
-    if (t && !r.brains.length) shareSlot.append(el("div","hint","No brain here to share yet."));
+      ? `Everyone who opens ${t.name} can read the folders you share there. Nobody there can change them.`
+      : `${t.name} can read these folders and feed them. A drop there fills them here too.`;
+    if (t && !r.brains.length) shareSlot.append(el("div","hint","No folder here to share yet."));
     for (const b of t ? r.brains : []){
       const on = b.to.includes(t.slug);
       const row = el("div","sh-row");
@@ -5210,6 +5403,11 @@ async function openSetupSheet(opts = {}){
   veil.querySelector("#lookSum").textContent = S.brand ? "your own" : "default";
   /* Languages: saved for the workspace on a tap. The demo keeps its voice
      language in this browser, since its settings are shared by every visitor. */
+  /* Light, dark, or as the device is set: this browser only, at once, nothing sent. */
+  const themeSeg = veil.querySelector("#themePick");
+  const paintTheme = () => { for (const x of themeSeg.children){ const on = x.dataset.v === themeOf(); x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); } };
+  paintTheme();
+  themeSeg.onclick = e => { const x = e.target.closest("button[data-v]"); if (!x) return; setTheme(x.dataset.v); paintTheme(); };
   const langSeg = (id, key, def, said) => {
     const seg = veil.querySelector("#" + id), msg = veil.querySelector("#langMsg");
     const now = () => key === "voice" ? voiceLang() : (S.models?.[key] || def);
@@ -5754,7 +5952,7 @@ $("demoSettle").onclick = async () => {
     const r = await api("/api/conflicts", {});
     const list = r.conflicts || [];
     if (list.length) openConflictDeck(list, r.others || 0);
-    else push("ai", x => { x.innerHTML = rich("No open clash in the demo right now. Drop a source that disagrees with a brain, and one appears here."); });
+    else push("ai", x => { x.innerHTML = rich("No open clash in the demo right now. Drop a source that disagrees with a folder, and one appears here."); });
   } catch (e) { push("ai", x => { x.innerHTML = rich(esc(e.message)); }); }
   finally { b.disabled = false; b.textContent = "Settle a clash"; }
 };
@@ -5831,7 +6029,7 @@ function openFolder(b, openId, opts = {}){
   head.append(t);
   if (h && !self){
     const hl = el("button","fv-hl"); hl.type = "button"; hl.id = "fvHealth";
-    const ring = healthRing(h, b); ring.removeAttribute("role");
+    const ring = healthRing(h, b, false); ring.removeAttribute("aria-label");
     const txt = el("div"); txt.append(el("b",null,`Health ${fmtScore(h.score)} / 10`), el("span","say",`Next: ${h.best}`));
     hl.append(ring, txt);
     hl.onclick = () => openHealthSheet(b);
@@ -8332,7 +8530,7 @@ function removeFile(){
   veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rmTitle">
     <header><h3 id="rmTitle"></h3><p>Its sections and its changes go, and the notes that rest on it are marked as possibly outdated. ${others.length ? "The other files stay." : "The project stays, with no file."} This cannot be undone.</p></header>
     <div class="bad" id="rmBad"></div>
-    <footer><button class="ghost" id="rmCancel">Cancel</button><button class="go" id="rmYes">Remove the file</button></footer></div>`;
+    <footer><button class="ghost" id="rmCancel">Cancel</button><button class="go danger" id="rmYes">Remove the file</button></footer></div>`;
   veil.querySelector("#rmTitle").textContent = `Remove ${f.name}?`;
   document.body.append(veil);
   const yes = veil.querySelector("#rmYes"), bad = veil.querySelector("#rmBad"), shut = () => veil.remove();
@@ -9158,7 +9356,7 @@ function deleteProject(){
   veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pdTitle">
     <header><h3 id="pdTitle">Delete ${esc(name)}?</h3><p>${pjFiles().length > 1 ? "Its files" : "Its file"}, its memory, its chat and its changes go. This cannot be undone.</p></header>
     <div class="bad" id="pdBad"></div>
-    <footer><button class="ghost" id="pdCancel">Cancel</button><button class="go" id="pdYes">Delete the project</button></footer></div>`;
+    <footer><button class="ghost" id="pdCancel">Cancel</button><button class="go danger" id="pdYes">Delete the project</button></footer></div>`;
   document.body.append(veil);
   const yes = veil.querySelector("#pdYes"), bad = veil.querySelector("#pdBad"), shut = () => veil.remove();
   yes.onclick = async () => {
@@ -9223,7 +9421,7 @@ function openDownload(anchor){
     for (const [k, name, ext] of DL_FORMATS[kind]){
       const b = el("button"); b.type = "button"; b.dataset.fmt = k; b.setAttribute("role","menuitem");
       b.append(el("b",null,name), el("span",null,ext));
-      b.onclick = () => { closeDownload(); downloadAs(k); };
+      b.onclick = () => { closeDownload(); downloadAs(k, anchor); };
       menu.append(b);
     }
     if (kind === "table" && f.sheets.length > 1) menu.append(el("p",null,`Excel keeps all ${f.sheets.length} sheets. CSV and Markdown take the open one.`));
@@ -9315,8 +9513,14 @@ function xlsxBlob(sheets){
 }
 
 /** The file in the format asked: what is said here is written here, in this tab. The server only gives the words, or the rows. */
-async function downloadAs(fmt){
+async function downloadAs(fmt, anchor){
   const pj = S.pj, f = pj.data.file, table = f.kind === "table";
+  /* A sheet at a time for Excel, or a PDF written here, takes a moment: the button says so and waits, and a second press does nothing. */
+  if (anchor?.dataset.busy) return;
+  const label = anchor ? anchor.getAttribute("aria-label") : null;
+  if (anchor){ anchor.dataset.busy = "1"; anchor.disabled = true; anchor.setAttribute("aria-busy","true"); anchor.setAttribute("aria-label","Preparing the file"); }
+  const note = pj.body ? el("div","pj-wait",`Preparing the ${({ xlsx: "Excel", csv: "CSV", pdf: "PDF", html: "web page", md: "Markdown" })[fmt] || ""} file`) : null;
+  if (note){ note.setAttribute("role","status"); pj.body.prepend(note); }
   try {
     if (fmt === "xlsx"){
       await loadXlsx();
@@ -9349,6 +9553,10 @@ async function downloadAs(fmt){
       save(md, "text/markdown", r.kind === "doc" && /\.(md|markdown|txt)$/i.test(r.name) ? r.name : `${base}${part}.md`);
     }
   } catch (e){ pjNote(e.message); }
+  finally {
+    note?.remove();
+    if (anchor){ delete anchor.dataset.busy; anchor.disabled = false; anchor.removeAttribute("aria-busy"); if (label === null) anchor.removeAttribute("aria-label"); else anchor.setAttribute("aria-label", label); }
+  }
 }
 
 /**
@@ -9898,7 +10106,7 @@ async function doAsk(q, again){
   /* Try again sends the same message into the message that failed. */
   if (!again) says(q);
   if (!S.brains.length){
-    push("ai", b => { b.innerHTML = rich("No brains exist yet, so there is nothing to read. Create one, drop a few sources, then ask again."); });
+    push("ai", b => { b.innerHTML = rich("No folders exist yet, so there is nothing to read. Create one, drop a few sources, then ask again."); });
     return;
   }
   /* It runs on if another chat, a folder or Drop opens: the answer lands in
@@ -9920,8 +10128,9 @@ async function doAsk(q, again){
     if ((r.filed && (r.filed.new || r.filed.updated)) || r.changed) refresh().catch(() => {});
     /* Six turns is what a thread of follow-ups runs to before the subject has
        moved anyway. Only the last four travel. */
+    /* What the answer opened travels back with the next question, so a follow-up keeps its subject. */
     if (here){
-      S.thread.push({ q, a: String(r.answer ?? "") });
+      S.thread.push({ q, a: String(r.answer ?? ""), ...(Array.isArray(r.opened) && r.opened.length ? { opened: r.opened.slice(0, 12) } : {}) });
       if (S.thread.length > 6) S.thread = S.thread.slice(-6);
     }
     endJob(job, true);
@@ -9940,7 +10149,7 @@ async function doAsk(q, again){
  */
 function showAnswer(body, r, q, asked){
   if (r.sources > 0 && r.sources < 10)
-    body.append(el("div","smallbrain",`Small brain: ${r.sources} source${r.sources===1?"":"s"} behind this`));
+    body.append(el("div","smallbrain",`Small folder: ${r.sources} source${r.sources===1?"":"s"} behind this`));
   const out = el("div"); out.innerHTML = splitAnswer(r.answer ?? r.a ?? ""); body.append(out);
   /* The folders the message tagged were read. A personal reply says it in its own line, below. */
   if (!r.personal && Array.isArray(r.tagged) && r.tagged.length) body.append(el("div","filed called",`Read ${r.tagged.map(n => "@" + n).join(", ")}`));
@@ -10008,7 +10217,7 @@ function changedLine(c){
 function calledLine(names){
   const n = (Array.isArray(names) ? names : []).map(String).filter(Boolean);
   if (!n.length) return "";
-  return n.length === 1 ? `Called your ${n[0]} brain` : `Called your ${n.slice(0, -1).join(", ")} and ${n[n.length - 1]} brains`;
+  return n.length === 1 ? `Called your ${n[0]} folder` : `Called your ${n.slice(0, -1).join(", ")} and ${n[n.length - 1]} folders`;
 }
 
 /** What a personal reply filed, in a few words, or nothing when it filed nothing. */
@@ -10258,7 +10467,7 @@ async function doDrop(src, content, again){
   if (!again) dsays(said, content ? `${words(content)} words` : null);
 
   if (!S.brains.length){
-    dpush("ai", b => { b.innerHTML = rich("Create a brain first. A source needs a scope to be filed against."); });
+    dpush("ai", b => { b.innerHTML = rich("Create a folder first. A source needs a scope to be filed against."); });
     return;
   }
 
@@ -10278,8 +10487,8 @@ async function doDrop(src, content, again){
     body.innerHTML = "";
     body.innerHTML = rich(
       `**Already stored** as \`${esc(chk.sid)}\`, filed ${esc(chk.date||"earlier")} into ` +
-      `**${esc(names.join(", ")||"no brain")}**.\n\n` +
-      `Filing it into another brain reuses what it already gave up, so nothing gets read twice.`);
+      `**${esc(names.join(", ")||"no folder")}**.\n\n` +
+      `Filing it into another folder reuses what it already gave up, so nothing gets read twice.`);
     const row = el("div"); row.style.cssText = "display:flex;gap:8px;margin-top:14px";
     const go = el("button","go","File it elsewhere");
     const no = el("button","ghost","Stop");
@@ -10303,7 +10512,7 @@ async function doDrop(src, content, again){
        read into the same brain. It needs the text, which a link fetches again
        and pasted text or a document still holds. */
     const redo = el("button","ghost","Read it again here");
-    redo.title = "Reads the source again with the current rules and files it into the brain you picked.";
+    redo.title = "Reads the source again with the current rules and files it into the folder you picked.";
     const text = bodyTxt;
     redo.onclick = async () => {
       row.remove();
@@ -10888,7 +11097,7 @@ function buildCard(pc, decide){
   row("Author", who);
 
   row("Goes to", el("span",null,
-    (plan.brains||[]).map(x => { const b=S.brains.find(y=>y.slug===x); return b?`${b.name} (${b.type})`:x; }).join(" · ") || "no brain matched"));
+    (plan.brains||[]).map(x => { const b=S.brains.find(y=>y.slug===x); return b?`${b.name} (${b.type})`:x; }).join(" · ") || "no folder matched"));
 
   const cc = el("div","chips");
   (plan.matched||[]).forEach(m => {
@@ -11007,7 +11216,7 @@ function receipt(r, pc){
     .map(([k]) => (pc.byKey||{})[k]?.concept).filter(Boolean);
   const d = el("div","receipt");
   d.innerHTML =
-`Stored <span class="v">${esc(r.sid)}</span>. Brains <span class="v">${esc(names)}</span>.
+`Stored <span class="v">${esc(r.sid)}</span>. Folders <span class="v">${esc(names)}</span>.
 Rewritten: <span class="v">${r.positions}</span> position${r.positions===1?"":"s"}
 <span class="v">${r.counts?.new ?? 0}</span> new · <span class="v">${r.counts?.echo ?? 0}</span> echoes · <span class="v">${flipped}</span> flipped · <span class="v">${both}</span> kept both
 Open conflicts: <span class="v">${esc(open.join(", ")||"none")}</span>`;

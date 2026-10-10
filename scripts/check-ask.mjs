@@ -20,7 +20,7 @@ const dir = mkdtempSync(join(tmpdir(), "octo-ask-"));
 copyFileSync(join(ROOT, "convex", "words.ts"), join(dir, "words.ts"));
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { dossierFor, indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, keywords, scoreConcept, mergeEvidence, cardOf, planDossier, writeDossier, idOf, rankConcepts, FULL_CHARS, TITLE_CHARS, TITLE_MAX, MIN_OPEN, INDEX_SHORT, isCloser, threadOf } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { dossierFor, indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, keywords, scoreConcept, mergeEvidence, cardOf, planDossier, writeDossier, idOf, rankConcepts, FULL_CHARS, TITLE_CHARS, TITLE_MAX, MIN_OPEN, INDEX_SHORT, isCloser, threadOf, priorOf, checkSources, PRIOR_MAX } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -321,6 +321,37 @@ const tokens = s => Math.round(s.length / 4);
   const no = ["ok", "yes", "thanks, now change the price", "what is gold?", "", "thanks that is wrong", "yes thanks", "hello there general kenobi friend", "ok that helps"];
   check("thanks, a greeting and a goodbye are closers", yes.every(isCloser), yes.filter(x => !isCloser(x)).join(" | "));
   check("a bare ok or yes, a question and a request with thanks in it are not", no.every(x => !isCloser(x)), no.filter(isCloser).join(" | "));
+  const asks = ["Great, thanks. For 2025?", "Super, merci. Encore ?", "thanks for 3", "hi?", "¿hola gracias"];
+  check("a number or a question mark makes it a question, whatever thanks it holds", asks.every(x => !isCloser(x)), asks.filter(isCloser).join(" | "));
+}
+
+/* ---- a follow-up keeps its subject ---- */
+{
+  const ok = new Set(["w/a", "w/b", "w/c"]);
+  check("what the last answer opened is carried, only the ids the chat may read, each once", JSON.stringify(priorOf([{ q: "1", a: "x", opened: ["w/z"] }, { q: "2", a: "y", opened: ["w/b", "me/secret", "w/a", "w/b"] }], ok)) === JSON.stringify(["w/b", "w/a"]));
+  check("an older turn's ids are not: only the last answer's", priorOf([{ opened: ["w/a"] }, { q: "2", a: "y" }], ok).length === 0);
+  check("a thread sent as anything else carries nothing, never an error", priorOf(undefined, ok).length === 0 && priorOf("x", ok).length === 0 && priorOf([{ opened: "w/a" }], ok).length === 0 && priorOf([{ opened: [null, 5, { a: 1 }] }], ok).length === 0);
+  const many = new Set(Array.from({ length: 30 }, (_, i) => `w/n${i}`));
+  check(`at most ${PRIOR_MAX} are carried`, priorOf([{ opened: [...many] }], many).length === PRIOR_MAX);
+  const cs = ["a", "b", "c"].map((s, i) => ({ brain: "w", slug: s, n: i, title: `Topic ${s}`, summaryLine: "", position: "x", evidence: [{ author: "x", claim: "y" }], related: [] }));
+  const plan = planDossier([{ slug: "w", name: "W" }], cs, "and the second one?", [], { prior: ["w/c"] });
+  check("with no router, what the last answer opened opens: a follow-up with no words of its own still reads its subject", plan.lead[0] === cs[2], plan.lead.map(idOf).join(","));
+  const ran = planDossier([{ slug: "w", name: "W" }], cs, "something else entirely", [], { ran: true, routed: false, picked: [] });
+  check("a router that read the titles and picked none opens nothing, rather than the fullest concepts", ran.lead.length === 0, ran.lead.map(idOf).join(","));
+  const failed = planDossier([{ slug: "w", name: "W" }], cs, "something else entirely", [], {});
+  check("with no router at all, the fullest concepts still open as before", failed.lead.length === 3);
+}
+
+/* ---- the Sources line names only what was read ---- */
+{
+  const opened = [{ evidence: [{ author: "Aswath Damodaran", date: "2024-03-01" }, { author: "McKinsey & Company", date: "2023" }] }, { evidence: [{ author: "A" }] }];
+  const t = (line) => checkSources(`The answer.\n\n${line}`, opened);
+  check("an answer whose sources were all read is left as it was", t("Sources: Aswath Damodaran, 2024-03-01 - McKinsey, 2023") === "The answer.\n\nSources: Aswath Damodaran, 2024-03-01 - McKinsey, 2023");
+  check("a name written shorter still counts: Damodaran is Aswath Damodaran", t("Sources: Damodaran, March 3, 2024") === "The answer.\n\nSources: Damodaran, March 3, 2024");
+  check("an invented author goes, the others stay", t("Sources: Damodaran, 2024 - Invented Author, 2025 - A, 2026") === "The answer.\n\nSources: Damodaran, 2024 - A, 2026", t("Sources: Damodaran, 2024 - Invented Author, 2025 - A, 2026"));
+  check("a one-letter author is matched as a whole word, never inside another name", !/Invented/.test(t("Sources: Invented Author, 2025 - A, 2026")));
+  check("a line left with nothing goes whole, with the blank line before it", t("Sources: Nobody Real, 2024") === "The answer." && t("**Sources:** none") === "The answer.");
+  check("an answer with no Sources line, or with nothing opened, is handled", checkSources("Just this.", opened) === "Just this." && checkSources("x\n\nSources: Someone, 2024", []) === "x");
 }
 
 console.log(failures ? `\n${failures} failed` : "\nthe question finds its answer at any size");

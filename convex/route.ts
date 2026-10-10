@@ -23,7 +23,7 @@ Below is the question, the questions asked before it when there are any, and a n
 - Match on meaning, whatever language the question is in. The titles are in English.
 - Spell out abbreviations and jargon in your head: "P/E" is price to earnings, "amortissement" is depreciation.
 - Include a concept the answer builds on, not only the one named.
-- The earlier questions only resolve a reference like "that one" or "the second". The subject is the QUESTION's.
+- The earlier questions and the last answer only resolve a reference like "that one" or "the second". The subject is the QUESTION's.
 - Pick nothing when no title bears on the question. An empty list is a correct answer.
 - "terms" is the question rewritten as English search words: the subject, its synonyms, and abbreviations spelled out. Up to 12.
 
@@ -39,13 +39,15 @@ export async function routeQuestion(
   /* Three questions back, oldest first, so "compare it with the first one"
      still finds the first one. */
   const before = (Array.isArray(history) ? history : []).slice(-3).map((h: any) => String(h?.q ?? "").slice(0, 300)).filter(Boolean);
+  /* The start of the last answer, so "the second one" can point at what it listed. */
+  const lastA = String((Array.isArray(history) ? history : []).slice(-1)[0]?.a ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
   try {
     const { text, finish, usage } = await ask([
       { role: "system", content: "You route questions to the right entries of a knowledge base. You reply with JSON only." },
       { role: "user", content: `${ROUTE_RULES}
 
 QUESTION: ${q.slice(0, 600)}
-${before.length ? `ASKED BEFORE, oldest first:\n${before.map(x => `- ${x}`).join("\n")}\n` : ""}
+${before.length ? `ASKED BEFORE, oldest first:\n${before.map(x => `- ${x}`).join("\n")}\n` : ""}${lastA ? `THE LAST ANSWER BEGAN: ${lastA}\n` : ""}
 CONCEPTS (${index.ids.length}${index.total > index.ids.length ? ` of ${index.total}, the closest by wording` : ""})
 ${index.text}` },
     /* Temperature 0: the same question opens the same concepts each time.
