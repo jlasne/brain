@@ -581,6 +581,8 @@ export default defineSchema({
     /* Which read this is, so a new file replaces the old one whole. */
     ver: v.number(),
     at: v.number(),
+    /* What the file is, in one line, for the project's map of its files. */
+    line: v.optional(v.string()),
     /* What the project has learned about where things are: the words of a question (stems), the sections that answered it, how often, and when. A new file takes them away. */
     routes: v.optional(v.array(v.object({ t: v.array(v.string()), s: v.array(v.number()), n: v.number(), at: v.number(), q: v.optional(v.string()) }))),
   }).index("by_brain", ["brain"]),
@@ -597,6 +599,8 @@ export default defineSchema({
     chars: v.number(),
     /* A table's block: how many rows it holds. */
     rows: v.optional(v.number()),
+    /* The words the section is known by: its most used stems and its numbers, so a question in the project's other files finds it without reading it. */
+    keys: v.optional(v.array(v.string())),
   }).index("by_brain_ord", ["brain", "ord"])
     .index("by_brain_sid", ["brain", "sid"]),
 
@@ -630,7 +634,22 @@ export default defineSchema({
     stateAt: v.optional(v.number()),
     asks: v.optional(v.array(v.object({ id: v.string(), q: v.string(), at: v.number() }))),
     next: v.optional(v.boolean()),
+    /* The number the next extra file takes: files are numbered from 2 and a number is never used twice. */
+    nextFid: v.optional(v.number()),
   }).index("by_brain", ["brain"]),
+
+  /**
+   * The meaning of each section of a project's files, as numbers, so a question
+   * finds a section by what it says and not only by its words, in another
+   * language too. `base` is the project, so one search reads every file of it.
+   */
+  projectVectors: defineTable({
+    base: v.string(),
+    brain: v.string(),
+    sid: v.number(),
+    vec: v.array(v.float64()),
+  }).index("by_brain_sid", ["brain", "sid"])
+    .vectorIndex("by_vec", { vectorField: "vec", dimensions: 1024, filterFields: ["base"] }),
 
   /* A change the chat proposed to the file: what it would do, what it replaced
      once applied, so it can be undone. The last 10 stay. */

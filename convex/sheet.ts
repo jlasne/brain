@@ -46,6 +46,30 @@ export const ASK_CHARS = 160;
 /** The closing next step: one line. */
 export const NEXT_CHARS = 140;
 
+/**
+ * Several files in one project. The first file is kept under the project's own
+ * name; each other file is kept under `name~n`, and everything that reads or
+ * changes one file (its sections, its changes, its download) takes that key. A
+ * slug never holds a tilde, so a key is never taken for another project's.
+ */
+export const MAX_FILES = 30;
+export const KEY_RE = /^[a-z0-9][a-z0-9-]*(~\d{1,3})?$/;
+export const fileKey = (base: string, fid: number) => fid > 1 ? `${base}~${fid}` : base;
+export const splitKey = (key: string): { base: string; fid: number } => {
+  const [base, n] = String(key).split("~");
+  return { base, fid: n ? Number(n) : 1 };
+};
+/**
+ * A note names the sections it rests on by one number each. The first file
+ * keeps its plain numbers; file n's sections are numbered n * 100,000 + their
+ * own, so a note can rest on a section of any file.
+ */
+export const FILE_SPAN = 100000;
+export const pointerOf = (fid: number, sid: number) => fid > 1 ? fid * FILE_SPAN + sid : sid;
+/** The sections of one file among the numbers a note holds, by their own numbers. */
+export const localSids = (pointers: number[], fid: number): number[] =>
+  (pointers ?? []).filter(p => fid > 1 ? Math.floor(p / FILE_SPAN) === fid : p < FILE_SPAN).map(p => fid > 1 ? p - fid * FILE_SPAN : p);
+
 export type Part = { title: string; text: string };
 
 const headingOf = (line: string) => /^#{1,3}\s+\S/.test(line);

@@ -1887,13 +1887,30 @@
   .pj-t{ display:flex; align-items:center; gap:10px; min-width:0; flex:1 1 200px; }
   .pj-t h2{ min-width:0; font:600 16px/1.25 var(--sans); color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:text; }
   .pj-t h2:hover{ color:var(--accent); }
-  .pj-chip{ flex:0 1 auto; min-width:0; padding:3px 8px; border:1px solid var(--line-2); border-radius:999px; font:500 10.5px/1.2 var(--mono);
-    letter-spacing:.04em; text-transform:uppercase; color:var(--ink-4); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .pj-acts{ display:flex; flex-wrap:wrap; gap:7px; }
   .pj-b{ min-height:34px; padding:0 11px; border:1px solid var(--line-2); border-radius:8px; background:var(--surface);
     font:500 12.5px/1 var(--sans); color:var(--ink-2); white-space:nowrap; }
   .pj-b:hover{ border-color:var(--accent-fill); color:var(--accent); }
   .pj-b.bad:hover{ border-color:var(--bad); color:var(--bad); }
+  /* The files of a project: a tab each with the open one underlined, a plus for another file, and the open file's menu. */
+  .pj-files{ flex:none; display:flex; align-items:center; gap:2px; padding:0 10px 0 12px; border-bottom:1px solid var(--line); background:var(--bg); }
+  .pj-ftabs{ flex:1 1 auto; min-width:0; display:flex; gap:2px; overflow-x:auto; scrollbar-width:none; }
+  .pj-ftabs::-webkit-scrollbar{ display:none; }
+  .pj-ftabs.fade{ -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent); mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent); }
+  .pj-fc{ flex:none; display:flex; align-items:center; gap:7px; max-width:220px; min-height:40px; margin-bottom:-1px; padding:0 10px; border-bottom:2px solid transparent;
+    font:500 12.5px/1 var(--sans); color:var(--ink-3); white-space:nowrap; }
+  .pj-fc i{ display:flex; flex:none; }
+  .pj-fc .b-ic{ width:14px; height:14px; }
+  .pj-fc span{ min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .pj-fc:hover{ color:var(--ink); }
+  .pj-fc.on{ color:var(--ink); border-bottom-color:var(--accent); }
+  .pj-fc.half span{ font-style:italic; }
+  .pj-fp, .pj-fm{ flex:none; display:grid; place-items:center; width:32px; height:32px; border-radius:8px; color:var(--ink-3); }
+  .pj-fp:hover, .pj-fm:hover, .pj-fp[aria-expanded="true"], .pj-fm[aria-expanded="true"]{ background:var(--surface-3); color:var(--ink); }
+  .pj-fp svg, .pj-fm svg{ width:16px; height:16px; }
+  .pj-fp svg{ fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; }
+  .pj-fm svg{ fill:currentColor; }
+  .pj-ef{ padding:5px 12px 7px; font:500 11.5px/1.3 var(--sans); color:var(--ink-3); overflow-wrap:anywhere; }
   .pj-body{ flex:1; min-height:0; overflow-y:auto; }
   .pj-body.tbl{ display:flex; flex-direction:column; overflow:hidden; }
 
@@ -2098,8 +2115,10 @@
     .pj-h{ padding:8px 12px; gap:6px 8px; min-height:0; }
     .pj-t{ flex:1 1 100%; }
     .pj-t h2{ font-size:15px; }
-    .pj-chip{ display:none; }
     .pj-acts{ flex:1 1 100%; gap:5px; }
+    .pj-files{ padding:0 6px 0 8px; }
+    .pj-fc{ max-width:46vw; min-height:42px; }
+    .pj-fp, .pj-fm{ width:36px; height:36px; }
     .pj-b{ min-height:36px; padding:0 8px; font-size:12px; }
     .pj-view button{ min-height:36px; padding:0 9px; font-size:12px; }
     /* The file. */
@@ -7921,12 +7940,12 @@ function cutText(t, max){
 }
 
 /** The file sent to the server a piece at a time. `step` says where it stands. */
-async function uploadProject(slug, got, step){
+async function uploadProject(key, got, step){
   /* What a project holds is said before the first piece goes, not after most of them have. */
   if (got.kind !== "table" && got.text.length > 12000000) throw new Error(`${got.name} is longer than a project reads: about 4,000 pages.`);
   if (got.kind === "table" && got.sheets.reduce((n, s) => n + s.rows.reduce((a, r) => a + r.reduce((b, c) => b + c.length + 1, 0), 0), 0) > 6000000)
     throw new Error(`${got.name} is bigger than a project reads: about 40,000 rows of 10 columns.`);
-  const begin = await api("/api/project/begin", { brain: slug, name: got.name, kind: got.kind,
+  const begin = await api("/api/project/begin", { brain: key, name: got.name, kind: got.kind,
     ...(got.kind === "table" ? { sheets: got.sheets.map(s => ({ name: s.name, header: s.header })) } : {}) });
   if (got.kind !== "table"){
     const pieces = cutText(got.text, PJ_PIECE);
@@ -7934,7 +7953,7 @@ async function uploadProject(slug, got, step){
     let page = 0;
     for (let i = 0; i < pieces.length; i++){
       step(pieces.length > 1 ? `Cutting it in sections: part ${i + 1} of ${pieces.length}` : "Cutting it in sections");
-      await api("/api/project/part", { brain: slug, ver: begin.ver, text: pieces[i], page });
+      await api("/api/project/part", { brain: key, ver: begin.ver, text: pieces[i], page });
       const last = [...pieces[i].matchAll(/^\[\[p\. (\d+)\]\]$/gm)].pop();
       if (last) page = Number(last[1]);
     }
@@ -7944,13 +7963,13 @@ async function uploadProject(slug, got, step){
         let n = 0, chars = 0;
         while (at + n < s.rows.length && n < PJ_ROWS && chars < 150000){ chars += s.rows[at + n].reduce((a, c) => a + c.length + 1, 0); n++; }
         step(`Storing ${s.name}: rows ${at + 1} to ${at + n} of ${s.rows.length}`);
-        await api("/api/project/part", { brain: slug, ver: begin.ver, sheet: si, rows: s.rows.slice(at, at + n) });
+        await api("/api/project/part", { brain: key, ver: begin.ver, sheet: si, rows: s.rows.slice(at, at + n) });
         at += n;
       }
     }
   }
   step("Counting what each column holds");
-  return await api("/api/project/finish", { brain: slug, ver: begin.ver });
+  return await api("/api/project/finish", { brain: key, ver: begin.ver });
 }
 
 /* ---- the side panel ---- */
@@ -7967,7 +7986,8 @@ function renderProjects(){
     const row = el("button","brain-row self pj-row" + (S.project === p.slug ? " on" : "") + (p.status === "reading" ? " run" : ""));
     const tick = el("span","tick"); tick.innerHTML = pjIcon(p.kind);
     row.append(tick, el("span","nm",p.name), el("span","cnt", p.status === "reading" ? "reading" : p.memory ? String(p.memory) : ""));
-    row.title = p.file ? `${p.file}\n${!p.chars ? "Empty: describe it in the chat" : p.kind === "table" ? "A table" : p.kind === "html" ? "A page" : p.sections + " sections"}, ${p.memory} kept in memory` : "No file yet: describe it in the chat";
+    row.title = p.files > 1 ? `${p.files} files, ${p.memory} kept in memory`
+      : p.file ? `${p.file}\n${!p.chars ? "Empty: describe it in the chat" : p.kind === "table" ? "A table" : p.kind === "html" ? "A page" : p.sections + " sections"}, ${p.memory} kept in memory` : "No file yet: describe it in the chat";
     row.onclick = () => openProject(p.slug);
     box.append(row);
   }
@@ -7979,7 +7999,7 @@ async function openProject(slug){
   closeSide();
   document.querySelector(".veil.pm")?.remove();
   S.folder = null; S.mode = "ask"; S.project = slug;
-  S.pj = { slug, data: null, seg: "chat", sheet: 0, busy: false, marks: null };
+  S.pj = { slug, data: null, seg: "chat", sheet: 0, busy: false, marks: null, fid: 1 };
   render(); paintProject();
   try { await loadProject(); }
   catch (e){
@@ -7990,9 +8010,28 @@ async function openProject(slug){
     err.append(again); host.append(err);
   }
 }
+/**
+ * A project holds several files. The first is kept under the project's name and the others under `name~n`; every call about one file
+ * (its sections, its rows, its changes, its download, its gaps, reading it in) takes that key. The thread, the memory and the Brief
+ * are the project's, and take its name.
+ */
+const fileKeyOf = (slug, fid) => fid > 1 ? `${slug}~${fid}` : slug;
+const pjKey = () => fileKeyOf(S.pj.slug, S.pj.fid || 1);
+/** What a call that opens the project says of the open file: its number, when it is not the first. */
+const pjOpen = () => (S.pj.fid || 1) > 1 ? { file: S.pj.fid } : {};
+
 async function loadProject(){
-  const pj = S.pj, d = await api("/api/project/get", { brain: pj.slug });
+  const pj = S.pj;
+  let d;
+  try { d = await api("/api/project/get", { brain: pj.slug, ...pjOpen() }); }
+  catch (e){
+    /* A file that is gone: the first one opens instead. */
+    if (pj.fid > 1 && /not in this project/.test(e.message) && S.pj === pj){ pj.fid = 1; return loadProject(); }
+    throw e;
+  }
   if (S.pj !== pj) return;
+  /* The first file taken out, others left: the first of those opens. */
+  if (!d.file && d.files?.length && (pj.fid || 1) === 1 && d.files[0].id !== 1){ pj.fid = d.files[0].id; return loadProject(); }
   pj.data = d;
   /* A file not finished opens on the file side, where the drop is. A project with no file opens on its chat, where it is described. */
   if (d.file && d.file.status !== "ready") pj.seg = "doc";
@@ -8047,7 +8086,6 @@ function docPane(){
   const h = el("div","pj-h"), t = el("div","pj-t");
   const title = el("h2",null,d.project.name); title.title = "Rename the project"; title.onclick = renameProject;
   t.append(title);
-  if (f) t.append(el("span","pj-chip",f.name));
   h.append(t);
   const acts = el("div","pj-acts");
   const btn = (label, fn, cls) => { const b = el("button","pj-b" + (cls ? " " + cls : ""),label); b.type = "button"; b.onclick = fn; acts.append(b); return b; };
@@ -8066,8 +8104,10 @@ function docPane(){
   if (!f) btn("Add a file", () => chooseFile());
   if (written) btn("Gaps", e => openGaps(e.currentTarget)).setAttribute("aria-haspopup", "menu");
   if (written) btn("Download", e => openDownload(e.currentTarget)).setAttribute("aria-haspopup", "menu");
-  btn("Delete", deleteProject, "bad");
+  btn("Delete", deleteProject, "bad").title = "Delete the project with all its files";
   h.append(acts); pane.append(h);
+  /* The files the project holds: one is open, and the chat changes that one. */
+  if (pjFiles().length) pane.append(fileStrip());
   const body = el("div","pj-body"); pj.body = body; pane.append(body);
   if (!f || !ready) body.append(dropZone(f));
   else if (!written) body.append(emptyFile(f));
@@ -8075,6 +8115,175 @@ function docPane(){
   else if (f.kind === "html") paintPage(body);
   else paintPaper(body);
   return pane;
+}
+
+/* ---- the files of a project ---- */
+
+/** The files the project holds, the first one leading. A server older than this page sends the open file alone. */
+function pjFiles(){
+  const d = S.pj?.data; if (!d) return [];
+  return d.files?.length ? d.files : d.file ? [{ id: d.file.id || 1, name: d.file.name, kind: d.file.kind, status: d.file.status }] : [];
+}
+
+/** A tab for each file with the open one marked, a plus for another file, and the open file's own menu. */
+function fileStrip(){
+  const pj = S.pj, files = pjFiles(), open = pj.fid || 1;
+  const strip = el("div","pj-files"); strip.setAttribute("role","group"); strip.setAttribute("aria-label","Files of the project");
+  const tabs = el("div","pj-ftabs");
+  for (const f of files){
+    const b = el("button","pj-fc" + (f.id === open ? " on" : "") + (f.status !== "ready" ? " half" : "")); b.type = "button"; b.dataset.fid = String(f.id);
+    b.title = f.status !== "ready" ? `${f.name} (not finished)` : f.name;
+    if (f.id === open) b.setAttribute("aria-current","true");
+    const ic = el("i"); ic.innerHTML = pjIcon(f.kind);
+    b.append(ic, el("span",null,f.name));
+    b.onclick = () => openFile(f.id);
+    tabs.append(b);
+  }
+  strip.append(tabs);
+  const plus = el("button","pj-fp"); plus.type = "button"; plus.id = "pjFilePlus"; plus.setAttribute("aria-label","Add a file"); plus.setAttribute("aria-haspopup","menu"); plus.title = "Add a file, or make a new one";
+  plus.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>`;
+  plus.onclick = () => openAddMenu(plus);
+  const more = el("button","pj-fm"); more.type = "button"; more.id = "pjFileMore"; more.setAttribute("aria-label","Rename or remove the open file"); more.setAttribute("aria-haspopup","menu"); more.title = "Rename or remove this file";
+  more.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.5" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="12.5" cy="8" r="1.2"/></svg>`;
+  more.onclick = () => openFileMenu(more);
+  strip.append(plus, more);
+  /* A strip longer than its room shows the open tab, and fades at the edge where more tabs wait. */
+  const fade = () => tabs.classList.toggle("fade", tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 2);
+  tabs.onscroll = fade;
+  setTimeout(() => { const on = tabs.querySelector(".on"); if (on && tabs.scrollWidth > tabs.clientWidth) tabs.scrollLeft = Math.max(0, on.offsetLeft - 24); fade(); }, 0);
+  return strip;
+}
+
+/** A call about the project's files. A server older than this page has no such route, and answers with something unreadable. */
+async function fileCall(body){
+  const pj = S.pj;
+  try { return await api("/api/project/file", { brain: pj.slug, ...body }); }
+  catch (e){ throw new Error(/unreadable/.test(e.message) ? "The server is older than this page and cannot hold several files yet. Run convex deploy." : e.message); }
+}
+
+/** A file of the project opens on the left. From then on the chat changes that one. */
+async function showFile(fid){
+  const pj = S.pj; if (!pj?.data) return;
+  const was = pj.fid || 1;
+  pj.fid = fid; pj.marks = null; pj.sheet = 0; pj.view = undefined;
+  try { await refreshFile(); }
+  catch (e){ if (S.pj === pj){ pj.fid = was; pjNote(e.message); } }
+}
+function openFile(fid){ if (S.pj?.data && fid !== (S.pj.fid || 1)) return showFile(fid); }
+
+/** The open file's menu: its name, or its removal. */
+function openFileMenu(anchor){
+  if (!S.pj?.data?.file) return;
+  popMenu(anchor, "This file", menu => {
+    for (const [k, label, fn] of [["rename", "Rename", renameFile], ["remove", "Remove", removeFile]]){
+      const b = el("button"); b.type = "button"; b.dataset.act = k; b.setAttribute("role","menuitem");
+      b.append(el("b",null,label));
+      b.onclick = () => { closeDownload(); fn(); };
+      menu.append(b);
+    }
+  });
+}
+/** The plus: a file you have, or a blank document, table or page to describe in the chat. */
+function openAddMenu(anchor){
+  popMenu(anchor, "Add to the project", menu => {
+    for (const [k, label, hint] of [["add","Add a file","Word, PDF, Excel"], ["doc","New document","blank"], ["table","New table","blank"], ["html","New page","blank"]]){
+      const b = el("button"); b.type = "button"; b.dataset.add = k; b.setAttribute("role","menuitem");
+      b.append(el("b",null,label), el("span",null,hint));
+      b.onclick = () => { closeDownload(); if (k === "add") chooseMore(); else newFile(k); };
+      menu.append(b);
+    }
+  });
+}
+
+/** A file picked to join the project's others. */
+function chooseMore(){ pickFile(PJ_FILES, file => addFile(file)); }
+/** A file read here and filed in sections as a file of its own. A file that cannot be read makes none. */
+async function addFile(file){
+  const pj = S.pj; if (!pj?.data) return;
+  const sh = progressSheet(`Reading ${file.name}`);
+  let made = null;
+  try {
+    const got = await readProjectFile(file, sh.say);
+    made = await fileCall({ action: "new", kind: got.kind, name: got.name, made: false });
+    await uploadProject(made.key, got, sh.say);
+    sh.close();
+    await syncProjects();
+    if (S.pj === pj) await showFile(made.fid);
+  } catch (e){
+    sh.fail(made ? `${e.message} The file is in the strip: open it to add it again.` : e.message);
+    await syncProjects();
+    if (made && S.pj === pj) await showFile(made.fid);
+  }
+}
+
+/** A blank document, table or page, made at once. The chat waits for its description. */
+async function newFile(kind){
+  const pj = S.pj; if (!pj?.data) return;
+  const taken = new Set(pjFiles().map(f => String(f.name).toLowerCase()));
+  let name = `New ${pjNoun(kind)}`, i = 1;
+  while (taken.has(name.toLowerCase())) name = `New ${pjNoun(kind)} ${++i}`;
+  try {
+    const made = await fileCall({ action: "new", kind, name });
+    await syncProjects();
+    if (S.pj !== pj) return;
+    await showFile(made.fid);
+    showChat();
+  } catch (e){ pjNote(e.message); }
+}
+
+/** A file's name: a sheet with one field. */
+function renameFile(){
+  const pj = S.pj, f = pj.data.file; if (!f) return;
+  const veil = el("div","veil");
+  veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rfTitle">
+    <header><h3 id="rfTitle">Rename the file</h3></header>
+    <div class="f"><label for="rfName">Name</label><input id="rfName" autocomplete="off" maxlength="120"></div>
+    <div class="bad" id="rfBad"></div>
+    <footer><button class="ghost" id="rfCancel">Cancel</button><button class="go" id="rfSave">Save</button></footer></div>`;
+  document.body.append(veil);
+  const inp = veil.querySelector("#rfName"), bad = veil.querySelector("#rfBad"), save = veil.querySelector("#rfSave");
+  inp.value = f.name;
+  const shut = () => veil.remove();
+  const run = async () => {
+    const name = inp.value.trim(); if (!name) return;
+    save.disabled = true;
+    try { await fileCall({ action: "rename", file: pj.fid || 1, name }); shut(); if (S.pj === pj){ await refreshFile(); } }
+    catch (e){ save.disabled = false; bad.textContent = e.message; }
+  };
+  save.onclick = run; inp.onkeydown = e => { if (e.key === "Enter") run(); if (e.key === "Escape") shut(); };
+  veil.querySelector("#rfCancel").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  setTimeout(() => { inp.focus(); inp.select(); }, 30);
+}
+
+/** A file taken out of the project: its sections, its changes and the notes that rest on it. The other files stay. */
+function removeFile(){
+  const pj = S.pj, f = pj.data.file; if (!f) return;
+  const fid = pj.fid || 1, others = pjFiles().filter(x => x.id !== fid);
+  const veil = el("div","veil");
+  veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rmTitle">
+    <header><h3 id="rmTitle"></h3><p>Its sections and its changes go, and the notes that rest on it are marked as possibly outdated. ${others.length ? "The other files stay." : "The project stays, with no file."} This cannot be undone.</p></header>
+    <div class="bad" id="rmBad"></div>
+    <footer><button class="ghost" id="rmCancel">Cancel</button><button class="go" id="rmYes">Remove the file</button></footer></div>`;
+  veil.querySelector("#rmTitle").textContent = `Remove ${f.name}?`;
+  document.body.append(veil);
+  const yes = veil.querySelector("#rmYes"), bad = veil.querySelector("#rmBad"), shut = () => veil.remove();
+  yes.onclick = async () => {
+    yes.disabled = true; yes.textContent = "Removing";
+    try {
+      await fileCall({ action: "remove", file: fid });
+      shut();
+      if (S.pj !== pj) return;
+      /* The file before it opens, or the next, or the first one that is left. */
+      const files = pjFiles(), at = files.findIndex(x => x.id === fid);
+      const next = files[at - 1] || files[at + 1];
+      pj.fid = next ? next.id : 1; pj.marks = null; pj.sheet = 0; pj.view = undefined;
+      await refreshFile();
+      refreshMemory();
+    } catch (e){ yes.disabled = false; yes.textContent = "Remove the file"; bad.textContent = e.message; }
+  };
+  veil.querySelector("#rmCancel").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
 }
 
 /** A file made here and not written yet: what to do, and a way to start. */
@@ -8107,7 +8316,7 @@ function applyView(){
 async function loadPage(){
   const pj = S.pj, w = pj?.web; if (!w) return;
   try {
-    const r = await api("/api/project/download", { brain: pj.slug });
+    const r = await api("/api/project/download", { brain: pjKey() });
     if (S.pj !== pj || pj.web !== w) return;
     w.frame.srcdoc = r.text; w.code.textContent = r.text;
   } catch (e){ w.code.textContent = e.message; pj.view = "code"; applyView(); }
@@ -8122,7 +8331,7 @@ function dropZone(f){
   z.append(b);
   z.ondragover = e => { e.preventDefault(); z.classList.add("over"); };
   z.ondragleave = () => z.classList.remove("over");
-  z.ondrop = e => { e.preventDefault(); z.classList.remove("over"); const file = e.dataTransfer?.files?.[0]; if (file) fillProject(S.pj.slug, file); };
+  z.ondrop = e => { e.preventDefault(); z.classList.remove("over"); const file = e.dataTransfer?.files?.[0]; if (file) fillProject(S.pj.slug, file, S.pj.fid || 1); };
   return z;
 }
 
@@ -8142,7 +8351,7 @@ async function loadSections(o = {}){
   if (!pj?.page || pj.docBusy) return;
   pj.docBusy = true;
   try {
-    const r = await api("/api/project/doc", { brain: pj.slug, n: 3, ...(o.sid != null ? { sid: o.sid } : { from: pj.docLast }) });
+    const r = await api("/api/project/doc", { brain: pjKey(), n: 3, ...(o.sid != null ? { sid: o.sid } : { from: pj.docLast }) });
     if (S.pj !== pj) return;
     if (o.replace){ pj.page.innerHTML = ""; pj.docEnd = false; }
     for (const s of r.sections){
@@ -8200,7 +8409,7 @@ async function loadRows(o = {}){
   g.busy = true;
   try {
     const from = o.from ?? g.last + 1;
-    const r = await api("/api/project/rows", { brain: pj.slug, sheet: g.sheet, from, n: 100 });
+    const r = await api("/api/project/rows", { brain: pjKey(), sheet: g.sheet, from, n: 100 });
     if (S.pj !== pj || pj.grid !== g) return;
     if (o.replace) g.tb.innerHTML = "";
     for (const row of r.rows){
@@ -8269,6 +8478,8 @@ function applyMarks(){
 /** Show what an answer used: its sections and quotes, or its rows, marked and brought into view. */
 async function focusUsed(t, scroll){
   const pj = S.pj, u = t?.used?.file; if (!pj || !u) return;
+  /* Sections and rows are numbered in their own file: an answer about another file marks nothing in this one. */
+  if ((t.file || 1) !== (pj.fid || 1)){ pj.marks = null; applyMarks(); return; }
   pj.marks = { sids: new Set((u.sections || []).map(s => s.sid)), rows: new Set(u.rows || []), quotes: t.quotes || [] };
   const f = pj.data.file;
   if (f?.kind === "table" && u.rows?.length){
@@ -8328,8 +8539,8 @@ function askHint(f){
   const small = window.matchMedia("(max-width: 860px)").matches;
   if (!f) return small ? "Describe it. @ names a folder." : "Describe a document, a table or a page to make. Your folders are read when they help.";
   if (f.status !== "ready") return small ? "Drop the file again first." : "Drop the file again first, then ask about it here.";
-  const n = pjNoun(f.kind);
-  return f.chars ? (small ? "Ask, or change. @ names a folder." : `Ask about the ${n}, or ask for a change. Your folders are read when they help. Type @ to name one.`)
+  const n = pjNoun(f.kind), several = pjFiles().length > 1;
+  return f.chars ? (small ? "Ask, or change. @ names a folder." : several ? `Ask about the ${n}, or ask for a change. The other files and your folders are read when they help. Type @ to name one.` : `Ask about the ${n}, or ask for a change. Your folders are read when they help. Type @ to name one.`)
     : (small ? `Describe the ${n} you want.` : `Describe the ${n} you want. It is written here, then changed as you go.`);
 }
 
@@ -8422,7 +8633,7 @@ function turnEl(t){
 async function sendProject(q){
   const pj = S.pj; if (!pj || pj.busy) return;
   pj.busy = true; pj.size();
-  const hadFile = !!pj.data.file;
+  const hadFile = !!pj.data.file, sentFid = pj.fid || 1;
   const box = pj.thread;
   box.querySelector(".pj-hint")?.remove(); box.querySelector(".pj-try")?.remove();
   const w = el("div","pj-turn"); w.append(el("div","pj-q",q));
@@ -8430,18 +8641,23 @@ async function sendProject(q){
   box.append(w); box.scrollTop = box.scrollHeight;
   try {
     const tags = tagsIn(q, tagChoices(false));
-    const r = await api("/api/project/chat", { brain: pj.slug, q, ...(tags.length ? { tags } : {}) });
+    const r = await api("/api/project/chat", { brain: pj.slug, q, ...pjOpen(), ...(tags.length ? { tags } : {}) });
     if (S.pj !== pj) return;
     pj.data.turns = [...pj.data.turns, r.turn].slice(-4);
     /* What the chat now waits to hear, and what this message closed: known before the answer is drawn, so its buttons are right. */
     if (r.turn.answered?.length) pj.data.asks = (pj.data.asks || []).filter(x => !r.turn.answered.includes(x.id));
     if (r.turn.asks?.length) pj.data.asks = [...(pj.data.asks || []).filter(x => !r.turn.asks.some(y => y.id === x.id)), ...r.turn.asks.map(x => ({ ...x, at: Date.now() }))].slice(-8);
-    if (r.turn.edit) pj.data.edits = [{ id: r.turn.edit.id, at: Date.now(), status: r.turn.edit.status || "open", preview: r.turn.edit.preview }, ...pj.data.edits].slice(0, 10);
+    /* The answer is about the file that was open when the message went; if another opened since, its changes are kept apart. */
+    const same = sentFid === (pj.fid || 1);
+    if (r.turn.edit){
+      if (same) pj.data.edits = [{ id: r.turn.edit.id, at: Date.now(), status: r.turn.edit.status || "open", preview: r.turn.edit.preview }, ...pj.data.edits].slice(0, 10);
+      else (pj.data.editState ||= {})[r.turn.edit.id] = r.turn.edit.status || "open";
+    }
     w.replaceWith(turnEl(r.turn));
     /* A change applied, or a file the first description just made: the file side follows. */
-    if (r.turn.edit?.status === "applied" || (!hadFile && r.turn.edit)) { try { await refreshFile(); } catch { /* the page catches up at the next look */ } }
+    if (same && (r.turn.edit?.status === "applied" || (!hadFile && r.turn.edit))) { try { await refreshFile(); } catch { /* the page catches up at the next look */ } }
     if (r.turn.noted?.length || r.turn.stated || r.turn.asks?.length || r.turn.answered?.length) refreshMemory();
-    focusUsed(r.turn, false);
+    if (same) focusUsed(r.turn, false);
   } catch (e){
     if (S.pj !== pj) return;
     a.innerHTML = "";
@@ -8458,7 +8674,7 @@ async function sendProject(q){
 async function refreshMemory(){
   const pj = S.pj; if (!pj) return;
   try {
-    const d = await api("/api/project/get", { brain: pj.slug });
+    const d = await api("/api/project/get", { brain: pj.slug, ...pjOpen() });
     if (S.pj !== pj) return;
     pj.data.memory = d.memory; pj.data.shortcuts = d.shortcuts || [];
     pj.data.brief = d.brief ?? null; pj.data.state = d.state ?? null; pj.data.asks = d.asks || []; pj.data.next = d.next !== false;
@@ -8537,9 +8753,13 @@ function openMemory(opts = {}){
   veil.querySelector("#pmClose").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
   const named = new Map((pj.data.cards || []).map(c => [c.sid, c.title]));
+  /* A note names a section by one number that tells its file: the sections of the first file by their own numbers, those of the others by file * 100000 + number. */
+  const openFid = pj.fid || 1;
+  const restsAt = p => (p >= 100000 ? Math.floor(p / 100000) : 1) === openFid ? named.get(p >= 100000 ? p % 100000 : p)
+    : pjFiles().find(f => f.id === (p >= 100000 ? Math.floor(p / 100000) : 1))?.name;
   /* Where a note rests in the file, and whether the file changed there since. */
   const metaOf = m => {
-    const rests = (m.sections || []).map(sid => named.get(sid)).filter(Boolean);
+    const rests = [...new Set((m.sections || []).map(restsAt).filter(Boolean))];
     return [m.title === "The file" ? "From the file" : "", m.instructions ? "From the instructions" : "", rests.length ? `In ${rests.slice(0, 2).join(", ")}${rests.length > 2 ? ` +${rests.length - 2}` : ""}` : "",
       m.stale ? "The file changed since" : "", fileDay(m.updated, true)].filter(Boolean).join(" · ");
   };
@@ -8765,9 +8985,12 @@ function openMemory(opts = {}){
 
 function editCard(t){
   const pj = S.pj;
-  const e = pj.data.edits.find(x => x.id === t.edit.id) || { id: t.edit.id, status: t.edit.status || "open", preview: t.edit.preview };
+  /* A change belongs to the file it was made for, which may not be the one open now. */
+  const efid = t.file || 1, here = efid === (pj.fid || 1), key = fileKeyOf(pj.slug, efid);
+  const e = (here && pj.data.edits.find(x => x.id === t.edit.id)) || { id: t.edit.id, status: (!here && pj.data.editState?.[t.edit.id]) || t.edit.status || "open", preview: t.edit.preview };
   const c = el("div","pj-edit " + e.status);
-  c.append(el("div","pj-ek", { open: "Proposed change", applied: "Applied", undone: "Undone", dismissed: "Turned down" }[e.status] || e.status));
+  c.append(el("div","pj-ek", { open: "Proposed change", applied: "Applied", undone: "Undone", dismissed: "Turned down", gone: "Earlier change" }[e.status] || e.status));
+  if (!here){ const fl = pjFiles().find(x => x.id === efid); if (fl) c.append(el("div","pj-ef",`In ${fl.name}`)); }
   for (const p of e.preview || []){
     const l = el("div","pj-ed"); l.append(el("b",null,p.label));
     if (p.before) l.append(el("del",null,p.before));
@@ -8778,17 +9001,20 @@ function editCard(t){
     btns.forEach(b => { b.disabled = true; });
     c.querySelector(".pj-msg")?.remove();
     try {
-      await api("/api/project/edit", { brain: pj.slug, id: e.id, action });
+      await api("/api/project/edit", { brain: key, id: e.id, action });
       e.status = action === "apply" ? "applied" : action === "undo" ? "undone" : "dismissed";
-      const known = pj.data.edits.find(x => x.id === e.id); if (known) known.status = e.status; else pj.data.edits.unshift(e);
+      (pj.data.editState ||= {})[e.id] = e.status;
+      if (here){ const known = pj.data.edits.find(x => x.id === e.id); if (known) known.status = e.status; else pj.data.edits.unshift(e); }
       c.replaceWith(editCard(t));
-      if (action !== "dismiss") await refreshFile();
+      /* The open file is read again when the change was to it; a change to another file shows when that file opens. */
+      if (action !== "dismiss" && here) await refreshFile();
     } catch (err){
       btns.forEach(b => { b.disabled = false; });
       c.append(el("div","pj-msg",err.message));
     }
   };
-  if (e.status === "open"){
+  if (e.status === "gone"){ /* the change is no longer kept: nothing to press */ }
+  else if (e.status === "open"){
     const row = el("div","pj-tact"), yes = el("button","go","Apply"), no = el("button","ghost","Turn down");
     yes.type = no.type = "button";
     yes.onclick = () => act("apply", [yes, no]); no.onclick = () => act("dismiss", [yes, no]);
@@ -8800,17 +9026,33 @@ function editCard(t){
   }
   return c;
 }
+/** The cards of changes follow the open file: a change made to another file says which one, and offers only what the server says is still possible. */
+function repaintEdits(){
+  const pj = S.pj; if (!pj?.thread) return;
+  for (const t of pj.data.turns){
+    if (!t.edit) continue;
+    const old = [...pj.thread.querySelectorAll(".pj-turn")].find(w => w.dataset.id === String(t.id))?.querySelector(".pj-edit");
+    if (old) old.replaceWith(editCard(t));
+  }
+}
 /** The file read again after a change, so the page shows what it holds now. */
 async function refreshFile(){
   const pj = S.pj; if (!pj) return;
-  const d = await api("/api/project/get", { brain: pj.slug });
+  let d;
+  try { d = await api("/api/project/get", { brain: pj.slug, ...pjOpen() }); }
+  catch (e){ if (pj.fid > 1 && /not in this project/.test(e.message) && S.pj === pj){ pj.fid = 1; return refreshFile(); } throw e; }
   if (S.pj !== pj) return;
-  pj.data.file = d.file; pj.data.cards = d.cards; pj.data.edits = d.edits;
+  /* The first file taken out, others left: the first of those opens. */
+  if (!d.file && d.files?.length && (pj.fid || 1) === 1 && d.files[0].id !== 1){ pj.fid = d.files[0].id; return refreshFile(); }
+  pj.data.file = d.file; pj.data.cards = d.cards; pj.data.edits = d.edits; pj.data.files = d.files || []; pj.data.shortcuts = d.shortcuts || [];
+  pj.data.editState = { ...(pj.data.editState || {}), ...(d.editState || {}) };
+  pj.marks = null; pj.sheet = Math.min(pj.sheet || 0, Math.max(0, (d.file?.sheets?.length || 1) - 1));
   const old = pj.root?.querySelector(".pj-doc");
   if (old) old.replaceWith(docPane());
   const first = pj.root?.querySelector(".pj-seg")?.children[0];
   if (first) first.textContent = pjSeg(pj.data.file);
   if (pj.input) pj.input.placeholder = askHint(pj.data.file);
+  repaintEdits();
   syncProjects();
 }
 
@@ -8844,7 +9086,7 @@ function deleteProject(){
   const pj = S.pj, name = pj.data.project.name;
   const veil = el("div","veil");
   veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pdTitle">
-    <header><h3 id="pdTitle">Delete ${esc(name)}?</h3><p>Its file, its memory, its chat and its changes go. This cannot be undone.</p></header>
+    <header><h3 id="pdTitle">Delete ${esc(name)}?</h3><p>${pjFiles().length > 1 ? "Its files" : "Its file"}, its memory, its chat and its changes go. This cannot be undone.</p></header>
     <div class="bad" id="pdBad"></div>
     <footer><button class="ghost" id="pdCancel">Cancel</button><button class="go" id="pdYes">Delete the project</button></footer></div>`;
   document.body.append(veil);
@@ -8927,7 +9169,7 @@ async function openGaps(anchor){
   if (dlMenu?.anchor === anchor){ closeDownload(); return; }
   anchor.disabled = true;
   let r;
-  try { r = await api("/api/project/gaps", { brain: pj.slug }); }
+  try { r = await api("/api/project/gaps", { brain: pjKey() }); }
   catch (e){ r = { error: /unreadable/.test(e.message) ? "The server is older than this page and cannot look for gaps yet. Run convex deploy." : e.message }; }
   finally { anchor.disabled = false; }
   if (S.pj !== pj) return;
@@ -9010,13 +9252,13 @@ async function downloadAs(fmt){
       await loadXlsx();
       const sheets = [];
       for (let i = 0; i < f.sheets.length; i++){
-        const r = await api("/api/project/download", { brain: pj.slug, sheet: i });
+        const r = await api("/api/project/download", { brain: pjKey(), sheet: i });
         sheets.push({ name: r.sheet || f.sheets[i].name, rows: parseDelimited(r.text, ",") });
       }
       saveBlob(xlsxBlob(sheets), `${String(f.name).replace(/\.[^.]+$/, "")}.xlsx`);
       return;
     }
-    const r = await api("/api/project/download", { brain: pj.slug, sheet: table ? pj.sheet : 0 });
+    const r = await api("/api/project/download", { brain: pjKey(), sheet: table ? pj.sheet : 0 });
     const base = String(r.name).replace(/\.[^.]+$/, ""), part = table && f.sheets.length > 1 ? ` - ${r.sheet}` : "";
     const save = (text, type, name) => saveBlob(new Blob([text], { type: `${type};charset=utf-8` }), name);
     if (fmt === "csv") save(r.text, "text/csv", `${base}${part}.csv`);
@@ -9359,7 +9601,7 @@ function pickFile(accept, then){
 }
 
 /** A file picked for the open project: read here, filed in sections. */
-function chooseFile(){ pickFile(PJ_FILES, file => fillProject(S.pj.slug, file)); }
+function chooseFile(){ pickFile(PJ_FILES, file => fillProject(S.pj.slug, file, S.pj.fid || 1)); }
 
 /* A resource is sent in pieces of what one call reads, up to 5 of them. */
 const RES_PIECE = 20000, RES_PIECES = 5, RES_CHARS = RES_PIECE * RES_PIECES;
@@ -9460,12 +9702,12 @@ function progressSheet(title){
   return { say: t => { step.textContent = t; tabTitle(t.startsWith("Reading") ? "Reading" : ""); }, fail: msg => { step.textContent = ""; bad.textContent = msg; foot.hidden = false; tabTitle(""); }, close: () => { veil.remove(); tabTitle(""); } };
 }
 
-/** Read a file and fill a project with it. */
-async function fillProject(slug, file){
+/** Read a file and fill a project's file with it: the first by default, or the one numbered. */
+async function fillProject(slug, file, fid = 1){
   const sh = progressSheet(`Reading ${file.name}`);
   try {
     const got = await readProjectFile(file, sh.say);
-    await uploadProject(slug, got, sh.say);
+    await uploadProject(fileKeyOf(slug, fid), got, sh.say);
     sh.close();
     await syncProjects();
     if (S.project === slug){ S.pj.marks = null; S.pj.sheet = 0; S.pj.data = null; paintProject(); await loadProject(); }

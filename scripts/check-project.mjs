@@ -165,6 +165,7 @@ const space = await build("space");
 const graph = await build("graph");
 const words = await build("words");
 const gaps = await build("gaps");
+const find = await build("find");
 const http = await build("http");
 process.env.OPENROUTER_API_KEY = "test-key";
 
@@ -175,9 +176,13 @@ function makeCtx() {
   const query = t => {
     const conds = [];
     const api = {
-      withIndex(_n, fn) { const q = { eq(f, v) { conds.push([f, v]); return q; } }; if (fn) fn(q); return api; },
+      withIndex(_n, fn) {
+        const q = { eq(f, v) { conds.push([f, v]); return q; }, gte(f, v) { conds.push([f, x => x >= v]); return q; }, gt(f, v) { conds.push([f, x => x > v]); return q; },
+          lte(f, v) { conds.push([f, x => x <= v]); return q; }, lt(f, v) { conds.push([f, x => x < v]); return q; } };
+        if (fn) fn(q); return api;
+      },
       order(d) { api._desc = d === "desc"; return api; },
-      async collect() { const all = rows(t).filter(r => conds.every(([f, v]) => r[f] === v)); return api._desc ? all.slice().reverse() : all; },
+      async collect() { const all = rows(t).filter(r => conds.every(([f, v]) => typeof v === "function" ? v(r[f]) : r[f] === v)); return api._desc ? all.slice().reverse() : all; },
       async first() { return (await api.collect())[0] ?? null; },
       async unique() { const all = await api.collect(); if (all.length > 1) throw new Error("unique"); return all[0] ?? null; },
       async take(n) { return (await api.collect()).slice(0, n); },
@@ -199,16 +204,27 @@ function makeCtx() {
     async delete(_id) { for (const t in T) T[t] = T[t].filter(r => r._id !== _id); },
   };
   const mods = { store, projects, graph };
-  const call = (name, args) => { const [m, f] = name.split("."); if (!mods[m]?.[f]) throw new Error(`no ${name}`); return mods[m][f].handler({ db, runQuery: call, runMutation: call }, args); };
-  return { T, db, ctx: { db, runQuery: call, runMutation: call } };
+  /* A search over the meaning kept for a project's sections: the nearest first, by the angle between the numbers. */
+  const vectorSearch = async (table, _index, { vector, limit, filter }) => {
+    if (table !== "projectVectors") return [];
+    const conds = [], q = { eq(f, v) { conds.push([f, v]); return q; } };
+    filter?.(q);
+    const cos = (a, b) => a.reduce((s, c, i) => s + c * b[i], 0) / ((Math.hypot(...a) * Math.hypot(...b)) || 1);
+    return rows("projectVectors").filter(r => conds.every(([f, v]) => r[f] === v)).map(r => ({ _id: r._id, _score: cos(vector, r.vec) })).sort((a, b) => b._score - a._score).slice(0, limit);
+  };
+  const call = (name, args) => { const [m, f] = name.split("."); if (!mods[m]?.[f]) throw new Error(`no ${name}`); return mods[m][f].handler({ db, runQuery: call, runMutation: call, vectorSearch }, args); };
+  return { T, db, ctx: { db, runQuery: call, runMutation: call, vectorSearch } };
 }
 
 /* A model that answers by what it is asked, and keeps every prompt it was shown. */
 const sent = [];
 let reply = {};
 const realFetch = globalThis.fetch;
+/* Meaning as numbers, for a fake: a text about a refund points one way, a text about payment another, everything else a third. */
+const vecOf = text => { const v = new Array(1024).fill(0); v[/refund|rembours/i.test(text) ? 7 : /payment|paiement/i.test(text) ? 8 : 9] = 1; return v; };
 globalThis.fetch = async (_u, opt) => {
   const body = JSON.parse(opt.body);
+  if (String(_u).includes("/embeddings")) { if (reply.embedFail) return new Response("busy", { status: 503 }); return Response.json({ data: body.input.map((t, i) => ({ index: i, embedding: vecOf(t) })) }); }
   const sys = String(body.messages[0].content), user = String(body.messages[body.messages.length - 1].content);
   sent.push({ sys, user, model: body.model });
   let out;
@@ -219,6 +235,7 @@ globalThis.fetch = async (_u, opt) => {
   else if (/You write the memory notes of a file/.test(sys)) { if (reply.aboutFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.about ?? { notes: [] }); }
   else if (/You write the memory notes of a resource/.test(sys)) { if (reply.resourceFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.resource ?? { notes: [] }); }
   else if (/You write the memory notes of an instruction file/.test(sys)) { if (reply.instructionsFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.instructions ?? { notes: [] }); }
+  else if (/You write one line about a file/.test(sys)) { if (reply.lineFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.fileLine ?? { line: "" }); }
   else if (/You write the Brief of a project's chat/.test(sys)) { if (reply.briefFail) return new Response("busy", { status: 503 }); out = reply.briefText ?? JSON.stringify({ brief: "Goal: x." }); }
   else if (/You file notes into a person's own knowledge base/.test(sys)) out = JSON.stringify({ notes: [], people: [] });
   else if (/You are their AI twin/.test(sys)) out = reply.twin ?? "Noted.";
@@ -1135,7 +1152,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "When do payments leave the account?", english: false, embeds: false, shared: shared0, note: true });
   check("an answer that found something files it, with the section it rests on", (await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p })).some(m => m.title === "Payment day" && m.sections.join() === String(sid("payment"))));
   reply = { route: routeOf({ sections: [] }), answer: answerOf({ tldr: "On the 10th, from memory." }) };
-  const again = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "When do payments leave the account again?", english: false, embeds: false, shared: shared0, note: true });
+  const again = await project.projectChat(w.ctx, { space: SPACE, brain: p, q: "When do payments leave the account again, and from which bank?", english: false, embeds: false, shared: shared0, note: true });
   const rr = last(/You route a project's questions/).user, aa = last(/You are the chat of a project/).user;
   check("the router is shown that note with its line, and that note leads the short list to its section", /- Payment day: Payments on the 10th/.test(rr) && listed(rr).some(x => x.sid === sid("payment") && x.star), rr.slice(rr.indexOf("WHAT THE PROJECT REMEMBERS")).slice(0, 300));
   check("when the note answers, the router opens nothing, and the answer reads the note and none of the file", !again.used.file.sections && /\(not opened for this message\)/.test(aa) && /- Payment day: Payments leave the account on the 10th/.test(aa) && !aa.includes("Section 0 about payment"), aa.slice(0, 400));
@@ -1819,6 +1836,230 @@ const docProject = async (w, name, text, kind = "doc") => {
   check("another workspace cannot scan it", /not in this workspace/.test(String(await project.gapsOf(w.ctx, { space: "squidgy", brain: p }).catch(e => e.message))));
 }
 
+/* ================= several files in one project ================= */
+
+{
+  /* the search, on its own: words first, then meaning, then the two together */
+  const cards = [
+    { fid: 2, sid: 1, title: "Refunds", summary: "Refunds close 14 days after the first session", keys: ["refund", "session", "1490"] },
+    { fid: 2, sid: 2, title: "Payment plans", summary: "Prices split in three monthly parts", keys: ["payment", "plan", "month"] },
+    { fid: 3, sid: 1, title: "Pricing", summary: "What the programs cost", keys: ["price", "team", "1290", "1490"] },
+  ];
+  const want = k => find.askKeys(k);
+  check("the words of a question reach a section by its title, its keys and its summary, best first", find.wordFit(want("refund"), cards[0]) === 1 && find.wordFit(want("session"), cards[0]) > 0.3 && find.wordFit(want("refund"), cards[1]) === 0);
+  check("a number is a key: 1,290 and 1.290 and 1 290 all read 1290", find.numberKey("1,290") === "1290" && find.numberKey("1.290") === "1290" && find.numberKey("1 290") === "1290" && find.numberKey("1,290.50") === "1290" && find.numberKey("12") === null && find.numberKey("12,5") === null);
+  check("a section is known by its most used words, its names and its numbers", (() => { const k = find.keysOf("Refunds close after a session. A refund needs a request. Pixel Forge costs 1,290 euros and Ana signs. Refund again."); return k.includes("refund") && k.includes("1290") && k.includes("forg") && !k.includes("the"); })());
+  const words = find.findIn(cards, want("What does the Team price 1,290 mean?"));
+  check("a question that names a number and a word finds the section that holds them", words.length === 1 && words[0].fid === 3 && words[0].sid === 1, JSON.stringify(words));
+  check("a question no other file touches reads none of them", find.findIn(cards, want("What is the weather in Lisbon?")).length === 0);
+  const sim = find.findIn(cards, want("quel est le delai"), [{ fid: 2, sid: 1, score: 0.8 }, { fid: 2, sid: 2, score: 0.2 }]);
+  check("meaning finds what no word of the question meets, and a weak likeness is not enough", sim.length === 1 && sim[0].fid === 2 && sim[0].sid === 1 && sim[0].meaning === 0.8, JSON.stringify(sim));
+  const both = find.findIn(cards, want("refund price"), [{ fid: 2, sid: 1, score: 0.7 }, { fid: 3, sid: 1, score: 0.6 }]);
+  check("the two searches are merged: what is high in both leads, and no more than three are read", both[0].fid === 2 && both.length <= 3, JSON.stringify(both));
+  check("the map of files says what each one is, in a line, and a file not read yet says so", find.mapText([{ id: 2, name: "Terms.md", kind: "doc", chars: 100, sections: 2, line: "The terms of sale." }, { id: 3, name: "Prices.csv", kind: "table", chars: 100, sections: 1 }, { id: 4, name: "Late.md", kind: "doc", chars: 0, sections: 0, status: "reading" }])
+    === "2 | Terms.md | The terms of sale.\n3 | Prices.csv | a table\n4 | Late.md | not read yet");
+  check("a table's line is its sheets with their columns", find.tableLine([{ name: "Programs", rows: 40, cols: [{ name: "Program" }, { name: "Price" }] }, { name: "Notes", rows: 1, header: ["Note"] }]) === "Programs: 40 rows, columns Program, Price; Notes: 1 row, columns Note");
+  /* a file's key, and the number a note names a section by */
+  const sh = await build("sheet");
+  check("a file is kept under the project's name, or under name~n from 2", sh.fileKey("plan", 1) === "plan" && sh.fileKey("plan", 2) === "plan~2" && sh.fileKey("plan", 0) === "plan" && sh.splitKey("plan~12").fid === 12 && sh.splitKey("plan").fid === 1 && sh.splitKey("plan~12").base === "plan");
+  check("a note names a section of the first file by its own number, and of file n by n times 100,000 plus it", sh.pointerOf(1, 7) === 7 && sh.pointerOf(3, 7) === 300007 && same(sh.localSids([7, 300007, 400002], 1), [7]) && same(sh.localSids([7, 300007, 400002], 3), [7]) && same(sh.localSids([7, 300007, 400002], 4), [2]));
+  check("a key that is not a project's name and an optional number is refused", ["a", "a~2", "a-b~12", "a1"].every(k => sh.KEY_RE.test(k)) && ["~2", "a~", "a~x", "A", "a~2~3", "a/b", "a~1234"].every(k => !sh.KEY_RE.test(k)));
+}
+
+{
+  const w = makeCtx();
+  const p = await docProject(w, "Offer", "# Offer\n\n## Team\n\nTeam costs 1,490 euros a seat. " + "word ".repeat(300));
+  const get = (file) => w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p, ...(file ? { file } : {}) });
+  const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, note: true, ...extra });
+  const sys = () => last(/You are the chat of a project/).sys, usr = () => last(/You are the chat of a project/).user;
+  const termsText = "# Refunds\n\nRefunds close 14 days after the first session. A refund needs a written request. Refund requests are answered in a week. " + "word ".repeat(560) + "\n\n## Payment\n\nPayment plans split the price in three monthly parts of 497 euros. " + "word ".repeat(300);
+  const addFile = async (name, text, kind = "doc", embeds = false) => {
+    const n = await w.ctx.runMutation("projects.fileNew", { space: SPACE, brain: p, kind, name, made: false });
+    const b = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: n.key, name, kind, sheets: [{ name }] });
+    await project.addDocPiece(w.ctx, { space: SPACE, brain: n.key, ver: b.ver, text, page: 0 });
+    await project.finishFile(w.ctx, { space: SPACE, brain: n.key, ver: b.ver, embeds });
+    return n;
+  };
+
+  const g0 = await get();
+  check("a project with one file lists it, as the first file", g0.files.length === 1 && g0.files[0].id === 1 && g0.files[0].name === "Offer.md" && g0.file.id === 1);
+  /* a blank file, made beside the first */
+  const blank = await w.ctx.runMutation("projects.fileNew", { space: SPACE, brain: p, kind: "doc", name: "  Notes   to self ", made: true });
+  check("a new file takes the number 2 and is kept under name~2, empty, ready, and made here", blank.fid === 2 && blank.key === `${p}~2` && w.T.projectFiles.some(f => f.brain === `${p}~2` && f.made === true && f.status === "ready" && f.chars === 0 && f.name === "Notes to self"), JSON.stringify(blank));
+  const gb = await get(2);
+  check("the project opens on that file: its own shape, cards and changes, while the thread, the memory and the Brief stay the project's", gb.file.id === 2 && gb.file.name === "Notes to self" && gb.file.chars === 0 && gb.cards.length === 0 && gb.project.slug === p && gb.files.map(f => f.id).join() === "1,2" && same(gb.turns, g0.turns) && same(gb.memory, g0.memory));
+  check("the first file is untouched, and a file that is not there says so", (await get()).file.id === 1 && /not in this project/.test(String(await get(7).catch(e => e.message))));
+  check("another workspace cannot make a file, or open one", /not in this workspace/.test(String(await w.ctx.runMutation("projects.fileNew", { space: "squidgy", brain: p, kind: "doc", name: "x" }).catch(e => e.message))) && /not in this workspace/.test(String(await w.ctx.runQuery("projects.projectGet", { space: "squidgy", brain: `${p}~2` }).catch(e => e.message))));
+  check("a key that names no project is refused, and so is a kind that is no file", /not in this workspace/.test(String(await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: "nowhere~2" }).catch(e => e.message))) && /document, a page or a table/.test(String(await w.ctx.runMutation("projects.fileNew", { space: SPACE, brain: p, kind: "slides", name: "x" }).catch(e => e.message))));
+
+  /* the chat, on the blank file: told it is empty, writes it at once */
+  reply = { route: routeOf({ kind: "doc" }), answer: answerOf({ tldr: "I wrote the notes.", edits: [{ op: "insert", after: 0, title: "Notes", text: "# Notes\n\nCall Ana about the Team price." }] }) };
+  const t1 = await chat("Write my notes: call Ana about the price", { file: 2 });
+  check("the chat on file 2 is told the file is empty and that changes apply at once", /THE FILE IS EMPTY/.test(sys()) && /apply at once/.test(sys()) && usr().includes('THE FILE "Notes to self"') && usr().includes("(empty)"), usr().slice(0, 200));
+  check("what it writes goes into file 2 and into no other, and the turn says which file", t1.edit?.status === "applied" && t1.file === 2 && w.T.projectSections.filter(s => s.brain === `${p}~2`).length === 1 && w.T.projectSections.filter(s => s.brain === p).every(s => !s.text.includes("Call Ana")));
+  const g1 = await get();
+  check("the thread is the project's: the message is there whichever file is open", g1.turns.at(-1).q === "Write my notes: call Ana about the price" && g1.turns.at(-1).file === 2 && g1.files.find(f => f.id === 2).chars > 0);
+  check("a change to file 2 is kept under file 2: it can be undone there and nowhere else", (await get(2)).edits.length === 1 && (await get()).edits.length === 0);
+  check("the page opened on file 1 learns where a change to file 2 stands, so its card offers what is still possible; opened on file 2 it has the change itself", (await get()).editState[t1.edit.id] === "applied" && same((await get(2)).editState, {}) && (await get(2)).edits[0].id === t1.edit.id, JSON.stringify((await get()).editState));
+
+  /* a file read in beside the first: its sections, its line, its words */
+  reply = { fileLine: { line: "The terms of sale: refunds within 14 days, payment in three parts." } };
+  const terms = await addFile("Terms.md", termsText);
+  const gt = await get(terms.fid);
+  check("a file read in beside the first is cut in sections of its own, with a contents line each", gt.file.name === "Terms.md" && gt.cards.length === 2 && gt.cards.every(c => c.title && c.summary && c.chars > 0), JSON.stringify(gt.cards.map(c => [c.title, c.summary?.slice(0, 40), c.chars])));
+  const termsCards = w.T.projectCards.filter(c => c.brain === terms.key);
+  check("each section keeps the words it is known by: its most used stems and its numbers", termsCards.length === 2 && termsCards[0].keys.includes("refund") && termsCards[1].keys.includes("497"), JSON.stringify(termsCards.map(c => c.keys?.slice(0, 6))));
+  check("the file is given a line, in one model call over its contents list, and that is all it asks (no note on the file is written for it)", gt.files.find(f => f.id === terms.fid).line === "The terms of sale: refunds within 14 days, payment in three parts."
+    && !(await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p })).some(m => m.title === "The file"));
+  check("a model that fails to write the line never fails the file", await (async () => {
+    reply = { lineFail: true };
+    const n = await addFile("Late.md", "# Late\n\nSome words about delivery dates. " + "word ".repeat(100));
+    reply = {};
+    return (await get(n.fid)).file.status === "ready" && !(await get()).files.find(f => f.id === n.fid).line;
+  })());
+
+  /* the chat on the first file reads the others: the map, and the sections that bear on the question */
+  reply = { route: routeOf({ terms: ["refund"] }), answer: answerOf({ tldr: "14 days." }) };
+  const t2 = await chat("How long do I have to ask for a refund?");
+  const ask2 = usr();
+  check("the answer is told the project's other files, a line each", /THE PROJECT'S OTHER FILES, read only \(id \| name \| what it is\)\n2 \| Notes to self \|/.test(ask2) && /\n3 \| Terms\.md \| The terms of sale: refunds within 14 days, payment in three parts\./.test(ask2), ask2.slice(ask2.indexOf("THE PROJECT'S OTHER")).slice(0, 400));
+  check("and the section of another file that bears on the question, found by its words, in full", /FROM THE OTHER FILES, the sections that bear on the question\n--- SECTION 3\.1: Terms\.md, Refunds/.test(ask2) && ask2.includes("A refund needs a written request."), ask2.slice(ask2.indexOf("FROM THE OTHER")).slice(0, 300));
+  check("the rules say the other files are read only, that the chat changes THE FILE alone, and to say which file to open", /THE PROJECT'S OTHER FILES: the files beside THE FILE, read only/.test(sys()) && /You change only THE FILE: for a change in another file, name the file to open and ask again there/.test(sys()));
+  check("the turn says which sections of which file it read", same(t2.used.others, [{ fid: 3, sid: termsCards[0].sid, file: "Terms.md", title: termsCards[0].title }]), JSON.stringify(t2.used.others));
+  check("a section no word of the question reaches is not read", await (async () => { reply = { route: routeOf({ terms: ["weather"] }), answer: answerOf({ tldr: "Sunny." }) }; await chat("What is the weather in Lisbon?"); return !/FROM THE OTHER FILES/.test(usr()) && /THE PROJECT'S OTHER FILES, read only/.test(usr()); })());
+  check("thanks reads none of the other files, not even their lines", await (async () => { reply = { route: routeOf(), answer: answerOf() }; await chat("thanks"); return !/OTHER FILES/.test(usr()) && !/THE PROJECT'S OTHER FILES/.test(sys()); })());
+  check("a project with one file is told nothing of others", await (async () => {
+    const solo = makeCtx(); const sp = await docProject(solo, "Solo", "# Solo\n\nOne file only.");
+    reply = { route: routeOf(), answer: answerOf() };
+    await project.projectChat(solo.ctx, { space: SPACE, brain: sp, q: "What is in here?", english: false, embeds: false, shared: shared0 });
+    return !/OTHER FILES/.test(last(/You are the chat of a project/).sys) && !/OTHER FILES/.test(last(/You are the chat of a project/).user);
+  })());
+
+  /* the chat on the other file reads the first as one of the others */
+  reply = { route: routeOf({ sections: [], terms: ["team", "price"] }), answer: answerOf({ tldr: "1,490." }) };
+  await chat("What does the Team seat cost, 1,490 or 1,290?", { file: terms.fid });
+  check("open on Terms.md, the chat reads Offer.md as one of the others, and finds its section by the number in the question", /\n1 \| Offer\.md \|/.test(usr()) && /FROM THE OTHER FILES[^\n]*\n--- SECTION 1\.\d+: Offer\.md/.test(usr()) && usr().includes('THE FILE "Terms.md"'), usr().slice(0, 300));
+
+  /* meaning: a question in another language, found by what it says */
+  const meaningP = await docProject(w, "Meaning", "# Hello\n\nA short file about nothing in particular. " + "word ".repeat(100));
+  const mm = await w.ctx.runMutation("projects.fileNew", { space: SPACE, brain: meaningP, kind: "doc", name: "Terms.md", made: false });
+  const mb = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: mm.key, name: "Terms.md", kind: "doc", sheets: [{ name: "Terms.md" }] });
+  await project.addDocPiece(w.ctx, { space: SPACE, brain: mm.key, ver: mb.ver, text: termsText, page: 0 });
+  reply = {};
+  await project.finishFile(w.ctx, { space: SPACE, brain: mm.key, ver: mb.ver, embeds: true });
+  const vecs = w.T.projectVectors.filter(v => v.brain === mm.key);
+  check("with embeddings on, each section of the file is given its meaning, under the project it belongs to", vecs.length === 2 && vecs.every(v => v.base === meaningP && v.vec.length === 1024) && vecs[0].vec[7] === 1 && vecs[1].vec[8] === 1, JSON.stringify(vecs.map(v => [v.brain, v.sid])));
+  reply = { route: routeOf({ terms: ["delai"] }), answer: answerOf({ tldr: "14 jours." }) };
+  await project.projectChat(w.ctx, { space: SPACE, brain: meaningP, q: "Quel est le délai de remboursement ?", english: false, embeds: true, shared: shared0 });
+  check("a question in French finds the English section by meaning, with not one word in common", /FROM THE OTHER FILES[^\n]*\n--- SECTION 2\.\d+: Terms\.md, Refunds/.test(last(/You are the chat of a project/).user), last(/You are the chat of a project/).user.slice(0, 500));
+  reply = { route: routeOf({ terms: ["delai"] }), answer: answerOf({ tldr: "ok" }), embedFail: true };
+  await project.projectChat(w.ctx, { space: SPACE, brain: meaningP, q: "Quel est le délai de remboursement ?", english: false, embeds: true, shared: shared0 });
+  check("when the embedding fails the question is searched by words alone, and still answered", /THE PROJECT'S OTHER FILES, read only/.test(last(/You are the chat of a project/).user) && !/FROM THE OTHER FILES/.test(last(/You are the chat of a project/).user));
+  reply = {};
+  const noEmb = await project.projectChat(w.ctx, { space: SPACE, brain: meaningP, q: "Quel est le délai de remboursement ?", english: false, embeds: false, shared: shared0 });
+  check("with embeddings off (a workspace on its own key, the demo) only words are used", !/FROM THE OTHER FILES/.test(last(/You are the chat of a project/).user) && !!noEmb.id);
+
+  /* a table beside the first: its line is its columns, made in code, and no model is asked */
+  const tb = await w.ctx.runMutation("projects.fileNew", { space: SPACE, brain: p, kind: "table", name: "Prices.csv", made: false });
+  const tbb = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: tb.key, name: "Prices.csv", kind: "table", sheets: [{ name: "Prices", header: sheet.colNames(["Program", "Price"]) }] });
+  await project.addRowPiece(w.ctx, { space: SPACE, brain: tb.key, ver: tbb.ver, sheet: 0, rows: [["Team", "1,490"], ["Starter", "490"]] });
+  const callsBefore = sent.length;
+  await project.finishFile(w.ctx, { space: SPACE, brain: tb.key, ver: tbb.ver, embeds: true });
+  const tline = (await get()).files.find(f => f.id === tb.fid);
+  check("a table's line is its columns, in code, with no model call and no meaning kept", tline.line === "Prices: 2 rows, columns Program, Price" && tline.kind === "table" && sent.length === callsBefore && !w.T.projectVectors.some(v => v.brain === tb.key), JSON.stringify(tline));
+  reply = { route: routeOf({ terms: ["price"] }), answer: answerOf({ tldr: "Open it." }) };
+  await chat("What does Team cost in the price table?");
+  check("the map names the table, and the chat is told to say which file to open for what it holds", /\n\d+ \| Prices\.csv \| Prices: 2 rows, columns Program, Price/.test(usr()));
+
+  /* a table can be the open file: its rows are read from its own key */
+  reply = { route: routeOf({ query: { where: [{ col: "Program", op: "=", value: "Team" }], show: ["Program", "Price"] } }), answer: answerOf({ tldr: "1,490." }) };
+  await chat("What does Team cost?", { file: tb.fid });
+  check("open on the table, the chat reads its rows from its own key", /Team \| 1,490/.test(usr()) && /Starter \| 490/.test(usr()) && usr().includes('THE FILE "Prices.csv"') && !/Section/.test(usr().split("THE FILE")[1].slice(0, 80)), usr().slice(0, 400));
+
+  /* a note rests on the file it was found in, and goes stale with that file alone */
+  const doc3 = (await get(terms.fid)).cards[0].sid;
+  reply = { route: routeOf({ sections: [doc3], terms: ["refund"] }), answer: answerOf({ tldr: "14 days.", notes: [{ title: "Refund window", update: "", claim: "14 days.", position: "Refunds close 14 days after the first session (2026-10-10).", summaryLine: "14 days", sections: [doc3] }] }) };
+  await chat("When do refunds close?", { file: terms.fid });
+  const note = (await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p })).find(m => m.title === "Refund window");
+  check("a note filed from file 3 names its section by file 3's number", same(note?.sections, [300000 + doc3]) || same(note?.sections, [terms.fid * 100000 + doc3]), JSON.stringify(note?.sections));
+  const firstCards = (await get()).cards;
+  check("opened on the first file, the note is no pointer there: the short list is not led to a section that is not in it", project.shortlist(firstCards, "refund window", [], [], 12, [{ ...note, sections: sh_local(note.sections, 1) }]).memory.size === 0);
+  function sh_local(ps, fid) { return ps.filter(q => fid > 1 ? Math.floor(q / 100000) === fid : q < 100000).map(q => fid > 1 ? q - fid * 100000 : q); }
+
+  /* removing a file */
+  const before = w.T.projectSections.filter(s => s.brain === terms.key).length;
+  check("a file can be taken out: its sections, its contents list, its changes and its meaning go, and the project and the other files stay", await (async () => {
+    for (let i = 0; i < 20; i++) { const r = await w.ctx.runMutation("projects.projectWipe", { space: SPACE, brain: terms.key, file: true }); if (!r.more) break; }
+    return before === 2 && !w.T.projectSections.some(s => s.brain === terms.key) && !w.T.projectCards.some(c => c.brain === terms.key) && !w.T.projectFiles.some(f => f.brain === terms.key) && w.T.brains.some(b => b.slug === p) && w.T.projectSections.some(s => s.brain === p);
+  })());
+  await w.ctx.runMutation("projects.memoryForgetPointers", { space: SPACE, brain: p, fid: terms.fid });
+  const after = (await w.ctx.runQuery("projects.memoryOf", { space: SPACE, brain: p })).find(m => m.title === "Refund window");
+  check("the note that rested on it loses its sections and is marked as possibly outdated, and is not forgotten", after && after.sections === undefined && after.stale === true);
+  check("a file's own key never takes the project with it, even when asked to", await (async () => {
+    const r = await w.ctx.runMutation("projects.projectWipe", { space: SPACE, brain: `${p}~2` });
+    return r.more === false && w.T.brains.some(b => b.slug === p) && !w.T.projectFiles.some(f => f.brain === `${p}~2`);
+  })());
+  check("a number is never used twice: the next file is 5 or more, not the one just removed", (await w.ctx.runMutation("projects.fileNew", { space: SPACE, brain: p, kind: "doc", name: "Next" })).fid >= 5);
+
+  /* the limit */
+  check("a project holds 30 files, and says so past that", await (async () => {
+    const lim = makeCtx(); const lp = await docProject(lim, "Many files", "# One\n\nWords.");
+    for (let i = 1; i < 30; i++) await lim.ctx.runMutation("projects.fileNew", { space: SPACE, brain: lp, kind: "doc", name: `File ${i}` });
+    const files = (await lim.ctx.runQuery("projects.projectGet", { space: SPACE, brain: lp })).files.length;
+    return files === 30 && /30 files at most/.test(String(await lim.ctx.runMutation("projects.fileNew", { space: SPACE, brain: lp, kind: "doc", name: "One too many" }).catch(e => e.message)));
+  })());
+
+  /* taking the project apart takes every file with it */
+  await w.ctx.runMutation("projects.fileNew", { space: SPACE, brain: p, kind: "doc", name: "Last" });
+  for (let i = 0; i < 40; i++) { const r = await w.ctx.runMutation("projects.projectWipe", { space: SPACE, brain: p }); if (!r.more) break; }
+  check("deleting the project deletes every file of it: no section, card, change, meaning or file row is left under its name or its numbers", !w.T.brains.some(b => b.slug === p)
+    && ["projectFiles", "projectCards", "projectSections", "projectEdits", "projectVectors"].every(tn => !(w.T[tn] ?? []).some(r => r.brain === p || String(r.brain).startsWith(p + "~"))) && !(w.T.projectBriefs ?? []).some(r => r.brain === p));
+  check("and the project next door is untouched", w.T.brains.some(b => b.slug === meaningP) && w.T.projectFiles.some(f => f.brain === mm.key));
+}
+
+{
+  /* a change in the thread that its file no longer keeps (the file was removed, or the change trimmed) reads gone, and reading it never fails */
+  const w = makeCtx();
+  const p = await docProject(w, "Gone", "# Gone\n\nWords here.");
+  const two = await w.ctx.runMutation("projects.fileNew", { space: SPACE, brain: p, kind: "doc", name: "Two", made: true });
+  await w.ctx.runMutation("projects.threadPush", { space: SPACE, brain: p, turn: { q: "x", a: "y", edit: { id: "no-such-change", status: "open", preview: [] }, file: two.fid } });
+  await w.ctx.runMutation("projects.threadPush", { space: SPACE, brain: p, turn: { q: "z", a: "w", edit: { id: "another", status: "open", preview: [] }, file: 9 } });
+  const g = await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  check("a change the other file does not keep reads gone, whether the file is there or not", g.editState["no-such-change"] === "gone" && g.editState.another === "gone", JSON.stringify(g.editState));
+  check("a change to the open file is not listed apart: the page has it in its own changes", !("no-such-change" in (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p, file: two.fid })).editState));
+}
+
+{
+  /* a question the project has answered before, in nearly the same words, from the same sections: no router */
+  check("only a question that asks, and asks for nothing more, is sure: not a change, a summary, a decision or a command", ["What does the audit cover?", "When do payments leave the account?", "Quel est le prix ?"].every(project.plainQuestion)
+    && ["Change the audit part", "Summarise the audit", "Should we move the audit?", "Add a line about the audit", "audit", "Write the audit section again please and make it short"].every(q => !project.plainQuestion(q)));
+  const routes = [{ t: ["audit", "privacy", "tax"], s: [5, 6, 9999], n: 3, at: 1 }, { t: ["royalty"], s: [7], n: 5, at: 2 }, { t: ["audit", "privacy"], s: [8], n: 1, at: 3 }];
+  const cards = [5, 6, 7, 8].map(sid => ({ sid }));
+  check("a route that covers four words in five and was used twice or more leads straight to its sections, the unknown one dropped", same(project.sureRoute("audit privacy tax", routes, cards), [5, 6]));
+  check("a route used once, or one that covers less, does not", project.sureRoute("audit privacy", [routes[2]], cards) === null && project.sureRoute("audit privacy tax lawyers insurance", routes, cards) === null);
+  check("one word is no question to be sure of", project.sureRoute("audit", routes, cards) === null);
+
+  const w = makeCtx();
+  const many = await docProject(w, "Many", Array.from({ length: 45 }, (_, i) => `## Part ${i}\n\nSection ${i} about subject${i}. ${"word ".repeat(560)}`).join("\n\n"));
+  const cardsM = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: many })).cards;
+  const routerCalls = () => sent.filter(m => /You route a project's questions/.test(m.sys)).length;
+  const chat = (q) => project.projectChat(w.ctx, { space: SPACE, brain: many, q, english: false, embeds: false, shared: shared0 });
+  reply = { route: routeOf({ sections: [cardsM[7].sid], terms: ["subject7", "details"] }), answer: answerOf({ tldr: "Seven." }) };
+  await chat("What are the details of subject7?");
+  await chat("What are the details of subject7?");
+  const k0 = routerCalls();
+  const third = await chat("What are the details of subject7?");
+  check("after two answers from the same sections, the same question is sent there with no router call", routerCalls() === k0 && third.used.file.sections?.[0].sid === cardsM[7].sid && third.used.sure === true, JSON.stringify(third.used));
+  check("and the project keeps learning from it", (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: many })).shortcuts[0].n === 3);
+  await chat("Change the details of subject7 to something shorter");
+  check("a request to change the file always goes through the router", routerCalls() === k0 + 1);
+  await chat("What are the details of subject7 and subject8?");
+  check("a question with words the route never learned goes through the router too", routerCalls() === k0 + 2);
+  reply = { route: routeOf({ sections: [cardsM[7].sid] }), answer: answerOf({ tldr: "x" }) };
+  const tagged = await project.projectChat(w.ctx, { space: SPACE, brain: many, q: "What are the details of subject7?", english: false, embeds: false, tags: ["pricing"], shared: { brains: [{ slug: "pricing", name: "Pricing", type: "subject", scope: "p" }], cards: async () => [] } });
+  check("a folder tagged in the message leaves the router its say, as ever", routerCalls() === k0 + 3 && !!tagged.id);
+}
+
 /* ================= the routes, end to end ================= */
 
 {
@@ -2032,6 +2273,45 @@ const docProject = async (w, name, text, kind = "doc") => {
   check("the gaps route lists the file's gaps with how many there are, and is closed to another workspace", Array.isArray(gp.gaps) && gp.total === gp.gaps.length && gp.file === "brief.md"
     && /not in this workspace/.test((await call("/api/project/gaps", { brain: slugR }, "squidgy-token")).error), JSON.stringify(gp));
   check("a project's state tells nothing of these to another workspace's list", (await call("/api/state", {}, "squidgy-token")).projects.length === 0);
+
+  /* several files, through the routes */
+  const fileTo = async (token, extra = {}) => (await call("/api/project/file", { brain: slugR, action: "new", kind: "doc", name: "Terms", ...extra }, token));
+  check("the file route is closed without a session, to the demo and to another workspace", (await fileTo(null)).status === 401
+    && /demo lets you ask/.test((await fileTo("demo-token")).error) && /not in this workspace/.test((await fileTo("squidgy-token")).error));
+  const nf = await call("/api/project/file", { brain: slugR, action: "new", kind: "doc", name: "Notes" });
+  check("a blank file is made through the route, with its number and its key", nf.fid === 2 && nf.key === `${slugR}~2`, JSON.stringify(nf));
+  const memBefore = (await call("/api/project/get", { brain: slugR })).memory.length;
+  reply = { about: { notes: [{ title: "x", claim: "A page.", position: "Terms about refunds.", summaryLine: "Refund terms" }] }, fileLine: { line: "The refund terms: 14 days." } };
+  const termsF = await call("/api/project/file", { brain: slugR, action: "new", kind: "doc", name: "terms.md", made: false });
+  const ub = await call("/api/project/begin", { brain: termsF.key, name: "terms.md", kind: "doc" });
+  const upart = await call("/api/project/part", { brain: termsF.key, ver: ub.ver, text: "# Terms\n\nRefunds close in 14 days.", page: 0 });
+  const ufin = await call("/api/project/finish", { brain: termsF.key, ver: ub.ver });
+  const gotf = await call("/api/project/get", { brain: slugR, file: termsF.fid });
+  check("a file is read in under its own key: begin, part, finish, as for the first", ub.ver === 1 && upart.sections >= 1 && ufin.sections === upart.sections && w.T.projectSections.some(s => s.brain === termsF.key && s.text.includes("Refunds close")) && !w.T.projectSections.some(s => s.brain === slugR && s.text.includes("Refunds close")));
+  check("only the first file writes the project's note on its file: this one is given a line, and the memory is as it was", gotf.memory.length === memBefore && !gotf.memory.some(m => m.title === "The file" && /refund/i.test(m.position)) && gotf.files.find(f => f.id === termsF.fid).line === "The refund terms: 14 days.", JSON.stringify(gotf.files));
+  check("opened by its number, the project gives that file's shape and sections, and the list of every file", gotf.file.id === termsF.fid && gotf.file.name === "terms.md" && gotf.files.map(f => f.id).join() === "1,2,3" && gotf.cards.length === upart.sections && gotf.project.slug === slugR);
+  check("its sections are read as the page scrolls, and it downloads as itself", (await call("/api/project/doc", { brain: termsF.key, from: -1, n: 3 })).sections[0].text.startsWith("# Terms")
+    && (await call("/api/project/download", { brain: termsF.key })).name === "terms.md" && (await call("/api/project/download", { brain: slugR })).name === "brief.md");
+  check("its gaps are its own", (await call("/api/project/gaps", { brain: termsF.key })).file === "terms.md");
+  reply = { route: routeOf({ terms: ["refund"] }), answer: answerOf({ tldr: "14 days." }) };
+  const cf = await call("/api/project/chat", { brain: slugR, file: termsF.fid, q: "How long do refunds stay open?" });
+  check("a message goes to the file that is open, and the turn says so; the first file's turn does not", cf.turn.file === termsF.fid && last(/You are the chat of a project/).user.includes('THE FILE "terms.md"') && (await call("/api/project/chat", { brain: slugR, q: "Hello there again?" })).turn.file === undefined);
+  check("a file is renamed", (await call("/api/project/file", { brain: slugR, action: "rename", file: termsF.fid, name: "Terms of sale" })).name === "Terms of sale" && (await call("/api/project/get", { brain: slugR })).files.find(f => f.id === termsF.fid).name === "Terms of sale"
+    && /needs a name/.test((await call("/api/project/file", { brain: slugR, action: "rename", file: termsF.fid, name: "  " })).error));
+  check("a file that is not there is not removed, and an action it does not know is refused", /not in this project/.test((await call("/api/project/file", { brain: slugR, action: "remove", file: 9 })).error) && /new, remove or rename/.test((await call("/api/project/file", { brain: slugR, action: "burn" })).error)
+    && /which file/.test((await call("/api/project/file", { brain: slugR, action: "remove" })).error));
+  check("another workspace cannot remove or rename one", /not in this workspace/.test((await call("/api/project/file", { brain: slugR, action: "remove", file: termsF.fid }, "squidgy-token")).error));
+  const rm = await call("/api/project/file", { brain: slugR, action: "remove", file: termsF.fid });
+  const afterRm = await call("/api/project/get", { brain: slugR });
+  check("a file is removed with its sections, and the others stay", rm.ok === true && afterRm.files.map(f => f.id).join() === "1,2" && !w.T.projectSections.some(s => s.brain === termsF.key) && !w.T.projectFiles.some(f => f.brain === termsF.key) && afterRm.file.name === "brief.md", JSON.stringify(afterRm.files));
+  check("and it can no longer be opened", /not in this project/.test((await call("/api/project/get", { brain: slugR, file: termsF.fid })).error));
+  const rm1 = await call("/api/project/file", { brain: slugR, action: "remove", file: 1 });
+  const only = await call("/api/project/get", { brain: slugR });
+  check("the first file can be removed too: the project stays, with the other files, and no file where the first was", rm1.ok === true && only.file === null && only.files.map(f => f.id).join() === "2" && w.T.brains.some(b => b.slug === slugR) && !w.T.projectSections.some(s => s.brain === slugR));
+  const lst = (await call("/api/project/list")).projects.find(pj => pj.slug === slugR);
+  check("the list counts the files the project holds", lst.files === 1, JSON.stringify(lst));
+  await call("/api/project/file", { brain: slugR, action: "remove", file: 2 });
+  reply = {};
 
   const seenBy = await call("/api/state");
   check("the project's list counts the instruction notes with the rest of its memory", seenBy.projects.find(x => x.slug === slugR).memory >= 1, JSON.stringify(seenBy.projects.map(x => [x.slug, x.memory])));

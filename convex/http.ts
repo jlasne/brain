@@ -23,7 +23,7 @@ import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
 import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, writeBrief, gapsOf, readBlocks } from "./project";
-import { colNames, downloadText, csvOf, parseCsv, madeName } from "./sheet";
+import { colNames, downloadText, csvOf, parseCsv, madeName, splitKey, fileKey } from "./sheet";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
@@ -1574,7 +1574,8 @@ route("/api/project/list", async (ctx, _req, b) => {
 
 route("/api/project/get", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  return await ctx.runQuery(internal.projects.projectGet, { space: who.space, brain: String(b.brain ?? "") });
+  const file = Math.floor(Number(b.file));
+  return await ctx.runQuery(internal.projects.projectGet, { space: who.space, brain: String(b.brain ?? ""), ...(file >= 1 ? { file } : {}) });
 });
 
 route("/api/project/rename", async (ctx, _req, b) => {
@@ -1608,8 +1609,8 @@ route("/api/project/begin", async (ctx, _req, b) => {
     : [{ name: String(b.name ?? "").slice(0, 60), header: [] }];
   if (!sheets.length) return { error: "the table has no sheet to read" };
   if (!(await wipeProject(ctx, who.space, brain, true))) return { error: "the old file is large: ask again to clear it" };
-  /* What the old file alone wrote goes with it (its note and its topics); what the chat kept stays. */
-  await ctx.runMutation(internal.projects.memoryForgetFile, { space: who.space, brain });
+  /* What the old file alone wrote goes with it (its note and its topics); what the chat kept stays. Another file of the project wrote no note of its own. */
+  if (splitKey(brain).fid === 1) await ctx.runMutation(internal.projects.memoryForgetFile, { space: who.space, brain, only: true });
   return await ctx.runMutation(internal.projects.fileBegin, { space: who.space, brain, name: String(b.name ?? "file").slice(0, 200), kind, sheets });
 });
 
@@ -1628,7 +1629,44 @@ route("/api/project/part", async (ctx, _req, b) => {
 
 route("/api/project/finish", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  return await finishFile(ctx, { space: who.space, brain: String(b.brain ?? ""), ver: Number(b.ver), about: true, key: keyFor(who), model: modelFor(who, b) });
+  const brain = String(b.brain ?? "");
+  /* The first file writes the project's note on its file; each file is given a line and its sections a meaning, for the project's map and its search. */
+  return await finishFile(ctx, { space: who.space, brain, ver: Number(b.ver), about: splitKey(brain).fid === 1, embeds: !who.byok && !who.demo, key: keyFor(who), model: modelFor(who, b) });
+});
+
+/**
+ * The files of a project, by action. A project holds up to 30: the first is kept under the project's name, the others under `name~n`,
+ * and every call about one file (part, finish, doc, rows, edit, download, gaps) takes that key as `brain`.
+ *   new      a file beside the others: a blank document, table or page for the chat to write (`made`, the default), or the place a file
+ *            read in the browser goes (`made: false`, then begin, part and finish as for any file). Returns its number and key.
+ *   remove   a file taken out with its sections and changes, whichever it is. The notes that rested on it lose those sections.
+ *   rename   a file's name.
+ */
+route("/api/project/file", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const brain = String(b.brain ?? ""), { base } = splitKey(brain);
+  switch (String(b.action ?? "")) {
+    case "new": {
+      const kind = b.kind === "table" ? "table" : b.kind === "html" ? "html" : "doc";
+      return await ctx.runMutation(internal.projects.fileNew, { space: who.space, brain: base, kind, name: String(b.name ?? ""), ...(b.made === false ? { made: false } : {}) });
+    }
+    case "remove": {
+      const fid = Math.floor(Number(b.file));
+      if (!(fid >= 1)) return { error: "which file?" };
+      const key = fileKey(base, fid);
+      /* The file must be there before anything goes: a number that names nothing removes nothing. */
+      await ctx.runQuery(internal.projects.projectGet, { space: who.space, brain: base, file: fid }).catch((e: any) => { throw /not in this workspace/.test(String(e?.message)) ? e : new Error("that file is not in this project"); });
+      if (!(await wipeProject(ctx, who.space, key, true))) return { error: "that file is large: ask again to finish removing it" };
+      if (fid === 1) await ctx.runMutation(internal.projects.memoryForgetFile, { space: who.space, brain: base, only: true });
+      else await ctx.runMutation(internal.projects.memoryForgetPointers, { space: who.space, brain: base, fid });
+      return { ok: true };
+    }
+    case "rename": {
+      const fid = Math.floor(Number(b.file));
+      return await ctx.runMutation(internal.projects.fileRename, { space: who.space, brain: fileKey(base, fid >= 1 ? fid : 1), name: String(b.name ?? "") });
+    }
+    default: return { error: "new, remove or rename" };
+  }
 });
 
 /** The owner's instructions, typed or read from a file in the browser: one model call writes them as notes in the project's memory, and the chat follows them. */
@@ -1677,7 +1715,8 @@ route("/api/project/chat", async (ctx, _req, b) => {
   /* The owner's other folders: none personal, none a project. Their cards load only if the router wants them. */
   const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
   const shared = withoutPersonal(head);
-  return { turn: await projectChat(ctx, { space: who.space, brain: String(b.brain ?? ""), q: String(b.q ?? ""), key: mKey, model: mName,
+  const file = Math.floor(Number(b.file));
+  return { turn: await projectChat(ctx, { space: who.space, brain: String(b.brain ?? ""), ...(file >= 1 ? { file } : {}), q: String(b.q ?? ""), key: mKey, model: mName,
     english: who.models?.reply === "en", embeds: !who.byok && !who.demo, note: true, tags: Array.isArray(b.tags) ? b.tags.map(String).slice(0, 12) : [],
     shared: { brains: shared.brains, cards: (slugs: string[]) => cardsFor(ctx, slugs, head.ready) } }) };
 });

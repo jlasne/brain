@@ -3484,7 +3484,7 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(700);
   const lay = await page.evaluate(() => { const d = document.querySelector(".pj-doc").getBoundingClientRect(), c = document.querySelector(".pj-chat").getBoundingClientRect();
     return { view: document.querySelector("main").dataset.view, ratio: d.width / c.width, bar: getComputedStyle(document.querySelector(".composer-wrap")).display, thread: document.getElementById("thread").hidden,
-      sections: document.querySelectorAll(".pj-sec").length, title: document.querySelector(".pj-t h2").textContent, chip: document.querySelector(".pj-chip").textContent,
+      sections: document.querySelectorAll(".pj-sec").length, title: document.querySelector(".pj-t h2").textContent, chip: document.querySelector(".pj-fc.on").textContent,
       h2: document.querySelector(".pj-sec h2")?.textContent, table: !!document.querySelector(".pj-tw table th"), li: document.querySelectorAll(".pj-sec li").length, page: document.querySelector(".pj-pg")?.textContent,
       end: document.querySelector(".pj-more").textContent, pwned: !!window.__pwned, img: document.querySelectorAll(".pj-page img").length, row: document.querySelector("#projects .pj-row").classList.contains("on"),
       btns: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/") }; });
@@ -3928,7 +3928,7 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#newProject"); await page.waitForTimeout(200);
   await page.click("[data-make=html]"); await page.click("#npMake"); await page.waitForTimeout(900);
   const made = await page.evaluate(() => ({ call: window.__calls.find(x => x.s === "/api/project/new")?.body, view: document.querySelector("main").dataset.view, empty: document.querySelector(".pj-empty h3")?.textContent,
-    chip: document.querySelector(".pj-chip")?.textContent, acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), ph: document.querySelector(".pj-comp textarea").placeholder,
+    chip: document.querySelector(".pj-fc.on")?.textContent, acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), ph: document.querySelector(".pj-comp textarea").placeholder,
     tries: [...document.querySelectorAll(".pj-try button")].map(b => b.textContent), icon: !!document.querySelector("#projects .pj-row path[d^='M9 8l-4']"), sheetGone: !document.querySelector(".veil"),
     hint: document.querySelector(".pj-hint")?.textContent }));
   check("it makes the project with the kind chosen, named for the kind when no name is typed", made.call?.name === "New page" && made.call?.make === "html" && made.view === "project" && made.sheetGone, JSON.stringify(made.call));
@@ -3985,7 +3985,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("a table can be made from nothing under the name typed", tbl.call?.name === "Spending" && tbl.call?.make === "table" && tbl.empty === "This table is empty" && /^Describe the table you want/.test(tbl.ph) && /^A table of my monthly expenses/.test(tbl.tries) && tbl.seg === "Table", JSON.stringify(tbl));
   await page.click("#newProject"); await page.waitForTimeout(200);
   await page.click("[data-make=doc]"); await page.click("#npMake"); await page.waitForTimeout(800);
-  const dc = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/new").pop()?.body, empty: document.querySelector(".pj-empty h3")?.textContent, chip: document.querySelector(".pj-chip")?.textContent }));
+  const dc = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/new").pop()?.body, empty: document.querySelector(".pj-empty h3")?.textContent, chip: document.querySelector(".pj-fc.on")?.textContent }));
   check("and a document", dc.call?.make === "doc" && dc.call?.name === "New document" && dc.empty === "This document is empty" && dc.chip === "New document.md", JSON.stringify(dc));
 
   /* the same name twice: the second takes a number */
@@ -4003,7 +4003,7 @@ for (const space of ["octopus", "squidgy"]) {
     hint: document.querySelector(".pj-hint")?.textContent, view: document.querySelector("main").dataset.view, seg: document.querySelector(".pj-seg button")?.textContent }));
   check("Create project with nothing chosen makes a project named New project, with no file, and opens its chat", bare.call?.name === "New project" && bare.call?.make === undefined && bare.drop && /^Describe a document, a table or a page/.test(bare.ph) && /^Describe what you want/.test(bare.hint) && bare.view === "project", JSON.stringify(bare));
   await page.fill(".pj-comp textarea", "A one page brief for my launch, from my Content folder"); await page.keyboard.press("Enter"); await page.waitForTimeout(900);
-  const said = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/chat").pop()?.body, drop: !!document.querySelector(".pj-drop"), chip: document.querySelector(".pj-chip")?.textContent,
+  const said = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/chat").pop()?.body, drop: !!document.querySelector(".pj-drop"), chip: document.querySelector(".pj-fc.on")?.textContent,
     acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), page: !!document.querySelector(".pj-paper .pj-page"), seg: document.querySelector(".pj-seg button")?.textContent,
     ph: document.querySelector(".pj-comp textarea").placeholder, words: document.querySelector(".pj-a .pj-md")?.textContent, chips: document.querySelectorAll(".pj-used").length,
     row: document.querySelector("#projects .pj-row.on")?.title }));
@@ -4630,6 +4630,216 @@ for (const space of ["octopus", "squidgy"]) {
   await page.fill(".pj-comp textarea", "Plain question"); await page.keyboard.press("Enter"); await page.waitForTimeout(400);
   check("a project's message with no tag carries none", !("tags" in (await page.evaluate(() => window.__calls.filter(c => c.s === "/api/project/chat").pop()?.body))));
   check("nothing threw", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- projects: several files in one project ---- */
+{
+  const st = { ...STATE, brains: [], concepts: [], projects: [{ slug: "offer", name: "Offer", kind: "doc", file: "Offer.md", status: "ready", chars: 300, sections: 1, memory: 0, at: 1, files: 2 }] };
+  const { page, bad } = await boot("/chat.html", arg => {
+    if (window.top !== window) return;
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    const srv = window.__srv = { next: 3, old: false, failFinish: false, edits: {}, turns: [], files: [
+      { id: 1, name: "Offer.md", kind: "doc", chars: 300, status: "ready", text: "# Offer\n\nTeam costs 1,490 euros." },
+      { id: 2, name: "Terms.md", kind: "doc", chars: 200, status: "ready", text: "# Terms\n\nRefunds close in 14 days." }] };
+    const fidOf = k => { const m = String(k).match(/^offer(?:~(\d+))?$/); return m ? Number(m[1] || 1) : 0; };
+    const shape = f => ({ id: f.id, name: f.name, kind: f.kind, made: !!f.made, chars: f.chars, sections: f.chars ? 1 : 0, status: f.status });
+    window.fetch = async (u, opt) => {
+      const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}");
+      window.__calls.push({ s: path, body });
+      const J = x => Response.json(x);
+      if (path === "/api/state") return J(arg.state);
+      if (path === "/api/health") return J({ conflicted: [], health: [] });
+      if (path === "/api/project/list") return J({ projects: [{ ...arg.state.projects[0], files: srv.files.length }] });
+      if (path === "/api/project/get") {
+        const fid = body.file || 1, f = srv.files.find(x => x.id === fid);
+        if (fid > 1 && !f) return J({ error: "that file is not in this project" });
+        const here = Object.entries(srv.edits).filter(([, e]) => e.file === fid).map(([id, e]) => ({ id, at: 1, status: e.status, preview: e.preview }));
+        const state = {};
+        for (const t of srv.turns) if (t.edit && (t.file || 1) !== fid) state[t.edit.id] = srv.edits[t.edit.id]?.status || "gone";
+        return J({ project: { slug: "offer", name: "Offer", created: "2026-10-09" }, brief: null, state: null, asks: [], next: true,
+          file: f ? { ...shape(f), sheets: [{ name: f.name, cols: [], rows: 0 }], ver: 1, at: 1 } : null,
+          cards: f && f.chars ? [{ sid: 1, ord: 1, sheet: 0, title: f.name, summary: "x", chars: f.chars }] : [],
+          turns: srv.turns, edits: here, editState: state, memory: [], shortcuts: [], files: srv.files.map(shape) });
+      }
+      if (path === "/api/project/doc") { const f = srv.files.find(x => x.id === fidOf(body.brain)); return J({ sections: f ? [{ sid: 1, ord: 1, sheet: 0, title: f.name, text: f.text }] : [] }); }
+      if (path === "/api/project/file") {
+        if (srv.old) return new Response("<html>not found</html>", { status: 200 });
+        if (body.action === "new") {
+          const f = { id: srv.next++, name: body.name, kind: body.kind, chars: 0, status: body.made === false ? "reading" : "ready", made: body.made !== false, text: "" };
+          srv.files.push(f); return J({ fid: f.id, key: `offer~${f.id}` });
+        }
+        if (body.action === "rename") { const f = srv.files.find(x => x.id === body.file); if (!f) return J({ error: "that file is not in this project" }); f.name = body.name; return J({ name: body.name }); }
+        if (body.action === "remove") { srv.files = srv.files.filter(x => x.id !== body.file); return J({ ok: true }); }
+        return J({ error: "new, remove or rename" });
+      }
+      if (path === "/api/project/begin") { const f = srv.files.find(x => x.id === fidOf(body.brain)); if (f) f.text = ""; return J({ ver: 1 }); }
+      if (path === "/api/project/part") { const f = srv.files.find(x => x.id === fidOf(body.brain)); if (f && body.text) f.text += body.text; return J({ ok: true }); }
+      if (path === "/api/project/finish") {
+        if (srv.failFinish) return J({ error: "the model is busy" });
+        const f = srv.files.find(x => x.id === fidOf(body.brain)); if (f) { f.status = "ready"; f.chars = f.text.length; } return J({ ok: true });
+      }
+      if (path === "/api/project/chat") {
+        const fid = body.file || 1, n = srv.turns.length + 1;
+        const turn = { id: "t" + n, q: body.q, lead: "Here is a change.", a: "", proposal: false, quotes: [], used: { file: { name: "x", whole: true }, folders: [], memory: 0 }, intent: "change",
+          edit: { id: "e" + n, status: "open", preview: [{ label: "Refunds", before: "14 days", after: "30 days" }] }, ...(fid > 1 ? { file: fid } : {}) };
+        srv.edits[turn.edit.id] = { file: fid, status: "open", preview: turn.edit.preview };
+        srv.turns.push(turn); return J({ turn });
+      }
+      if (path === "/api/project/edit") {
+        const e = srv.edits[body.id], fid = fidOf(body.brain);
+        if (!e || e.file !== fid) return J({ error: "that change is gone" });
+        e.status = body.action === "apply" ? "applied" : body.action === "undo" ? "undone" : "dismissed";
+        const f = srv.files.find(x => x.id === fid);
+        if (f && body.action === "apply") f.text = f.text.replace("14 days", "30 days");
+        if (f && body.action === "undo") f.text = f.text.replace("30 days", "14 days");
+        return J({ ok: true });
+      }
+      return J({ chats: [] });
+    };
+  }, { state: st });
+  const strip = () => page.evaluate(() => ({ tabs: [...document.querySelectorAll(".pj-fc")].map(b => b.textContent), on: [...document.querySelectorAll(".pj-fc.on")].map(b => b.textContent),
+    cur: document.querySelector(".pj-fc[aria-current]")?.textContent, plus: !!document.querySelector("#pjFilePlus"), more: !!document.querySelector("#pjFileMore"), chip: !!document.querySelector(".pj-chip"),
+    text: document.querySelector(".pj-page")?.textContent || "", ph: document.querySelector(".pj-comp textarea").placeholder }));
+  const calls = (re) => page.evaluate(src => window.__calls.filter(x => new RegExp(src).test(x.s)), re.source);
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(600);
+  const s0 = await strip();
+  check("a project with two files shows a tab for each, the first open, a plus and a menu for the open file, and no lone name chip", JSON.stringify(s0.tabs) === '["Offer.md","Terms.md"]' && JSON.stringify(s0.on) === '["Offer.md"]' && s0.plus && s0.more && !s0.chip && /Team costs/.test(s0.text), JSON.stringify(s0));
+  check("the project's row in the list says it holds two files", (await page.evaluate(() => document.querySelector("#projects .pj-row").title)) === "2 files, 0 kept in memory");
+  check("the message bar tells that the other files are read when they help", /^Ask about the document, or ask for a change\. The other files and your folders are read when they help\./.test(s0.ph), s0.ph);
+
+  /* open another file */
+  await page.click(".pj-fc >> text=Terms.md"); await page.waitForTimeout(500);
+  const s1 = await strip(), g1 = (await calls(/project\/get$/)).pop().body, d1 = (await calls(/project\/doc$/)).pop().body;
+  check("a tab opens that file: it is asked for by its number, its sections are read under its own key, and its tab is the open one", g1.file === 2 && d1.brain === "offer~2" && JSON.stringify(s1.on) === '["Terms.md"]' && s1.cur === "Terms.md" && /Refunds close in 14 days/.test(s1.text), JSON.stringify([g1, d1, s1]));
+  const getsOpen = (await calls(/project\/get$/)).length;
+  await page.click(".pj-fc >> text=Terms.md"); await page.waitForTimeout(150);
+  check("a tap on the open tab does nothing", (await calls(/project\/get$/)).length === getsOpen);
+
+  /* a message goes to the open file, and so does its change */
+  await page.fill(".pj-comp textarea", "Make refunds 30 days"); await page.keyboard.press("Enter"); await page.waitForTimeout(600);
+  const m1 = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/chat").pop().body, label: document.querySelector(".pj-ek")?.textContent, ef: document.querySelector(".pj-ef")?.textContent ?? null }));
+  check("a message goes with the project's name and the number of the open file", m1.call.brain === "offer" && m1.call.file === 2 && m1.call.q === "Make refunds 30 days", JSON.stringify(m1.call));
+  check("the change it proposes shows on that file with no 'In' line, since it is the file in front of you", m1.label === "Proposed change" && m1.ef === null, JSON.stringify(m1));
+  await page.click(".pj-edit button.go"); await page.waitForTimeout(600);
+  const ap = await page.evaluate(() => ({ edit: window.__calls.filter(x => x.s === "/api/project/edit").pop().body, label: document.querySelector(".pj-ek").textContent, text: document.querySelector(".pj-page")?.textContent }));
+  check("Apply sends the change under its file's key, and the file shown is read again with it", ap.edit.brain === "offer~2" && ap.edit.action === "apply" && ap.label === "Applied" && /30 days/.test(ap.text), JSON.stringify(ap));
+
+  /* back on the first file: the thread still shows it, tells where it was made, and Undo reaches the right file */
+  await page.click(".pj-fc >> text=Offer.md"); await page.waitForTimeout(500);
+  const back = await page.evaluate(() => ({ ek: document.querySelector(".pj-ek")?.textContent, ef: document.querySelector(".pj-ef")?.textContent, btns: [...document.querySelectorAll(".pj-edit button")].map(b => b.textContent), text: document.querySelector(".pj-page")?.textContent }));
+  check("on the first file the thread still shows that change, says it was made in Terms.md, and offers Undo because it is applied", back.ek === "Applied" && back.ef === "In Terms.md" && JSON.stringify(back.btns) === '["Undo"]' && /1,490/.test(back.text), JSON.stringify(back));
+  const gets1 = (await calls(/project\/get$/)).length;
+  await page.click(".pj-edit button"); await page.waitForTimeout(500);
+  const un = await page.evaluate(() => ({ edit: window.__calls.filter(x => x.s === "/api/project/edit").pop().body, ek: document.querySelector(".pj-ek").textContent }));
+  check("Undo from there goes to the file the change belongs to, and the open file is not read again for it", un.edit.brain === "offer~2" && un.edit.action === "undo" && un.ek === "Undone" && (await calls(/project\/get$/)).length === gets1, JSON.stringify(un));
+  /* reopened, the page asks the server where the change stands */
+  await page.click("#chats .chat-row >> nth=0").catch(() => {}); await page.waitForTimeout(300);
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(600);
+  const re = await page.evaluate(() => ({ ek: document.querySelector(".pj-ek")?.textContent, btns: [...document.querySelectorAll(".pj-edit button")].map(b => b.textContent), ef: document.querySelector(".pj-ef")?.textContent }));
+  check("reopened, the project learns from the server that the change is undone, so its card offers nothing", re.ek === "Undone" && re.btns.length === 0 && re.ef === "In Terms.md", JSON.stringify(re));
+
+  /* the plus: a file you have, or a blank one */
+  await page.click("#pjFilePlus"); await page.waitForTimeout(100);
+  const menu = await page.evaluate(() => ({ items: [...document.querySelectorAll(".pj-menu button")].map(b => b.textContent), expanded: document.querySelector("#pjFilePlus").getAttribute("aria-expanded") }));
+  check("the plus offers a file you have and a blank document, table or page", JSON.stringify(menu.items) === '["Add a fileWord, PDF, Excel","New documentblank","New tableblank","New pageblank"]' && menu.expanded === "true", JSON.stringify(menu));
+  await page.click('.pj-menu [data-add="table"]'); await page.waitForTimeout(600);
+  const nt = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/file").pop().body, on: document.querySelector(".pj-fc.on")?.textContent, empty: document.querySelector(".pj-empty h3")?.textContent,
+    focus: document.activeElement === document.querySelector(".pj-comp textarea"), menu: !!document.querySelector(".pj-menu"), ph: document.querySelector(".pj-comp textarea").placeholder }));
+  check("New table makes a blank table at once, named for what it is, opens it and waits for its description in the chat", nt.call.action === "new" && nt.call.kind === "table" && nt.call.name === "New table" && nt.call.brain === "offer" && !("made" in nt.call)
+    && nt.on === "New table" && nt.empty === "This table is empty" && nt.focus && !nt.menu, JSON.stringify(nt));
+  await page.click("#pjFilePlus"); await page.click('.pj-menu [data-add="table"]'); await page.waitForTimeout(500);
+  check("a second blank table is named New table 2, and the strip lists all four files", (await page.evaluate(() => document.querySelector(".pj-fc.on").textContent)) === "New table 2" && (await strip()).tabs.length === 4);
+
+  /* adding a file that exists */
+  await page.click("#pjFilePlus");
+  const [fcA] = await Promise.all([page.waitForEvent("filechooser"), page.click('.pj-menu [data-add="add"]')]);
+  await fcA.setFiles({ name: "Plan.md", mimeType: "text/markdown", buffer: Buffer.from("# Plan\n\nLaunch in March.") });
+  await page.waitForTimeout(1000);
+  const add = await page.evaluate(() => ({ seq: window.__calls.filter(x => /api\/project\/(file|begin|part|finish)$/.test(x.s)).slice(-4).map(x => `${x.s.split("/").pop()}:${x.body.brain}`),
+    made: window.__calls.filter(x => x.s === "/api/project/file").pop().body, on: document.querySelector(".pj-fc.on")?.textContent, text: document.querySelector(".pj-page")?.textContent, sheet: !!document.querySelector(".veil") }));
+  check("a file you add is read here, made as a file of its own with its name and kind, sent under that file's key, and opened", JSON.stringify(add.seq) === '["file:offer","begin:offer~5","part:offer~5","finish:offer~5"]'
+    && add.made.action === "new" && add.made.kind === "doc" && add.made.name === "Plan.md" && add.made.made === false && add.on === "Plan.md" && /Launch in March/.test(add.text) && !add.sheet, JSON.stringify(add));
+
+  /* rename and remove, from the open file's menu */
+  await page.click("#pjFileMore"); await page.waitForTimeout(100);
+  check("the open file's menu offers Rename and Remove", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll(".pj-menu button")].map(b => b.textContent))) === '["Rename","Remove"]');
+  await page.click('.pj-menu [data-act="rename"]'); await page.waitForTimeout(150);
+  check("Rename opens a field holding the name", (await page.inputValue("#rfName")) === "Plan.md");
+  await page.fill("#rfName", "Launch plan.md"); await page.click("#rfSave"); await page.waitForTimeout(500);
+  const rn = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/file").pop().body, on: document.querySelector(".pj-fc.on")?.textContent, sheet: !!document.querySelector(".veil") }));
+  check("the new name is sent with the file's number and shown on its tab", rn.call.action === "rename" && rn.call.file === 5 && rn.call.name === "Launch plan.md" && rn.on === "Launch plan.md" && !rn.sheet, JSON.stringify(rn));
+  await page.click("#pjFileMore"); await page.click('.pj-menu [data-act="remove"]'); await page.waitForTimeout(150);
+  const rm = await page.evaluate(() => ({ title: document.querySelector("#rmTitle").textContent, note: document.querySelector(".sheet header p").textContent }));
+  check("Remove asks first, names the file, and says the other files stay", rm.title === "Remove Launch plan.md?" && /The other files stay\. This cannot be undone/.test(rm.note), JSON.stringify(rm));
+  const removes = () => page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/file" && x.body.action === "remove").length);
+  await page.click("#rmCancel"); await page.waitForTimeout(100);
+  check("Cancel removes nothing", (await removes()) === 0 && !(await page.$(".veil")) && (await strip()).tabs.length === 5);
+  await page.click("#pjFileMore"); await page.click('.pj-menu [data-act="remove"]'); await page.click("#rmYes"); await page.waitForTimeout(600);
+  const gone = await strip(), rcall = (await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/file").pop().body));
+  check("Remove takes the file out and opens the one before it", rcall.action === "remove" && rcall.file === 5 && JSON.stringify(gone.tabs) === '["Offer.md","Terms.md","New table","New table 2"]' && JSON.stringify(gone.on) === '["New table 2"]', JSON.stringify([rcall, gone]));
+  await page.click(".pj-fc >> text=Offer.md"); await page.waitForTimeout(400);
+  await page.click("#pjFileMore"); await page.click('.pj-menu [data-act="remove"]'); await page.click("#rmYes"); await page.waitForTimeout(700);
+  const first = await strip(), g3 = (await calls(/project\/get$/)).filter(x => x.body.file).pop().body;
+  check("the first file can be removed too: the project stays, and the next file opens", JSON.stringify(first.tabs) === '["Terms.md","New table","New table 2"]' && JSON.stringify(first.on) === '["Terms.md"]' && g3.file === 2 && /Refunds close in 14 days/.test(first.text), JSON.stringify([first, g3]));
+  check("the project's row follows: three files", (await page.evaluate(() => document.querySelector("#projects .pj-row").title)) === "3 files, 0 kept in memory");
+
+  /* a file that failed to finish waits to be added again, in its own place */
+  await page.evaluate(() => { window.__srv.failFinish = true; });
+  await page.click("#pjFilePlus");
+  const [fcB] = await Promise.all([page.waitForEvent("filechooser"), page.click('.pj-menu [data-add="add"]')]);
+  await fcB.setFiles({ name: "Late.md", mimeType: "text/markdown", buffer: Buffer.from("# Late\n\nStill to read.") });
+  await page.waitForTimeout(900);
+  const fail = await page.evaluate(() => ({ msg: document.querySelector(".veil .bad")?.textContent, on: document.querySelector(".pj-fc.on")?.textContent, half: !!document.querySelector(".pj-fc.on.half"), drop: document.querySelector(".pj-drop h3")?.textContent }));
+  check("a file that did not finish says why, stays in the strip marked as not finished, and opens on the drop zone", /the model is busy/.test(fail.msg) && /open it to add it again/.test(fail.msg) && fail.on === "Late.md" && fail.half && fail.drop === "This file was not finished", JSON.stringify(fail));
+  await page.click(".veil footer button"); await page.waitForTimeout(100);
+  await page.evaluate(() => { window.__srv.failFinish = false; });
+  const [fcC] = await Promise.all([page.waitForEvent("filechooser"), page.click(".pj-drop .go")]);
+  await fcC.setFiles({ name: "Late.md", mimeType: "text/markdown", buffer: Buffer.from("# Late\n\nStill to read.") });
+  await page.waitForTimeout(1000);
+  const again = await page.evaluate(() => ({ begin: window.__calls.filter(x => x.s === "/api/project/begin").pop().body.brain, news: window.__calls.filter(x => x.s === "/api/project/file" && x.body.action === "new").length,
+    on: document.querySelector(".pj-fc.on")?.textContent, half: !!document.querySelector(".pj-fc.half"), text: document.querySelector(".pj-page")?.textContent }));
+  check("adding it again fills that same file, not a new one", again.begin === "offer~6" && again.news === 4 && again.on === "Late.md" && !again.half && /Still to read/.test(again.text), JSON.stringify(again));
+
+  /* a phone: the strip fits the width and the page does not scroll sideways */
+  await page.setViewportSize({ width: 390, height: 800 }); await page.waitForTimeout(250);
+  await page.click(".pj-seg button >> nth=0"); await page.waitForTimeout(200);
+  const ph = await page.evaluate(() => { const f = document.querySelector(".pj-files").getBoundingClientRect(), p = document.querySelector("#pjFilePlus").getBoundingClientRect(), m = document.querySelector("#pjFileMore").getBoundingClientRect();
+    return { w: document.documentElement.scrollWidth, vw: innerWidth, strip: Math.round(f.width), plus: Math.round(p.right), more: Math.round(m.right), h: Math.round(p.height), tab: Math.round(document.querySelector(".pj-fc").getBoundingClientRect().height) }; });
+  check("on a phone the strip fits, its plus and menu stay in view, they are 36px or more, and the page does not scroll sideways", ph.w <= ph.vw && ph.more <= ph.vw && ph.plus <= ph.vw && ph.h >= 36 && ph.tab >= 40, JSON.stringify(ph));
+  await page.setViewportSize({ width: 1280, height: 800 }); await page.waitForTimeout(200);
+
+  /* a server older than this page */
+  await page.evaluate(() => { window.__srv.old = true; });
+  await page.click("#pjFilePlus"); await page.click('.pj-menu [data-add="doc"]'); await page.waitForTimeout(500);
+  check("a server that does not know files says so, and nothing opens", (await page.evaluate(() => document.querySelector(".pj-body .pj-msg")?.textContent)) === "The server is older than this page and cannot hold several files yet. Run convex deploy.");
+  check("no page error with several files", bad.length === 0, bad.join(" | "));
+  await page.close();
+}
+
+{
+  /* a server that sends the open file alone still gets a strip with that one file, and the plus */
+  const st = { ...STATE, brains: [], concepts: [], projects: [{ slug: "solo", name: "Solo", kind: "doc", file: "solo.md", status: "ready", chars: 60, sections: 1, memory: 0, at: 1 }] };
+  const { page, bad } = await boot("/chat.html", arg => {
+    if (window.top !== window) return;
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.fetch = async (u) => {
+      const path = String(u).replace(/^https?:\/\/[^/]+/, ""), J = x => Response.json(x);
+      if (path === "/api/state") return J(arg.state);
+      if (path === "/api/health") return J({ conflicted: [], health: [] });
+      if (path === "/api/project/list") return J({ projects: arg.state.projects });
+      if (path === "/api/project/get") return J({ project: { slug: "solo", name: "Solo", created: "2026-10-09" }, file: { name: "solo.md", kind: "doc", sheets: [{ name: "solo.md", cols: [], rows: 0 }], chars: 60, sections: 1, status: "ready", ver: 1, at: 1 },
+        cards: [{ sid: 1, ord: 1, sheet: 0, title: "Goal", summary: "x", chars: 60 }], turns: [], edits: [], memory: [], shortcuts: [] });
+      if (path === "/api/project/doc") return J({ sections: [{ sid: 1, ord: 1, title: "Goal", text: "# Goal\n\nFill 200 seats." }] });
+      return J({ chats: [] });
+    };
+  }, { state: st });
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(600);
+  const one = await page.evaluate(() => ({ tabs: [...document.querySelectorAll(".pj-fc")].map(b => b.textContent), plus: !!document.querySelector("#pjFilePlus"), ph: document.querySelector(".pj-comp textarea").placeholder,
+    row: document.querySelector("#projects .pj-row").title }));
+  check("a project with one file shows its tab and the plus, and the bar speaks of the file as before", JSON.stringify(one.tabs) === '["solo.md"]' && one.plus && /^Ask about the document, or ask for a change\. Your folders/.test(one.ph) && !/other files/.test(one.ph) && /^solo\.md\n/.test(one.row), JSON.stringify(one));
+  check("no page error with one file", bad.length === 0, bad.join(" | "));
   await page.close();
 }
 

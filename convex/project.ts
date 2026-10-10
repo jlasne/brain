@@ -27,10 +27,11 @@ import { routeQuestion } from "./route";
 import { planDossier, writeDossier, idOf, OPEN_READ, keywords, stem, tagsOf, taggedLine } from "./words";
 import { embed, nearest } from "./graph";
 import { scanDoc, scanTable, gapList } from "./gaps";
+import { keysOf, askKeys, findIn, mapText, tableLine, FIND_CHARS } from "./find";
 import { readNotes, fileNotes, MAX_CHARS } from "./personal";
 import {
   splitDoc, openingOf, withoutPages, pagesIn, WHOLE_CHARS, TINY_CHARS, SECTION_CHARS, FILE_KINDS, SHORT_AFTER, SHORT_N, madeName, columnsOf, colNames, parseCsv, csvOf, blocksOf,
-  readQuery, runQuery, resultText, colLine, MAX_OPS, BRIEF_MAX, NEXT_CHARS, ASK_CHARS,
+  readQuery, runQuery, resultText, colLine, MAX_OPS, BRIEF_MAX, NEXT_CHARS, ASK_CHARS, fileKey, splitKey, pointerOf, localSids,
 } from "./sheet";
 import type { Part, Sheet } from "./sheet";
 
@@ -85,7 +86,7 @@ export async function addDocPiece(ctx: any, o: { space: string; brain: string; v
   if (!parts.length) return { sections: 0, chars: 0 };
   const lines = await summarise(parts, o);
   return await ctx.runMutation(internal.projects.sectionAdd, { space: o.space, brain: o.brain, ver: o.ver, sheet: 0,
-    items: parts.map((p, i) => ({ title: lines[i].title, summary: lines[i].summary, text: p.text })) });
+    items: parts.map((p, i) => ({ title: lines[i].title, summary: lines[i].summary, text: p.text, keys: keysOf(p.text) })) });
 }
 
 /** A piece of a table sheet: its rows cut in blocks, stored in order. */
@@ -111,7 +112,7 @@ export async function readBlocks(ctx: any, o: { space: string; brain: string; sh
  * file opens. With `about`, one note says what the file holds and goes into the
  * project's memory, so the chat knows the file before it opens any of it.
  */
-export async function finishFile(ctx: any, o: { space: string; brain: string; ver: number; about?: boolean; key?: string; model?: string }) {
+export async function finishFile(ctx: any, o: { space: string; brain: string; ver: number; about?: boolean; embeds?: boolean; key?: string; model?: string; meter?: (u: any) => void }) {
   const got = await ctx.runQuery(internal.projects.projectGet, { space: o.space, brain: o.brain });
   const file = got.file;
   if (!file || file.ver !== o.ver) throw new Error("this file was replaced: start it again");
@@ -125,7 +126,52 @@ export async function finishFile(ctx: any, o: { space: string; brain: string; ve
   }
   const done = await ctx.runMutation(internal.projects.fileFinish, { space: o.space, brain: o.brain, ver: o.ver, ...(cols ? { cols } : {}) });
   if (o.about) await aboutFile(ctx, o);
+  await indexFile(ctx, o);
   return done;
+}
+
+/* ---------- what the project knows of its files, one by one ---------- */
+
+const FILE_LINE_RULES = `You write one line saying what a file holds, for the list of a project's files.
+Below: the file's name, then one line a section: id | title | summary.
+Reply with only JSON: {"line":""}
+- One sentence of at most 25 words: what the file is and what it covers, with its main names, numbers and dates. Only what is given. Write it in English. No em-dashes.`;
+
+/**
+ * Once a file is read in: its line (what it is, for the map of the project's files) and its meaning (each section embedded, so a
+ * question finds it in another language too). A table's line is its columns, made in code; the first file's line is the summary line
+ * of its note; another file's line costs one model call over its contents list. A failure here never fails the file.
+ */
+async function indexFile(ctx: any, o: { space: string; brain: string; embeds?: boolean; key?: string; model?: string; meter?: (u: any) => void }) {
+  try {
+    const { base, fid } = splitKey(o.brain);
+    const got = await ctx.runQuery(internal.projects.projectGet, { space: o.space, brain: base, file: fid });
+    const file = got.file;
+    if (!file || file.status !== "ready" || !file.chars) return;
+    let line = "";
+    if (file.kind === "table") line = tableLine(file.sheets);
+    else if (fid === 1) line = String((got.memory as any[]).find(m => m.title === "The file")?.summaryLine ?? "");
+    else {
+      try {
+        const { text, finish, usage } = await ask([
+          { role: "system", content: "You write one line about a file. You reply with JSON only." },
+          { role: "user", content: `${FILE_LINE_RULES}\n\nTHE FILE "${file.name}"\n${contentsText(got.cards, 6000)}` },
+        ], { json: true, maxTokens: 200, temperature: 0, timeout: 60000, key: o.key, model: o.model });
+        o.meter?.(usage);
+        line = String(parseJson(String(text), finish)?.line ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, 220);
+      } catch (e: any) { console.log(`the line of a file was not written: ${String(e?.message ?? e).slice(0, 140)}`); }
+    }
+    if (line) await ctx.runMutation(internal.projects.fileSetLine, { space: o.space, brain: o.brain, line });
+    /* Its meaning: a title and a summary a section, embedded, so a question reaches a section by what it says. */
+    if (o.embeds && file.kind !== "table" && got.cards.length) {
+      const vecs = await embed(got.cards.map((c: any) => `${c.title}. ${c.summary ?? ""}`.slice(0, 600)));
+      for (let i = 0; i < vecs.length; i += 40) {
+        await ctx.runMutation(internal.projects.vectorsPut, { space: o.space, brain: o.brain, items: vecs.slice(i, i + 40).map((vec, k) => ({ sid: got.cards[i + k].sid, vec })) });
+      }
+    }
+  } catch (e: any) {
+    console.log(`the file was not indexed: ${String(e?.message ?? e).slice(0, 160)}`);
+  }
 }
 
 /* ---------- what the project knows of its file ---------- */
@@ -609,7 +655,7 @@ THE STATE OF PLAY
 const NEXT_RULE = `- "next": one line under 15 words, written as the message the owner could send next ("Fill the 3 empty prices"). "" after small talk, or when the work is complete.
 `;
 
-export const ANSWER_RULES = (kind: string, english: boolean, o: { auto?: boolean; empty?: boolean; note?: boolean; edits?: boolean; rules?: string; brief?: string; next?: boolean } = {}) => {
+export const ANSWER_RULES = (kind: string, english: boolean, o: { auto?: boolean; empty?: boolean; note?: boolean; edits?: boolean; rules?: string; brief?: string; next?: boolean; others?: boolean } = {}) => {
   const noun = kind === "table" ? "table" : kind === "html" ? "HTML page" : "document";
   /* How to change the file is sent when the message may change it, or when the router could not say. The rules every message needs come first. */
   const change = o.edits !== false;
@@ -617,7 +663,8 @@ export const ANSWER_RULES = (kind: string, english: boolean, o: { auto?: boolean
 
 WHAT YOU READ
 - THE FILE: what the project holds. ${kind === "table" ? "A table's result is computed over every row, so its counts, totals and averages are exact. Use them as given and never add rows up yourself." : "The sections opened are shown in full. The others are named under ALSO IN THE FILE. When the message is about the whole file, THE FILE'S CONTENTS gives a summary line for every section."}
-- STATE OF PLAY: your own summary of where the project stands, from earlier exchanges. STILL OPEN: what you asked the owner and they have not answered.
+${o.others ? `- THE PROJECT'S OTHER FILES: the files beside THE FILE, read only. A line names each one, and the sections that bear on the question are shown in full. You change only THE FILE: for a change in another file, name the file to open and ask again there. Name the file and the section when you use one.
+` : ""}- STATE OF PLAY: your own summary of where the project stands, from earlier exchanges. STILL OPEN: what you asked the owner and they have not answered.
 - PROJECT MEMORY: what the project knows: a note on the file, what the owner said and decided in earlier chats, and what earlier answers found in the file.
 - THEIR FOLDERS: notes from the owner's other folders, when they bear on the question.
 
@@ -719,8 +766,87 @@ function tableWhole(sheets: Sheet[], blocksBySheet: string[][]): string {
 
 /* ---------- one message ---------- */
 
+/* ---------- the project's other files ---------- */
+
+/**
+ * What a message reads of the project's other files: a line each, so the chat knows what else the project holds, and the few sections
+ * that bear on the question, found with no model call. By words (free, exact for a name or a number) and by meaning (the question
+ * embedded once, the nearest sections of the project's files; in another language too). Nothing here fails a message: a search that
+ * cannot run reads what the other one found, or nothing.
+ */
+export async function readOthers(ctx: any, o: { space: string; base: string; fid: number; q: string; terms: string[]; embeds: boolean; closer?: boolean }) {
+  const none = { map: "", text: "", used: [] as { fid: number; sid: number; file: string; title: string }[] };
+  let found: { files: any[]; cards: any[] };
+  try { found = await ctx.runQuery(internal.projects.searchCards, { space: o.space, brain: o.base, except: o.fid }); }
+  catch (e: any) { console.log(`the other files were not listed: ${String(e?.message ?? e).slice(0, 140)}`); return none; }
+  if (!found.files.length || o.closer) return none;
+  const map = mapText(found.files);
+  if (!found.cards.length) return { ...none, map };
+  const want = askKeys(o.q, o.terms);
+  let meaning: { fid: number; sid: number; score: number }[] = [];
+  if (o.embeds && ctx.vectorSearch) {
+    try {
+      const [vec] = await embed([o.q.slice(0, 1000)]);
+      const hits: { _id: any; _score: number }[] = await ctx.vectorSearch("projectVectors", "by_vec", { vector: vec, limit: 24, filter: (q: any) => q.eq("base", o.base) });
+      const owners: ({ brain: string; sid: number } | null)[] = await ctx.runQuery(internal.projects.vectorOwners, { ids: hits.map(h => h._id) });
+      meaning = hits.map((h, i) => ({ own: owners[i], score: h._score })).filter(x => x.own && splitKey(x.own.brain).fid !== o.fid)
+        .map(x => ({ fid: splitKey(x.own!.brain).fid, sid: x.own!.sid, score: x.score }));
+    } catch (e: any) { console.log(`the other files were searched by words alone: ${String(e?.message ?? e).slice(0, 140)}`); }
+  }
+  const best = findIn(found.cards, want, meaning);
+  const used: { fid: number; sid: number; file: string; title: string }[] = [];
+  const parts: string[] = [];
+  let chars = 0;
+  for (const h of best) {
+    const file = found.files.find((f: any) => f.id === h.fid);
+    const sec: any[] = await ctx.runQuery(internal.projects.sectionsRead, { space: o.space, brain: fileKey(o.base, h.fid), sids: [h.sid] });
+    if (!file || !sec[0]) continue;
+    /* A long section is read as the passages that bear on the question, as in the open file. */
+    const text = passages(sec[0].text, want).text;
+    if (chars + text.length > FIND_CHARS && parts.length) break;
+    const room = text.slice(0, Math.max(0, FIND_CHARS - chars));
+    chars += room.length;
+    parts.push(`--- SECTION ${h.fid}.${h.sid}: ${file.name}, ${sec[0].title}\n${room}`);
+    used.push({ fid: h.fid, sid: h.sid, file: file.name, title: sec[0].title });
+  }
+  return { map, text: parts.join("\n\n"), used };
+}
+
+/* ---------- a question the project has answered before ---------- */
+
+/** A message that asks, and asks for nothing more: it starts as a question does, and holds no word of a change, a decision or a summary of everything. */
+export function plainQuestion(q: string): boolean {
+  const t = String(q ?? "").trim();
+  if (t.length < 6 || t.length > 300) return false;
+  const asks = /^(what|who|whom|whose|when|where|why|how|which|does|do|did|is|are|was|were|can|could|will|would|combien|quel|quelle|quels|quelles|qui|quand|où|pourquoi|comment|est-ce)\b/i.test(t) || /\?\s*$/.test(t);
+  const more = /\b(change|replace|rewrite|update|add|remove|delete|insert|fix|set|make|create|write|translate|shorten|expand|edit|rename|modify|brainstorm|ideas?|should|decide|choose|compare|recommend|propose|suggest|summar\w*|review|everything|whole|all of|overall|améliore\w*|modifie\w*|ajoute\w*|supprime\w*|résume\w*)\b/i.test(t);
+  return asks && !more;
+}
+
+/**
+ * Sections a question can be sent to without asking a model: the project has answered nearly these words before, from these sections,
+ * at least twice. Four of five words must be among the ones the route learned. Routes are learned on a file of more than 40 sections,
+ * which is where the router costs most.
+ */
+export function sureRoute(q: string, routes: { t: string[]; s: number[]; n: number }[], cards: any[]): number[] | null {
+  const qs = [...new Set(keywords(q).map(stem))];
+  if (qs.length < 2) return null;
+  const have = new Set<number>(cards.map((c: any) => c.sid));
+  let best: { k: number; n: number; s: number[] } | null = null;
+  for (const r of routes ?? []) {
+    const k = qs.filter(w => r.t.includes(w)).length;
+    if (r.n < 2 || k / qs.length < 0.8) continue;
+    const s = r.s.filter(x => have.has(x));
+    if (!s.length) continue;
+    if (!best || k > best.k || (k === best.k && r.n > best.n)) best = { k, n: r.n, s };
+  }
+  return best ? best.s.slice(0, 6) : null;
+}
+
 export type ChatIn = {
   space: string; brain: string; q: string; key?: string; model?: string; english: boolean; embeds: boolean;
+  /* The file open beside the chat, by its number: the first file when it is left out. The chat reads and changes that one, and reads the others. */
+  file?: number;
   /* The answer files its own notes in the project's memory: what the owner decided, and what the answer found. */
   note?: boolean;
   /* The slugs of the folders the owner tagged with @ in the message: those are read, and no other. */
@@ -738,7 +864,11 @@ export async function projectChat(ctx: any, o: ChatIn) {
   const t0 = Date.now();
   const q = String(o.q ?? "").trim().slice(0, 4000);
   if (!q) throw new Error("write something first");
-  const got = await ctx.runQuery(internal.projects.projectGet, { space: o.space, brain: o.brain });
+  /* The project's own things (its notes, its thread, its Brief) are kept under its name; the open file's sections, changes and rows under that file's key. */
+  const base = splitKey(o.brain).base;
+  const fid = Number.isInteger(o.file) && (o.file as number) > 1 ? (o.file as number) : splitKey(o.brain).fid;
+  const fb = fileKey(base, fid);
+  const got = await ctx.runQuery(internal.projects.projectGet, { space: o.space, brain: base, file: fid });
   if (got.file && got.file.status !== "ready") throw new Error("the file of this project is not ready: wait for it to be read, or drop it again");
   /* No file yet: the first description makes one, of the kind its words call for. */
   const fresh = !got.file;
@@ -754,6 +884,8 @@ export async function projectChat(ctx: any, o: ChatIn) {
   /* The owner's Brief is read at every message, in the system's rules, with the instruction notes an older project holds when it has no Brief; every other note is read as it bears on the question. */
   const rules = (got.memory as any[]).filter(r => r.instructions);
   const memory = (got.memory as any[]).filter(r => !r.instructions);
+  /* A note names the sections it rests on by one number each, a number that tells the file: here, the sections of the open file, by their own numbers. */
+  const here = memory.map(m => m.sections?.length ? { ...m, sections: localSids(m.sections, fid) } : m);
   const brief: string = got.brief?.text ?? "";
   /* Where the project stands, and what it still needs from the owner: read as material, never as orders. */
   const state: string = got.state?.text ?? "";
@@ -762,7 +894,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
   const firstRows: string[][][] = [];
   if (table && !tiny) {
     for (let i = 0; i < file.sheets.length; i++) {
-      firstRows.push(((await ctx.runQuery(internal.projects.rowsPage, { space: o.space, brain: o.brain, sheet: i, from: 1, n: 3 })).rows ?? []).map((r: any) => r.cells));
+      firstRows.push(((await ctx.runQuery(internal.projects.rowsPage, { space: o.space, brain: fb, sheet: i, from: 1, n: 3 })).rows ?? []).map((r: any) => r.cells));
     }
   }
 
@@ -771,14 +903,18 @@ export async function projectChat(ctx: any, o: ChatIn) {
   const skip = tiny && !fresh && (!o.shared.brains.length || tagged.length > 0);
   /* A long file shows the router a short list first: what the project remembers about where things are, what the last exchange opened, and the sections that share words with the message. */
   const lastSids: number[] = (earlierTurns[earlierTurns.length - 1]?.used?.file?.sections ?? []).map((x: any) => Number(x?.sid)).filter(Number.isFinite);
-  let short = doc && !tiny && cards.length > SHORT_AFTER ? shortlist(cards, q, got.shortcuts ?? [], lastSids, SHORT_N, memory) : null;
+  let short = doc && !tiny && cards.length > SHORT_AFTER ? shortlist(cards, q, got.shortcuts ?? [], lastSids, SHORT_N, here) : null;
   /* A message in a script the lines share no word with (Chinese, Arabic, Cyrillic) can never meet a line: it gets the whole list at once, as before. */
   if (short && !keywords(q).length && !/[a-z]/i.test(q) && q.length >= 8) short = null;
   const spent = newSpent();
   /* Thanks and goodbyes need nothing read and nothing decided. */
   const closer = !fresh && isCloser(q);
   const ask0 = { q, earlier, file, cards, tiny, firstRows, folders: o.shared.brains, memory: memoryForRouter(memory, q), state, open: open.map(x => `${x.id}: ${x.q}`).join("\n"), fresh, empty, meter: (u: any) => meter(spent, u), key: o.key, model: o.model };
-  let r: Route = closer ? { ...NO_ROUTE, routed: true } : skip ? NO_ROUTE : await route({ ...ask0, short });
+  /* A question the project has answered before, in nearly the same words, from the same sections, needs no router to find them. */
+  const sure = doc && !fresh && !empty && !closer && !skip && !tagged.length && plainQuestion(q) ? sureRoute(q, got.shortcuts ?? [], cards) : null;
+  let r: Route = closer ? { ...NO_ROUTE, routed: true } : skip ? NO_ROUTE
+    : sure ? { ...NO_ROUTE, sections: sure, terms: keywords(q).slice(0, 12), routed: true }
+    : await route({ ...ask0, short });
   /* None of the short list fits: the whole list, once. */
   if (short && r.more) r = await route({ ...ask0, short: null });
   /* The folders the owner tagged are the ones read: the router's own choice of folders stands aside. */
@@ -801,7 +937,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
       : r.sections.length ? r.sections
       : !r.routed ? pickByWords(cards, q, 4)
       : r.intent === "change" ? pickByWords(cards, q, 3) : [];
-    let secs: any[] = sids.length ? await ctx.runQuery(internal.projects.sectionsRead, { space: o.space, brain: o.brain, sids }) : [];
+    let secs: any[] = sids.length ? await ctx.runQuery(internal.projects.sectionsRead, { space: o.space, brain: fb, sids }) : [];
     const order = new Map<number, number>(cards.map((c, i) => [c.sid, i]));
     secs.sort((a, b) => (order.get(a.sid) ?? 0) - (order.get(b.sid) ?? 0));
     fileText = sectionText(secs);
@@ -826,14 +962,14 @@ export async function projectChat(ctx: any, o: ChatIn) {
     fileText = "";
   } else if (whole) {
     const blocks: string[][] = [];
-    for (let i = 0; i < file.sheets.length; i++) blocks.push(await readBlocks(ctx, { space: o.space, brain: o.brain, sheet: i }));
+    for (let i = 0; i < file.sheets.length; i++) blocks.push(await readBlocks(ctx, { space: o.space, brain: fb, sheet: i }));
     fileText = tableWhole(file.sheets, blocks);
   } else {
     const query = readQuery(r.query, file.sheets);
     const head = sheetsText(file.sheets, firstRows);
     if (query) {
       const sheet = file.sheets[query.sheet];
-      const blocks: string[] = await readBlocks(ctx, { space: o.space, brain: o.brain, sheet: query.sheet });
+      const blocks: string[] = await readBlocks(ctx, { space: o.space, brain: fb, sheet: query.sheet });
       const res = runQuery(blocks, sheet.cols, query);
       rowsUsed = res.rows.map(f => f.n).slice(0, 60); rowsSheet = query.sheet;
       fileText = `${head}\n\nTABLE RESULT, computed over every row\n${resultText(res, sheet.cols, sheet.name, sheet.rows)}`;
@@ -873,6 +1009,10 @@ export async function projectChat(ctx: any, o: ChatIn) {
     }
   }
 
+  /* The project's other files: a line each, and the sections of them that bear on the question. */
+  const hasOthers = (got.files ?? []).some((f: any) => f.id !== fid);
+  const near = hasOthers ? await readOthers(ctx, { space: o.space, base, fid, q, terms: r.terms, embeds: o.embeds, closer }) : { map: "", text: "", used: [] as { fid: number; sid: number; file: string; title: string }[] };
+
   /* 4. The answer. Thanks and goodbyes read no note. */
   const picked = closer ? [] : memoryPick(memory, 3000, q);
   /* The last exchange whole; the ones before it as the question and the one line that answered it: the notes keep the rest. */
@@ -892,6 +1032,8 @@ export async function projectChat(ctx: any, o: ChatIn) {
     `THE FILE "${file.name}" (${noun})\n${files || (empty ? "(empty)" : "(not opened for this message)")}\n\n` +
     `${mapText ? `THE FILE'S CONTENTS, a line a section (id | title | summary), written when the file was read in\n${mapText}\n\n` : ""}` +
     `${also ? `ALSO IN THE FILE, not opened (id: title)\n${also}\n\n` : ""}` +
+    `${near.map ? `THE PROJECT'S OTHER FILES, read only (id | name | what it is)\n${near.map}\n\n` : ""}` +
+    `${near.text ? `FROM THE OTHER FILES, the sections that bear on the question\n${near.text}\n\n` : ""}` +
     `${showFrame && state ? `STATE OF PLAY, your summary of where the project stands\n${state}\n\n` : ""}` +
     `${showFrame && open.length ? `STILL OPEN, asked of the owner and not answered (id: question)\n${open.map(x => `${x.id}: ${x.q}`).join("\n")}\n\n` : ""}` +
     `PROJECT MEMORY\n${closer ? "(not read for this message)" : picked.map(memoryLine).join("\n") || "(nothing kept yet)"}\n\n${taggedNote ? taggedNote + "\n\n" : ""}THEIR FOLDERS\n${folders}\n\n` +
@@ -901,7 +1043,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
   const writes = empty || kind === "html" || r.intent === "change";
   /* Thanks and goodbyes read no Brief and no instruction, as they read no note. The Brief takes the place of the instruction notes an older project holds. */
   const ruled = closer || brief ? [] : rulesPick(rules);
-  const system = ANSWER_RULES(kind, o.english, { auto: made, empty, note: framed, edits, next: nextOn,
+  const system = ANSWER_RULES(kind, o.english, { auto: made, empty, note: framed, edits, next: nextOn, others: hasOthers && !closer,
     ...(brief && !closer ? { brief } : {}), ...(ruled.length ? { rules: ruled.map(rulesLine).join("\n") } : {}) });
   const answerOf = async (user: string) => {
     const { text, finish, usage } = await ask([{ role: "system", content: system }, { role: "user", content: user }],
@@ -925,7 +1067,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
       const have = new Set(opened.map(x => x.sid));
       const want = pickByWords(cards, `${q} ${r.terms.join(" ")}`, 8).filter(sid => !have.has(sid)).slice(0, 4);
       if (want.length) {
-        const more: any[] = await ctx.runQuery(internal.projects.sectionsRead, { space: o.space, brain: o.brain, sids: want });
+        const more: any[] = await ctx.runQuery(internal.projects.sectionsRead, { space: o.space, brain: fb, sids: want });
         const order = new Map<number, number>(cards.map((c, i) => [c.sid, i]));
         more.sort((a, b) => (order.get(a.sid) ?? 0) - (order.get(b.sid) ?? 0));
         if (more.length) {
@@ -965,15 +1107,15 @@ export async function projectChat(ctx: any, o: ChatIn) {
   /* The file is made only when there is something to write in it. */
   let ready = !fresh;
   if (ops.length && fresh) {
-    try { await ctx.runMutation(internal.projects.fileMake, { space: o.space, brain: o.brain, kind, name: file.name }); ready = true; }
+    try { await ctx.runMutation(internal.projects.fileMake, { space: o.space, brain: fb, kind, name: file.name }); ready = true; }
     catch (err: any) { reply += `\n\nThe file was not made: ${String(err?.message ?? err).slice(0, 160)}`; }
   }
   if (ops.length && ready) {
-    const e = await ctx.runMutation(internal.projects.editPropose, { space: o.space, brain: o.brain, ops });
+    const e = await ctx.runMutation(internal.projects.editPropose, { space: o.space, brain: fb, ops });
     if (e.id) {
       let status = "open";
       if (made) {
-        try { await ctx.runMutation(internal.projects.editApply, { space: o.space, brain: o.brain, id: e.id }); status = "applied"; }
+        try { await ctx.runMutation(internal.projects.editApply, { space: o.space, brain: fb, id: e.id }); status = "applied"; }
         catch (err: any) { reply += `\n\nThe change was not applied: ${String(err?.message ?? err).slice(0, 160)} Press Apply to try again.`; }
       }
       edit = { id: e.id, preview: e.preview, status };
@@ -985,7 +1127,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
   if (doc && cards.length > SHORT_AFTER && !whole && opened.length && r.routed) {
     try {
       const terms = [...new Set([...keywords(q), ...r.terms.flatMap(t => keywords(t))].map(stem))];
-      await ctx.runMutation(internal.projects.routeLearn, { space: o.space, brain: o.brain, terms, sids: opened.map(x => x.sid), q });
+      await ctx.runMutation(internal.projects.routeLearn, { space: o.space, brain: fb, terms, sids: opened.map(x => x.sid), q });
     } catch (e: any) { console.log(`the route was not kept: ${String(e?.message ?? e).slice(0, 160)}`); }
   }
 
@@ -995,8 +1137,8 @@ export async function projectChat(ctx: any, o: ChatIn) {
     try {
       const have = new Set<number>(cards.map((c: any) => c.sid));
       const notes = readNotes(JSON.stringify({ notes: d.notes }), "chat").slice(0, 2)
-        .map(n => n.sections ? { ...n, sections: doc ? n.sections.filter(x => have.has(x)).slice(0, 6) : [] } : n);
-      if (notes.length) filed = await fileNotes(ctx, o.space, o.brain, memory, notes, "chat", date, [], [], q);
+        .map(n => n.sections ? { ...n, sections: doc ? n.sections.filter(x => have.has(x)).slice(0, 6).map(x => pointerOf(fid, x)) : [] } : n);
+      if (notes.length) filed = await fileNotes(ctx, o.space, base, memory, notes, "chat", date, [], [], q);
     } catch (e: any) { console.log(`the notes were not filed: ${String(e?.message ?? e).slice(0, 160)}`); }
   }
   /* Where the project stands, what it still needs from the owner, and what to do next: read from the answer. It is kept apart from the answer, and never fails it. */
@@ -1007,7 +1149,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
       const done = (Array.isArray(d?.answered) ? d.answered : []).map(String).filter((id: string) => open.some(x => x.id === id));
       const now = typeof d?.state === "string" ? clean(d.state) : "";
       if (now || add.length || done.length) {
-        const f = await ctx.runMutation(internal.projects.frameApply, { space: o.space, brain: o.brain, ...(now ? { state: now } : {}), ...(add.length ? { add } : {}), ...(done.length ? { done } : {}) });
+        const f = await ctx.runMutation(internal.projects.frameApply, { space: o.space, brain: base, ...(now ? { state: now } : {}), ...(add.length ? { add } : {}), ...(done.length ? { done } : {}) });
         asked = f.added ?? []; stated = !!f.state; answered = done;
       }
     } catch (e: any) { console.log(`the state of play was not kept: ${String(e?.message ?? e).slice(0, 160)}`); }
@@ -1019,12 +1161,13 @@ export async function projectChat(ctx: any, o: ChatIn) {
     q, ...(lead ? { lead } : {}), a: reply, proposal: d?.proposal === true && !edit, ...(lacks ? { lacks: true } : {}),
     quotes,
     used: { file: { name: file.name, whole: whole && !empty, ...(opened.length ? { sections: opened, of: cards.length } : {}), ...(opened.some(x => short?.memory.has(x.sid)) ? { via: "memory" } : {}), ...(trimmed ? { passages: true } : {}), ...(mapText ? { map: true } : {}), ...(rowsUsed.length ? { rows: rowsUsed, sheet: rowsSheet } : {}) },
-      folders: called, memory: picked.length, ...(ruled.length ? { rules: ruled.length } : {}) },
+      folders: called, memory: picked.length, ...(ruled.length ? { rules: ruled.length } : {}), ...(near.used.length ? { others: near.used } : {}), ...(sure ? { sure: true } : {}) },
     /* What this message cost, as the model host reported it: tokens in and out, the part reused from before, and the price in dollars when it says it. */
     ...(spent.in ? { cost: { in: spent.in, out: spent.out, ...(spent.cached ? { cached: spent.cached } : {}), ...(spent.known ? { usd: Math.round(spent.usd * 1e7) / 1e7 } : {}), calls: spent.calls } } : {}),
     ...(edit ? { edit } : {}), intent: r.intent,
     ...(filed?.titles?.length ? { noted: filed.titles } : {}),
     ...(nextLine ? { next: nextLine } : {}), ...(asked.length ? { asks: asked } : {}), ...(stated ? { stated: true } : {}), ...(answered.length ? { answered } : {}),
+    ...(fid > 1 ? { file: fid } : {}),
   };
-  return await ctx.runMutation(internal.projects.threadPush, { space: o.space, brain: o.brain, turn });
+  return await ctx.runMutation(internal.projects.threadPush, { space: o.space, brain: base, turn });
 }

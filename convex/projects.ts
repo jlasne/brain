@@ -16,7 +16,7 @@ import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { readSpace, slug, today } from "./lib";
 import { syncCard } from "./store";
-import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, FILE_KINDS, ROUTES_KEEP, BRIEF_MAX, STATE_MAX, ASKS_MAX, ASK_CHARS, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
+import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, FILE_KINDS, ROUTES_KEEP, BRIEF_MAX, STATE_MAX, ASKS_MAX, ASK_CHARS, MAX_FILES, KEY_RE, FILE_SPAN, fileKey, splitKey, pointerOf, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
 import type { Col } from "./sheet";
 
 /** Rows one change may build a sheet from. */
@@ -34,9 +34,13 @@ export const EDIT_CHARS = 60000;
 /** A section grows no further than this through changes. */
 export const SECTION_MAX = 30000;
 
-/** The folder behind a project, when it is one of this workspace's own. */
-async function projectIn(ctx: any, space: string, brain: string): Promise<any | null> {
-  const b = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", brain)).unique();
+/**
+ * The folder behind a project, when it is one of this workspace's own. The key
+ * may be a file's (`name~2`): it names the project it belongs to.
+ */
+async function projectIn(ctx: any, space: string, key: string): Promise<any | null> {
+  if (!KEY_RE.test(String(key))) return null;
+  const b = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", splitKey(key).base)).unique();
   return b && b.type === "project" && readSpace(b.space) === readSpace(space) ? b : null;
 }
 const need = async (ctx: any, space: string, brain: string) => {
@@ -48,6 +52,16 @@ const fileOf = async (ctx: any, brain: string) =>
   await ctx.db.query("projectFiles").withIndex("by_brain", (q: any) => q.eq("brain", brain)).first();
 const frameOf = async (ctx: any, brain: string) =>
   await ctx.db.query("projectBriefs").withIndex("by_brain", (q: any) => q.eq("brain", brain)).first();
+/** The files a project holds besides its first, by number. */
+const childFiles = async (ctx: any, base: string): Promise<any[]> =>
+  (await ctx.db.query("projectFiles").withIndex("by_brain", (q: any) => q.gte("brain", `${base}~`).lt("brain", `${base}~;`)).collect())
+    .sort((a: any, b: any) => splitKey(a.brain).fid - splitKey(b.brain).fid);
+/** Every file of a project, the first file leading: what the page lists and what the chat is told. */
+async function filesOf(ctx: any, base: string) {
+  const all = [await fileOf(ctx, base), ...(await childFiles(ctx, base))].filter(Boolean);
+  return all.map((f: any) => ({ id: splitKey(f.brain).fid, name: f.name, kind: f.kind, made: !!f.made, chars: f.chars, sections: f.parts, status: f.status,
+    ...(f.line ? { line: f.line } : {}), ...(f.kind === "table" ? { sheets: (f.sheets ?? []).map((s: any) => ({ name: s.name, rows: s.rows ?? 0, cols: (s.cols ?? []).map((c: any) => ({ name: c.name })), header: s.header ?? [] })) } : {}) }));
+}
 const cardsOf = async (ctx: any, brain: string): Promise<any[]> =>
   (await ctx.db.query("projectCards").withIndex("by_brain_ord", (q: any) => q.eq("brain", brain)).collect())
     .sort((a: any, b: any) => a.ord - b.ord);
@@ -64,29 +78,44 @@ export const projectsOf = internalQuery({
     for (const b of brains) {
       const f = await fileOf(ctx, b.slug);
       const mem = await ctx.db.query("cards").withIndex("by_brain", (q: any) => q.eq("brain", b.slug)).collect();
+      const more = (await childFiles(ctx, b.slug)).length;
       out.push({ slug: b.slug, name: b.name, created: b.created, kind: f?.kind ?? null, file: f?.name ?? "", status: f?.status ?? "empty",
-        made: !!f?.made, chars: f?.chars ?? 0, sections: f?.parts ?? 0, memory: mem.length, at: f?.at ?? 0 });
+        made: !!f?.made, chars: f?.chars ?? 0, sections: f?.parts ?? 0, memory: mem.length, at: f?.at ?? 0, ...(more ? { files: more + (f ? 1 : 0) } : {}) });
     }
     return out.sort((x, y) => y.at - x.at || x.name.localeCompare(y.name));
   },
 });
 
 /**
- * Everything the project screen opens with: the file's shape, the contents
- * list, the thread, the changes still open or recently applied, and what the
- * project remembers.
+ * Everything the project screen opens with: the shape of one file, its
+ * contents list, the thread, the changes still open or recently applied, what
+ * the project remembers, and the list of the project's files. `file` names the
+ * file to open (the first file when it is left out); the thread, the memory,
+ * the Brief and the rest belong to the project and read the same whichever
+ * file is open.
  */
 export const projectGet = internalQuery({
-  args: { space: v.string(), brain: v.string() },
+  args: { space: v.string(), brain: v.string(), file: v.optional(v.number()) },
   handler: async (ctx, a) => {
     const b = await need(ctx, a.space, a.brain);
-    const file = await fileOf(ctx, a.brain);
-    const cards = file ? await cardsOf(ctx, a.brain) : [];
-    const thread = await ctx.db.query("projectThreads").withIndex("by_brain", (q: any) => q.eq("brain", a.brain)).first();
-    const edits = (await ctx.db.query("projectEdits").withIndex("by_brain_at", (q: any) => q.eq("brain", a.brain)).collect())
+    const fid = a.file != null ? Math.max(1, Math.floor(a.file)) : splitKey(a.brain).fid;
+    const key = fileKey(b.slug, fid);
+    const file = await fileOf(ctx, key);
+    if (fid > 1 && !file) throw new Error("that file is not in this project");
+    const cards = file ? await cardsOf(ctx, key) : [];
+    const thread = await ctx.db.query("projectThreads").withIndex("by_brain", (q: any) => q.eq("brain", b.slug)).first();
+    const edits = (await ctx.db.query("projectEdits").withIndex("by_brain_at", (q: any) => q.eq("brain", key)).collect())
       .sort((x: any, y: any) => y.at - x.at).slice(0, EDITS_KEEP)
       .map((e: any) => ({ id: String(e._id), at: e.at, status: e.status, preview: e.preview }));
-    const frame = await frameOf(ctx, a.brain);
+    const frame = await frameOf(ctx, b.slug);
+    /* The thread shows changes made to other files than this one: where they stand, so a card can offer what is still possible. */
+    const editState: Record<string, string> = {};
+    for (const t of (thread?.turns ?? []) as any[]) {
+      const id = t?.edit?.id, tf = Math.max(1, Math.floor(Number(t?.file) || 1));
+      if (!id || tf === fid) continue;
+      const e = await editOf(ctx, fileKey(b.slug, tf), String(id));
+      editState[String(id)] = e ? e.status : "gone";
+    }
     return {
       project: { slug: b.slug, name: b.name, created: b.created },
       /* The Brief, the State of play and what the chat still needs from the owner. */
@@ -94,12 +123,13 @@ export const projectGet = internalQuery({
       state: frame?.state ? { text: frame.state as string, at: (frame.stateAt ?? 0) as number } : null,
       asks: (frame?.asks ?? []) as { id: string; q: string; at: number }[],
       next: frame?.next !== false,
-      file: file ? { name: file.name, kind: file.kind, made: !!file.made, sheets: file.sheets, chars: file.chars, sections: file.parts, status: file.status, ver: file.ver, at: file.at } : null,
+      file: file ? { id: fid, name: file.name, kind: file.kind, made: !!file.made, sheets: file.sheets, chars: file.chars, sections: file.parts, status: file.status, ver: file.ver, at: file.at } : null,
       cards: cards.map((c: any) => ({ sid: c.sid, ord: c.ord, sheet: c.sheet, title: c.title, summary: c.summary, chars: c.chars, ...(c.rows != null ? { rows: c.rows } : {}) })),
       turns: thread?.turns ?? [],
-      edits,
-      memory: await memoryRows(ctx, a.brain),
+      edits, editState,
+      memory: await memoryRows(ctx, b.slug),
       shortcuts: file?.routes ?? [],
+      files: await filesOf(ctx, b.slug),
     };
   },
 });
@@ -274,32 +304,45 @@ export const projectRename = internalMutation({
 /**
  * Take a project apart, a batch at a time. Each call deletes up to 120 rows
  * and says whether more are left; the caller asks again until it says no.
- * `file` clears only the file side, for a new file in the same project.
+ * `file` clears only the file side, for a new file in the same project; a
+ * file's own key (`name~2`) only ever clears that file, whatever `file` says,
+ * so it can never take the project with it.
  */
 export const projectWipe = internalMutation({
   args: { space: v.string(), brain: v.string(), file: v.optional(v.boolean()) },
   handler: async (ctx, a) => {
     const b = await need(ctx, a.space, a.brain);
+    const own = splitKey(a.brain).fid > 1;
     let left = 120;
-    const clear = async (table: string, index: string) => {
-      const rows = await ctx.db.query(table as any).withIndex(index as any, (q: any) => q.eq("brain", a.brain)).take(left);
+    const clear = async (table: string, index: string, key: string) => {
+      const rows = await ctx.db.query(table as any).withIndex(index as any, (q: any) => q.eq("brain", key)).take(left);
       for (const r of rows) await ctx.db.delete(r._id);
       left -= rows.length;
       return left <= 0;
     };
-    for (const [t, i] of [["projectSections", "by_brain_sid"], ["projectCards", "by_brain_sid"], ["projectEdits", "by_brain_at"]]) {
-      if (await clear(t, i)) return { more: true };
-    }
-    if (a.file) {
+    /* One file: its sections, its contents list, its changes, its meaning, then the file itself. */
+    const wipeFile = async (key: string) => {
+      for (const [t, i] of [["projectSections", "by_brain_sid"], ["projectCards", "by_brain_sid"], ["projectEdits", "by_brain_at"], ["projectVectors", "by_brain_sid"]]) {
+        if (await clear(t, i, key)) return true;
+      }
+      return false;
+    };
+    if (a.file || own) {
+      if (await wipeFile(a.brain)) return { more: true };
       const f = await fileOf(ctx, a.brain);
       if (f) await ctx.db.delete(f._id);
       return { more: false };
     }
+    /* The whole project: every file first. */
+    for (const f of [{ brain: b.slug }, ...(await childFiles(ctx, b.slug))]) {
+      if (await wipeFile(f.brain)) return { more: true };
+    }
+    for (const f of await childFiles(ctx, b.slug)) { await ctx.db.delete(f._id); left--; }
     for (const [t, i] of [["projectThreads", "by_brain"], ["projectBriefs", "by_brain"], ["projectFiles", "by_brain"]]) {
-      if (await clear(t, i)) return { more: true };
+      if (await clear(t, i, b.slug)) return { more: true };
     }
     /* Its memory: concepts, their cards and their meanings. */
-    const concepts = await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", a.brain)).take(left);
+    const concepts = await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", b.slug)).take(left);
     for (const c of concepts) {
       for (const card of await ctx.db.query("cards").withIndex("by_cid", (q: any) => q.eq("cid", c._id)).collect()) await ctx.db.delete(card._id);
       for (const vec of await ctx.db.query("vectors").withIndex("by_cid", (q: any) => q.eq("cid", c._id)).collect()) await ctx.db.delete(vec._id);
@@ -308,7 +351,7 @@ export const projectWipe = internalMutation({
     left -= concepts.length;
     if (left <= 0) return { more: true };
     /* The notes it was kept from: sources that belong to this project alone. */
-    for (const s of (await ctx.db.query("sources").collect()).filter((x: any) => (x.brains ?? []).length === 1 && x.brains[0] === a.brain)) {
+    for (const s of (await ctx.db.query("sources").collect()).filter((x: any) => (x.brains ?? []).length === 1 && x.brains[0] === b.slug)) {
       for (const n of await ctx.db.query("notes").withIndex("by_sid", (q: any) => q.eq("sid", s.sid)).collect()) await ctx.db.delete(n._id);
       await ctx.db.delete(s._id);
     }
@@ -359,6 +402,119 @@ export const fileMake = internalMutation({
 });
 
 /**
+ * A new file in a project, beside the ones it holds: a blank document, table or page for the chat to write (`made`), or the place a file
+ * read in the browser goes. It takes the next number, from 2 and never used twice, and is kept under `name~n`. A project holds 30 files.
+ */
+export const fileNew = internalMutation({
+  args: { space: v.string(), brain: v.string(), kind: v.string(), name: v.string(), made: v.optional(v.boolean()) },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    const base = splitKey(a.brain).base;
+    if (!FILE_KINDS.includes(a.kind)) throw new Error("a file is a document, a page or a table");
+    const have = (await childFiles(ctx, base)).length + ((await fileOf(ctx, base)) ? 1 : 0);
+    if (have >= MAX_FILES) throw new Error(`a project holds ${MAX_FILES} files at most`);
+    let fid = Math.max(2, (await frameOf(ctx, base))?.nextFid ?? 2);
+    while (await fileOf(ctx, fileKey(base, fid))) fid++;
+    await frameWrite(ctx, base, { nextFid: fid + 1 });
+    const key = fileKey(base, fid), name = flat(a.name, 200) || "Untitled", made = a.made !== false;
+    await ctx.db.insert("projectFiles", { space: readSpace(a.space), brain: key, name, kind: a.kind, ...(made ? { made: true } : {}),
+      sheets: [{ name: a.kind === "table" ? "Sheet 1" : name.slice(0, 60), header: [], cols: [], rows: 0 }], chars: 0, parts: 0, next: 1, status: made ? "ready" : "reading", ver: 1, at: Date.now() });
+    return { fid, key };
+  },
+});
+
+/** A file's name changed: what the page and the chat call it. */
+export const fileRename = internalMutation({
+  args: { space: v.string(), brain: v.string(), name: v.string() },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    const f = await fileOf(ctx, a.brain);
+    const name = flat(a.name, 200);
+    if (!f) throw new Error("that file is not in this project");
+    if (!name) throw new Error("a file needs a name");
+    await ctx.db.patch(f._id, { name });
+    return { name };
+  },
+});
+
+/** What a file is, in one line, for the project's map of its files. */
+export const fileSetLine = internalMutation({
+  args: { space: v.string(), brain: v.string(), line: v.string() },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    const f = await fileOf(ctx, a.brain);
+    if (!f) return { ok: false };
+    await ctx.db.patch(f._id, { line: flat(a.line, 220) });
+    return { ok: true };
+  },
+});
+
+/**
+ * A file taken out of a project, once its sections are gone: the notes that rested on it lose those sections and are marked as
+ * possibly outdated, since what they say may not hold without it.
+ */
+export const memoryForgetPointers = internalMutation({
+  args: { space: v.string(), brain: v.string(), fid: v.number() },
+  handler: async (ctx, a) => {
+    const b = await need(ctx, a.space, a.brain);
+    let n = 0;
+    for (const c of await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", b.slug)).collect()) {
+      const rests: number[] = c.sections ?? [];
+      const mine = (p: number) => a.fid > 1 ? Math.floor(p / FILE_SPAN) === a.fid : p < FILE_SPAN;
+      if (!rests.some(mine)) continue;
+      await ctx.db.patch(c._id, { sections: rests.filter(p => !mine(p)), stale: true });
+      await syncCard(ctx, c._id);
+      n++;
+    }
+    return { n };
+  },
+});
+
+/** The meaning of a file's sections, kept as numbers: one row a section, replaced when it is written again. */
+export const vectorsPut = internalMutation({
+  args: { space: v.string(), brain: v.string(), items: v.array(v.object({ sid: v.number(), vec: v.array(v.float64()) })) },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    const base = splitKey(a.brain).base;
+    for (const it of a.items) {
+      const had = await ctx.db.query("projectVectors").withIndex("by_brain_sid", (q: any) => q.eq("brain", a.brain).eq("sid", it.sid)).first();
+      if (had) await ctx.db.patch(had._id, { vec: it.vec }); else await ctx.db.insert("projectVectors", { base, brain: a.brain, sid: it.sid, vec: it.vec });
+    }
+    return { n: a.items.length };
+  },
+});
+
+/** The sections behind a list of vector rows, as the file's key and the section's own number. */
+export const vectorOwners = internalQuery({
+  args: { ids: v.array(v.id("projectVectors")) },
+  handler: async (ctx, a) => {
+    const out: ({ brain: string; sid: number } | null)[] = [];
+    for (const id of a.ids) { const r = await ctx.db.get(id); out.push(r ? { brain: r.brain, sid: r.sid } : null); }
+    return out;
+  },
+});
+
+/**
+ * What a search over the project's other files reads: every other file's line, and the card of every section of the ones that are
+ * words and ready (title, summary and keys), never the words themselves. At most 2,000 cards.
+ */
+export const searchCards = internalQuery({
+  args: { space: v.string(), brain: v.string(), except: v.number() },
+  handler: async (ctx, a) => {
+    const b = await need(ctx, a.space, a.brain);
+    const files = (await filesOf(ctx, b.slug)).filter(f => f.id !== a.except);
+    const cards: { fid: number; sid: number; title: string; summary: string; keys: string[] }[] = [];
+    for (const f of files.filter(f => f.status === "ready" && f.kind !== "table")) {
+      for (const c of await cardsOf(ctx, fileKey(b.slug, f.id))) {
+        if (cards.length >= 2000) break;
+        cards.push({ fid: f.id, sid: c.sid, title: c.title, summary: c.summary ?? "", keys: c.keys ?? [] });
+      }
+    }
+    return { files, cards };
+  },
+});
+
+/**
  * Where things are, learned from an answer: the words of the question and the
  * sections that answered it. A route that rests on the same sections gains the
  * new words; any other starts a route of its own. The latest 40 are kept, and
@@ -396,7 +552,7 @@ export const routeLearn = internalMutation({
  */
 export const sectionAdd = internalMutation({
   args: { space: v.string(), brain: v.string(), ver: v.number(), sheet: v.number(),
-          items: v.array(v.object({ title: v.string(), summary: v.string(), text: v.string(), rows: v.optional(v.number()) })) },
+          items: v.array(v.object({ title: v.string(), summary: v.string(), text: v.string(), rows: v.optional(v.number()), keys: v.optional(v.array(v.string())) })) },
   handler: async (ctx, a) => {
     await need(ctx, a.space, a.brain);
     const f = await fileOf(ctx, a.brain);
@@ -410,7 +566,7 @@ export const sectionAdd = internalMutation({
       const title = x.rows != null ? `Rows ${at + 1} to ${at + x.rows}` : x.title.slice(0, 120);
       if (x.rows != null) at += x.rows;
       await ctx.db.insert("projectCards", { brain: a.brain, sid, ord: sid, sheet: a.sheet, title, summary: x.summary.slice(0, 300),
-        chars: x.text.length, ...(x.rows != null ? { rows: x.rows } : {}) });
+        chars: x.text.length, ...(x.rows != null ? { rows: x.rows } : {}), ...(x.keys?.length ? { keys: x.keys.slice(0, 40).map(k => String(k).slice(0, 24)) } : {}) });
       await ctx.db.insert("projectSections", { brain: a.brain, sid, text: x.text });
       sid++;
     }
@@ -587,15 +743,17 @@ export const memoryForgetInstructions = internalMutation({
  * topics). A note the chat also wrote to stays, since a decision outlives the file it was made about.
  */
 export const memoryForgetFile = internalMutation({
-  args: { space: v.string(), brain: v.string() },
+  args: { space: v.string(), brain: v.string(), only: v.optional(v.boolean()) },
   handler: async (ctx, a) => {
-    await need(ctx, a.space, a.brain);
+    const b = await need(ctx, a.space, a.brain);
     let n = 0;
-    for (const c of await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", a.brain)).collect()) {
+    for (const c of await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", b.slug)).collect()) {
       const ev: any[] = Array.isArray(c.evidence) ? c.evidence : [];
       if (ev.length && ev.every(e => e?.author === "The file")) { await dropConcept(ctx, c); n++; continue; }
-      /* A note that stays no longer points at sections: they belonged to the old file. */
-      if (c.sections?.length) { await ctx.db.patch(c._id, { sections: [], stale: true }); await syncCard(ctx, c._id); }
+      /* A note that stays no longer points at sections of the old file. With other files in the project (`only`), it keeps the ones it holds of them. */
+      const rests: number[] = c.sections ?? [];
+      const kept = a.only ? rests.filter(p => p >= FILE_SPAN) : [];
+      if (rests.length && kept.length !== rests.length) { await ctx.db.patch(c._id, { sections: kept, stale: true }); await syncCard(ctx, c._id); }
     }
     return { ok: n > 0, forgotten: n };
   },
@@ -906,7 +1064,8 @@ export const editApply = internalMutation({
     const all = await cardsOf(ctx, a.brain);
     await ctx.db.patch(fresh._id, { at: Date.now(), parts: all.length, chars: sizeOf(all) });
     await ctx.db.patch(e._id, { status: "applied", before });
-    await outdate(ctx, a.brain, before.filter(x => x.sid != null && !x.inserted).map(x => x.sid));
+    const { base, fid } = splitKey(a.brain);
+    await outdate(ctx, base, before.filter(x => x.sid != null && !x.inserted).map(x => pointerOf(fid, x.sid)));
     return { ok: true, sections: before.filter(x => x.sid != null).map(x => x.sid) };
   },
 });
@@ -947,7 +1106,8 @@ export const editUndo = internalMutation({
       }) });
     if (f.kind === "table") for (let i = 0; i < f.sheets.length; i++) if (!metas.some((m: any) => m.si === i)) await recount(ctx, a.brain, i);
     await ctx.db.patch(e._id, { status: "undone" });
-    await outdate(ctx, a.brain, (e.before ?? []).filter((b: any) => b.sid != null).map((b: any) => b.sid));
+    const { base, fid } = splitKey(a.brain);
+    await outdate(ctx, base, (e.before ?? []).filter((b: any) => b.sid != null).map((b: any) => pointerOf(fid, b.sid)));
     return { ok: true };
   },
 });
