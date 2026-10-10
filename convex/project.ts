@@ -164,14 +164,38 @@ async function indexFile(ctx: any, o: { space: string; brain: string; embeds?: b
     }
     if (line) await ctx.runMutation(internal.projects.fileSetLine, { space: o.space, brain: o.brain, line });
     /* Its meaning: a title and a summary a section, embedded, so a question reaches a section by what it says. */
-    if (o.embeds && file.kind !== "table" && got.cards.length) {
-      const vecs = await embed(got.cards.map((c: any) => `${c.title}. ${c.summary ?? ""}`.slice(0, 600)));
-      for (let i = 0; i < vecs.length; i += 40) {
-        await ctx.runMutation(internal.projects.vectorsPut, { space: o.space, brain: o.brain, items: vecs.slice(i, i + 40).map((vec, k) => ({ sid: got.cards[i + k].sid, vec })) });
-      }
-    }
+    if (o.embeds && file.kind !== "table" && got.cards.length) await embedCards(ctx, { space: o.space, brain: o.brain, cards: got.cards });
   } catch (e: any) {
     console.log(`the file was not indexed: ${String(e?.message ?? e).slice(0, 160)}`);
+  }
+}
+
+/** The meaning of some sections, kept: each one's title and summary embedded, 40 to a call. */
+async function embedCards(ctx: any, o: { space: string; brain: string; cards: { sid: number; title: string; summary?: string }[] }) {
+  const vecs = await embed(o.cards.map(c => `${c.title}. ${c.summary ?? ""}`.slice(0, 600)));
+  for (let i = 0; i < vecs.length; i += 40) {
+    await ctx.runMutation(internal.projects.vectorsPut, { space: o.space, brain: o.brain, items: vecs.slice(i, i + 40).map((vec, k) => ({ sid: o.cards[i + k].sid, vec })) });
+  }
+}
+
+/**
+ * What finds a file's sections kept in step with them, for one file of a project: the keys of a section made from its words, and its
+ * meaning from its title and summary. A section the chat wrote has its keys and waits for its meaning; a file read in before these were
+ * kept has neither. Only what is missing is made, so a file that is whole costs one read of its list. A failure never fails what follows.
+ */
+export async function refreshIndex(ctx: any, o: { space: string; brain: string; embeds?: boolean }) {
+  try {
+    const gaps: { sid: number; title: string; summary: string; noKeys: boolean; noMeaning: boolean }[] = await ctx.runQuery(internal.projects.indexGaps, { space: o.space, brain: o.brain });
+    const keyed = gaps.filter(g => g.noKeys);
+    /* A call reads up to 200,000 characters: 15 sections of at most 12,000 fit. */
+    for (let i = 0; i < keyed.length; i += 15) {
+      const secs: any[] = await ctx.runQuery(internal.projects.sectionsRead, { space: o.space, brain: o.brain, sids: keyed.slice(i, i + 15).map(g => g.sid) });
+      await ctx.runMutation(internal.projects.cardKeysPut, { space: o.space, brain: o.brain, items: secs.map(s => ({ sid: s.sid, keys: keysOf(s.text) })) });
+    }
+    const meant = gaps.filter(g => g.noMeaning);
+    if (o.embeds && meant.length) await embedCards(ctx, { space: o.space, brain: o.brain, cards: meant });
+  } catch (e: any) {
+    console.log(`the index of a file was not kept: ${String(e?.message ?? e).slice(0, 140)}`);
   }
 }
 
@@ -810,8 +834,16 @@ function tableWhole(sheets: Sheet[], blocksBySheet: string[][]): string {
 export async function readOthers(ctx: any, o: { space: string; base: string; fid: number; q: string; terms: string[]; embeds: boolean; closer?: boolean }) {
   const none = { map: "", text: "", used: [] as { fid: number; sid: number; file: string; title: string }[] };
   let found: { files: any[]; cards: any[] };
-  try { found = await ctx.runQuery(internal.projects.searchCards, { space: o.space, brain: o.base, except: o.fid }); }
-  catch (e: any) { console.log(`the other files were not listed: ${String(e?.message ?? e).slice(0, 140)}`); return none; }
+  const list = async () => await ctx.runQuery(internal.projects.searchCards, { space: o.space, brain: o.base, except: o.fid });
+  try {
+    found = await list();
+    /* A section the chat wrote, or one of a file read before keys and meaning were kept, is made searchable now, once. */
+    const stale = [...new Set<number>(found.cards.filter((c: any) => !c.keyed || (o.embeds && !c.meant)).map((c: any) => c.fid))];
+    if (stale.length && !o.closer) {
+      for (const fid of stale) await refreshIndex(ctx, { space: o.space, brain: fileKey(o.base, fid), embeds: o.embeds });
+      found = await list();
+    }
+  } catch (e: any) { console.log(`the other files were not listed: ${String(e?.message ?? e).slice(0, 140)}`); return none; }
   if (!found.files.length || o.closer) return none;
   const map = mapText(found.files);
   if (!found.cards.length) return { ...none, map };

@@ -16,6 +16,7 @@ import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { readSpace, slug, today } from "./lib";
 import { syncCard } from "./store";
+import { keysOf } from "./find";
 import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, FILE_KINDS, ROUTES_KEEP, BRIEF_MAX, STATE_MAX, ASKS_MAX, ASK_CHARS, MAX_FILES, KEY_RE, FILE_SPAN, fileKey, splitKey, pointerOf, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
 import type { Col } from "./sheet";
 
@@ -553,6 +554,8 @@ export const vectorsPut = internalMutation({
     for (const it of a.items) {
       const had = await ctx.db.query("projectVectors").withIndex("by_brain_sid", (q: any) => q.eq("brain", a.brain).eq("sid", it.sid)).first();
       if (had) await ctx.db.patch(had._id, { vec: it.vec }); else await ctx.db.insert("projectVectors", { base, brain: a.brain, sid: it.sid, vec: it.vec });
+      const card = await ctx.db.query("projectCards").withIndex("by_brain_sid", (q: any) => q.eq("brain", a.brain).eq("sid", it.sid)).first();
+      if (card && !card.meant) await ctx.db.patch(card._id, { meant: true });
     }
     return { n: a.items.length };
   },
@@ -568,6 +571,29 @@ export const vectorOwners = internalQuery({
   },
 });
 
+/** The sections of a file whose keys or meaning are not kept: ones the chat wrote, or ones a file had before these were kept. */
+export const indexGaps = internalQuery({
+  args: { space: v.string(), brain: v.string() },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    return (await cardsOf(ctx, a.brain)).map((c: any) => ({ sid: c.sid, title: c.title, summary: c.summary ?? "", noKeys: !Array.isArray(c.keys), noMeaning: c.meant !== true }))
+      .filter((c: any) => c.noKeys || c.noMeaning);
+  },
+});
+
+/** The keys of some sections, made from their words. */
+export const cardKeysPut = internalMutation({
+  args: { space: v.string(), brain: v.string(), items: v.array(v.object({ sid: v.number(), keys: v.array(v.string()) })) },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    for (const it of a.items) {
+      const card = await ctx.db.query("projectCards").withIndex("by_brain_sid", (q: any) => q.eq("brain", a.brain).eq("sid", it.sid)).first();
+      if (card) await ctx.db.patch(card._id, { keys: it.keys });
+    }
+    return { n: a.items.length };
+  },
+});
+
 /**
  * What a search over the project's other files reads: every other file's line, and the card of every section of the ones that are
  * words and ready (title, summary and keys), never the words themselves. At most 2,000 cards.
@@ -577,11 +603,11 @@ export const searchCards = internalQuery({
   handler: async (ctx, a) => {
     const b = await need(ctx, a.space, a.brain);
     const files = (await filesOf(ctx, b.slug)).filter(f => f.id !== a.except);
-    const cards: { fid: number; sid: number; title: string; summary: string; keys: string[] }[] = [];
+    const cards: { fid: number; sid: number; title: string; summary: string; keys: string[]; keyed: boolean; meant: boolean }[] = [];
     for (const f of files.filter(f => f.status === "ready" && f.kind !== "table")) {
       for (const c of await cardsOf(ctx, fileKey(b.slug, f.id))) {
         if (cards.length >= 2000) break;
-        cards.push({ fid: f.id, sid: c.sid, title: c.title, summary: c.summary ?? "", keys: c.keys ?? [] });
+        cards.push({ fid: f.id, sid: c.sid, title: c.title, summary: c.summary ?? "", keys: c.keys ?? [], keyed: Array.isArray(c.keys), meant: c.meant === true });
       }
     }
     return { files, cards };
@@ -1037,7 +1063,7 @@ export const editApply = internalMutation({
           const next = o.op === "rewrite" ? String(o.text) : (replaceOnce(now, String(o.find), String(o.with)) as any).text;
           if (next == null) throw new Error("the file changed since this was proposed. Ask again.");
           await ctx.db.patch(body._id, { text: next });
-          await ctx.db.patch(card._id, { chars: next.length });
+          await ctx.db.patch(card._id, { chars: next.length, keys: keysOf(next) });
           wrote.set(o.sid!, next);
         } else if (o.op === "remove") {
           const { card, body } = await touch(o.sid!);
@@ -1053,7 +1079,7 @@ export const editApply = internalMutation({
           const text = String(o.text);
           const first = text.split("\n").map(l => l.trim()).find(Boolean) ?? "";
           await ctx.db.insert("projectCards", { brain: a.brain, sid, ord: (prev + nextOrd) / 2, sheet: 0,
-            title: (o.title || first.replace(/^#+\s*/, "")).slice(0, 90) || "New section", summary: short(text, 160), chars: text.length });
+            title: (o.title || first.replace(/^#+\s*/, "")).slice(0, 90) || "New section", summary: short(text, 160), chars: text.length, keys: keysOf(text) });
           await ctx.db.insert("projectSections", { brain: a.brain, sid, text });
           await ctx.db.patch(now._id, { next: sid + 1, chars: now.chars + text.length });
           before.push({ sid, inserted: true, wrote: fnv(text) });
@@ -1162,12 +1188,12 @@ export const editUndo = internalMutation({
       const { card, body } = await sectionRow(ctx, a.brain, b.sid);
       if (b.inserted) { if (card) await ctx.db.delete(card._id); if (body) await ctx.db.delete(body._id); continue; }
       if (b.removed) {
-        await ctx.db.insert("projectCards", { brain: a.brain, sid: b.sid, ord: b.ord, sheet: b.sheet, title: b.title, summary: b.summary, chars: b.text.length, ...(b.rows != null ? { rows: b.rows } : {}) });
+        await ctx.db.insert("projectCards", { brain: a.brain, sid: b.sid, ord: b.ord, sheet: b.sheet, title: b.title, summary: b.summary, chars: b.text.length, ...(b.rows != null ? { rows: b.rows } : { keys: keysOf(b.text) }) });
         await ctx.db.insert("projectSections", { brain: a.brain, sid: b.sid, text: b.text });
         continue;
       }
       if (body) await ctx.db.patch(body._id, { text: b.text });
-      if (card) await ctx.db.patch(card._id, { chars: b.text.length, title: b.title, summary: b.summary, ...(b.rows != null ? { rows: b.rows } : {}) });
+      if (card) await ctx.db.patch(card._id, { chars: b.text.length, title: b.title, summary: b.summary, ...(b.rows != null ? { rows: b.rows } : { keys: keysOf(b.text) }) });
     }
     const f = await fileOf(ctx, a.brain);
     const cards = await cardsOf(ctx, a.brain);

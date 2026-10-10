@@ -2030,6 +2030,54 @@ const docProject = async (w, name, text, kind = "doc") => {
 }
 
 {
+  /* what finds a file's sections is kept in step with them: a section the chat wrote, a change, an Undo, and a file read before keys were kept */
+  const w = makeCtx();
+  const p = await docProject(w, "Keep", "# Offer\n\nTeam costs 1,490 euros a seat. " + "word ".repeat(300));
+  const blank = await w.ctx.runMutation("projects.fileNew", { space: SPACE, brain: p, kind: "doc", name: "Notes", made: true });
+  const chatIn = (file, q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, ...(file ? { file } : {}), q, english: false, embeds: true, shared: shared0, note: true, ...extra });
+  const card = () => w.T.projectCards.find(c => c.brain === blank.key);
+  const prompt = () => last(/You are the chat of a project/).user;
+  reply = { route: routeOf({ kind: "doc" }), answer: answerOf({ tldr: "Written.", edits: [{ op: "insert", after: 0, title: "Refunds", text: "# Refunds\n\nRefunds close 14 days after the first session. The deposit is 1,490 euros." }] }) };
+  const wrote = await chatIn(blank.fid, "Write the refund rule");
+  check("a section the chat writes has its keys at once, and waits for its meaning", wrote.edit?.status === "applied" && card().keys.includes("refund") && card().keys.includes("1490") && card().meant === undefined && !w.T.projectVectors.some(v => v.brain === blank.key), JSON.stringify(card()));
+
+  /* the next message that reads the other files makes it searchable by meaning, and finds it */
+  reply = { route: routeOf({ terms: ["refund"] }), answer: answerOf({ tldr: "14 days." }) };
+  await chatIn(null, "How long do I have to ask for a refund?");
+  check("the next message that reads the project's other files gives it its meaning, and finds it by its words", card().meant === true && w.T.projectVectors.filter(v => v.brain === blank.key).length === 1
+    && /SECTION 2\.\d+: Notes, Refunds/.test(prompt()), prompt().slice(prompt().indexOf("THE PROJECT'S OTHER")).slice(0, 300));
+  const v0 = w.T.projectVectors.length;
+  await chatIn(null, "How long do I have to ask for a refund?");
+  check("once a file is whole, a message makes nothing again", w.T.projectVectors.length === v0 && card().meant === true);
+
+  /* a change keeps the keys in step, and Undo puts them back */
+  reply = { route: routeOf({ terms: ["deposit"] }), answer: answerOf({ tldr: "Done.", edits: [{ op: "replace", sid: card().sid, find: "1,490 euros", with: "1,990 euros" }] }) };
+  const changed = await chatIn(blank.fid, "Make the deposit 1,990");
+  check("a change to a section makes its keys again from its new words", changed.edit?.status === "applied" && card().keys.includes("1990") && !card().keys.includes("1490"), JSON.stringify(card().keys));
+  const undone = await w.ctx.runMutation("projects.editUndo", { space: SPACE, brain: blank.key, id: changed.edit.id });
+  check("and Undo puts the old ones back", undone.ok === true && card().keys.includes("1490") && !card().keys.includes("1990"), JSON.stringify(card().keys));
+
+  /* a file read before keys and meaning were kept: its sections have neither until a message reads it */
+  for (const c of w.T.projectCards.filter(c => c.brain === blank.key)) { delete c.keys; delete c.meant; }
+  w.T.projectVectors = w.T.projectVectors.filter(v => v.brain !== blank.key);
+  reply = { route: routeOf({ terms: ["refund"] }), answer: answerOf({ tldr: "14 days." }) };
+  await chatIn(null, "How long do I have to ask for a refund?");
+  check("a file made before keys and meaning were kept gets both on the first message that reads it, and is found", Array.isArray(card().keys) && card().keys.includes("refund") && card().meant === true
+    && w.T.projectVectors.some(v => v.brain === blank.key) && /SECTION 2\.\d+: Notes, Refunds/.test(prompt()));
+
+  /* embeddings off: the keys are made, no meaning is, and nothing is tried again and again */
+  for (const c of w.T.projectCards.filter(c => c.brain === blank.key)) { delete c.keys; delete c.meant; }
+  w.T.projectVectors = w.T.projectVectors.filter(v => v.brain !== blank.key);
+  await chatIn(null, "How long do I have to ask for a refund?", { embeds: false });
+  check("with embeddings off the keys are made and no meaning is", Array.isArray(card().keys) && card().meant === undefined && !w.T.projectVectors.some(v => v.brain === blank.key));
+  /* an embedding that fails never fails the message */
+  w.T.projectVectors = w.T.projectVectors.filter(v => v.brain !== blank.key); delete card().meant;
+  reply = { route: routeOf({ terms: ["refund"] }), answer: answerOf({ tldr: "ok" }), embedFail: true };
+  const survived = await chatIn(null, "How long do I have to ask for a refund?");
+  check("an embedding that fails leaves the section without meaning, and the message answered, by words", !!survived.id && card().meant === undefined && /SECTION 2\.\d+: Notes, Refunds/.test(prompt()));
+}
+
+{
   /* a question the project has answered before, in nearly the same words, from the same sections: no router */
   check("only a question that asks, and asks for nothing more, is sure: not a change, a summary, a decision or a command", ["What does the audit cover?", "When do payments leave the account?", "Quel est le prix ?"].every(project.plainQuestion)
     && ["Change the audit part", "Summarise the audit", "Should we move the audit?", "Add a line about the audit", "audit", "Write the audit section again please and make it short"].every(q => !project.plainQuestion(q)));

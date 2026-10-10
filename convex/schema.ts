@@ -601,6 +601,8 @@ export default defineSchema({
     rows: v.optional(v.number()),
     /* The words the section is known by: its most used stems and its numbers, so a question in the project's other files finds it without reading it. */
     keys: v.optional(v.array(v.string())),
+    /* Its meaning is kept (a row in projectVectors made from its title and summary). A section made by the chat has none until the next message that reads the project's other files makes it. */
+    meant: v.optional(v.boolean()),
   }).index("by_brain_ord", ["brain", "ord"])
     .index("by_brain_sid", ["brain", "sid"]),
 

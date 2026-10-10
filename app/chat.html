@@ -9095,10 +9095,12 @@ function repaintEdits(){
 /** The file read again after a change, so the page shows what it holds now. */
 async function refreshFile(){
   const pj = S.pj; if (!pj) return;
+  const want = pj.fid || 1;
   let d;
   try { d = await api("/api/project/get", { brain: pj.slug, ...pjOpen() }); }
   catch (e){ if (pj.fid > 1 && /not in this project/.test(e.message) && S.pj === pj){ pj.fid = 1; return refreshFile(); } throw e; }
-  if (S.pj !== pj) return;
+  /* Another file was opened while this one was read: its answer is the one that counts. */
+  if (S.pj !== pj || (pj.fid || 1) !== want) return;
   /* The first file taken out, others left: the first of those opens. */
   if (!d.file && d.files?.length && (pj.fid || 1) === 1 && d.files[0].id !== 1){ pj.fid = d.files[0].id; return refreshFile(); }
   pj.data.file = d.file; pj.data.cards = d.cards; pj.data.edits = d.edits; pj.data.files = d.files || []; pj.data.shortcuts = d.shortcuts || [];

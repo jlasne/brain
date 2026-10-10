@@ -4654,6 +4654,7 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/project/list") return J({ projects: [{ ...arg.state.projects[0], files: srv.files.length }] });
       if (path === "/api/project/get") {
         const fid = body.file || 1, f = srv.files.find(x => x.id === fid);
+        if (srv.slow && fid === srv.slow) await new Promise(ok => setTimeout(ok, 500));
         if (fid > 1 && !f) return J({ error: "that file is not in this project" });
         const here = Object.entries(srv.edits).filter(([, e]) => e.file === fid).map(([id, e]) => ({ id, at: 1, status: e.status, preview: e.preview }));
         const state = {};
@@ -4739,6 +4740,13 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(600);
   const re = await page.evaluate(() => ({ ek: document.querySelector(".pj-ek")?.textContent, btns: [...document.querySelectorAll(".pj-edit button")].map(b => b.textContent), ef: document.querySelector(".pj-ef")?.textContent }));
   check("reopened, the project learns from the server that the change is undone, so its card offers nothing", re.ek === "Undone" && re.btns.length === 0 && re.ef === "In Terms.md", JSON.stringify(re));
+
+  /* two tabs pressed one after the other: the slow read of the first must not overwrite the second */
+  await page.evaluate(() => { window.__srv.slow = 2; });
+  await page.click(".pj-fc >> text=Terms.md"); await page.click(".pj-fc >> text=Offer.md"); await page.waitForTimeout(900);
+  const race = await strip();
+  check("a file read that another tab has overtaken is dropped: the last tab pressed is the one shown, with its own words", JSON.stringify(race.on) === '["Offer.md"]' && /Team costs/.test(race.text) && !/Refunds close/.test(race.text), JSON.stringify(race));
+  await page.evaluate(() => { window.__srv.slow = 0; });
 
   /* the plus: a file you have, or a blank one */
   await page.click("#pjFilePlus"); await page.waitForTimeout(100);
