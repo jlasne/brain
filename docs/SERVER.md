@@ -292,7 +292,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/settle` | Re-derives positions, writes, returns the receipt | Yes |
 | `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
 | `/api/drop/merge` | Before storing: groups new titles that name one idea twice, joins a new idea to the concept already holding it, and gives a title not in English its English one | Yes |
-| `/api/ask` | The answer. With `concept`, it reads that one concept alone; in a personal folder, what the message adds or corrects is written to the note or the person's file at once, and `changed` says what moved. With `tags`, the slugs of folders named with @ in the message, it reads those folders and no other (in the personal chat: the personal folder, those folders and those projects), and `tagged` (`called` in the personal chat) names them | Yes |
+| `/api/ask` | The answer (see The chats). Thanks, a greeting or a goodbye is answered in one short call that reads nothing. With `concept`, it reads that one concept alone; in a personal folder, what the message adds or corrects is written to the note or the person's file at once, and `changed` says what moved. With `tags`, the slugs of folders named with @ in the message, it reads those folders and no other (in the personal chat: the personal folder, those folders and those projects), and `tagged` (`called` in the personal chat) names them | Yes |
 | `/api/models` | The workspace's model, and the languages of its answers and its mic. `null` goes back to the default. A model picked here ends the daily choice among favourites, and the answer says so (`favs: null`) | Owner |
 | `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Built, shown and never stored. Sends it too, when given an address | Yes |
 | `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |
@@ -320,7 +320,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/project/brief` | What frames the chat besides its notes, by `action`: `save` the owner's Brief (no words clears it; 6,000 characters kept; any instruction notes are forgotten), `write` a Brief from the owner's answers to five questions (one model call; nothing is kept until the owner saves it), `state` the State of play edited by the owner, `next` the closing next step on or off, `drop` a question the chat waits on | Owner. `write` runs a model |
 | `/api/project/file` | The project's files, by `action`: `new` (a `kind`, a `name`; with `made: false` the file waits to be read in by begin, part and finish, else it is blank and ready for the chat to write; it takes the next free number, 30 files at most), `rename` (`file`, `name`) and `remove` (`file`: its sections, changes and meaning go, and the notes that rested on it are marked as possibly outdated; the project and its other files stay; a large file asks to be removed again until it is gone) | Owner |
 | `/api/project/gaps` | The gaps in the project's file, found in code with no model: placeholders nobody filled, empty cells, dates in the past, two numbers for one thing. At most 25 are returned, with how many there are | Session |
-| `/api/project/spend` | What the projects cost: this month's dollars (as the model host reported them), calls and tokens (in, out, and the part reused), the month before, each project's share (a deleted project keeps its row, under no name), and the cap. With `cap` set to a number of dollars it sets the cap (to the cent, above 0 and at most 100,000), and with `null` or an empty string it removes it | Owner |
+| `/api/project/spend` | What the projects cost: this month's dollars (as the model host reported them), calls and tokens (in, out, and the part reused), the month before (the projects and the chats together), each project's share (a deleted project keeps its row, under no name), what the folders' chat and the personal chat cost apart from them (`chats`), and the cap, which is about the projects alone. With `cap` set to a number of dollars it sets the cap (to the cent, above 0 and at most 100,000), and with `null` or an empty string it removes it | Owner |
 | `/api/project/resource` | A resource the owner dropped into the project, typed, pasted or read from a file in the browser: one model call writes up to 8 notes in the project's memory, in the folder format, each resting on the resource as its source (`Resource: name, date`, one source for each, `Resource, date` when typed). The page sends a long text in pieces of at most 20,000 characters, up to 5. A note on a topic already held is updated, never doubled; a note never takes the title of an instruction or of the note on the file. The notes are read like any note: by the question | Owner. Runs a model |
 | `/api/project/forget` | Forgets one note of the project's memory, an instruction too. Notes are filed by the chat itself | Owner |
 | `/api/project/edit` | Applies, undoes or turns down a change the chat proposed, whole or not at all. `brain` is the key of the file the change was made for. The last 10 of each file are kept to undo | Owner |
@@ -435,11 +435,39 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `projectThreads` | a project's running thread: its last 4 exchanges | folder |
 | `projectEdits` | the changes the chat proposed to a file, with what each replaced so it can be undone. The last 10 of each file stay | file and time |
 | `projectSpend` | what the projects cost: one row a project a month (UTC, "2026-10") with the dollars the model host reported, the calls it gave a price for and all the calls, the tokens in and out and the part reused. A project taken away keeps its rows, so the month's total is what was spent | workspace and month, project and month |
+| `chatSpend` | what the chats cost: one row a kind of chat ("folders" for the main chat and a folder's, "personal") a month, with the dollars the model host reported, the calls it gave a price for and all the calls, and the tokens in, out and reused. The demo is not counted | workspace and month |
 | `projectBudget` | the most a workspace's projects may cost in a month, when its owner set one | workspace |
 | `projectBriefs` | what belongs to the project as a whole: the Brief, the State of play, the questions waiting for the owner, whether answers end with a next step, and the number the next file takes | folder |
 | `projectVectors` | the meaning of each section of each file, one row of 1024 numbers a section, searched inside one project | project |
 
 The duplicate check reads `sources` by normalised link, so it stays an index lookup at any size. Nothing else grows the read: summaries come from `concepts.summaryLine`, and only the shortlisted concept rows get opened in full.
+
+## The chats
+
+The folders' chat (the main chat, one folder, or the folders ticked) and the personal brain's chat read the brains, then answer. A message used to send every concept title to the router and open up to 30 concepts, so a question cost the same whatever it asked and grew with the size of the brains. What it sends now:
+
+- **Thanks, a greeting or a goodbye** ("thanks", "ok thanks, that helps", "merci", "bonjour", "bye"; at most 6 words, one of them thanks or a greeting, the rest filler) reads nothing: one call of about 55 tokens in the folders' chat, about 440 in the personal chat, where nothing is filed, no concept is read and no interview question is asked in passing. A bare ok or yes, and anything with a request in it, is a question. A message that names a folder with @ is a question.
+- **The meaning first.** The question is embedded before the router runs, and the 40 concepts nearest in meaning are found. With 20 or more found (the meaning of the folders is kept), the router is shown 120 titles: those 40, the nearest first, then the best matches by words. With fewer, or on a workspace's own key or the demo, which do not embed, it reads every title up to 80,000 characters, as it always did. A brain of 1,000 concepts costs the router 1,750 tokens, not 12,700. The personal chat's reply reads the nearest in meaning too, which it did not before.
+- **What opens.** What the router picked, the concepts the question names in their title, the 6 nearest in meaning and the ones they link to open first, up to 30 within 60,000 characters. When the router picked something, a concept that only shares a word with the question fills the answer up to 8 concepts in all and no further: loose matches were most of what an answer held. A router that picked nothing or failed leaves every match to open, as before. Up to 40 more are named by title, within 4,000 characters, under ALSO HELD.
+- **The thread.** The last turn is read in full, its question to 400 characters and its answer to 900. The three before it are read as the question to 200 characters and the first line of the answer, which is the answer itself in this chat. The thread only says what "the second one" points at: every claim still comes from what is stored.
+- **The order.** What stays the same comes first: the rules, then the stored knowledge, then the thread, then what changes with this answer (the folders tagged, whether it reads a person's folder, how few sources it rests on, under ABOUT THIS ANSWER), then the question. A model host that reuses the start of a prompt can then reuse the rules and the knowledge of a follow-up that opens the same concepts.
+- **The cost.** Each message is counted from the usage the model host reports, by kind of chat, and added once the message is done, finished or not. Settings shows it beside the projects.
+
+Measured on the code with a recording model: 12 folders, concepts of about 2,000 characters, a thread of 4, tokens as characters over 4, $0.065 in and $0.18 out per million. Before is the version that showed the router every title and opened every word match. Messages are in tokens sent, with the price of one message in cents.
+
+| message | before | after |
+| --- | --- | --- |
+| folders, a question, 400 concepts | 16,935 tokens, 0.113 cents | 6,248, 0.043 cents |
+| folders, a follow-up, 400 concepts | 17,679, 0.118 cents | 6,687, 0.046 cents |
+| folders, thanks, 400 concepts | 9,284, 0.061 cents | 55, 0.001 cents |
+| folders, a question, 1,000 concepts | 24,314, 0.161 cents | 6,258, 0.043 cents |
+| folders, thanks, 1,000 concepts | 16,716, 0.109 cents | 55, 0.001 cents |
+| personal, a question, 400 concepts | 20,231, 0.134 cents | 8,813, 0.060 cents |
+| personal, thanks, 400 concepts | 11,949, 0.078 cents | 438, 0.003 cents |
+| personal, a question, 1,000 concepts | 27,624, 0.182 cents | 8,823, 0.060 cents |
+| personal, thanks, 1,000 concepts | 19,395, 0.127 cents | 438, 0.003 cents |
+
+The size of the brains no longer moves the price of a question: 400 and 1,000 concepts send the same. One folder of 100 concepts, which the router read whole already, changes little (4,428 tokens to 3,952).
 
 ## Projects
 
@@ -504,7 +532,7 @@ A hit saves 45% and a miss 23%.
 
 **Thanks.** A message made only of thanks, a greeting or a goodbye, in English or French, needs no section, no note, no folder and no router: one call and about 960 tokens. A bare ok or yes still goes through the router, since it may answer the question before it.
 
-**Folders as support.** A project reads the owner's folders to support its file, so it reads less of them than a folder chat. The folder router is shown the 120 titles nearest the message, the nearest by meaning first and then by words with the router's English search words, instead of all of them. The answer holds 10 concepts of a folder in full and 25 more by title, instead of 30 and 120. A file built from the folders keeps the full dossier.
+**Folders as support.** A project reads the owner's folders to support its file, so it reads less of them than a folder chat. The folder router is shown the 120 titles nearest the message, the 40 nearest by meaning first and then by words with the router's English search words, instead of all of them. The answer holds 10 concepts of a folder in full and 25 more by title, instead of 30 and 40. A file built from the folders keeps the full dossier.
 
 **The answer is plain.** The model returns `tldr`, the answer or the decision in one or two sentences, and `reply`, up to 4 short lines of support with their sources, empty when the tldr is enough. Small talk gets one line and no tldr. The page shows them as one plain answer, as the normal chat does: no label, no chip for what was read, no token count and no price. The turn still carries `used` and `cost`, which the page uses to mark what the answer rested on in the file; the thread and the memory read both parts.
 

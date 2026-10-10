@@ -194,6 +194,20 @@ export const spendAdd = internalMutation({
   },
 });
 
+/** What one chat message cost, added to the month's row for its kind of chat. */
+export const chatSpendAdd = internalMutation({
+  args: { space: v.string(), kind: v.string(), usd: v.number(), priced: v.number(), calls: v.number(), tokensIn: v.number(), tokensOut: v.number(), cached: v.number() },
+  handler: async (ctx, a) => {
+    if (!["folders", "personal"].includes(a.kind)) throw new Error("a chat is the folders' or the personal brain's");
+    const space = readSpace(a.space), month = monthOf();
+    const row = (await ctx.db.query("chatSpend").withIndex("by_space_month", (q: any) => q.eq("space", space).eq("month", month)).collect()).find((r: any) => r.kind === a.kind);
+    const add = { usd: a.usd, priced: a.priced, calls: a.calls, tokensIn: a.tokensIn, tokensOut: a.tokensOut, cached: a.cached };
+    if (row) await ctx.db.patch(row._id, { usd: row.usd + add.usd, priced: row.priced + add.priced, calls: row.calls + add.calls, tokensIn: row.tokensIn + add.tokensIn, tokensOut: row.tokensOut + add.tokensOut, cached: row.cached + add.cached, at: Date.now() });
+    else await ctx.db.insert("chatSpend", { space, month, kind: a.kind, ...add, at: Date.now() });
+    return { ok: true };
+  },
+});
+
 /** The cap and what has been spent this month, which is all a message needs to know before it asks a model anything. */
 export const budgetState = internalQuery({
   args: { space: v.string() },
@@ -225,11 +239,17 @@ export const spendOf = internalQuery({
     const names = new Map<string, string>();
     for (const b of await ctx.db.query("brains").collect()) if (b.type === "project" && readSpace(b.space) === readSpace(a.space)) names.set(b.slug, b.name);
     const sum = (k: string) => rows.reduce((n: number, r: any) => n + (r[k] ?? 0), 0);
-    const last = (await spendRows(ctx, a.space, monthBefore(month))).reduce((n: number, r: any) => n + r.usd, 0);
+    /* The month before, in all: the projects and the chats. */
+    const before = monthBefore(month);
+    const last = (await spendRows(ctx, a.space, before)).reduce((n: number, r: any) => n + r.usd, 0)
+      + (await ctx.db.query("chatSpend").withIndex("by_space_month", (q: any) => q.eq("space", readSpace(a.space)).eq("month", before)).collect()).reduce((n: number, r: any) => n + r.usd, 0);
     const cap = (await budgetOf(ctx, a.space))?.cap ?? null;
+    /* The chats' own rows: what the folders' chat and the personal chat cost this month, apart from the projects, which the cap is about. */
+    const chats = (await ctx.db.query("chatSpend").withIndex("by_space_month", (q: any) => q.eq("space", readSpace(a.space)).eq("month", month)).collect())
+      .map((r: any) => ({ kind: r.kind as string, usd: r.usd as number, calls: r.calls as number, priced: r.priced as number, tokensIn: r.tokensIn as number, tokensOut: r.tokensOut as number, cached: r.cached as number }));
     return {
-      month, usd: sum("usd"), calls: sum("calls"), priced: sum("priced"), tokensIn: sum("tokensIn"), tokensOut: sum("tokensOut"), cached: sum("cached"),
-      last: { month: monthBefore(month), usd: last }, cap, over: cap != null && sum("usd") >= cap,
+      month, usd: sum("usd"), calls: sum("calls"), priced: sum("priced"), tokensIn: sum("tokensIn"), tokensOut: sum("tokensOut"), cached: sum("cached"), chats,
+      last: { month: before, usd: last }, cap, over: cap != null && sum("usd") >= cap,
       /* A project that was deleted after it spent keeps its row, so the month's total is what was spent. */
       projects: rows.map((r: any) => ({ slug: r.brain, name: names.get(r.brain) ?? "", usd: r.usd, calls: r.calls })).sort((x: any, y: any) => y.usd - x.usd || y.calls - x.calls).slice(0, 12),
     };

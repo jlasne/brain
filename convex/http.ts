@@ -19,10 +19,10 @@ import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from 
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, translatePage, langOf, DOC_TYPES } from "./onepager";
 import type { DocType } from "./onepager";
-import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine } from "./words";
+import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine, isCloser, threadOf, INDEX_SHORT, NEAR_SHORT, NEAR_NEEDED } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
-import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, writeBrief, gapsOf, readBlocks, withSpend, guardBudget } from "./project";
+import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, writeBrief, gapsOf, readBlocks, withSpend, withChatSpend, guardBudget } from "./project";
 import { colNames, downloadText, csvOf, parseCsv, madeName, splitKey, fileKey } from "./sheet";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
@@ -721,7 +721,35 @@ route("/api/ask", async (ctx, _req, b) => {
   const every = await loadSpace(ctx, who.space, undefined, { personal: true, projects: true });
   const only = b.brain && b.brain !== "all" ? String(b.brain) : null;
   const mine = only ? every.brains.find((x: any) => x.slug === only && x.type === "personal") : null;
-  if (mine) return await personalChat(ctx, who, b, mine, every);
+  /* What each message costs is added up from the usage the model host reports, and recorded once, whether it finished or not. */
+  if (mine) return await withChatSpend(ctx, { space: who.space, kind: "personal", skip: who.demo }, tally => personalChat(ctx, who, b, mine, every, tally));
+  return await withChatSpend(ctx, { space: who.space, kind: "folders", skip: who.demo }, tally => folderChat(ctx, who, b, every, only, tally));
+});
+
+/**
+ * The embedding of a question and the concepts nearest to it in meaning, for a chat to read: they lead what the router is shown and what
+ * the dossier opens. Embeddings run on the deployment's key, so a workspace on its own key and the demo go by words and the router alone.
+ */
+async function nearTo(ctx: any, who: Caller, q: string, pool: any[]): Promise<string[]> {
+  if (who.byok || who.demo) return [];
+  try {
+    const [vec] = await embed([q.slice(0, 1000)]);
+    return (await nearest(ctx, vec, pool.map((x: any) => x.slug), NEAR_SHORT)).map(x => x.id);
+  } catch (e: any) { console.log(`question embedding skipped: ${String(e?.message ?? e).slice(0, 120)}`); return []; }
+}
+/**
+ * What the router is shown. A folder long enough to cost thousands of tokens a message is shown as its 120 closest titles, once the meaning
+ * of its concepts is kept (20 or more found); a short one, or one whose meaning is not kept yet, is shown whole.
+ */
+const shortList = (near: string[]) => near.length >= NEAR_NEEDED ? { cap: INDEX_SHORT, first: near } : {};
+/** Whether the router judged every title: a router that read them all and picked nothing has judged that nothing is held; one shown a short list has not. */
+const judged = (route: { routed: boolean; picked: string[] }, short: { cap?: number }) => route.routed && (!short.cap || route.picked.length > 0);
+
+/**
+ * A message in the folders' chat: the main chat, or one folder, or the folders ticked. What it reads is found first, and it is answered from
+ * that alone. Thanks and greetings read nothing: one short line comes back.
+ */
+async function folderChat(ctx: any, who: Caller, b: any, every: any, only: string | null, tally: (u: any) => void) {
   const { brains, cards: concepts, sources } = withoutPersonal(every);
   /* Folders ticked in the side panel: two or more travel as a list, and the
      question reads those alone. A personal brain never joins it. */
@@ -748,19 +776,49 @@ route("/api/ask", async (ctx, _req, b) => {
   const mKey = keyFor(who), mName = modelFor(who, b);
   await demoCount(ctx, who, "ask");
   const t0 = Date.now();
-  const route = await routeQuestion(pool, concepts, String(b.q ?? ""), b.history, mKey, mName);
-  /* The concepts closest in meaning to the question. Embeddings run on the
-     deployment's key, so a workspace on its own key and the demo go by words
-     and the router alone. */
-  let near: string[] = [];
-  if (!who.byok && !who.demo) {
+  const q = String(b.q ?? "");
+  const english = who.models?.reply === "en";
+  /* Three levels: Normal answers, Educational teaches the answer, Learning
+     leads the reader to it without giving it. Each changes the shape and the
+     depth of the answer. None of
+     them touches the evidence rules below, so a level can never buy a claim
+     the brain does not hold. */
+  /* Expert was removed. A browser still holding it asks at Normal. */
+  const level = ["normal", "educational", "learning"].includes(String(b.level))
+    ? String(b.level) : "normal";
+  const learning = level === "learning";
+  const tagged = tags.length ? pool.map((x: any) => ({ slug: x.slug, name: x.name })) : [];
+
+  /* The app keeps its conversations: a question sent with "chat" joins that
+     chat, or starts one. A failed save is only a chat that does not list it. */
+  const keep = async (text: string, nSources: number): Promise<string | undefined> => {
+    if (!("chat" in b)) return undefined;
     try {
-      const [vec] = await embed([String(b.q ?? "").slice(0, 1000)]);
-      near = (await nearest(ctx, vec, pool.map((x: any) => x.slug), 8)).map(x => x.id);
-    } catch (e: any) { console.log(`question embedding skipped: ${String(e?.message ?? e).slice(0, 120)}`); }
+      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
+        id: typeof b.chat === "string" ? b.chat : null, brain: many ? scoped.map((x: any) => x.slug).join(",") : only ?? "all",
+        turn: { q: q.slice(0, 2000), a: text, level, sources: nSources, at: Date.now(), ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}) } });
+      return r.id;
+    } catch { return undefined; /* the answer still goes out */ }
+  };
+
+  /* Thanks, a greeting or a goodbye needs no concept and no router: one short line, in the language it came in. */
+  if (isCloser(q) && !tags.length) {
+    const { text, usage } = await ask([
+      { role: "system", content: `You are the user's own knowledge base. ${english ? "You answer in English." : "You answer in the language the message is written in."}` },
+      { role: "user", content: `They wrote: "${q.slice(0, 200)}"\nThat is thanks, a greeting or a goodbye. Reply with one short, warm line. Add nothing else.` },
+    ], { maxTokens: 80, key: mKey, model: mName, temperature: 0.3, timeout: 30000 });
+    tally(usage);
+    const chat = await keep(text.trim(), 0);
+    return { answer: text.trim(), sources: 0, level, ...(chat ? { chat } : {}) };
   }
-  /* Ranked on the slim copies; only the concepts that lead are read whole. */
-  const plan = planDossier(pool, concepts, String(b.q ?? ""), b.history, { ...route, near });
+
+  /* The concepts closest in meaning to the question, found before the router runs: it is then shown those titles, and the dossier opens them. */
+  const near = await nearTo(ctx, who, q, pool);
+  const short = shortList(near);
+  const route = await routeQuestion(pool, concepts, q, b.history, mKey, mName, { ...short, meter: tally });
+  /* Ranked on the slim copies; only the concepts that lead are read whole. A router shown a short list that picks nothing has not judged that
+     nothing is held: the words of the question and its English terms still find what bears on it, in every title. */
+  const plan = planDossier(pool, concepts, q, b.history, { ...route, routed: judged(route, short), near });
   const whole = await ctx.runQuery(internal.store.conceptsByIds,
     { space: who.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
   const pick = writeDossier(pool, plan, new Map(whole.map((c: any) => [idOf(c), c])));
@@ -771,20 +829,10 @@ route("/api/ask", async (ctx, _req, b) => {
     ? `\n\nWHAT FOLLOWS, Tasu's own conclusions from two linked concepts, never a source:\n` +
       derived.slice(0, 6).map((x: any) => `- ${x.title}: ${x.text}`).join("\n")
     : "");
-  const tagged = tags.length ? pool.map((x: any) => ({ slug: x.slug, name: x.name })) : [];
   const reading = pool.filter((x: any) => pick.opened.some((c: any) => c.brain === x.slug));
   const isPerson = reading.length === 1 && reading[0].type === "person";
   const nSources = new Set(sources.filter((s: any) => s.brains.some((x: string) => reading.some((c: any) => c.slug === x))).map((s: any) => s.sid)).size;
 
-  /* Three levels: Normal answers, Educational teaches the answer, Learning
-     leads the reader to it without giving it. Each changes the shape and the
-     depth of the answer. None of
-     them touches the evidence rules below, so a level can never buy a claim
-     the brain does not hold. */
-  /* Expert was removed. A browser still holding it asks at Normal. */
-  const level = ["normal", "educational", "learning"].includes(String(b.level))
-    ? String(b.level) : "normal";
-  const learning = level === "learning";
   const SHAPE: Record<string, string> = {
     normal:
 `LEVEL: NORMAL
@@ -811,18 +859,18 @@ route("/api/ask", async (ctx, _req, b) => {
 
   /**
    * The last few turns of this thread, so "what about the second one" means
-   * something.
+   * something: the last in full, the ones before it as the question and one line.
    *
    * They arrive from the browser and are never written down. They set what a
    * follow-up refers to, and nothing else: every claim in the answer still has
    * to come from the stored knowledge, which the rules below say plainly.
    */
-  const history = (Array.isArray(b.history) ? b.history : []).slice(-4);
-  const earlier = history.map((h: any) =>
-    `Q: ${String(h.q ?? "").slice(0, 400)}\nA: ${String(h.a ?? "").slice(0, 1200)}`).join("\n\n");
+  const earlier = threadOf(b.history).map(h => `Q: ${h.q}\nA: ${h.a}`).join("\n\n");
 
-  const { text } = await ask([
-    { role: "system", content: `You are the user's own knowledge base, answering from what it holds. ${who.models?.reply === "en" ? "You answer in English, whatever language the question is written in." : "You answer in the language the question is written in."}` },
+  /* What stays the same from one message to the next comes first, and what changes with the message comes last (the thread, what this
+     answer reads, the question), so a model host that reuses the start of a prompt can reuse the rules and the knowledge of a follow-up. */
+  const { text, usage } = await ask([
+    { role: "system", content: `You are the user's own knowledge base, answering from what it holds. ${english ? "You answer in English, whatever language the question is written in." : "You answer in the language the question is written in."}` },
     { role: "user", content:
 `Answer the question from the stored knowledge below.
 
@@ -836,15 +884,12 @@ ${learning
   ? "- The FIRST SENTENCE says what the question asks, never its answer. Natural prose, addressed to the person asking."
   : "- The FIRST SENTENCE answers the question. Natural prose, addressed to the person asking."}
 - Numbers, dates and findings go INSIDE the answer.
-${isPerson
-  ? "- This is a PERSON brain, so name that person throughout. Their view is the subject."
-  : "- NEVER put a source's name in the answer text. Attribution belongs on the sources line only."}
+- NEVER put a source's name in the answer text, unless ABOUT THIS ANSWER below says it reads a PERSON brain. Attribution belongs on the sources line only.
 - Newer evidence wins on the same question, and better data overrides that.
 - Mention an open conflict only when it changes what the reader would do.
 - No file paths anywhere.
-${nSources > 0 && nSources < 10 ? `- This rests on ${nSources} source${nSources === 1 ? "" : "s"} only. Open by saying it is a small brain.` : ""}
 - Then a blank line, then one line: "Sources: {author}, {date} - {author}, {date}" listing only sources you used. Omit that line if you used none.
-${who.models?.reply === "en" ? "- Write in English, whatever language the question is in. The sources line stays as it is."
+${english ? "- Write in English, whatever language the question is in. The sources line stays as it is."
   : "- Write in the language of the QUESTION: a question in French gets French, one in English gets English. The stored knowledge is in English; translate what you use, numbers and names kept as they are. The sources line stays as it is."}
 - No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
 - ALWAYS ANSWER WITH WHAT IS HELD, even when it is partial. Lead with the closest thing the stored knowledge says on the subject: how the term is used, what it sits beside, the method it belongs to, the related figures. A short partial answer beats a refusal.
@@ -854,37 +899,30 @@ ${who.models?.reply === "en" ? "- Write in English, whatever language the questi
 - Never invent evidence.
 - A WHAT FOLLOWS line is a conclusion drawn from two concepts, not a source. Use one only when it answers the question, and say so: "Taken together, ...".
 - LINKS say how concepts relate: "needs" names what must be understood first, "causes" what it drives. Follow them when the question asks why, how or in what order.
-${earlier ? `- The question may be a follow-up. Read it against the conversation below, so a pronoun or "the second one" points at the right thing.` : ""}
-${earlier ? `
-EARLIER IN THIS CONVERSATION
-${earlier}
+- The question may be a follow-up. When EARLIER IN THIS CONVERSATION is given below, read the question against it, so a pronoun or "the second one" points at the right thing. A claim made there that the stored knowledge does not carry is dropped, not repeated.
 
-That is context for reading the question, never a source. Every claim in your answer comes from the stored knowledge below. A claim you made earlier that the stored knowledge does not carry is dropped, not repeated.
-` : ""}
-${tagged.length ? taggedLine(tagged, pick.opened) + "\n\n" : ""}STORED KNOWLEDGE
+STORED KNOWLEDGE
 The concepts that bear on this question are opened in full. Others are named under ALSO HELD. Answer from the opened ones, and name an ALSO HELD concept when it is where the answer would continue.
 ${dossier}
 
-QUESTION: ${String(b.q ?? "")}` },
+${earlier ? `EARLIER IN THIS CONVERSATION
+${earlier}
+
+That is context for reading the question, never a source. Every claim in your answer comes from the stored knowledge above.
+
+` : ""}${tagged.length || isPerson || (nSources > 0 && nSources < 10) ? `ABOUT THIS ANSWER
+${tagged.length ? taggedLine(tagged, pick.opened) + "\n" : ""}${isPerson ? "- It reads a PERSON brain, so name that person throughout. Their view is the subject.\n" : ""}${nSources > 0 && nSources < 10 ? `- It rests on ${nSources} source${nSources === 1 ? "" : "s"} only. Open by saying it is a small brain.\n` : ""}
+` : ""}QUESTION: ${q}` },
   /* Low temperature: the same question, on the same knowledge, reads the same. */
   ], { maxTokens: level === "normal" ? 2000 : learning ? 2400 : 3200, key: mKey, model: mName, temperature: 0.2,
        /* The browser waits 3 minutes. The router's time comes out of the
           answer's, so the two never add up past it. */
        timeout: Math.max(60000, 165000 - (Date.now() - t0)) });
+  tally(usage);
 
-  /* The app keeps its conversations: a question sent with "chat" joins that
-     chat, or starts one. A failed save is only a chat that does not list it. */
-  let chat: string | undefined;
-  if ("chat" in b) {
-    try {
-      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
-        id: typeof b.chat === "string" ? b.chat : null, brain: many ? scoped.map((x: any) => x.slug).join(",") : only ?? "all",
-        turn: { q: String(b.q ?? "").slice(0, 2000), a: text, level, sources: nSources, at: Date.now(), ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}) } });
-      chat = r.id;
-    } catch { /* the answer still goes out */ }
-  }
+  const chat = await keep(text, nSources);
   return { answer: text, sources: nSources, level, ...(tagged.length ? { tagged: tagged.map((x: any) => x.name) } : {}), ...(chat ? { chat } : {}) };
-});
+}
 
 /**
  * A message in a personal brain's chat: filed, and answered.
@@ -904,7 +942,7 @@ function twinOf(row: any): string {
     parts.map((p: any) => `${p.title}: ${(p.points ?? []).join(" ")}`).join("\n").slice(0, 6000) + "\n\n";
 }
 
-async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any) {
+async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any, tally: (u: any) => void) {
   const mKey = keyFor(who), mName = modelFor(who, b);
   if (!String(b.q ?? "").trim()) return { error: "write something first" };
   /* An interview under way takes the message as its answer. */
@@ -912,14 +950,36 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   if (row?.on) return await interviewTurn(ctx, who, b, mine, every.cards, row, false);
   const q = String(b.q ?? "").slice(0, MAX_CHARS.chat).trim();
   await demoCount(ctx, who, "ask");
+  const date = new Date().toISOString().slice(0, 10);
+  const history = (Array.isArray(b.history) ? b.history : []).slice(-4);
+  const last = history.slice(-1).map((h: any) => `They said: ${String(h.q ?? "").slice(0, 500)}\nThe brain replied: ${String(h.a ?? "").slice(0, 600)}`).join("");
+  const saveTurn = async (answer: string, extra: Record<string, unknown>): Promise<string | undefined> => {
+    if (!("chat" in b)) return undefined;
+    try {
+      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
+        id: typeof b.chat === "string" ? b.chat : null, brain: mine.slug,
+        turn: { q: q.slice(0, 2000), a: answer, level: "normal", sources: 0, at: Date.now(), ...extra } });
+      return r.id;
+    } catch { return undefined; /* the reply still goes out */ }
+  };
+
+  /* Thanks, a greeting or a goodbye: nothing to file, nothing to read, no question to ask in passing. One short line, in their voice. */
+  if (isCloser(q)) {
+    const { text, usage } = await ask([
+      { role: "system", content: REPLY_RULES + (who.models?.reply === "en" ? "\n- Reply in English, whatever language they write in." : "") },
+      { role: "user", content: `TODAY: ${date}\n\nTHEIR MESSAGE\n${q}` },
+    ], { maxTokens: 120, key: mKey, model: mName, temperature: 0.3, timeout: 30000 });
+    tally(usage);
+    const answer = plainReply(text);
+    const chat = await saveTurn(answer, { filed: { new: 0, updated: 0, titles: [] }, called: [] });
+    return { answer, sources: 0, level: "normal", personal: true, filed: { new: 0, updated: 0, titles: [] }, called: [], ...(chat ? { chat } : {}) };
+  }
+
   /* Now and then the chat asks one of the interview's questions in passing:
      every few messages, when they asked nothing, from the chapters the notes
      cover least. The reply tags the one it asked. */
   const marks: Marks = row?.marks ?? {};
   const offer = !who.demo && (row?.sinceAsk ?? NATURAL_GAP) >= NATURAL_GAP && !/\?\s*$/.test(q) ? gaps(marks, q, 3) : [];
-  const date = new Date().toISOString().slice(0, 10);
-  const history = (Array.isArray(b.history) ? b.history : []).slice(-4);
-  const last = history.slice(-1).map((h: any) => `They said: ${String(h.q ?? "").slice(0, 500)}\nThe brain replied: ${String(h.a ?? "").slice(0, 600)}`).join("");
   /* This personal brain and every brain that is not personal: the reply may
      call on any of them without being asked. */
   const reach = every.brains.filter((x: any) => x.type !== "personal" || x.slug === mine.slug);
@@ -932,22 +992,30 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   const t0 = Date.now();
 
   const filing = fileTwice(t => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text: q, context: last, kind: "chat", date, lang: storeLang(who),
-    model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: t })).text }))
+    model: async m => { const r = await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: t }); tally(r.usage); return r.text; } }))
     .catch(() => null);
   const reply = (async () => {
-    const route = await routeQuestion(pool, cards, q, b.history, mKey, mName);
-    const plan = planDossier(pool, cards, q, b.history, route);
+    /* The question is embedded first: the router is shown the titles nearest in meaning, and the notes nearest open first. */
+    const near = await nearTo(ctx, who, q, pool);
+    const short = shortList(near);
+    /* Their own notes are always listed to the router, the newest 150: their meaning is not kept as they are filed, so the nearest in meaning cannot find them. */
+    const keep = cards.filter((c: any) => c.brain === mine.slug).sort((x: any, y: any) => String(y.updated ?? "").localeCompare(String(x.updated ?? ""))).slice(0, 150).map(idOf);
+    const route = await routeQuestion(pool, cards, q, b.history, mKey, mName, { ...short, keep, meter: tally });
+    const plan = planDossier(pool, cards, q, b.history, { ...route, routed: judged(route, short), near });
     const whole = await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
     const pick = writeDossier(pool, plan, new Map(whole.map((c: any) => [idOf(c), c])));
-    const earlier = history.map((h: any) => `They said: ${String(h.q ?? "").slice(0, 400)}\nYou replied: ${String(h.a ?? "").slice(0, 800)}`).join("\n\n");
-    const { text } = await ask([
+    const earlier = threadOf(b.history).map(h => `They said: ${h.q}\nYou replied: ${h.a}`).join("\n\n");
+    /* What stays the same comes first (the rules, the date, who they are, their other brains), what changes with the message last. */
+    const { text, usage } = await ask([
       { role: "system", content: REPLY_RULES + (who.models?.reply === "en" ? "\n- Reply in English, whatever language they write in." : "") },
-      { role: "user", content: `TODAY: ${date}\n\n${twinOf(row)}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}` +
+      { role: "user", content: `TODAY: ${date}\n\n${twinOf(row)}` +
         `THEIR OTHER BRAINS, yours to call on: ${others.map((x: any) => `${x.name} (${x.type})`).join(", ") || "none yet"}\n\n` +
-        `${tagged.length ? taggedLine(tagged, pick.opened, "THEY") + "\n\n" : ""}` +
         `WHAT THEIR NOTES AND BRAINS HOLD (entries "in ${mine.name}" are their own notes; every other entry comes from the brain it names)\n${pick.dossier}\n\n` +
+        `${tagged.length ? taggedLine(tagged, pick.opened, "THEY") + "\n\n" : ""}` +
+        `${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}` +
         `${offer.length ? gapBlock(offer) + "\n\n" : ""}THEIR MESSAGE\n${q}` },
     ], { maxTokens: 1200, key: mKey, model: mName, timeout: Math.max(60000, 160000 - (Date.now() - t0)) });
+    tally(usage);
     return text;
   })();
   const [said, filed] = await Promise.all([reply, filing]);
@@ -971,15 +1039,7 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
     } catch { /* the reply still goes out */ }
   }
 
-  let chat: string | undefined;
-  if ("chat" in b) {
-    try {
-      const r = await ctx.runMutation(internal.store.chatTurn, { space: who.space, ...(who.visitor ? { owner: who.visitor } : {}),
-        id: typeof b.chat === "string" ? b.chat : null, brain: mine.slug,
-        turn: { q: q.slice(0, 2000), a: answer, level: "normal", sources: 0, at: Date.now(), filed: filed ?? null, called } });
-      chat = r.id;
-    } catch { /* the reply still goes out */ }
-  }
+  const chat = await saveTurn(answer, { filed: filed ?? null, called });
   return { answer, sources: 0, level: "normal", personal: true, filed: filed ?? { new: 0, updated: 0, titles: [], failed: true },
            called, ...(interview ? { interview } : {}), ...(chat ? { chat } : {}) };
 }

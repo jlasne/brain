@@ -674,6 +674,23 @@ export default defineSchema({
   }).index("by_space_month", ["space", "month"])
     .index("by_brain_month", ["brain", "month"]),
 
+  /**
+   * What the chats cost, month by month: one row a kind of chat ("folders" for the main chat and a folder's, "personal" for the personal
+   * brain's) a month, added to after each message from the usage the model host reports. Shown in Settings beside the projects.
+   */
+  chatSpend: defineTable({
+    space: v.string(),
+    month: v.string(),
+    kind: v.string(),
+    usd: v.number(),
+    priced: v.number(),
+    calls: v.number(),
+    tokensIn: v.number(),
+    tokensOut: v.number(),
+    cached: v.number(),
+    at: v.number(),
+  }).index("by_space_month", ["space", "month"]),
+
   /* The most a workspace's projects may cost in a month, when the owner set one. */
   projectBudget: defineTable({
     space: v.string(),

@@ -206,10 +206,16 @@ function makeCtx() {
   const mods = { store, projects, graph };
   /* A search over the meaning kept for a project's sections: the nearest first, by the angle between the numbers. */
   const vectorSearch = async (table, _index, { vector, limit, filter }) => {
+    const cos = (a, b) => a.reduce((s, c, i) => s + c * b[i], 0) / ((Math.hypot(...a) * Math.hypot(...b)) || 1);
+    /* The meaning of the concepts of the folders: the rows of the brains asked for, the nearest first. */
+    if (table === "vectors") {
+      const brains = new Set(), qv = { eq(_f, v) { brains.add(v); return v; }, or(...x) { return x; } };
+      filter?.(qv);
+      return rows("vectors").filter(r => brains.has(r.brain)).map(r => ({ _id: r._id, _score: cos(vector, r.vec) })).sort((a, b) => b._score - a._score).slice(0, limit);
+    }
     if (table !== "projectVectors") return [];
     const conds = [], q = { eq(f, v) { conds.push([f, v]); return q; } };
     filter?.(q);
-    const cos = (a, b) => a.reduce((s, c, i) => s + c * b[i], 0) / ((Math.hypot(...a) * Math.hypot(...b)) || 1);
     return rows("projectVectors").filter(r => conds.every(([f, v]) => r[f] === v)).map(r => ({ _id: r._id, _score: cos(vector, r.vec) })).sort((a, b) => b._score - a._score).slice(0, limit);
   };
   const call = (name, args) => { const [m, f] = name.split("."); if (!mods[m]?.[f]) throw new Error(`no ${name}`); return mods[m][f].handler({ db, runQuery: call, runMutation: call, vectorSearch }, args); };
@@ -221,7 +227,7 @@ const sent = [];
 let reply = {};
 const realFetch = globalThis.fetch;
 /* Meaning as numbers, for a fake: a text about a refund points one way, a text about payment another, everything else a third. */
-const vecOf = text => { const v = new Array(1024).fill(0); v[/refund|rembours/i.test(text) ? 7 : /payment|paiement/i.test(text) ? 8 : 9] = 1; return v; };
+const vecOf = text => { const v = new Array(1024).fill(0); v[/refund|rembours/i.test(text) ? 7 : /payment|paiement/i.test(text) ? 8 : /depreciation|amortissement/i.test(text) ? 3 : 9] = 1; return v; };
 globalThis.fetch = async (_u, opt) => {
   const body = JSON.parse(opt.body);
   if (String(_u).includes("/embeddings")) { if (reply.embedFail) return new Response("busy", { status: 503 }); return Response.json({ data: body.input.map((t, i) => ({ index: i, embedding: vecOf(t) })) }); }
@@ -669,7 +675,7 @@ const docProject = async (w, name, text, kind = "doc") => {
 
   reply = { route: routeOf(), answer: answerOf() };
   const before = sent.length;
-  const talk = await chat("ok thanks, that helps");
+  const talk = await chat("ok that helps");
   const a1 = last(/You are the chat of a project/), r1 = last(/You route a project's questions/);
   check("small talk is routed over the contents list: a router call and an answer call", sent.length - before === 2 && r1.user.includes(`${cards[0].sid} | Part 1 |`) && !/is short: the answer reads all of it/.test(r1.user));
   check("and it opens no section of the file", /\(not opened for this message\)/.test(a1.user) && !a1.user.includes("word word word") && talk.used.file.whole === false && !talk.used.file.sections, a1.user.slice(0, 300));
@@ -1563,8 +1569,8 @@ const docProject = async (w, name, text, kind = "doc") => {
 
 {
   /* thanks needs nothing */
-  const yes = ["thanks", "Thank you!", "ok thanks", "merci beaucoup", "Great, thanks a lot", "hello", "Bonjour", "bye", "thanks for the help", "Merci !"];
-  const no = ["ok", "yes", "perfect", "thanks, now change the price", "hi what is the price?", "", "what is the deadline", "no thanks, I prefer the other one", "hello there general kenobi friend"];
+  const yes = ["thanks", "Thank you!", "ok thanks", "merci beaucoup", "Great, thanks a lot", "hello", "Bonjour", "bye", "thanks for the help", "Merci !", "ok thanks, that helps", "thanks, that works", "Merci, bonne journée", "thanks, I appreciate it"];
+  const no = ["ok", "yes", "perfect", "thanks, now change the price", "hi what is the price?", "", "what is the deadline", "no thanks, I prefer the other one", "hello there general kenobi friend", "ok that helps", "thanks, that is wrong", "thanks I will do it", "yes thanks"];
   check("thanks, a greeting and a goodbye are small talk that needs no router", yes.every(x => project.isCloser(x)), yes.filter(x => !project.isCloser(x)).join(" | "));
   check("a bare ok or yes, a question and a request with thanks in it are not", no.every(x => !project.isCloser(x)), no.filter(x => project.isCloser(x)).join(" | "));
 }
@@ -2499,6 +2505,137 @@ const docProject = async (w, name, text, kind = "doc") => {
   await call("/api/project/delete", { brain: p2 });
   const after = await spend();
   check("a project taken away leaves what it cost in the month, under no name", near(after.usd, total) && after.projects.some(x => x.slug === p2 && x.name === ""), JSON.stringify(after.projects));
+}
+
+/* ================= the folders' chat and the personal chat: what they read, and what they cost ================= */
+
+{
+  const router = http.default;
+  const w = makeCtx();
+  const FAR = Date.now() + 1e7;
+  w.T.sessions = [{ _id: "s1", token: "owner-token", expires: FAR, kind: "owner", space: "octopus" }, { _id: "s2", token: "squidgy-token", expires: FAR, kind: "owner", space: "squidgy" },
+    { _id: "s3", token: "demo-token", expires: FAR, kind: "demo", space: "demo", visitor: "v1" }];
+  w.T.workspaces = [{ _id: "w1", slug: "demo", name: "Demo", kind: "demo", created: "2026-01-01" }];
+  w.T.brains = [{ _id: "b1", slug: "wealth", name: "Wealth", type: "subject", scope: "wealth, money and assets", space: "octopus" },
+    { _id: "b2", slug: "health", name: "Health", type: "subject", scope: "sleep and training", space: "octopus" },
+    { _id: "b3", slug: "me", name: "Me", type: "personal", scope: "Me", space: "octopus" }];
+  const concept = (brain, i, title, position) => ({ _id: `c-${brain}-${i}`, brain, slug: `n${i}`, n: i, title, summaryLine: `A line about ${title}.`, position,
+    evidence: [{ date: "2026-01-01", author: "A", claim: `${title} claim`, source: "s-a" }], data: [], conflicts: [], sources: ["s-a"], related: [], updated: "2026-01-01" });
+  w.T.concepts = [];
+  for (let i = 0; i < 200; i++) w.T.concepts.push(concept("wealth", i, `Wealth idea ${i} on money`, `Wealth idea ${i}: money words. ${"filler ".repeat(40)}`));
+  w.T.concepts.push(concept("wealth", 500, "Straight line depreciation", "Straight line depreciation spreads an asset's cost evenly over its useful life."));
+  for (let i = 0; i < 30; i++) w.T.concepts.push(concept("health", i, `Health idea ${i} on sleep`, `Sleep idea ${i}. ${"filler ".repeat(40)}`));
+  for (let i = 0; i < 15; i++) w.T.concepts.push(concept("me", i, `My note ${i}`, `A personal note ${i} about plans.`));
+  /* the meaning of every concept is kept: a row each, which the fake search ranks by the angle to the question */
+  w.T.vectors = w.T.concepts.map((c, i) => ({ _id: `v${i}`, cid: c._id, brain: c.brain, vec: vecOf(`${c.title} ${c.position}`) }));
+  const call = async (path, body = {}, token = "owner-token") => {
+    const hit = router.lookup(path, "POST");
+    if (!hit) throw new Error("no route " + path);
+    const res = await hit[0](w.ctx, new Request("https://x" + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(token ? { token } : {}), ...body }) }));
+    return { status: res.status, ...(await res.json()) };
+  };
+  const price = { prompt_tokens: 1000, completion_tokens: 100, cost: 0.001 };
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  const routerPrompt = () => last(/You route questions to the right entries/);
+  const lines = p => p.user.split("\n").filter(l => /^\d+\|/.test(l));
+  const callsSince = (n, re) => sent.slice(n).filter(m => re.test(m.sys)).length;
+  const FR = "comment fonctionne l'amortissement linéaire ?";
+
+  /* thanks and greetings: one short line, nothing read */
+  reply = { usage: price, kb: "You are welcome." };
+  let n0 = sent.length;
+  const thanks = await call("/api/ask", { q: "ok thanks, that helps", brain: "all", history: [{ q: "Q", a: "A" }] });
+  check("thanks in the folders' chat is one short call: no router, no concept read, no sources", sent.length - n0 === 1 && callsSince(n0, /You are the user's own knowledge base/) === 1 && thanks.answer === "You are welcome." && thanks.sources === 0, JSON.stringify(thanks));
+  check("and that call is small: a line, not a dossier", sent.at(-1).user.length < 400, String(sent.at(-1).user.length));
+  n0 = sent.length;
+  const greet = await call("/api/ask", { q: "Bonjour", brain: "wealth" });
+  check("a greeting in one folder is the same", sent.length - n0 === 1 && greet.sources === 0 && !!greet.answer);
+  n0 = sent.length;
+  await call("/api/ask", { q: "thanks", brain: "all", tags: ["wealth"] });
+  check("thanks that names a folder with @ is read as a question: the folder asked for is read", callsSince(n0, /You route questions to the right entries/) === 1);
+
+  /* a question: the meaning of the question is found first, and the router reads 120 titles, not 251 */
+  reply = { usage: price, kb: "Straight line depreciation spreads the cost.", folders: { picks: [1], terms: ["depreciation"] } };
+  n0 = sent.length;
+  const fr = await call("/api/ask", { q: FR, brain: "all", level: "normal" });
+  const rp = routerPrompt();
+  check("the router reads the 120 titles nearest in meaning, not all 231, and the concept asked for, found with not one word in common, leads them", lines(rp).length === 120 && /CONCEPTS \(120 of 231, the closest by wording\)/.test(rp.user) && /^1\|Straight line depreciation/.test(lines(rp)[0]), `${lines(rp).length} lines, first ${lines(rp)[0]}`);
+  const ans = last(/You are the user's own knowledge base/).user;
+  check("and the answer reads it, found by meaning with not one word of the question in common", /### Straight line depreciation in Wealth/.test(ans) && fr.answer === "Straight line depreciation spreads the cost.", ans.slice(ans.indexOf("STORED KNOWLEDGE")).slice(0, 200));
+  check("the question is embedded once, before the router, and the call count is the router and the answer", callsSince(n0, /You route questions to the right entries/) === 1 && callsSince(n0, /You are the user's own knowledge base/) === 1);
+
+  /* no meaning to lean on: every title, as before */
+  reply = { usage: price, kb: "ok", folders: { picks: [], terms: ["depreciation"] }, embedFail: true };
+  await call("/api/ask", { q: FR, brain: "all" });
+  check("when the question cannot be embedded the router reads every title, as it always did", lines(routerPrompt()).length === 231, String(lines(routerPrompt()).length));
+  reply = { usage: price, kb: "ok", folders: { picks: [], terms: ["depreciation"] } };
+  const kept = w.T.vectors; w.T.vectors = kept.slice(0, 5);
+  await call("/api/ask", { q: FR, brain: "all" });
+  check("and when the meaning of the folders is barely kept (under 20 found) it reads every title too", lines(routerPrompt()).length === 231, String(lines(routerPrompt()).length));
+  w.T.vectors = kept;
+  await call("/api/ask", { q: FR, brain: "wealth" });
+  check("a folder of fewer than 120 titles in the ask is shown whole: nothing to cut", lines(routerPrompt()).length === 120 || lines(routerPrompt()).length === 201, String(lines(routerPrompt()).length));
+
+  /* a concept whose meaning is not kept, asked in French: the router sees a short list without it and picks nothing, and its English terms still find it */
+  const missing = w.T.vectors.find(v => v.cid === "c-wealth-500");
+  w.T.vectors = w.T.vectors.filter(v => v !== missing);
+  reply = { usage: price, kb: "ok", folders: { picks: [], terms: ["straight line depreciation"] } };
+  await call("/api/ask", { q: FR, brain: "all" });
+  check("a router shown a short list that picks nothing has not judged that nothing is held: the concept it could not see is found by the English terms it gave", !lines(routerPrompt()).some(l => /Straight line depreciation/.test(l)) && /### Straight line depreciation in Wealth/.test(last(/You are the user's own knowledge base/).user), lines(routerPrompt()).length + " lines");
+  w.T.vectors.push(missing);
+  reply = { usage: price, kb: "ok", folders: { picks: [], terms: [] } };
+  await call("/api/ask", { q: "what is the weather in Lisbon?", brain: "all" });
+  check("and a question nothing bears on still opens nothing from a short list when no word or term meets a title", !/### Straight line depreciation/.test(last(/You are the user's own knowledge base/).user));
+
+  /* what the answer opens */
+  reply = { usage: price, kb: "ok", folders: { picks: [1], terms: ["money"] } };
+  await call("/api/ask", { q: "what do we know about money ideas?", brain: "all" });
+  const opened = (last(/You are the user's own knowledge base/).user.match(/^### /gm) ?? []).length;
+  check("a question the router found a subject for opens its picks, the nearest and the named, and fills no further than 8 with loose word matches", opened >= 1 && opened <= 12, String(opened));
+
+  /* the thread and the order of the prompt */
+  const hist = [1, 2, 3, 4].map(i => ({ q: `Question number ${i}`, a: `Answer ${i} first line.\nAnswer ${i} second line.\nAnswer ${i} third line.` }));
+  reply = { usage: price, kb: "ok", folders: { picks: [1], terms: ["money"] } };
+  await call("/api/ask", { q: "and the second one?", brain: "all", history: hist });
+  const fu = last(/You are the user's own knowledge base/).user;
+  check("the last turn of the thread is read whole, the three before it as the question and the first line of the answer", /Answer 4 third line\./.test(fu) && /Answer 3 first line\./.test(fu) && !/Answer 3 second line\./.test(fu) && !/Answer 1 third line\./.test(fu), fu.slice(fu.indexOf("EARLIER")).slice(0, 400));
+  const at = s => fu.indexOf(s), back = s => fu.lastIndexOf(s);
+  check("what stays the same comes first: the rules, then the knowledge, then the thread, then the question last", at("HOW TO WRITE THE ANSWER") < at("STORED KNOWLEDGE") && at("STORED KNOWLEDGE") < back("EARLIER IN THIS CONVERSATION") && back("EARLIER IN THIS CONVERSATION") < at("QUESTION: and the second one?"), `${at("HOW TO WRITE")} ${at("STORED KNOWLEDGE")} ${back("EARLIER IN")} ${at("QUESTION: and")}`);
+  check("the rules hold no line that changes with the question", !/- It rests on \d+ source|- It reads a PERSON brain/.test(fu.slice(0, at("STORED KNOWLEDGE"))));
+  w.T.sources = [{ sid: "a", brains: ["health"] }, { sid: "b", brains: ["health"] }];
+  await call("/api/ask", { q: "what do we know about sleep ideas?", brain: "health" });
+  const small = last(/You are the user's own knowledge base/).user;
+  check("a brain with few sources says so under ABOUT THIS ANSWER, after the knowledge and before the question: the rules stay as they were", /ABOUT THIS ANSWER\n- It rests on 2 sources only\. Open by saying it is a small brain\.\n\nQUESTION:/.test(small) && small.indexOf("STORED KNOWLEDGE") < small.lastIndexOf("ABOUT THIS ANSWER"), small.slice(small.lastIndexOf("ABOUT THIS ANSWER") - 50).slice(0, 300));
+  w.T.sources = [];
+
+  /* the personal chat */
+  reply = { usage: price, twin: "Anytime.", folders: { picks: [1], terms: ["depreciation"] } };
+  n0 = sent.length;
+  const pt = await call("/api/ask", { q: "thanks!", brain: "me", history: [{ q: "Q", a: "A" }] });
+  check("thanks in the personal chat is one short call in their voice: nothing filed, no router, no question asked in passing", sent.length - n0 === 1 && callsSince(n0, /You are their AI twin/) === 1 && pt.answer === "Anytime." && pt.filed.new === 0 && !pt.interview && pt.personal === true, JSON.stringify(pt));
+  n0 = sent.length;
+  const pq = await call("/api/ask", { q: FR, brain: "me", history: hist });
+  check("a question in the personal chat is filed, routed and answered: three calls, the router reading their notes and 120 other titles", callsSince(n0, /You file notes into a person's own knowledge base/) === 1 && callsSince(n0, /You route questions to the right entries/) === 1 && callsSince(n0, /You are their AI twin/) === 1 && lines(routerPrompt()).length === 120 + 15 && !!pq.answer, JSON.stringify(pq).slice(0, 200));
+  check("the router is always shown their own notes, all fifteen, on top of the 120 titles nearest in meaning of the other brains: their meaning is not kept as they are filed", [...Array(15).keys()].every(i => lines(routerPrompt()).some(l => new RegExp(`\\|My note ${i} \\[Me\\]$`).test(l))) && lines(routerPrompt()).slice(0, 15).every(l => /\[Me\]$/.test(l)), lines(routerPrompt()).slice(0, 3).join(" / "));
+  const twin = last(/You are their AI twin/).user;
+  check("its reply reads the thread after the notes and the message last, the last turn whole", twin.indexOf("WHAT THEIR NOTES AND BRAINS HOLD") < twin.indexOf("EARLIER IN THIS CHAT") && twin.indexOf("EARLIER IN THIS CHAT") < twin.indexOf("THEIR MESSAGE") && /Answer 4 third line\./.test(twin) && !/Answer 3 second line\./.test(twin));
+  check("and finds the note about depreciation in the folders, as the question was in French", /Straight line depreciation/.test(twin));
+
+  /* what they cost: counted by kind of chat, from the usage the host reports */
+  const sp = await call("/api/project/spend");
+  const kinds = Object.fromEntries(sp.chats.map(c => [c.kind, c]));
+  check("the month's spend lists the folders' chat and the personal chat, each with its calls, tokens and dollars", !!kinds.folders && !!kinds.personal && kinds.folders.calls > 0 && kinds.personal.calls > 0 && near(kinds.folders.usd, 0.001 * kinds.folders.calls) && kinds.folders.tokensIn === 1000 * kinds.folders.calls, JSON.stringify(sp.chats));
+  check("the chats are counted apart from the projects: the cap and the projects' total do not move", sp.usd === 0 && sp.calls === 0 && sp.cap === null);
+  const before = sp.chats.map(c => c.calls).reduce((a, c) => a + c, 0);
+  await call("/api/ask", { q: "thanks", brain: "all" });
+  const after = (await call("/api/project/spend")).chats.map(c => c.calls).reduce((a, c) => a + c, 0);
+  check("thanks counts its one call", after === before + 1, `${before} then ${after}`);
+  await call("/api/ask", { q: "thanks", brain: "all" }, "demo-token");
+  check("the demo's messages are not counted, and another workspace has its own rows", (await call("/api/project/spend")).chats.map(c => c.calls).reduce((a, c) => a + c, 0) === after && (await call("/api/project/spend", {}, "squidgy-token")).chats.length === 0);
+  reply = { usage: price, kb: () => { throw new Error("boom"); }, folders: { picks: [1], terms: [] } };
+  const f0 = (await call("/api/project/spend")).chats.find(c => c.kind === "folders").calls;
+  const failed = await call("/api/ask", { q: "what is the money idea 4?", brain: "all" });
+  check("a message that fails after the router answered still counts the router", !!failed.error && (await call("/api/project/spend")).chats.find(c => c.kind === "folders").calls === f0 + 1, JSON.stringify([failed.error, f0]));
 }
 
 

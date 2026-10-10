@@ -20,7 +20,7 @@ const dir = mkdtempSync(join(tmpdir(), "octo-ask-"));
 copyFileSync(join(ROOT, "convex", "words.ts"), join(dir, "words.ts"));
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { dossierFor, indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, keywords, scoreConcept, mergeEvidence, cardOf, planDossier, writeDossier, idOf, rankConcepts, FULL_CHARS, TITLE_CHARS } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { dossierFor, indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, keywords, scoreConcept, mergeEvidence, cardOf, planDossier, writeDossier, idOf, rankConcepts, FULL_CHARS, TITLE_CHARS, TITLE_MAX, MIN_OPEN, INDEX_SHORT, isCloser, threadOf } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -276,6 +276,51 @@ const tokens = s => Math.round(s.length / 4);
   const thin = { brain: "x", slug: "thin", title: "Thin", evidence: [{}] }, full = { brain: "x", slug: "full", title: "Full", evidence: [{}, {}, {}] };
   const onCards = rankConcepts([thin, full].map(cardOf), []).map(r => r.c.slug).join(",");
   check("on cards, the fuller concept still leads a tie", onCards === "full,thin", onCards);
+}
+
+/* ---- a question that found its subject opens few concepts ---- */
+{
+  const picked = ["b0/c0"];
+  const r = dossierFor(brains, concepts, "pricing idea", undefined, { picked, routed: true });
+  check(`with a pick, loose word matches fill the dossier to ${MIN_OPEN} concepts and no further`, r.opened.length === MIN_OPEN && r.opened[0].slug === "c0", `${r.opened.length} opened`);
+  const none = dossierFor(brains, concepts, "pricing idea");
+  check("with no router, every match still opens, as before", none.opened.length > MIN_OPEN, `${none.opened.length} opened`);
+  const two = dossierFor(brains, concepts, "pricing idea", undefined, { picked: Array.from({ length: 12 }, (_, i) => `b0/c${i * 11}`), routed: true });
+  check("what the router picked always opens, whatever the cap: twelve picks are twelve concepts", two.opened.length >= 12 && Array.from({ length: 12 }, (_, i) => `c${i * 11}`).every(slug => two.opened.some(c => c.slug === slug)), `${two.opened.length} opened`);
+  const near = dossierFor(brains, concepts, "pricing idea", undefined, { picked, routed: true, near: ["b10/depreciation"] });
+  check("the nearest in meaning open beside the picks, and the cap counts them", near.opened.some(c => c.slug === "depreciation") && near.opened.length <= MIN_OPEN, `${near.opened.length} opened`);
+  check(`the titles named under ALSO HELD are at most ${TITLE_MAX}`, (r.dossier.match(/^- .* \(.*\): /gm) ?? []).length <= TITLE_MAX && r.named <= TITLE_MAX, `${r.named} named`);
+}
+
+/* ---- the router's short list: the nearest in meaning lead, the nearest first ---- */
+{
+  const nearIds = ["b10/depreciation", "b4/c4", "b2/c2"];
+  const idx = indexFor(brains, concepts, "pricing", { cap: INDEX_SHORT, first: nearIds });
+  check(`a short list holds ${INDEX_SHORT} titles of 1001`, idx.ids.length === INDEX_SHORT && idx.total === 1001, `${idx.ids.length} of ${idx.total}`);
+  check("the nearest in meaning come first, in the order of their nearness, whatever the words say", idx.ids.slice(0, 3).join() === nearIds.join(), idx.ids.slice(0, 3).join());
+  const whole = indexFor(brains, concepts, "pricing");
+  check("with no meaning to lean on, every title is listed", whole.ids.length === 1001);
+  const keep = ["b9/c9", "b9/c20", "b9/c31"];
+  const kept = indexFor(brains, concepts, "pricing", { cap: INDEX_SHORT, first: nearIds, keep });
+  check("what the caller keeps is listed first, whatever the cap, and not counted in it", kept.ids.slice(0, 3).join() === keep.join() && kept.ids.length === INDEX_SHORT + 3 && nearIds.every(id => kept.ids.includes(id)), `${kept.ids.length} listed, first ${kept.ids.slice(0, 3).join()}`);
+}
+
+/* ---- the thread a message reads against ---- */
+{
+  const t = threadOf([1, 2, 3, 4, 5].map(i => ({ q: `Question ${i} ${"x".repeat(500)}`, a: `Line one of ${i}.\n\nLine two of ${i}.\nLine three of ${i}.` })));
+  check("at most four turns are read, the oldest dropped", t.length === 4 && t[0].q.startsWith("Question 2"));
+  check("the last is read whole: its answer with every line, its question to 400 characters", t[3].a === "Line one of 5.\n\nLine two of 5.\nLine three of 5." && t[3].q.length === 400);
+  check("the ones before it are the question to 200 characters and the first line of the answer", t[0].q.length === 200 && t[0].a === "Line one of 2." && t[2].a === "Line one of 4.");
+  check("a thread that is not a list, or holds turns with nothing in them, reads as empty or as blanks, never as an error", threadOf(undefined).length === 0 && threadOf("x").length === 0 && threadOf([{}])[0].q === "" && threadOf([{ q: 5, a: null }])[0].a === "");
+  check("a long answer in the last turn is cut at 900 characters", threadOf([{ q: "q", a: "y".repeat(2000) }])[0].a.length === 900);
+}
+
+/* ---- thanks needs nothing ---- */
+{
+  const yes = ["thanks", "Thank you!", "ok thanks, that helps", "merci beaucoup", "Salut", "Bonjour !", "thanks, I appreciate it", "Merci, bonne journée", "bye"];
+  const no = ["ok", "yes", "thanks, now change the price", "what is gold?", "", "thanks that is wrong", "yes thanks", "hello there general kenobi friend", "ok that helps"];
+  check("thanks, a greeting and a goodbye are closers", yes.every(isCloser), yes.filter(x => !isCloser(x)).join(" | "));
+  check("a bare ok or yes, a question and a request with thanks in it are not", no.every(x => !isCloser(x)), no.filter(isCloser).join(" | "));
 }
 
 console.log(failures ? `\n${failures} failed` : "\nthe question finds its answer at any size");

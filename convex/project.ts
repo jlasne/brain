@@ -24,7 +24,7 @@
 import { internal } from "./_generated/api";
 import { ask, parseJson } from "./lib";
 import { routeQuestion } from "./route";
-import { planDossier, writeDossier, idOf, OPEN_READ, keywords, stem, tagsOf, taggedLine } from "./words";
+import { planDossier, writeDossier, idOf, OPEN_READ, keywords, stem, tagsOf, taggedLine, isCloser, NEAR_SHORT } from "./words";
 import { embed, nearest } from "./graph";
 import { scanDoc, scanTable, gapList } from "./gaps";
 import { keysOf, askKeys, findIn, mapText, tableLine, FIND_CHARS } from "./find";
@@ -514,17 +514,7 @@ export function passages(text: string, words: string[], max = passageChars(text.
   return cut.length > text.length * 0.8 ? whole : { text: cut, cut: true };
 }
 
-const CLOSE_WORDS = new Set(["thanks", "thank", "thx", "ty", "cheers", "merci", "hello", "hi", "hey", "bonjour", "bonsoir", "salut", "bye", "goodbye", "revoir", "bientot"]);
-const CLOSE_FILL = new Set(["ok", "okay", "great", "perfect", "super", "parfait", "nice", "cool", "got", "it", "you", "a", "lot", "very", "much", "so", "again", "beaucoup", "bien", "encore", "au", "see", "good", "all", "the", "for", "help", "your"]);
-/**
- * Thanks, a greeting or a goodbye, and nothing else: it needs no part of the
- * file, no folder and no router. A bare "ok" or "yes" is not one, since it may
- * answer the question before it.
- */
-export function isCloser(q: string): boolean {
-  const w = String(q ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
-  return w.length > 0 && w.length <= 6 && w.some(x => CLOSE_WORDS.has(x)) && w.every(x => CLOSE_WORDS.has(x) || CLOSE_FILL.has(x));
-}
+export { isCloser };
 
 /* ---------- reading the owner's folders to support a project ---------- */
 
@@ -555,6 +545,22 @@ const dollars = (n: number) => n >= 0.1 ? n.toFixed(2) : n >= 0.01 ? n.toFixed(3
 export async function guardBudget(ctx: any, space: string) {
   const b: { cap: number | null; usd: number } = await ctx.runQuery(internal.projects.budgetState, { space });
   if (b.cap != null && b.usd >= b.cap) throw new Error(`The projects have used this month's budget: $${dollars(b.usd)} of $${b.cap.toFixed(2)}. Raise the cap in Settings, or wait for the 1st.`);
+}
+
+/**
+ * Runs a chat message that is not a project's (the folders' chat, the personal brain's) and adds what it cost to the month's row for that
+ * kind of chat: tokens always, dollars as the model host reported them. Added whether the message finished or failed, since a call that
+ * answered was paid for, and recording never fails the message. The demo is not counted.
+ */
+export async function withChatSpend<T>(ctx: any, o: { space: string; kind: "folders" | "personal"; skip?: boolean }, run: (tally: (u: any) => void) => Promise<T>): Promise<T> {
+  const s = newSpent();
+  try { return await run(u => meter(s, u)); }
+  finally {
+    if (s.calls && !o.skip) {
+      try { await ctx.runMutation(internal.projects.chatSpendAdd, { space: o.space, kind: o.kind, usd: s.usd, priced: s.priced, calls: s.calls, tokensIn: s.in, tokensOut: s.out, cached: s.cached }); }
+      catch (e: any) { console.log(`the cost of a chat message was not recorded: ${String(e?.message ?? e).slice(0, 140)}`); }
+    }
+  }
 }
 
 /**
@@ -1052,7 +1058,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
     /* The concepts nearest in meaning lead the short list the folder router is shown, so a long folder costs the router 120 titles, not all of them. */
     let near: string[] = [];
     if (o.embeds) {
-      try { const [vec] = await embed([q.slice(0, 1000)]); near = (await nearest(ctx, vec, pool.map((b: any) => b.slug), 8)).map((x: any) => x.id); }
+      try { const [vec] = await embed([q.slice(0, 1000)]); near = (await nearest(ctx, vec, pool.map((b: any) => b.slug), NEAR_SHORT)).map((x: any) => x.id); }
       catch (e: any) { console.log(`question embedding skipped: ${String(e?.message ?? e).slice(0, 120)}`); }
     }
     const rt = await routeQuestion(pool, cs, q, before, o.key, o.model, { cap: FOLDER_INDEX, first: near, extra: r.terms, meter: tally });

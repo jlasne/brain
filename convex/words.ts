@@ -94,11 +94,51 @@ export function rankConcepts(concepts: any[], words: string[], brains: any[] = [
 }
 
 /* What one question may send: 30 concepts in full within 60,000 characters,
-   and up to 120 more named by title within 12,000. About 18,000 tokens at most,
+   and up to 40 more named by title within 4,000. About 16,000 tokens at most,
    whatever the size of the brains behind it. */
-export const FULL_MAX = 30, FULL_CHARS = 60000, TITLE_MAX = 120, TITLE_CHARS = 12000;
+export const FULL_MAX = 30, FULL_CHARS = 60000, TITLE_MAX = 40, TITLE_CHARS = 4000;
+/**
+ * When the router picked concepts, those open first, then the ones named in the question, the nearest in meaning and the ones they link to; a
+ * concept that only shares a word with the question fills the dossier up to this many concepts in all, no more. Loose matches were most of
+ * what a dossier held. A router that picked nothing, or failed, leaves every match to open as before.
+ */
+export const MIN_OPEN = 8;
+/**
+ * A folder too long to read title by title shows the router this many titles: the nearest in meaning first (the question is embedded before the
+ * router runs), then by words. It needs the meaning of the folders to be kept: with fewer than NEAR_NEEDED found, the router reads every title.
+ */
+export const INDEX_SHORT = 120, NEAR_SHORT = 40, NEAR_NEEDED = 20;
 /* One concept opens at most this much, so no single one eats the budget. */
 export const ROW_MAX = 8000;
+
+const CLOSE_WORDS = new Set(["thanks", "thank", "thx", "ty", "cheers", "merci", "hello", "hi", "hey", "bonjour", "bonsoir", "salut", "bye", "goodbye", "revoir", "bientot"]);
+const CLOSE_FILL = new Set(["ok", "okay", "great", "perfect", "super", "parfait", "nice", "cool", "got", "it", "you", "a", "lot", "very", "much", "so", "again", "beaucoup", "bien", "encore", "au", "see", "good", "all", "the", "for", "help",
+  "your", "that", "this", "helps", "helped", "helpful", "works", "appreciate", "really", "awesome", "amazing", "excellent", "i", "later", "soon", "take", "care", "have", "day", "night", "evening", "morning", "weekend", "now",
+  "bonne", "journee", "soiree", "nuit", "vraiment", "genial", "de", "rien", "tres"]);
+/**
+ * Thanks, a greeting or a goodbye, and nothing else: it needs no part of the
+ * file, no folder and no router. A bare "ok" or "yes" is not one, since it may
+ * answer the question before it.
+ */
+export function isCloser(q: string): boolean {
+  const w = String(q ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
+  return w.length > 0 && w.length <= 6 && w.some(x => CLOSE_WORDS.has(x)) && w.every(x => CLOSE_WORDS.has(x) || CLOSE_FILL.has(x));
+}
+
+/**
+ * The last turns of a chat, as a message reads them: the last in full (its
+ * question, and its answer up to `last` characters), the ones before it as the
+ * question and the first line of the answer. They only say what "the second
+ * one" or "that" points at: every claim still comes from what is stored.
+ */
+export function threadOf(history: any, max = 4, last = 900): { q: string; a: string }[] {
+  const turns = (Array.isArray(history) ? history : []).slice(-max);
+  const one = (t: any, n: number) => String(t ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+  const first = (t: any, n: number) => one(String(t ?? "").split("\n").map(l => l.trim()).find(Boolean), n);
+  return turns.map((h: any, i: number) => i === turns.length - 1
+    ? { q: one(h?.q, 400), a: String(h?.a ?? "").trim().slice(0, last) }
+    : { q: one(h?.q, 200), a: first(h?.a, 200) });
+}
 
 /**
  * The stored knowledge a question reads.
@@ -156,8 +196,11 @@ export function planDossier(pool: any[], concepts: any[], q: string, history?: a
     : [...new Set([...titleHits.slice(0, 10), ...near])];
   const linked = neighbours(seeds, inPool).slice(0, 10);
   /* The seeds lead: the picks, or with none the best word matches. Then what
-     they link to, then the rest of the matches. */
-  const lead0 = [...seeds, ...linked, ...titleHits];
+     they link to, then the rest of the matches: with picks, only as many as it
+     takes to open MIN_OPEN concepts. */
+  const firm = new Set<any>([...seeds, ...linked]);
+  const fill = picked.length ? titleHits.filter((c: any) => !firm.has(c)).slice(0, Math.max(0, MIN_OPEN - firm.size)) : titleHits;
+  const lead0 = [...seeds, ...linked, ...fill];
   const lead = [...new Set(lead0.length || judgedEmpty ? lead0 : ranked.map(r => r.c))];
   return { lead, ranked, inPool, hits, picked, linked, words };
 }
@@ -300,7 +343,7 @@ export const INDEX_CHARS = 80000;
  * Every concept title, numbered, for a model to pick from. Numbers keep the
  * reply short and cannot be misspelled into a concept that does not exist.
  */
-export function indexFor(pool: any[], concepts: any[], q: string, opts: { cap?: number; first?: string[]; extra?: string[] } = {}) {
+export function indexFor(pool: any[], concepts: any[], q: string, opts: { cap?: number; first?: string[]; extra?: string[]; keep?: string[] } = {}) {
   const inPool = concepts.filter((c: any) => pool.some((x: any) => x.slug === c.brain));
   const name = new Map(pool.map((b: any) => [b.slug, b.name]));
   const lines: string[] = [], ids: string[] = [];
@@ -313,9 +356,18 @@ export function indexFor(pool: any[], concepts: any[], q: string, opts: { cap?: 
   const lead = new Set(opts.first ?? []);
   const ranked = rankConcepts(inPool, [...keywords(q), ...keywords((opts.extra ?? []).join(" "))], pool)
     .sort((a, b) => b.score - a.score || String(b.c.updated ?? "").localeCompare(String(a.c.updated ?? "")));
-  const order = lead.size ? [...ranked.filter(x => lead.has(idOf(x.c))), ...ranked.filter(x => !lead.has(idOf(x.c)))] : ranked;
+  /* What the caller always wants listed (the personal notes of the personal chat, whose meaning is not kept) comes first and is not counted in
+     the cap; then the nearest in meaning, the nearest first; then the rest, by words. */
+  const must = new Set(opts.keep ?? []);
+  const rank = new Map((opts.first ?? []).map((id, i) => [id, i]));
+  const rest = ranked.filter(x => !must.has(idOf(x.c)));
+  const order = [...ranked.filter(x => must.has(idOf(x.c))),
+    ...(lead.size ? [...rest.filter(x => lead.has(idOf(x.c))).sort((a, b) => rank.get(idOf(a.c))! - rank.get(idOf(b.c))!), ...rest.filter(x => !lead.has(idOf(x.c)))] : rest)];
+  let others = 0;
   for (const { c } of order) {
-    if (opts.cap && ids.length >= opts.cap) break;
+    const kept = must.has(idOf(c));
+    if (opts.cap && !kept && others >= opts.cap) break;
+    if (!kept) others++;
     const line = one ? `${ids.length + 1}|${c.title}` : `${ids.length + 1}|${c.title} [${name.get(c.brain) ?? c.brain}]`;
     if (used + line.length + 1 > INDEX_CHARS) break;
     lines.push(line); ids.push(idOf(c)); used += line.length + 1;

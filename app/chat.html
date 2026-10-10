@@ -4938,11 +4938,11 @@ async function openSetupSheet(opts = {}){
         <div class="hint" id="langMsg" role="status" style="margin-top:6px"></div>
       </details>
 
-      <details class="f sh-fold" id="spendBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${S.demo || !S.projects?.length ? "hidden" : ""}>
-        <summary><span>Projects cost</span><b id="spendSum" class="sh-count"></b></summary>
-        <div class="hint" style="margin:8px 0 10px">What the chat, the reading of files and the Briefs of your projects cost this month, as the model host reports it. A cap stops them for the rest of the month.</div>
+      <details class="f sh-fold" id="spendBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${S.demo ? "hidden" : ""}>
+        <summary><span>Cost</span><b id="spendSum" class="sh-count"></b></summary>
+        <div class="hint" style="margin:8px 0 10px">What your projects and your chats cost this month, as the model host reports it. A cap on the projects stops them for the rest of the month.</div>
         <div id="spendBody"><div class="hint">Loading</div></div>
-        <div class="sp-cap"><label for="spendCap">Monthly cap</label>
+        <div class="sp-cap"><label for="spendCap">Monthly cap on projects</label>
           <div class="urlbox"><span aria-hidden="true">$</span><input id="spendCap" inputmode="decimal" autocomplete="off" placeholder="No cap" aria-label="Monthly cap in dollars"><button id="spendSave" type="button">Save</button><button id="spendOff" type="button">No cap</button></div></div>
         <div class="hint" id="spendMsg" role="status" style="margin-top:6px"></div>
       </details>
@@ -5015,16 +5015,27 @@ async function openSetupSheet(opts = {}){
   if (!spendBlock.hidden){
     const sum = veil.querySelector("#spendSum"), body = veil.querySelector("#spendBody"), note = veil.querySelector("#spendMsg");
     const capIn = veil.querySelector("#spendCap"), save = veil.querySelector("#spendSave"), off = veil.querySelector("#spendOff");
+    const KINDS = { folders: "Folder chat", personal: "Personal chat" };
     const paint = r => {
-      sum.textContent = r.over ? "cap reached" : `${spendUsd(r.usd)} this month`; sum.classList.toggle("bad", !!r.over);
+      /* The projects and the chats, added: what the month cost in all. The cap is about the projects alone. */
+      const chats = (r.chats || []).filter(c => KINDS[c.kind]);
+      const all = { usd: r.usd, calls: r.calls, priced: r.priced, tokensIn: r.tokensIn, tokensOut: r.tokensOut, cached: r.cached };
+      for (const c of chats) for (const k of Object.keys(all)) all[k] += c[k] || 0;
+      sum.textContent = r.over ? "cap reached" : `${spendUsd(all.usd)} this month`; sum.classList.toggle("bad", !!r.over);
       body.innerHTML = "";
       const row = (name, usd, more, cls) => { const x = el("div","sp-row" + (cls ? " " + cls : "")); x.append(el("span",null,name)); const b = el("b",null,usd); if (more) b.append(el("small",null,more)); x.append(b); body.append(x); };
-      const reused = r.tokensIn ? Math.round(100 * r.cached / r.tokensIn) : 0;
-      row("This month", spendUsd(r.usd), r.calls ? `${r.calls.toLocaleString("en-US")} call${r.calls === 1 ? "" : "s"}` : "");
-      if (r.calls) row("Tokens", `${spendTok(r.tokensIn)} in, ${spendTok(r.tokensOut)} out`, reused ? `${reused}% reused` : "");
+      const calls = n => `${n.toLocaleString("en-US")} call${n === 1 ? "" : "s"}`;
+      const reused = all.tokensIn ? Math.round(100 * all.cached / all.tokensIn) : 0;
+      row("This month", spendUsd(all.usd), all.calls ? calls(all.calls) : "");
+      if (chats.length || r.calls){
+        if (r.calls) row("Projects", spendUsd(r.usd), calls(r.calls), "sub");
+        for (const c of chats) row(KINDS[c.kind], spendUsd(c.usd), calls(c.calls), "sub");
+      }
+      if (all.calls) row("Tokens", `${spendTok(all.tokensIn)} in, ${spendTok(all.tokensOut)} out`, reused ? `${reused}% reused` : "");
+      if (r.projects.length) body.append(el("div","sp-note","By project"));
       for (const p of r.projects) row(p.name || "A deleted project", spendUsd(p.usd), `${p.calls.toLocaleString("en-US")}`, "sub");
       row("Last month", spendUsd(r.last.usd));
-      if (r.calls && r.priced < r.calls){ const n = r.calls - r.priced; body.append(el("div","sp-note",`${n.toLocaleString("en-US")} call${n === 1 ? "" : "s"} came back with no price, so the dollars may be low. The tokens are exact.`)); }
+      if (all.calls && all.priced < all.calls){ const n = all.calls - all.priced; body.append(el("div","sp-note",`${n.toLocaleString("en-US")} call${n === 1 ? "" : "s"} came back with no price, so the dollars may be low. The tokens are exact.`)); }
       if (r.over) body.append(el("div","sp-note bad","The cap is reached. A message, a file read in, a resource and a Brief written wait until the 1st, or until you raise the cap."));
       capIn.value = r.cap != null ? String(r.cap) : ""; off.hidden = r.cap == null;
     };

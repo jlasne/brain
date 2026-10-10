@@ -32,7 +32,7 @@ Reply with only JSON: {"picks":[3,17,42],"terms":["depreciation","straight line"
 export async function routeQuestion(
   pool: any[], concepts: any[], q: string, history: any, key?: string, model?: string,
   /* A caller that reads the folders to support something else shows the router a short list: `cap` titles, the concepts in `first` leading, ranked by `extra` words too. */
-  opts: { cap?: number; first?: string[]; extra?: string[]; meter?: (u: any) => void } = {},
+  opts: { cap?: number; first?: string[]; extra?: string[]; keep?: string[]; meter?: (u: any) => void } = {},
 ): Promise<{ picked: string[]; terms: string[]; routed: boolean }> {
   const index = indexFor(pool, concepts, q, opts);
   if (!index.ids.length) return { picked: [], terms: [], routed: false };

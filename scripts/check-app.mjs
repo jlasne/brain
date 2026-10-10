@@ -4880,25 +4880,29 @@ for (const space of ["octopus", "squidgy"]) {
     return { page, bad };
   };
   const SPEND = { month: "2026-10", usd: 0.4235, calls: 1204, priced: 1190, tokensIn: 5100000, tokensOut: 400000, cached: 3200000, last: { month: "2026-09", usd: 1.1 }, cap: null, over: false,
+    chats: [{ kind: "folders", usd: 0.0211, calls: 96, priced: 96, tokensIn: 410000, tokensOut: 20000, cached: 100000 }, { kind: "personal", usd: 0.0089, calls: 40, priced: 36, tokensIn: 150000, tokensOut: 6000, cached: 0 }],
     projects: [{ slug: "offer", name: "Coaching offer", usd: 0.3, calls: 900 }, { slug: "gone", name: "", usd: 0.1235, calls: 304 }] };
   const open = async page => { await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(350); };
 
-  /* no project: no such fold; the demo: none either */
-  const none = await mk({ ...STATE, brains: [], concepts: [], projects: [] }, SPEND);
+  /* no project: the chats still cost something, so the fold is there */
+  const none = await mk({ ...STATE, brains: [], concepts: [], projects: [] }, { ...SPEND, usd: 0, calls: 0, priced: 0, tokensIn: 0, tokensOut: 0, cached: 0, projects: [], chats: [SPEND.chats[0]] });
   await none.page.waitForTimeout(400); await open(none.page);
-  check("with no project there is no Projects cost fold, and the server is not asked", await none.page.evaluate(() => document.getElementById("spendBlock").hidden && !window.__calls.some(x => x.s === "/api/project/spend")));
+  const nf = await none.page.evaluate(() => ({ hidden: document.getElementById("spendBlock").hidden, sum: document.getElementById("spendSum").textContent, asked: window.__calls.filter(x => x.s === "/api/project/spend").length }));
+  check("with no project the cost fold is still there, for the chats, and says what they cost", !nf.hidden && nf.sum === "$0.021 this month" && nf.asked === 1, JSON.stringify(nf));
+  await none.page.click("#spendBlock > summary"); await none.page.waitForTimeout(150);
+  check("and it lists the chat that cost, with no project rows", JSON.stringify(await none.page.evaluate(() => [...document.querySelectorAll("#spendBody .sp-row")].map(r => r.textContent))) === JSON.stringify(["This month$0.02196 calls", "Folder chat$0.02196 calls", "Tokens410.0k in, 20.0k out24% reused", "Last month$1.10"]));
   await none.page.close();
 
   const { page, bad } = await mk({ ...STATE, brains: [], concepts: [], projects }, SPEND);
   await page.waitForTimeout(400); await open(page);
   const f0 = await page.evaluate(() => ({ hidden: document.getElementById("spendBlock").hidden, open: document.getElementById("spendBlock").open, sum: document.getElementById("spendSum").textContent,
     bad: document.getElementById("spendSum").classList.contains("bad"), asks: window.__calls.filter(x => x.s === "/api/project/spend").map(x => x.body) }));
-  check("a workspace with a project has the fold, shut, saying what this month cost, from one read", !f0.hidden && !f0.open && f0.sum === "$0.42 this month" && !f0.bad && JSON.stringify(f0.asks) === "[{\"token\":\"test\"}]", JSON.stringify(f0));
+  check("a workspace with a project has the fold, shut, saying what this month cost, from one read", !f0.hidden && !f0.open && f0.sum === "$0.45 this month" && !f0.bad && JSON.stringify(f0.asks) === "[{\"token\":\"test\"}]", JSON.stringify(f0));
   await page.click("#spendBlock > summary"); await page.waitForTimeout(150);
   const rows = await page.evaluate(() => [...document.querySelectorAll("#spendBody .sp-row")].map(r => r.textContent));
-  check("it lists this month's dollars and calls, the tokens with how much was reused, each project and a deleted one, and last month",
-    JSON.stringify(rows) === JSON.stringify(["This month$0.421,204 calls", "Tokens5.10M in, 400.0k out63% reused", "Coaching offer$0.30900", "A deleted project$0.12304", "Last month$1.10"]), JSON.stringify(rows));
-  check("calls the host gave no price for are said, and the tokens are said to be exact", await page.evaluate(() => /^14 calls came back with no price, so the dollars may be low\. The tokens are exact\.$/.test(document.querySelector("#spendBody .sp-note")?.textContent || "")));
+  check("it lists this month in all (the projects and the chats), the projects and each kind of chat under it, the tokens with how much was reused, each project and a deleted one, and last month",
+    JSON.stringify(rows) === JSON.stringify(["This month$0.451,340 calls", "Projects$0.421,204 calls", "Folder chat$0.02196 calls", "Personal chat$0.008940 calls", "Tokens5.66M in, 426.0k out58% reused", "Coaching offer$0.30900", "A deleted project$0.12304", "Last month$1.10"]), JSON.stringify(rows));
+  check("calls the host gave no price for are said, with the projects' and the chats' added, and the tokens are said to be exact", await page.evaluate(() => [...document.querySelectorAll("#spendBody .sp-note")].some(n => /^18 calls came back with no price, so the dollars may be low\. The tokens are exact\.$/.test(n.textContent))));
   const cap0 = await page.evaluate(() => ({ v: document.getElementById("spendCap").value, ph: document.getElementById("spendCap").placeholder, off: document.getElementById("spendOff").hidden }));
   check("with no cap the field is empty and asks for one, and there is no cap to remove", cap0.v === "" && cap0.ph === "No cap" && cap0.off, JSON.stringify(cap0));
 
@@ -4914,7 +4918,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("Enter saves it too, and a cap under what was spent says it is reached, in the fold's title and in a line", c2.sum === "cap reached" && c2.bad && /^The cap is reached\. A message, a file read in, a resource and a Brief written wait until the 1st, or until you raise the cap\.$/.test(c2.note || ""), JSON.stringify(c2));
   await page.click("#spendOff"); await page.waitForTimeout(250);
   const c3 = await page.evaluate(() => ({ sum: document.getElementById("spendSum").textContent, msg: document.getElementById("spendMsg").textContent, v: document.getElementById("spendCap").value, off: document.getElementById("spendOff").hidden, note: !!document.querySelector("#spendBody .sp-note.bad") }));
-  check("No cap removes it: the title goes back to the dollars, the note goes, and the message says projects run on", JSON.stringify(await calls()) === "[12.5,0.2,null]" && c3.sum === "$0.42 this month" && /^No cap\./.test(c3.msg) && c3.v === "" && c3.off && !c3.note, JSON.stringify(c3));
+  check("No cap removes it: the title goes back to the dollars, the note goes, and the message says projects run on", JSON.stringify(await calls()) === "[12.5,0.2,null]" && c3.sum === "$0.45 this month" && /^No cap\./.test(c3.msg) && c3.v === "" && c3.off && !c3.note, JSON.stringify(c3));
 
   /* a phone */
   await page.setViewportSize({ width: 390, height: 800 }); await page.waitForTimeout(250);
