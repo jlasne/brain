@@ -1986,6 +1986,14 @@
   .pj-tact{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
   .pj-tact .go, .pj-tact .ghost{ min-height:34px; padding:0 13px; font-size:13px; }
   .pj-hint{ font:400 14px/1.55 var(--sans); color:var(--ink-3); }
+  /* Where the project stands, and the Brief that is still to write: quiet, above the first questions. */
+  .pj-state, .pj-brief{ margin-top:14px; padding:12px 14px; border:1px solid var(--line-2); border-radius:12px; background:var(--surface); }
+  .pj-state b{ font:600 11px/1 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--ink-4); }
+  .pj-state p, .pj-brief p{ margin:6px 0 0; font:400 13.5px/1.55 var(--sans); color:var(--ink-2); white-space:pre-wrap; }
+  .pj-brief .ghost{ margin-top:10px; min-height:34px; padding:0 13px; font-size:13px; }
+  /* What the chat suggests next, and what it waits to hear: buttons that put words in the message bar. */
+  .pj-tact .pj-next, .pj-tact .pj-ask{ height:auto; min-height:34px; padding:7px 13px; text-align:left; white-space:normal; line-height:1.4; }
+  .pj-tact .pj-next::before{ content:"→ "; color:var(--ink-4); }
   .pj-try{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin-top:14px; }
   .pj-try button{ text-align:left; padding:8px 12px; border:1px solid var(--line-2); border-radius:12px 12px 12px 4px; background:var(--surface); font:400 13.5px/1.4 var(--sans); color:var(--ink); }
   .pj-try button:hover{ border-color:var(--ink-4); }
@@ -2030,6 +2038,15 @@
   .pm-list{ max-height:52vh; overflow-y:auto; overscroll-behavior:contain; }
   .pm-list .fv-row:last-child{ border-bottom:0; }
   .pm-list .fv-row.st{ cursor:default; }
+  /* The project's frame leads the list: the Brief, where it stands, what waits for an answer, the next step. */
+  .pm-list .pm-fr span{ -webkit-line-clamp:2; }
+  .pm-q{ font-size:17px; line-height:1.5; color:var(--ink); }
+  .pm-ask{ padding:14px 0; border-top:1px solid var(--line); }
+  .pm-ask:first-of-type{ border-top:0; }
+  .pm-ask b{ display:block; font:500 14.5px/1.45 var(--sans); color:var(--ink); }
+  .pm-note textarea.mem{ margin-top:12px; }
+  .pm-note .mem-bar{ margin-top:6px; }
+  .pm-note .pj-vh{ margin:6px 0 0; }
   .pm-list .fv-row.st:hover{ background:none; }
   .pm-list .fv-eye{ padding:14px 20px 4px; }
   .pm-list .fv-none{ padding:6px 20px 12px; }
@@ -2046,12 +2063,18 @@
   .pj-menu button span{ font:400 11.5px/1 var(--mono); color:var(--ink-4); }
   .pj-menu p{ margin:4px 12px 6px; max-width:230px; font:400 12px/1.45 var(--sans); color:var(--ink-3); }
 
+  /* The gaps in the file: each one a line, and where it stands. */
+  .pj-menu.gaps{ width:min(440px, calc(100vw - 16px)); max-height:min(420px, calc(100vh - 80px)); overflow-y:auto; }
+  .pj-menu.gaps button{ flex-direction:column; align-items:flex-start; gap:3px; min-height:0; padding:9px 12px; }
+  .pj-menu.gaps button b{ font:500 13px/1.4 var(--sans); color:var(--ink); }
+  .pj-menu.gaps button span{ font:400 11.5px/1.3 var(--mono); color:var(--ink-4); }
+
   /* A file being read: where it stands. */
   .sheet .pj-step{ margin-top:12px; font:400 13.5px/1.55 var(--sans); color:var(--ink-3); min-height:1.6em; }
   .sheet .pj-make{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .sheet .pj-make .ghost.on{ border-color:var(--accent-fill); background:var(--accent-soft); color:var(--accent); }
   .sheet .pj-rules textarea.mem{ min-height:96px; }
-  .pm-go{ margin-top:12px; }
+  .pm-go{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:12px; }
   .pm-note .hint{ margin-top:10px; }
   .pm-note .pj-make{ margin:12px 0 2px; }
   .sheet .pj-opt{ margin-left:6px; font:400 12px/1 var(--sans); color:var(--ink-4); }
@@ -2262,7 +2285,7 @@ const TOKEN_KEY = "octopus.token.v1";
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
   "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle",
   "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview", "/api/personal/people", "/api/personal/open",
-  "/api/project/part", "/api/project/finish", "/api/project/instructions", "/api/project/resource", "/api/project/chat"]);
+  "/api/project/part", "/api/project/finish", "/api/project/instructions", "/api/project/resource", "/api/project/brief", "/api/project/chat"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -8041,6 +8064,7 @@ function docPane(){
   }
   /* Only a project with no file offers to add one. A file it holds stays: the chat changes it, and another file is another project. */
   if (!f) btn("Add a file", () => chooseFile());
+  if (written) btn("Gaps", e => openGaps(e.currentTarget)).setAttribute("aria-haspopup", "menu");
   if (written) btn("Download", e => openDownload(e.currentTarget)).setAttribute("aria-haspopup", "menu");
   btn("Delete", deleteProject, "bad");
   h.append(acts); pane.append(h);
@@ -8277,7 +8301,7 @@ function chatPane(){
   send.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M8 3L4 7M8 3l4 4"/></svg>`;
   /* Talk instead of typing, as in the chat bar: the same mic, the same language, and a line for what it says. */
   const mic = el("button","pj-mic"); mic.type = "button"; mic.title = "Talk instead of typing"; mic.setAttribute("aria-label", "Talk"); mic.setAttribute("aria-pressed", "false");
-  mic.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="1.75" width="5" height="8" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/></svg>`;
+  mic.innerHTML = MIC_SVG;
   const said = el("div","pj-vh"); said.setAttribute("role","status"); said.hidden = true;
   let hint = "";
   const bar = { field: () => ta, grew: () => size(), say: t => { hint = t; paintMic(); }, paint: () => paintMic() };
@@ -8333,6 +8357,13 @@ function paintSide(){
       : f.made ? `Ask for a change and it is made at once, with an Undo. Ask a question and you get the answer first, then what it rests on.`
       : `Ask about the ${tbl ? "table" : "file"}. Ask for a brainstorm and you get a proposal, with where each point comes from. Ask for a change and you see it before it is made.`;
     box.append(hint);
+    /* Where the project stands, in the chat's words, and the Brief that gives the chat its place. */
+    if (pj.data.state?.text){ const st = el("div","pj-state"); st.append(el("b",null,"Where it stands"), el("p",null,pj.data.state.text)); box.append(st); }
+    if (!pj.data.brief){
+      const bw = el("div","pj-brief"); bw.append(el("p",null,"Give the chat its place: a Brief says who it is here, the goal, the audience and the rules. Five questions write it, by voice or by text."));
+      const wb = el("button","ghost","Write the Brief"); wb.type = "button"; wb.id = "pjBriefGo"; wb.onclick = () => openMemory({ brief: "interview" });
+      bw.append(wb); box.append(bw);
+    }
     if (!f || f.status === "ready"){
       const tries = el("div","pj-try");
       /* A file still to make can be built from the owner's biggest folder: a start that shows the folders are read. */
@@ -8365,11 +8396,25 @@ function turnEl(t){
   if (text){ const md = el("div","pj-md"); md.innerHTML = mdView(text); a.append(md); }
   if (t.edit) a.append(editCard(t));
   /* What it could not find is asked of the owner: a resource dropped into the memory. */
+  const row = el("div","pj-tact");
   if (t.lacks){
-    const row = el("div","pj-tact"), drop = el("button","ghost","Add a resource"); drop.type = "button";
+    const drop = el("button","ghost","Add a resource"); drop.type = "button";
     drop.title = "Drop a document or a text into the project's memory"; drop.onclick = () => openMemory({ add: "resource" });
-    row.append(drop); a.append(row);
+    row.append(drop);
   }
+  /* What it needs from the owner to go on, while it is still open. */
+  const open = new Set((S.pj?.data?.asks || []).map(x => x.id));
+  for (const q of t.asks || []) if (open.has(q.id)){
+    const b = el("button","ghost pj-ask",q.q); b.type = "button"; b.title = "Answer in the message bar"; b.onclick = () => answerAsk(q);
+    row.append(b);
+  }
+  /* The step the chat suggests: one line, put in the message bar to send as it is or change. */
+  if (t.next){
+    const b = el("button","ghost pj-next",t.next); b.type = "button"; b.title = "Put this in the message bar";
+    b.onclick = () => fillBar(t.next);
+    row.append(b);
+  }
+  if (row.children.length) a.append(row);
   w.append(a);
   return w;
 }
@@ -8388,11 +8433,14 @@ async function sendProject(q){
     const r = await api("/api/project/chat", { brain: pj.slug, q, ...(tags.length ? { tags } : {}) });
     if (S.pj !== pj) return;
     pj.data.turns = [...pj.data.turns, r.turn].slice(-4);
+    /* What the chat now waits to hear, and what this message closed: known before the answer is drawn, so its buttons are right. */
+    if (r.turn.answered?.length) pj.data.asks = (pj.data.asks || []).filter(x => !r.turn.answered.includes(x.id));
+    if (r.turn.asks?.length) pj.data.asks = [...(pj.data.asks || []).filter(x => !r.turn.asks.some(y => y.id === x.id)), ...r.turn.asks.map(x => ({ ...x, at: Date.now() }))].slice(-8);
     if (r.turn.edit) pj.data.edits = [{ id: r.turn.edit.id, at: Date.now(), status: r.turn.edit.status || "open", preview: r.turn.edit.preview }, ...pj.data.edits].slice(0, 10);
     w.replaceWith(turnEl(r.turn));
     /* A change applied, or a file the first description just made: the file side follows. */
     if (r.turn.edit?.status === "applied" || (!hadFile && r.turn.edit)) { try { await refreshFile(); } catch { /* the page catches up at the next look */ } }
-    if (r.turn.noted?.length) refreshMemory();
+    if (r.turn.noted?.length || r.turn.stated || r.turn.asks?.length || r.turn.answered?.length) refreshMemory();
     focusUsed(r.turn, false);
   } catch (e){
     if (S.pj !== pj) return;
@@ -8412,9 +8460,64 @@ async function refreshMemory(){
   try {
     const d = await api("/api/project/get", { brain: pj.slug });
     if (S.pj !== pj) return;
-    pj.data.memory = d.memory; pj.data.shortcuts = d.shortcuts || []; paintMemb(); pj.memPaint?.();
+    pj.data.memory = d.memory; pj.data.shortcuts = d.shortcuts || [];
+    pj.data.brief = d.brief ?? null; pj.data.state = d.state ?? null; pj.data.asks = d.asks || []; pj.data.next = d.next !== false;
+    paintMemb(); pj.memPaint?.();
     syncProjects();
   } catch { /* the list catches up the next time the project opens */ }
+}
+
+/* A day as the lists show it, from a time in milliseconds. */
+const msDay = ms => ms ? new Date(ms).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "";
+/** The first words of some text, on one line. */
+const clipTo = (t, n = 150) => { const s = String(t || "").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n).replace(/\s+\S*$/, "") + "..." : s; };
+const MIC_SVG = `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="1.75" width="5" height="8" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/></svg>`;
+/** What the owner's Brief may hold, in characters, as the server keeps it. */
+const BRIEF_CHARS = 6000;
+/** The five questions that write a Brief. Any may be skipped. */
+const BRIEF_QS = [
+  "What is this project for? Say the goal in a sentence.",
+  "Who will read or use what you make here?",
+  "What must the chat always do, and what must it never do?",
+  "What tone and format do you want? Short or detailed, formal or casual, bullets or text.",
+  "When should the chat speak up on its own? A gap in the file, two numbers that differ, a date gone.",
+];
+
+/** The Brief, the State of play, the next step and the open questions: one door, with a server older than this page told apart. */
+async function briefCall(body){
+  const pj = S.pj;
+  try { return await api("/api/project/brief", { brain: pj.slug, ...body }); }
+  catch (e){ throw new Error(/unreadable/.test(e.message) ? "The server is older than this page and cannot do this yet. Run convex deploy." : e.message); }
+}
+
+/** Words put in the message bar, to send as they are or change, with the cursor at their end. */
+function fillBar(text){
+  const pj = S.pj; if (!pj?.input) return;
+  if (pj.seg === "doc") showChat();
+  pj.input.value = text; pj.size();
+  pj.input.focus(); pj.input.setSelectionRange(text.length, text.length);
+}
+/** A question of the chat's, answered in the message bar: the question leads the message, and the cursor waits below it. */
+const answerAsk = a => fillBar(`Re: ${a.q}\n`);
+
+/**
+ * A mic for a field in a sheet: the message bar's mic, listening into that field. It stops with the sheet.
+ * Returns the button, the line that says what the mic is doing, and the bar it listens in.
+ */
+function fieldMic(ta){
+  const mic = el("button","pj-mic"); mic.type = "button"; mic.title = "Talk instead of typing"; mic.setAttribute("aria-label","Talk"); mic.setAttribute("aria-pressed","false");
+  mic.innerHTML = MIC_SVG;
+  const said = el("div","pj-vh"); said.setAttribute("role","status"); said.hidden = true;
+  let hint = "";
+  const paint = () => {
+    const on = listeningIn(bar);
+    mic.classList.toggle("on", on); mic.setAttribute("aria-pressed", on ? "true" : "false"); mic.setAttribute("aria-label", on ? "Stop talking" : "Talk");
+    const t = on ? `Listening in ${voiceName()}. Tap the mic to stop.` : hint;
+    said.textContent = t; said.hidden = !t;
+  };
+  const bar = { sheet: true, field: () => ta, grew: () => ta.dispatchEvent(new Event("input")), say: t => { hint = t; paint(); }, paint };
+  mic.onclick = () => listeningIn(bar) ? stopVoice() : startVoice(bar);
+  return { mic, said, bar };
 }
 
 /** What the project remembers, listed as a folder lists its concepts: the newest first, a title, a line, a small meta. A tap opens the note, with a way to forget it. */
@@ -8429,7 +8532,7 @@ function openMemory(opts = {}){
   document.body.append(veil);
   const list = veil.querySelector("#pmList"), sub = veil.querySelector("#pmSub"), add = veil.querySelector("#pmAdd");
   const onKey = e => { if (e.key === "Escape" && veil === [...document.querySelectorAll(".veil")].pop()) shut(); };
-  const shut = () => { document.removeEventListener("keydown", onKey); pj.memPaint = null; veil.remove(); };
+  const shut = () => { document.removeEventListener("keydown", onKey); if (rec?.bar?.sheet) endVoice(); pj.memPaint = null; veil.remove(); };
   document.addEventListener("keydown", onKey);
   veil.querySelector("#pmClose").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
@@ -8441,9 +8544,29 @@ function openMemory(opts = {}){
       m.stale ? "The file changed since" : "", fileDay(m.updated, true)].filter(Boolean).join(" · ");
   };
   let note = null;
+  /* The project's frame leads: the Brief the chat reads at every message, where the project stands, what the chat waits to hear, and whether answers end with a next step. */
+  const frame = () => {
+    const out = document.createDocumentFragment();
+    const row = (id, title, line, meta, go) => {
+      const r = el("button","fv-row pm-fr"); r.type = "button"; r.id = id;
+      r.append(el("b",null,title), el("span",null,line));
+      if (meta) r.append(el("small",null,meta));
+      r.onclick = go; out.append(r);
+    };
+    const b = pj.data.brief, st = pj.data.state, asks = pj.data.asks || [], on = pj.data.next !== false;
+    row("pmBrief", "Brief", b ? clipTo(b.text) : "Not written yet. Five questions write it, by voice or by text.", b ? `Read at every message${b.at ? " · " + msDay(b.at) : ""}` : "Read at every message once written", () => editBrief());
+    row("pmState", "State of play", st ? clipTo(st.text) : "The chat writes it as the project moves.", st ? `Written by the chat${st.at ? " · " + msDay(st.at) : ""}` : "", () => editState());
+    if (asks.length) row("pmAsks", `To answer · ${asks.length}`, clipTo(asks[0].q) + (asks.length > 1 ? ` and ${asks.length - 1} more` : ""), "The chat waits for these", () => showAsks());
+    row("pmNext", "Next step", on ? "On. An answer may end with one line you can send as your next message." : "Off. Answers end without a suggestion.", on ? "Tap to turn off" : "Tap to turn on", async () => {
+      try { const r = await briefCall({ action: "next", on: !on }); pj.data.next = r.next !== false; paint(); }
+      catch (e){ paint(e.message, true); }
+    });
+    return out;
+  };
   /* `msg` is a line for the header: what just happened. It is the count otherwise. */
   const paint = (msg, isBad) => {
     note = null; list.innerHTML = ""; list.classList.remove("compose"); add.hidden = false;
+    list.append(frame());
     const rules = pj.data.memory.filter(m => m.instructions).sort((x, y) => (x.n ?? 0) - (y.n ?? 0));
     const mem = pj.data.memory.filter(m => !m.instructions).sort((x, y) => String(y.updated || "").localeCompare(String(x.updated || "")) || x.title.localeCompare(y.title));
     const ways = pj.data.shortcuts || [];
@@ -8460,8 +8583,8 @@ function openMemory(opts = {}){
       r.onclick = () => open(m);
       return r;
     };
-    /* The instructions come first, and say they are read at every message; the notes are read as they bear on a question. */
-    if (rules.length){ list.append(el("div","fv-eye","Instructions, read at every message")); for (const m of rules) list.append(row(m)); }
+    /* Instructions an older project holds come first, and say they are read at every message until a Brief takes their place; the notes are read as they bear on a question. */
+    if (rules.length){ list.append(el("div","fv-eye",pj.data.brief ? "Instructions, replaced by the Brief" : "Instructions, read at every message")); for (const m of rules) list.append(row(m)); }
     if (rules.length && mem.length) list.append(el("div","fv-eye","Notes"));
     for (const m of mem) list.append(row(m));
     if (ways.length){
@@ -8493,50 +8616,146 @@ function openMemory(opts = {}){
   };
   /* A message that just finished may have added notes: the list follows, unless a note is open. */
   pj.memPaint = () => { if (!note) paint(); };
-  /* A resource or instructions, typed, pasted or added from a file, as in the personal memory. A resource adds notes to the memory; instructions are read at every message, and take the place of the ones held. */
-  const compose = (kind = "resource") => {
+  /* A view of its own in the sheet, with a way back to the list. */
+  const view = (title, build) => {
     note = {}; list.innerHTML = ""; list.classList.add("compose"); add.hidden = true; sub.classList.remove("bad"); sub.textContent = "";
-    const held = pj.data.memory.some(m => m.instructions);
+    const box = el("div","pm-note");
+    const back = el("button","pm-back","← All notes"); back.type = "button"; back.onclick = () => { if (rec?.bar?.sheet) endVoice(); paint(); };
+    box.append(back, el("div","pm-t",title));
+    build(box);
+    list.append(box); list.scrollTop = 0;
+    box.querySelector("textarea")?.focus();
+  };
+  /* A field with its mic and a count of what it holds. */
+  const field = (box, o) => {
+    const ta = el("textarea","mem"); ta.rows = o.rows || 6; ta.id = o.id; ta.setAttribute("aria-label", o.label); ta.placeholder = o.placeholder || ""; ta.value = o.value || "";
+    const m = fieldMic(ta), count = el("span","hint"), bar = el("div","mem-bar");
+    const sync = () => { const n = ta.value.length; count.textContent = o.max ? `${n.toLocaleString()} of ${o.max.toLocaleString()} characters` : ""; count.classList.toggle("bad", !!o.max && n > o.max); };
+    ta.oninput = sync; sync();
+    bar.append(m.mic, count); box.append(ta, bar, m.said);
+    return ta;
+  };
+
+  /* The Brief: the owner's words on who the chat is here. Written by hand, or from five questions. */
+  const editBrief = (o = {}) => view("Brief", box => {
+    const b = pj.data.brief;
+    const old = !b && pj.data.memory.filter(m => m.instructions).sort((x, y) => (x.n ?? 0) - (y.n ?? 0)).map(m => `${m.title}: ${m.position || m.summaryLine}`).join("\n");
+    box.append(el("p","fv-pos", old ? "Your instructions, ready to become the Brief. Change them, then save: the instructions are replaced by it."
+      : "Who the chat is here, the goal, the audience, the rules, when to speak up. The chat reads it at every message."));
+    const ta = field(box, { id: "pmBriefText", label: "Brief", rows: 9, max: BRIEF_CHARS, value: o.text ?? b?.text ?? old ?? "", placeholder: "Goal: ...\nAudience: ...\nAlways: ...\nNever: ...\nSpeak up when: ..." });
+    if (o.note) box.append(el("div","hint",o.note));
+    const status = el("div","hint"); status.setAttribute("role","status");
+    const save = el("button","go","Save the Brief"); save.type = "button"; save.id = "pmBriefSave";
+    const five = el("button","ghost", b || ta.value.trim() ? "Write it again from 5 questions" : "Write it from 5 questions"); five.type = "button"; five.id = "pmBriefAsk";
+    save.onclick = async () => {
+      if (rec?.bar?.sheet) endVoice();
+      save.disabled = five.disabled = true; status.classList.remove("bad"); status.textContent = "Saving the Brief";
+      try {
+        const r = await briefCall({ action: "save", text: ta.value });
+        pj.data.brief = r.text ? { text: r.text, at: Date.now() } : null;
+        if (r.replaced) pj.data.memory = pj.data.memory.filter(m => !m.instructions);
+        paintMemb(); syncProjects();
+        if (!pj.data.turns.length) paintSide();
+        paint(!r.text ? "Brief cleared." : r.cut ? `Brief saved. Only the first ${BRIEF_CHARS.toLocaleString()} characters were kept.` : "Brief saved. The chat reads it from the next message.");
+      } catch (e){ status.textContent = e.message; status.classList.add("bad"); save.disabled = five.disabled = false; }
+    };
+    five.onclick = () => interview(0, []);
+    const row = el("div","pm-go"); row.append(save, five);
+    box.append(row, status);
+  });
+
+  /* Five questions, one at a time, each answered by voice or by text. One call writes the Brief from the answers. */
+  const interview = (at, answers) => view("Five questions", box => {
+    const last = at === BRIEF_QS.length - 1;
+    box.append(el("small",null,`Question ${at + 1} of ${BRIEF_QS.length}`), el("p","fv-pos pm-q",BRIEF_QS[at]));
+    const ta = field(box, { id: "pmAnswer", label: BRIEF_QS[at], rows: 4, value: answers[at] || "", placeholder: "In your own words. You can skip a question." });
+    const status = el("div","hint"); status.setAttribute("role","status");
+    const go = el("button","go", last ? "Write my Brief" : "Next"); go.type = "button"; go.id = "pmGo";
+    const prev = el("button","ghost","Back"); prev.type = "button"; prev.id = "pmBack";
+    const keep = () => { answers[at] = ta.value.trim(); if (rec?.bar?.sheet) endVoice(); };
+    prev.onclick = () => { keep(); at ? interview(at - 1, answers) : editBrief(); };
+    go.onclick = async () => {
+      keep();
+      if (!last) return interview(at + 1, answers);
+      const given = BRIEF_QS.map((q, i) => ({ q, a: answers[i] || "" })).filter(x => x.a);
+      if (!given.length){ status.textContent = "Answer at least one question."; status.classList.add("bad"); return; }
+      go.disabled = prev.disabled = ta.disabled = true; status.classList.remove("bad"); status.textContent = "Writing the Brief";
+      try { const r = await briefCall({ action: "write", answers: given }); editBrief({ text: r.text, note: "Written from your answers. Read it, change what you want, then save." }); }
+      catch (e){ status.textContent = e.message; status.classList.add("bad"); go.disabled = prev.disabled = ta.disabled = false; }
+    };
+    const row = el("div","pm-go"); row.append(go, prev);
+    box.append(row, status);
+    ta.focus();
+  });
+
+  /* The State of play: where the project stands, written by the chat, edited by the owner. */
+  const editState = () => view("State of play", box => {
+    box.append(el("p","fv-pos","Where the project stands: the goal, what is decided, what is open. The chat rewrites it when an answer changes it, and reads it at every message. You can edit it."));
+    const ta = field(box, { id: "pmStateText", label: "State of play", rows: 7, max: 1500, value: pj.data.state?.text || "", placeholder: "Nothing yet. The chat writes it after an answer that changes where the project stands." });
+    const status = el("div","hint"); status.setAttribute("role","status");
+    const save = el("button","go","Save"); save.type = "button"; save.id = "pmStateSave";
+    save.onclick = async () => {
+      if (rec?.bar?.sheet) endVoice();
+      save.disabled = true; status.classList.remove("bad"); status.textContent = "Saving";
+      try {
+        const r = await briefCall({ action: "state", text: ta.value });
+        pj.data.state = r.text ? { text: r.text, at: Date.now() } : null;
+        if (!pj.data.turns.length) paintSide();
+        paint(r.text ? "State of play saved." : "State of play cleared.");
+      } catch (e){ status.textContent = e.message; status.classList.add("bad"); save.disabled = false; }
+    };
+    const row = el("div","pm-go"); row.append(save);
+    box.append(row, status);
+  });
+
+  /* What the chat needs from the owner to go on: answered in the message bar, or dropped. */
+  const showAsks = () => view("To answer", box => {
+    const asks = pj.data.asks || [];
+    box.append(el("p","fv-pos", asks.length ? "What the chat needs from you to go on. Answer in the message bar, by voice or by text: the answer updates the file and the memory." : "Nothing waits for you."));
+    for (const a of asks){
+      const r = el("div","pm-ask"); r.append(el("b",null,a.q));
+      const acts = el("div","pj-tact"), ans = el("button","go","Answer"), drop = el("button","ghost","Drop");
+      ans.type = drop.type = "button";
+      ans.onclick = () => { shut(); answerAsk(a); };
+      drop.onclick = async () => {
+        drop.disabled = ans.disabled = true;
+        try { pj.data.asks = (await briefCall({ action: "drop", id: a.id })).asks || []; showAsks(); }
+        catch (e){ drop.disabled = ans.disabled = false; r.append(el("div","pj-msg", e.message)); }
+      };
+      acts.append(ans, drop); r.append(acts); box.append(r);
+    }
+  });
+
+  /* A resource, typed, pasted or added from a file, as in the personal memory: the notes it holds join the memory. */
+  const compose = () => {
+    note = {}; list.innerHTML = ""; list.classList.add("compose"); add.hidden = true; sub.classList.remove("bad"); sub.textContent = "";
     const box = el("div","pm-note");
     const back = el("button","pm-back","← All notes"); back.type = "button"; back.onclick = () => paint();
-    const title = el("div","pm-t"), intro = el("p","fv-pos"), kinds = el("div","pj-make"), host = el("div","pj-rules");
-    const bRes = el("button","ghost","A resource"), bRules = el("button","ghost","Instructions");
-    bRes.type = bRules.type = "button"; bRes.id = "pmKindRes"; bRules.id = "pmKindRules";
-    kinds.append(bRes, bRules);
-    box.append(back, title, kinds, intro, host);
-    const field = instructionsField(host, kind);
-    field.ta.id = "pmText";
+    const intro = el("p","fv-pos"), host = el("div","pj-rules");
+    box.append(back, el("div","pm-t","Add a resource"), intro, host);
+    const input = instructionsField(host, "resource");
+    input.ta.id = "pmText";
+    intro.textContent = "A document, a text or the words of a page. The notes it holds join the memory, and the chat reads the ones that bear on a question.";
     const status = el("div","hint"); status.setAttribute("role","status");
-    const go = el("button","go"); go.type = "button"; go.id = "pmGo";
-    const pick = k => {
-      kind = k; field.aim(k);
-      for (const [b, on] of [[bRes, k === "resource"], [bRules, k !== "resource"]]){ b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); }
-      title.textContent = k === "resource" ? "Add a resource" : held ? "Replace the instructions" : "Add instructions";
-      intro.textContent = k === "resource" ? "A document, a text or the words of a page. The notes it holds join the memory, and the chat reads the ones that bear on a question."
-        : "Tone, audience, limits, numbers that hold. The chat follows them at every message." + (held ? " These take the place of the ones held." : "");
-      go.textContent = k === "resource" ? "Add to memory" : "File the instructions";
-      status.textContent = ""; status.classList.remove("bad");
-    };
-    bRes.onclick = () => pick("resource"); bRules.onclick = () => pick("instructions");
+    const go = el("button","go","Add to memory"); go.type = "button"; go.id = "pmGo";
     go.onclick = async () => {
-      if (!field.text()){ field.ta.focus(); return; }
-      const res = kind === "resource", many = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
-      go.disabled = bRes.disabled = bRules.disabled = true; field.lock(true); status.classList.remove("bad"); status.textContent = res ? "Filing the resource in the memory" : "Filing the instructions in the memory";
+      if (!input.text()){ input.ta.focus(); return; }
+      const many = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+      go.disabled = true; input.lock(true); status.classList.remove("bad"); status.textContent = "Filing the resource in the memory";
       try {
-        const r = res ? await sendResource(pj.slug, { name: field.name(), text: field.text() }, t => { status.textContent = t; })
-          : await sendInstructions(pj.slug, { name: field.name(), text: field.text() });
+        const r = await sendResource(pj.slug, { name: input.name(), text: input.text() }, t => { status.textContent = t; });
         await refreshMemory();
-        paint(r.cut ? (res ? `Only the first ${RES_CHARS.toLocaleString()} characters were read, about 16,000 words.` : "Only the first 30,000 characters were read, about 5,000 words.")
-          : res ? `${many(r.notes, "note")} filed. The chat reads the ones that bear on a question.` : `${many(r.notes, "instruction")} filed. The chat follows them from the next message.`);
-      } catch (e){ status.textContent = e.message; status.classList.add("bad"); go.disabled = bRes.disabled = bRules.disabled = false; field.lock(false); }
+        paint(r.cut ? `Only the first ${RES_CHARS.toLocaleString()} characters were read, about 16,000 words.` : `${many(r.notes, "note")} filed. The chat reads the ones that bear on a question.`);
+      } catch (e){ status.textContent = e.message; status.classList.add("bad"); go.disabled = false; input.lock(false); }
     };
-    pick(kind);
     const row = el("div","pm-go"); row.append(go);
-    box.append(row, status); list.append(box); list.scrollTop = 0; field.ta.focus();
+    box.append(row, status); list.append(box); list.scrollTop = 0; input.ta.focus();
   };
   add.onclick = () => compose();
   paint();
-  if (opts.add) compose(opts.add);
+  if (opts.add) compose();
+  else if (opts.brief === "interview") interview(0, []);
+  else if (opts.brief) editBrief();
   else (list.querySelector("button") || veil.querySelector("#pmClose")).focus();
   /* What it learned since the last answer is read again, so the list is current. */
   refreshMemory();
@@ -8657,19 +8876,11 @@ function closeDownload(){
   window.removeEventListener("resize", m.shut); window.removeEventListener("scroll", m.shut, true);
   m.anchor.setAttribute("aria-expanded", "false"); m.menu.remove();
 }
-/** The formats as a small menu under the Download button. A second press, an outside press or Escape puts it away. */
-function openDownload(anchor){
-  const f = S.pj?.data?.file; if (!f) return;
-  const same = dlMenu?.anchor === anchor; closeDownload(); if (same) return;
-  const kind = f.kind === "table" ? "table" : f.kind === "html" ? "html" : "doc";
-  const menu = el("div","pj-menu"); menu.setAttribute("role","menu"); menu.setAttribute("aria-label","Download as");
-  for (const [k, name, ext] of DL_FORMATS[kind]){
-    const b = el("button"); b.type = "button"; b.dataset.fmt = k; b.setAttribute("role","menuitem");
-    b.append(el("b",null,name), el("span",null,ext));
-    b.onclick = () => { closeDownload(); downloadAs(k); };
-    menu.append(b);
-  }
-  if (kind === "table" && f.sheets.length > 1) menu.append(el("p",null,`Excel keeps all ${f.sheets.length} sheets. CSV and Markdown take the open one.`));
+/** A small menu under a button. A second press, an outside press or Escape puts it away. `fill` puts the items in it. */
+function popMenu(anchor, label, fill, cls = ""){
+  const same = dlMenu?.anchor === anchor; closeDownload(); if (same) return null;
+  const menu = el("div","pj-menu" + (cls ? " " + cls : "")); menu.setAttribute("role","menu"); menu.setAttribute("aria-label",label);
+  fill(menu);
   document.body.append(menu);
   const r = anchor.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
   menu.style.left = Math.round(Math.max(8, Math.min(r.right - w, innerWidth - w - 8))) + "px";
@@ -8682,14 +8893,55 @@ function openDownload(anchor){
     else if (e.key === "ArrowDown" || e.key === "ArrowUp"){
       e.preventDefault();
       const items = [...menu.querySelectorAll("button")], n = items.length, at = items.indexOf(document.activeElement);
-      items[e.key === "ArrowDown" ? (at + 1) % n : at <= 0 ? n - 1 : at - 1].focus();
+      if (n) items[e.key === "ArrowDown" ? (at + 1) % n : at <= 0 ? n - 1 : at - 1].focus();
     }
   };
   dlMenu = { menu, anchor, down, key, shut };
   document.addEventListener("pointerdown", down, true); document.addEventListener("keydown", key, true);
   window.addEventListener("resize", shut); window.addEventListener("scroll", shut, true);
   anchor.setAttribute("aria-expanded", "true");
-  menu.querySelector("button").focus();
+  menu.querySelector("button")?.focus();
+  return menu;
+}
+/** The formats as a small menu under the Download button. */
+function openDownload(anchor){
+  const f = S.pj?.data?.file; if (!f) return;
+  const kind = f.kind === "table" ? "table" : f.kind === "html" ? "html" : "doc";
+  popMenu(anchor, "Download as", menu => {
+    for (const [k, name, ext] of DL_FORMATS[kind]){
+      const b = el("button"); b.type = "button"; b.dataset.fmt = k; b.setAttribute("role","menuitem");
+      b.append(el("b",null,name), el("span",null,ext));
+      b.onclick = () => { closeDownload(); downloadAs(k); };
+      menu.append(b);
+    }
+    if (kind === "table" && f.sheets.length > 1) menu.append(el("p",null,`Excel keeps all ${f.sheets.length} sheets. CSV and Markdown take the open one.`));
+  });
+}
+
+/**
+ * The gaps in the open file, found in code with no model: a placeholder nobody filled, an empty cell, a date in the past, two numbers
+ * for one thing. A tap puts a request to fix one in the message bar.
+ */
+async function openGaps(anchor){
+  const pj = S.pj; if (!pj?.data?.file) return;
+  if (dlMenu?.anchor === anchor){ closeDownload(); return; }
+  anchor.disabled = true;
+  let r;
+  try { r = await api("/api/project/gaps", { brain: pj.slug }); }
+  catch (e){ r = { error: /unreadable/.test(e.message) ? "The server is older than this page and cannot look for gaps yet. Run convex deploy." : e.message }; }
+  finally { anchor.disabled = false; }
+  if (S.pj !== pj) return;
+  popMenu(anchor, "Gaps in the file", menu => {
+    if (r.error){ menu.append(el("p",null,r.error)); return; }
+    if (!r.gaps.length){ menu.append(el("p",null,"No gap found: no placeholder, no empty cell, no date in the past, no two numbers for one thing.")); return; }
+    for (const g of r.gaps){
+      const b = el("button"); b.type = "button"; b.setAttribute("role","menuitem"); b.title = "Ask the chat to fix it";
+      b.append(el("b",null,g.text), el("span",null,g.where));
+      b.onclick = () => { closeDownload(); fillBar(`Fix this gap in ${g.where}: ${g.text}.`); };
+      menu.append(b);
+    }
+    if (r.total > r.gaps.length){ const n = r.total - r.gaps.length; menu.append(el("p",null,`${n} more ${n === 1 ? "is" : "are"} not shown.`)); }
+  }, "gaps");
 }
 
 /** A blob handed to the browser as a file with a name. */
@@ -9109,28 +9361,26 @@ function pickFile(accept, then){
 /** A file picked for the open project: read here, filed in sections. */
 function chooseFile(){ pickFile(PJ_FILES, file => fillProject(S.pj.slug, file)); }
 
-/** What the server reads of instructions, in characters. */
-const RULES_CHARS = 30000;
 /* A resource is sent in pieces of what one call reads, up to 5 of them. */
 const RES_PIECE = 20000, RES_PIECES = 5, RES_CHARS = RES_PIECE * RES_PIECES;
 
 /**
  * A field for words, as the personal memory has one: typed or pasted, or a file added whose words join the field. It says how many
- * characters it holds, and how many are read: 30,000 of instructions, 100,000 of a resource.
+ * characters it holds, and how many are read: 6,000 of a Brief, 100,000 of a resource.
  */
-function instructionsField(host, what = "instructions"){
-  host.innerHTML = `<textarea class="mem" rows="5" aria-label="Instructions"></textarea>
+function instructionsField(host, what = "brief"){
+  host.innerHTML = `<textarea class="mem" rows="5" aria-label="Brief"></textarea>
     <div class="mem-bar"><button class="mini" type="button">+ file</button><span class="hint" role="status"></span></div>`;
   const ta = host.querySelector("textarea"), add = host.querySelector("button"), count = host.querySelector(".hint");
   const names = [];
   const say = (t, bad) => { count.textContent = t; count.classList.toggle("bad", !!bad); };
-  const limit = () => what === "resource" ? RES_CHARS : RULES_CHARS;
+  const limit = () => what === "resource" ? RES_CHARS : BRIEF_CHARS;
   const sync = () => { const n = ta.value.length; say(n ? `${n.toLocaleString()} characters${n > limit() ? `, the first ${limit().toLocaleString()} are read` : ""}` : ""); };
   /* What the words are for: the hint and the limit follow, the words stay. */
   const aim = w => {
     what = w;
-    ta.placeholder = w === "resource" ? "Paste the text of a resource here, or add a file" : "Paste or write the instructions here";
-    ta.setAttribute("aria-label", w === "resource" ? "Resource" : "Instructions");
+    ta.placeholder = w === "resource" ? "Paste the text of a resource here, or add a file" : "Paste or write the Brief here, or add a file";
+    ta.setAttribute("aria-label", w === "resource" ? "Resource" : "Brief");
     sync();
   };
   ta.oninput = sync;
@@ -9148,20 +9398,20 @@ function instructionsField(host, what = "instructions"){
 }
 
 /** A file read in this tab as words: Word, PDF, text, Markdown or HTML. A table is no instruction and no resource. */
-async function readInstructions(file, say, what = "instructions"){
-  if (/\.(csv|tsv|xlsx|xls)$/i.test(file.name)) throw new Error(`${file.name} is a table. ${what === "resource" ? "A resource is words: Word, PDF, text, Markdown or HTML. Paste the part of the table that matters." : "Instructions are words: Word, PDF, text, Markdown or HTML."}`);
+async function readInstructions(file, say, what = "brief"){
+  if (/\.(csv|tsv|xlsx|xls)$/i.test(file.name)) throw new Error(`${file.name} is a table. ${what === "resource" ? "A resource is words: Word, PDF, text, Markdown or HTML. Paste the part of the table that matters." : "A Brief is words: Word, PDF, text, Markdown or HTML."}`);
   const got = await readProjectFile(file, say);
   const text = (got.kind === "html" ? htmlToMd(got.text) : got.text).replace(/^\[\[p\. \d+\]\]$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
   if (!text) throw new Error(`${got.name} gave no text. A scanned PDF holds pictures of words, so it needs its text.`);
   return { name: got.name, text };
 }
 
-/** The instructions, typed or read from a file, sent to be filed as notes in the project's memory, which the chat then follows. */
-async function sendInstructions(slug, got){
-  try { return await api("/api/project/instructions", { brain: slug, name: got.name, text: got.text }); }
+/** The Brief, typed or read from a file, saved as written: the chat reads it at every message. */
+async function sendBrief(slug, text){
+  try { return await api("/api/project/brief", { brain: slug, action: "save", text }); }
   catch (e){
     /* A server older than this page has no such route, and answers with something unreadable. */
-    throw new Error(/unreadable/.test(e.message) ? "The server is older than this page and cannot file instructions yet. Run convex deploy." : e.message);
+    throw new Error(/unreadable/.test(e.message) ? "The server is older than this page and cannot save a Brief yet. Run convex deploy." : e.message);
   }
 }
 
@@ -9226,7 +9476,7 @@ async function fillProject(slug, file){
   }
 }
 
-/** New project: a name, the file it updates (one you have, or one started from nothing), and instructions when there are any. */
+/** New project: a name, the file it updates (one you have, or one started from nothing), and a Brief when there is one. */
 function openProjectSheet(){
   closeSide();
   const veil = el("div","veil");
@@ -9236,9 +9486,9 @@ function openProjectSheet(){
     <div class="f"><label>The file to update</label>
       <div class="pj-make"><button class="ghost" id="npPick" type="button">Choose a file</button><button class="ghost" data-make="doc" type="button">Document</button><button class="ghost" data-make="table" type="button">Table</button><button class="ghost" data-make="html" type="button">HTML page</button></div>
       <div class="hint" id="npFile"></div></div>
-    <div class="f"><label>Instructions <span class="pj-opt">optional</span></label>
+    <div class="f"><label>Brief <span class="pj-opt">optional</span></label>
       <div class="pj-rules" id="npRules"></div>
-      <div class="hint">Rules and context for this project: tone, audience, limits, numbers that hold. They are filed in its memory, and the chat follows them.</div></div>
+      <div class="hint">Who the chat is here, the goal, the audience, the rules. The chat reads it at every message. No Brief yet? Five questions write it, from the chat.</div></div>
     <div class="f"><div class="pj-step" id="npStep" role="status"></div><div class="bad" id="npBad"></div></div>
     <footer><button class="ghost" id="npCancel" type="button">Cancel</button><button class="go" id="npMake" type="button">Create project</button></footer></div>`;
   document.body.append(veil);
@@ -9289,14 +9539,14 @@ function openProjectSheet(){
       }
       if (got) await uploadProject(slug, got, say);
       let cut = false;
-      if (words){ phase = "instructions"; say("Filing the instructions in the memory"); cut = !!(await sendInstructions(slug, words)).cut; }
+      if (words){ phase = "brief"; say("Saving the Brief"); cut = !!(await sendBrief(slug, words.text)).cut; }
       busy = false; veil.remove();
       await syncProjects();
       await openProject(slug);
-      if (cut) pjNote("Only the first 30,000 characters of the instructions were read, about 5,000 words.");
+      if (cut) pjNote(`Only the first ${BRIEF_CHARS.toLocaleString()} characters of the Brief were kept, about 1,000 words.`);
     } catch (e){
       busy = false; lock(false);
-      stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to ${phase === "instructions" ? "add the instructions again from Memory" : "add the file again"}.` : e.message;
+      stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to ${phase === "brief" ? "write the Brief again from Memory" : "add the file again"}.` : e.message;
       if (slug){ make.textContent = "Open the project"; make.onclick = async () => { veil.remove(); await syncProjects(); await openProject(slug); }; }
     }
   };

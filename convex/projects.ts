@@ -16,7 +16,7 @@ import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { readSpace, slug, today } from "./lib";
 import { syncCard } from "./store";
-import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, FILE_KINDS, ROUTES_KEEP, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
+import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, FILE_KINDS, ROUTES_KEEP, BRIEF_MAX, STATE_MAX, ASKS_MAX, ASK_CHARS, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
 import type { Col } from "./sheet";
 
 /** Rows one change may build a sheet from. */
@@ -46,6 +46,8 @@ const need = async (ctx: any, space: string, brain: string) => {
 };
 const fileOf = async (ctx: any, brain: string) =>
   await ctx.db.query("projectFiles").withIndex("by_brain", (q: any) => q.eq("brain", brain)).first();
+const frameOf = async (ctx: any, brain: string) =>
+  await ctx.db.query("projectBriefs").withIndex("by_brain", (q: any) => q.eq("brain", brain)).first();
 const cardsOf = async (ctx: any, brain: string): Promise<any[]> =>
   (await ctx.db.query("projectCards").withIndex("by_brain_ord", (q: any) => q.eq("brain", brain)).collect())
     .sort((a: any, b: any) => a.ord - b.ord);
@@ -84,8 +86,14 @@ export const projectGet = internalQuery({
     const edits = (await ctx.db.query("projectEdits").withIndex("by_brain_at", (q: any) => q.eq("brain", a.brain)).collect())
       .sort((x: any, y: any) => y.at - x.at).slice(0, EDITS_KEEP)
       .map((e: any) => ({ id: String(e._id), at: e.at, status: e.status, preview: e.preview }));
+    const frame = await frameOf(ctx, a.brain);
     return {
       project: { slug: b.slug, name: b.name, created: b.created },
+      /* The Brief, the State of play and what the chat still needs from the owner. */
+      brief: frame?.brief ? { text: frame.brief as string, at: (frame.briefAt ?? 0) as number } : null,
+      state: frame?.state ? { text: frame.state as string, at: (frame.stateAt ?? 0) as number } : null,
+      asks: (frame?.asks ?? []) as { id: string; q: string; at: number }[],
+      next: frame?.next !== false,
       file: file ? { name: file.name, kind: file.kind, made: !!file.made, sheets: file.sheets, chars: file.chars, sections: file.parts, status: file.status, ver: file.ver, at: file.at } : null,
       cards: cards.map((c: any) => ({ sid: c.sid, ord: c.ord, sheet: c.sheet, title: c.title, summary: c.summary, chars: c.chars, ...(c.rows != null ? { rows: c.rows } : {}) })),
       turns: thread?.turns ?? [],
@@ -287,7 +295,7 @@ export const projectWipe = internalMutation({
       if (f) await ctx.db.delete(f._id);
       return { more: false };
     }
-    for (const [t, i] of [["projectThreads", "by_brain"], ["projectFiles", "by_brain"]]) {
+    for (const [t, i] of [["projectThreads", "by_brain"], ["projectBriefs", "by_brain"], ["projectFiles", "by_brain"]]) {
       if (await clear(t, i)) return { more: true };
     }
     /* Its memory: concepts, their cards and their meanings. */
@@ -449,6 +457,105 @@ async function dropConcept(ctx: any, c: any) {
   for (const vec of await ctx.db.query("vectors").withIndex("by_cid", (q: any) => q.eq("cid", c._id)).collect()) await ctx.db.delete(vec._id);
   await ctx.db.delete(c._id);
 }
+
+/* ---------------- the Brief, the State of play, what is still open ---------------- */
+
+const frameWrite = async (ctx: any, brain: string, patch: Record<string, unknown>) => {
+  const row = await frameOf(ctx, brain);
+  if (row) await ctx.db.patch(row._id, patch);
+  else await ctx.db.insert("projectBriefs", { brain, ...patch });
+};
+/** Words with their lines kept, trimmed, and never more than three line breaks in a row. */
+const tidyWords = (t: any) => String(t ?? "").replace(/\r/g, "").split("\n").map(l => l.replace(/[ \t]+$/, "")).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+const flat = (t: any, n: number) => String(t ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+const sameAsk = (a: string, b: string) => {
+  const k = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const x = k(a), y = k(b);
+  return !!x && !!y && (x === y || x.includes(y) || y.includes(x));
+};
+
+/**
+ * The owner's Brief, written or cleared (no words clears it). The chat reads it at every message. A Brief takes the place of the
+ * instruction notes an older project holds, which are forgotten as it is saved.
+ */
+export const briefSave = internalMutation({
+  args: { space: v.string(), brain: v.string(), text: v.string() },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    const whole = tidyWords(a.text);
+    const text = whole.slice(0, BRIEF_MAX);
+    await frameWrite(ctx, a.brain, text ? { brief: text, briefAt: Date.now() } : { brief: undefined, briefAt: undefined });
+    let replaced = 0;
+    if (text) for (const c of await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", a.brain)).collect()) {
+      if (c.tag === "instructions") { await dropConcept(ctx, c); replaced++; }
+    }
+    return { text, ...(whole.length > text.length ? { cut: true } : {}), ...(replaced ? { replaced } : {}) };
+  },
+});
+
+/** The State of play, edited by the owner: words, or none to clear it. */
+export const stateSave = internalMutation({
+  args: { space: v.string(), brain: v.string(), text: v.string() },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    const text = tidyWords(a.text).slice(0, STATE_MAX);
+    await frameWrite(ctx, a.brain, text ? { state: text, stateAt: Date.now() } : { state: undefined, stateAt: undefined });
+    return { text };
+  },
+});
+
+/** Whether answers close with a next step. On unless the owner turns it off. */
+export const nextSet = internalMutation({
+  args: { space: v.string(), brain: v.string(), on: v.boolean() },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    await frameWrite(ctx, a.brain, { next: a.on });
+    return { next: a.on };
+  },
+});
+
+/** A question the owner no longer wants to see. */
+export const asksDrop = internalMutation({
+  args: { space: v.string(), brain: v.string(), id: v.string() },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    const row = await frameOf(ctx, a.brain);
+    const asks = ((row?.asks ?? []) as { id: string; q: string; at: number }[]).filter(x => x.id !== a.id);
+    if (row) await ctx.db.patch(row._id, { asks });
+    return { asks };
+  },
+});
+
+/**
+ * What an answer changed in the frame: the State of play rewritten, new questions for the owner, and the ones this message answered
+ * taken away. The questions kept are the 8 newest; one the list holds already is not added twice.
+ */
+export const frameApply = internalMutation({
+  args: { space: v.string(), brain: v.string(), state: v.optional(v.string()), add: v.optional(v.array(v.string())), done: v.optional(v.array(v.string())) },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    const row = await frameOf(ctx, a.brain);
+    const patch: Record<string, unknown> = {};
+    const state = tidyWords(a.state ?? "").slice(0, STATE_MAX);
+    if (state && state !== row?.state) { patch.state = state; patch.stateAt = Date.now(); }
+    const done = new Set(a.done ?? []);
+    let asks = ((row?.asks ?? []) as { id: string; q: string; at: number }[]).filter(x => !done.has(x.id));
+    const added: { id: string; q: string }[] = [];
+    const now = Date.now();
+    for (const raw of a.add ?? []) {
+      const q = flat(raw, ASK_CHARS);
+      if (q.length < 8 || asks.some(x => sameAsk(x.q, q))) continue;
+      let id = "";
+      do id = Math.random().toString(36).slice(2, 6); while (!id || asks.some(x => x.id === id));
+      asks = [...asks, { id, q, at: now }];
+      added.push({ id, q });
+    }
+    asks = asks.slice(-ASKS_MAX);
+    if (asks.length !== (row?.asks ?? []).length || added.length || done.size) patch.asks = asks;
+    if (Object.keys(patch).length) await frameWrite(ctx, a.brain, patch);
+    return { asks, added, ...(patch.state ? { state } : {}) };
+  },
+});
 
 /** One thing the project remembers, forgotten: its concept, card and meaning. */
 export const memoryForget = internalMutation({

@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
-import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, readBlocks } from "./project";
+import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, writeBrief, gapsOf, readBlocks } from "./project";
 import { colNames, downloadText, csvOf, parseCsv, madeName } from "./sheet";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
@@ -1641,6 +1641,33 @@ route("/api/project/instructions", async (ctx, _req, b) => {
 route("/api/project/resource", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   return await fileResource(ctx, { space: who.space, brain: String(b.brain ?? ""), name: String(b.name ?? ""), text: String(b.text ?? ""), key: keyFor(who), model: modelFor(who, b) });
+});
+
+/**
+ * What frames a project's chat besides its notes, by action:
+ *   save    the owner's Brief, read at every message. No words clears it. It takes the place of any instruction notes.
+ *   write   the Brief written from the owner's answers to a few questions: one model call. Nothing is kept until the owner saves it.
+ *   state   the State of play, edited by the owner. No words clears it.
+ *   next    the closing next step of an answer, on or off.
+ *   drop    a question of the chat's that the owner no longer wants to see.
+ */
+route("/api/project/brief", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const brain = String(b.brain ?? ""), space = who.space;
+  switch (String(b.action ?? "save")) {
+    case "save": return await ctx.runMutation(internal.projects.briefSave, { space, brain, text: String(b.text ?? "") });
+    case "write": return await writeBrief(ctx, { space, brain, answers: Array.isArray(b.answers) ? b.answers : [], key: keyFor(who), model: modelFor(who, b) });
+    case "state": return await ctx.runMutation(internal.projects.stateSave, { space, brain, text: String(b.text ?? "") });
+    case "next": return await ctx.runMutation(internal.projects.nextSet, { space, brain, on: b.on !== false });
+    case "drop": return await ctx.runMutation(internal.projects.asksDrop, { space, brain, id: String(b.id ?? "") });
+    default: return { error: "save, write, state, next or drop" };
+  }
+});
+
+/** The gaps in the project's file, found in code with no model: placeholders, empty cells, dates in the past, two numbers for one thing. */
+route("/api/project/gaps", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return await gapsOf(ctx, { space: who.space, brain: String(b.brain ?? "") });
 });
 
 /** A message in a project's chat: read what it needs, answered, kept in the thread. */

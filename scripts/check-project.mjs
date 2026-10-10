@@ -164,6 +164,7 @@ const project = await build("project");
 const space = await build("space");
 const graph = await build("graph");
 const words = await build("words");
+const gaps = await build("gaps");
 const http = await build("http");
 process.env.OPENROUTER_API_KEY = "test-key";
 
@@ -218,6 +219,7 @@ globalThis.fetch = async (_u, opt) => {
   else if (/You write the memory notes of a file/.test(sys)) { if (reply.aboutFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.about ?? { notes: [] }); }
   else if (/You write the memory notes of a resource/.test(sys)) { if (reply.resourceFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.resource ?? { notes: [] }); }
   else if (/You write the memory notes of an instruction file/.test(sys)) { if (reply.instructionsFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.instructions ?? { notes: [] }); }
+  else if (/You write the Brief of a project's chat/.test(sys)) { if (reply.briefFail) return new Response("busy", { status: 503 }); out = reply.briefText ?? JSON.stringify({ brief: "Goal: x." }); }
   else if (/You file notes into a person's own knowledge base/.test(sys)) out = JSON.stringify({ notes: [], people: [] });
   else if (/You are their AI twin/.test(sys)) out = reply.twin ?? "Noted.";
   else if (/You are the user's own knowledge base/.test(sys)) out = reply.kb ?? "Answer.";
@@ -1639,6 +1641,184 @@ const docProject = async (w, name, text, kind = "doc") => {
   check("a file to build from the folders reads them with the full dossier", (ab.match(/^### /gm) ?? []).length > 10, String((ab.match(/^### /gm) ?? []).length));
 }
 
+/* ================= the Brief, the State of play, what is still open, the next step ================= */
+
+{
+  const w = makeCtx();
+  const p = await docProject(w, "Framed", midDoc);
+  const get = () => w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, note: true, ...extra });
+  const sysNow = () => last(/You are the chat of a project/).sys;
+  const userNow = () => last(/You are the chat of a project/).user;
+  /* a real question: the router names words to look for, so the message is not small talk */
+  const asking = routeOf({ terms: ["goal", "seats"] });
+
+  const g0 = await get();
+  check("a project starts with no Brief, no State of play, no question, and the next step on", g0.brief === null && g0.state === null && same(g0.asks, []) && g0.next === true);
+
+  /* the Brief */
+  const saved = await w.ctx.runMutation("projects.briefSave", { space: SPACE, brain: p, text: "Goal: fill 200 seats.\r\n\r\n\r\n\r\nNever: quote below 490 euros.   \n" });
+  const g1 = await get();
+  check("the Brief is kept as written, tidied: no carriage returns, no run of blank lines, no trailing spaces", saved.text === "Goal: fill 200 seats.\n\nNever: quote below 490 euros." && g1.brief.text === saved.text && g1.brief.at > 0);
+  const cut = await w.ctx.runMutation("projects.briefSave", { space: SPACE, brain: p, text: "x".repeat(7000) });
+  check("a Brief is cut at 6,000 characters and says so", cut.text.length === 6000 && cut.cut === true);
+  await w.ctx.runMutation("projects.briefSave", { space: SPACE, brain: p, text: saved.text });
+  check("another workspace cannot write it", /not in this workspace/.test(String(await w.ctx.runMutation("projects.briefSave", { space: "squidgy", brain: p, text: "x" }).catch(e => e.message))));
+
+  reply = { route: asking, answer: answerOf({ tldr: "200 seats." }) };
+  const t1 = await chat("What is the goal?");
+  const a1 = sysNow();
+  check("every answer reads the Brief in its rules, after what never changes and before the rules for the memory",
+    /\nTHE BRIEF\nThe owner wrote it for this project[^\n]*\nGoal: fill 200 seats\.\n\nNever: quote below 490 euros\.\n/.test(a1)
+    && a1.indexOf("THE BRIEF") > a1.indexOf("WHEN THEY ASK FOR A BRAINSTORM") && a1.indexOf("THE BRIEF") < a1.indexOf("THE MEMORY"), a1.slice(a1.indexOf("THE BRIEF") - 80, a1.indexOf("THE BRIEF") + 200));
+  check("it says the Brief never changes the reply format and never allows a number that was not given", /It never changes the reply format above, and it never allows a number, a name or a date that you were not given/.test(a1));
+  check("the Brief is not read as memory, and the router does not see it", !/Never: quote below/.test(userNow()) && !/Never: quote below/.test(last(/You route a project's questions/).user));
+  reply = { route: asking, answer: answerOf() };
+  await chat("thanks");
+  check("thanks reads no Brief", !/THE BRIEF/.test(sysNow()));
+
+  /* the Brief takes the place of the instruction notes an older project holds */
+  reply = { instructions: { notes: [{ title: "Tone", claim: "Formal.", position: "Write formally.", summaryLine: "Formal" }] } };
+  await project.fileInstructions(w.ctx, { space: SPACE, brain: p, name: "rules.md", text: "Write formally." });
+  reply = { route: asking, answer: answerOf() };
+  await chat("What is the goal?");
+  check("with a Brief and instruction notes, the chat reads the Brief and not the notes", /THE BRIEF/.test(sysNow()) && !/THE OWNER'S INSTRUCTIONS/.test(sysNow()) && !/- Tone:/.test(sysNow()));
+  await w.ctx.runMutation("projects.briefSave", { space: SPACE, brain: p, text: "" });
+  check("clearing the Brief clears it", (await get()).brief === null);
+  await chat("What is the goal?");
+  check("with no Brief the instruction notes are read again, as before", !/THE BRIEF/.test(sysNow()) && /THE OWNER'S INSTRUCTIONS\n[^\n]*\n- Tone: Write formally\./.test(sysNow()));
+  const swap = await w.ctx.runMutation("projects.briefSave", { space: SPACE, brain: p, text: saved.text });
+  check("saving a Brief forgets the instruction notes it replaces, and says how many", swap.replaced === 1 && !(await get()).memory.some(m => m.instructions), JSON.stringify(swap));
+  check("an empty Brief forgets nothing", (await w.ctx.runMutation("projects.briefSave", { space: SPACE, brain: p, text: "  " })).replaced === undefined);
+  await w.ctx.runMutation("projects.briefSave", { space: SPACE, brain: p, text: saved.text });
+
+  /* the State of play, what is still open, the next step */
+  reply = { route: asking, answer: answerOf({ tldr: "Noted.", state: "Goal: fill 200 seats — Team stays at 1,490 euros.", asks: ["What is the creator fee?", "Who signs the offer?", "A third question that is cut"], next: "Next: fill the 3 empty prices" }) };
+  const t2 = await chat("Team stays at 1,490 euros.");
+  const g2 = await get();
+  check("an answer that changes where the project stands rewrites the State of play, and the turn says so", g2.state.text === "Goal: fill 200 seats, Team stays at 1,490 euros." && g2.state.at > 0 && t2.stated === true, JSON.stringify(g2.state));
+  check("it asks at most two questions of the owner, each with an id of four letters", g2.asks.length === 2 && same(g2.asks.map(x => x.q), ["What is the creator fee?", "Who signs the offer?"]) && g2.asks.every(x => /^[a-z0-9]{4}$/.test(x.id)) && same(t2.asks.map(x => x.id), g2.asks.map(x => x.id)), JSON.stringify(g2.asks));
+  check("the closing next step is one line, without its label", t2.next === "fill the 3 empty prices", t2.next);
+
+  const [ask1, ask2] = g2.asks;
+  reply = { route: asking, answer: answerOf({ tldr: "Good.", answered: [ask1.id, "zzzz"], asks: ["Who signs the offer??", "Is the price in euros or dollars?"] }) };
+  const t3 = await chat("The creator fee is 12%.");
+  const a3 = userNow(), r3 = last(/You route a project's questions/).user;
+  check("the next prompt reads the State of play and what is still open, with ids", a3.includes("STATE OF PLAY, your summary of where the project stands\nGoal: fill 200 seats, Team stays at 1,490 euros.\n")
+    && a3.includes(`STILL OPEN, asked of the owner and not answered (id: question)\n${ask1.id}: What is the creator fee?\n${ask2.id}: Who signs the offer?\n`), a3.slice(0, 700));
+  check("the router reads the State of play too, and the message comes last", r3.includes("STATE OF PLAY, where the project stands:\nGoal: fill 200 seats") && r3.endsWith("MESSAGE: The creator fee is 12%."), r3.slice(-300));
+  check("the date and what they seem to want stand at the end, next to the question", /\nTODAY: \d{4}-\d{2}-\d{2}\nWHAT THEY SEEM TO WANT: ask\nQUESTION: The creator fee is 12%\.$/.test(a3), a3.slice(-200));
+  const g3 = await get();
+  check("a question the message answered is taken away, an id nobody holds is ignored, and one asked twice is kept once", same(g3.asks.map(x => x.q), ["Who signs the offer?", "Is the price in euros or dollars?"]) && g3.asks[0].id === ask2.id, JSON.stringify(g3.asks));
+  check("and without a new State the old one stays", g3.state.text === g2.state.text && t3.stated === undefined);
+
+  /* only the newest 8 stay */
+  const many = await w.ctx.runMutation("projects.frameApply", { space: SPACE, brain: p, add: Array.from({ length: 10 }, (_, i) => `Question number ${i} to the owner`) });
+  check("no more than eight questions are kept, the newest", many.asks.length === 8 && many.asks[7].q === "Question number 9 to the owner" && many.added.length === 10, JSON.stringify(many.asks.map(x => x.q)));
+  check("a question too short to mean anything is not kept", (await w.ctx.runMutation("projects.frameApply", { space: SPACE, brain: p, add: ["Why?"] })).added.length === 0);
+
+  /* the owner edits the State and drops a question */
+  check("the owner can write the State of play, and clear it", (await w.ctx.runMutation("projects.stateSave", { space: SPACE, brain: p, text: "Goal: 200 seats.\n\n\n\nOpen: fee." })).text === "Goal: 200 seats.\n\nOpen: fee." && (await get()).state.text === "Goal: 200 seats.\n\nOpen: fee."
+    && (await w.ctx.runMutation("projects.stateSave", { space: SPACE, brain: p, text: "" })).text === "" && (await get()).state === null);
+  check("a State of play is cut at 1,500 characters", (await w.ctx.runMutation("projects.stateSave", { space: SPACE, brain: p, text: "w ".repeat(1200) })).text.length <= 1500);
+  const dropId = (await get()).asks[0].id;
+  check("the owner can drop a question", !(await w.ctx.runMutation("projects.asksDrop", { space: SPACE, brain: p, id: dropId })).asks.some(x => x.id === dropId) && !(await get()).asks.some(x => x.id === dropId));
+  await w.ctx.runMutation("projects.stateSave", { space: SPACE, brain: p, text: "" });
+
+  /* the next step is the owner's to turn off */
+  check("the rules ask for the next step while it is on", /"next": one line under 15 words/.test(sysNow()) && /"answered":\[\],"next":""\}/.test(sysNow().replace(/\s+/g, " ")) || /,"next":""/.test(sysNow()));
+  await w.ctx.runMutation("projects.nextSet", { space: SPACE, brain: p, on: false });
+  reply = { route: asking, answer: answerOf({ tldr: "Done.", next: "Next: do more" }) };
+  const t4 = await chat("What is the goal?");
+  check("with it off the rules do not ask for it, and one the model sends is not shown", !/"next"/.test(sysNow()) && t4.next === undefined && (await get()).next === false, sysNow().slice(-600));
+  await w.ctx.runMutation("projects.nextSet", { space: SPACE, brain: p, on: true });
+
+  /* small talk files none of it */
+  const waiting = (await get()).asks;
+  await w.ctx.runMutation("projects.frameApply", { space: SPACE, brain: p, done: waiting.map(x => x.id) });
+  await w.ctx.runMutation("projects.stateSave", { space: SPACE, brain: p, text: "Goal: 200 seats." });
+  reply = { route: routeOf(), answer: answerOf({ tldr: "", reply: "You are welcome.", state: "Goal: nothing.", asks: ["Is this a question for the owner?"], next: "Next: nothing" }) };
+  const t5 = await chat("ok thanks, that helps");
+  check("small talk is told nothing of the State, the questions or the next step, and keeps none of what the model sent", !/"state"/.test(sysNow()) && !/"asks"/.test(sysNow()) && t5.next === undefined && t5.asks === undefined && (await get()).asks.length === 0 && (await get()).state.text === "Goal: 200 seats.");
+  check("and it reads neither the State nor the questions", !/STATE OF PLAY|STILL OPEN/.test(userNow()));
+  /* but a short word that answers a question waiting for it is an answer */
+  await w.ctx.runMutation("projects.frameApply", { space: SPACE, brain: p, add: ["What is the creator fee in percent?"] });
+  const waitId = (await get()).asks[0].id;
+  reply = { route: routeOf(), answer: answerOf({ tldr: "Noted, 12%.", answered: [waitId], notes: [{ title: "Creator fee", update: "", claim: "12%.", position: "The creator fee is 12% (2026-10-10).", summaryLine: "Fee: 12%", sections: [] }] }) };
+  const t5b = await chat("12%");
+  check("while a question waits, a message the router judged small talk still reads it and the State, with the rules to mark it answered", /STILL OPEN[^\n]*\n[a-z0-9]{4}: What is the creator fee in percent\?/.test(userNow()) && /STATE OF PLAY/.test(userNow()) && /"answered"/.test(sysNow()) && /THE MEMORY/.test(sysNow()));
+  check("and the answer takes the question away, says which one, and files what was said", (await get()).asks.length === 0 && same(t5b.answered, [waitId]) && same(t5b.noted, ["Creator fee"]), JSON.stringify([(await get()).asks, t5b.noted, t5b.answered]));
+  check("the router reads the question that waits", /STILL OPEN, asked of the owner and not answered\. A short message may answer one:\n[a-z0-9]{4}: What is the creator fee in percent\?/.test(last(/You route a project's questions/).user));
+  await w.ctx.runMutation("projects.stateSave", { space: SPACE, brain: p, text: "" });
+
+  /* a model that fails to keep the frame never fails the answer */
+  const keep = w.ctx.runMutation;
+  reply = { route: asking, answer: answerOf({ tldr: "Fine.", state: "Goal: 200 seats." }) };
+  const broken = { ...w.ctx, runMutation: (name, args) => name === "projects.frameApply" ? Promise.reject(new Error("write failed")) : keep(name, args) };
+  const t6 = await project.projectChat(broken, { space: SPACE, brain: p, q: "What is the goal?", english: false, embeds: false, shared: shared0, note: true });
+  check("when the frame cannot be written the answer still comes", t6.lead === "Fine." && t6.stated === undefined);
+
+  /* the Brief written from the owner's answers */
+  reply = { briefText: JSON.stringify({ brief: "Goal: fill 200 seats — by May.\r\nNever: quote below 490 euros." }) };
+  const wb = await project.writeBrief(w.ctx, { space: SPACE, brain: p, answers: [{ q: "What is this project for?", a: "Fill 200 seats by May." }, { q: "Who reads it?", a: "  " }, { q: "What must it never do?", a: "Quote below 490 euros." }], key: "k" });
+  const bq = last(/You write the Brief of a project's chat/);
+  check("the Brief is written by one call from the answers given, the empty ones left out, with the project named", bq.user.includes('THE PROJECT "Framed", built on a document called "Framed.md"') && bq.user.includes("QUESTION: What is this project for?\nANSWER: Fill 200 seats by May.") && !bq.user.includes("Who reads it?") && /Never add a rule, never soften one, never invent a fact/.test(bq.user), bq.user.slice(0, 500));
+  check("it comes back clean, and nothing is kept until the owner saves", wb.text === "Goal: fill 200 seats, by May.\nNever: quote below 490 euros." && (await get()).brief?.text === saved.text);
+  check("no answer at all is refused", /answer at least one question/.test(String(await project.writeBrief(w.ctx, { space: SPACE, brain: p, answers: [{ q: "x", a: " " }], key: "k" }).catch(e => e.message))));
+  reply = { briefFail: true };
+  check("a model that fails says so", /unreachable|busy|503|down/i.test(String(await project.writeBrief(w.ctx, { space: SPACE, brain: p, answers: [{ q: "x", a: "y" }], key: "k" }).catch(e => e.message))));
+  reply = { briefText: "```json\nnot json at all\n```" };
+  check("words that are not JSON are taken as the Brief", (await project.writeBrief(w.ctx, { space: SPACE, brain: p, answers: [{ q: "x", a: "y" }], key: "k" })).text === "not json at all");
+  reply = {};
+}
+
+/* ================= the gaps in the file, found with no model ================= */
+
+{
+  const today = "2026-10-10";
+  const doc = [
+    { sid: 1, title: "Offer", text: "The Team plan costs €1,290 a seat.\n\nOwner: [Creator name]. Price for Starter: TBD. Footnote [1]. A [link](https://x.com). - [ ] task - [x] done. See [[p. 3]].\nLaunch by 2020-03-01 at the latest." },
+    { sid: 2, title: "Pricing", text: "The Team plan costs €1,190 a seat in the table.\n\nDeadline: 12 March 2020. Release in March 2020 is fixed. We met on 2019-05-01." },
+    { sid: 3, title: "Terms", text: "Refunds within 14 days. Team plan price is 1,290 euros. The plan starts on 2031-01-15." },
+  ];
+  const g = gaps.scanDoc(doc, today);
+  const of = k => g.filter(x => x.kind === k);
+  check("a placeholder nobody filled is found, with the section it stands in", of("placeholder").some(x => x.text === "[Creator name] is not filled in" && x.where === "Offer" && x.sid === 1) && of("placeholder").some(x => x.text === "TBD is not filled in"), JSON.stringify(of("placeholder")));
+  check("a link, a footnote, a checkbox and a page mark are not placeholders", of("placeholder").length === 2, JSON.stringify(of("placeholder")));
+  check("a date in the past next to a launch, a deadline or a release is found, in any of three forms", of("date").length === 3 && of("date").some(x => /^2020-03-01 is in the past/.test(x.text)) && of("date").some(x => /^12 March 2020 is in the past/.test(x.text)) && of("date").some(x => /^March 2020 is in the past/.test(x.text)), JSON.stringify(of("date")));
+  check("a past date with no cue that it was meant for later is left alone, and so is a date still ahead", !g.some(x => /2019-05-01|2031-01-15/.test(x.text)));
+  check("one thing with two numbers in two sections is found, both places named", of("number").length === 1 && /Two numbers for "team plan": €1,290 in Offer, €1,190 in Pricing/.test(of("number")[0].text), JSON.stringify(of("number")));
+  check("the list puts placeholders first, then dates, then numbers", g.map(x => x.kind).join() === "placeholder,placeholder,date,date,date,number", g.map(x => x.kind).join());
+  const page = gaps.scanDoc([{ sid: 1, title: "Page", text: "<script>var a = [Creator];</script><style>.x{}</style><p>Hello [Name]</p><p>Price: TBD</p>" }], today, true);
+  check("a page is read as a reader sees it: its scripts and brackets are left alone, its words are not", page.length === 1 && page[0].text === "TBD is not filled in", JSON.stringify(page));
+  check("French placeholders count", gaps.scanDoc([{ sid: 1, title: "Offre", text: "Prix : à définir. Contact : à compléter." }], today).length === 2);
+  check("a clean document has no gap", gaps.scanDoc([{ sid: 1, title: "Clean", text: "A short text with a price of €490." }], today).length === 0);
+  const many = gaps.scanDoc(Array.from({ length: 10 }, (_, i) => ({ sid: i + 1, title: `S${i}`, text: "TBD [Alpha one] [Beta two] [Gamma three] [Delta four] [Epsilon five]" })), today);
+  check("a section lists four placeholders and counts the rest", many.filter(x => x.sid === 1).length === 5 && /2 more placeholders/.test(many.filter(x => x.sid === 1)[4].text));
+  check("the list the owner sees is cut at 25 and says how many there are", gaps.gapList(many).gaps.length === 25 && gaps.gapList(many).total === many.length && many.length > 25);
+
+  const cols = [{ name: "Program", kind: "text", filled: 3 }, { name: "Price", kind: "num", filled: 2 }, { name: "Note", kind: "text", filled: 0 }];
+  const tg = gaps.scanTable([{ name: "Programs", cols, rows: 3 }], [["A,1,\nB,,\nC,TBD,"]]);
+  check("a table's columns filled in part, and empty, are found", tg.some(x => x.text === '1 empty cell in "Price"' && x.where === "Programs") && tg.some(x => x.text === 'The column "Note" is empty'), JSON.stringify(tg));
+  check("a placeholder in a cell is found with its row", tg.some(x => x.kind === "placeholder" && x.text === "TBD is not filled in, in row 3" && x.row === 3), JSON.stringify(tg));
+  check("a table with no row has no gap", gaps.scanTable([{ name: "T", cols: [{ name: "A", kind: "text", filled: 0 }], rows: 0 }], [[]]).length === 0);
+
+  /* read from the project, through the same pages a question reads */
+  const w = makeCtx();
+  const p = await docProject(w, "Gappy", "# Offer\n\nOwner: [Creator name]. Price: TBD.\n\n" + "word ".repeat(600));
+  const found = await project.gapsOf(w.ctx, { space: SPACE, brain: p });
+  check("a stored document is scanned, and the list names its file", found.file === "Gappy.md" && found.total === 2 && found.gaps[0].text === "[Creator name] is not filled in" && found.gaps[0].sid > 0, JSON.stringify(found));
+  const t = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Gappy table" });
+  const tb = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: t, name: "t.csv", kind: "table", sheets: [{ name: "T", header: sheet.colNames(["Program", "Price"]) }] });
+  await project.addRowPiece(w.ctx, { space: SPACE, brain: t, ver: tb.ver, sheet: 0, rows: [["A", "10"], ["B", ""], ["C", "TBD"]] });
+  await project.finishFile(w.ctx, { space: SPACE, brain: t, ver: tb.ver });
+  const tfound = await project.gapsOf(w.ctx, { space: SPACE, brain: t });
+  check("a stored table is scanned: an empty cell, and a placeholder in row 3", tfound.gaps.some(x => x.text === '1 empty cell in "Price"') && tfound.gaps.some(x => x.text === "TBD is not filled in, in row 3"), JSON.stringify(tfound));
+  const none = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "No file" });
+  check("a project with no file has no gap to find", (await project.gapsOf(w.ctx, { space: SPACE, brain: none })).total === 0);
+  check("another workspace cannot scan it", /not in this workspace/.test(String(await project.gapsOf(w.ctx, { space: "squidgy", brain: p }).catch(e => e.message))));
+}
+
 /* ================= the routes, end to end ================= */
 
 {
@@ -1829,6 +2009,30 @@ const docProject = async (w, name, text, kind = "doc") => {
   check("the owner drops a resource: the notes come back, and the project's memory holds them, not as instructions", dropped.notes === 1 && same(dropped.titles, ["Refund window"])
     && (await call("/api/project/get", { brain: slugR })).memory.some(m => m.title === "Refund window" && !m.instructions), JSON.stringify(dropped));
   check("an empty one is refused with its reason", /gave no text/.test((await call("/api/project/resource", { brain: slugR, name: "r.md", text: "" })).error));
+  /* the Brief, the State of play, the next step and the open questions, through the routes */
+  const briefTo = async (token, extra = {}) => (await call("/api/project/brief", { brain: slugR, action: "save", text: "Goal: x.", ...extra }, token));
+  check("the Brief route is closed without a session, to the demo and to another workspace", (await briefTo(null)).status === 401
+    && /demo lets you ask/.test((await briefTo("demo-token")).error) && /not in this workspace/.test((await briefTo("squidgy-token")).error));
+  const bs = await call("/api/project/brief", { brain: slugR, text: "Goal: fill 200 seats." });
+  const bg = await call("/api/project/get", { brain: slugR });
+  check("the owner saves a Brief through the route (save is the default action), and the project returns it with the State, the questions and the next step",
+    bs.text === "Goal: fill 200 seats." && bg.brief.text === "Goal: fill 200 seats." && bg.state === null && Array.isArray(bg.asks) && bg.next === true, JSON.stringify(bg.brief));
+  reply = { briefText: JSON.stringify({ brief: "Goal: x." }) };
+  const bw = await call("/api/project/brief", { brain: slugR, action: "write", answers: [{ q: "What is it for?", a: "x" }] });
+  check("write returns a Brief written from the answers, and keeps nothing", bw.text === "Goal: x." && (await call("/api/project/get", { brain: slugR })).brief.text === "Goal: fill 200 seats.", JSON.stringify(bw));
+  await w.ctx.runMutation("projects.frameApply", { space: "octopus", brain: slugR, add: ["What is the creator fee in percent?"] });
+  const askId = (await call("/api/project/get", { brain: slugR })).asks[0].id;
+  check("the State is edited, the next step turned off and a question dropped, through the same route",
+    (await call("/api/project/brief", { brain: slugR, action: "state", text: "Where we are." })).text === "Where we are."
+    && (await call("/api/project/brief", { brain: slugR, action: "next", on: false })).next === false && (await call("/api/project/get", { brain: slugR })).next === false
+    && (await call("/api/project/brief", { brain: slugR, action: "drop", id: askId })).asks.length === 0, "");
+  check("an action it does not know is refused with the list", /save, write, state, next or drop/.test((await call("/api/project/brief", { brain: slugR, action: "burn" })).error));
+  check("an empty Brief clears it", (await call("/api/project/brief", { brain: slugR, text: "" })).text === "" && (await call("/api/project/get", { brain: slugR })).brief === null);
+  const gp = await call("/api/project/gaps", { brain: slugR });
+  check("the gaps route lists the file's gaps with how many there are, and is closed to another workspace", Array.isArray(gp.gaps) && gp.total === gp.gaps.length && gp.file === "brief.md"
+    && /not in this workspace/.test((await call("/api/project/gaps", { brain: slugR }, "squidgy-token")).error), JSON.stringify(gp));
+  check("a project's state tells nothing of these to another workspace's list", (await call("/api/state", {}, "squidgy-token")).projects.length === 0);
+
   const seenBy = await call("/api/state");
   check("the project's list counts the instruction notes with the rest of its memory", seenBy.projects.find(x => x.slug === slugR).memory >= 1, JSON.stringify(seenBy.projects.map(x => [x.slug, x.memory])));
 

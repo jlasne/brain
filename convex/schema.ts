@@ -614,6 +614,24 @@ export default defineSchema({
     updated: v.number(),
   }).index("by_brain", ["brain"]),
 
+  /**
+   * What frames a project's chat beyond its notes, one row a project. The Brief
+   * is the owner's words on who the chat is here, the goal, the audience, the
+   * rules and when to speak up: every message reads it. The State of play is
+   * the chat's own short summary of where the project stands, rewritten when an
+   * exchange changes it. The asks are what the chat still needs from the
+   * owner. `next` is false when the owner turned off the closing next step.
+   */
+  projectBriefs: defineTable({
+    brain: v.string(),
+    brief: v.optional(v.string()),
+    briefAt: v.optional(v.number()),
+    state: v.optional(v.string()),
+    stateAt: v.optional(v.number()),
+    asks: v.optional(v.array(v.object({ id: v.string(), q: v.string(), at: v.number() }))),
+    next: v.optional(v.boolean()),
+  }).index("by_brain", ["brain"]),
+
   /* A change the chat proposed to the file: what it would do, what it replaced
      once applied, so it can be undone. The last 10 stay. */
   projectEdits: defineTable({

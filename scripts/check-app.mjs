@@ -3439,6 +3439,10 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/project/finish") return J({ sections: 1, chars: 10 });
       if (path === "/api/project/rename") { P.project.name = body.name; arg.state.projects.find(x => x.slug === body.brain).name = body.name; return J({ slug: body.brain, name: body.name }); }
       if (path === "/api/project/delete") { arg.state.projects = arg.state.projects.filter(x => x.slug !== body.brain); return J({ ok: true }); }
+      if (path === "/api/project/gaps") {
+        if (window.__gapsOld) return new Response("not found", { status: 404 });
+        return J(window.__gaps || { gaps: [], total: 0, file: P.file.name });
+      }
       if (path === "/api/project/download") { const sh = P.file.sheets[body.sheet || 0];
         return J({ name: P.file.name, kind: P.file.kind, sheet: sh?.name || "", text: P.file.kind === "table" ? (body.sheet ? "Note\nCall Ana\n" : 'Program,Price,Plan\nAlpha,490,Yes\nBeta,"1,200",No\nCode,00123,No\n') : arg.md }); }
       if (path === "/api/chats/get") return J({ chat: { id: body.id, title: "Is gold a hedge?", brain: "all", pinned: false, turns: [{ q: "Is gold a hedge?", a: "Gold held its value over 20 years.", sources: 4, level: "normal" }] } });
@@ -3489,7 +3493,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("words in the file are text, never markup", !lay.pwned && lay.img === 0, JSON.stringify(lay));
   const wrapped = await page.evaluate(() => [...document.querySelectorAll('.pj-sec[data-sid="1"] p')].pop().innerHTML);
   check("lines a PDF broke at the page's edge read on, and a line that ends a sentence still breaks", /ships a game before the last day\. Seats are limited\.<br>By Ana/.test(wrapped), wrapped);
-  check("the head names the project and its file, with Download and Delete: no Contents, and no way to replace the file", lay.title === "Launch plan" && lay.chip === "brief-v3.docx" && lay.btns === "Download/Delete", lay.btns);
+  check("the head names the project and its file, with Download and Delete: no Contents, and no way to replace the file", lay.title === "Launch plan" && lay.chip === "brief-v3.docx" && lay.btns === "Gaps/Download/Delete", lay.btns);
 
   /* a question: sent, answered as a proposal, with what it used marked in the file */
   await page.fill(".pj-comp textarea", "Brainstorm: is Team too high?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
@@ -3515,23 +3519,23 @@ for (const space of ["octopus", "squidgy"]) {
     keeps: window.__calls.filter(x => x.s === "/api/project/keep").length, offer: [...document.querySelectorAll("button")].some(b => /Keep in memory/.test(b.textContent)) }));
   check("the project filed a note by itself: a small Memory button by the message bar counts it, no bar of tabs is left, and nothing offers to keep an answer", auto.badge === "2" && auto.inBar && !auto.bar && auto.keeps === 0 && !auto.offer, JSON.stringify(auto));
   await page.click(".pj-memb"); await page.waitForTimeout(250);
-  check("the Memory button opens the sheet, which lists the notes", await page.evaluate(() => !!document.querySelector(".veil.pm") && document.querySelectorAll("#pmList .fv-row").length === 2));
+  check("the Memory button opens the sheet, which lists the notes", await page.evaluate(() => !!document.querySelector(".veil.pm") && document.querySelectorAll("#pmList .fv-row:not(.pm-fr)").length === 2));
   await page.keyboard.press("Escape"); await page.waitForTimeout(100);
   check("Escape puts the sheet away", await page.evaluate(() => !document.querySelector(".veil.pm")));
   await page.click(".pj-memb"); await page.waitForTimeout(250);
-  const mem = await page.evaluate(() => ({ sub: document.querySelector("#pmSub")?.textContent, bold: getComputedStyle(document.querySelector("#pmList .fv-row b")).fontWeight, tag: document.querySelector("#pmList .fv-row").tagName,
-    rows: [...document.querySelectorAll("#pmList .fv-row:not(.st)")].map(r => [r.querySelector("b").textContent, r.querySelector("span")?.textContent, r.querySelector("small").textContent]) }));
+  const mem = await page.evaluate(() => ({ sub: document.querySelector("#pmSub")?.textContent, bold: getComputedStyle(document.querySelector("#pmList .fv-row:not(.pm-fr) b")).fontWeight, tag: document.querySelector("#pmList .fv-row:not(.pm-fr)").tagName,
+    rows: [...document.querySelectorAll("#pmList .fv-row:not(.st):not(.pm-fr)")].map(r => [r.querySelector("b").textContent, r.querySelector("span")?.textContent, r.querySelector("small").textContent]) }));
   check("Memory opens as a sheet that lists its notes the way a folder lists its concepts: a bold title, a line, a small meta, the newest first",
     mem.sub === "2 notes, the newest first." && mem.rows.length === 2 && mem.tag === "BUTTON" && Number(mem.bold) >= 600
     && mem.rows[0][1] === "Team stays at 1,490 euros, sold in two payments." && mem.rows[1][1] === "Team is priced at 1,490 euros.", JSON.stringify(mem));
   check("each note says which section it rests on, and the file's change under it, then its day", mem.rows[0][2] === "In Offer · 9 Oct" && mem.rows[1][2] === "In Offer · The file changed since · 8 Oct", JSON.stringify(mem.rows));
-  await page.click("#pmList .fv-row >> nth=0"); await page.waitForTimeout(150);
+  await page.click("#pmList .fv-row:not(.pm-fr) >> nth=0"); await page.waitForTimeout(150);
   const note = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, text: document.querySelector(".pm-note .fv-pos")?.textContent, back: document.querySelector(".pm-back")?.textContent, forget: document.querySelector(".pm-note .pj-b")?.textContent }));
   check("a tap opens the note: its words in full, a way back to all notes, and Forget inside", note.title === "Team price" && note.text === "Team stays at 1,490 euros, sold in two payments." && note.back === "← All notes" && note.forget === "Forget this note", JSON.stringify(note));
   await page.click(".pm-back"); await page.waitForTimeout(100);
-  check("back returns to the list", await page.evaluate(() => document.querySelectorAll("#pmList .fv-row").length === 2));
-  await page.click("#pmList .fv-row >> nth=0"); await page.click(".pm-note .pj-b"); await page.waitForTimeout(300);
-  const gone = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/forget").pop()?.body, rows: document.querySelectorAll("#pmList .fv-row:not(.st)").length, badge: document.querySelector(".pj-memb i")?.textContent }));
+  check("back returns to the list", await page.evaluate(() => document.querySelectorAll("#pmList .fv-row:not(.pm-fr)").length === 2));
+  await page.click("#pmList .fv-row:not(.pm-fr) >> nth=0"); await page.click(".pm-note .pj-b"); await page.waitForTimeout(300);
+  const gone = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/forget").pop()?.body, rows: document.querySelectorAll("#pmList .fv-row:not(.st):not(.pm-fr)").length, badge: document.querySelector(".pj-memb i")?.textContent }));
   check("a note can be forgotten: the list comes back with one note left, and the button counts it", gone.call?.slug === "two-payments" && gone.rows === 1 && gone.badge === "1", JSON.stringify(gone));
   await page.click("#pmClose"); await page.waitForTimeout(100);
   check("Close puts the sheet away", await page.evaluate(() => !document.querySelector(".veil.pm")));
@@ -3566,12 +3570,12 @@ for (const space of ["octopus", "squidgy"]) {
     return { name: d.suggestedFilename(), body: await readFile(await d.path()) }; };
   await page.click(".pj-acts button >> text=Download"); await page.waitForTimeout(100);
   const fm = await page.evaluate(() => { const m = document.querySelector(".pj-menu"), r = m.getBoundingClientRect(); return { opts: [...m.querySelectorAll("button")].map(b => b.textContent), role: m.getAttribute("role"),
-    expanded: document.querySelector(".pj-acts button[aria-haspopup]").getAttribute("aria-expanded"), focus: document.activeElement?.dataset.fmt, inside: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight }; });
+    expanded: [...document.querySelectorAll(".pj-acts button[aria-haspopup]")].find(b => b.textContent === "Download").getAttribute("aria-expanded"), focus: document.activeElement?.dataset.fmt, inside: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight }; });
   check("Download asks for the format: a document as Markdown, PDF or a web page, in a menu inside the screen", JSON.stringify(fm.opts) === '["Markdown.md","PDF.pdf","Web page.html"]' && fm.role === "menu" && fm.expanded === "true" && fm.focus === "md" && fm.inside, JSON.stringify(fm));
   await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowDown");
   check("the arrow keys move through the formats and come round", await page.evaluate(() => document.activeElement?.dataset.fmt === "md"));
   await page.keyboard.press("Escape"); await page.waitForTimeout(80);
-  check("Escape puts the menu away", await page.evaluate(() => !document.querySelector(".pj-menu") && document.querySelector(".pj-acts button[aria-haspopup]").getAttribute("aria-expanded") === "false"));
+  check("Escape puts the menu away", await page.evaluate(() => !document.querySelector(".pj-menu") && [...document.querySelectorAll(".pj-acts button[aria-haspopup]")].find(b => b.textContent === "Download").getAttribute("aria-expanded") === "false"));
   await page.click(".pj-acts button >> text=Download"); await page.mouse.click(520, 300); await page.waitForTimeout(80);
   check("a press outside puts it away too", await page.evaluate(() => !document.querySelector(".pj-menu")));
   await page.click(".pj-acts button >> text=Download"); await page.click(".pj-acts button >> text=Download"); await page.waitForTimeout(80);
@@ -3607,7 +3611,28 @@ for (const space of ["octopus", "squidgy"]) {
     seg: [...document.querySelectorAll(".pj-seg button")].map(b => b.textContent).join() }));
   check("a table shows a tab for each sheet, a grid with row numbers, numbers on the right", tbl.tabs === "Programs,Notes" && tbl.head === "#|Program|Price|Plan" && tbl.nums === "r||n|" && tbl.rows === 4 && tbl.first === "1" && tbl.seg === "Table,Chat", JSON.stringify(tbl));
   check("and what each column holds, computed when it was read", /4<\/b>|4 rows/.test(tbl.foot) || /^4 rows · 3 columns/.test(tbl.foot) ? tbl.stats[1] === "Price: total 5,130 · average 1,282.5 · lowest 490 · highest 2,400" && tbl.stats[2] === "Plan: Yes, No" : false, JSON.stringify(tbl));
-  check("a table offers Download and Delete, never Contents or Replace", tbl.btn === "Download/Delete", tbl.btn);
+  check("a table offers Gaps, Download and Delete, never Contents or Replace", tbl.btn === "Gaps/Download/Delete", tbl.btn);
+  /* the gaps in the file: found in code, listed under the button, each one a request to the chat */
+  await page.evaluate(() => { window.__gaps = { file: "competitors.xlsx", total: 28, gaps: [{ kind: "empty", text: '1 empty cell in "Price"', where: "Programs", sheet: 0 }, { kind: "placeholder", text: "TBD is not filled in, in row 3", where: "Programs", sheet: 0, row: 3 },
+    ...Array.from({ length: 24 }, (_, i) => ({ kind: "number", text: `Two numbers for "thing ${i}"`, where: "Notes" }))] }; });
+  await page.click(".pj-acts button >> text=Gaps"); await page.waitForTimeout(250);
+  const gm = await page.evaluate(() => { const m = document.querySelector(".pj-menu.gaps"), r = m?.getBoundingClientRect(), b = [...document.querySelectorAll(".pj-acts button")].find(x => x.textContent === "Gaps");
+    return { n: m?.querySelectorAll("button").length, first: m?.querySelector("button b")?.textContent, where: m?.querySelector("button span")?.textContent, more: m?.querySelector("p")?.textContent, role: m?.getAttribute("role"),
+      expanded: b?.getAttribute("aria-expanded"), inside: r && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, call: window.__calls.filter(x => x.s === "/api/project/gaps").pop()?.body }; });
+  check("Gaps lists what a reader would stop at, a line each with where it stands, inside the screen, and says how many more there are", gm.n === 26 && gm.first === '1 empty cell in "Price"' && gm.where === "Programs" && gm.more === "2 more are not shown." && gm.role === "menu" && gm.expanded === "true" && gm.inside && gm.call?.brain === "pricing-review", JSON.stringify(gm));
+  await page.click(".pj-menu.gaps button >> nth=1"); await page.waitForTimeout(200);
+  const gfill = await page.evaluate(() => ({ menu: !!document.querySelector(".pj-menu"), v: document.querySelector(".pj-comp textarea").value, focus: document.activeElement === document.querySelector(".pj-comp textarea") }));
+  check("a gap chosen puts a request to fix it in the message bar, and the menu goes", !gfill.menu && gfill.v === "Fix this gap in Programs: TBD is not filled in, in row 3." && gfill.focus, JSON.stringify(gfill));
+  await page.fill(".pj-comp textarea", "");
+  await page.evaluate(() => { window.__gaps = { file: "competitors.xlsx", total: 0, gaps: [] }; });
+  await page.click(".pj-acts button >> text=Gaps"); await page.waitForTimeout(200);
+  check("with none to find it says so", await page.evaluate(() => /^No gap found/.test(document.querySelector(".pj-menu.gaps p")?.textContent || "") && document.querySelectorAll(".pj-menu.gaps button").length === 0));
+  await page.click(".pj-acts button >> text=Gaps"); await page.waitForTimeout(150);
+  check("the button again closes it", await page.evaluate(() => !document.querySelector(".pj-menu")));
+  await page.evaluate(() => { window.__gapsOld = true; });
+  await page.click(".pj-acts button >> text=Gaps"); await page.waitForTimeout(250);
+  check("a server older than the page says so, and what to run", await page.evaluate(() => /cannot look for gaps yet\. Run convex deploy\./.test(document.querySelector(".pj-menu.gaps p")?.textContent || "")));
+  await page.keyboard.press("Escape"); await page.evaluate(() => { window.__gapsOld = false; });
   await page.evaluate(() => { window.__xl = []; window.XLSX = { utils: { book_new: () => ({ SheetNames: [], Sheets: {} }), aoa_to_sheet: rows => ({ rows }), book_append_sheet: (wb, ws, name) => { wb.SheetNames.push(name); wb.Sheets[name] = ws; } },
     write: (wb, o) => { window.__xl.push({ names: wb.SheetNames.slice(), sheets: wb.SheetNames.map(n => wb.Sheets[n].rows), o }); return new Uint8Array([80, 75, 3, 4]).buffer; } }; });
   await page.click(".pj-acts button >> text=Download"); await page.waitForTimeout(100);
@@ -3737,7 +3762,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("on a phone Memory is a small button in the message bar, 36px, with its count, and no tab", mb.inBar && mb.w >= 36 && mb.w <= 40 && mb.h >= 36 && mb.h <= 40 && mb.badge === "1" && !mb.tabs && mb.title === "Memory: 1 note", JSON.stringify(mb));
   await page.click(".pj-memb"); await page.waitForTimeout(300);
   const mm = await page.evaluate(() => { const r = document.querySelector(".veil.pm .sheet")?.getBoundingClientRect();
-    return { notes: [...document.querySelectorAll("#pmList .fv-row b")].map(x => x.textContent), wide: document.documentElement.scrollWidth > innerWidth + 1, left: r && Math.round(r.left), right: r && Math.round(r.right), bottom: r && Math.round(r.bottom), ih: innerHeight }; });
+    return { notes: [...document.querySelectorAll("#pmList .fv-row:not(.pm-fr) b")].map(x => x.textContent), wide: document.documentElement.scrollWidth > innerWidth + 1, left: r && Math.round(r.left), right: r && Math.round(r.right), bottom: r && Math.round(r.bottom), ih: innerHeight }; });
   check("it opens a sheet from the bottom with the notes listed, inside the screen", JSON.stringify(mm.notes) === '["Seats"]' && !mm.wide && mm.left >= 0 && mm.right <= 390 && Math.abs(mm.bottom - mm.ih) <= 1, JSON.stringify(mm));
   await page.click("#pmClose"); await page.waitForTimeout(200);
   check("and Close brings the chat back as it was", await page.evaluate(() => !document.querySelector(".veil.pm") && document.querySelector(".pj-seg .on")?.textContent === "Chat" && !!document.querySelector(".pj-comp") && document.querySelectorAll(".pj-turn").length === 1));
@@ -3776,22 +3801,29 @@ for (const space of ["octopus", "squidgy"]) {
         const kind = window.__oldServer ? null : (body.make || null), slug = "made-" + (body.make || "file") + "-" + (window.__n = (window.__n || 0) + 1);
         window.__proj[slug] = { project: { slug, name: body.name, created: "2026-10-09" },
           file: kind ? { name: `${body.name}.${kind === "html" ? "html" : kind === "table" ? "csv" : "md"}`, kind, made: true, sheets: [{ name: kind === "table" ? "Sheet 1" : body.name, header: [], cols: [], rows: 0 }], chars: 0, sections: 0, status: "ready", ver: 1, at: 1 } : null,
-          cards: [], turns: [], edits: [], memory: [] };
+          cards: [], turns: [], edits: [], memory: [], ...(window.__newState ? { state: { text: "Goal: 200 seats by May.", at: 1 } } : {}) };
         arg.state.projects.unshift({ slug, name: body.name, kind, file: window.__proj[slug].file?.name || "", status: kind ? "ready" : "empty", made: !!kind, chars: 0, sections: 0, memory: 0, at: Date.now() });
         return J({ slug });
       }
       if (path === "/api/project/get") return J(P);
       if (path === "/api/project/doc") return J({ sections: P.file?.kind === "doc" && P.file.chars ? [{ sid: 1, ord: 1, sheet: 0, title: "Brief", text: "# Brief\n\nFill 200 seats." }] : [] });
       if (path === "/api/project/delete") { arg.state.projects = arg.state.projects.filter(x => x.slug !== body.brain); delete window.__proj[body.brain]; return J({ ok: true }); }
-      if (path === "/api/project/instructions") {
-        window.__inst = body;
-        if (window.__instOld) return new Response("not found", { status: 404 });
-        if (window.__instFail) return J({ error: "the model host was unreachable" });
-        P.memory = P.memory.filter(m => !m.instructions);
-        P.memory.push({ slug: "tone", title: "Tone", position: "Write in a formal tone.", summaryLine: "Formal tone", updated: "2026-10-09", instructions: true, n: 1, dates: [] },
-          { slug: "audience", title: "Audience", position: "The audience is CFOs.", summaryLine: "CFOs", updated: "2026-10-09", instructions: true, n: 2, dates: [] });
-        const row = arg.state.projects.find(x => x.slug === body.brain); if (row) row.memory = P.memory.length;
-        return J({ notes: 2, titles: ["Tone", "Audience"], ...(window.__instCut ? { cut: true } : {}) });
+      if (path === "/api/project/brief") {
+        window.__brief = body;
+        if (window.__briefOld) return new Response("not found", { status: 404 });
+        if (window.__briefFail) return J({ error: "the model host was unreachable" });
+        const a = body.action || "save";
+        if (a === "save") {
+          const text = String(body.text || "").trim().slice(0, 6000), had = P.memory.filter(m => m.instructions).length;
+          P.brief = text ? { text, at: Date.now() } : null; P.memory = P.memory.filter(m => !m.instructions);
+          const row = arg.state.projects.find(x => x.slug === body.brain); if (row) row.memory = P.memory.length;
+          return J({ text, ...(window.__briefCut ? { cut: true } : {}), ...(had && text ? { replaced: had } : {}) });
+        }
+        if (a === "write") return J({ text: window.__written || "Goal: fill 200 seats." });
+        if (a === "state") { const text = String(body.text || "").trim(); P.state = text ? { text, at: Date.now() } : null; return J({ text }); }
+        if (a === "next") { P.next = body.on !== false; return J({ next: P.next }); }
+        if (a === "drop") { P.asks = (P.asks || []).filter(x => x.id !== body.id); return J({ asks: P.asks }); }
+        return J({ error: "save, write, state, next or drop" });
       }
       if (path === "/api/project/resource") {
         (window.__res = window.__res || []).push(body);
@@ -3825,6 +3857,10 @@ for (const space of ["octopus", "squidgy"]) {
           a: "**Hero:** a title and a promise.\n\n### Next\n- Add a contact form\n  - with a phone field\n\n> Keep it short.", proposal: false, quotes: [],
           used: { file: { name: f.name, whole: true }, folders: [], memory: 0, ...(P.memory.some(m => m.instructions) ? { rules: P.memory.filter(m => m.instructions).length } : {}) }, ...(empty ? { noted: ["Page purpose"] } : {}), intent: "change",
           edit: { id: "e" + (P.edits.length + 1), status: "applied", preview: [{ label: "New section at the start", before: "", after: "<!doctype html>" }] } };
+        if (window.__frame) {
+          Object.assign(t, { next: "Fill the 3 empty prices", asks: [{ id: "ab12", q: "What is the creator fee?" }], stated: true });
+          P.state = { text: "Goal: fill 200 seats. Team stays at 1,490 euros.", at: Date.now() }; P.asks = [{ id: "ab12", q: "What is the creator fee?", at: Date.now() }];
+        }
         P.turns.push(t); P.edits.unshift({ id: t.edit.id, at: Date.now(), status: "applied", preview: t.edit.preview });
         if (empty) P.memory.unshift({ slug: "page-purpose", title: "Page purpose", position: "A landing page for a coaching business (2026-10-09).", summaryLine: "", updated: "2026-10-09", dates: ["2026-10-09"] });
         return J({ turn: t });
@@ -3851,7 +3887,7 @@ for (const space of ["octopus", "squidgy"]) {
   /* one field for the file to update: a file you have, a type to start from nothing, or neither */
   const oneField = await page.evaluate(() => ({ labels: [...document.querySelectorAll(".sheet label")].map(l => l.textContent.replace(/\s+/g, " ").trim()), row: [...document.querySelectorAll(".pj-make button")].map(b => b.textContent).join(),
     sections: document.querySelectorAll(".sheet .f").length }));
-  check("the sheet asks for one file to update, with a file or a type in one row, and instructions apart, optional", JSON.stringify(oneField.labels) === '["Name","The file to update","Instructions optional"]' && oneField.row === "Choose a file,Document,Table,HTML page", JSON.stringify(oneField));
+  check("the sheet asks for one file to update, with a file or a type in one row, and a Brief apart, optional", JSON.stringify(oneField.labels) === '["Name","The file to update","Brief optional"]' && oneField.row === "Choose a file,Document,Table,HTML page", JSON.stringify(oneField));
   await page.click("[data-make=html]");
   const kindOn = await page.evaluate(() => ({ on: [...document.querySelectorAll(".pj-make .on")].map(b => b.textContent).join(), file: document.getElementById("npFile").textContent, news: window.__calls.filter(x => x.s === "/api/project/new").length }));
   check("a type is chosen, not made: it lights, says what it is, and nothing is created before Create project", kindOn.on === "HTML page" && /^An empty page\. Describe it in the chat/.test(kindOn.file) && kindOn.news === 0, JSON.stringify(kindOn));
@@ -3869,7 +3905,7 @@ for (const space of ["octopus", "squidgy"]) {
   /* the instructions: a text field to paste in, with a + file button, as the personal memory has */
   const field = await page.evaluate(() => ({ ta: document.querySelector("#npRules textarea.mem")?.tagName, ph: document.getElementById("npRulesText")?.placeholder, add: document.getElementById("npRulesAdd")?.textContent, hint: document.querySelector("#npRules + .hint")?.textContent,
     asFile: [...document.querySelectorAll(".sheet button")].some(b => b.textContent === "Choose a file" && b.closest("#npRules")) }));
-  check("the instructions are a text field like the personal memory's, with a + file button, and no file button of their own", field.ta === "TEXTAREA" && /^Paste or write the instructions here/.test(field.ph) && field.add === "+ file" && !field.asFile && /filed in its memory/.test(field.hint), JSON.stringify(field));
+  check("the Brief is a text field like the personal memory's, with a + file button, and no file button of their own", field.ta === "TEXTAREA" && /^Paste or write the Brief here/.test(field.ph) && field.add === "+ file" && !field.asFile && /The chat reads it at every message/.test(field.hint), JSON.stringify(field));
   await page.fill("#npRulesText", "Write formally.");
   check("it counts what it holds, and the file to update keeps its type", (await page.textContent("#npRulesCount")) === "15 characters" && (await page.evaluate(() => [...document.querySelectorAll(".pj-make .on")].map(b => b.textContent).join())) === "Document");
   await page.fill("#npRulesText", "");
@@ -3885,7 +3921,7 @@ for (const space of ["octopus", "squidgy"]) {
   await fcRt.setFiles({ name: "prices.csv", mimeType: "text/csv", buffer: Buffer.from("a,b\n1,2\n") });
   await page.waitForTimeout(200);
   const refused = await page.evaluate(() => ({ text: document.getElementById("npRulesText").value, say: document.getElementById("npRulesCount").textContent, bad: document.getElementById("npRulesCount").classList.contains("bad") }));
-  check("a table cannot be added: the field says so in red and keeps its words", /^prices\.csv is a table\. Instructions are words/.test(refused.say) && refused.bad && refused.text === "Write formally.\n\nThe audience is CFOs.", JSON.stringify(refused));
+  check("a table cannot be added: the field says so in red and keeps its words", /^prices\.csv is a table\. A Brief is words/.test(refused.say) && refused.bad && refused.text === "Write formally.\n\nThe audience is CFOs.", JSON.stringify(refused));
   await page.fill("#npRulesText", "");
   check("emptied, it says nothing", (await page.textContent("#npRulesCount")) === "");
   await page.click("#npCancel"); await page.waitForTimeout(150);
@@ -3921,7 +3957,7 @@ for (const space of ["octopus", "squidgy"]) {
   const web = await page.evaluate(() => { const f = document.querySelector(".pj-frame"); return { sandbox: f?.getAttribute("sandbox"), src: f?.srcdoc, code: document.querySelector(".pj-code")?.hidden,
     acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), empty: !!document.querySelector(".pj-empty") }; });
   check("the page shows as it renders, in a frame that can reach nothing of the app", web.src === PAGE && web.sandbox === "allow-scripts allow-popups" && !/same-origin/.test(web.sandbox) && web.code === true && !web.empty, JSON.stringify(web));
-  check("the head offers Page and Code, and Download now", web.acts === "Page/Code/Download/Delete", web.acts);
+  check("the head offers Page and Code, and Download now", web.acts === "Page/Code/Gaps/Download/Delete", web.acts);
   await page.click(".pj-view button >> text=Code"); await page.waitForTimeout(150);
   const code = await page.evaluate(() => ({ text: document.querySelector(".pj-code").textContent, hidden: document.querySelector(".pj-code").hidden, frame: document.querySelector(".pj-frame").hidden, on: document.querySelector(".pj-view .on")?.textContent }));
   check("Code shows the page's words as they are written", code.text === PAGE && !code.hidden && code.frame && code.on === "Code", JSON.stringify(code));
@@ -3971,7 +4007,7 @@ for (const space of ["octopus", "squidgy"]) {
     acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), page: !!document.querySelector(".pj-paper .pj-page"), seg: document.querySelector(".pj-seg button")?.textContent,
     ph: document.querySelector(".pj-comp textarea").placeholder, words: document.querySelector(".pj-a .pj-md")?.textContent, chips: document.querySelectorAll(".pj-used").length,
     row: document.querySelector("#projects .pj-row.on")?.title }));
-  check("what is said makes the file: the drop gives way to the document, with its name, its buttons and its tab", !said.drop && said.page && said.chip === "New project.md" && said.acts === "Download/Delete" && said.seg === "Document", JSON.stringify(said));
+  check("what is said makes the file: the drop gives way to the document, with its name, its buttons and its tab", !said.drop && said.page && said.chip === "New project.md" && said.acts === "Gaps/Download/Delete" && said.seg === "Document", JSON.stringify(said));
   check("the message bar then asks about the document, the answer says in its words which folder it came from, with no chip, and the list knows the file", /^Ask about the document/.test(said.ph) && /^I wrote the brief from your Content folder\./.test(said.words) && said.chips === 0 && /New project\.md/.test(said.row), JSON.stringify(said));
 
   /* a server older than this page: nothing is left behind, and the sheet says what to do */
@@ -3993,85 +4029,167 @@ for (const space of ["octopus", "squidgy"]) {
   const up = await page.evaluate(() => window.__calls.filter(x => /api\/project\/(begin|part)/.test(x.s)).slice(-2).map(x => ({ s: x.s.split("/").pop(), b: x.body })));
   check("an HTML file is a page: its code goes whole, as written", up[0].s === "begin" && up[0].b.kind === "html" && up[1].b.text === "<!doctype html>\n<html><body><p>Hello</p></body></html>", JSON.stringify(up));
 
-  /* instructions given at creation: a file added to the field, read here, filed in the memory after the project and its file */
-  await page.evaluate(() => { window.__instFail = false; window.__instOld = false; window.__instCut = false; });
+  /* a Brief given at creation: a file added to the field, read here, saved as written after the project and its file */
+  await page.evaluate(() => { window.__briefFail = false; window.__briefOld = false; window.__briefCut = false; });
   await page.click("#newProject"); await page.waitForTimeout(200);
   await page.fill("#npName", "Offer brief"); await page.click("[data-make=doc]");
   const [fcR] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npRulesAdd")]);
   await fcR.setFiles({ name: "rules.md", mimeType: "text/markdown", buffer: Buffer.from("# Rules\n\nWrite in a formal tone.\n\n[[p. 2]]\nThe audience is CFOs.") });
   await page.waitForTimeout(250);
   await page.click("#npMake"); await page.waitForTimeout(1000);
-  const given = await page.evaluate(() => { const c = window.__calls.map(x => x.s); const i = c.lastIndexOf("/api/project/instructions");
-    return { inst: window.__inst, order: c.slice(c.lastIndexOf("/api/project/new"), i + 1).filter(x => /project\/(new|instructions)/.test(x)), view: document.querySelector("main").dataset.view, sheet: !!document.querySelector(".veil"), badge: document.querySelector(".pj-memb i")?.textContent }; });
-  check("the instructions are sent once the project is made, as the file's name and the words in the field, with no page mark", given.order.join() === "/api/project/new,/api/project/instructions" && given.inst.name === "rules.md" && given.inst.text === "# Rules\n\nWrite in a formal tone.\n\nThe audience is CFOs." && given.inst.brain, JSON.stringify(given));
-  check("then the project opens, and its Memory button counts the notes the instructions made", given.view === "project" && !given.sheet && given.badge === "2", JSON.stringify(given));
+  const given = await page.evaluate(() => { const c = window.__calls.map(x => x.s); const i = c.lastIndexOf("/api/project/brief");
+    return { brief: window.__brief, order: c.slice(c.lastIndexOf("/api/project/new"), i + 1).filter(x => /project\/(new|brief)/.test(x)), view: document.querySelector("main").dataset.view, sheet: !!document.querySelector(".veil"),
+      badge: document.querySelector(".pj-memb i")?.textContent, ask: !!document.querySelector("#pjBriefGo") }; });
+  check("the Brief is sent once the project is made, as the words in the field with no page mark, saved as written, with no model call", given.order.join() === "/api/project/new,/api/project/brief" && given.brief.action === "save" && given.brief.text === "# Rules\n\nWrite in a formal tone.\n\nThe audience is CFOs." && !!given.brief.brain, JSON.stringify(given));
+  check("then the project opens, counts no note (a Brief is none), and does not offer to write the Brief it has", given.view === "project" && !given.sheet && given.badge === undefined && !given.ask, JSON.stringify(given));
   await page.click(".pj-memb"); await page.waitForTimeout(300);
-  const grouped = await page.evaluate(() => ({ sub: document.getElementById("pmSub").textContent, eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), rows: [...document.querySelectorAll("#pmList .fv-row")].map(r => r.querySelector("b").textContent + "|" + r.querySelector("small").textContent), add: document.getElementById("pmAdd").textContent }));
-  check("the Memory sheet puts the instructions first, in their order, says they are read at every message, and offers to add to the memory",
-    grouped.sub === "2 instructions." && JSON.stringify(grouped.eyes) === '["Instructions, read at every message"]' && grouped.rows.join() === "Tone|From the instructions · 9 Oct,Audience|From the instructions · 9 Oct" && grouped.add === "Add to memory", JSON.stringify(grouped));
-  await page.click("#pmList .fv-row >> nth=0"); await page.waitForTimeout(100);
-  check("an instruction opens like a note, with its words in full and a way to forget it", await page.evaluate(() => document.querySelector(".pm-t")?.textContent === "Tone" && document.querySelector(".pm-note .fv-pos")?.textContent === "Write in a formal tone." && !!document.querySelector(".pm-note .pj-b")));
-  await page.click("#pmClose"); await page.waitForTimeout(100);
-  await page.fill(".pj-comp textarea", "Write the brief"); await page.keyboard.press("Enter"); await page.waitForTimeout(900);
-  check("an answer does not say how many instructions it followed: it followed them behind the words", await page.evaluate(() => !document.querySelector(".pj-used") && !/Instructions ·/.test(document.querySelector(".pj-thread").textContent)));
-  await page.click(".pj-memb"); await page.waitForTimeout(300);
-  const withNotes = await page.evaluate(() => ({ eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), sub: document.getElementById("pmSub").textContent }));
-  check("after a message, Memory keeps the instructions apart from the notes the project filed since", JSON.stringify(withNotes.eyes) === '["Instructions, read at every message","Notes"]' && withNotes.sub === "2 instructions and 1 note.", JSON.stringify(withNotes));
-  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+  const frame0 = await page.evaluate(() => ({ sub: document.getElementById("pmSub").textContent, rows: [...document.querySelectorAll("#pmList .pm-fr")].map(r => r.querySelector("b").textContent + "|" + r.querySelector("span").textContent + "|" + (r.querySelector("small")?.textContent || "")),
+    eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), add: document.getElementById("pmAdd").textContent, notes: document.querySelectorAll("#pmList .fv-row:not(.pm-fr)").length }));
+  check("the Memory sheet leads with the project's frame: the Brief with its first words, the State of play the chat will write, the next step on; and no note is listed",
+    JSON.stringify(frame0.rows.map(r => r.split("|")[0])) === '["Brief","State of play","Next step"]' && frame0.rows[0].split("|")[1] === "# Rules Write in a formal tone. The audience is CFOs." && /^Read at every message/.test(frame0.rows[0].split("|")[2])
+    && /^The chat writes it as the project moves\./.test(frame0.rows[1].split("|")[1]) && /^On\. An answer may end with one line/.test(frame0.rows[2].split("|")[1]) && frame0.eyes.length === 0 && frame0.notes === 0 && frame0.add === "Add to memory", JSON.stringify(frame0));
+  await page.click("#pmBrief"); await page.waitForTimeout(100);
+  const ed = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, ta: document.getElementById("pmBriefText")?.value, count: document.querySelector(".pm-note .mem-bar .hint")?.textContent, mic: !!document.querySelector(".pm-note .pj-mic"),
+    five: document.getElementById("pmBriefAsk")?.textContent, save: document.getElementById("pmBriefSave")?.textContent, back: document.querySelector(".pm-back")?.textContent, focus: document.activeElement?.id, add: getComputedStyle(document.getElementById("pmAdd")).display }));
+  check("the Brief opens in a field of its own, with its words, a count out of 6,000, a mic, a way back, and a way to write it again from five questions; the sheet's own Add button gives way",
+    ed.title === "Brief" && ed.ta === "# Rules\n\nWrite in a formal tone.\n\nThe audience is CFOs." && ed.count === `${ed.ta.length} of 6,000 characters` && ed.mic && ed.five === "Write it again from 5 questions" && ed.save === "Save the Brief" && ed.back === "← All notes" && ed.focus === "pmBriefText" && ed.add === "none", JSON.stringify(ed));
+  await page.fill("#pmBriefText", "Goal: fill 200 seats.\nNever: quote below 490 euros.");
+  await page.click("#pmBriefSave"); await page.waitForTimeout(400);
+  const saved = await page.evaluate(() => ({ call: window.__brief, sub: document.getElementById("pmSub").textContent, row: document.querySelector("#pmBrief span")?.textContent }));
+  check("saving sends the words, and the list then shows the Brief's first words under a line that says it is saved", saved.call.action === "save" && saved.call.text === "Goal: fill 200 seats.\nNever: quote below 490 euros." && saved.sub === "Brief saved. The chat reads it from the next message." && saved.row === "Goal: fill 200 seats. Never: quote below 490 euros.", JSON.stringify(saved));
 
-  /* the project is made, and the instructions fail: the sheet says so, offers the project, and Memory adds them again */
-  await page.evaluate(() => { window.__instFail = true; });
+  /* five questions, one at a time, answered in a field with a mic; one call writes the Brief; the owner reads it and saves it */
+  await page.evaluate(() => { window.__written = "Goal: fill 200 seats by May.\nAlways: name the section.\nSpeak up when: two numbers differ."; });
+  await page.click("#pmBrief"); await page.click("#pmBriefAsk"); await page.waitForTimeout(100);
+  const q1 = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, step: document.querySelector(".pm-note small")?.textContent, q: document.querySelector(".pm-q")?.textContent, go: document.getElementById("pmGo")?.textContent,
+    mic: !!document.querySelector(".pm-note .pj-mic"), focus: document.activeElement?.id, ph: document.getElementById("pmAnswer")?.placeholder }));
+  check("five questions come one at a time, each with a mic and a cursor in its field", q1.title === "Five questions" && q1.step === "Question 1 of 5" && /^What is this project for\?/.test(q1.q) && q1.go === "Next" && q1.mic && q1.focus === "pmAnswer" && /You can skip a question/.test(q1.ph), JSON.stringify(q1));
+  await page.fill("#pmAnswer", "Fill 200 seats by May."); await page.click("#pmGo");
+  await page.click("#pmGo");
+  await page.fill("#pmAnswer", "Always name the section."); await page.click("#pmGo");
+  await page.click("#pmBack"); await page.waitForTimeout(50);
+  const back3 = await page.evaluate(() => ({ step: document.querySelector(".pm-note small")?.textContent, kept: document.getElementById("pmAnswer").value }));
+  check("Back returns to the question before, with the answer kept", back3.step === "Question 3 of 5" && back3.kept === "Always name the section.", JSON.stringify(back3));
+  await page.click("#pmGo"); await page.click("#pmGo");
+  const q5 = await page.evaluate(() => ({ step: document.querySelector(".pm-note small")?.textContent, go: document.getElementById("pmGo")?.textContent, q: document.querySelector(".pm-q")?.textContent }));
+  check("the last question offers to write the Brief", q5.step === "Question 5 of 5" && q5.go === "Write my Brief" && /^When should the chat speak up/.test(q5.q), JSON.stringify(q5));
+  await page.fill("#pmAnswer", "Two numbers that differ.");
+  await page.click("#pmGo"); await page.waitForTimeout(500);
+  const wrote = await page.evaluate(() => { const c = window.__calls.filter(x => x.s === "/api/project/brief").filter(x => x.body.action === "write").pop(); return { answers: c?.body.answers, ta: document.getElementById("pmBriefText")?.value, note: document.querySelector(".pm-note > .hint")?.textContent, title: document.querySelector(".pm-t")?.textContent }; });
+  check("only the questions answered are sent, with their words; the Brief written comes back in the field to read, change and save", wrote.answers?.length === 3 && wrote.answers[0].a === "Fill 200 seats by May." && wrote.answers[1].a === "Always name the section." && wrote.answers[2].a === "Two numbers that differ." && /^What must the chat always do/.test(wrote.answers[1].q)
+    && wrote.title === "Brief" && wrote.ta === "Goal: fill 200 seats by May.\nAlways: name the section.\nSpeak up when: two numbers differ." && wrote.note === "Written from your answers. Read it, change what you want, then save.", JSON.stringify(wrote));
+  await page.click("#pmBriefSave"); await page.waitForTimeout(300);
+  check("saving it keeps what was written", await page.evaluate(() => window.__brief.text === "Goal: fill 200 seats by May.\nAlways: name the section.\nSpeak up when: two numbers differ."));
+  await page.evaluate(() => { window.__briefFail = true; });
+  await page.click("#pmBrief"); await page.click("#pmBriefAsk"); await page.fill("#pmAnswer", "x"); for (let i = 0; i < 4; i++) await page.click("#pmGo");
+  await page.fill("#pmAnswer", "y");
+  await page.click("#pmGo"); await page.waitForTimeout(400);
+  const wfail = await page.evaluate(() => ({ say: document.querySelector(".pm-note > .hint")?.textContent, bad: document.querySelector(".pm-note > .hint")?.classList.contains("bad"), enabled: !document.getElementById("pmGo").disabled && !document.getElementById("pmAnswer").disabled, kept: document.getElementById("pmAnswer").value }));
+  check("when the Brief cannot be written, the page says why in red and keeps the answer, ready to send again", /unreachable/.test(wfail.say) && wfail.bad && wfail.enabled && wfail.kept === "y", JSON.stringify(wfail));
+  await page.evaluate(() => { window.__briefFail = false; });
+  await page.click(".pm-back"); await page.waitForTimeout(100);
+
+  /* the State of play: written by the chat, edited by the owner */
+  await page.click("#pmState"); await page.waitForTimeout(100);
+  check("the State of play opens empty, with what it is and a hint that the chat writes it", await page.evaluate(() => document.querySelector(".pm-t")?.textContent === "State of play" && document.getElementById("pmStateText").value === "" && /^Nothing yet\./.test(document.getElementById("pmStateText").placeholder) && /rewrites it when an answer changes it/.test(document.querySelector(".pm-note .fv-pos").textContent)));
+  await page.fill("#pmStateText", "Goal: 200 seats. Open: the creator fee.");
+  await page.click("#pmStateSave"); await page.waitForTimeout(300);
+  const stSaved = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/brief").pop()?.body, sub: document.getElementById("pmSub").textContent, row: [...document.querySelectorAll("#pmList .pm-fr")].map(r => r.querySelector("span").textContent)[1], meta: document.querySelector("#pmState small").textContent }));
+  check("the State saved is sent, shown in the list, and credited to the chat", stSaved.call.action === "state" && stSaved.call.text === "Goal: 200 seats. Open: the creator fee." && stSaved.sub === "State of play saved." && stSaved.row === "Goal: 200 seats. Open: the creator fee." && /^Written by the chat/.test(stSaved.meta), JSON.stringify(stSaved));
+
+  /* the next step: on, and the owner's to turn off */
+  await page.click("#pmNext"); await page.waitForTimeout(300);
+  const nx = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/brief").pop()?.body, row: document.querySelector("#pmNext span").textContent, meta: document.querySelector("#pmNext small").textContent }));
+  check("the next step is turned off with one tap, and says so", nx.call.action === "next" && nx.call.on === false && /^Off\./.test(nx.row) && nx.meta === "Tap to turn on", JSON.stringify(nx));
+  await page.click("#pmNext"); await page.waitForTimeout(300);
+  check("and on again", await page.evaluate(() => /^On\./.test(document.querySelector("#pmNext span").textContent) && window.__calls.filter(x => x.s === "/api/project/brief").pop().body.on === true));
+  await page.click("#pmClose"); await page.waitForTimeout(100);
+
+  /* an answer carries what the chat suggests, and what it waits to hear */
+  await page.evaluate(() => { window.__frame = true; });
+  await page.fill(".pj-comp textarea", "Write the brief"); await page.keyboard.press("Enter"); await page.waitForTimeout(900);
+  const tail = await page.evaluate(() => { const t = [...document.querySelectorAll(".pj-turn")].pop(), bs = [...t.querySelectorAll(".pj-a > .pj-tact button")]; return { btns: bs.map(b => b.textContent), cls: bs.map(b => b.className), chips: t.querySelectorAll(".pj-used").length }; });
+  check("under an answer: the question the chat waits on, then the next step it suggests", JSON.stringify(tail.btns) === '["What is the creator fee?","Fill the 3 empty prices"]' && tail.cls[0].includes("pj-ask") && tail.cls[1].includes("pj-next") && tail.chips === 0, JSON.stringify(tail));
+  await page.click(".pj-turn:last-child .pj-next");
+  check("a tap on the next step puts it in the message bar, to send or change", await page.evaluate(() => document.querySelector(".pj-comp textarea").value === "Fill the 3 empty prices"));
+  await page.click(".pj-turn:last-child .pj-ask");
+  const reAns = await page.evaluate(() => { const ta = document.querySelector(".pj-comp textarea"); return { v: ta.value, at: ta.selectionStart === ta.value.length, focus: document.activeElement === ta }; });
+  check("a tap on a question puts it in the message bar, ready for the answer by voice or by text, with the cursor below it", reAns.v === "Re: What is the creator fee?\n" && reAns.at && reAns.focus, JSON.stringify(reAns));
+  await page.fill(".pj-comp textarea", "");
+  await page.click(".pj-memb"); await page.waitForTimeout(300);
+  const waits = await page.evaluate(() => ({ rows: [...document.querySelectorAll("#pmList .pm-fr b")].map(b => b.textContent), asks: document.querySelector("#pmAsks span")?.textContent, state: document.querySelector("#pmState span")?.textContent }));
+  check("Memory then lists To answer with the question, and the State the chat just wrote", JSON.stringify(waits.rows) === '["Brief","State of play","To answer · 1","Next step"]' && waits.asks === "What is the creator fee?" && waits.state === "Goal: fill 200 seats. Team stays at 1,490 euros.", JSON.stringify(waits));
+  await page.click("#pmAsks"); await page.waitForTimeout(100);
+  check("it opens on the question, with Answer and Drop", await page.evaluate(() => document.querySelector(".pm-t")?.textContent === "To answer" && [...document.querySelectorAll(".pm-ask button")].map(b => b.textContent).join() === "Answer,Drop"));
+  await page.click(".pm-ask .ghost"); await page.waitForTimeout(300);
+  check("Drop takes it away", await page.evaluate(() => /Nothing waits for you/.test(document.querySelector(".pm-note .fv-pos").textContent) && document.querySelectorAll(".pm-ask").length === 0 && window.__calls.filter(x => x.s === "/api/project/brief").pop().body.action === "drop"));
+  await page.click(".pm-back"); await page.waitForTimeout(100);
+  check("and the list no longer says anything waits", await page.evaluate(() => !document.getElementById("pmAsks")));
+  await page.click("#pmClose"); await page.waitForTimeout(100);
+  await page.evaluate(() => { window.__frame = false; });
+
+  /* instructions an older project holds: still read until a Brief takes their place */
+  await page.evaluate(() => {
+    const P = Object.values(window.__proj).find(p => p.project.name === "Offer brief"); P.brief = null;
+    P.memory.unshift({ slug: "tone", title: "Tone", position: "Write in a formal tone.", summaryLine: "Formal tone", updated: "2026-10-09", instructions: true, n: 1, dates: [] },
+      { slug: "audience", title: "Audience", position: "The audience is CFOs.", summaryLine: "CFOs", updated: "2026-10-09", instructions: true, n: 2, dates: [] });
+  });
+  await page.click(".pj-memb"); await page.waitForTimeout(400);
+  const grouped = await page.evaluate(() => ({ sub: document.getElementById("pmSub").textContent, eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), rows: [...document.querySelectorAll("#pmList .fv-row:not(.pm-fr)")].map(r => r.querySelector("b").textContent + "|" + r.querySelector("small").textContent), brief: document.querySelector("#pmBrief span").textContent }));
+  check("a project with instructions and no Brief lists them under their own heading, in their order, and says they are read at every message",
+    grouped.sub === "2 instructions and 1 note." && JSON.stringify(grouped.eyes) === '["Instructions, read at every message","Notes"]' && grouped.rows.join() === "Tone|From the instructions · 9 Oct,Audience|From the instructions · 9 Oct,Page purpose|9 Oct" && /^Not written yet\./.test(grouped.brief), JSON.stringify(grouped));
+  await page.click("#pmList .fv-row:not(.pm-fr) >> nth=0"); await page.waitForTimeout(100);
+  check("an instruction opens like a note, with its words in full and a way to forget it", await page.evaluate(() => document.querySelector(".pm-t")?.textContent === "Tone" && document.querySelector(".pm-note .fv-pos")?.textContent === "Write in a formal tone." && !!document.querySelector(".pm-note .pj-b")));
+  await page.click(".pm-back"); await page.waitForTimeout(100);
+  await page.click("#pmBrief"); await page.waitForTimeout(100);
+  const carry = await page.evaluate(() => ({ ta: document.getElementById("pmBriefText").value, lead: document.querySelector(".pm-note .fv-pos").textContent, five: document.getElementById("pmBriefAsk").textContent }));
+  check("the Brief starts from those instructions, and says saving replaces them", carry.ta === "Tone: Write in a formal tone.\nAudience: The audience is CFOs." && /^Your instructions, ready to become the Brief\./.test(carry.lead) && /the instructions are replaced by it/.test(carry.lead), JSON.stringify(carry));
+  await page.click("#pmBriefSave"); await page.waitForTimeout(400);
+  const after = await page.evaluate(() => ({ eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), notes: document.querySelectorAll("#pmList .fv-row:not(.pm-fr)").length, sub: document.getElementById("pmSub").textContent }));
+  check("saved, the instructions are gone from the list and the note stays: the Brief took their place", after.eyes.length === 0 && after.notes === 1 && after.sub === "Brief saved. The chat reads it from the next message.", JSON.stringify(after));
+
+  await page.click("#pmClose"); await page.waitForTimeout(100);
+
+  /* a project with no Brief: the chat offers to write it, and shows where the project stands once it knows */
+  await page.evaluate(() => { window.__briefFail = true; window.__newState = true; });
   await page.click("#newProject"); await page.waitForTimeout(200);
   await page.fill("#npName", "Second brief"); await page.click("[data-make=doc]");
   await page.fill("#npRulesText", "Write in a formal tone.");
   await page.click("#npMake"); await page.waitForTimeout(900);
-  const failed = await page.evaluate(() => ({ typed: window.__inst?.name, bad: document.getElementById("npBad").textContent, btn: document.getElementById("npMake").textContent, disabled: document.getElementById("npMake").disabled, sheet: !!document.querySelector(".veil") }));
-  check("when the instructions fail, the project is made, and the sheet says why and how to add them again; words typed carry no file name", failed.typed === "" && /the model host was unreachable/.test(failed.bad) && /The project was made: open it to add the instructions again from Memory\./.test(failed.bad) && failed.btn === "Open the project" && !failed.disabled && failed.sheet, JSON.stringify(failed));
+  const failed = await page.evaluate(() => ({ bad: document.getElementById("npBad").textContent, btn: document.getElementById("npMake").textContent, disabled: document.getElementById("npMake").disabled, sheet: !!document.querySelector(".veil") }));
+  check("when the Brief cannot be saved, the project is made, and the sheet says why and how to write the Brief again", /the model host was unreachable/.test(failed.bad) && /The project was made: open it to write the Brief again from Memory\./.test(failed.bad) && failed.btn === "Open the project" && !failed.disabled && failed.sheet, JSON.stringify(failed));
   await page.click("#npMake"); await page.waitForTimeout(700);
+  await page.evaluate(() => { window.__briefFail = false; window.__newState = false; });
+  const noBrief = await page.evaluate(() => ({ state: document.querySelector(".pj-state")?.textContent, go: document.getElementById("pjBriefGo")?.textContent, copy: document.querySelector(".pj-brief p")?.textContent }));
+  check("with no Brief the empty chat offers to write it, in a line that says what it is for, and shows where the project stands when it knows", noBrief.go === "Write the Brief" && /^Give the chat its place: a Brief says who it is here/.test(noBrief.copy) && /Five questions write it, by voice or by text/.test(noBrief.copy) && noBrief.state === "Where it standsGoal: 200 seats by May.", JSON.stringify(noBrief));
+  await page.click("#pjBriefGo"); await page.waitForTimeout(300);
+  check("the button opens Memory on the first of five questions", await page.evaluate(() => document.querySelector(".pm-t")?.textContent === "Five questions" && document.querySelector(".pm-note small")?.textContent === "Question 1 of 5" && document.activeElement?.id === "pmAnswer"));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+  check("Escape puts the sheet away", await page.evaluate(() => !document.querySelector(".veil.pm")));
+
+  /* Memory then offers to add a resource, and nothing else */
   await page.click(".pj-memb"); await page.waitForTimeout(300);
   check("Memory then offers to add to it, and the sheet holds no instruction", await page.evaluate(() => document.getElementById("pmAdd").textContent === "Add to memory" && !document.querySelector("#pmList .fv-eye")));
-  await page.evaluate(() => { window.__instFail = false; });
   await page.click("#pmAdd"); await page.waitForTimeout(150);
-  const form0 = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, kinds: [...document.querySelectorAll(".pm-note .pj-make button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")),
-    ph: document.getElementById("pmText")?.placeholder, go: document.getElementById("pmGo")?.textContent, focus: document.activeElement?.id, intro: document.querySelector(".pm-note .fv-pos")?.textContent }));
-  check("Add to memory opens a form that adds a resource first, says what one is, and puts the cursor in the field", form0.title === "Add a resource" && JSON.stringify(form0.kinds) === '["A resource*","Instructions"]'
-    && /^Paste the text of a resource here/.test(form0.ph) && form0.go === "Add to memory" && form0.focus === "pmText" && /^A document, a text or the words of a page\./.test(form0.intro), JSON.stringify(form0));
-  await page.fill("#pmText", "Words that stay.");
-  await page.click("#pmKindRules");
-  const form = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, kinds: [...document.querySelectorAll(".pm-note .pj-make button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")),
-    ta: document.getElementById("pmText")?.tagName, add: document.querySelector(".pm-note .mem-bar button")?.textContent, go: document.getElementById("pmGo")?.textContent, back: document.querySelector(".pm-back")?.textContent,
-    kept: document.getElementById("pmText")?.value, ph: document.getElementById("pmText")?.placeholder, count: document.querySelector(".pm-note .mem-bar .hint")?.textContent }));
-  check("the other kind is instructions, in the same field: the words stay, the hint and the button change", form.title === "Add instructions" && JSON.stringify(form.kinds) === '["A resource","Instructions*"]' && form.ta === "TEXTAREA" && form.add === "+ file"
-    && form.go === "File the instructions" && form.back === "← All notes" && form.kept === "Words that stay." && /^Paste or write the instructions here/.test(form.ph) && form.count === "16 characters", JSON.stringify(form));
-  await page.fill("#pmText", ""); await page.waitForTimeout(30);
-  check("while the form is open, the sheet's own Replace button gives way and the list has no height cap, so the button below the field is never cut", await page.evaluate(() => { const a = document.getElementById("pmAdd"), l = getComputedStyle(document.getElementById("pmList")); return getComputedStyle(a).display === "none" && l.maxHeight === "none" && l.overflowY === "visible"; }));
-  const instCalls = () => page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/instructions").length);
-  const c0 = await instCalls();
+  const form0 = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, kinds: document.querySelectorAll(".pm-note .pj-make button").length, ph: document.getElementById("pmText")?.placeholder, go: document.getElementById("pmGo")?.textContent,
+    focus: document.activeElement?.id, intro: document.querySelector(".pm-note .fv-pos")?.textContent, back: document.querySelector(".pm-back")?.textContent, ta: document.getElementById("pmText")?.tagName, add: document.querySelector(".pm-note .mem-bar button")?.textContent }));
+  check("Add to memory opens a form for a resource, says what one is, and puts the cursor in the field; instructions are not offered there any more",
+    form0.title === "Add a resource" && form0.kinds === 0 && /^Paste the text of a resource here/.test(form0.ph) && form0.go === "Add to memory" && form0.focus === "pmText" && /^A document, a text or the words of a page\./.test(form0.intro) && form0.back === "← All notes" && form0.ta === "TEXTAREA" && form0.add === "+ file", JSON.stringify(form0));
+  check("while the form is open, the sheet's own Add button gives way and the list has no height cap, so the button below the field is never cut", await page.evaluate(() => { const a = document.getElementById("pmAdd"), l = getComputedStyle(document.getElementById("pmList")); return getComputedStyle(a).display === "none" && l.maxHeight === "none" && l.overflowY === "visible"; }));
+  const resCalls = () => page.evaluate(() => (window.__res || []).length);
+  const c0 = await resCalls();
   await page.click("#pmGo");
-  check("with nothing in the field, filing asks nothing of the server, and the cursor goes to the field", (await instCalls()) === c0 && await page.evaluate(() => document.activeElement?.id === "pmText"));
-  await page.fill("#pmText", "Write in a formal tone. The audience is CFOs.");
-  await page.click("#pmGo"); await page.waitForTimeout(700);
-  const added = await page.evaluate(() => ({ inst: window.__inst, sub: document.getElementById("pmSub").textContent, eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), add: document.getElementById("pmAdd").textContent }));
-  check("words typed in Memory are filed, and the list shows them at once", added.inst.name === "" && added.inst.text === "Write in a formal tone. The audience is CFOs." && added.sub === "2 instructions filed. The chat follows them from the next message." && added.eyes.length === 1 && added.add === "Add to memory", JSON.stringify(added));
-  await page.evaluate(() => { window.__instFail = true; });
-  await page.click("#pmAdd"); await page.waitForTimeout(150);
-  await page.click("#pmKindRules");
-  check("with instructions held, the form says it replaces them", await page.evaluate(() => document.querySelector(".pm-t")?.textContent === "Replace the instructions" && /take the place of the ones held/.test(document.querySelector(".pm-note .fv-pos")?.textContent || "")));
-  await page.fill("#pmText", "More words.");
-  await page.click("#pmGo"); await page.waitForTimeout(500);
-  const addBad = await page.evaluate(() => ({ say: document.querySelector(".pm-note > .hint")?.textContent, bad: document.querySelector(".pm-note > .hint")?.classList.contains("bad"), kept: document.getElementById("pmText").value, enabled: !document.getElementById("pmGo").disabled && !document.getElementById("pmText").disabled }));
-  check("when it fails there, the form says why in red, keeps the words, and lets them be filed again", /unreachable/.test(addBad.say) && addBad.bad && addBad.kept === "More words." && addBad.enabled, JSON.stringify(addBad));
+  check("with nothing in the field, filing asks nothing of the server, and the cursor goes to the field", (await resCalls()) === c0 && await page.evaluate(() => document.activeElement?.id === "pmText"));
   await page.click(".pm-back"); await page.waitForTimeout(100);
-  check("back returns to the list, and the instructions held stay", await page.evaluate(() => document.querySelectorAll("#pmList .fv-row").length === 2 && getComputedStyle(document.getElementById("pmAdd")).display !== "none" && getComputedStyle(document.getElementById("pmList")).maxHeight !== "none"));
+  check("back returns to the list, with the frame and the sheet's own button", await page.evaluate(() => document.querySelectorAll("#pmList .pm-fr").length === 3 && getComputedStyle(document.getElementById("pmAdd")).display !== "none" && getComputedStyle(document.getElementById("pmList")).maxHeight !== "none"));
   /* a resource: typed, pasted or added from a file; its notes join the memory; a long one goes in pieces */
-  await page.evaluate(() => { window.__instFail = false; });
   await page.click("#pmAdd"); await page.waitForTimeout(150);
   await page.fill("#pmText", "A refund is possible within 14 days of the first session.");
   await page.click("#pmGo"); await page.waitForTimeout(500);
-  const res1 = await page.evaluate(() => ({ calls: window.__res.length, call: window.__res.at(-1), sub: document.getElementById("pmSub").textContent, rows: [...document.querySelectorAll("#pmList .fv-row b")].map(b => b.textContent),
+  const res1 = await page.evaluate(() => ({ calls: window.__res.length, call: window.__res.at(-1), sub: document.getElementById("pmSub").textContent, rows: [...document.querySelectorAll("#pmList .fv-row:not(.pm-fr) b")].map(b => b.textContent),
     eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), badge: document.querySelector(".pj-memb i")?.textContent }));
-  check("words typed as a resource are sent with no name, and the note they made is listed at once, among the notes and not the instructions", res1.calls === 1 && res1.call.name === "" && res1.call.text.startsWith("A refund is possible")
-    && /1 note filed\. The chat reads the ones that bear on a question\./.test(res1.sub) && res1.rows.includes("Refund window 1") && JSON.stringify(res1.eyes) === '["Instructions, read at every message","Notes"]' && res1.badge === "3", JSON.stringify(res1));
+  check("words typed as a resource are sent with no name, and the note they made is listed at once among the notes", res1.calls === 1 && res1.call.name === "" && res1.call.text.startsWith("A refund is possible")
+    && /1 note filed\. The chat reads the ones that bear on a question\./.test(res1.sub) && res1.rows.includes("Refund window 1") && res1.eyes.length === 0 && res1.badge === "1", JSON.stringify(res1));
   await page.click("#pmAdd"); await page.waitForTimeout(150);
   const [fcP] = await Promise.all([page.waitForEvent("filechooser"), page.click(".pm-note .mem-bar button")]);
   await fcP.setFiles({ name: "terms.md", mimeType: "text/markdown", buffer: Buffer.from("# Terms\n\nLate payments add 2%.") });
@@ -4119,8 +4237,8 @@ for (const space of ["octopus", "squidgy"]) {
   const lack = await page.evaluate(() => { const t = [...document.querySelectorAll(".pj-turn")].pop(); return { btns: [...t.querySelectorAll("button")].map(b => b.textContent), words: t.querySelector(".pj-md")?.textContent, chips: t.querySelectorAll(".pj-used").length }; });
   check("an answer that lacks the fact says so, and offers one thing under it: Add a resource", JSON.stringify(lack.btns) === '["Add a resource"]' && /^Nothing says how a booking is cancelled\./.test(lack.words) && lack.chips === 0, JSON.stringify(lack));
   await page.click('.pj-turn:last-child button:has-text("Add a resource")'); await page.waitForTimeout(250);
-  const asked = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, kinds: [...document.querySelectorAll(".pm-note .pj-make button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")), focus: document.activeElement?.id, sheet: !!document.querySelector(".veil.pm") }));
-  check("it opens Memory on the resource form, with the cursor in the field", asked.sheet && asked.title === "Add a resource" && JSON.stringify(asked.kinds) === '["A resource*","Instructions"]' && asked.focus === "pmText", JSON.stringify(asked));
+  const asked = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, kinds: [...document.querySelectorAll(".pm-note .pj-make button")], focus: document.activeElement?.id, sheet: !!document.querySelector(".veil.pm") }));
+  check("it opens Memory on the resource form, with the cursor in the field", asked.sheet && asked.title === "Add a resource" && asked.kinds.length === 0 && asked.focus === "pmText", JSON.stringify(asked));
   await page.keyboard.press("Escape"); await page.waitForTimeout(100);
   await page.evaluate(() => { window.__lacks = false; });
   await page.fill(".pj-comp textarea", "Write the brief again"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
@@ -4128,28 +4246,28 @@ for (const space of ["octopus", "squidgy"]) {
 
   await page.click("#pmClose").catch(() => {});
 
-  /* what cannot be instructions: a table. A server older than the page. A file that is cut. */
-  await page.evaluate(() => { window.__instFail = false; });
+  /* what cannot be a Brief: a table. A server older than the page. A file that is cut. */
+  await page.evaluate(() => { window.__briefFail = false; });
   await page.click("#newProject"); await page.waitForTimeout(200);
-  await page.evaluate(() => { window.__instOld = true; });
+  await page.evaluate(() => { window.__briefOld = true; });
   await page.fill("#npRulesText", "Words.");
   await page.fill("#npName", "Old server rules"); await page.click("#npMake"); await page.waitForTimeout(700);
-  const oldInst = await page.evaluate(() => document.getElementById("npBad").textContent);
-  check("a server older than the page says so, and says to deploy", /The server is older than this page and cannot file instructions yet\. Run convex deploy\./.test(oldInst), oldInst);
-  await page.evaluate(() => { window.__instOld = false; document.querySelector(".veil")?.remove(); });
-  await page.evaluate(() => { window.__instCut = true; });
+  const oldBrief = await page.evaluate(() => document.getElementById("npBad").textContent);
+  check("a server older than the page says so, and says to deploy", /The server is older than this page and cannot save a Brief yet\. Run convex deploy\./.test(oldBrief), oldBrief);
+  await page.evaluate(() => { window.__briefOld = false; document.querySelector(".veil")?.remove(); });
+  await page.evaluate(() => { window.__briefCut = true; });
   await page.click("#newProject"); await page.waitForTimeout(200);
-  await page.fill("#npRulesText", "Words. ".repeat(4500));
-  check("a text over 30,000 characters says how much is read", (await page.textContent("#npRulesCount")) === "31,500 characters, the first 30,000 are read");
+  await page.fill("#npRulesText", "Words. ".repeat(1000));
+  check("a text over 6,000 characters says how much is read", (await page.textContent("#npRulesCount")) === "7,000 characters, the first 6,000 are read");
   await page.fill("#npName", "Cut rules"); await page.click("[data-make=doc]"); await page.click("#npMake"); await page.waitForTimeout(1000);
-  check("once the project is made, the page says that only the start of the instructions was read", /Only the first 30,000 characters of the instructions were read/.test(await page.textContent(".pj-msg")));
-  await page.evaluate(() => { window.__instCut = false; });
+  check("once the project is made, the page says that only the start of the Brief was kept", /Only the first 6,000 characters of the Brief were kept/.test(await page.textContent(".pj-msg")));
+  await page.evaluate(() => { window.__briefCut = false; });
   check("nothing threw making files", !bad.length, bad.join(" | "));
 
   /* the text view and the converter, run in the page */
   const srcApp = await readFile(join(APP, "chat.html"), "utf8");
   const modelCalls = /const MODEL_CALLS = new Set\(\[([^\]]*)\]\)/.exec(srcApp)?.[1] ?? "";
-  check("every project call that spends a model carries a workspace's own key: a piece, the end of a file, instructions, the chat", ["part", "finish", "instructions", "chat"].every(n => modelCalls.includes(`"/api/project/${n}"`)), modelCalls.slice(-120));
+  check("every project call that spends a model carries a workspace's own key: a piece, the end of a file, a resource, the Brief, the chat", ["part", "finish", "resource", "brief", "chat"].every(n => modelCalls.includes(`"/api/project/${n}"`)), modelCalls.slice(-120));
   const grab = name => { const at = srcApp.indexOf(`function ${name}(`); let depth = 0, end = at; for (let i = srcApp.indexOf("{", at); i < srcApp.length; i++){ if (srcApp[i] === "{") depth++; if (srcApp[i] === "}" && --depth === 0){ end = i + 1; break; } } return srcApp.slice(at, end); };
   const conv = `const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));` + grab("mdView") + grab("htmlToMd") + "; return { mdView, htmlToMd };";
   const md = await page.evaluate(code => { const { mdView, htmlToMd } = new Function(code)(); return ({

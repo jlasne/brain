@@ -36,6 +36,16 @@ export const madeName = (name: string, kind: string) =>
 /** The line a PDF page starts with, so an answer can name its page. */
 export const PAGE_LINE = /^\[\[p\. (\d+)\]\]$/;
 
+/** What the owner's Brief may hold, in characters: about 1,500 tokens. */
+export const BRIEF_MAX = 6000;
+/** What the State of play may hold, in characters: about 250 tokens. */
+export const STATE_MAX = 1500;
+/** What the chat still needs from the owner: at most this many questions, each this long. */
+export const ASKS_MAX = 8;
+export const ASK_CHARS = 160;
+/** The closing next step: one line. */
+export const NEXT_CHARS = 140;
+
 export type Part = { title: string; text: string };
 
 const headingOf = (line: string) => /^#{1,3}\s+\S/.test(line);
