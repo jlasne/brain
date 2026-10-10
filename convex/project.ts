@@ -53,7 +53,7 @@ const pageSuffix = (text: string) => {
  * the model fails on keeps the title and the opening words it already has, so
  * a busy model never stops a file from being read.
  */
-export async function summarise(parts: Part[], o: { key?: string; model?: string }): Promise<{ title: string; summary: string }[]> {
+export async function summarise(parts: Part[], o: { key?: string; model?: string; meter?: (u: any) => void }): Promise<{ title: string; summary: string }[]> {
   const out: { title: string; summary: string }[] = parts.map(p => ({ title: p.title, summary: openingOf(p.text) }));
   let next = 0;
   const worker = async () => {
@@ -62,10 +62,11 @@ export async function summarise(parts: Part[], o: { key?: string; model?: string
       if (i >= parts.length) return;
       const p = parts[i];
       try {
-        const { text, finish } = await ask([
+        const { text, finish, usage } = await ask([
           { role: "system", content: "You write contents lines for long files. You reply with JSON only." },
           { role: "user", content: `${SUMMARY_RULES}\n\nSECTION\n${p.text.slice(0, SECTION_CHARS + 2000)}` },
         ], { json: true, maxTokens: 300, timeout: 60000, temperature: 0, key: o.key, model: o.model });
+        o.meter?.(usage);
         const d = parseJson(String(text), finish);
         const one = (t: any, n: number) => String(t ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, n);
         const headed = /^#{1,3}\s+\S/m.test(withoutPages(p.text));
@@ -81,7 +82,7 @@ export async function summarise(parts: Part[], o: { key?: string; model?: string
 }
 
 /** A piece of a document: cut in sections, each given a contents line, stored in order. */
-export async function addDocPiece(ctx: any, o: { space: string; brain: string; ver: number; text: string; page: number; key?: string; model?: string }) {
+export async function addDocPiece(ctx: any, o: { space: string; brain: string; ver: number; text: string; page: number; key?: string; model?: string; meter?: (u: any) => void }) {
   const parts = splitDoc(o.text, SECTION_CHARS, o.page);
   if (!parts.length) return { sections: 0, chars: 0 };
   const lines = await summarise(parts, o);
@@ -187,7 +188,7 @@ const TOPIC_RULES = `
 - Then up to 8 more notes, one for each main topic of the file, so a question on it can go straight to its sections. "title": 2 to 6 words naming the topic. "claim": the topic in one sentence. "position": 1 or 2 sentences with its key numbers. "summaryLine": under 15 words. "sections": the ids of the sections where the topic sits, from the contents list. A topic with no section is left out.`;
 
 /** The note on a file just read in, and for a long one a note a topic. A failure here never fails the file. */
-async function aboutFile(ctx: any, o: { space: string; brain: string; key?: string; model?: string }) {
+async function aboutFile(ctx: any, o: { space: string; brain: string; key?: string; model?: string; meter?: (u: any) => void }) {
   try {
     const got = await ctx.runQuery(internal.projects.projectGet, { space: o.space, brain: o.brain });
     const file = got.file;
@@ -204,10 +205,11 @@ async function aboutFile(ctx: any, o: { space: string; brain: string; key?: stri
       body = secs.map(s => s.text).join("\n\n");
     } else body = `One line a section: id | title | summary\n${contentsText(got.cards, 30000)}`;
     const noun = file.kind === "table" ? "a table" : file.kind === "html" ? "an HTML page" : "a document";
-    const { text } = await ask([
+    const { text, usage } = await ask([
       { role: "system", content: "You write the memory notes of a file. You reply with JSON only." },
       { role: "user", content: `${ABOUT_RULES}${topics ? TOPIC_RULES : ""}\n\nTHE FILE "${file.name}", ${noun}, ${file.chars} characters\n${body}` },
     ], { json: true, maxTokens: topics ? 2500 : 900, temperature: 0, timeout: 90000, key: o.key, model: o.model });
+    o.meter?.(usage);
     /* The first note is always "The file", so a new file takes its place; the others are topics that name sections the file has. */
     let raw = String(text);
     try {
@@ -259,7 +261,7 @@ const rulesLine = (r: any) => `- ${r.title}: ${oneLine(r.position || r.summaryLi
  * line of evidence and the file as its source. Each note is tagged, so the chat reads them at every message. A file added again
  * takes the place of the first, and only when it was read.
  */
-export async function fileInstructions(ctx: any, o: { space: string; brain: string; name: string; text: string; key?: string; model?: string }) {
+export async function fileInstructions(ctx: any, o: { space: string; brain: string; name: string; text: string; key?: string; model?: string; meter?: (u: any) => void }) {
   const whole = String(o.text ?? "").replace(/\r/g, "").trim();
   const text = whole.slice(0, MAX_CHARS.instructions);
   if (!text) throw new Error("the instruction file gave no text");
@@ -267,10 +269,11 @@ export async function fileInstructions(ctx: any, o: { space: string; brain: stri
   const name = String(o.name ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
   /* The project must be this workspace's own before a model is asked anything. */
   await ctx.runQuery(internal.projects.memoryOf, { space: o.space, brain: o.brain });
-  const { text: raw } = await ask([
+  const { text: raw, usage } = await ask([
     { role: "system", content: "You write the memory notes of an instruction file. You reply with JSON only." },
     { role: "user", content: `${INSTRUCTION_RULES}\n\n${name ? `THE FILE "${name}"` : "THE TEXT"}, ${text.length} characters\n${text}` },
   ], { json: true, maxTokens: 2500, temperature: 0, timeout: 90000, key: o.key, model: o.model });
+  o.meter?.(usage);
   /* The note on the file is the project's own: an instruction never takes its title. */
   const notes = readNotes(String(raw), "instructions").filter(n => n.title.toLowerCase() !== "the file").map(n => ({ ...n, position: n.position.slice(0, 700) }));
   if (!notes.length) throw new Error("the instructions could not be read into notes. Try again.");
@@ -294,17 +297,18 @@ Reply with only JSON: {"notes":[{"title":"","claim":"","position":"","summaryLin
  * title, a position, a dated line of evidence and the resource as the source. The notes join what the project holds, and the chat
  * reads the ones that bear on a question. One call reads up to 20,000 characters; the page sends a longer one in pieces.
  */
-export async function fileResource(ctx: any, o: { space: string; brain: string; name: string; text: string; key?: string; model?: string }) {
+export async function fileResource(ctx: any, o: { space: string; brain: string; name: string; text: string; key?: string; model?: string; meter?: (u: any) => void }) {
   const whole = String(o.text ?? "").replace(/\r/g, "").trim();
   const text = whole.slice(0, MAX_CHARS.resource);
   if (!text) throw new Error("the resource gave no text");
   const name = String(o.name ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
   /* The project must be this workspace's own before a model is asked anything. */
   const held: any[] = await ctx.runQuery(internal.projects.memoryOf, { space: o.space, brain: o.brain });
-  const { text: raw } = await ask([
+  const { text: raw, usage } = await ask([
     { role: "system", content: "You write the memory notes of a resource. You reply with JSON only." },
     { role: "user", content: `${RESOURCE_RULES}\n\n${name ? `THE RESOURCE "${name}"` : "THE TEXT"}, ${text.length} characters\n${text}` },
   ], { json: true, maxTokens: 3000, temperature: 0, timeout: 90000, key: o.key, model: o.model });
+  o.meter?.(usage);
   /* The note on the file is the project's own, and an instruction is never rewritten by a resource. */
   const taken = new Set(held.filter(r => r.instructions).map(r => String(r.title).toLowerCase()));
   const notes = readNotes(String(raw), "resource").filter(n => n.title.toLowerCase() !== "the file" && !taken.has(n.title.toLowerCase())).map(n => ({ ...n, position: n.position.slice(0, 900) }));
@@ -506,15 +510,44 @@ const FOLDER_INDEX = 120;
 const FOLDER_DOSSIER = { fullMax: 10, fullChars: 16000, titleMax: 25, titleChars: 2500 };
 
 /** What a message cost, from the usage each model call reports. */
-type Spent = { in: number; out: number; cached: number; usd: number; known: boolean; calls: number };
-const newSpent = (): Spent => ({ in: 0, out: 0, cached: 0, usd: 0, known: false, calls: 0 });
+type Spent = { in: number; out: number; cached: number; usd: number; known: boolean; calls: number; priced: number };
+const newSpent = (): Spent => ({ in: 0, out: 0, cached: 0, usd: 0, known: false, calls: 0, priced: 0 });
 function meter(s: Spent, u: any) {
   if (!u) return;
   s.calls++;
   s.in += Number(u.prompt_tokens) || 0;
   s.out += Number(u.completion_tokens) || 0;
   s.cached += Number(u.prompt_tokens_details?.cached_tokens) || 0;
-  if (typeof u.cost === "number" && Number.isFinite(u.cost)) { s.usd += u.cost; s.known = true; }
+  if (typeof u.cost === "number" && Number.isFinite(u.cost)) { s.usd += u.cost; s.known = true; s.priced++; }
+}
+
+/** Dollars as a person reads them: cents from a cent up, more places below. */
+const dollars = (n: number) => n >= 0.1 ? n.toFixed(2) : n >= 0.01 ? n.toFixed(3) : n.toFixed(4);
+
+/**
+ * A workspace's projects may be given a monthly cap. Before a message, a file read in, a resource or a Brief asks a model anything,
+ * the month's cost so far is read, and a cap that is reached stops it with a sentence that says where to change it.
+ */
+export async function guardBudget(ctx: any, space: string) {
+  const b: { cap: number | null; usd: number } = await ctx.runQuery(internal.projects.budgetState, { space });
+  if (b.cap != null && b.usd >= b.cap) throw new Error(`The projects have used this month's budget: $${dollars(b.usd)} of $${b.cap.toFixed(2)}. Raise the cap in Settings, or wait for the 1st.`);
+}
+
+/**
+ * Runs what asks a model for a project, once the cap allows it, and adds what it cost to the project's row for the month: tokens always,
+ * dollars as the model host reported them. It is added whether the run finished or failed, since a call that answered was paid for, and
+ * recording never fails what it records.
+ */
+export async function withSpend<T>(ctx: any, o: { space: string; brain: string }, run: (tally: (u: any) => void) => Promise<T>): Promise<T> {
+  await guardBudget(ctx, o.space);
+  const s = newSpent();
+  try { return await run(u => meter(s, u)); }
+  finally {
+    if (s.calls) {
+      try { await ctx.runMutation(internal.projects.spendAdd, { space: o.space, brain: splitKey(o.brain).base, usd: s.usd, priced: s.priced, calls: s.calls, tokensIn: s.in, tokensOut: s.out, cached: s.cached }); }
+      catch (e: any) { console.log(`the cost of a call was not recorded: ${String(e?.message ?? e).slice(0, 140)}`); }
+    }
+  }
 }
 
 const oneLine = (t: any, n: number) => String(t ?? "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -851,6 +884,8 @@ export type ChatIn = {
   note?: boolean;
   /* The slugs of the folders the owner tagged with @ in the message: those are read, and no other. */
   tags?: string[];
+  /* Told what each model call of the message used, to add up what the project costs. */
+  meter?: (u: any) => void;
   /* The owner's other folders, with the personal folder and every project already left out.
      Their cards are read only when the router says the folders could help. */
   shared: { brains: any[]; cards: (slugs: string[]) => Promise<any[]> };
@@ -907,9 +942,10 @@ export async function projectChat(ctx: any, o: ChatIn) {
   /* A message in a script the lines share no word with (Chinese, Arabic, Cyrillic) can never meet a line: it gets the whole list at once, as before. */
   if (short && !keywords(q).length && !/[a-z]/i.test(q) && q.length >= 8) short = null;
   const spent = newSpent();
+  const tally = (u: any) => { meter(spent, u); o.meter?.(u); };
   /* Thanks and goodbyes need nothing read and nothing decided. */
   const closer = !fresh && isCloser(q);
-  const ask0 = { q, earlier, file, cards, tiny, firstRows, folders: o.shared.brains, memory: memoryForRouter(memory, q), state, open: open.map(x => `${x.id}: ${x.q}`).join("\n"), fresh, empty, meter: (u: any) => meter(spent, u), key: o.key, model: o.model };
+  const ask0 = { q, earlier, file, cards, tiny, firstRows, folders: o.shared.brains, memory: memoryForRouter(memory, q), state, open: open.map(x => `${x.id}: ${x.q}`).join("\n"), fresh, empty, meter: tally, key: o.key, model: o.model };
   /* A question the project has answered before, in nearly the same words, from the same sections, needs no router to find them. */
   const sure = doc && !fresh && !empty && !closer && !skip && !tagged.length && plainQuestion(q) ? sureRoute(q, got.shortcuts ?? [], cards) : null;
   let r: Route = closer ? { ...NO_ROUTE, routed: true } : skip ? NO_ROUTE
@@ -987,7 +1023,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
       try { const [vec] = await embed([q.slice(0, 1000)]); near = (await nearest(ctx, vec, pool.map((b: any) => b.slug), 8)).map((x: any) => x.id); }
       catch (e: any) { console.log(`question embedding skipped: ${String(e?.message ?? e).slice(0, 120)}`); }
     }
-    const rt = await routeQuestion(pool, cs, q, before, o.key, o.model, { cap: FOLDER_INDEX, first: near, extra: r.terms });
+    const rt = await routeQuestion(pool, cs, q, before, o.key, o.model, { cap: FOLDER_INDEX, first: near, extra: r.terms, meter: tally });
     const plan = planDossier(pool, cs, q, before, { ...rt, picked: rt.picked, terms: [...rt.terms, ...r.terms].slice(0, 16), near });
     const whole2 = await ctx.runQuery(internal.store.conceptsByIds, { space: o.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
     /* An empty file is built from the folders, so it reads them in full; any other message reads them as support. */
@@ -1048,7 +1084,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
   const answerOf = async (user: string) => {
     const { text, finish, usage } = await ask([{ role: "system", content: system }, { role: "user", content: user }],
       { json: true, maxTokens: writes ? 8000 : 3000, temperature: 0.2, key: o.key, model: o.model, timeout: Math.max(60000, 165000 - (Date.now() - t0)) });
-    meter(spent, usage);
+    tally(usage);
     try { return parseJson(String(text), finish); }
     catch { return { reply: String(text).replace(/^```(?:json)?|```$/g, "").trim() }; }
   };

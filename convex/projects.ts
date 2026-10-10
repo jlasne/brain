@@ -161,6 +161,80 @@ export const memoryOf = internalQuery({
   handler: async (ctx, a) => { await need(ctx, a.space, a.brain); return await memoryRows(ctx, a.brain); },
 });
 
+/* ---------------- what the projects cost ---------------- */
+
+/** The month a cost belongs to, UTC: "2026-10". */
+export const monthOf = (at = Date.now()) => new Date(at).toISOString().slice(0, 7);
+/** The month before a month. */
+const monthBefore = (m: string) => { const [y, n] = m.split("-").map(Number); return n === 1 ? `${y - 1}-12` : `${y}-${String(n - 1).padStart(2, "0")}`; };
+/** The most a cap may be, in dollars. */
+export const CAP_MAX = 100000;
+
+/** The month's spend of a workspace, row by row. */
+const spendRows = async (ctx: any, space: string, month: string): Promise<any[]> =>
+  await ctx.db.query("projectSpend").withIndex("by_space_month", (q: any) => q.eq("space", readSpace(space)).eq("month", month)).collect();
+const budgetOf = async (ctx: any, space: string) =>
+  await ctx.db.query("projectBudget").withIndex("by_space", (q: any) => q.eq("space", readSpace(space))).first();
+
+/**
+ * What one message, one file read in or one Brief cost, added to the project's row for the month. The tokens are always kept; the
+ * dollars are what the model host reported, and `priced` counts the calls it gave a price for.
+ */
+export const spendAdd = internalMutation({
+  args: { space: v.string(), brain: v.string(), usd: v.number(), priced: v.number(), calls: v.number(), tokensIn: v.number(), tokensOut: v.number(), cached: v.number() },
+  handler: async (ctx, a) => {
+    const b = await need(ctx, a.space, a.brain);
+    const space = readSpace(a.space), month = monthOf();
+    const row = (await ctx.db.query("projectSpend").withIndex("by_brain_month", (q: any) => q.eq("brain", b.slug).eq("month", month)).collect()).find((r: any) => r.space === space);
+    const add = { usd: a.usd, priced: a.priced, calls: a.calls, tokensIn: a.tokensIn, tokensOut: a.tokensOut, cached: a.cached };
+    if (row) await ctx.db.patch(row._id, { usd: row.usd + add.usd, priced: row.priced + add.priced, calls: row.calls + add.calls, tokensIn: row.tokensIn + add.tokensIn, tokensOut: row.tokensOut + add.tokensOut, cached: row.cached + add.cached, at: Date.now() });
+    else await ctx.db.insert("projectSpend", { space, month, brain: b.slug, ...add, at: Date.now() });
+    return { ok: true };
+  },
+});
+
+/** The cap and what has been spent this month, which is all a message needs to know before it asks a model anything. */
+export const budgetState = internalQuery({
+  args: { space: v.string() },
+  handler: async (ctx, a) => {
+    const cap = (await budgetOf(ctx, a.space))?.cap ?? null;
+    if (cap == null) return { cap: null as number | null, usd: 0 };
+    return { cap, usd: (await spendRows(ctx, a.space, monthOf())).reduce((n: number, r: any) => n + r.usd, 0) };
+  },
+});
+
+/** Sets the cap, in dollars, or removes it with null. */
+export const budgetSet = internalMutation({
+  args: { space: v.string(), cap: v.union(v.number(), v.null()) },
+  handler: async (ctx, a) => {
+    const row = await budgetOf(ctx, a.space);
+    if (a.cap == null) { if (row) await ctx.db.delete(row._id); return { cap: null as number | null }; }
+    if (!Number.isFinite(a.cap) || a.cap <= 0 || a.cap > CAP_MAX) throw new Error(`a cap is a number of dollars, more than 0 and at most ${CAP_MAX.toLocaleString("en-US")}`);
+    const cap = Math.round(a.cap * 100) / 100;
+    if (row) await ctx.db.patch(row._id, { cap, updated: Date.now() }); else await ctx.db.insert("projectBudget", { space: readSpace(a.space), cap, updated: Date.now() });
+    return { cap: cap as number | null };
+  },
+});
+
+/** What the projects cost this month and the month before, project by project, and the cap: what Settings shows. */
+export const spendOf = internalQuery({
+  args: { space: v.string() },
+  handler: async (ctx, a) => {
+    const month = monthOf(), rows = await spendRows(ctx, a.space, month);
+    const names = new Map<string, string>();
+    for (const b of await ctx.db.query("brains").collect()) if (b.type === "project" && readSpace(b.space) === readSpace(a.space)) names.set(b.slug, b.name);
+    const sum = (k: string) => rows.reduce((n: number, r: any) => n + (r[k] ?? 0), 0);
+    const last = (await spendRows(ctx, a.space, monthBefore(month))).reduce((n: number, r: any) => n + r.usd, 0);
+    const cap = (await budgetOf(ctx, a.space))?.cap ?? null;
+    return {
+      month, usd: sum("usd"), calls: sum("calls"), priced: sum("priced"), tokensIn: sum("tokensIn"), tokensOut: sum("tokensOut"), cached: sum("cached"),
+      last: { month: monthBefore(month), usd: last }, cap, over: cap != null && sum("usd") >= cap,
+      /* A project that was deleted after it spent keeps its row, so the month's total is what was spent. */
+      projects: rows.map((r: any) => ({ slug: r.brain, name: names.get(r.brain) ?? "", usd: r.usd, calls: r.calls })).sort((x: any, y: any) => y.usd - x.usd || y.calls - x.calls).slice(0, 12),
+    };
+  },
+});
+
 /** Sections' words by id, with their titles. At most 60,000 characters in all. */
 export const sectionsRead = internalQuery({
   args: { space: v.string(), brain: v.string(), sids: v.array(v.number()) },

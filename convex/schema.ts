@@ -651,6 +651,34 @@ export default defineSchema({
   }).index("by_brain_sid", ["brain", "sid"])
     .vectorIndex("by_vec", { vectorField: "vec", dimensions: 1024, filterFields: ["base"] }),
 
+  /**
+   * What a workspace's projects cost, month by month: one row a project a
+   * month, added to after each message, file read or Brief written, from the
+   * usage the model host reports. A call the host gave no price for counts in
+   * `calls` and not in `priced`, so the total says when it may be low.
+   */
+  projectSpend: defineTable({
+    space: v.string(),
+    /* UTC, "2026-10". */
+    month: v.string(),
+    brain: v.string(),
+    usd: v.number(),
+    priced: v.number(),
+    calls: v.number(),
+    tokensIn: v.number(),
+    tokensOut: v.number(),
+    cached: v.number(),
+    at: v.number(),
+  }).index("by_space_month", ["space", "month"])
+    .index("by_brain_month", ["brain", "month"]),
+
+  /* The most a workspace's projects may cost in a month, when the owner set one. */
+  projectBudget: defineTable({
+    space: v.string(),
+    cap: v.number(),
+    updated: v.number(),
+  }).index("by_space", ["space"]),
+
   /* A change the chat proposed to the file: what it would do, what it replaced
      once applied, so it can be undone. The last 10 stay. */
   projectEdits: defineTable({

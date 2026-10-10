@@ -32,7 +32,7 @@ Reply with only JSON: {"picks":[3,17,42],"terms":["depreciation","straight line"
 export async function routeQuestion(
   pool: any[], concepts: any[], q: string, history: any, key?: string, model?: string,
   /* A caller that reads the folders to support something else shows the router a short list: `cap` titles, the concepts in `first` leading, ranked by `extra` words too. */
-  opts: { cap?: number; first?: string[]; extra?: string[] } = {},
+  opts: { cap?: number; first?: string[]; extra?: string[]; meter?: (u: any) => void } = {},
 ): Promise<{ picked: string[]; terms: string[]; routed: boolean }> {
   const index = indexFor(pool, concepts, q, opts);
   if (!index.ids.length) return { picked: [], terms: [], routed: false };
@@ -40,7 +40,7 @@ export async function routeQuestion(
      still finds the first one. */
   const before = (Array.isArray(history) ? history : []).slice(-3).map((h: any) => String(h?.q ?? "").slice(0, 300)).filter(Boolean);
   try {
-    const { text, finish } = await ask([
+    const { text, finish, usage } = await ask([
       { role: "system", content: "You route questions to the right entries of a knowledge base. You reply with JSON only." },
       { role: "user", content: `${ROUTE_RULES}
 
@@ -51,6 +51,7 @@ ${index.text}` },
     /* Temperature 0: the same question opens the same concepts each time.
        A model that must think gets its room on top of the 600, and the time. */
     ], { json: true, maxTokens: 600, timeout: 45000, temperature: 0, key, model });
+    opts.meter?.(usage);
     const d = parseJson(String(text), finish);
     const picked = (Array.isArray(d?.picks) ? d.picks : [])
       .map((n: any) => index.ids[Number(n) - 1]).filter(Boolean).slice(0, 30);

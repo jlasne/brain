@@ -4843,6 +4843,91 @@ for (const space of ["octopus", "squidgy"]) {
   await page.close();
 }
 
+/* ---- Settings: what the projects cost, and a cap ---- */
+{
+  const projects = [{ slug: "offer", name: "Coaching offer", kind: "doc", file: "Offer.md", status: "ready", chars: 900, sections: 3, memory: 2, at: 3 }];
+  const mk = async (state, spend) => {
+    const { page, bad } = await boot("/chat.html", arg => {
+      sessionStorage.setItem("octopus.token.v1", "test");
+      window.__calls = [];
+      window.__spend = arg.spend;
+      window.fetch = async (u, opt) => {
+        const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}");
+        window.__calls.push({ s: path, body });
+        const J = x => Response.json(x);
+        if (path === "/api/state") return J(arg.state);
+        if (path === "/api/health") return J({ conflicted: [], health: [] });
+        if (path === "/api/project/list") return J({ projects: arg.state.projects || [] });
+        if (path === "/api/project/spend") {
+          if (window.__spend === "old") return new Response("<html>not found</html>", { status: 200 });
+          if ("cap" in body) {
+            if (body.cap !== null && !(body.cap > 0)) return J({ error: "a cap is a number of dollars, more than 0 and at most 100,000" });
+            window.__spend = { ...window.__spend, cap: body.cap, over: body.cap !== null && window.__spend.usd >= body.cap };
+          }
+          return J(window.__spend);
+        }
+        return J({ chats: [] });
+      };
+    }, { state, spend });
+    return { page, bad };
+  };
+  const SPEND = { month: "2026-10", usd: 0.4235, calls: 1204, priced: 1190, tokensIn: 5100000, tokensOut: 400000, cached: 3200000, last: { month: "2026-09", usd: 1.1 }, cap: null, over: false,
+    projects: [{ slug: "offer", name: "Coaching offer", usd: 0.3, calls: 900 }, { slug: "gone", name: "", usd: 0.1235, calls: 304 }] };
+  const open = async page => { await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(350); };
+
+  /* no project: no such fold; the demo: none either */
+  const none = await mk({ ...STATE, brains: [], concepts: [], projects: [] }, SPEND);
+  await none.page.waitForTimeout(400); await open(none.page);
+  check("with no project there is no Projects cost fold, and the server is not asked", await none.page.evaluate(() => document.getElementById("spendBlock").hidden && !window.__calls.some(x => x.s === "/api/project/spend")));
+  await none.page.close();
+
+  const { page, bad } = await mk({ ...STATE, brains: [], concepts: [], projects }, SPEND);
+  await page.waitForTimeout(400); await open(page);
+  const f0 = await page.evaluate(() => ({ hidden: document.getElementById("spendBlock").hidden, open: document.getElementById("spendBlock").open, sum: document.getElementById("spendSum").textContent,
+    bad: document.getElementById("spendSum").classList.contains("bad"), asks: window.__calls.filter(x => x.s === "/api/project/spend").map(x => x.body) }));
+  check("a workspace with a project has the fold, shut, saying what this month cost, from one read", !f0.hidden && !f0.open && f0.sum === "$0.42 this month" && !f0.bad && JSON.stringify(f0.asks) === "[{\"token\":\"test\"}]", JSON.stringify(f0));
+  await page.click("#spendBlock > summary"); await page.waitForTimeout(150);
+  const rows = await page.evaluate(() => [...document.querySelectorAll("#spendBody .sp-row")].map(r => r.textContent));
+  check("it lists this month's dollars and calls, the tokens with how much was reused, each project and a deleted one, and last month",
+    JSON.stringify(rows) === JSON.stringify(["This month$0.421,204 calls", "Tokens5.10M in, 400.0k out63% reused", "Coaching offer$0.30900", "A deleted project$0.12304", "Last month$1.10"]), JSON.stringify(rows));
+  check("calls the host gave no price for are said, and the tokens are said to be exact", await page.evaluate(() => /^14 calls came back with no price, so the dollars may be low\. The tokens are exact\.$/.test(document.querySelector("#spendBody .sp-note")?.textContent || "")));
+  const cap0 = await page.evaluate(() => ({ v: document.getElementById("spendCap").value, ph: document.getElementById("spendCap").placeholder, off: document.getElementById("spendOff").hidden }));
+  check("with no cap the field is empty and asks for one, and there is no cap to remove", cap0.v === "" && cap0.ph === "No cap" && cap0.off, JSON.stringify(cap0));
+
+  /* a cap */
+  const calls = () => page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/spend" && "cap" in x.body).map(x => x.body.cap));
+  await page.fill("#spendCap", "abc"); await page.click("#spendSave"); await page.waitForTimeout(100);
+  check("a cap that is no number is said at once, and nothing is sent", (await page.textContent("#spendMsg")) === "A cap is a number of dollars, like 5 or 12.50." && (await calls()).length === 0);
+  await page.fill("#spendCap", "$12,50"); await page.click("#spendSave"); await page.waitForTimeout(250);
+  const c1 = await page.evaluate(() => ({ msg: document.getElementById("spendMsg").textContent, v: document.getElementById("spendCap").value, off: document.getElementById("spendOff").hidden }));
+  check("a cap is read with a dollar sign and a comma for the point, sent as a number, and said saved; the button to remove it appears", JSON.stringify(await calls()) === "[12.5]" && c1.msg === "Capped at $12.50 a month. Saved." && c1.v === "12.5" && !c1.off, JSON.stringify(c1));
+  await page.fill("#spendCap", "0.2"); await page.keyboard.press("Enter"); await page.waitForTimeout(250);
+  const c2 = await page.evaluate(() => ({ sum: document.getElementById("spendSum").textContent, bad: document.getElementById("spendSum").classList.contains("bad"), note: document.querySelector("#spendBody .sp-note.bad")?.textContent }));
+  check("Enter saves it too, and a cap under what was spent says it is reached, in the fold's title and in a line", c2.sum === "cap reached" && c2.bad && /^The cap is reached\. A message, a file read in, a resource and a Brief written wait until the 1st, or until you raise the cap\.$/.test(c2.note || ""), JSON.stringify(c2));
+  await page.click("#spendOff"); await page.waitForTimeout(250);
+  const c3 = await page.evaluate(() => ({ sum: document.getElementById("spendSum").textContent, msg: document.getElementById("spendMsg").textContent, v: document.getElementById("spendCap").value, off: document.getElementById("spendOff").hidden, note: !!document.querySelector("#spendBody .sp-note.bad") }));
+  check("No cap removes it: the title goes back to the dollars, the note goes, and the message says projects run on", JSON.stringify(await calls()) === "[12.5,0.2,null]" && c3.sum === "$0.42 this month" && /^No cap\./.test(c3.msg) && c3.v === "" && c3.off && !c3.note, JSON.stringify(c3));
+
+  /* a phone */
+  await page.setViewportSize({ width: 390, height: 800 }); await page.waitForTimeout(250);
+  const ph = await page.evaluate(() => { const sh = document.querySelector(".veil .sheet").getBoundingClientRect(); return { w: document.documentElement.scrollWidth, vw: innerWidth, sheet: Math.round(sh.right), save: Math.round(document.getElementById("spendSave").getBoundingClientRect().right) }; });
+  check("on a phone the fold fits the sheet and the page does not scroll sideways", ph.w <= ph.vw && ph.save <= ph.vw, JSON.stringify(ph));
+  check("nothing threw", bad.length === 0, bad.join(" | "));
+  await page.close();
+
+  /* a server older than this page, and one with a cap already reached */
+  const old = await mk({ ...STATE, brains: [], concepts: [], projects }, "old");
+  await old.page.waitForTimeout(400); await open(old.page); await old.page.click("#spendBlock > summary"); await old.page.waitForTimeout(200);
+  check("a server that cannot count yet says so, and Settings still works", (await old.page.textContent("#spendBody")) === "The server is older than this page and cannot count yet. Run convex deploy." && await old.page.evaluate(() => !!document.getElementById("setModel")));
+  check("no page error with an old server", old.bad.length === 0, old.bad.join(" | "));
+  await old.page.close();
+  const over = await mk({ ...STATE, brains: [], concepts: [], projects }, { ...SPEND, cap: 0.4, over: true });
+  await over.page.waitForTimeout(400); await open(over.page);
+  const o1 = await over.page.evaluate(() => ({ sum: document.getElementById("spendSum").textContent, bad: document.getElementById("spendSum").classList.contains("bad"), v: document.getElementById("spendCap").value, off: document.getElementById("spendOff").hidden }));
+  check("a cap already reached shows in the closed fold, with the cap in the field", o1.sum === "cap reached" && o1.bad && o1.v === "0.4" && !o1.off, JSON.stringify(o1));
+  await over.page.close();
+}
+
 await browser.close();
 server.close();
 console.log(failures ? `\n${failures} failed` : "\nthe pages run");

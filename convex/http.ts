@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
-import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, writeBrief, gapsOf, readBlocks } from "./project";
+import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, writeBrief, gapsOf, readBlocks, withSpend, guardBudget } from "./project";
 import { colNames, downloadText, csvOf, parseCsv, madeName, splitKey, fileKey } from "./sheet";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
@@ -1608,6 +1608,8 @@ route("/api/project/begin", async (ctx, _req, b) => {
         header: colNames((Array.isArray(s?.header) ? s.header : []).map((x: any) => String(x ?? "")).slice(0, 60)) }))
     : [{ name: String(b.name ?? "").slice(0, 60), header: [] }];
   if (!sheets.length) return { error: "the table has no sheet to read" };
+  /* A file read in asks a model for every section: a cap already reached stops it before the old file goes. */
+  await guardBudget(ctx, who.space);
   if (!(await wipeProject(ctx, who.space, brain, true))) return { error: "the old file is large: ask again to clear it" };
   /* What the old file alone wrote goes with it (its note and its topics); what the chat kept stays. Another file of the project wrote no note of its own. */
   if (splitKey(brain).fid === 1) await ctx.runMutation(internal.projects.memoryForgetFile, { space: who.space, brain, only: true });
@@ -1624,14 +1626,14 @@ route("/api/project/part", async (ctx, _req, b) => {
   }
   const text = String(b.text ?? "").slice(0, 400000);
   if (!text.trim()) return { sections: 0, chars: 0 };
-  return await addDocPiece(ctx, { space: who.space, brain, ver, text, page: Math.max(0, Number(b.page) || 0), key: keyFor(who), model: modelFor(who, b) });
+  return await withSpend(ctx, { space: who.space, brain }, meter => addDocPiece(ctx, { space: who.space, brain, ver, text, page: Math.max(0, Number(b.page) || 0), key: keyFor(who), model: modelFor(who, b), meter }));
 });
 
 route("/api/project/finish", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   const brain = String(b.brain ?? "");
   /* The first file writes the project's note on its file; each file is given a line and its sections a meaning, for the project's map and its search. */
-  return await finishFile(ctx, { space: who.space, brain, ver: Number(b.ver), about: splitKey(brain).fid === 1, embeds: !who.byok && !who.demo, key: keyFor(who), model: modelFor(who, b) });
+  return await withSpend(ctx, { space: who.space, brain }, meter => finishFile(ctx, { space: who.space, brain, ver: Number(b.ver), about: splitKey(brain).fid === 1, embeds: !who.byok && !who.demo, key: keyFor(who), model: modelFor(who, b), meter }));
 });
 
 /**
@@ -1672,13 +1674,15 @@ route("/api/project/file", async (ctx, _req, b) => {
 /** The owner's instructions, typed or read from a file in the browser: one model call writes them as notes in the project's memory, and the chat follows them. */
 route("/api/project/instructions", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  return await fileInstructions(ctx, { space: who.space, brain: String(b.brain ?? ""), name: String(b.name ?? ""), text: String(b.text ?? ""), key: keyFor(who), model: modelFor(who, b) });
+  const brain = String(b.brain ?? "");
+  return await withSpend(ctx, { space: who.space, brain }, meter => fileInstructions(ctx, { space: who.space, brain, name: String(b.name ?? ""), text: String(b.text ?? ""), key: keyFor(who), model: modelFor(who, b), meter }));
 });
 
 /** A resource the owner dropped into the project, typed, pasted or read from a file in the browser: one model call writes it as notes in the project's memory. */
 route("/api/project/resource", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  return await fileResource(ctx, { space: who.space, brain: String(b.brain ?? ""), name: String(b.name ?? ""), text: String(b.text ?? ""), key: keyFor(who), model: modelFor(who, b) });
+  const brain = String(b.brain ?? "");
+  return await withSpend(ctx, { space: who.space, brain }, meter => fileResource(ctx, { space: who.space, brain, name: String(b.name ?? ""), text: String(b.text ?? ""), key: keyFor(who), model: modelFor(who, b), meter }));
 });
 
 /**
@@ -1694,7 +1698,7 @@ route("/api/project/brief", async (ctx, _req, b) => {
   const brain = String(b.brain ?? ""), space = who.space;
   switch (String(b.action ?? "save")) {
     case "save": return await ctx.runMutation(internal.projects.briefSave, { space, brain, text: String(b.text ?? "") });
-    case "write": return await writeBrief(ctx, { space, brain, answers: Array.isArray(b.answers) ? b.answers : [], key: keyFor(who), model: modelFor(who, b) });
+    case "write": return await withSpend(ctx, { space, brain }, meter => writeBrief(ctx, { space, brain, answers: Array.isArray(b.answers) ? b.answers : [], key: keyFor(who), model: modelFor(who, b), meter }));
     case "state": return await ctx.runMutation(internal.projects.stateSave, { space, brain, text: String(b.text ?? "") });
     case "next": return await ctx.runMutation(internal.projects.nextSet, { space, brain, on: b.on !== false });
     case "drop": return await ctx.runMutation(internal.projects.asksDrop, { space, brain, id: String(b.id ?? "") });
@@ -1716,9 +1720,26 @@ route("/api/project/chat", async (ctx, _req, b) => {
   const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
   const shared = withoutPersonal(head);
   const file = Math.floor(Number(b.file));
-  return { turn: await projectChat(ctx, { space: who.space, brain: String(b.brain ?? ""), ...(file >= 1 ? { file } : {}), q: String(b.q ?? ""), key: mKey, model: mName,
+  const brain = String(b.brain ?? "");
+  return { turn: await withSpend(ctx, { space: who.space, brain }, meter => projectChat(ctx, { space: who.space, brain, ...(file >= 1 ? { file } : {}), q: String(b.q ?? ""), key: mKey, model: mName,
     english: who.models?.reply === "en", embeds: !who.byok && !who.demo, note: true, tags: Array.isArray(b.tags) ? b.tags.map(String).slice(0, 12) : [],
-    shared: { brains: shared.brains, cards: (slugs: string[]) => cardsFor(ctx, slugs, head.ready) } }) };
+    shared: { brains: shared.brains, cards: (slugs: string[]) => cardsFor(ctx, slugs, head.ready) }, meter })) };
+});
+
+/**
+ * What the projects cost, and the cap on it. With no `cap` it reads: this month's dollars (as the model host reported them) and tokens,
+ * the month before, each project's share, and the cap. With `cap` set to a number of dollars it sets the cap, and with null it removes it.
+ * A cap that is reached stops a message, a file read in, a resource and a Brief written until the 1st or until it is raised.
+ */
+route("/api/project/spend", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  if ("cap" in b) {
+    const raw = b.cap;
+    const cap = raw === null || raw === "" ? null : Number(raw);
+    if (cap !== null && !Number.isFinite(cap)) return { error: "a cap is a number of dollars" };
+    await ctx.runMutation(internal.projects.budgetSet, { space: who.space, cap });
+  }
+  return await ctx.runQuery(internal.projects.spendOf, { space: who.space });
 });
 
 route("/api/project/forget", async (ctx, _req, b) => {

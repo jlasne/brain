@@ -1011,7 +1011,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   check("the second time it is shown the sections of the file that share the question's words", !/SECTION \d+: [^\n]*Cancellations/.test(asked[0].user) && new RegExp(`SECTION ${cardOf("Cancellations").sid}:`).test(asked[1].user), asked[1].user.slice(0, 400));
   check("and the owner's folders the router had left out, which are then read", !/\(not consulted\)/.test(asked[1].user) && /up to 24 hours before it starts/.test(asked[1].user) && /\(not consulted\)/.test(asked[0].user) && loaded.length === 1, JSON.stringify(loaded));
   check("the second answer is the one kept, and it lacks nothing", t2.lead === "Cancel up to 24 hours before the class." && t2.lacks === undefined && t2.a === "Your Legal folder says so.", JSON.stringify(t2));
-  check("the turn names what was read in the end: the section and the folder, and the cost counts every call", t2.used.file.sections.some(x => x.sid === cardOf("Cancellations").sid) && same(t2.used.folders.map(f => f.slug), ["legal"]) && t2.cost.calls === 3, JSON.stringify([t2.used, t2.cost]));
+  check("the turn names what was read in the end: the section and the folder, and the cost counts every call: the project's router, the folder router and both answers", t2.used.file.sections.some(x => x.sid === cardOf("Cancellations").sid) && same(t2.used.folders.map(f => f.slug), ["legal"]) && t2.cost.calls === 4, JSON.stringify([t2.used, t2.cost]));
 
   /* still not enough after the second answer: it stands, says so, and the turn is marked, with no third answer */
   reply = { route: routeOf({ sections: [], terms: ["cancellation"] }), folders: { picks: [1], terms: ["cancellation"] },
@@ -1023,7 +1023,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   reply = { route: routeOf({ sections: [], terms: ["parking"] }), folders: { picks: [], terms: ["parking"] }, answer: answerOf({ tldr: "Nothing says where to park.", reply: "Drop a resource that holds it.", enough: false }), usage: use };
   n = sent.length; loaded.length = 0;
   const t3b = await chat("Where do I park?");
-  check("when the second look finds nothing new, the first answer stands, marked as lacking, and no answer is written again for nothing", answers(n).length === 1 && loaded.length === 1 && t3b.lacks === true && t3b.cost.calls === 2, JSON.stringify([answers(n).length, loaded, t3b.lacks, t3b.cost]));
+  check("when the second look finds nothing new, the first answer stands, marked as lacking, and no answer is written again for nothing", answers(n).length === 1 && loaded.length === 1 && t3b.lacks === true && t3b.cost.calls === 3, JSON.stringify([answers(n).length, loaded, t3b.lacks, t3b.cost]));
 
   /* a folder the owner tagged is the only one read: the second look leaves the others alone */
   reply = { route: routeOf({ sections: [], terms: ["parking"] }), folders: { picks: [], terms: ["parking"] }, answer: answerOf({ tldr: "Nothing says where to park.", reply: "Drop a resource that holds it.", enough: false }), usage: use };
@@ -2319,6 +2319,138 @@ const docProject = async (w, name, text, kind = "doc") => {
   /* taking it all away */
   check("deleting a project takes it away, and its memory with it", (await call("/api/project/delete", { brain: slugR })).ok === true && !w.T.brains.some(b => b.slug === slugR) && !(w.T.concepts ?? []).some(c => c.brain === slugR) && !(await call("/api/project/list")).projects.some(x => x.slug === slugR));
   check("and the sources its instruction notes and its resources rested on", !(w.T.sources ?? []).some(x => /^(Instructions|Resource)/.test(x.title) && (x.brains ?? []).includes(slugR)));
+}
+
+/* ================= what the projects cost ================= */
+
+{
+  const router = http.default;
+  const w = makeCtx();
+  const FAR = Date.now() + 1e7;
+  w.T.sessions = [{ _id: "s1", token: "owner-token", expires: FAR, kind: "owner", space: "octopus" }, { _id: "s2", token: "squidgy-token", expires: FAR, kind: "owner", space: "squidgy" },
+    { _id: "s3", token: "demo-token", expires: FAR, kind: "demo", space: "demo", visitor: "v1" }];
+  w.T.workspaces = [{ _id: "w1", slug: "demo", name: "Demo", kind: "demo", created: "2026-01-01" }];
+  w.T.brains = [{ _id: "b1", slug: "wealth", name: "Wealth", type: "subject", scope: "wealth", space: "octopus" }];
+  w.T.concepts = [{ _id: "c1", brain: "wealth", slug: "gold", n: 1, title: "Gold", position: "Gold holds its value over centuries.", summaryLine: "Gold keeps value", evidence: [{ date: "2026-01-01", author: "A", claim: "gold kept value", source: "s-a" }],
+    data: [], conflicts: [], sources: ["s-a"], related: [], updated: "2026-01-01" }];
+  const call = async (path, body = {}, token = "owner-token") => {
+    const hit = router.lookup(path, "POST");
+    if (!hit) throw new Error("no route " + path);
+    const res = await hit[0](w.ctx, new Request("https://x" + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(token ? { token } : {}), ...body }) }));
+    return { status: res.status, ...(await res.json()) };
+  };
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  const price = { prompt_tokens: 1000, completion_tokens: 100, cost: 0.001 };
+  const spend = (token) => call("/api/project/spend", {}, token);
+
+  const s0 = await spend();
+  check("a workspace that has spent nothing reads zero, with no cap and nothing over", s0.usd === 0 && s0.calls === 0 && s0.cap === null && s0.over === false && same(s0.projects, []) && s0.month === new Date().toISOString().slice(0, 7) && s0.last.usd === 0, JSON.stringify(s0));
+  check("the route is closed without a session and to the demo", (await spend(null)).status === 401 && /demo lets you ask/.test((await spend("demo-token")).error));
+
+  /* a file read in */
+  const p = (await call("/api/project/new", { name: "Launch plan" })).slug;
+  reply = { usage: price, about: { notes: [] } };
+  const begun = await call("/api/project/begin", { brain: p, name: "brief.md", kind: "doc" });
+  await call("/api/project/part", { brain: p, ver: begun.ver, text: "# The Build Games\n\n## Offer\n\nTeam costs 1,490 euros a seat.\n\nStarter costs 490 euros.", page: 0 });
+  await call("/api/project/finish", { brain: p, ver: begun.ver });
+  const s1 = await spend();
+  const sections = w.T.projectCards.length;
+  check("a file read in counts a call for each section it gave a contents line, and one for the note on the file, with the tokens and the dollars the host reported",
+    s1.calls === sections + 1 && s1.priced === s1.calls && s1.tokensIn === 1000 * s1.calls && s1.tokensOut === 100 * s1.calls && near(s1.usd, 0.001 * s1.calls), JSON.stringify(s1));
+  check("the meaning of the sections is not counted: it is a separate, far cheaper kind of call", w.T.projectVectors.length > 0 && s1.calls === sections + 1);
+  check("the project's share is listed under its name", s1.projects.length === 1 && s1.projects[0].slug === p && s1.projects[0].name === "Launch plan" && s1.projects[0].calls === s1.calls, JSON.stringify(s1.projects));
+
+  /* a message: the router, the answer, and the folder router when a folder is read */
+  reply = { usage: price, route: routeOf(), answer: answerOf({ tldr: "Done." }) };
+  const before = s1.calls;
+  await call("/api/project/chat", { brain: p, q: "What does Team cost?" });
+  const s2 = await spend();
+  check("a message counts the calls that served it", s2.calls > before && s2.calls - before <= 2, String(s2.calls - before));
+  reply = { usage: price, route: routeOf({ folders: ["wealth"], terms: ["gold"] }), folders: { picks: [1], terms: ["gold"] }, answer: answerOf({ tldr: "Done." }) };
+  await call("/api/project/chat", { brain: p, q: "Is Team too high next to gold?" });
+  const s3 = await spend();
+  check("a message that reads a folder also counts the call that chose its notes", s3.calls - s2.calls === (s2.calls - before) + 1, `${s2.calls - before} then ${s3.calls - s2.calls}`);
+  check("the turn's own cost counts the same calls", (await call("/api/project/get", { brain: p })).turns.at(-1).cost.calls === s3.calls - s2.calls);
+
+  /* a resource, instructions and a Brief */
+  reply = { usage: price, resource: { notes: [{ title: "Refund window", claim: "14 days.", position: "A refund within 14 days.", summaryLine: "14 days" }] },
+    instructions: { notes: [{ title: "Tone", claim: "Formal.", position: "Write formally.", summaryLine: "Formal" }] }, briefText: JSON.stringify({ brief: "Goal: x." }) };
+  await call("/api/project/resource", { brain: p, name: "terms.pdf", text: "Refunds close after 14 days." });
+  await call("/api/project/instructions", { brain: p, name: "rules.md", text: "Write formally." });
+  await call("/api/project/brief", { brain: p, action: "write", answers: [{ q: "What is it for?", a: "x" }] });
+  const s4 = await spend();
+  check("a resource, instructions and a Brief written count a call each", s4.calls === s3.calls + 3, String(s4.calls - s3.calls));
+  check("saving a Brief, a rename and a read ask no model and count nothing", await (async () => {
+    await call("/api/project/brief", { brain: p, text: "Goal: fill 200 seats." }); await call("/api/project/get", { brain: p }); await call("/api/project/rename", { brain: p, name: "Launch brief" });
+    await call("/api/project/gaps", { brain: p }); return (await spend()).calls === s4.calls;
+  })());
+
+  /* a host that gives no price */
+  reply = { usage: { prompt_tokens: 500, completion_tokens: 50 }, route: routeOf(), answer: answerOf({ tldr: "Done." }) };
+  await call("/api/project/chat", { brain: p, q: "And Starter?" });
+  const s5 = await spend();
+  check("a call the host gave no price for counts its tokens and no dollars, and says so", near(s5.usd, s4.usd) && s5.priced === s4.priced && s5.calls > s4.calls && s5.tokensIn > s4.tokensIn, JSON.stringify([s4, s5]));
+
+  /* a message that fails part way is paid for up to where it got */
+  reply = { usage: price, route: routeOf(), answer: () => { throw new Error("the host dropped it"); } };
+  const f0 = (await spend()).calls;
+  const failed = await call("/api/project/chat", { brain: p, q: "And the Team seat?" });
+  check("a message that fails after the router answered still counts the router", !!failed.error && (await spend()).calls === f0 + 1, JSON.stringify([failed.error, (await spend()).calls - f0]));
+
+  /* another workspace sees none of it */
+  const sq = await spend("squidgy-token");
+  check("another workspace's spend is its own", sq.usd === 0 && sq.calls === 0 && same(sq.projects, []));
+
+  /* a second project, listed after the first when it spent less */
+  const p2 = (await call("/api/project/new", { name: "Small one", make: "doc" })).slug;
+  reply = { usage: { prompt_tokens: 100, completion_tokens: 10, cost: 0.0001 }, route: routeOf({ kind: "doc" }), answer: answerOf({ tldr: "Done." }) };
+  await call("/api/project/chat", { brain: p2, q: "A one page brief" });
+  const s6 = await spend();
+  check("each project has a row, the dearest first", s6.projects.length === 2 && s6.projects[0].slug === p && s6.projects[1].slug === p2 && near(s6.usd, s6.projects[0].usd + s6.projects[1].usd), JSON.stringify(s6.projects));
+
+  /* last month is shown and never counts against this month's cap */
+  const [yr, mo] = s6.month.split("-").map(Number), prev = mo === 1 ? `${yr - 1}-12` : `${yr}-${String(mo - 1).padStart(2, "0")}`;
+  w.T.projectSpend.push({ _id: "old1", space: "octopus", month: prev, brain: p, usd: 3.5, priced: 10, calls: 10, tokensIn: 1, tokensOut: 1, cached: 0, at: 1 });
+  const s7 = await spend();
+  check("the month before is shown beside this one, and is not counted in this one", s7.last.month === prev && near(s7.last.usd, 3.5) && near(s7.usd, s6.usd), JSON.stringify(s7.last));
+
+  /* the cap */
+  const bad = async cap => (await call("/api/project/spend", { cap })).error;
+  check("a cap is a number of dollars above 0 and no more than 100,000", /number of dollars/.test(await bad("abc")) && /more than 0/.test(await bad(0)) && /more than 0/.test(await bad(-3)) && /at most 100,000/.test(await bad(1e9)));
+  const setCap = await call("/api/project/spend", { cap: 0.5 });
+  check("setting a cap keeps it to the cent, and shows how it stands", setCap.cap === 0.5 && setCap.over === false && (await call("/api/project/spend", { cap: 1.234 })).cap === 1.23 && (await spend()).cap === 1.23);
+  check("the cap is closed to the demo, and another workspace has its own", /demo lets you ask/.test(String((await call("/api/project/spend", { cap: 1 }, "demo-token")).error)) && (await spend("squidgy-token")).cap === null);
+  /* the cap is set a little under what was spent: the next call is refused before it asks a model anything */
+  const under = Math.max(0.01, Math.floor(s7.usd * 100) / 100 - 0.01);
+  await call("/api/project/spend", { cap: under });
+  const stopped = await spend();
+  check("a cap that is reached says so", stopped.over === true && stopped.cap === under && stopped.usd >= stopped.cap, JSON.stringify(stopped));
+  const n0 = sent.length;
+  const refused = {
+    chat: await call("/api/project/chat", { brain: p, q: "Hello again" }),
+    begin: await call("/api/project/begin", { brain: p, name: "again.md", kind: "doc" }),
+    part: await call("/api/project/part", { brain: p, ver: 1, text: "# Again\n\nWords." }),
+    finish: await call("/api/project/finish", { brain: p, ver: 1 }),
+    resource: await call("/api/project/resource", { brain: p, name: "t.pdf", text: "Words." }),
+    instructions: await call("/api/project/instructions", { brain: p, name: "r.md", text: "Words." }),
+    brief: await call("/api/project/brief", { brain: p, action: "write", answers: [{ q: "q", a: "a" }] }),
+  };
+  check("with the cap reached, a message, a file read in, a resource, instructions and a Brief are each refused with the cap and where to change it, before a model is asked",
+    Object.values(refused).every(r => /used this month's budget: \$[\d.]+ of \$[\d.]+\. Raise the cap in Settings, or wait for the 1st\./.test(String(r.error))) && sent.length === n0, JSON.stringify(Object.fromEntries(Object.entries(refused).map(([k, r]) => [k, r.error]))));
+  check("a refused file read leaves the file that was there: nothing was cleared", (await call("/api/project/get", { brain: p })).file.status === "ready" && w.T.projectCards.some(c => c.brain === p));
+  check("reading, saving a Brief and a rename ask no model and still work", (await call("/api/project/get", { brain: p })).project.slug === p && (await call("/api/project/brief", { brain: p, text: "Goal: still." })).text === "Goal: still."
+    && (await call("/api/project/rename", { brain: p, name: "Still here" })).name === "Still here");
+  const raised = await call("/api/project/spend", { cap: Math.ceil(stopped.usd) + 1 });
+  reply = { usage: price, route: routeOf(), answer: answerOf({ tldr: "Done." }) };
+  check("raising the cap lets the next message through", raised.over === false && !(await call("/api/project/chat", { brain: p, q: "Back again" })).error);
+  await call("/api/project/spend", { cap: under });
+  check("removing the cap lets it through whatever was spent", (await call("/api/project/spend", { cap: null })).cap === null && !(await call("/api/project/chat", { brain: p, q: "Without a cap" })).error && (await call("/api/project/spend", { cap: "" })).cap === null);
+
+  /* a project that is deleted keeps what it cost */
+  const total = (await spend()).usd;
+  await call("/api/project/delete", { brain: p2 });
+  const after = await spend();
+  check("a project taken away leaves what it cost in the month, under no name", near(after.usd, total) && after.projects.some(x => x.slug === p2 && x.name === ""), JSON.stringify(after.projects));
 }
 
 
