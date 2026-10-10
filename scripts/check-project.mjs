@@ -216,6 +216,7 @@ globalThis.fetch = async (_u, opt) => {
   else if (/You route questions to the right entries/.test(sys)) out = JSON.stringify(reply.folders ?? { picks: [], terms: [] });
   else if (/You are the chat of a project/.test(sys)) out = typeof reply.answer === "function" ? reply.answer(user) : JSON.stringify(reply.answer ?? { reply: "ok", proposal: false, quotes: [], edits: [] });
   else if (/You write the memory notes of a file/.test(sys)) { if (reply.aboutFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.about ?? { notes: [] }); }
+  else if (/You write the memory notes of a resource/.test(sys)) { if (reply.resourceFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.resource ?? { notes: [] }); }
   else if (/You write the memory notes of an instruction file/.test(sys)) { if (reply.instructionsFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.instructions ?? { notes: [] }); }
   else if (/You file notes into a person's own knowledge base/.test(sys)) out = JSON.stringify({ notes: [], people: [] });
   else if (/You are their AI twin/.test(sys)) out = reply.twin ?? "Noted.";
@@ -876,6 +877,165 @@ const docProject = async (w, name, text, kind = "doc") => {
   const rLong = await project.fileInstructions(w.ctx, { space: SPACE, brain: p, name: "long.md", text: "word ".repeat(20000) });
   const longAsk = last(/You write the memory notes of an instruction file/).user;
   check("a long file is read up to 30,000 characters, and the reply says it was cut", /"long\.md", 30000 characters\n/.test(longAsk) && longAsk.slice(longAsk.indexOf("characters\n") + 11).length === 30000 && rLong.cut === true && r.cut === undefined, String(longAsk.length));
+  reply = {};
+}
+
+/* ================= a resource dropped into the project ================= */
+
+{
+  const w = makeCtx();
+  const p = await docProject(w, "Gym plan", midDoc);
+  const get = () => w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, ...extra });
+  const refunds = [
+    { title: "Refund window", claim: "Refunds close after 14 days.", position: "A client may ask for a refund within 14 days of the first session.", summaryLine: "14 days to ask" },
+    { title: "Late fees", claim: "A late payment adds 2%.", position: "A payment more than 7 days late adds 2% each month.", summaryLine: "2% a month" },
+  ];
+  /* an instruction is held: a resource never rewrites it */
+  reply = { instructions: { notes: [{ title: "Tone", claim: "Formal.", position: "Write formally.", summaryLine: "Formal" }] } };
+  await project.fileInstructions(w.ctx, { space: SPACE, brain: p, name: "rules.md", text: "Write formally." });
+  reply = { resource: { notes: [...refunds, { title: "The file", claim: "x", position: "Takes the title of the note on the file.", summaryLine: "x" },
+    { title: "Tone", claim: "Casual.", position: "Use a casual tone.", summaryLine: "Casual" }] } };
+  const n0 = sent.length;
+  const r = await project.fileResource(w.ctx, { space: SPACE, brain: p, name: "terms.pdf", text: "Refunds close after 14 days. A late payment adds 2%.", key: "k" });
+  const asked = last(/You write the memory notes of a resource/);
+  check("a resource is read by one model call, which sees its name and its words", sent.length === n0 + 1 && asked.user.includes('"terms.pdf"') && asked.user.includes("Refunds close after 14 days."), asked.user.slice(0, 200));
+  check("it files a note for each fact, never one titled The file and never one that takes an instruction's title", r.notes === 2 && same(r.titles, ["Refund window", "Late fees"]) && r.cut === undefined, JSON.stringify(r));
+  const mem = (await get()).memory;
+  const mine = w.T.concepts.filter(c => ["Refund window", "Late fees"].includes(c.title));
+  check("the notes join the project's memory in the folder format, apart from the instructions: a position, a dated line of evidence by Resource, the resource as the source",
+    mem.filter(m => !m.instructions).length === 2 && mem.filter(m => m.instructions).length === 1 && mine.every(c => c.tag === undefined && c.evidence[0].author === "Resource" && c.evidence[0].claim && c.sources.length === 1)
+    && w.T.sources.some(s => /^Resource: terms\.pdf, \d{4}-\d{2}-\d{2}$/.test(s.title) && s.author === "Resource"), JSON.stringify(w.T.sources.map(s => s.title)));
+  check("the instruction is as it was", w.T.concepts.find(c => c.title === "Tone").position === "Write formally." && w.T.concepts.find(c => c.title === "Tone").tag === "instructions");
+
+  /* the chat reads them as it reads any note: by the question */
+  reply = { route: routeOf(), answer: answerOf({ tldr: "Yes, within 14 days." }) };
+  await chat("Can I get a refund after 10 days?");
+  const a = last(/You are the chat of a project/);
+  check("the chat reads the note that bears on the question, in its memory, and not in the instructions", /PROJECT MEMORY\n- Refund window: A client may ask for a refund within 14 days of the first session\./.test(a.user) && !/- Refund window/.test(a.sys), a.user.slice(a.user.indexOf("PROJECT MEMORY"), a.user.indexOf("PROJECT MEMORY") + 300));
+
+  /* two resources of one day keep their own source, and one added again updates its notes */
+  reply = { resource: { notes: [{ title: "Opening hours", claim: "Open 7am to 9pm.", position: "The gym opens at 7am and closes at 9pm.", summaryLine: "7am to 9pm" }] } };
+  await project.fileResource(w.ctx, { space: SPACE, brain: p, name: "hours.txt", text: "Open 7am to 9pm." });
+  check("two resources of one day keep their own source", w.T.sources.filter(s => /^Resource/.test(s.title)).length === 2, JSON.stringify(w.T.sources.map(s => s.title)));
+  reply = { resource: { notes: [{ title: "Refund window", claim: "Refunds close after 30 days.", position: "A client may ask for a refund within 30 days of the first session.", summaryLine: "30 days to ask" }] } };
+  const again = await project.fileResource(w.ctx, { space: SPACE, brain: p, name: "terms-v2.pdf", text: "Refunds close after 30 days." });
+  const titles = (await get()).memory.map(m => m.title);
+  check("a note on the same topic is updated, not doubled", again.notes === 1 && titles.filter(t => t === "Refund window").length === 1 && w.T.concepts.find(c => c.title === "Refund window").position.includes("30 days"), JSON.stringify(titles));
+
+  /* typed or pasted: no name */
+  reply = { resource: { notes: refunds } };
+  await project.fileResource(w.ctx, { space: SPACE, brain: p, name: "", text: "Refunds close after 14 days." });
+  const typed = last(/You write the memory notes of a resource/).user;
+  check("words typed or pasted come with no name: the model is told they are a text, and the source is titled by the resource alone", /THE TEXT, \d+ characters\n/.test(typed) && !/THE RESOURCE/.test(typed) && w.T.sources.some(s => /^Resource, \d{4}-\d{2}-\d{2}$/.test(s.title)), typed.slice(-160));
+
+  /* bounds */
+  const n1 = sent.length;
+  const blank = await project.fileResource(w.ctx, { space: SPACE, brain: p, name: "x.md", text: " \n " }).catch(e => e.message);
+  const other = await project.fileResource(w.ctx, { space: "squidgy", brain: p, name: "x.md", text: "Words." }).catch(e => e.message);
+  check("no text is refused before a model is asked, and so is a project of another workspace", /gave no text/.test(blank) && /not in this workspace/.test(String(other)) && sent.length === n1, JSON.stringify([blank, other, sent.length - n1]));
+  const heldBefore = (await get()).memory.map(m => m.title).sort().join("|");
+  reply = { resource: { notes: [] } };
+  const none = await project.fileResource(w.ctx, { space: SPACE, brain: p, name: "x.md", text: "Some words." }).catch(e => e.message);
+  reply = { resourceFail: true };
+  const down = await project.fileResource(w.ctx, { space: SPACE, brain: p, name: "x.md", text: "Some words." }).catch(e => e.message);
+  check("a reply with no note is refused with its reason, a model that fails is refused too, and the memory is as it was", /could not be read into notes/.test(none) && typeof down === "string" && down.length > 0
+    && (await get()).memory.map(m => m.title).sort().join("|") === heldBefore, JSON.stringify([none, down]));
+  reply = { resource: { notes: refunds } };
+  const rl = await project.fileResource(w.ctx, { space: SPACE, brain: p, name: "long.md", text: "word ".repeat(10000) });
+  const longAsk = last(/You write the memory notes of a resource/).user;
+  check("a long text is read up to 20,000 characters in one call, and the reply says it was cut", /"long\.md", 20000 characters\n/.test(longAsk) && longAsk.slice(longAsk.indexOf("characters\n") + 11).length === 20000 && rl.cut === true, String(longAsk.length));
+  reply = {};
+}
+
+/* ================= not enough: the rest of the file and the folders, once ================= */
+
+{
+  const w = makeCtx();
+  const folder = (slug, name, scope, title, line) => ({
+    brain: { _id: "b-" + slug, slug, name, type: "subject", scope, space: SPACE },
+    concept: { _id: "c-" + slug, brain: slug, slug: title.toLowerCase().replace(/\W+/g, "-"), n: 1, title, position: line, summaryLine: line.slice(0, 50),
+      evidence: [{ date: "2026-03-01", author: "A", claim: line, source: "s-" + slug }], data: [], conflicts: [], sources: ["s-" + slug], related: [], updated: "2026-03-01" },
+    card: { _id: "k-" + slug, cid: "c-" + slug, brain: slug, slug: title.toLowerCase().replace(/\W+/g, "-"), n: 1, title, summaryLine: line.slice(0, 50), lead: line, ev: 1, src: 1, srcIds: ["s-" + slug], related: [], updated: "2026-03-01" },
+  });
+  const legal = folder("legal", "Legal", "Contracts and terms", "Cancellation terms", "A class can be cancelled up to 24 hours before it starts.");
+  const sports = folder("sports", "Sports", "Training notes", "Warm-up", "A warm-up lasts 10 minutes.");
+  w.T.brains = [legal.brain, sports.brain]; w.T.concepts = [legal.concept, sports.concept]; w.T.cards = [legal.card, sports.card];
+  const loaded = [];
+  const shared = { brains: [{ slug: "legal", name: "Legal", type: "subject", scope: "Contracts and terms" }, { slug: "sports", name: "Sports", type: "subject", scope: "Training notes" }],
+    cards: async slugs => { loaded.push(slugs.join()); return w.T.cards.filter(c => slugs.includes(c.brain)); } };
+  const sec = (title, line) => `## ${title}\n\n${line} ` + "word ".repeat(1100).trim() + ".";
+  const planDoc = [sec("Pricing", "Team costs 1,490 euros."), sec("Schedule", "Sessions run on Tuesdays."), sec("Cancellations", "A booking can be cancelled in the app.")].join("\n\n");
+  const p = await docProject(w, "Gym plan", planDoc);
+  const cards = (await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p })).cards;
+  const cardOf = t => cards.find(c => new RegExp(t, "i").test(c.title + " " + c.summary));
+  const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared, ...extra });
+  const answers = from => sent.slice(from).filter(m => /You are the chat of a project/.test(m.sys));
+  const use = () => ({ prompt_tokens: 1000, completion_tokens: 50 });
+  check("the file is cut in a section for each topic, none of them tiny", cards.length === 3 && cards.every(c => c.chars > 2000), JSON.stringify(cards.map(c => [c.title, c.chars])));
+
+  /* an answer that rests on what it was given is the only one */
+  reply = { route: routeOf({ sections: [cardOf("Pricing").sid], terms: ["price"] }), answer: answerOf({ tldr: "Team costs 1,490 euros.", reply: "", enough: true }), usage: use };
+  let n = sent.length;
+  const ok = await chat("What does Team cost?");
+  check("an answer that rests on what it was given is the only one: no second look, no folder read", answers(n).length === 1 && loaded.length === 0 && ok.lacks === undefined && ok.cost.calls === 2, JSON.stringify([answers(n).length, loaded, ok.cost]));
+
+  /* not enough: the sections that share the question's words, and the folders the router left out, once */
+  const first = JSON.stringify(answerOf({ tldr: "Nothing says how a booking is cancelled.", reply: "Drop a resource that holds the cancellation terms.", enough: false }));
+  const second = JSON.stringify(answerOf({ tldr: "Cancel up to 24 hours before the class.", reply: "Your Legal folder says so.", enough: true }));
+  reply = { route: routeOf({ sections: [], terms: ["cancellation"] }), folders: { picks: [1], terms: ["cancellation"] },
+    answer: user => /up to 24 hours before it starts/.test(user) ? second : first, usage: use };
+  n = sent.length;
+  const t2 = await chat("How do I cancel a class?");
+  const asked = answers(n);
+  check("when the answer says what it was given was not enough, it is written again, once", asked.length === 2 && /enough/.test(asked[0].sys), String(asked.length));
+  check("the second time it is shown the sections of the file that share the question's words", !/SECTION \d+: [^\n]*Cancellations/.test(asked[0].user) && new RegExp(`SECTION ${cardOf("Cancellations").sid}:`).test(asked[1].user), asked[1].user.slice(0, 400));
+  check("and the owner's folders the router had left out, which are then read", !/\(not consulted\)/.test(asked[1].user) && /up to 24 hours before it starts/.test(asked[1].user) && /\(not consulted\)/.test(asked[0].user) && loaded.length === 1, JSON.stringify(loaded));
+  check("the second answer is the one kept, and it lacks nothing", t2.lead === "Cancel up to 24 hours before the class." && t2.lacks === undefined && t2.a === "Your Legal folder says so.", JSON.stringify(t2));
+  check("the turn names what was read in the end: the section and the folder, and the cost counts every call", t2.used.file.sections.some(x => x.sid === cardOf("Cancellations").sid) && same(t2.used.folders.map(f => f.slug), ["legal"]) && t2.cost.calls === 3, JSON.stringify([t2.used, t2.cost]));
+
+  /* still not enough after the second answer: it stands, says so, and the turn is marked, with no third answer */
+  reply = { route: routeOf({ sections: [], terms: ["cancellation"] }), folders: { picks: [1], terms: ["cancellation"] },
+    answer: answerOf({ tldr: "Nothing says what a cancellation costs.", reply: "Drop a resource that holds the fees.", enough: false }), usage: use };
+  n = sent.length; loaded.length = 0;
+  const t3 = await chat("What does a cancellation cost?");
+  check("when the second answer lacks the fact too, it stands: it says what is missing, the turn is marked as lacking, and there is no third", answers(n).length === 2 && t3.lacks === true && t3.lead === "Nothing says what a cancellation costs.", JSON.stringify([answers(n).length, t3.lacks]));
+  /* the second look finds nothing new: no answer is written for nothing */
+  reply = { route: routeOf({ sections: [], terms: ["parking"] }), folders: { picks: [], terms: ["parking"] }, answer: answerOf({ tldr: "Nothing says where to park.", reply: "Drop a resource that holds it.", enough: false }), usage: use };
+  n = sent.length; loaded.length = 0;
+  const t3b = await chat("Where do I park?");
+  check("when the second look finds nothing new, the first answer stands, marked as lacking, and no answer is written again for nothing", answers(n).length === 1 && loaded.length === 1 && t3b.lacks === true && t3b.cost.calls === 2, JSON.stringify([answers(n).length, loaded, t3b.lacks, t3b.cost]));
+
+  /* a folder the owner tagged is the only one read: the second look leaves the others alone */
+  reply = { route: routeOf({ sections: [], terms: ["parking"] }), folders: { picks: [], terms: ["parking"] }, answer: answerOf({ tldr: "Nothing says where to park.", reply: "Drop a resource that holds it.", enough: false }), usage: use };
+  n = sent.length; loaded.length = 0;
+  const t3c = await chat("Where do I park? @Sports", { tags: ["sports"] });
+  check("a folder the owner tagged is the only one read: the second look leaves the others alone, and the turn is marked as lacking", answers(n).length === 1 && same(loaded, ["sports"]) && t3c.lacks === true, JSON.stringify([answers(n).length, loaded, t3c.lacks]));
+
+  /* nothing left to read: one answer, marked */
+  const small = await docProject(w, "Small", "## Offer\n\nTeam costs 1,490 euros.");
+  reply = { route: routeOf(), answer: answerOf({ tldr: "Nothing says that.", reply: "Drop a resource that holds it.", enough: false }), usage: use };
+  n = sent.length;
+  const t4 = await project.projectChat(w.ctx, { space: SPACE, brain: small, q: "Who is the coach?", english: false, embeds: false, shared: shared0 });
+  check("with the whole file read and no other folder, there is nothing more to read: one answer, marked as lacking", answers(n).length === 1 && t4.lacks === true, JSON.stringify([answers(n).length, t4.lacks]));
+
+  /* thanks, small talk and changes never look again, and are never marked */
+  reply = { route: routeOf(), answer: answerOf({ tldr: "", reply: "You are welcome.", enough: false }), usage: use };
+  n = sent.length;
+  const t5 = await chat("thanks");
+  reply = { route: routeOf(), answer: answerOf({ tldr: "", reply: "Fine.", enough: false }), usage: use };
+  const t6 = await chat("ok see you");
+  check("thanks and small talk read nothing more, and are not marked", answers(n).length === 2 && t5.lacks === undefined && t6.lacks === undefined);
+  reply = { route: routeOf({ intent: "change", sections: [cardOf("Pricing").sid] }),
+    answer: answerOf({ tldr: "I changed it.", enough: false, edits: [{ op: "replace", sid: cardOf("Pricing").sid, find: "Team costs 1,490 euros.", with: "Team costs 1,290 euros." }] }), usage: use };
+  n = sent.length;
+  const t7 = await chat("Make Team 1,290");
+  check("a change is never answered again, and a turn that changed the file is not marked", answers(n).length === 1 && t7.lacks === undefined && !!t7.edit, JSON.stringify([answers(n).length, t7.lacks]));
+
+  /* the rules: a plain answer, the flag, and an answer that never uses the old labels */
+  const sys = project.ANSWER_RULES("doc", false);
+  check("the answer is asked to be plain, like a person in a chat, with no labels of its own", /Answer like a person in a chat/.test(sys) && /Plain sentences, one idea a line/.test(sys) && !/bold label/.test(sys) && !/TL;DR/i.test(sys));
+  check("it carries the flag, and the owner is asked for a resource when what was given lacks the fact", /"enough":true/.test(sys) && /asks the owner to drop a resource that holds it/.test(sys));
   reply = {};
 }
 
@@ -1660,12 +1820,21 @@ const docProject = async (w, name, text, kind = "doc") => {
   check("the owner files an instruction file: the notes come back, and the project's memory holds them, tagged", ins.notes === 1 && same(ins.titles, ["Tone"])
     && (await call("/api/project/get", { brain: slugR })).memory.some(m => m.title === "Tone" && m.instructions === true), JSON.stringify(ins));
   check("an empty one is refused with its reason", /gave no text/.test((await call("/api/project/instructions", { brain: slugR, name: "r.md", text: "" })).error));
+  /* a resource, through the route */
+  reply = { resource: { notes: [{ title: "Refund window", claim: "Refunds close after 14 days.", position: "A client may ask for a refund within 14 days.", summaryLine: "14 days" }] } };
+  const dropTo = async (token) => (await call("/api/project/resource", { brain: slugR, name: "terms.pdf", text: "Refunds close after 14 days." }, token));
+  check("the resource route is closed without a session, to the demo and to another workspace", (await dropTo(null)).status === 401
+    && /demo lets you ask/.test((await dropTo("demo-token")).error) && /not in this workspace/.test((await dropTo("squidgy-token")).error));
+  const dropped = await call("/api/project/resource", { brain: slugR, name: "terms.pdf", text: "Refunds close after 14 days." });
+  check("the owner drops a resource: the notes come back, and the project's memory holds them, not as instructions", dropped.notes === 1 && same(dropped.titles, ["Refund window"])
+    && (await call("/api/project/get", { brain: slugR })).memory.some(m => m.title === "Refund window" && !m.instructions), JSON.stringify(dropped));
+  check("an empty one is refused with its reason", /gave no text/.test((await call("/api/project/resource", { brain: slugR, name: "r.md", text: "" })).error));
   const seenBy = await call("/api/state");
   check("the project's list counts the instruction notes with the rest of its memory", seenBy.projects.find(x => x.slug === slugR).memory >= 1, JSON.stringify(seenBy.projects.map(x => [x.slug, x.memory])));
 
   /* taking it all away */
   check("deleting a project takes it away, and its memory with it", (await call("/api/project/delete", { brain: slugR })).ok === true && !w.T.brains.some(b => b.slug === slugR) && !(w.T.concepts ?? []).some(c => c.brain === slugR) && !(await call("/api/project/list")).projects.some(x => x.slug === slugR));
-  check("and the source its instruction notes rested on", !(w.T.sources ?? []).some(x => /^Instructions/.test(x.title) && (x.brains ?? []).includes(slugR)));
+  check("and the sources its instruction notes and its resources rested on", !(w.T.sources ?? []).some(x => /^(Instructions|Resource)/.test(x.title) && (x.brains ?? []).includes(slugR)));
 }
 
 

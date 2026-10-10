@@ -3493,12 +3493,13 @@ for (const space of ["octopus", "squidgy"]) {
 
   /* a question: sent, answered as a proposal, with what it used marked in the file */
   await page.fill(".pj-comp textarea", "Brainstorm: is Team too high?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
-  const ans = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/chat").pop()?.body, prop: !!document.querySelector(".pj-a.prop .pj-k"), kind: document.querySelector(".pj-a.prop .pj-k")?.textContent,
-    text: document.querySelector(".pj-a .pj-md")?.innerHTML, chips: [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent), used: [...document.querySelectorAll(".pj-sec.used")].map(x => x.dataset.sid),
-    marks: [...document.querySelectorAll("mark.pj-mark")].map(m => m.textContent), btns: [...document.querySelectorAll(".pj-a .pj-tact button")].map(b => b.textContent), ta: document.querySelector(".pj-comp textarea").value }));
+  const ans = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/chat").pop()?.body, extras: document.querySelectorAll(".pj-a > .pj-k, .pj-a > .pj-lead, .pj-a > .pj-used, .pj-a > .pj-tact").length,
+    text: document.querySelector(".pj-a .pj-md")?.innerHTML, whole: document.querySelector(".pj-thread").textContent, used: [...document.querySelectorAll(".pj-sec.used")].map(x => x.dataset.sid),
+    marks: [...document.querySelectorAll("mark.pj-mark")].map(m => m.textContent), ta: document.querySelector(".pj-comp textarea").value }));
   check("a question goes to the project's chat with the project named", ans.call?.brain === "launch-plan" && ans.call?.q === "Brainstorm: is Team too high?" && ans.ta === "", JSON.stringify(ans.call));
-  check("a brainstorm comes back as a proposal, in bold where it says so, and nothing to press to keep it: only Refine", ans.prop && ans.kind === "Proposal" && /<strong>€1,490<\/strong>/.test(ans.text) && JSON.stringify(ans.btns) === '["Refine"]', JSON.stringify(ans));
-  check("it says what it used: the file and its section, the folder and its notes, the memory, and the note it filed by itself, then what it cost", JSON.stringify(ans.chips) === '["brief-v3.docx: Offer","Pricing folder · 2 notes","Memory · 1 note","Noted: Team price","4.1k in · 310 out · 2k reused · $0.00052"]', JSON.stringify(ans.chips));
+  check("a brainstorm comes back as plain words with a number in bold, and nothing under it: no label, no TL;DR, no chip, no button", /<strong>€1,490<\/strong>/.test(ans.text) && ans.extras === 0, JSON.stringify(ans));
+  check("what it read stays behind the answer: nothing names the file, the folder, the memory, the instructions or the note it filed, and no token count or price shows",
+    !/TL;DR|Refine|Proposal|Instructions ·|Memory ·|Noted:|brief-v3\.docx|Pricing folder| in · | out|reused|\$0\./.test(ans.whole) && await page.evaluate(() => !document.querySelector(".pj-used, .pj-lead, .pj-k, .pj-tl")), ans.whole);
   check("the section it used is marked in the file, and the words it rests on, across the table's cells", JSON.stringify(ans.used) === '["2"]' && ans.marks.join(" ") === "Team 3 €1,490", JSON.stringify(ans));
 
   /* the chat is as neutral as the normal chat: your words in a grey bubble, the answer on the page */
@@ -3513,8 +3514,8 @@ for (const space of ["octopus", "squidgy"]) {
   const auto = await page.evaluate(() => ({ badge: document.querySelector(".pj-memb i")?.textContent, inBar: !!document.querySelector(".pj-comp .pj-memb"), bar: !!document.querySelector(".pj-tabs, .pj-tab"),
     keeps: window.__calls.filter(x => x.s === "/api/project/keep").length, offer: [...document.querySelectorAll("button")].some(b => /Keep in memory/.test(b.textContent)) }));
   check("the project filed a note by itself: a small Memory button by the message bar counts it, no bar of tabs is left, and nothing offers to keep an answer", auto.badge === "2" && auto.inBar && !auto.bar && auto.keeps === 0 && !auto.offer, JSON.stringify(auto));
-  await page.click('.pj-used button:has-text("Memory")'); await page.waitForTimeout(250);
-  check("the Memory chip under an answer opens the same sheet", await page.evaluate(() => !!document.querySelector(".veil.pm") && document.querySelectorAll("#pmList .fv-row").length === 2));
+  await page.click(".pj-memb"); await page.waitForTimeout(250);
+  check("the Memory button opens the sheet, which lists the notes", await page.evaluate(() => !!document.querySelector(".veil.pm") && document.querySelectorAll("#pmList .fv-row").length === 2));
   await page.keyboard.press("Escape"); await page.waitForTimeout(100);
   check("Escape puts the sheet away", await page.evaluate(() => !document.querySelector(".veil.pm")));
   await page.click(".pj-memb"); await page.waitForTimeout(250);
@@ -3622,8 +3623,8 @@ for (const space of ["octopus", "squidgy"]) {
   check("Markdown gives the open sheet as a Markdown table", tMd.name === "competitors - Programs.md" && tMd.body.toString("utf8") === "| Program | Price | Plan |\n| --- | --- | --- |\n| Alpha | 490 | Yes |\n| Beta | 1,200 | No |\n| Code | 00123 | No |\n", tMd.body.toString("utf8"));
   await page.evaluate(() => { window.__reply = (b, P) => ({ id: "t1", q: b.q, a: "Two programs charge more than 1,200.", proposal: false, quotes: [], used: { file: { name: P.file.name, whole: false, rows: [1, 3], sheet: 0 }, folders: [], memory: 0 } }); });
   await page.fill(".pj-comp textarea", "Which cost more than 1,200?"); await page.keyboard.press("Enter"); await page.waitForTimeout(600);
-  const marked = await page.evaluate(() => ({ rows: [...document.querySelectorAll(".pj-grid tr.used")].map(r => r.dataset.n).join(), chip: document.querySelector(".pj-used button")?.textContent }));
-  check("the rows an answer used are marked in the grid, and the chip names them", marked.rows === "1,3" && marked.chip === "competitors.xlsx: rows 1, 3", JSON.stringify(marked));
+  const marked = await page.evaluate(() => ({ rows: [...document.querySelectorAll(".pj-grid tr.used")].map(r => r.dataset.n).join(), chip: !!document.querySelector(".pj-used") }));
+  check("the rows an answer used are marked in the grid, and no chip under the answer names them", marked.rows === "1,3" && !marked.chip, JSON.stringify(marked));
   await page.click(".pj-sheets button >> text=Notes"); await page.waitForTimeout(400);
   check("a second sheet reads from its own first row", (await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/rows").pop()?.body))?.sheet === 1);
 
@@ -3792,6 +3793,20 @@ for (const space of ["octopus", "squidgy"]) {
         const row = arg.state.projects.find(x => x.slug === body.brain); if (row) row.memory = P.memory.length;
         return J({ notes: 2, titles: ["Tone", "Audience"], ...(window.__instCut ? { cut: true } : {}) });
       }
+      if (path === "/api/project/resource") {
+        (window.__res = window.__res || []).push(body);
+        if (window.__resOld) return new Response("not found", { status: 404 });
+        if (window.__resFail && window.__res.length >= window.__resFail) return J({ error: "the model host was unreachable" });
+        const n = window.__res.length;
+        P.memory.unshift({ slug: "res-" + n, title: "Refund window " + n, position: "A client may ask for a refund within 14 days.", summaryLine: "14 days to ask", updated: "2026-10-09", dates: [] });
+        const row = arg.state.projects.find(x => x.slug === body.brain); if (row) row.memory = P.memory.length;
+        return J({ notes: 1, titles: ["Refund window " + n] });
+      }
+      if (path === "/api/project/chat" && window.__lacks) {
+        const t = { id: "tl" + (P.turns.length + 1), q: body.q, lead: "Nothing says how a booking is cancelled.", a: "Drop a resource that holds the cancellation terms.", proposal: false, lacks: true, quotes: [],
+          used: { file: { name: P.file?.name || "x", whole: false }, folders: [], memory: 0 }, intent: "ask" };
+        P.turns.push(t); return J({ turn: t });
+      }
       if (path === "/api/project/chat" && !P.file) {
         /* No file yet: the first description makes one, from the words and a folder. */
         P.file = { name: `${P.project.name}.md`, kind: "doc", made: true, sheets: [{ name: P.project.name, header: [], cols: [], rows: 0 }], chars: 120, sections: 1, status: "ready", ver: 1, at: 1 };
@@ -3888,16 +3903,16 @@ for (const space of ["octopus", "squidgy"]) {
 
   await page.click(".pj-try button >> nth=0"); await page.keyboard.press("Enter"); await page.waitForTimeout(900);
   const ans = await page.evaluate(() => { const a = document.querySelector(".pj-a"), h = a.querySelector(".pj-md h4");
-    return { tl: a.querySelector(".pj-lead .pj-tl")?.textContent, lead: a.querySelector(".pj-ld")?.textContent, bold: a.querySelector(".pj-md strong")?.textContent, h4: h?.textContent, h4size: h && parseFloat(getComputedStyle(h).fontSize),
-      nested: a.querySelector(".pj-md ul ul li")?.textContent, quote: a.querySelector(".pj-md blockquote")?.textContent, chips: [...a.querySelectorAll(".pj-used > *")].map(c => c.textContent),
+    const col = v => { const p = document.createElement("div"); p.style.color = `var(${v})`; document.body.append(p); const c = getComputedStyle(p).color; p.remove(); return c; };
+    const md = getComputedStyle(a.querySelector(".pj-md"));
+    return { first: a.querySelector(".pj-md p")?.textContent, bold: a.querySelector(".pj-md strong")?.textContent, h4: h?.textContent, h4size: h && parseFloat(getComputedStyle(h).fontSize),
+      nested: a.querySelector(".pj-md ul ul li")?.textContent, quote: a.querySelector(".pj-md blockquote")?.textContent, extras: a.querySelectorAll(":scope > .pj-used, :scope > .pj-lead, :scope > .pj-k, :scope > .pj-tact").length,
       edit: a.querySelector(".pj-edit")?.className, ek: a.querySelector(".pj-ek")?.textContent, btns: [...a.querySelectorAll(".pj-edit button")].map(b => b.textContent),
-      leadFirst: a.firstElementChild?.classList.contains("pj-lead") }; });
-  check("an answer opens with a TL;DR line, then its support", ans.tl === "TL;DR" && ans.lead === "I made the page." && ans.leadFirst && ans.bold === "Hero:", JSON.stringify(ans));
-  const tlc = await page.evaluate(() => { const p = document.createElement("div"); p.style.color = "var(--accent)"; document.body.append(p); const accent = getComputedStyle(p).color; p.remove();
-    return { tl: getComputedStyle(document.querySelector(".pj-tl")).color, noted: getComputedStyle(document.querySelector(".pj-used .noted")).color, accent }; });
-  check("the label of the one line answer and the chip of the note filed are not in the accent colour", tlc.tl !== tlc.accent && tlc.noted !== tlc.accent, JSON.stringify(tlc));
+      color: md.color, ink2: col("--ink-2"), line: parseFloat(md.lineHeight) / parseFloat(md.fontSize), words: a.querySelector(".pj-md").textContent }; });
+  check("an answer reads as the normal chat's does: its first line is the answer, in plain words, with no TL;DR label, no rule, no chip and no button under it",
+    ans.first === "I made the page." && ans.bold === "Hero:" && ans.extras === 0 && !/TL;DR|Noted/.test(ans.words), JSON.stringify(ans));
+  check("it is set in the normal chat's colour and line height", ans.color === ans.ink2 && Math.abs(ans.line - 1.68) < .02, JSON.stringify(ans));
   check("headings in an answer read as small labels, lists nest, quotes stand apart", ans.h4 === "Next" && ans.h4size <= 12 && ans.nested === "with a phone field" && ans.quote === "Keep it short.", JSON.stringify(ans));
-  check("it says what the project noted from the message", JSON.stringify(ans.chips) === '["New page.html","Noted: Page purpose"]', JSON.stringify(ans.chips));
   await page.waitForTimeout(300);
   const mem = await page.evaluate(() => ({ badge: document.querySelector(".pj-memb i")?.textContent, listed: window.__calls.filter(x => x.s === "/api/project/list").length }));
   check("the Memory button counts what was noted, and the Projects panel is read again", mem.badge === "1" && mem.listed >= 1, JSON.stringify(mem));
@@ -3954,10 +3969,10 @@ for (const space of ["octopus", "squidgy"]) {
   await page.fill(".pj-comp textarea", "A one page brief for my launch, from my Content folder"); await page.keyboard.press("Enter"); await page.waitForTimeout(900);
   const said = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/chat").pop()?.body, drop: !!document.querySelector(".pj-drop"), chip: document.querySelector(".pj-chip")?.textContent,
     acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), page: !!document.querySelector(".pj-paper .pj-page"), seg: document.querySelector(".pj-seg button")?.textContent,
-    ph: document.querySelector(".pj-comp textarea").placeholder, lead: document.querySelector(".pj-ld")?.textContent, chips: [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent),
+    ph: document.querySelector(".pj-comp textarea").placeholder, words: document.querySelector(".pj-a .pj-md")?.textContent, chips: document.querySelectorAll(".pj-used").length,
     row: document.querySelector("#projects .pj-row.on")?.title }));
   check("what is said makes the file: the drop gives way to the document, with its name, its buttons and its tab", !said.drop && said.page && said.chip === "New project.md" && said.acts === "Download/Delete" && said.seg === "Document", JSON.stringify(said));
-  check("the message bar then asks about the document, the answer names the folder it used, and the list knows the file", /^Ask about the document/.test(said.ph) && said.lead === "I wrote the brief from your Content folder." && said.chips.includes("Content folder · 2 notes") && /New project\.md/.test(said.row), JSON.stringify(said));
+  check("the message bar then asks about the document, the answer says in its words which folder it came from, with no chip, and the list knows the file", /^Ask about the document/.test(said.ph) && /^I wrote the brief from your Content folder\./.test(said.words) && said.chips === 0 && /New project\.md/.test(said.row), JSON.stringify(said));
 
   /* a server older than this page: nothing is left behind, and the sheet says what to do */
   await page.evaluate(() => { window.__oldServer = true; });
@@ -3992,17 +4007,16 @@ for (const space of ["octopus", "squidgy"]) {
   check("then the project opens, and its Memory button counts the notes the instructions made", given.view === "project" && !given.sheet && given.badge === "2", JSON.stringify(given));
   await page.click(".pj-memb"); await page.waitForTimeout(300);
   const grouped = await page.evaluate(() => ({ sub: document.getElementById("pmSub").textContent, eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), rows: [...document.querySelectorAll("#pmList .fv-row")].map(r => r.querySelector("b").textContent + "|" + r.querySelector("small").textContent), add: document.getElementById("pmAdd").textContent }));
-  check("the Memory sheet puts the instructions first, in their order, says they are read at every message, and offers to replace them",
-    grouped.sub === "2 instructions." && JSON.stringify(grouped.eyes) === '["Instructions, read at every message"]' && grouped.rows.join() === "Tone|From the instructions · 9 Oct,Audience|From the instructions · 9 Oct" && grouped.add === "Replace instructions", JSON.stringify(grouped));
+  check("the Memory sheet puts the instructions first, in their order, says they are read at every message, and offers to add to the memory",
+    grouped.sub === "2 instructions." && JSON.stringify(grouped.eyes) === '["Instructions, read at every message"]' && grouped.rows.join() === "Tone|From the instructions · 9 Oct,Audience|From the instructions · 9 Oct" && grouped.add === "Add to memory", JSON.stringify(grouped));
   await page.click("#pmList .fv-row >> nth=0"); await page.waitForTimeout(100);
   check("an instruction opens like a note, with its words in full and a way to forget it", await page.evaluate(() => document.querySelector(".pm-t")?.textContent === "Tone" && document.querySelector(".pm-note .fv-pos")?.textContent === "Write in a formal tone." && !!document.querySelector(".pm-note .pj-b")));
   await page.click("#pmClose"); await page.waitForTimeout(100);
   await page.fill(".pj-comp textarea", "Write the brief"); await page.keyboard.press("Enter"); await page.waitForTimeout(900);
-  const chipsR = await page.evaluate(() => [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent));
-  check("an answer says how many instructions it followed", chipsR.includes("Instructions · 2"), JSON.stringify(chipsR));
-  await page.click('.pj-used button:has-text("Instructions")'); await page.waitForTimeout(300);
+  check("an answer does not say how many instructions it followed: it followed them behind the words", await page.evaluate(() => !document.querySelector(".pj-used") && !/Instructions ·/.test(document.querySelector(".pj-thread").textContent)));
+  await page.click(".pj-memb"); await page.waitForTimeout(300);
   const withNotes = await page.evaluate(() => ({ eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), sub: document.getElementById("pmSub").textContent }));
-  check("the Instructions chip opens the Memory sheet, which keeps the instructions apart from the notes the project filed since", JSON.stringify(withNotes.eyes) === '["Instructions, read at every message","Notes"]' && withNotes.sub === "2 instructions and 1 note.", JSON.stringify(withNotes));
+  check("after a message, Memory keeps the instructions apart from the notes the project filed since", JSON.stringify(withNotes.eyes) === '["Instructions, read at every message","Notes"]' && withNotes.sub === "2 instructions and 1 note.", JSON.stringify(withNotes));
   await page.keyboard.press("Escape"); await page.waitForTimeout(100);
 
   /* the project is made, and the instructions fail: the sheet says so, offers the project, and Memory adds them again */
@@ -4015,30 +4029,104 @@ for (const space of ["octopus", "squidgy"]) {
   check("when the instructions fail, the project is made, and the sheet says why and how to add them again; words typed carry no file name", failed.typed === "" && /the model host was unreachable/.test(failed.bad) && /The project was made: open it to add the instructions again from Memory\./.test(failed.bad) && failed.btn === "Open the project" && !failed.disabled && failed.sheet, JSON.stringify(failed));
   await page.click("#npMake"); await page.waitForTimeout(700);
   await page.click(".pj-memb"); await page.waitForTimeout(300);
-  check("Memory then offers to add them, and the sheet holds none", await page.evaluate(() => document.getElementById("pmAdd").textContent === "Add instructions" && !document.querySelector("#pmList .fv-eye")));
+  check("Memory then offers to add to it, and the sheet holds no instruction", await page.evaluate(() => document.getElementById("pmAdd").textContent === "Add to memory" && !document.querySelector("#pmList .fv-eye")));
   await page.evaluate(() => { window.__instFail = false; });
   await page.click("#pmAdd"); await page.waitForTimeout(150);
-  const form = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, ta: document.getElementById("pmRulesText")?.tagName, add: document.querySelector(".pm-note .mem-bar button")?.textContent, go: document.getElementById("pmRulesGo")?.textContent, back: document.querySelector(".pm-back")?.textContent, focus: document.activeElement?.id }));
-  check("Add instructions opens the same field in the sheet: a text area, + file, a way back, and the field has the cursor", form.title === "Add instructions" && form.ta === "TEXTAREA" && form.add === "+ file" && form.go === "File the instructions" && form.back === "← All notes" && form.focus === "pmRulesText", JSON.stringify(form));
+  const form0 = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, kinds: [...document.querySelectorAll(".pm-note .pj-make button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")),
+    ph: document.getElementById("pmText")?.placeholder, go: document.getElementById("pmGo")?.textContent, focus: document.activeElement?.id, intro: document.querySelector(".pm-note .fv-pos")?.textContent }));
+  check("Add to memory opens a form that adds a resource first, says what one is, and puts the cursor in the field", form0.title === "Add a resource" && JSON.stringify(form0.kinds) === '["A resource*","Instructions"]'
+    && /^Paste the text of a resource here/.test(form0.ph) && form0.go === "Add to memory" && form0.focus === "pmText" && /^A document, a text or the words of a page\./.test(form0.intro), JSON.stringify(form0));
+  await page.fill("#pmText", "Words that stay.");
+  await page.click("#pmKindRules");
+  const form = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, kinds: [...document.querySelectorAll(".pm-note .pj-make button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")),
+    ta: document.getElementById("pmText")?.tagName, add: document.querySelector(".pm-note .mem-bar button")?.textContent, go: document.getElementById("pmGo")?.textContent, back: document.querySelector(".pm-back")?.textContent,
+    kept: document.getElementById("pmText")?.value, ph: document.getElementById("pmText")?.placeholder, count: document.querySelector(".pm-note .mem-bar .hint")?.textContent }));
+  check("the other kind is instructions, in the same field: the words stay, the hint and the button change", form.title === "Add instructions" && JSON.stringify(form.kinds) === '["A resource","Instructions*"]' && form.ta === "TEXTAREA" && form.add === "+ file"
+    && form.go === "File the instructions" && form.back === "← All notes" && form.kept === "Words that stay." && /^Paste or write the instructions here/.test(form.ph) && form.count === "16 characters", JSON.stringify(form));
+  await page.fill("#pmText", ""); await page.waitForTimeout(30);
   check("while the form is open, the sheet's own Replace button gives way and the list has no height cap, so the button below the field is never cut", await page.evaluate(() => { const a = document.getElementById("pmAdd"), l = getComputedStyle(document.getElementById("pmList")); return getComputedStyle(a).display === "none" && l.maxHeight === "none" && l.overflowY === "visible"; }));
   const instCalls = () => page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/instructions").length);
   const c0 = await instCalls();
-  await page.click("#pmRulesGo");
-  check("with nothing in the field, filing asks nothing of the server, and the cursor goes to the field", (await instCalls()) === c0 && await page.evaluate(() => document.activeElement?.id === "pmRulesText"));
-  await page.fill("#pmRulesText", "Write in a formal tone. The audience is CFOs.");
-  await page.click("#pmRulesGo"); await page.waitForTimeout(700);
+  await page.click("#pmGo");
+  check("with nothing in the field, filing asks nothing of the server, and the cursor goes to the field", (await instCalls()) === c0 && await page.evaluate(() => document.activeElement?.id === "pmText"));
+  await page.fill("#pmText", "Write in a formal tone. The audience is CFOs.");
+  await page.click("#pmGo"); await page.waitForTimeout(700);
   const added = await page.evaluate(() => ({ inst: window.__inst, sub: document.getElementById("pmSub").textContent, eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), add: document.getElementById("pmAdd").textContent }));
-  check("words typed in Memory are filed, and the list shows them at once", added.inst.name === "" && added.inst.text === "Write in a formal tone. The audience is CFOs." && added.sub === "2 instructions filed. The chat follows them from the next message." && added.eyes.length === 1 && added.add === "Replace instructions", JSON.stringify(added));
+  check("words typed in Memory are filed, and the list shows them at once", added.inst.name === "" && added.inst.text === "Write in a formal tone. The audience is CFOs." && added.sub === "2 instructions filed. The chat follows them from the next message." && added.eyes.length === 1 && added.add === "Add to memory", JSON.stringify(added));
   await page.evaluate(() => { window.__instFail = true; });
   await page.click("#pmAdd"); await page.waitForTimeout(150);
+  await page.click("#pmKindRules");
   check("with instructions held, the form says it replaces them", await page.evaluate(() => document.querySelector(".pm-t")?.textContent === "Replace the instructions" && /take the place of the ones held/.test(document.querySelector(".pm-note .fv-pos")?.textContent || "")));
-  await page.fill("#pmRulesText", "More words.");
-  await page.click("#pmRulesGo"); await page.waitForTimeout(500);
-  const addBad = await page.evaluate(() => ({ say: document.querySelector(".pm-note > .hint")?.textContent, bad: document.querySelector(".pm-note > .hint")?.classList.contains("bad"), kept: document.getElementById("pmRulesText").value, enabled: !document.getElementById("pmRulesGo").disabled && !document.getElementById("pmRulesText").disabled }));
+  await page.fill("#pmText", "More words.");
+  await page.click("#pmGo"); await page.waitForTimeout(500);
+  const addBad = await page.evaluate(() => ({ say: document.querySelector(".pm-note > .hint")?.textContent, bad: document.querySelector(".pm-note > .hint")?.classList.contains("bad"), kept: document.getElementById("pmText").value, enabled: !document.getElementById("pmGo").disabled && !document.getElementById("pmText").disabled }));
   check("when it fails there, the form says why in red, keeps the words, and lets them be filed again", /unreachable/.test(addBad.say) && addBad.bad && addBad.kept === "More words." && addBad.enabled, JSON.stringify(addBad));
   await page.click(".pm-back"); await page.waitForTimeout(100);
   check("back returns to the list, and the instructions held stay", await page.evaluate(() => document.querySelectorAll("#pmList .fv-row").length === 2 && getComputedStyle(document.getElementById("pmAdd")).display !== "none" && getComputedStyle(document.getElementById("pmList")).maxHeight !== "none"));
+  /* a resource: typed, pasted or added from a file; its notes join the memory; a long one goes in pieces */
+  await page.evaluate(() => { window.__instFail = false; });
+  await page.click("#pmAdd"); await page.waitForTimeout(150);
+  await page.fill("#pmText", "A refund is possible within 14 days of the first session.");
+  await page.click("#pmGo"); await page.waitForTimeout(500);
+  const res1 = await page.evaluate(() => ({ calls: window.__res.length, call: window.__res.at(-1), sub: document.getElementById("pmSub").textContent, rows: [...document.querySelectorAll("#pmList .fv-row b")].map(b => b.textContent),
+    eyes: [...document.querySelectorAll("#pmList .fv-eye")].map(x => x.textContent), badge: document.querySelector(".pj-memb i")?.textContent }));
+  check("words typed as a resource are sent with no name, and the note they made is listed at once, among the notes and not the instructions", res1.calls === 1 && res1.call.name === "" && res1.call.text.startsWith("A refund is possible")
+    && /1 note filed\. The chat reads the ones that bear on a question\./.test(res1.sub) && res1.rows.includes("Refund window 1") && JSON.stringify(res1.eyes) === '["Instructions, read at every message","Notes"]' && res1.badge === "3", JSON.stringify(res1));
+  await page.click("#pmAdd"); await page.waitForTimeout(150);
+  const [fcP] = await Promise.all([page.waitForEvent("filechooser"), page.click(".pm-note .mem-bar button")]);
+  await fcP.setFiles({ name: "terms.md", mimeType: "text/markdown", buffer: Buffer.from("# Terms\n\nLate payments add 2%.") });
+  await page.waitForTimeout(250);
+  await page.click("#pmGo"); await page.waitForTimeout(500);
+  const res2 = await page.evaluate(() => ({ call: window.__res.at(-1), n: window.__res.length }));
+  check("a file added is sent with its name and its words", res2.n === 2 && res2.call.name === "terms.md" && res2.call.text === "# Terms\n\nLate payments add 2%.", JSON.stringify(res2));
+  /* a long one goes in pieces of at most 20,000 characters, cut at a paragraph, and arrives whole */
+  const longText = Array.from({ length: 90 }, (_, i) => `Paragraph ${i}. ` + "word ".repeat(100).trim()).join("\n\n");
+  await page.click("#pmAdd"); await page.waitForTimeout(150);
+  await page.fill("#pmText", longText);
+  check("the field counts what it holds, and says how much of a resource is read", /^\d{2},\d{3} characters$/.test(await page.textContent(".pm-note .mem-bar .hint")), await page.textContent(".pm-note .mem-bar .hint"));
+  await page.click("#pmGo"); await page.waitForTimeout(900);
+  const res3 = await page.evaluate(() => ({ n: window.__res.length, parts: window.__res.slice(2).map(x => x.text), sub: document.getElementById("pmSub").textContent }));
+  check("a long resource goes in pieces of at most 20,000 characters, cut at a paragraph, and arrives whole", res3.n === 5 && res3.parts.length === 3 && res3.parts.every(p => p.length <= 20000) && res3.parts.join("\n\n") === longText && /^3 notes filed\./.test(res3.sub), JSON.stringify([res3.n, res3.parts.map(p => p.length), res3.sub]));
+  /* past 100,000 characters the rest is left, and the page says so */
+  await page.click("#pmAdd"); await page.waitForTimeout(150);
+  await page.fill("#pmText", "word ".repeat(26000));
+  check("past 100,000 characters the field says only the first are read", /^130,000 characters, the first 100,000 are read$/.test(await page.textContent(".pm-note .mem-bar .hint")), await page.textContent(".pm-note .mem-bar .hint"));
+  await page.click("#pmGo"); await page.waitForTimeout(1200);
+  const res4 = await page.evaluate(() => ({ n: window.__res.length, sub: document.getElementById("pmSub").textContent, bad: document.getElementById("pmSub").classList.contains("bad") }));
+  check("it is sent as 5 pieces, and the sheet says only the first 100,000 characters were read", res4.n === 10 && res4.sub === "Only the first 100,000 characters were read, about 16,000 words." && !res4.bad, JSON.stringify(res4));
+  /* a piece that fails: the others stay filed, the words stay in the field, and it can be sent again */
+  await page.evaluate(() => { window.__resFail = window.__res.length + 2; });
+  await page.click("#pmAdd"); await page.waitForTimeout(150);
+  await page.fill("#pmText", longText);
+  await page.click("#pmGo"); await page.waitForTimeout(900);
+  const res5 = await page.evaluate(() => ({ say: document.querySelector(".pm-note > .hint")?.textContent, bad: document.querySelector(".pm-note > .hint")?.classList.contains("bad"), kept: document.getElementById("pmText").value.length, enabled: !document.getElementById("pmGo").disabled && !document.getElementById("pmText").disabled }));
+  check("when a piece fails, the form says which, that the first is filed, keeps the words, and lets them be sent again", res5.say === "Part 2 of 3 failed: the model host was unreachable. The first part is filed." && res5.bad && res5.kept === longText.length && res5.enabled, JSON.stringify(res5));
+  await page.evaluate(() => { window.__resFail = 0; window.__resOld = true; });
+  await page.click("#pmGo"); await page.waitForTimeout(500);
+  check("a server older than the page says so, and what to run", await page.evaluate(() => document.querySelector(".pm-note > .hint")?.textContent) === "The server is older than this page and cannot file resources yet. Run convex deploy.");
+  await page.evaluate(() => { window.__resOld = false; });
+  await page.fill("#pmText", "");
+  const [fcT] = await Promise.all([page.waitForEvent("filechooser"), page.click(".pm-note .mem-bar button")]);
+  await fcT.setFiles({ name: "prices.csv", mimeType: "text/csv", buffer: Buffer.from("a,b\n1,2\n") });
+  await page.waitForTimeout(200);
+  check("a table is refused as a resource, with what to do", /^prices\.csv is a table\. A resource is words: Word, PDF, text, Markdown or HTML\. Paste the part of the table that matters\.$/.test(await page.textContent(".pm-note .mem-bar .hint")));
+  await page.click(".pm-back"); await page.waitForTimeout(100);
   await page.click("#pmClose"); await page.waitForTimeout(100);
+
+  /* an answer that lacks the fact offers the way to give it: a resource */
+  await page.evaluate(() => { window.__lacks = true; });
+  await page.fill(".pj-comp textarea", "How do I cancel a booking?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
+  const lack = await page.evaluate(() => { const t = [...document.querySelectorAll(".pj-turn")].pop(); return { btns: [...t.querySelectorAll("button")].map(b => b.textContent), words: t.querySelector(".pj-md")?.textContent, chips: t.querySelectorAll(".pj-used").length }; });
+  check("an answer that lacks the fact says so, and offers one thing under it: Add a resource", JSON.stringify(lack.btns) === '["Add a resource"]' && /^Nothing says how a booking is cancelled\./.test(lack.words) && lack.chips === 0, JSON.stringify(lack));
+  await page.click('.pj-turn:last-child button:has-text("Add a resource")'); await page.waitForTimeout(250);
+  const asked = await page.evaluate(() => ({ title: document.querySelector(".pm-t")?.textContent, kinds: [...document.querySelectorAll(".pm-note .pj-make button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")), focus: document.activeElement?.id, sheet: !!document.querySelector(".veil.pm") }));
+  check("it opens Memory on the resource form, with the cursor in the field", asked.sheet && asked.title === "Add a resource" && JSON.stringify(asked.kinds) === '["A resource*","Instructions"]' && asked.focus === "pmText", JSON.stringify(asked));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+  await page.evaluate(() => { window.__lacks = false; });
+  await page.fill(".pj-comp textarea", "Write the brief again"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
+  check("an answer that has what it needs offers nothing under it but its own change", await page.evaluate(() => { const t = [...document.querySelectorAll(".pj-turn")].pop(); return ![...t.querySelectorAll("button")].some(b => b.textContent === "Add a resource"); }));
+
+  await page.click("#pmClose").catch(() => {});
 
   /* what cannot be instructions: a table. A server older than the page. A file that is cut. */
   await page.evaluate(() => { window.__instFail = false; });
@@ -4076,12 +4164,17 @@ for (const space of ["octopus", "squidgy"]) {
   check("a web page comes out as its words: the title, loose text, links, nested lists, code and quotes; no script, style, menu or footer",
     md.web === "# My Page\n\nLoose words **bold** here\n\nPara [link](https://x.com)\n\n- One\n  - Nested\n- Two\n\n```\na  b\n c\n```\n\n> Quoted\n\nOnly", JSON.stringify(md.web));
   check("a table with columns keeps them, and the text after it still comes", md.grid === "## Plans\n\n| Plan | Price |\n| --- | --- |\n| Team | 1,490 |\n\nafter", JSON.stringify(md.grid));
-  /* what a message cost, in dollars */
-  const money = await page.evaluate(code => { const { costLine } = new Function(code)(); return [
-    costLine({ in: 4120, out: 310, cached: 2048, usd: 0.00052, calls: 2 }), costLine({ in: 900, out: 40, cents: 0.0123, calls: 1 }), costLine({ in: 12500, out: 310, calls: 2 }),
-    costLine({ in: 100, out: 5, usd: 0.000001 }), costLine({ in: 50000, out: 900, usd: 0.0345 }), costLine({ in: 800, out: 20, usd: 0.25 })]; }, grab("costLine") + "; return { costLine };");
-  check("a price shows in dollars with two figures that count, tokens and what was reused beside it", JSON.stringify(money) === JSON.stringify(["4.1k in · 310 out · 2k reused · $0.00052", "900 in · 40 out · $0.00012", "13k in · 310 out", "100 in · 5 out · under $0.00001", "50k in · 900 out · $0.035", "800 in · 20 out · $0.25"]), JSON.stringify(money));
-
+  /* a resource is cut in pieces at a paragraph, a line or a sentence, and never past 5 */
+  const cut = await page.evaluate(code => { const { resourcePieces } = new Function(code)(); const w = n => "word ".repeat(n).trim();
+    const para = resourcePieces([w(3000), w(3000), w(3000)].join("\n\n"));
+    const lines = resourcePieces([w(3000), w(3000), w(3000)].join("\n"));
+    const sent = resourcePieces((w(500) + ". ").repeat(30));
+    const solid = resourcePieces("x".repeat(45000));
+    const many = resourcePieces("word ".repeat(40000));
+    return { para: para.pieces.map(p => p.length), paraCut: para.cut, lines: lines.pieces.map(p => p.length), sent: sent.pieces.map(p => p.endsWith(".")), solid: solid.pieces.map(p => p.length), many: many.pieces.length, manyCut: many.cut, one: resourcePieces("Short.").pieces.length }; },
+    "const RES_PIECE = 20000, RES_PIECES = 5;" + grab("resourcePieces") + "; return { resourcePieces };");
+  check("a resource is cut at a paragraph, then a line, then a sentence, then anywhere; never more than 5 pieces, and the cut says when some is left",
+    cut.para.length === 3 && cut.para.every(n => n <= 20000) && !cut.paraCut && cut.lines.length === 3 && cut.sent.every(Boolean) && JSON.stringify(cut.solid) === "[20000,20000,5000]" && cut.many === 5 && cut.manyCut === true && cut.one === 1, JSON.stringify(cut));
   /* the formats written in this tab: a PDF, a web page, a Markdown table, a workbook */
   const exp = await page.evaluate(code => { const { pdfFromMarkdown, htmlDocument, tableMarkdown, xlsxBlob, mdView } = new Function(code)();
     const latin = u => { let s = ""; for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return s; };
@@ -4164,10 +4257,9 @@ for (const space of ["octopus", "squidgy"]) {
   check("with nothing kept and nothing learned, the Memory sheet says what it will keep, and the button shows no count", /Nothing kept yet/.test(await page.textContent("#pmList")) && !(await page.$(".pj-memb i")));
   await page.click("#pmClose"); await page.waitForTimeout(200);
   await page.fill(".pj-comp textarea", "When are the payments made?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
-  const first = await page.evaluate(() => [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent));
-  check("an answer says how little of a long file it read", JSON.stringify(first) === '["contract.pdf: Clause 1 payment · Clause 4 payment","Read 2 of 30 sections"]', JSON.stringify(first));
-  await page.click(".pj-used button >> nth=0"); await page.waitForTimeout(300);
-  check("the file chip under an answer opens the file at the first section it read", (await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/doc").pop()?.body))?.sid === 1);
+  const first = await page.evaluate(() => ({ chips: document.querySelectorAll(".pj-used").length, words: document.querySelector(".pj-a .pj-md")?.textContent }));
+  check("an answer of a long file says nothing of how little of it was read: no chip, only the words", first.chips === 0 && /^Payments are monthly\./.test(first.words), JSON.stringify(first));
+  await page.waitForTimeout(300);
   const gets = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/get").length);
   await page.click(".pj-memb"); await page.waitForTimeout(400);
   const mem = await page.evaluate(() => ({ head: document.querySelector("#pmList .fv-eye")?.textContent, rows: [...document.querySelectorAll("#pmList .fv-row.st")].map(r => [r.querySelector("b").textContent, r.querySelector("span").textContent, r.querySelector("small").textContent]),
@@ -4177,12 +4269,135 @@ for (const space of ["octopus", "squidgy"]) {
   check("a route is a pointer: it has no Forget, it mends itself", mem.forget === 0);
   await page.click("#pmClose"); await page.waitForTimeout(200);
   await page.fill(".pj-comp textarea", "What do the payments look like?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
-  const second = await page.evaluate(() => [...document.querySelectorAll(".pj-turn")].pop().querySelector(".pj-used")?.textContent);
-  check("when memory led and the long sections came as passages, the answer says both", /Read 2 of 30 sections · passages · led by memory/.test(second), second);
-  const cost = await page.evaluate(() => { const c = [...document.querySelectorAll(".pj-turn")].pop().querySelector(".pj-used .cost"); return c && { text: c.textContent, title: c.title }; });
-  check("and when the host gave no price, the cost shows tokens alone", cost?.text === "13k in · 310 out" && cost.title === "2 model calls for this message", JSON.stringify(cost));
+  const second = await page.evaluate(() => { const t = [...document.querySelectorAll(".pj-turn")].pop(); return { chips: t.querySelectorAll(".pj-used").length, text: t.textContent }; });
+  check("when memory led and the long sections came as passages, the answer still shows no chip and no token count", second.chips === 0 && !/Read 2 of|passages|led by memory| in · | out/.test(second.text), JSON.stringify(second));
   check("nothing threw", !bad.length, bad.join(" | "));
   await page.close();
+}
+
+/* ---- projects: talk instead of typing, in the chat of a project ---- */
+{
+  const FILE = { name: "brief.md", kind: "doc", sheets: [{ name: "brief.md", cols: [], rows: 0 }], chars: 300, sections: 1, status: "ready", ver: 1, at: 1 };
+  const mk = (models, speech = true, ua = "") => {
+    const st = { ...STATE, brains: [], concepts: [], models, projects: [{ slug: "brief", name: "Brief", kind: "doc", file: "brief.md", status: "ready", chars: 300, sections: 1, memory: 0, at: 1 }] };
+    const init = arg => {
+      if (window.top !== window) return;
+      sessionStorage.setItem("octopus.token.v1", "test");
+      if (arg.ua) Object.defineProperty(navigator, "userAgent", { get: () => arg.ua });
+      window.__calls = []; window.__voice = [];
+      if (arg.speech) {
+        window.SpeechRecognition = window.webkitSpeechRecognition = class {
+          start(){ window.__voice.push({ lang: this.lang }); window.__rec = this; }
+          stop(){ setTimeout(() => this.onend?.(), 10); }
+        };
+      } else { delete window.SpeechRecognition; delete window.webkitSpeechRecognition; }
+      window.__say = list => window.__rec.onresult({ results: list.map(t => [{ transcript: t }]) });
+      window.fetch = async (u, opt) => {
+        const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}");
+        window.__calls.push({ s: path, body });
+        const J = x => Response.json(x);
+        if (path === "/api/state") return J(arg.state);
+        if (path === "/api/health") return J({ conflicted: [], health: [] });
+        if (path === "/api/project/list") return J({ projects: arg.state.projects });
+        if (path === "/api/project/get") return J({ project: { slug: "brief", name: "Brief", created: "2026-10-09" }, file: arg.file, cards: [{ sid: 1, ord: 1, sheet: 0, title: "Brief", summary: "x", chars: 300 }], turns: [], edits: [], memory: [], shortcuts: [] });
+        if (path === "/api/project/doc") return J({ sections: [{ sid: 1, ord: 1, sheet: 0, title: "Brief", text: "# Brief\n\nFill 200 seats." }] });
+        if (path === "/api/project/chat") return J({ turn: { id: "t1", q: body.q, lead: "Done.", a: "", proposal: false, quotes: [], used: { file: { name: "brief.md", whole: true }, folders: [], memory: 0 }, intent: "ask" } });
+        if (path === "/api/chats") return J({ chats: [{ id: "k1", title: "Is gold a hedge?", brain: "all", pinned: false, updated: Date.now(), turns: 1 }] });
+        if (path === "/api/chats/get") return J({ chat: { id: body.id, title: "Is gold a hedge?", brain: "all", pinned: false, turns: [{ q: "Is gold a hedge?", a: "Gold held its value.", sources: 4, level: "normal" }] } });
+        return J({ chats: [] });
+      };
+    };
+    return boot("/chat.html", init, { state: st, file: FILE, speech, ua });
+  };
+  const { page, bad } = await mk({ voice: "fr-FR" });
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(600);
+  const bar = await page.evaluate(() => ({ kids: [...document.querySelector(".pj-comp").children].map(c => c.className || c.tagName), label: document.querySelector(".pj-mic")?.getAttribute("aria-label"),
+    pressed: document.querySelector(".pj-mic")?.getAttribute("aria-pressed"), on: document.querySelector(".pj-mic").classList.contains("on"), line: document.querySelector(".pj-vh").hidden }));
+  check("the message bar of a project has a mic, between the field and Send, at rest and quiet", JSON.stringify(bar.kids) === '["pj-memb","TEXTAREA","pj-mic","pj-send"]' && bar.label === "Talk" && bar.pressed === "false" && !bar.on && bar.line, JSON.stringify(bar));
+  await page.fill(".pj-comp textarea", "Quick one:");
+  await page.click(".pj-mic"); await page.waitForTimeout(100);
+  await page.evaluate(() => window.__say(["what is", "what is the goal"])); await page.waitForTimeout(60);
+  const on = await page.evaluate(() => ({ value: document.querySelector(".pj-comp textarea").value, on: document.querySelector(".pj-mic").classList.contains("on"), pressed: document.querySelector(".pj-mic").getAttribute("aria-pressed"),
+    label: document.querySelector(".pj-mic").getAttribute("aria-label"), line: document.querySelector(".pj-vh").textContent, shown: !document.querySelector(".pj-vh").hidden, lang: window.__voice[0]?.lang, send: document.querySelector(".pj-send").disabled }));
+  check("a tap listens in the language picked in Settings, says which, lights up, and writes after what was typed, with Send ready", on.value === "Quick one: what is the goal" && on.on && on.pressed === "true" && on.label === "Stop talking"
+    && on.line === "Listening in French. Tap the mic to stop." && on.shown && on.lang === "fr-FR" && !on.send, JSON.stringify(on));
+  await page.click(".pj-mic"); await page.waitForTimeout(80);
+  const off = await page.evaluate(() => ({ value: document.querySelector(".pj-comp textarea").value, on: document.querySelector(".pj-mic").classList.contains("on"), line: document.querySelector(".pj-vh").hidden, focus: document.activeElement === document.querySelector(".pj-comp textarea"), send: document.querySelector(".pj-send").disabled }));
+  check("a second tap stops it: the words stay, the line goes, the cursor is in the field, and the words wait to be sent", off.value === "Quick one: what is the goal" && !off.on && off.line && off.focus && !off.send, JSON.stringify(off));
+  /* sent while it listens: the words go, the mic stops, and a late word lands nowhere */
+  await page.fill(".pj-comp textarea", "");
+  await page.click(".pj-mic"); await page.waitForTimeout(60);
+  await page.evaluate(() => window.__say(["fill the seats"])); await page.waitForTimeout(40);
+  await page.click(".pj-send"); await page.waitForTimeout(500);
+  await page.evaluate(() => window.__say(["late words"])); await page.waitForTimeout(60);
+  const sent = await page.evaluate(() => ({ q: window.__calls.filter(x => x.s === "/api/project/chat").pop()?.body?.q, on: document.querySelector(".pj-mic").classList.contains("on"), box: document.querySelector(".pj-comp textarea").value, line: document.querySelector(".pj-vh").hidden }));
+  check("sent while it listens, the spoken words go, the mic stops, and a word it hears late lands nowhere", sent.q === "fill the seats" && !sent.on && sent.box === "" && sent.line, JSON.stringify(sent));
+  /* on a phone, the file takes the screen and hides the bar: the mic stops */
+  await page.setViewportSize({ width: 390, height: 800 }); await page.waitForTimeout(200);
+  await page.click(".pj-mic"); await page.waitForTimeout(60);
+  const wasOn = await page.evaluate(() => document.querySelector(".pj-mic").classList.contains("on"));
+  await page.click(".pj-seg button >> nth=0"); await page.waitForTimeout(200);
+  check("on a phone, a tap on the file's tab, which hides the message bar, stops the mic", wasOn && await page.evaluate(() => window.__rec.userStopped === true));
+  await page.click(".pj-seg button >> nth=1"); await page.waitForTimeout(200);
+  check("back on the chat, the mic is at rest", await page.evaluate(() => !document.querySelector(".pj-mic").classList.contains("on") && document.querySelector(".pj-vh").hidden));
+  await page.setViewportSize({ width: 1280, height: 800 }); await page.waitForTimeout(200);
+  /* leaving the project stops it */
+  await page.click(".pj-mic"); await page.waitForTimeout(60);
+  await page.click("#chats .chat-row >> nth=0"); await page.waitForTimeout(400);
+  const gone = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, stopped: window.__rec.userStopped === true, main: document.getElementById("micBtn").classList.contains("on"), hint: document.getElementById("tHint").textContent }));
+  check("leaving the project for a chat stops the mic, and the chat bar does not take it up", gone.view === "chat" && gone.stopped && !gone.main && !/Listening/.test(gone.hint), JSON.stringify(gone));
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(500);
+  check("coming back, the project's mic is at rest", await page.evaluate(() => !document.querySelector(".pj-mic").classList.contains("on") && document.querySelector(".pj-vh").hidden));
+  /* the chat bar's mic ends when a project opens */
+  await page.click("#chats .chat-row >> nth=0"); await page.waitForTimeout(300);
+  await page.click("#micBtn"); await page.waitForTimeout(60);
+  const mainOn = await page.evaluate(() => document.getElementById("micBtn").classList.contains("on"));
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(500);
+  check("the chat bar's mic stops too when a project opens", mainOn && await page.evaluate(() => window.__rec.userStopped === true && !document.getElementById("micBtn").classList.contains("on") && !document.querySelector(".pj-mic").classList.contains("on")));
+  /* a refusal of the microphone is said in the project's own line */
+  await page.click(".pj-mic"); await page.waitForTimeout(60);
+  await page.evaluate(() => { window.__rec.onerror({ error: "not-allowed" }); window.__rec.onend(); }); await page.waitForTimeout(60);
+  const refused = await page.evaluate(() => ({ line: document.querySelector(".pj-vh").textContent, shown: !document.querySelector(".pj-vh").hidden, on: document.querySelector(".pj-mic").classList.contains("on") }));
+  check("a refused microphone is said under the field, and the mic is at rest", refused.line === "Allow the microphone for this site, then tap the mic again." && refused.shown && !refused.on, JSON.stringify(refused));
+  await page.fill(".pj-comp textarea", "typed"); await page.waitForTimeout(30);
+  check("and the line goes once you type", await page.evaluate(() => document.querySelector(".pj-vh").hidden));
+  check("no page error with the project's mic", bad.length === 0, bad.join(" | "));
+  await page.close();
+}
+{
+  /* no language picked: Settings opens on it, and the project's line says why */
+  const mk2 = async (models, speech, ua) => {
+    const init = arg => {
+      if (window.top !== window) return;
+      sessionStorage.setItem("octopus.token.v1", "test");
+      if (arg.ua) Object.defineProperty(navigator, "userAgent", { get: () => arg.ua });
+      window.__voice = [];
+      if (arg.speech) window.SpeechRecognition = window.webkitSpeechRecognition = class { start(){ window.__voice.push({ lang: this.lang }); } stop(){} };
+      else { delete window.SpeechRecognition; delete window.webkitSpeechRecognition; }
+      window.fetch = async (u) => {
+        const path = String(u).replace(/^https?:\/\/[^/]+/, ""), J = x => Response.json(x);
+        if (path === "/api/state") return J(arg.state);
+        if (path === "/api/project/list") return J({ projects: arg.state.projects });
+        if (path === "/api/project/get") return J({ project: { slug: "brief", name: "Brief", created: "2026-10-09" }, file: { name: "brief.md", kind: "doc", sheets: [{ name: "brief.md", cols: [], rows: 0 }], chars: 300, sections: 1, status: "ready", ver: 1, at: 1 }, cards: [{ sid: 1, ord: 1, sheet: 0, title: "Brief", summary: "x", chars: 300 }], turns: [], edits: [], memory: [], shortcuts: [] });
+        if (path === "/api/project/doc") return J({ sections: [] });
+        return J({ chats: [], conflicted: [], health: [] });
+      };
+    };
+    const st = { ...STATE, brains: [], concepts: [], models, projects: [{ slug: "brief", name: "Brief", kind: "doc", file: "brief.md", status: "ready", chars: 300, sections: 1, memory: 0, at: 1 }] };
+    const b = await boot("/chat.html", init, { state: st, speech, ua });
+    await b.page.click("#projects .pj-row >> nth=0"); await b.page.waitForTimeout(600);
+    return b;
+  };
+  const a = await mk2({}, true, "");
+  await a.page.click(".pj-mic"); await a.page.waitForTimeout(200);
+  const ask = await a.page.evaluate(() => ({ heard: window.__voice.length, open: !!document.getElementById("langVoice"), asked: document.querySelector(".lang-row.ask") !== null, line: document.querySelector(".pj-vh").textContent }));
+  check("with no language picked, the project's mic opens Settings on Voice input, listens to nothing, and says why under the field", ask.heard === 0 && ask.open && ask.asked && ask.line === "Pick the language the mic listens in, then tap the mic.", JSON.stringify(ask));
+  await a.page.close();
+  const b = await mk2({ voice: "en-US" }, false, "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) Gecko/20100101 Firefox/131.0");
+  await b.page.click(".pj-mic"); await b.page.waitForTimeout(80);
+  const none = await b.page.evaluate(() => ({ line: document.querySelector(".pj-vh").textContent, on: document.querySelector(".pj-mic").classList.contains("on") }));
+  check("a browser with no voice input points to the free dictation the computer carries, under the project's field", /Press Fn twice to dictate/.test(none.line) && !none.on, JSON.stringify(none));
+  await b.page.close();
 }
 
 /* ---- projects: a file that stopped part way is chosen again from the drop area, and the head holds no button to replace a file ---- */
@@ -4293,7 +4508,7 @@ for (const space of ["octopus", "squidgy"]) {
   await page.keyboard.type("say?"); await page.keyboard.press("Enter"); await page.waitForTimeout(500);
   const pj = await page.evaluate(() => window.__calls.filter(c => c.s === "/api/project/chat").pop()?.body);
   check("a project's message goes with the folders it names", pj?.brain === "launch-plan" && pj.q === "What does @Health say?" && JSON.stringify(pj.tags) === '["health"]', JSON.stringify(pj));
-  check("a folder tagged that held nothing still shows as called", await page.evaluate(() => [...document.querySelectorAll(".pj-used > *")].map(c => c.textContent).includes("Pricing folder · 0 notes")));
+  check("a folder tagged is read, and the answer shows no chip for it", await page.evaluate(() => !document.querySelector(".pj-used")));
   await page.fill(".pj-comp textarea", "Plain question"); await page.keyboard.press("Enter"); await page.waitForTimeout(400);
   check("a project's message with no tag carries none", !("tags" in (await page.evaluate(() => window.__calls.filter(c => c.s === "/api/project/chat").pop()?.body))));
   check("nothing threw", !bad.length, bad.join(" | "));

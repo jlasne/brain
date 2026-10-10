@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
-import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, readBlocks } from "./project";
+import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, readBlocks } from "./project";
 import { colNames, downloadText, csvOf, parseCsv, madeName } from "./sheet";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
@@ -1635,6 +1635,12 @@ route("/api/project/finish", async (ctx, _req, b) => {
 route("/api/project/instructions", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   return await fileInstructions(ctx, { space: who.space, brain: String(b.brain ?? ""), name: String(b.name ?? ""), text: String(b.text ?? ""), key: keyFor(who), model: modelFor(who, b) });
+});
+
+/** A resource the owner dropped into the project, typed, pasted or read from a file in the browser: one model call writes it as notes in the project's memory. */
+route("/api/project/resource", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return await fileResource(ctx, { space: who.space, brain: String(b.brain ?? ""), name: String(b.name ?? ""), text: String(b.text ?? ""), key: keyFor(who), model: modelFor(who, b) });
 });
 
 /** A message in a project's chat: read what it needs, answered, kept in the thread. */

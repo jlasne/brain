@@ -1976,22 +1976,13 @@
   .pj-q{ align-self:flex-end; max-width:88%; padding:10px 14px; border-radius:18px 18px 6px 18px; background:var(--surface-2);
     font:400 14px/1.5 var(--sans); color:var(--ink); white-space:pre-wrap; overflow-wrap:anywhere; }
   .pj-a{ min-width:0; }
-  .pj-k{ margin-bottom:8px; font:500 10.5px/1 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--ink-4); }
-  .pj-a .pj-md{ font-size:14px; line-height:1.58; color:var(--ink); }
-  .pj-a .pj-md p{ margin:.5em 0; }
-  .pj-a .pj-md li{ margin:.35em 0; }
-  /* The answer: one line to read first, then its support. */
-  .pj-lead{ display:flex; align-items:baseline; gap:10px; margin:0 0 10px; padding:0 0 10px; border-bottom:1px solid var(--line); }
-  .pj-tl{ flex:none; font:600 10px/1 var(--mono); letter-spacing:.09em; color:var(--ink-4); }
-  .pj-ld{ min-width:0; font:600 15px/1.45 var(--sans); color:var(--ink); overflow-wrap:anywhere; }
-  .pj-ld > *{ margin:0; }
+  /* The answer reads as the normal chat's does: plain lines on the page, a number in bold. */
+  .pj-a .pj-md{ font-size:15px; line-height:1.68; color:var(--ink-2); }
+  .pj-a .pj-md p{ margin:.6em 0; }
+  .pj-a .pj-md li{ margin:.3em 0; }
+  .pj-a .pj-md strong{ font-weight:500; color:var(--ink); }
   .pj-a .pj-md h2, .pj-a .pj-md h3, .pj-a .pj-md h4{ margin:.9em 0 .2em; font:600 11px/1.3 var(--mono); letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3); }
-  .pj-a .pj-md ol > li::marker{ color:var(--ink-3); font-weight:600; }
-  .pj-used{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
-  .pj-used > *{ max-width:100%; padding:4px 8px; border:1px solid var(--line-2); border-radius:7px; background:var(--surface-2);
-    font:400 11.5px/1.25 var(--mono); color:var(--ink-3); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pj-used button:hover{ border-color:var(--ink-4); color:var(--ink); }
-  .pj-used .cost{ margin-left:auto; border-color:transparent; background:none; }
+  .pj-a .pj-md ol > li::marker{ color:var(--ink-3); }
   .pj-tact{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
   .pj-tact .go, .pj-tact .ghost{ min-height:34px; padding:0 13px; font-size:13px; }
   .pj-hint{ font:400 14px/1.55 var(--sans); color:var(--ink-3); }
@@ -2011,6 +2002,14 @@
   .pj-comp textarea::placeholder{ color:var(--ink-4); }
   .pj-send{ flex:none; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; background:var(--accent-solid); color:var(--accent-on); }
   .pj-send:disabled{ opacity:.4; cursor:default; }
+  /* Talk instead of typing: as quiet as the memory button, and lit while it listens. */
+  .pj-mic{ flex:none; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; color:var(--ink-4); }
+  .pj-mic:hover{ background:var(--surface-3); color:var(--ink); }
+  .pj-mic svg{ width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .pj-mic.on{ background:var(--accent-solid); color:var(--accent-on); animation:listen 1.6s ease-in-out infinite; }
+  @media (prefers-reduced-motion:reduce){ .pj-mic.on{ animation:none; } }
+  .pj-vh{ flex:none; margin:8px 16px -4px; font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
+  .pj-vh[hidden]{ display:none; }
   .pj-send svg{ width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 
   /* A change the chat proposes: the words before and after, and a click. */
@@ -2054,6 +2053,7 @@
   .sheet .pj-rules textarea.mem{ min-height:96px; }
   .pm-go{ margin-top:12px; }
   .pm-note .hint{ margin-top:10px; }
+  .pm-note .pj-make{ margin:12px 0 2px; }
   .sheet .pj-opt{ margin-left:6px; font:400 12px/1 var(--sans); color:var(--ink-4); }
   .sheet #npFile{ overflow-wrap:anywhere; }
   .sheet header p.bad{ color:var(--bad); }
@@ -2096,16 +2096,14 @@
     /* The chat. */
     .pj-thread{ padding:12px; gap:12px; }
     .pj-q{ padding:8px 11px; font-size:13.5px; }
-    .pj-a .pj-md{ font-size:13.5px; }
-    .pj-ld{ font-size:14px; }
-    .pj-used > *{ padding:5px 8px; font-size:11px; }
     .pj-hint{ font-size:13px; }
     .pj-tact .go, .pj-tact .ghost{ min-height:36px; font-size:12.5px; }
     /* The message bar stays 16px where it is typed in, so a phone does not zoom in on it; its hint is smaller. */
     .pj-comp{ margin:8px 10px 10px; padding:6px; }
     .pj-comp textarea{ font-size:16px; }
     .pj-comp textarea::placeholder{ font-size:14px; }
-    .pj-send, .pj-memb{ width:36px; height:36px; }
+    .pj-send, .pj-memb, .pj-mic{ width:36px; height:36px; }
+    .pj-vh{ margin:6px 12px -2px; }
   }
   .pj-msg{ font:400 12.5px/1.45 var(--sans); color:var(--bad); }
 </style>
@@ -2264,7 +2262,7 @@ const TOKEN_KEY = "octopus.token.v1";
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
   "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle",
   "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview", "/api/personal/people", "/api/personal/open",
-  "/api/project/part", "/api/project/finish", "/api/project/instructions", "/api/project/chat"]);
+  "/api/project/part", "/api/project/finish", "/api/project/instructions", "/api/project/resource", "/api/project/chat"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -2606,6 +2604,8 @@ function renderView(){
   $("thread").hidden = drop || folder || project;
   $("dropBtn").classList.toggle("on", drop);
   document.querySelector("main").dataset.view = drop ? "drop" : folder ? "folder" : project ? "project" : "chat";
+  /* A mic stays in the bar it was tapped in: when that screen goes, it stops. */
+  if (rec && (project ? rec.bar === mainBar : rec.bar !== mainBar)) endVoice();
   markSeen();
 }
 /** Drop, on the folders ticked. A personal folder takes no drop. */
@@ -3345,7 +3345,7 @@ function paintBar(){
   if (!wrap) return;
   const drop = S.mode === "drop";
   const open = wrap.contains(document.activeElement) || !!$("input").value.trim()
-    || (drop && !!$("srcInput").value.trim()) || !!pickMenu || !!S.listening;
+    || (drop && !!$("srcInput").value.trim()) || !!pickMenu || listeningIn(mainBar);
   wrap.classList.toggle("compact", !open);
   /* Folded, a drop says what it takes in a few words; open, it says it in full. */
   $("input").placeholder = !open && drop ? "Drop a link, a text or a document" : !open && shortPlaceholder ? shortPlaceholder : fullPlaceholder;
@@ -3382,7 +3382,7 @@ function renderComposer(){
   $("fileBtn").hidden = !drop;
   /* The mic is for asking and talking. A drop takes a source, not a voice. */
   $("micBtn").hidden = drop;
-  if (drop && S.listening) stopVoice();
+  if (drop && listeningIn(mainBar)) stopVoice();
   $("footNote").textContent = about
     ? (about.personal ? `This chat reads ${about.title} alone. A fact, a date or a correction you give is written to it at once.`
       : `This chat reads ${about.title} alone. A new chat reads every folder.`)
@@ -3405,7 +3405,7 @@ function renderComposer(){
   const busy = drop ? S.dropBusy : chatBusy();
   $("send").disabled = busy || (drop ? !ready : !t);
   $("tHint").textContent = busy ? (drop ? "reading" : "working") : drop ? dropHint(src, t)
-    : S.listening ? `Listening in ${voiceName()}. Tap the mic to stop.` : (S.voiceHint || "");
+    : listeningIn(mainBar) ? `Listening in ${voiceName()}. Tap the mic to stop.` : (S.voiceHint || "");
   paintIv();
   paintBar();
 }
@@ -4447,7 +4447,8 @@ const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
 /* The languages the mic offers: code, chip, name. */
 const VOICE_LANGS = [["en-US", "EN", "English"], ["fr-FR", "FR", "French"], ["es-ES", "ES", "Spanish"],
   ["de-DE", "DE", "German"], ["it-IT", "IT", "Italian"], ["pt-PT", "PT", "Portuguese"]];
-let rec = null, voiceBase = "";
+/* var, not let: the shell paints once before this line is reached, and reads them. */
+var rec = null, voiceBase = "";
 /* Chrome on Android listens badly in one long run: it hands back every partial of a phrase as a result of its own,
    "my", "my god", "my god is small", and joined they read "mymy godmy god is small". It listens one phrase at a time instead. */
 const ANDROID = /Android/i.test(navigator.userAgent);
@@ -4473,55 +4474,78 @@ function systemDictation(){
   if (/Windows/.test(ua)) return "No voice input in this browser. Press Windows + H to dictate, or open it in Chrome or Edge.";
   return "No voice input in this browser. Open it in Chrome or Safari.";
 }
+/**
+ * The chat bars a mic can be tapped in: where its words go, and how each bar shows what the mic is doing. One mic listens at a
+ * time, in the bar it was tapped in, and it stops when that bar goes off screen.
+ */
+var mainBar = {
+  field: () => $("input"),
+  grew: () => { sizeBox(); renderComposer(); },
+  paint: () => { renderMic(); renderComposer(); },
+  say: t => { S.voiceHint = t; renderComposer(); },
+};
+function listeningIn(bar){ return !!S.listening && rec?.bar === bar; }
 function renderMic(){
-  const m = $("micBtn");
-  m.classList.toggle("on", !!S.listening);
-  m.setAttribute("aria-pressed", S.listening ? "true" : "false");
-  m.setAttribute("aria-label", S.listening ? "Stop talking" : "Talk");
+  const m = $("micBtn"), on = listeningIn(mainBar);
+  m.classList.toggle("on", on);
+  m.setAttribute("aria-pressed", on ? "true" : "false");
+  m.setAttribute("aria-label", on ? "Stop talking" : "Talk");
 }
-function startVoice(){
-  if (!Speech){ S.voiceHint = systemDictation(); renderComposer(); $("input").focus(); return; }
+function startVoice(bar = mainBar){
+  const field = bar.field();
+  if (!Speech){ bar.say(systemDictation()); field.focus(); return; }
   /* No language picked yet: Settings opens on it. */
-  if (!voiceLang()){ S.voiceHint = "Pick the language the mic listens in, then tap the mic."; renderComposer(); openSetupSheet({ voice: true }); return; }
+  if (!voiceLang()){ bar.say("Pick the language the mic listens in, then tap the mic."); openSetupSheet({ voice: true }); return; }
+  endVoice();
   const r = new Speech();
   r.lang = voiceLang();
   r.interimResults = true;
   r.continuous = !ANDROID;
+  r.bar = bar;
   /* What was typed stays; the words spoken follow it. */
-  const typed = $("input").value.replace(/\s+$/, "");
+  const typed = field.value.replace(/\s+$/, "");
   voiceBase = typed ? typed + " " : "";
   /* On Android each run ends after a phrase and starts again while the mic is on; two runs in a row with nothing heard end it. */
   let quiet = 0, spoke = false, broke = false;
   r.onresult = e => {
-    if (!S.listening) return;
+    if (!S.listening || rec !== r) return;
     spoke = true;
-    $("input").value = voiceBase + heard(e.results).replace(/^\s+/, "");
-    sizeBox(); renderComposer();
+    field.value = voiceBase + heard(e.results).replace(/^\s+/, "");
+    bar.grew();
   };
   r.onerror = e => {
     const why = e.error;
     if (why !== "no-speech" && why !== "aborted") broke = true;
-    S.voiceHint = why === "not-allowed" || why === "service-not-allowed" ? "Allow the microphone for this site, then tap the mic again."
+    bar.say(why === "not-allowed" || why === "service-not-allowed" ? "Allow the microphone for this site, then tap the mic again."
       : why === "language-not-supported" ? `This browser cannot listen in ${voiceName()}. Pick another in Settings, Languages, or open it in Chrome.`
       : why === "network" ? "Voice input needs a connection."
-      : why === "no-speech" || why === "aborted" ? "" : "Voice input stopped. Tap the mic to try again.";
+      : why === "no-speech" || why === "aborted" ? "" : "Voice input stopped. Tap the mic to try again.");
   };
   r.onend = () => {
-    if (ANDROID && S.listening && rec === r && !r.userStopped && !broke){
+    if (rec !== r) return;
+    if (ANDROID && S.listening && !r.userStopped && !broke){
       quiet = spoke ? 0 : quiet + 1; spoke = false;
       if (quiet < 2){
-        const typedNow = $("input").value.replace(/\s+$/, "");
+        const typedNow = field.value.replace(/\s+$/, "");
         voiceBase = typedNow ? typedNow + " " : "";
         try { r.start(); return; } catch { /* the mic ends below */ }
       }
     }
-    if (rec === r) rec = null;
-    if (S.listening){ S.listening = false; renderMic(); renderComposer(); $("input").focus(); }
+    rec = null;
+    if (S.listening){ S.listening = false; bar.paint(); field.focus(); }
   };
   try { r.start(); } catch { return; }
-  rec = r; S.listening = true; S.voiceHint = ""; renderMic(); renderComposer();
+  rec = r; S.listening = true; bar.say(""); bar.paint();
 }
 function stopVoice(){ if (rec) rec.userStopped = true; try { rec?.stop(); } catch { /* it had stopped already */ } }
+/** The mic stops at once, and a word it still hears is dropped: a message was sent, or the bar it listened in went off screen. */
+function endVoice(){
+  const r = rec; if (!r) return;
+  rec = null; r.userStopped = true;
+  const was = S.listening; S.listening = false;
+  try { r.stop(); } catch { /* it had stopped already */ }
+  if (was) r.bar?.paint?.();
+}
 /* The language the mic listens in, picked in Settings: the speech service
    hears one language at a time and cannot tell French from English by
    itself, so nothing is guessed. With none picked, the mic asks for one. The
@@ -4533,7 +4557,7 @@ function voiceLang(){
 function voiceName(){ return (VOICE_LANGS.find(x => x[0] === voiceLang()) || ["", "", ""])[2]; }
 function localVoice(){ try { return localStorage.getItem("octopus.voice") || ""; } catch { return ""; } }
 function setLocalVoice(v){ try { localStorage.setItem("octopus.voice", v); } catch { /* kept for this visit only */ } S.models = { ...(S.models || {}), voice: v }; }
-$("micBtn").onclick = () => S.listening ? stopVoice() : startVoice();
+$("micBtn").onclick = () => listeningIn(mainBar) ? stopVoice() : startVoice(mainBar);
 $("scopeBtn").onclick = e => { e.stopPropagation(); openPick(); };
 document.addEventListener("click", e => { if (pickMenu && !pickMenu.contains(e.target)) closePick(); });
 document.addEventListener("keydown", e => {
@@ -7959,6 +7983,8 @@ async function syncProjects(){ try { S.projects = (await api("/api/project/list"
 function paintProject(){
   const host = $("projectView"), pj = S.pj;
   closeDownload();
+  /* The message bar is made again: a mic that listened in the old one stops. */
+  if (rec && rec.bar !== mainBar) endVoice();
   host.innerHTML = "";
   if (!pj) return;
   if (!pj.data){ host.append(el("div","pj-loading","Opening the project")); return; }
@@ -7967,7 +7993,7 @@ function paintProject(){
   const seg = el("div","pj-seg");
   for (const [k, label] of [["doc", pjSeg(pj.data.file)], ["chat", "Chat"]]){
     const b = el("button", pj.seg === k ? "on" : "", label); b.type = "button";
-    b.onclick = () => { pj.seg = k; root.dataset.seg = k; [...seg.children].forEach(x => x.classList.toggle("on", x === b)); if (k === "doc"){ fillDoc(); fillGrid(); } };
+    b.onclick = () => { pj.seg = k; root.dataset.seg = k; [...seg.children].forEach(x => x.classList.toggle("on", x === b)); if (k === "doc"){ fillDoc(); fillGrid(); mindMic(); } };
     seg.append(b);
   }
   root.append(seg, docPane(), chatPane());
@@ -7978,8 +8004,10 @@ function showDoc(){
   const pj = S.pj; if (!pj?.root) return;
   pj.seg = "doc"; pj.root.dataset.seg = "doc";
   [...pj.root.querySelector(".pj-seg").children].forEach((x, i) => x.classList.toggle("on", i === 0));
-  fillDoc(); fillGrid();
+  fillDoc(); fillGrid(); mindMic();
 }
+/** A mic stays in the bar it was tapped in: when a phone shows the file and hides that bar, it stops. */
+function mindMic(){ const pj = S.pj; if (pj?.bar && listeningIn(pj.bar) && !pj.comp.offsetParent) endVoice(); }
 function showChat(){
   const pj = S.pj; if (!pj?.root) return;
   pj.seg = "chat"; pj.root.dataset.seg = "chat";
@@ -8247,13 +8275,26 @@ function chatPane(){
   attachMentions(ta, () => tagChoices(false));
   const send = el("button","pj-send"); send.type = "button"; send.setAttribute("aria-label", "Send"); send.disabled = true;
   send.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M8 3L4 7M8 3l4 4"/></svg>`;
+  /* Talk instead of typing, as in the chat bar: the same mic, the same language, and a line for what it says. */
+  const mic = el("button","pj-mic"); mic.type = "button"; mic.title = "Talk instead of typing"; mic.setAttribute("aria-label", "Talk"); mic.setAttribute("aria-pressed", "false");
+  mic.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="1.75" width="5" height="8" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/></svg>`;
+  const said = el("div","pj-vh"); said.setAttribute("role","status"); said.hidden = true;
+  let hint = "";
+  const bar = { field: () => ta, grew: () => size(), say: t => { hint = t; paintMic(); }, paint: () => paintMic() };
+  const paintMic = () => {
+    const on = listeningIn(bar);
+    mic.classList.toggle("on", on); mic.setAttribute("aria-pressed", on ? "true" : "false"); mic.setAttribute("aria-label", on ? "Stop talking" : "Talk");
+    const t = on ? `Listening in ${voiceName()}. Tap the mic to stop.` : hint;
+    said.textContent = t; said.hidden = !t;
+  };
+  mic.onclick = () => listeningIn(bar) ? stopVoice() : startVoice(bar);
   const size = () => { ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight, 170) + "px"; send.disabled = !ta.value.trim() || pj.busy || (!!pj.data.file && pj.data.file.status !== "ready"); };
-  ta.oninput = size;
+  ta.oninput = () => { if (hint){ hint = ""; paintMic(); } size(); };
   ta.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); if (!send.disabled) go(); } };
-  const go = () => { const q = ta.value.trim(); if (!q) return; ta.value = ""; size(); sendProject(q); };
+  const go = () => { const q = ta.value.trim(); if (!q) return; if (listeningIn(bar)) endVoice(); ta.value = ""; size(); sendProject(q); };
   send.onclick = go;
-  comp.append(memb, ta, send); pane.append(comp);
-  pj.comp = comp; pj.input = ta; pj.size = size;
+  comp.append(memb, ta, mic, send); pane.append(said, comp);
+  pj.comp = comp; pj.input = ta; pj.size = size; pj.bar = bar;
   return pane;
 }
 
@@ -8315,66 +8356,21 @@ function paintSide(){
   pj.size();
 }
 
-/** Row numbers as a short phrase: "rows 4, 5, 10" and "and 3 more". */
-function rowsLine(rows){
-  const shown = rows.slice(0, 6).join(", ");
-  return `rows ${shown}${rows.length > 6 ? ` and ${rows.length - 6} more` : ""}`;
-}
-/** What a message cost, as the model host reported it: tokens in and out, the part it reused from before, the price in dollars when it said one. Turns kept before the price was in dollars hold it in cents. */
-function costLine(c){
-  const k = n => n >= 10000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n);
-  const usd = c.usd != null ? c.usd : c.cents != null ? c.cents / 100 : null;
-  const price = usd == null ? "" : usd < 0.00001 ? " · under $0.00001" : ` · $${Number(usd.toPrecision(2))}`;
-  return `${k(c.in)} in · ${k(c.out)} out${c.cached ? ` · ${k(c.cached)} reused` : ""}${price}`;
-}
-function usedChips(t){
-  const u = t.used || (t.noted?.length || t.cost?.in ? {} : null); if (!u) return null;
-  const box = el("div","pj-used");
-  const f = u.file;
-  /* A file not opened for this message shows no chip. */
-  if (f && (f.whole || f.map || f.rows?.length || f.sections?.length)){
-    const what = f.rows?.length ? `: ${rowsLine(f.rows)}`
-      : f.sections?.length ? `: ${f.sections.slice(0, 2).map(s => s.title).join(" · ")}${f.sections.length > 2 ? ` +${f.sections.length - 2}` : ""}`
-      : f.map ? ": its contents" : "";
-    const b = el("button",null,`${f.name}${what}`); b.type = "button"; b.title = "Show it in the file";
-    b.onclick = () => focusUsed(t, true);
-    box.append(b);
-  }
-  /* How little of a long file was read, whether the long sections came as passages, and that memory led there. */
-  if (f?.sections?.length && f.of > 4) box.append(el("span",null,`Read ${f.sections.length} of ${f.of} sections${f.passages ? " · passages" : ""}${f.via ? " · led by memory" : ""}`));
-  for (const c of u.folders || []) box.append(el("span",null,`${c.name} folder · ${c.notes} note${c.notes === 1 ? "" : "s"}`));
-  if (u.rules){
-    const b = el("button",null,`Instructions · ${u.rules}`); b.type = "button"; b.title = "Show the instructions this project follows";
-    b.onclick = openMemory; box.append(b);
-  }
-  if (u.memory){
-    const b = el("button",null,`Memory · ${u.memory} note${u.memory === 1 ? "" : "s"}`); b.type = "button"; b.title = "Show what the project remembers";
-    b.onclick = openMemory; box.append(b);
-  }
-  if (Array.isArray(t.noted) && t.noted.length) box.append(el("span","noted",`Noted: ${t.noted.slice(0, 2).join(", ")}`));
-  if (t.cost?.in){ const c = el("span","cost",costLine(t.cost)); c.title = `${t.cost.calls || 1} model call${t.cost.calls === 1 ? "" : "s"} for this message`; box.append(c); }
-  return box.children.length ? box : null;
-}
-
 function turnEl(t){
   const w = el("div","pj-turn"); w.dataset.id = t.id || "";
   w.append(el("div","pj-q",t.q));
-  const a = el("div","pj-a" + (t.proposal ? " prop" : ""));
-  if (t.proposal) a.append(el("div","pj-k","Proposal"));
-  if (t.lead){
-    const lead = el("div","pj-lead"), line = el("div","pj-ld");
-    line.innerHTML = mdView(t.lead);
-    lead.append(el("span","pj-tl","TL;DR"), line); a.append(lead);
-  }
-  if (t.a){ const md = el("div","pj-md"); md.innerHTML = mdView(t.a); a.append(md); }
+  const a = el("div","pj-a");
+  /* As in the normal chat: the answer on the page, in plain lines. What it read, in the memory, the file and the folders, stays behind it. */
+  const text = [t.lead, t.a].filter(Boolean).join("\n\n");
+  if (text){ const md = el("div","pj-md"); md.innerHTML = mdView(text); a.append(md); }
   if (t.edit) a.append(editCard(t));
-  const chips = usedChips(t); if (chips) a.append(chips);
-  /* Nothing to press to keep an answer: the project files its own notes. */
-  const acts = el("div","pj-tact");
-  const refine = el("button","ghost","Refine"); refine.type = "button";
-  refine.onclick = () => { S.pj.input.value = "Refine: "; S.pj.size(); S.pj.input.focus(); };
-  acts.append(refine);
-  a.append(acts); w.append(a);
+  /* What it could not find is asked of the owner: a resource dropped into the memory. */
+  if (t.lacks){
+    const row = el("div","pj-tact"), drop = el("button","ghost","Add a resource"); drop.type = "button";
+    drop.title = "Drop a document or a text into the project's memory"; drop.onclick = () => openMemory({ add: "resource" });
+    row.append(drop); a.append(row);
+  }
+  w.append(a);
   return w;
 }
 
@@ -8422,7 +8418,7 @@ async function refreshMemory(){
 }
 
 /** What the project remembers, listed as a folder lists its concepts: the newest first, a title, a line, a small meta. A tap opens the note, with a way to forget it. */
-function openMemory(){
+function openMemory(opts = {}){
   const pj = S.pj; if (!pj?.data) return;
   document.querySelector(".veil.pm")?.remove();
   const veil = el("div","veil pm");
@@ -8454,8 +8450,8 @@ function openMemory(){
     const many = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
     sub.classList.toggle("bad", !!isBad);
     sub.textContent = typeof msg === "string" && msg ? msg : rules.length ? `${many(rules.length, "instruction")}${mem.length ? ` and ${many(mem.length, "note")}` : ""}.` : mem.length ? `${many(mem.length, "note")}, the newest first.` : "";
-    add.textContent = rules.length ? "Replace instructions" : "Add instructions";
-    if (!mem.length && !rules.length && !ways.length){ list.append(el("div","fv-none","Nothing kept yet. The project files its notes by itself: what the file holds, what you decide, what its answers find.")); return; }
+    add.textContent = "Add to memory";
+    if (!mem.length && !rules.length && !ways.length){ list.append(el("div","fv-none","Nothing kept yet. The project files its notes by itself: what the file holds, what you decide, what its answers find. A resource you add gives it more to read.")); return; }
     const row = m => {
       const r = el("button","fv-row"); r.type = "button";
       r.append(el("b",null,m.title));
@@ -8497,34 +8493,51 @@ function openMemory(){
   };
   /* A message that just finished may have added notes: the list follows, unless a note is open. */
   pj.memPaint = () => { if (!note) paint(); };
-  /* Instructions are typed, pasted or added from a file, as in the personal memory. They are filed as notes, and take the place of the ones held. */
-  const compose = () => {
+  /* A resource or instructions, typed, pasted or added from a file, as in the personal memory. A resource adds notes to the memory; instructions are read at every message, and take the place of the ones held. */
+  const compose = (kind = "resource") => {
     note = {}; list.innerHTML = ""; list.classList.add("compose"); add.hidden = true; sub.classList.remove("bad"); sub.textContent = "";
     const held = pj.data.memory.some(m => m.instructions);
     const box = el("div","pm-note");
     const back = el("button","pm-back","← All notes"); back.type = "button"; back.onclick = () => paint();
-    const host = el("div","pj-rules");
-    box.append(back, el("div","pm-t", held ? "Replace the instructions" : "Add instructions"),
-      el("p","fv-pos","Tone, audience, limits, numbers that hold. The chat follows them at every message." + (held ? " These take the place of the ones held." : "")), host);
-    const field = instructionsField(host);
-    field.ta.id = "pmRulesText";
+    const title = el("div","pm-t"), intro = el("p","fv-pos"), kinds = el("div","pj-make"), host = el("div","pj-rules");
+    const bRes = el("button","ghost","A resource"), bRules = el("button","ghost","Instructions");
+    bRes.type = bRules.type = "button"; bRes.id = "pmKindRes"; bRules.id = "pmKindRules";
+    kinds.append(bRes, bRules);
+    box.append(back, title, kinds, intro, host);
+    const field = instructionsField(host, kind);
+    field.ta.id = "pmText";
     const status = el("div","hint"); status.setAttribute("role","status");
-    const go = el("button","go","File the instructions"); go.type = "button"; go.id = "pmRulesGo";
+    const go = el("button","go"); go.type = "button"; go.id = "pmGo";
+    const pick = k => {
+      kind = k; field.aim(k);
+      for (const [b, on] of [[bRes, k === "resource"], [bRules, k !== "resource"]]){ b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); }
+      title.textContent = k === "resource" ? "Add a resource" : held ? "Replace the instructions" : "Add instructions";
+      intro.textContent = k === "resource" ? "A document, a text or the words of a page. The notes it holds join the memory, and the chat reads the ones that bear on a question."
+        : "Tone, audience, limits, numbers that hold. The chat follows them at every message." + (held ? " These take the place of the ones held." : "");
+      go.textContent = k === "resource" ? "Add to memory" : "File the instructions";
+      status.textContent = ""; status.classList.remove("bad");
+    };
+    bRes.onclick = () => pick("resource"); bRules.onclick = () => pick("instructions");
     go.onclick = async () => {
       if (!field.text()){ field.ta.focus(); return; }
-      go.disabled = true; field.lock(true); status.classList.remove("bad"); status.textContent = "Filing the instructions in the memory";
+      const res = kind === "resource", many = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+      go.disabled = bRes.disabled = bRules.disabled = true; field.lock(true); status.classList.remove("bad"); status.textContent = res ? "Filing the resource in the memory" : "Filing the instructions in the memory";
       try {
-        const r = await sendInstructions(pj.slug, { name: field.name(), text: field.text() });
+        const r = res ? await sendResource(pj.slug, { name: field.name(), text: field.text() }, t => { status.textContent = t; })
+          : await sendInstructions(pj.slug, { name: field.name(), text: field.text() });
         await refreshMemory();
-        paint(r.cut ? "Only the first 30,000 characters were read, about 5,000 words." : `${r.notes} instruction${r.notes === 1 ? "" : "s"} filed. The chat follows them from the next message.`);
-      } catch (e){ status.textContent = e.message; status.classList.add("bad"); go.disabled = false; field.lock(false); }
+        paint(r.cut ? (res ? `Only the first ${RES_CHARS.toLocaleString()} characters were read, about 16,000 words.` : "Only the first 30,000 characters were read, about 5,000 words.")
+          : res ? `${many(r.notes, "note")} filed. The chat reads the ones that bear on a question.` : `${many(r.notes, "instruction")} filed. The chat follows them from the next message.`);
+      } catch (e){ status.textContent = e.message; status.classList.add("bad"); go.disabled = bRes.disabled = bRules.disabled = false; field.lock(false); }
     };
+    pick(kind);
     const row = el("div","pm-go"); row.append(go);
     box.append(row, status); list.append(box); list.scrollTop = 0; field.ta.focus();
   };
-  add.onclick = compose;
+  add.onclick = () => compose();
   paint();
-  (list.querySelector("button") || veil.querySelector("#pmClose")).focus();
+  if (opts.add) compose(opts.add);
+  else (list.querySelector("button") || veil.querySelector("#pmClose")).focus();
   /* What it learned since the last answer is read again, so the list is current. */
   refreshMemory();
 }
@@ -9098,34 +9111,45 @@ function chooseFile(){ pickFile(PJ_FILES, file => fillProject(S.pj.slug, file));
 
 /** What the server reads of instructions, in characters. */
 const RULES_CHARS = 30000;
+/* A resource is sent in pieces of what one call reads, up to 5 of them. */
+const RES_PIECE = 20000, RES_PIECES = 5, RES_CHARS = RES_PIECE * RES_PIECES;
 
 /**
- * A field for instructions, as the personal memory has one: words typed or pasted, or a file added whose words join the field.
- * It says how many characters it holds, and that only the first 30,000 are read.
+ * A field for words, as the personal memory has one: typed or pasted, or a file added whose words join the field. It says how many
+ * characters it holds, and how many are read: 30,000 of instructions, 100,000 of a resource.
  */
-function instructionsField(host){
-  host.innerHTML = `<textarea class="mem" rows="5" placeholder="Paste or write the instructions here" aria-label="Instructions"></textarea>
+function instructionsField(host, what = "instructions"){
+  host.innerHTML = `<textarea class="mem" rows="5" aria-label="Instructions"></textarea>
     <div class="mem-bar"><button class="mini" type="button">+ file</button><span class="hint" role="status"></span></div>`;
   const ta = host.querySelector("textarea"), add = host.querySelector("button"), count = host.querySelector(".hint");
   const names = [];
   const say = (t, bad) => { count.textContent = t; count.classList.toggle("bad", !!bad); };
-  const sync = () => { const n = ta.value.length; say(n ? `${n.toLocaleString()} characters${n > RULES_CHARS ? `, the first ${RULES_CHARS.toLocaleString()} are read` : ""}` : ""); };
+  const limit = () => what === "resource" ? RES_CHARS : RULES_CHARS;
+  const sync = () => { const n = ta.value.length; say(n ? `${n.toLocaleString()} characters${n > limit() ? `, the first ${limit().toLocaleString()} are read` : ""}` : ""); };
+  /* What the words are for: the hint and the limit follow, the words stay. */
+  const aim = w => {
+    what = w;
+    ta.placeholder = w === "resource" ? "Paste the text of a resource here, or add a file" : "Paste or write the instructions here";
+    ta.setAttribute("aria-label", w === "resource" ? "Resource" : "Instructions");
+    sync();
+  };
   ta.oninput = sync;
   add.onclick = () => pickFile(RULE_FILES, async f => {
     add.disabled = true;
     try {
-      const got = await readInstructions(f, t => say(t));
+      const got = await readInstructions(f, t => say(t), what);
       ta.value = (ta.value.trim() ? ta.value.trimEnd() + "\n\n" : "") + got.text;
       names.push(got.name); sync();
     } catch (e){ say(e.message, true); }
     finally { add.disabled = false; }
   });
-  return { ta, add, count, text: () => ta.value.trim(), name: () => ta.value.trim() ? names.join(", ").slice(0, 120) : "", lock: on => { ta.disabled = on; add.disabled = on; } };
+  aim(what);
+  return { ta, add, count, aim, text: () => ta.value.trim(), name: () => ta.value.trim() ? names.join(", ").slice(0, 120) : "", lock: on => { ta.disabled = on; add.disabled = on; } };
 }
 
-/** An instruction file read in this tab as words: Word, PDF, text, Markdown or HTML. A table is no instruction. */
-async function readInstructions(file, say){
-  if (/\.(csv|tsv|xlsx|xls)$/i.test(file.name)) throw new Error(`${file.name} is a table. Instructions are words: Word, PDF, text, Markdown or HTML.`);
+/** A file read in this tab as words: Word, PDF, text, Markdown or HTML. A table is no instruction and no resource. */
+async function readInstructions(file, say, what = "instructions"){
+  if (/\.(csv|tsv|xlsx|xls)$/i.test(file.name)) throw new Error(`${file.name} is a table. ${what === "resource" ? "A resource is words: Word, PDF, text, Markdown or HTML. Paste the part of the table that matters." : "Instructions are words: Word, PDF, text, Markdown or HTML."}`);
   const got = await readProjectFile(file, say);
   const text = (got.kind === "html" ? htmlToMd(got.text) : got.text).replace(/^\[\[p\. \d+\]\]$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
   if (!text) throw new Error(`${got.name} gave no text. A scanned PDF holds pictures of words, so it needs its text.`);
@@ -9139,6 +9163,38 @@ async function sendInstructions(slug, got){
     /* A server older than this page has no such route, and answers with something unreadable. */
     throw new Error(/unreadable/.test(e.message) ? "The server is older than this page and cannot file instructions yet. Run convex deploy." : e.message);
   }
+}
+
+/** Words cut in pieces of at most one call's size, each at a paragraph, a line or a sentence where one is near. The rest past 5 pieces is left. */
+function resourcePieces(text){
+  const out = []; let rest = String(text).trim();
+  while (rest && out.length < RES_PIECES){
+    if (rest.length <= RES_PIECE){ out.push(rest); rest = ""; break; }
+    let cut = rest.lastIndexOf("\n\n", RES_PIECE);
+    if (cut < RES_PIECE * .6) cut = rest.lastIndexOf("\n", RES_PIECE);
+    if (cut < RES_PIECE * .6) cut = rest.lastIndexOf(". ", RES_PIECE) + 1;
+    if (cut < RES_PIECE * .6) cut = RES_PIECE;
+    out.push(rest.slice(0, cut).trim()); rest = rest.slice(cut).trim();
+  }
+  return { pieces: out, cut: !!rest };
+}
+
+/** A resource, typed or read from a file, sent in pieces to be filed as notes in the project's memory, which the chat then reads as they bear on a question. */
+async function sendResource(slug, got, say){
+  const { pieces, cut } = resourcePieces(got.text);
+  let notes = 0;
+  for (let i = 0; i < pieces.length; i++){
+    say(pieces.length > 1 ? `Filing part ${i + 1} of ${pieces.length} in the memory` : "Filing the resource in the memory");
+    try {
+      const r = await api("/api/project/resource", { brain: slug, name: got.name && pieces.length > 1 ? `${got.name}, part ${i + 1}` : got.name, text: pieces[i] });
+      notes += r.notes || 0;
+    } catch (e){
+      /* A server older than this page has no such route, and answers with something unreadable. */
+      throw new Error(/unreadable/.test(e.message) ? "The server is older than this page and cannot file resources yet. Run convex deploy."
+        : i ? `Part ${i + 1} of ${pieces.length} failed: ${String(e.message).replace(/\.?\s*$/, ".")} The ${i === 1 ? "first part is" : `first ${i} parts are`} filed.` : e.message);
+    }
+  }
+  return { notes, cut };
 }
 
 /** A sheet that says where a file stands while it is read and filed. */
@@ -9254,7 +9310,7 @@ function openProjectSheet(){
 async function go(){
   if (S.mode === "drop" ? S.dropBusy : chatBusy()) return;
   /* Late words from the mic would land in the box after it was cleared. */
-  if (S.listening){ S.listening = false; stopVoice(); renderMic(); }
+  if (listeningIn(mainBar)) endVoice();
   const text = $("input").value.trim();
   const src = $("srcInput").value.trim();
   if (S.mode === "drop" ? !hasContent(src, text) : !text) return;
