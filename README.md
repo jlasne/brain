@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="2569 checks passing" src="https://img.shields.io/badge/checks-2569%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="2573 checks passing" src="https://img.shields.io/badge/checks-2573%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="Installs on phone and desktop" src="https://img.shields.io/badge/app-phone%20and%20desktop-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -82,7 +82,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 ### Chat
 
 - **Pick the folders.** Tick as many as you like in the side panel, or type @ to tag up to 4 in any chat. The answer says what it read: "Read @Pricing".
-- **Talk as long as you want.** Whisper large-v3 turbo writes what you say, through OpenRouter on the same key: punctuation and names included, in 27 languages or any with Detect, about $0.04 an hour of talking. The words arrive a piece at a time, about every 20 seconds, cut at a pause; a pause costs nothing. Done keeps all of it, Cancel keeps nothing. The browser's free voice input stays one tap away in Settings.
+- **Talk as long as you want.** Whisper large-v3 turbo writes what you say, through OpenRouter on the same key: punctuation and names included, in 27 languages or any with Detect, about $0.04 an hour of talking. The words arrive a piece at a time, about every 20 seconds, cut at a pause; a pause costs nothing. One strip over the bar shows who writes it, "Whisper · French", and for how long. Done keeps all of it, Cancel keeps nothing. The browser's free voice input stays one tap away in Settings.
 - **Follow-ups that hold.** An answer remembers the concepts it read, so "and the second one?" finds what it named.
 - **Ask twice, pay once.** The same question on unchanged folders returns the saved answer for 14 days, with no model call.
 - **It runs in the background.** Open another chat, a folder or Drop: the answer lands in its own chat, and the inbox counts it.
@@ -245,7 +245,7 @@ The app's source sits in `web/chat/`, one file a screen. `npm run build` joins i
 
 ```bash
 npm run build     # web/chat into app/chat.html
-npm run check     # the build first, then 2569 checks
+npm run check     # the build first, then 2573 checks
 npm run deploy    # the server, to Convex
 ```
 
@@ -259,7 +259,7 @@ skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a folder
 ```
 
-`npm run check` runs 2569 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, projects, and the app itself in a real browser at 9 screen sizes.
+`npm run check` runs 2573 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, projects, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 

@@ -1761,8 +1761,10 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   }, st);
   await page.fill("#input", "Note:");
   await page.click("#micBtn"); await page.waitForTimeout(700);
-  const w0 = await page.evaluate(() => ({ t: document.querySelector(".vstrip .vs-t")?.textContent, dot: document.querySelector(".vstrip .vs-dot")?.style.transform, on: document.getElementById("micBtn").classList.contains("on") }));
-  check("Whisper listens in the language picked, and the dot grows with the voice", w0.t === "Listening in French" && /^scale\((1\.[5-9]|2)/.test(w0.dot || "") && w0.on, JSON.stringify(w0));
+  const w0 = await page.evaluate(() => ({ t: document.querySelector(".vstrip .vs-t")?.textContent, dot: document.querySelector(".vstrip .vs-dot")?.style.transform, on: document.getElementById("micBtn").classList.contains("on"),
+    hint: document.getElementById("tHint").textContent, strips: document.querySelectorAll(".vstrip").length }));
+  check("Whisper listens in the language picked, the strip names it, and the dot grows with the voice", w0.t === "Whisper · French" && /^scale\((1\.[5-9]|2)/.test(w0.dot || "") && w0.on, JSON.stringify(w0));
+  check("one line says the mic is on: the strip, with nothing under the bar", w0.strips === 1 && w0.hint === "", JSON.stringify(w0));
   /* talk, pause: the piece ends at the pause and is written while the next records */
   await page.waitForTimeout(1100);
   await page.evaluate(() => { window.__gain.gain.value = 0; }); await page.waitForTimeout(900);
@@ -1775,7 +1777,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const w2 = await page.evaluate(() => document.querySelector(".vstrip .vs-t")?.textContent);
   await page.waitForTimeout(700);
   const w3 = await page.evaluate(() => ({ said: window.__said.length, value: document.getElementById("input").value, strip: !!document.querySelector(".vstrip"), on: document.getElementById("micBtn").classList.contains("on"), hint: document.getElementById("tHint").textContent }));
-  check("Done writes the last piece first, and says so while it does", /^Writing/.test(w2 || ""), String(w2));
+  check("Done writes the last piece first, and says so while it does", /^Whisper · writing/.test(w2 || ""), String(w2));
   check("then every piece is in the box, in the order said, and the mic is off", w3.said === 2 && w3.value === "Note: Bonjour 1. Bonjour 2." && !w3.strip && !w3.on && w3.hint === "", JSON.stringify(w3));
   /* silence is never sent */
   await page.fill("#input", "");
@@ -1818,8 +1820,27 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click("#micBtn"); await page.waitForTimeout(700);
   const any = await page.evaluate(() => document.querySelector(".vstrip .vs-t")?.textContent);
   await page.click(".vstrip .vs-ok"); await page.waitForTimeout(700);
-  check("with Detect, it listens in any language and sends no language to Whisper", any === "Listening, in any language" && await page.evaluate(() => window.__said.at(-1).lang === ""), String(any));
+  check("with Detect, it listens in any language and sends no language to Whisper", any === "Whisper · any language" && await page.evaluate(() => window.__said.at(-1).lang === ""), String(any));
   check("nothing threw while talking", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- talk on a server older than this page: the mic says what to run, and never listens another way ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__voice = [];
+    window.SpeechRecognition = window.webkitSpeechRecognition = class { start(){ window.__voice.push(this.lang); } stop(){} };
+    window.fetch = async u => String(u).includes("/api/state") ? Response.json(state) : Response.json({ chats: [] });
+  }, { ...STATE, models: { voice: "en-US" } });
+  await page.click("#micBtn"); await page.waitForTimeout(150);
+  const old = await page.evaluate(() => ({ heard: window.__voice.length, strip: !!document.querySelector(".vstrip"), on: document.getElementById("micBtn").classList.contains("on"), hint: document.getElementById("tHint").textContent }));
+  check("a server with no Whisper yet: the mic says to deploy, and the browser's own service never starts", old.heard === 0 && !old.strip && !old.on
+    && old.hint === "The server is older than this page and cannot write voice with Whisper yet. Run convex deploy, then reload.", JSON.stringify(old));
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(150);
+  const set = await page.evaluate(() => ({ row: document.getElementById("micRow").hidden, say: document.getElementById("micSay").textContent, shown: !document.getElementById("micSay").hidden }));
+  check("and Settings, Languages, says the same in place of the Whisper or Browser choice", set.row && set.shown && /Run convex deploy, then reload\.$/.test(set.say), JSON.stringify(set));
+  check("nothing threw on the older server", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -1839,7 +1860,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     window.fetch = async (u, opt) => { const s = String(u);
       if (s.includes("/api/state")) return Response.json(state);
       return Response.json({ chats: [] }); };
-  }, { ...STATE, models: { voice: "fr-FR" } });
+  }, { ...STATE, models: { voice: "fr-FR", mic: "browser" } });
   await page.fill("#input", "Voici :");
   await page.click("#micBtn"); await page.waitForTimeout(80);
   const said = async list => { await page.evaluate(l => window.__say(l), list); return await page.inputValue("#input"); };
@@ -1891,7 +1912,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       if (s.includes("/api/state")) return Response.json(state);
       if (s.includes("/api/models")) return Response.json({ chat: "m/x", reply: "same", voice: body.voice ?? null });
       return Response.json({ chats: [] }); };
-  }, STATE);
+  }, { ...STATE, models: { mic: "browser" } });
   await page.fill("#input", "Quick one:");
   await page.click("#micBtn"); await page.waitForTimeout(200);
   const ask = await page.evaluate(() => ({ heard: window.__voice.length, open: !!document.getElementById("langVoice"),
@@ -1901,14 +1922,14 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     ask.heard === 0 && ask.open && ask.asked && ask.lit === 0 && /Pick the language the mic listens in/.test(ask.msg || ""), JSON.stringify(ask));
   check("with the browser writing it, the mic language has no Detect: one is picked from 27", ask.langs.length === 28 && ask.langs[0] === "Pick a language" && ask.langs.slice(1, 7).join() === "English,French,Spanish,German,Italian,Portuguese"
     && ask.langs.includes("Japanese") && !ask.langs.some(l => /Detect/.test(l)), JSON.stringify(ask.langs));
-  check("a server older than this page offers no Whisper: the voice choice is left out", await page.evaluate(() => document.getElementById("micRow").hidden));
+  check("with the browser picked, Settings shows Browser lit", await page.evaluate(() => !document.getElementById("micRow").hidden && document.querySelector("#micPick button.on")?.dataset.v === "browser"));
   await page.selectOption("#langVoice", "en-US"); await page.waitForTimeout(150);
   await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelector(".veil")?.remove());
   await page.click("#micBtn"); await page.waitForTimeout(150);
   const on = await page.evaluate(() => ({ value: document.getElementById("input").value, on: document.getElementById("micBtn").classList.contains("on"),
     pressed: document.getElementById("micBtn").getAttribute("aria-pressed"), hint: document.getElementById("tHint").textContent, lang: window.__voice[0]?.lang }));
-  check("once picked, the mic listens in it, says which, and writes after what was typed", on.value === "Quick one: what do my brains say on sleep"
-    && on.on && on.pressed === "true" && on.hint === "Listening in English. Tap Done when you finish." && on.lang === "en-US", JSON.stringify(on));
+  check("once picked, the mic listens in it and writes after what was typed, with nothing under the bar", on.value === "Quick one: what do my brains say on sleep"
+    && on.on && on.pressed === "true" && on.hint === "" && on.lang === "en-US", JSON.stringify(on));
   await page.click("#micBtn"); await page.waitForTimeout(80);
   const off = await page.evaluate(() => ({ on: document.getElementById("micBtn").classList.contains("on"), send: document.getElementById("send").disabled,
     hint: document.getElementById("tHint").textContent }));
@@ -1919,7 +1940,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const strip = await page.evaluate(() => { const s = document.querySelector(".vstrip"), b = document.querySelector(".box").getBoundingClientRect(), r = s?.getBoundingClientRect();
     return { t: s?.querySelector(".vs-t").textContent, time: s?.querySelector(".vs-time").textContent, btns: [...(s?.querySelectorAll("button") || [])].map(x => x.textContent).join(","), above: !!r && r.bottom <= b.top + 1 }; });
   check("while it listens, a strip over the bar says what it listens in and for how long, with Cancel and Done",
-    strip.t === "Listening in English" && strip.time === "0:00" && strip.btns === "Cancel,Done" && strip.above, JSON.stringify(strip));
+    strip.t === "Browser · English" && strip.time === "0:00" && strip.btns === "Cancel,Done" && strip.above, JSON.stringify(strip));
   await page.click(".vstrip .vs-x"); await page.waitForTimeout(80);
   const cancelled = await page.evaluate(() => ({ value: document.getElementById("input").value, on: document.getElementById("micBtn").classList.contains("on"), strip: !!document.querySelector(".vstrip") }));
   check("Cancel keeps nothing heard: the box goes back to what was typed, and the strip goes", cancelled.value === "Typed:" && !cancelled.on && !cancelled.strip, JSON.stringify(cancelled));
@@ -1946,7 +1967,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const n0 = await page.evaluate(() => window.__voice.length);
   await page.click("#micBtn"); await page.waitForTimeout(150);
   const heard = await page.evaluate(() => ({ lang: window.__voice.at(-1)?.lang, n: window.__voice.length, hint: document.getElementById("tHint").textContent }));
-  check("a tap on the mic in the folded bar starts it, listening in French", heard.n === n0 + 1 && heard.lang === "fr-FR" && heard.hint === "Listening in French. Tap Done when you finish.", JSON.stringify(heard));
+  check("a tap on the mic in the folded bar starts it, listening in French", heard.n === n0 + 1 && heard.lang === "fr-FR" && heard.hint === "", JSON.stringify(heard));
   await page.click("#micBtn"); await page.waitForTimeout(80);
   await page.evaluate(() => document.getElementById("dropBtn").click()); await page.waitForTimeout(60);
   check("a drop takes a source, so the mic steps aside", await page.evaluate(() => document.getElementById("micBtn").hidden));
@@ -1959,7 +1980,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     delete window.webkitSpeechRecognition; delete window.SpeechRecognition;
     Object.defineProperty(navigator, "userAgent", { get: () => "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) Gecko/20100101 Firefox/131.0" });
     window.fetch = async u => String(u).includes("/api/state") ? Response.json(state) : Response.json({ chats: [] });
-  }, STATE);
+  }, { ...STATE, models: { mic: "browser" } });
   await page.click("#micBtn"); await page.waitForTimeout(60);
   const h = await page.evaluate(() => document.getElementById("tHint").textContent);
   check("a browser with no voice input points to the free dictation the computer carries", /Press Fn twice to dictate/.test(h), h);
@@ -4732,7 +4753,7 @@ for (const space of ["octopus", "squidgy"]) {
     };
     return boot("/chat.html", init, { state: st, file: FILE, speech, ua });
   };
-  const { page, bad } = await mk({ voice: "fr-FR" });
+  const { page, bad } = await mk({ voice: "fr-FR", mic: "browser" });
   await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(600);
   const bar = await page.evaluate(() => ({ kids: [...document.querySelector(".pj-comp").children].map(c => c.className || c.tagName), label: document.querySelector(".pj-mic")?.getAttribute("aria-label"),
     pressed: document.querySelector(".pj-mic")?.getAttribute("aria-pressed"), on: document.querySelector(".pj-mic").classList.contains("on"), line: document.querySelector(".pj-vh").hidden }));
@@ -4741,9 +4762,10 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click(".pj-mic"); await page.waitForTimeout(100);
   await page.evaluate(() => window.__say(["what is", "what is the goal"])); await page.waitForTimeout(60);
   const on = await page.evaluate(() => ({ value: document.querySelector(".pj-comp textarea").value, on: document.querySelector(".pj-mic").classList.contains("on"), pressed: document.querySelector(".pj-mic").getAttribute("aria-pressed"),
-    label: document.querySelector(".pj-mic").getAttribute("aria-label"), line: document.querySelector(".pj-vh").textContent, shown: !document.querySelector(".pj-vh").hidden, lang: window.__voice[0]?.lang, send: document.querySelector(".pj-send").disabled }));
-  check("a tap listens in the language picked in Settings, says which, lights up, and writes after what was typed, with Send ready", on.value === "Quick one: what is the goal" && on.on && on.pressed === "true" && on.label === "Stop talking"
-    && on.line === "Listening in French. Tap Done when you finish." && on.shown && on.lang === "fr-FR" && !on.send, JSON.stringify(on));
+    label: document.querySelector(".pj-mic").getAttribute("aria-label"), line: document.querySelector(".pj-vh").textContent, shown: !document.querySelector(".pj-vh").hidden, lang: window.__voice[0]?.lang, send: document.querySelector(".pj-send").disabled,
+    strip: document.querySelector(".vstrip .vs-t")?.textContent }));
+  check("a tap listens in the language picked in Settings, the strip says which, it lights up, and writes after what was typed, with Send ready", on.value === "Quick one: what is the goal" && on.on && on.pressed === "true" && on.label === "Stop talking"
+    && on.strip === "Browser · French" && !on.shown && on.lang === "fr-FR" && !on.send, JSON.stringify(on));
   await page.click(".pj-mic"); await page.waitForTimeout(80);
   const off = await page.evaluate(() => ({ value: document.querySelector(".pj-comp textarea").value, on: document.querySelector(".pj-mic").classList.contains("on"), line: document.querySelector(".pj-vh").hidden, focus: document.activeElement === document.querySelector(".pj-comp textarea"), send: document.querySelector(".pj-send").disabled }));
   check("a second tap stops it: the words stay, the line goes, the cursor is in the field, and the words wait to be sent", off.value === "Quick one: what is the goal" && !off.on && off.line && off.focus && !off.send, JSON.stringify(off));
@@ -4811,12 +4833,12 @@ for (const space of ["octopus", "squidgy"]) {
     await b.page.click("#projects .pj-row >> nth=0"); await b.page.waitForTimeout(600);
     return b;
   };
-  const a = await mk2({}, true, "");
+  const a = await mk2({ mic: "browser" }, true, "");
   await a.page.click(".pj-mic"); await a.page.waitForTimeout(200);
   const ask = await a.page.evaluate(() => ({ heard: window.__voice.length, open: !!document.getElementById("langVoice"), asked: document.querySelector(".lang-row.ask") !== null, line: document.querySelector(".pj-vh").textContent }));
   check("with no language picked, the project's mic opens Settings on Voice input, listens to nothing, and says why under the field", ask.heard === 0 && ask.open && ask.asked && ask.line === "Pick the language the mic listens in, then tap the mic.", JSON.stringify(ask));
   await a.page.close();
-  const b = await mk2({ voice: "en-US" }, false, "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) Gecko/20100101 Firefox/131.0");
+  const b = await mk2({ voice: "en-US", mic: "browser" }, false, "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) Gecko/20100101 Firefox/131.0");
   await b.page.click(".pj-mic"); await b.page.waitForTimeout(80);
   const none = await b.page.evaluate(() => ({ line: document.querySelector(".pj-vh").textContent, on: document.querySelector(".pj-mic").classList.contains("on") }));
   check("a browser with no voice input points to the free dictation the computer carries, under the project's field", /Press Fn twice to dictate/.test(none.line) && !none.on, JSON.stringify(none));

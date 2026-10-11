@@ -8,8 +8,11 @@ const WHISPER_PIECE = 20000, WHISPER_LONGEST = 28000, WHISPER_PAUSE = 500, WHISP
 /** How long a piece runs: a shorter one may be set in this tab, for the checks. */
 function wPiece(){ try { const n = Number(sessionStorage.getItem("octopus.voice.piece")); return n >= 500 ? n : WHISPER_PIECE; } catch { return WHISPER_PIECE; } }
 
-/** What writes the voice: Whisper, unless the workspace picked the browser, its server is older than this page, or this browser cannot record. */
-function micEngine(){ return S.models?.mic === "whisper" && recorderOK() ? "whisper" : "browser"; }
+/** What writes the voice: Whisper, unless the workspace picked the browser, this is the demo, or this browser cannot record. */
+function micEngine(){ return S.demo || S.models?.mic === "browser" || !recorderOK() ? "browser" : "whisper"; }
+/** A server older than this page sends no voice choice, and has no Whisper: the mic says so rather than listen another way. */
+const WHISPER_OLD = "The server is older than this page and cannot write voice with Whisper yet. Run convex deploy, then reload.";
+function whisperOld(){ return !S.demo && !S.models?.mic; }
 function recorderOK(){ return !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder); }
 /** The language Whisper is told, in two letters, or none to let it tell. */
 function whisperLang(){ const v = voiceLang(); if (!v || v === "auto") return ""; const two = v.split("-")[0]; return two === "nb" ? "no" : two; }
@@ -113,7 +116,7 @@ async function sendPiece(v, p){
         const r = await api("/api/voice", { audio, format: typeFormat(blob.type), lang: whisperLang(), seconds: Math.round(p.seconds * 10) / 10 });
         p.text = String(r.text || "").trim(); p.failed = ""; break;
       } catch (e){
-        p.failed = /unreadable/.test(e.message) ? "The server is older than this page and cannot write voice with Whisper yet. Run convex deploy, or pick Browser in Settings, Languages." : e.message;
+        p.failed = /unreadable/.test(e.message) ? WHISPER_OLD : e.message;
         if (/older than this page|refused|out of credit|demo|format/.test(p.failed)) break;
         await new Promise(ok => setTimeout(ok, 700 * (i + 1)));
       }

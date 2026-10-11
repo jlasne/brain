@@ -22,7 +22,8 @@ function chatPane(){
   const paintMic = () => {
     const on = listeningIn(bar);
     mic.classList.toggle("on", on); mic.setAttribute("aria-pressed", on ? "true" : "false"); mic.setAttribute("aria-label", on ? "Stop talking" : "Talk");
-    const t = on ? `Listening in ${voiceName()}. Tap Done when you finish.` : hint;
+    /* While the mic listens, the strip over the field says so. */
+    const t = on ? "" : hint;
     said.textContent = t; said.hidden = !t;
   };
   mic.onclick = () => listeningIn(bar) ? stopVoice() : startVoice(bar);
@@ -231,7 +232,8 @@ function fieldMic(ta){
   const paint = () => {
     const on = listeningIn(bar);
     mic.classList.toggle("on", on); mic.setAttribute("aria-pressed", on ? "true" : "false"); mic.setAttribute("aria-label", on ? "Stop talking" : "Talk");
-    const t = on ? `Listening in ${voiceName()}. Tap Done when you finish.` : hint;
+    /* While the mic listens, the strip over the field says so. */
+    const t = on ? "" : hint;
     said.textContent = t; said.hidden = !t;
   };
   const bar = { sheet: true, field: () => ta, grew: () => ta.dispatchEvent(new Event("input")), say: t => { hint = t; paint(); }, paint };

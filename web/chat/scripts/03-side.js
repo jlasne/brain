@@ -845,8 +845,9 @@ function renderComposer(){
   const ready = hasContent(src, t);
   const busy = drop ? S.dropBusy : chatBusy();
   $("send").disabled = busy || (drop ? !ready : !t);
+  /* While the mic listens, the strip over the bar says so: the line under it stays quiet. */
   $("tHint").textContent = busy ? (drop ? "reading" : "working") : drop ? dropHint(src, t)
-    : listeningIn(mainBar) ? `Listening in ${voiceName()}. Tap Done when you finish.` : (S.voiceHint || "");
+    : listeningIn(mainBar) ? "" : (S.voiceHint || "");
   paintIv();
   paintBar();
 }

@@ -3684,8 +3684,9 @@ function renderComposer(){
   const ready = hasContent(src, t);
   const busy = drop ? S.dropBusy : chatBusy();
   $("send").disabled = busy || (drop ? !ready : !t);
+  /* While the mic listens, the strip over the bar says so: the line under it stays quiet. */
   $("tHint").textContent = busy ? (drop ? "reading" : "working") : drop ? dropHint(src, t)
-    : listeningIn(mainBar) ? `Listening in ${voiceName()}. Tap Done when you finish.` : (S.voiceHint || "");
+    : listeningIn(mainBar) ? "" : (S.voiceHint || "");
   paintIv();
   paintBar();
 }
@@ -4807,7 +4808,10 @@ function renderMic(){
  * is on, so a pause never loses what came before. It stops after 10 seconds of quiet or 2 minutes in all, and typing stops it.
  */
 function startVoice(bar = mainBar){
-  if (micEngine() === "whisper") return startWhisper(bar);
+  if (micEngine() === "whisper"){
+    if (whisperOld()){ bar.say(WHISPER_OLD); bar.field().focus(); return; }
+    return startWhisper(bar);
+  }
   const field = bar.field();
   if (!Speech){ bar.say(systemDictation()); field.focus(); return; }
   /* No language picked yet, or Detect, which only Whisper can do: Settings opens on it. */
@@ -4920,13 +4924,14 @@ function paintStrip(){
   }
   if (!voiceStrip.isConnected) document.body.append(voiceStrip);
   const s = Math.floor((Date.now() - v.at) / 1000);
+  /* The strip names what writes the voice, so the one listening is never in doubt. */
   if (v.whisper){
     const n = writing(v);
-    voiceStrip.querySelector(".vs-t").textContent = v.stopping ? (n ? `Writing the last ${n === 1 ? "piece" : `${n} pieces`}` : "Writing")
-      : voiceLang() && voiceLang() !== "auto" ? `Listening in ${voiceName()}` : "Listening, in any language";
+    voiceStrip.querySelector(".vs-t").textContent = "Whisper · " + (v.stopping ? (n ? `writing ${n === 1 ? "the last piece" : `${n} pieces`}` : "writing")
+      : voiceLang() && voiceLang() !== "auto" ? voiceName() : "any language");
     /* The dot moves with the voice, so you see it hears you. */
     voiceStrip.querySelector(".vs-dot").style.transform = `scale(${(1 + v.level * 1.4).toFixed(2)})`;
-  } else voiceStrip.querySelector(".vs-t").textContent = v.stopping ? "Keeping the last words" : `Listening in ${voiceName()}`;
+  } else voiceStrip.querySelector(".vs-t").textContent = "Browser · " + (v.stopping ? "keeping the last words" : voiceName());
   voiceStrip.querySelector(".vs-time").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   const box = (v.bar.host ? v.bar.host() : v.bar.field().parentElement)?.getBoundingClientRect();
   if (!box) return;
@@ -5248,8 +5253,11 @@ const WHISPER_PIECE = 20000, WHISPER_LONGEST = 28000, WHISPER_PAUSE = 500, WHISP
 /** How long a piece runs: a shorter one may be set in this tab, for the checks. */
 function wPiece(){ try { const n = Number(sessionStorage.getItem("octopus.voice.piece")); return n >= 500 ? n : WHISPER_PIECE; } catch { return WHISPER_PIECE; } }
 
-/** What writes the voice: Whisper, unless the workspace picked the browser, its server is older than this page, or this browser cannot record. */
-function micEngine(){ return S.models?.mic === "whisper" && recorderOK() ? "whisper" : "browser"; }
+/** What writes the voice: Whisper, unless the workspace picked the browser, this is the demo, or this browser cannot record. */
+function micEngine(){ return S.demo || S.models?.mic === "browser" || !recorderOK() ? "browser" : "whisper"; }
+/** A server older than this page sends no voice choice, and has no Whisper: the mic says so rather than listen another way. */
+const WHISPER_OLD = "The server is older than this page and cannot write voice with Whisper yet. Run convex deploy, then reload.";
+function whisperOld(){ return !S.demo && !S.models?.mic; }
 function recorderOK(){ return !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder); }
 /** The language Whisper is told, in two letters, or none to let it tell. */
 function whisperLang(){ const v = voiceLang(); if (!v || v === "auto") return ""; const two = v.split("-")[0]; return two === "nb" ? "no" : two; }
@@ -5353,7 +5361,7 @@ async function sendPiece(v, p){
         const r = await api("/api/voice", { audio, format: typeFormat(blob.type), lang: whisperLang(), seconds: Math.round(p.seconds * 10) / 10 });
         p.text = String(r.text || "").trim(); p.failed = ""; break;
       } catch (e){
-        p.failed = /unreadable/.test(e.message) ? "The server is older than this page and cannot write voice with Whisper yet. Run convex deploy, or pick Browser in Settings, Languages." : e.message;
+        p.failed = /unreadable/.test(e.message) ? WHISPER_OLD : e.message;
         if (/older than this page|refused|out of credit|demo|format/.test(p.failed)) break;
         await new Promise(ok => setTimeout(ok, 700 * (i + 1)));
       }
@@ -5754,16 +5762,17 @@ function setupMic({ veil, langSum }){
   const paint = () => {
     const w = engine() === "whisper";
     for (const x of seg.children){ const on = x.dataset.v === (S.models?.mic === "whisper" ? "whisper" : "browser"); x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }
-    say.textContent = MIC_SAY[w ? "whisper" : "browser"] + (S.models?.mic === "whisper" && !recorderOK() ? " This browser cannot record, so it listens with its own service here." : "");
+    say.textContent = whisperOld() ? WHISPER_OLD
+      : MIC_SAY[w ? "whisper" : "browser"] + (S.models?.mic === "whisper" && !recorderOK() ? " This browser cannot record, so it listens with its own service here." : "");
     const now = voiceLang();
     pick.innerHTML = (w ? `<option value="auto">Detect: any language</option>` : `<option value="">Pick a language</option>`)
       + VOICE_LANGS.map(x => `<option value="${x[0]}">${esc(x[2])}</option>`).join("");
     pick.value = now === "auto" ? (w ? "auto" : "") : now || (w ? "auto" : "");
     pick.closest(".lang-row").hidden = !w && !Speech;
   };
-  /* An older server has no Whisper: the choice is left out, and the browser listens. */
-  veil.querySelector("#micRow").hidden = S.demo || !S.models?.mic;
-  say.hidden = veil.querySelector("#micRow").hidden;
+  /* An older server has no Whisper: the choice is left out, and the line says what to run. */
+  veil.querySelector("#micRow").hidden = S.demo || whisperOld();
+  say.hidden = !!S.demo;
   paint();
   seg.onclick = async e => {
     const x = e.target.closest("button[data-v]");
@@ -9299,7 +9308,8 @@ function chatPane(){
   const paintMic = () => {
     const on = listeningIn(bar);
     mic.classList.toggle("on", on); mic.setAttribute("aria-pressed", on ? "true" : "false"); mic.setAttribute("aria-label", on ? "Stop talking" : "Talk");
-    const t = on ? `Listening in ${voiceName()}. Tap Done when you finish.` : hint;
+    /* While the mic listens, the strip over the field says so. */
+    const t = on ? "" : hint;
     said.textContent = t; said.hidden = !t;
   };
   mic.onclick = () => listeningIn(bar) ? stopVoice() : startVoice(bar);
@@ -9508,7 +9518,8 @@ function fieldMic(ta){
   const paint = () => {
     const on = listeningIn(bar);
     mic.classList.toggle("on", on); mic.setAttribute("aria-pressed", on ? "true" : "false"); mic.setAttribute("aria-label", on ? "Stop talking" : "Talk");
-    const t = on ? `Listening in ${voiceName()}. Tap Done when you finish.` : hint;
+    /* While the mic listens, the strip over the field says so. */
+    const t = on ? "" : hint;
     said.textContent = t; said.hidden = !t;
   };
   const bar = { sheet: true, field: () => ta, grew: () => ta.dispatchEvent(new Event("input")), say: t => { hint = t; paint(); }, paint };

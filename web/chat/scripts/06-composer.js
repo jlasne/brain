@@ -197,7 +197,10 @@ function renderMic(){
  * is on, so a pause never loses what came before. It stops after 10 seconds of quiet or 2 minutes in all, and typing stops it.
  */
 function startVoice(bar = mainBar){
-  if (micEngine() === "whisper") return startWhisper(bar);
+  if (micEngine() === "whisper"){
+    if (whisperOld()){ bar.say(WHISPER_OLD); bar.field().focus(); return; }
+    return startWhisper(bar);
+  }
   const field = bar.field();
   if (!Speech){ bar.say(systemDictation()); field.focus(); return; }
   /* No language picked yet, or Detect, which only Whisper can do: Settings opens on it. */
@@ -310,13 +313,14 @@ function paintStrip(){
   }
   if (!voiceStrip.isConnected) document.body.append(voiceStrip);
   const s = Math.floor((Date.now() - v.at) / 1000);
+  /* The strip names what writes the voice, so the one listening is never in doubt. */
   if (v.whisper){
     const n = writing(v);
-    voiceStrip.querySelector(".vs-t").textContent = v.stopping ? (n ? `Writing the last ${n === 1 ? "piece" : `${n} pieces`}` : "Writing")
-      : voiceLang() && voiceLang() !== "auto" ? `Listening in ${voiceName()}` : "Listening, in any language";
+    voiceStrip.querySelector(".vs-t").textContent = "Whisper · " + (v.stopping ? (n ? `writing ${n === 1 ? "the last piece" : `${n} pieces`}` : "writing")
+      : voiceLang() && voiceLang() !== "auto" ? voiceName() : "any language");
     /* The dot moves with the voice, so you see it hears you. */
     voiceStrip.querySelector(".vs-dot").style.transform = `scale(${(1 + v.level * 1.4).toFixed(2)})`;
-  } else voiceStrip.querySelector(".vs-t").textContent = v.stopping ? "Keeping the last words" : `Listening in ${voiceName()}`;
+  } else voiceStrip.querySelector(".vs-t").textContent = "Browser · " + (v.stopping ? "keeping the last words" : voiceName());
   voiceStrip.querySelector(".vs-time").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   const box = (v.bar.host ? v.bar.host() : v.bar.field().parentElement)?.getBoundingClientRect();
   if (!box) return;

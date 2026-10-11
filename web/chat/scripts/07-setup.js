@@ -350,16 +350,17 @@ function setupMic({ veil, langSum }){
   const paint = () => {
     const w = engine() === "whisper";
     for (const x of seg.children){ const on = x.dataset.v === (S.models?.mic === "whisper" ? "whisper" : "browser"); x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }
-    say.textContent = MIC_SAY[w ? "whisper" : "browser"] + (S.models?.mic === "whisper" && !recorderOK() ? " This browser cannot record, so it listens with its own service here." : "");
+    say.textContent = whisperOld() ? WHISPER_OLD
+      : MIC_SAY[w ? "whisper" : "browser"] + (S.models?.mic === "whisper" && !recorderOK() ? " This browser cannot record, so it listens with its own service here." : "");
     const now = voiceLang();
     pick.innerHTML = (w ? `<option value="auto">Detect: any language</option>` : `<option value="">Pick a language</option>`)
       + VOICE_LANGS.map(x => `<option value="${x[0]}">${esc(x[2])}</option>`).join("");
     pick.value = now === "auto" ? (w ? "auto" : "") : now || (w ? "auto" : "");
     pick.closest(".lang-row").hidden = !w && !Speech;
   };
-  /* An older server has no Whisper: the choice is left out, and the browser listens. */
-  veil.querySelector("#micRow").hidden = S.demo || !S.models?.mic;
-  say.hidden = veil.querySelector("#micRow").hidden;
+  /* An older server has no Whisper: the choice is left out, and the line says what to run. */
+  veil.querySelector("#micRow").hidden = S.demo || whisperOld();
+  say.hidden = !!S.demo;
   paint();
   seg.onclick = async e => {
     const x = e.target.closest("button[data-v]");
