@@ -3927,12 +3927,21 @@ for (const space of ["octopus", "squidgy"]) {
         if (a === "drop") { P.asks = (P.asks || []).filter(x => x.id !== body.id); return J({ asks: P.asks }); }
         return J({ error: "save, write, state, next or drop" });
       }
+      if (path === "/api/project/folders") {
+        (window.__fold = window.__fold || []).push(body);
+        if (window.__resOld) return new Response("not found", { status: 404 });
+        if (body.action === "plan") { P.folders = P.folders?.length ? P.folders : (window.__plan || []); return J({ folders: P.folders }); }
+        const these = P.memory.filter(m => m.folder === body.name);
+        if (body.forget) P.memory = P.memory.filter(m => m.folder !== body.name); else these.forEach(m => { delete m.folder; });
+        P.folders = (P.folders || []).filter(f => f.name !== body.name);
+        return J({ folders: P.folders, moved: body.forget ? 0 : these.length, forgotten: body.forget ? these.length : 0 });
+      }
       if (path === "/api/project/resource") {
         (window.__res = window.__res || []).push(body);
         if (window.__resOld) return new Response("not found", { status: 404 });
         if (window.__resFail && window.__res.length >= window.__resFail) return J({ error: "the model host was unreachable" });
         const n = window.__res.length;
-        P.memory.unshift({ slug: "res-" + n, title: "Refund window " + n, position: "A client may ask for a refund within 14 days.", summaryLine: "14 days to ask", updated: "2026-10-09", dates: [] });
+        P.memory.unshift({ slug: "res-" + n, title: "Refund window " + n, position: "A client may ask for a refund within 14 days.", summaryLine: "14 days to ask", updated: "2026-10-09", dates: [], ...(P.folders?.length ? { folder: P.folders[n % P.folders.length].name } : {}) });
         const row = arg.state.projects.find(x => x.slug === body.brain); if (row) row.memory = P.memory.length;
         return J({ notes: 1, titles: ["Refund window " + n] });
       }
@@ -3989,7 +3998,7 @@ for (const space of ["octopus", "squidgy"]) {
   /* one field for the files: up to 3 you have, a type to start from nothing, or neither */
   const oneField = await page.evaluate(() => ({ labels: [...document.querySelectorAll(".sheet label")].map(l => l.textContent.replace(/\s+/g, " ").trim()), row: [...document.querySelectorAll(".pj-make button")].map(b => b.textContent).join(),
     sections: document.querySelectorAll(".sheet .f").length }));
-  check("the sheet asks for files, with Choose or a type in one row, and a Brief apart, optional", JSON.stringify(oneField.labels) === '["Name","Files up to 3, optional","Brief optional"]' && oneField.row === "Choose files,Document,Table,HTML page", JSON.stringify(oneField));
+  check("the sheet asks for files, with Choose or a type in one row, then a Brief and a Memory apart, both optional", JSON.stringify(oneField.labels) === '["Name","Files up to 3, optional","Brief optional","Memory optional"]' && oneField.row === "Choose files,Document,Table,HTML page", JSON.stringify(oneField));
   await page.click("[data-make=html]");
   const kindOn = await page.evaluate(() => ({ on: [...document.querySelectorAll(".pj-make .on")].map(b => b.textContent).join(), file: document.getElementById("npFile").textContent, news: window.__calls.filter(x => x.s === "/api/project/new").length }));
   check("a type is chosen, not made: it lights, says what it is, and nothing is created before Create project", kindOn.on === "HTML page" && /^An empty page\. Describe it in the chat/.test(kindOn.file) && kindOn.news === 0, JSON.stringify(kindOn));
@@ -4307,13 +4316,14 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#pmGo"); await page.waitForTimeout(900);
   const res3 = await page.evaluate(() => ({ n: window.__res.length, parts: window.__res.slice(2).map(x => x.text), sub: document.getElementById("pmSub").textContent }));
   check("a long resource goes in pieces of at most 20,000 characters, cut at a paragraph, and arrives whole", res3.n === 5 && res3.parts.length === 3 && res3.parts.every(p => p.length <= 20000) && res3.parts.join("\n\n") === longText && /^3 notes filed\./.test(res3.sub), JSON.stringify([res3.n, res3.parts.map(p => p.length), res3.sub]));
-  /* past 100,000 characters the rest is left, and the page says so */
+  check("a big drop into a memory with no folders asks first to sort it, and with none given files the notes all the same", await page.evaluate(() => (window.__fold || []).length === 1 && window.__fold[0].action === "plan" && window.__fold[0].text === window.__res.slice(2).map(x => x.text).join("\n\n")));
+  /* past 200,000 characters the rest is left, and the page says so */
   await page.click("#pmAdd"); await page.waitForTimeout(150);
-  await page.fill("#pmText", "word ".repeat(26000));
-  check("past 100,000 characters the field says only the first are read", /^130,000 characters, the first 100,000 are read$/.test(await page.textContent(".pm-note .mem-bar .hint")), await page.textContent(".pm-note .mem-bar .hint"));
-  await page.click("#pmGo"); await page.waitForTimeout(1200);
+  await page.fill("#pmText", "word ".repeat(52000));
+  check("past 200,000 characters the field says only the first are read", /^260,000 characters, the first 200,000 are read$/.test(await page.textContent(".pm-note .mem-bar .hint")), await page.textContent(".pm-note .mem-bar .hint"));
+  await page.click("#pmGo"); await page.waitForTimeout(1500);
   const res4 = await page.evaluate(() => ({ n: window.__res.length, sub: document.getElementById("pmSub").textContent, bad: document.getElementById("pmSub").classList.contains("bad") }));
-  check("it is sent as 5 pieces, and the sheet says only the first 100,000 characters were read", res4.n === 10 && res4.sub === "Only the first 100,000 characters were read, about 16,000 words." && !res4.bad, JSON.stringify(res4));
+  check("it is sent as 10 pieces, and the sheet says only the first 200,000 characters were read", res4.n === 15 && res4.sub === "Only the first 200,000 characters were read, about 33,000 words." && !res4.bad, JSON.stringify(res4));
   /* a piece that fails: the others stay filed, the words stay in the field, and it can be sent again */
   await page.evaluate(() => { window.__resFail = window.__res.length + 2; });
   await page.click("#pmAdd"); await page.waitForTimeout(150);
@@ -4323,7 +4333,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("when a piece fails, the form says which, that the first is filed, keeps the words, and lets them be sent again", res5.say === "Part 2 of 3 failed: the model host was unreachable. The first part is filed." && res5.bad && res5.kept === longText.length && res5.enabled, JSON.stringify(res5));
   await page.evaluate(() => { window.__resFail = 0; window.__resOld = true; });
   await page.click("#pmGo"); await page.waitForTimeout(500);
-  check("a server older than the page says so, and what to run", await page.evaluate(() => document.querySelector(".pm-note > .hint")?.textContent) === "The server is older than this page and cannot file resources yet. Run convex deploy.");
+  check("a server older than the page says so, and what to run", await page.evaluate(() => document.querySelector(".pm-note > .hint")?.textContent) === "The server is older than this page and cannot sort a memory into folders yet. Run convex deploy.");
   await page.evaluate(() => { window.__resOld = false; });
   await page.fill("#pmText", "");
   const [fcT] = await Promise.all([page.waitForEvent("filechooser"), page.click(".pm-note .mem-bar button")]);
@@ -4331,6 +4341,37 @@ for (const space of ["octopus", "squidgy"]) {
   await page.waitForTimeout(200);
   check("a table is refused as a resource, with what to do", /^prices\.csv is a table\. A resource is words: Word, PDF, text, Markdown or HTML\. Paste the part of the table that matters\.$/.test(await page.textContent(".pm-note .mem-bar .hint")));
   await page.click(".pm-back"); await page.waitForTimeout(100);
+  await page.click("#pmClose"); await page.waitForTimeout(100);
+
+  /* a memory in folders: each folds shut with its count and what goes in it, the rest under Other notes; a folder can be deleted */
+  const slugM = await page.evaluate(() => window.__res.at(-1).brain);
+  await page.evaluate(s => { const P = window.__proj[s]; P.folders = [{ name: "Pricing", scope: "What it costs." }, { name: "Clients", scope: "Who buys." }, { name: "Launch", scope: "Dates and steps." }];
+    P.memory.forEach(m => { delete m.folder; }); P.memory[0].folder = "Pricing"; P.memory[1].folder = "Pricing"; P.memory[2].folder = "Clients"; }, slugM);
+  await page.click(".pj-memb"); await page.waitForTimeout(300);
+  const total = await page.evaluate(s => window.__proj[s].memory.filter(m => !m.instructions).length, slugM);
+  const fo = await page.evaluate(() => ({ folds: [...document.querySelectorAll("#pmList .pm-fold > summary")].map(s => [s.querySelector("b").textContent, s.querySelector("i").textContent, s.querySelector("span")?.textContent].join("|")),
+    open: document.querySelectorAll("#pmList .pm-fold[open]").length, eyes: [...document.querySelectorAll("#pmList > .fv-eye")].map(x => x.textContent), loose: document.querySelectorAll("#pmList > .fv-row:not(.pm-fr)").length, sub: document.getElementById("pmSub").textContent }));
+  check("Memory shows its folders shut, each with its count and what goes in it, then the notes in no folder under Other notes", JSON.stringify(fo.folds) === '["Pricing|2|What it costs.","Clients|1|Who buys.","Launch|0|Dates and steps."]'
+    && fo.open === 0 && JSON.stringify(fo.eyes) === '["Other notes"]' && fo.loose === total - 3 && fo.sub === `${total} notes in 3 folders.`, JSON.stringify(fo));
+  await page.click("#pmList .pm-fold:nth-of-type(1) > summary"); await page.waitForTimeout(100);
+  const inside = await page.evaluate(() => ({ rows: document.querySelectorAll("#pmList .pm-fold[open] .fv-row").length, del: document.querySelector("#pmList .pm-fold[open] .pm-fdel button")?.textContent }));
+  check("a folder opens on its notes, with Delete folder under them", inside.rows === 2 && inside.del === "Delete folder", JSON.stringify(inside));
+  await page.click("#pmList .pm-fold[open] .pm-fdel button"); await page.waitForTimeout(100);
+  const ask = await page.evaluate(() => [...document.querySelectorAll("#pmList .pm-fold[open] .pm-fdel > *")].map(x => x.textContent).filter(Boolean));
+  check("Delete folder asks in place: keep its notes, forget them too, or cancel, and nothing is sent yet", JSON.stringify(ask) === '["Delete Pricing?","Keep its 2 notes","Forget them too","Cancel"]' && await page.evaluate(() => !(window.__fold || []).some(x => x.action === "remove")), JSON.stringify(ask));
+  await page.click('#pmList .pm-fdel button:has-text("Cancel")'); await page.waitForTimeout(100);
+  check("Cancel puts the button back", (await page.textContent("#pmList .pm-fold[open] .pm-fdel button")) === "Delete folder");
+  await page.click("#pmList .pm-fold[open] .pm-fdel button"); await page.click('#pmList .pm-fdel button:has-text("Keep its 2 notes")'); await page.waitForTimeout(400);
+  const kept = await page.evaluate(() => ({ call: window.__fold.at(-1), folds: [...document.querySelectorAll("#pmList .pm-fold > summary b")].map(b => b.textContent), sub: document.getElementById("pmSub").textContent, loose: document.querySelectorAll("#pmList > .fv-row:not(.pm-fr)").length }));
+  check("kept, the folder goes and its notes join Other notes", kept.call.action === "remove" && kept.call.name === "Pricing" && kept.call.forget === false && JSON.stringify(kept.folds) === '["Clients","Launch"]'
+    && kept.sub === "Pricing deleted. Its 2 notes are under Other notes." && kept.loose === total - 1, JSON.stringify(kept));
+  await page.click("#pmList .pm-fold:nth-of-type(2) > summary"); await page.waitForTimeout(100);
+  await page.click("#pmList .pm-fold[open] .pm-fdel button"); await page.waitForTimeout(400);
+  check("a folder with no note goes in one tap", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll("#pmList .pm-fold > summary b")].map(b => b.textContent))) === '["Clients"]' && (await page.textContent("#pmSub")) === "Launch deleted.");
+  await page.click("#pmList .pm-fold > summary"); await page.waitForTimeout(100);
+  await page.click("#pmList .pm-fold[open] .pm-fdel button"); await page.click('#pmList .pm-fdel button:has-text("Forget it too")'); await page.waitForTimeout(400);
+  const gone = await page.evaluate(s => ({ folds: document.querySelectorAll("#pmList .pm-fold").length, sub: document.getElementById("pmSub").textContent, held: window.__proj[s].memory.length }), slugM);
+  check("forgotten, the folder goes with its note, and with no folder left the list is plain again", gone.folds === 0 && gone.sub === "Clients deleted, with its note." && gone.held === total - 1, JSON.stringify(gone));
   await page.click("#pmClose"); await page.waitForTimeout(100);
 
   /* an answer that lacks the fact offers the way to give it: a resource */
@@ -4427,6 +4468,30 @@ for (const space of ["octopus", "squidgy"]) {
   check("a table is written as a Markdown table: a bar in a cell is escaped, a line break is a space, a short row is filled", exp.tm === "| a\\|b | c d |\n| --- | --- |\n| 1 |  |\n" && exp.none === "", JSON.stringify(exp.tm));
   check("a document becomes a page of its own: its title escaped, its heading an h1, its words, no script", /^<!doctype html>/.test(exp.html) && /<title>A &lt;b&gt; &amp; &quot;c&quot;<\/title>/.test(exp.html) && /<main><h1>T<\/h1><p>Body <strong>b<\/strong><\/p><\/main>/.test(exp.html) && !/<script/i.test(exp.html), exp.html.slice(0, 300));
   check("a workbook names its sheets as Excel allows: no forbidden sign, 31 letters, never twice, never an object's own name", JSON.stringify(exp.xl.names) === JSON.stringify(["Data  2026 Q1  draft", "data  2026 q1  draft 2", "Sheet 3", "Sheet 4", "A".repeat(31)]), JSON.stringify(exp.xl.names));
+  /* a new project with a first memory: dropped on its field, sorted into folders, then filed, after the files and the Brief */
+  await page.evaluate(() => { window.__plan = [{ name: "Pricing", scope: "What it costs." }, { name: "Clients", scope: "Who buys." }]; window.__fold = []; window.__res = []; window.__resOld = false; window.__resFail = 0; });
+  await page.click("#burger").catch(() => {});
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  const memField = await page.evaluate(() => ({ label: document.querySelector("#npMem > label")?.textContent, ph: document.getElementById("npMemText")?.placeholder, add: document.getElementById("npMemAdd")?.textContent, hint: document.querySelector("#npMem > .hint")?.textContent }));
+  check("New project has a Memory field: paste, add files or drop them, up to 200,000 characters, sorted into folders", memField.label === "Memory optional" && memField.ph === "Paste what the project should know, or add files" && memField.add === "+ file"
+    && /up to 200,000 characters\. It is sorted into 3 to 8 folders in the project's memory/.test(memField.hint), JSON.stringify(memField));
+  await page.fill("#npName", "Gym launch"); await page.fill("#npMemText", "Members pay 49 euros.");
+  const litMem = await page.evaluate(() => { const dt = new DataTransfer(); dt.items.add(new File(["# Clients\n\nStudents are a third."], "clients.md", { type: "text/markdown" }));
+    const host = document.getElementById("npMemText"); host.dispatchEvent(new DragEvent("dragover", { dataTransfer: dt, bubbles: true, cancelable: true }));
+    const lit = [document.getElementById("npMem").classList.contains("over"), document.getElementById("npDrop").classList.contains("over")];
+    host.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true })); return lit; });
+  await page.waitForTimeout(300);
+  const memNow = await page.evaluate(() => ({ text: document.getElementById("npMemText").value, files: document.querySelectorAll("#npList .np-f").length }));
+  check("a file dropped on the memory lights it alone, joins its words, and is not taken as a file of the project", JSON.stringify(litMem) === "[true,false]" && memNow.text === "Members pay 49 euros.\n\n# Clients\n\nStudents are a third." && memNow.files === 0, JSON.stringify([litMem, memNow]));
+  const before2 = await page.evaluate(() => window.__calls.length);
+  await page.click("[data-make=doc]"); await page.click("#npMake"); await page.waitForTimeout(1200);
+  const made2 = await page.evaluate(n => ({ order: window.__calls.slice(n).map(x => x.s).filter(s => /project\/(new|folders|resource)$/.test(s)), plan: window.__fold[0], res: window.__res[0], view: document.querySelector("main").dataset.view, sheet: !!document.querySelector(".veil") }), before2);
+  check("Create makes the project, sorts the memory into folders, then files it, and the project opens", made2.order.join() === "/api/project/new,/api/project/folders,/api/project/resource" && made2.plan.action === "plan"
+    && made2.plan.text === "Members pay 49 euros.\n\n# Clients\n\nStudents are a third." && made2.res.name === "clients.md" && made2.res.text === made2.plan.text && made2.view === "project" && !made2.sheet, JSON.stringify(made2));
+  check("its Memory opens on the folders the drop was sorted into", await page.evaluate(async () => { document.querySelector(".pj-memb").click(); await new Promise(r => setTimeout(r, 300));
+    return JSON.stringify([...document.querySelectorAll("#pmList .pm-fold > summary b")].map(b => b.textContent)) === '["Pricing","Clients"]'; }));
+  await page.keyboard.press("Escape"); await page.waitForTimeout(100);
+
   check("its numbers are numbers; a code with a zero in front, an exponent, a number of 20 digits and an empty cell stay text", JSON.stringify(exp.xl.first) === JSON.stringify([["h"], [12], [-3.5], ["007"], ["1e5"], ["12345678901234567890"], [""], [0], [0.5], ["00.5"]]) && exp.xl.o.bookType === "xlsx" && exp.xl.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" && exp.xl.size === 4, JSON.stringify(exp.xl));
   await page.close();
 

@@ -124,6 +124,8 @@ export const projectGet = internalQuery({
       state: frame?.state ? { text: frame.state as string, at: (frame.stateAt ?? 0) as number } : null,
       asks: (frame?.asks ?? []) as { id: string; q: string; at: number }[],
       next: frame?.next !== false,
+      /* The folders of the memory, in the order they were made. */
+      folders: (frame?.folders ?? []) as { name: string; scope: string }[],
       file: file ? { id: fid, name: file.name, kind: file.kind, made: !!file.made, sheets: file.sheets, chars: file.chars, sections: file.parts, status: file.status, ver: file.ver, at: file.at } : null,
       cards: cards.map((c: any) => ({ sid: c.sid, ord: c.ord, sheet: c.sheet, title: c.title, summary: c.summary, chars: c.chars, ...(c.rows != null ? { rows: c.rows } : {}) })),
       turns: thread?.turns ?? [],
@@ -140,7 +142,7 @@ async function memoryRows(ctx: any, brain: string) {
   return rows.map((c: any) => ({ slug: c.slug, title: c.title, position: c.position, summaryLine: c.summaryLine, updated: c.updated,
     /* A note the owner's instructions wrote: the chat reads it at every message, in the order it was filed. */
     ...(c.tag === "instructions" ? { instructions: true, n: c.n } : {}),
-    ...(c.sections?.length ? { sections: c.sections } : {}), ...(c.stale ? { stale: true } : {}),
+    ...(c.sections?.length ? { sections: c.sections } : {}), ...(c.stale ? { stale: true } : {}), ...(c.folder ? { folder: c.folder } : {}),
     dates: (c.evidence ?? []).map((e: any) => e?.date).filter(Boolean).slice(0, 3) }))
     .sort((x: any, y: any) => String(y.updated).localeCompare(String(x.updated)) || x.title.localeCompare(y.title));
 }
@@ -160,6 +162,25 @@ async function outdate(ctx: any, brain: string, sids: number[]) {
 export const memoryOf = internalQuery({
   args: { space: v.string(), brain: v.string() },
   handler: async (ctx, a) => { await need(ctx, a.space, a.brain); return await memoryRows(ctx, a.brain); },
+});
+
+/** The folders of a project's memory: none until a first big drop is sorted. */
+export const foldersOf = internalQuery({
+  args: { space: v.string(), brain: v.string() },
+  handler: async (ctx, a) => { const b = await need(ctx, a.space, a.brain); return ((await frameOf(ctx, b.slug))?.folders ?? []) as { name: string; scope: string }[]; },
+});
+
+/** The folders a first big drop was sorted into. A project keeps the ones it has: a later drop files into them. */
+export const foldersSave = internalMutation({
+  args: { space: v.string(), brain: v.string(), folders: v.array(v.object({ name: v.string(), scope: v.string() })) },
+  handler: async (ctx, a) => {
+    const b = await need(ctx, a.space, a.brain);
+    const have = ((await frameOf(ctx, b.slug))?.folders ?? []) as { name: string; scope: string }[];
+    if (have.length) return have;
+    const folders = a.folders.slice(0, FOLDERS_MAX).map(f => ({ name: flat(f.name, 40), scope: flat(f.scope, 160) })).filter(f => f.name);
+    await frameWrite(ctx, b.slug, { folders });
+    return folders;
+  },
 });
 
 /* ---------------- what the projects cost ---------------- */
@@ -740,6 +761,8 @@ async function dropConcept(ctx: any, c: any) {
 
 /* ---------------- the Brief, the State of play, what is still open ---------------- */
 
+/** The most folders a project's memory is sorted into. */
+export const FOLDERS_MAX = 8;
 const frameWrite = async (ctx: any, brain: string, patch: Record<string, unknown>) => {
   const row = await frameOf(ctx, brain);
   if (row) await ctx.db.patch(row._id, patch);
@@ -846,6 +869,25 @@ export const memoryForget = internalMutation({
     if (!c) return { ok: false };
     await dropConcept(ctx, c);
     return { ok: true };
+  },
+});
+
+/** A folder of the memory deleted: its notes move to Other notes, or are forgotten with it. */
+export const folderRemove = internalMutation({
+  args: { space: v.string(), brain: v.string(), name: v.string(), forget: v.boolean() },
+  handler: async (ctx, a) => {
+    const b = await need(ctx, a.space, a.brain);
+    const have = ((await frameOf(ctx, b.slug))?.folders ?? []) as { name: string; scope: string }[];
+    if (!have.some(f => f.name === a.name)) throw new Error("that folder is not in this project's memory");
+    let moved = 0, forgotten = 0;
+    for (const c of await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", b.slug)).collect()) {
+      if (c.folder !== a.name) continue;
+      if (a.forget) { await dropConcept(ctx, c); forgotten++; }
+      else { await ctx.db.patch(c._id, { folder: undefined }); moved++; }
+    }
+    const folders = have.filter(f => f.name !== a.name);
+    await frameWrite(ctx, b.slug, { folders });
+    return { folders, moved, forgotten };
   },
 });
 

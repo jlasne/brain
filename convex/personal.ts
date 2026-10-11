@@ -21,7 +21,7 @@ import { internal } from "./_generated/api";
 import { sameTitle, idOf, fileText, FILE_SECTIONS, conceptSlug } from "./words";
 import { SHORT_STYLE, NO_DASH } from "./style";
 
-export type Note = { title: string; claim: string; position: string; summaryLine: string; update: string; orig?: string; sections?: number[] };
+export type Note = { title: string; claim: string; position: string; summaryLine: string; update: string; orig?: string; sections?: number[]; folder?: string };
 /* What the personal folder keeps: English whatever was written ("en"), or the language written in ("same"). */
 export type Lang = "en" | "same";
 /* A contact: one card per person, the whole of what was said about them. */
@@ -39,7 +39,7 @@ export type Kind = "chat" | "import" | "interview" | "people" | "files" | "file"
 
 /* A chat message files a few notes at most; an interview answer, a long
    story told aloud, files more; an import more again per piece. */
-const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 20, people: 0, files: 0, file: 9, instructions: 8, resource: 8 };
+const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 20, people: 0, files: 0, file: 9, instructions: 8, resource: 10 };
 /* People are filed apart from notes, each on their own card. */
 const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, people: 12, files: 6, file: 0, instructions: 0, resource: 0 };
 /* What one call reads: the message, the answer, and a piece of an import. */
@@ -198,8 +198,9 @@ export function readNotes(raw: string, kind: Kind): Note[] {
     orig: clean(x?.orig, 600),
     position: clean(x?.position, 1400),
     summaryLine: clean(x?.summaryLine, 200),
-    /* In a project: the sections of its file the note rests on. */
+    /* In a project: the sections of its file the note rests on, and the folder of its memory the note goes in. */
     ...(Array.isArray(x?.sections) ? { sections: [...new Set<number>(x.sections.map(Number).filter((n: number) => Number.isInteger(n) && n > 0))].slice(0, 8) } : {}),
+    ...(clean(x?.folder, 60) ? { folder: clean(x?.folder, 60) } : {}),
   })).filter((x: Note) => x.title.length >= 2 && x.claim.length >= 2)
     .map((x: Note) => ({ ...x, position: x.position || x.claim, summaryLine: x.summaryLine || x.claim.slice(0, 120) }))
     .slice(0, MAX_NOTES[kind]);
@@ -343,6 +344,8 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
              evidence: [{ date, author, claim: n.claim, source: sid, ...inTheirWords(n) }],
              /* A note that rests on a file says where, and is up to date as it is written. */
              ...(n.sections ? { sections: n.sections, stale: false } : {}),
+             /* A project's note keeps the folder it was sorted into; a note filed again with none keeps the one it had. */
+             ...(n.folder ? { folder: n.folder } : {}),
              /* An instruction note says so: the chat reads it at every message. */
              ...(kind === "instructions" ? { tag: INSTRUCTIONS } : {}) },
     });

@@ -2142,6 +2142,19 @@
   .sheet .np-f span{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .sheet .np-x{ flex:none; width:32px; height:32px; border-radius:8px; font:400 18px/1 var(--sans); color:var(--ink-3); }
   .sheet .np-x:hover{ background:var(--surface-3); color:var(--ink); }
+  /* The memory's folders: each one folds, with its count and what goes in it. */
+  .pm-fold{ border-bottom:1px solid var(--line); }
+  .pm-fold > summary{ display:grid; grid-template-columns:1fr auto; gap:2px 10px; align-items:baseline; padding:12px 20px; cursor:pointer; list-style:none; }
+  .pm-fold > summary::-webkit-details-marker{ display:none; }
+  .pm-fold > summary b{ font:600 14px/1.35 var(--sans); color:var(--ink); }
+  .pm-fold > summary b::before{ content:"▸"; display:inline-block; width:16px; color:var(--ink-4); transition:transform .12s; }
+  .pm-fold[open] > summary b::before{ transform:rotate(90deg); }
+  .pm-fold > summary i{ font:500 12px/1 var(--mono); font-style:normal; color:var(--ink-4); }
+  .pm-fold > summary span{ grid-column:1 / -1; padding-left:16px; font:400 12.5px/1.45 var(--sans); color:var(--ink-3); }
+  .pm-fold > summary:hover{ background:var(--surface-2); }
+  .pm-fold .fv-row{ padding-left:36px; }
+  .pm-fdel{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 20px 14px 36px; font:400 13px/1.4 var(--sans); color:var(--ink-3); }
+  .pm-fdel .mini.bad{ color:var(--bad); }
   .sheet header p.bad{ color:var(--bad); }
   #pmAdd{ margin-right:auto; }
   #pmAdd[hidden]{ display:none; }
@@ -9164,7 +9177,7 @@ async function refreshMemory(){
   try {
     const d = await api("/api/project/get", { brain: pj.slug, ...pjOpen() });
     if (S.pj !== pj) return;
-    pj.data.memory = d.memory; pj.data.shortcuts = d.shortcuts || [];
+    pj.data.memory = d.memory; pj.data.shortcuts = d.shortcuts || []; pj.data.folders = d.folders || [];
     pj.data.brief = d.brief ?? null; pj.data.state = d.state ?? null; pj.data.asks = d.asks || []; pj.data.next = d.next !== false;
     paintMemb(); pj.memPaint?.();
     syncProjects();
@@ -9278,7 +9291,9 @@ function openMemory(opts = {}){
     const ways = pj.data.shortcuts || [];
     const many = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
     sub.classList.toggle("bad", !!isBad);
-    sub.textContent = typeof msg === "string" && msg ? msg : rules.length ? `${many(rules.length, "instruction")}${mem.length ? ` and ${many(mem.length, "note")}` : ""}.` : mem.length ? `${many(mem.length, "note")}, the newest first.` : "";
+    const folders = pj.data.folders || [];
+    sub.textContent = typeof msg === "string" && msg ? msg : rules.length ? `${many(rules.length, "instruction")}${mem.length ? ` and ${many(mem.length, "note")}` : ""}.`
+      : mem.length ? `${many(mem.length, "note")}${folders.length ? ` in ${many(folders.length, "folder")}` : ", the newest first"}.` : "";
     add.textContent = "Add to memory";
     if (!mem.length && !rules.length && !ways.length){ list.append(el("div","fv-none","Nothing kept yet. The project files its notes by itself: what the file holds, what you decide, what its answers find. A resource you add gives it more to read.")); return; }
     const row = m => {
@@ -9291,8 +9306,8 @@ function openMemory(opts = {}){
     };
     /* Instructions an older project holds come first, and say they are read at every message until a Brief takes their place; the notes are read as they bear on a question. */
     if (rules.length){ list.append(el("div","fv-eye",pj.data.brief ? "Instructions, replaced by the Brief" : "Instructions, read at every message")); for (const m of rules) list.append(row(m)); }
-    if (rules.length && mem.length) list.append(el("div","fv-eye","Notes"));
-    for (const m of mem) list.append(row(m));
+    if (folders.length) memoryFolders(list, mem, folders, row, pj, paint);
+    else { if (rules.length && mem.length) list.append(el("div","fv-eye","Notes")); for (const m of mem) list.append(row(m)); }
     if (ways.length){
       /* Where things are: learned from the questions, free, and a pointer only: an answer is always written from the sections as they are. */
       list.append(el("div","fv-eye","Where things are"), el("div","fv-none","Learned from your questions, so the chat opens these sections first."));
@@ -9449,9 +9464,10 @@ function openMemory(opts = {}){
       const many = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
       go.disabled = true; input.lock(true); status.classList.remove("bad"); status.textContent = "Filing the resource in the memory";
       try {
-        const r = await sendResource(pj.slug, { name: input.name(), text: input.text() }, t => { status.textContent = t; });
+        /* A memory with no folders yet is sorted into some when this drop is big: more than one piece. */
+        const r = await fileMemory(pj.slug, { name: input.name(), text: input.text() }, t => { status.textContent = t; }, { plan: !(pj.data.folders || []).length && input.text().length > RES_PIECE });
         await refreshMemory();
-        paint(r.cut ? `Only the first ${RES_CHARS.toLocaleString()} characters were read, about 16,000 words.` : `${many(r.notes, "note")} filed. The chat reads the ones that bear on a question.`);
+        paint(r.cut ? `Only the first ${RES_CHARS.toLocaleString()} characters were read, about ${RES_WORDS}.` : `${many(r.notes, "note")} filed${r.folders?.length ? ` in ${many(r.folders.length, "folder")}` : ""}. The chat reads the ones that bear on a question.`);
       } catch (e){ status.textContent = e.message; status.classList.add("bad"); go.disabled = false; input.lock(false); }
     };
     const row = el("div","pm-go"); row.append(go);
@@ -9465,6 +9481,62 @@ function openMemory(opts = {}){
   else (list.querySelector("button") || veil.querySelector("#pmClose")).focus();
   /* What it learned since the last answer is read again, so the list is current. */
   refreshMemory();
+}
+
+/**
+ * The notes of a project's memory in its folders: each folder folds shut, with its count and what goes in it, and stays as it was
+ * left while the sheet is open. The notes in no folder (the note on the file, what the chat filed outside them) come last.
+ */
+function memoryFolders(list, mem, folders, row, pj, paint){
+  const open = pj.memOpen || (pj.memOpen = new Set());
+  const loose = [], by = new Map(folders.map(f => [f.name, []]));
+  for (const m of mem) (by.get(m.folder) || loose).push(m);
+  for (const f of folders){
+    const ms = by.get(f.name);
+    const d = el("details","pm-fold"); d.open = open.has(f.name);
+    const s = el("summary"); s.append(el("b",null,f.name), el("i",null,String(ms.length)));
+    if (f.scope) s.append(el("span",null,f.scope));
+    d.append(s);
+    for (const m of ms) d.append(row(m));
+    if (!ms.length) d.append(el("div","fv-none","Nothing filed here yet."));
+    d.append(folderDelete(f, ms.length, pj, paint));
+    d.ontoggle = () => { if (d.open) open.add(f.name); else open.delete(f.name); };
+    list.append(d);
+  }
+  if (loose.length){ list.append(el("div","fv-eye","Other notes")); for (const m of loose) list.append(row(m)); }
+}
+
+/**
+ * Delete a folder of the memory, asked in place: its notes move to Other notes, or are forgotten with it. A folder with no note
+ * goes in one tap.
+ */
+function folderDelete(f, n, pj, paint){
+  const box = el("div","pm-fdel");
+  const ask = el("button","mini","Delete folder"); ask.type = "button";
+  const say = el("span","hint"); say.setAttribute("role","status");
+  const go = async forget => {
+    box.querySelectorAll("button").forEach(b => { b.disabled = true; });
+    try {
+      const r = await api("/api/project/folders", { brain: pj.slug, action: "remove", name: f.name, forget });
+      pj.data.folders = r.folders || []; pj.memOpen?.delete(f.name);
+      await refreshMemory();
+      paint(r.forgotten ? `${f.name} deleted, with its ${r.forgotten === 1 ? "note" : `${r.forgotten} notes`}.` : r.moved ? `${f.name} deleted. Its ${r.moved === 1 ? "note is" : `${r.moved} notes are`} under Other notes.` : `${f.name} deleted.`);
+    } catch (e){
+      say.textContent = /unreadable/.test(e.message) ? "The server is older than this page and cannot delete a folder yet. Run convex deploy." : e.message;
+      box.querySelectorAll("button").forEach(b => { b.disabled = false; });
+    }
+  };
+  ask.onclick = () => {
+    if (!n) return go(false);
+    box.innerHTML = "";
+    const keep = el("button","mini",`Keep its ${n === 1 ? "note" : `${n} notes`}`), drop = el("button","mini bad",`Forget ${n === 1 ? "it" : "them"} too`), back = el("button","mini","Cancel");
+    keep.type = drop.type = back.type = "button";
+    keep.onclick = () => go(false); drop.onclick = () => go(true);
+    back.onclick = () => { box.replaceWith(folderDelete(f, n, pj, paint)); };
+    box.append(el("span",null,`Delete ${f.name}?`), keep, drop, back, say);
+  };
+  box.append(ask, say);
+  return box;
 }
 
 /* ---- changes to the file ---- */
@@ -10120,12 +10192,12 @@ function pickFiles(accept, then){
 /** A file picked for the open project: read here, filed in sections. */
 function chooseFile(){ pickFile(PJ_FILES, file => fillProject(S.pj.slug, file, S.pj.fid || 1)); }
 
-/* A resource is sent in pieces of what one call reads, up to 5 of them. */
-const RES_PIECE = 20000, RES_PIECES = 5, RES_CHARS = RES_PIECE * RES_PIECES;
+/* A resource is sent in pieces of what one call reads, up to 10 of them: 200,000 characters, about 33,000 words. */
+const RES_PIECE = 20000, RES_PIECES = 10, RES_CHARS = RES_PIECE * RES_PIECES, RES_WORDS = "33,000 words";
 
 /**
  * A field for words, as the personal memory has one: typed or pasted, or a file added whose words join the field. It says how many
- * characters it holds, and how many are read: 6,000 of a Brief, 100,000 of a resource.
+ * characters it holds, and how many are read: 6,000 of a Brief, 200,000 of a resource.
  */
 function instructionsField(host, what = "brief"){
   host.innerHTML = `<textarea class="mem" rows="5" aria-label="Brief"></textarea>
@@ -10143,7 +10215,8 @@ function instructionsField(host, what = "brief"){
     sync();
   };
   ta.oninput = sync;
-  add.onclick = () => pickFile(RULE_FILES, async f => {
+  /* A file's words join the field after what it holds: from + file, or dropped on it. */
+  const take = async f => {
     add.disabled = true;
     try {
       const got = await readInstructions(f, t => say(t), what);
@@ -10151,9 +10224,10 @@ function instructionsField(host, what = "brief"){
       names.push(got.name); sync();
     } catch (e){ say(e.message, true); }
     finally { add.disabled = false; }
-  });
+  };
+  add.onclick = () => pickFile(RULE_FILES, take);
   aim(what);
-  return { ta, add, count, aim, text: () => ta.value.trim(), name: () => ta.value.trim() ? names.join(", ").slice(0, 120) : "", lock: on => { ta.disabled = on; add.disabled = on; } };
+  return { ta, add, count, aim, take, text: () => ta.value.trim(), name: () => ta.value.trim() ? names.join(", ").slice(0, 120) : "", lock: on => { ta.disabled = on; add.disabled = on; } };
 }
 
 /** A file read in this tab as words: Word, PDF, text, Markdown or HTML. A table is no instruction and no resource. */
@@ -10186,6 +10260,24 @@ function resourcePieces(text){
     out.push(rest.slice(0, cut).trim()); rest = rest.slice(cut).trim();
   }
   return { pieces: out, cut: !!rest };
+}
+
+/**
+ * Words for the project's memory: sorted into folders first when asked (one call names 3 to 8 topics from the drop, and a project
+ * that has folders keeps them), then filed as notes in pieces. A plan that fails leaves the notes unsorted, and they are filed all the same.
+ */
+async function fileMemory(slug, got, say, o = {}){
+  let folders = null, unsorted = "";
+  if (o.plan){
+    say("Sorting it into folders");
+    try { folders = (await api("/api/project/folders", { brain: slug, action: "plan", text: got.text })).folders || null; }
+    catch (e){
+      if (/unreadable/.test(e.message)) throw new Error("The server is older than this page and cannot sort a memory into folders yet. Run convex deploy.");
+      unsorted = e.message;
+    }
+  }
+  const r = await sendResource(slug, got, say);
+  return { ...r, folders, ...(unsorted ? { unsorted } : {}) };
 }
 
 /** A resource, typed or read from a file, sent in pieces to be filed as notes in the project's memory, which the chat then reads as they bear on a question. */
@@ -10238,7 +10330,7 @@ async function fillProject(slug, file, fid = 1){
 /** Files a new project starts with. More join from the project's + once it is open, up to 30. */
 const NEW_FILES = 3;
 
-/** New project: a name, up to 3 files dropped or chosen (or a blank to start from), and a Brief when there is one. */
+/** New project: a name, up to 3 files dropped or chosen (or a blank to start from), a Brief, and a first memory sorted into folders. */
 function openProjectSheet(){
   closeSide();
   const veil = el("div","veil");
@@ -10252,6 +10344,9 @@ function openProjectSheet(){
     <div class="f"><label>Brief <span class="pj-opt">optional</span></label>
       <div class="pj-rules" id="npRules"></div>
       <div class="hint">Who the chat is here, the goal, the audience, the rules. The chat reads it at every message. No Brief yet? Five questions write it, from the chat.</div></div>
+    <div class="f np-drop" id="npMem"><label>Memory <span class="pj-opt">optional</span></label>
+      <div class="pj-rules" id="npMemField"></div>
+      <div class="hint">What the chat should know from day one: notes, research, past work. Paste it, add files, or drop them here, up to ${RES_CHARS.toLocaleString()} characters. It is sorted into 3 to 8 folders in the project's memory, and the chat reads the notes that bear on a question.</div></div>
     <div class="f"><div class="pj-step" id="npStep" role="status"></div><div class="bad" id="npBad"></div></div>
     <footer><button class="ghost" id="npCancel" type="button">Cancel</button><button class="go" id="npMake" type="button">Create project</button></footer></div>`;
   document.body.append(veil);
@@ -10262,6 +10357,9 @@ function openProjectSheet(){
   let files = [], kind = "", busy = false, typed = false, over = "";
   const rules = instructionsField(veil.querySelector("#npRules"));
   rules.ta.id = "npRulesText"; rules.add.id = "npRulesAdd"; rules.count.id = "npRulesCount";
+  const memEl = veil.querySelector("#npMem"), mem = instructionsField(veil.querySelector("#npMemField"), "resource");
+  mem.ta.id = "npMemText"; mem.add.id = "npMemAdd"; mem.count.id = "npMemCount";
+  mem.ta.placeholder = "Paste what the project should know, or add files";
   const sync = () => {
     pick.classList.toggle("on", files.length > 0); pick.setAttribute("aria-pressed", String(files.length > 0));
     pick.textContent = files.length >= NEW_FILES ? `${NEW_FILES} files chosen` : files.length ? "Add files" : "Choose files";
@@ -10297,18 +10395,27 @@ function openProjectSheet(){
   pick.onclick = () => pickFiles(PJ_FILES, add);
   start.forEach(b => { b.onclick = () => { kind = kind === b.dataset.make ? "" : b.dataset.make; if (kind){ files = []; over = ""; } sync(); }; });
   cancel.onclick = shut; veil.onclick = e => { if (e.target === veil) shut(); };
-  /* A file dropped anywhere on the sheet joins the list. */
+  /* A file dropped on the memory joins its words; dropped anywhere else on the sheet, it joins the files. */
   const carries = e => [...(e.dataTransfer?.types || [])].includes("Files");
-  veil.ondragover = e => { if (!carries(e)) return; e.preventDefault(); if (!busy) dropEl.classList.add("over"); };
-  veil.ondragleave = e => { if (!veil.contains(e.relatedTarget)) dropEl.classList.remove("over"); };
-  veil.ondrop = e => { if (!carries(e)) return; e.preventDefault(); dropEl.classList.remove("over"); add([...(e.dataTransfer?.files || [])]); };
+  const target = e => memEl.contains(e.target) ? memEl : dropEl;
+  const unlit = () => { dropEl.classList.remove("over"); memEl.classList.remove("over"); };
+  veil.ondragover = e => { if (!carries(e)) return; e.preventDefault(); if (busy) return; const t = target(e); unlit(); t.classList.add("over"); };
+  veil.ondragleave = e => { if (!veil.contains(e.relatedTarget)) unlit(); };
+  veil.ondrop = async e => {
+    if (!carries(e)) return;
+    e.preventDefault(); const t = target(e); unlit();
+    const dropped = [...(e.dataTransfer?.files || [])];
+    if (busy || !dropped.length) return;
+    if (t === dropEl) return add(dropped);
+    for (const f of dropped) await mem.take(f);
+  };
   /* A name nothing else in the list has: New table, then New table 2. */
   const free = base => {
     const taken = new Set((S.projects || []).map(p => String(p.name).toLowerCase()));
     let n = base, i = 1; while (taken.has(n.toLowerCase())) n = `${base} ${++i}`;
     return n;
   };
-  const lock = on => { make.disabled = on; rules.lock(on); cancel.disabled = on; start.forEach(b => { b.disabled = on; }); sync(); };
+  const lock = on => { make.disabled = on; rules.lock(on); mem.lock(on); cancel.disabled = on; start.forEach(b => { b.disabled = on; }); sync(); };
   const run = async () => {
     const nm = name.value.trim() || (kind ? free(`New ${pjNoun(kind)}`) : files.length ? "" : free("New project"));
     if (!nm){ name.focus(); return; }
@@ -10322,6 +10429,7 @@ function openProjectSheet(){
       const got = [];
       for (const [i, f] of files.entries()) got.push(await readProjectFile(f, sayOf(i, f)));
       const words = rules.text() ? { name: rules.name(), text: rules.text() } : null;
+      const memo = mem.text() ? { name: mem.name(), text: mem.text() } : null;
       slug = (await api("/api/project/new", { name: nm, ...(kind ? { make: kind } : {}) })).slug;
       /* A server older than this page leaves the project with no file: say so, and leave nothing behind. */
       if (kind && !(await api("/api/project/get", { brain: slug })).file){
@@ -10338,16 +10446,20 @@ function openProjectSheet(){
         await uploadProject(key, g, sayOf(i, files[i]));
         stored = i + 1;
       }
-      let cut = false;
+      let cut = false, filed = null;
       if (words){ phase = "brief"; say("Saving the Brief"); cut = !!(await sendBrief(slug, words.text)).cut; }
+      /* The first memory: sorted into folders, then filed as notes in them. */
+      if (memo){ phase = "memory"; filed = await fileMemory(slug, memo, say, { plan: true }); }
       busy = false; veil.remove();
       await syncProjects();
       await openProject(slug);
       if (cut) pjNote(`Only the first ${BRIEF_CHARS.toLocaleString()} characters of the Brief were kept, about 1,000 words.`);
+      if (filed?.cut) pjNote(`Only the first ${RES_CHARS.toLocaleString()} characters of the memory were read, about ${RES_WORDS}.`);
+      if (filed?.unsorted) pjNote(`The memory was filed without folders: ${filed.unsorted}`);
     } catch (e){
       busy = false; lock(false);
       const left = files.length > 1 && stored < files.length ? `add ${files.slice(stored).map(f => f.name).join(" and ")} again from its +` : "add the file again";
-      stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to ${phase === "brief" ? "write the Brief again from Memory" : left}.` : e.message;
+      stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to ${phase === "brief" ? "write the Brief again from Memory" : phase === "memory" ? "add the memory again from Memory" : left}.` : e.message;
       if (slug){ make.textContent = "Open the project"; make.onclick = async () => { veil.remove(); await syncProjects(); await openProject(slug); }; }
     }
   };

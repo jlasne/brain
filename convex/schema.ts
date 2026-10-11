@@ -137,6 +137,8 @@ export default defineSchema({
     /* In a project: the sections of its file this note rests on, and whether the file changed there since it was written. */
     sections: v.optional(v.array(v.number())),
     stale: v.optional(v.boolean()),
+    /* In a project: the folder of its memory this note sits in, one of the project's own. */
+    folder: v.optional(v.string()),
     updated: v.string(),
   }).index("by_brain", ["brain"])
     .index("by_brain_slug", ["brain", "slug"]),
@@ -495,6 +497,8 @@ export default defineSchema({
     next: v.optional(v.boolean()),
     /* The number the next extra file takes: files are numbered from 2 and a number is never used twice. */
     nextFid: v.optional(v.number()),
+    /* The folders of the project's memory, sorted from the first big drop into it: each note sits in one. */
+    folders: v.optional(v.array(v.object({ name: v.string(), scope: v.string() }))),
   }).index("by_brain", ["brain"]),
 
   /**

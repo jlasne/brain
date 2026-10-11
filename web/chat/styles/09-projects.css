@@ -243,6 +243,19 @@
   .sheet .np-f span{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .sheet .np-x{ flex:none; width:32px; height:32px; border-radius:8px; font:400 18px/1 var(--sans); color:var(--ink-3); }
   .sheet .np-x:hover{ background:var(--surface-3); color:var(--ink); }
+  /* The memory's folders: each one folds, with its count and what goes in it. */
+  .pm-fold{ border-bottom:1px solid var(--line); }
+  .pm-fold > summary{ display:grid; grid-template-columns:1fr auto; gap:2px 10px; align-items:baseline; padding:12px 20px; cursor:pointer; list-style:none; }
+  .pm-fold > summary::-webkit-details-marker{ display:none; }
+  .pm-fold > summary b{ font:600 14px/1.35 var(--sans); color:var(--ink); }
+  .pm-fold > summary b::before{ content:"▸"; display:inline-block; width:16px; color:var(--ink-4); transition:transform .12s; }
+  .pm-fold[open] > summary b::before{ transform:rotate(90deg); }
+  .pm-fold > summary i{ font:500 12px/1 var(--mono); font-style:normal; color:var(--ink-4); }
+  .pm-fold > summary span{ grid-column:1 / -1; padding-left:16px; font:400 12.5px/1.45 var(--sans); color:var(--ink-3); }
+  .pm-fold > summary:hover{ background:var(--surface-2); }
+  .pm-fold .fv-row{ padding-left:36px; }
+  .pm-fdel{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px 20px 14px 36px; font:400 13px/1.4 var(--sans); color:var(--ink-3); }
+  .pm-fdel .mini.bad{ color:var(--bad); }
   .sheet header p.bad{ color:var(--bad); }
   #pmAdd{ margin-right:auto; }
   #pmAdd[hidden]{ display:none; }

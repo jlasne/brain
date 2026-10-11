@@ -179,7 +179,7 @@ async function refreshMemory(){
   try {
     const d = await api("/api/project/get", { brain: pj.slug, ...pjOpen() });
     if (S.pj !== pj) return;
-    pj.data.memory = d.memory; pj.data.shortcuts = d.shortcuts || [];
+    pj.data.memory = d.memory; pj.data.shortcuts = d.shortcuts || []; pj.data.folders = d.folders || [];
     pj.data.brief = d.brief ?? null; pj.data.state = d.state ?? null; pj.data.asks = d.asks || []; pj.data.next = d.next !== false;
     paintMemb(); pj.memPaint?.();
     syncProjects();
@@ -293,7 +293,9 @@ function openMemory(opts = {}){
     const ways = pj.data.shortcuts || [];
     const many = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
     sub.classList.toggle("bad", !!isBad);
-    sub.textContent = typeof msg === "string" && msg ? msg : rules.length ? `${many(rules.length, "instruction")}${mem.length ? ` and ${many(mem.length, "note")}` : ""}.` : mem.length ? `${many(mem.length, "note")}, the newest first.` : "";
+    const folders = pj.data.folders || [];
+    sub.textContent = typeof msg === "string" && msg ? msg : rules.length ? `${many(rules.length, "instruction")}${mem.length ? ` and ${many(mem.length, "note")}` : ""}.`
+      : mem.length ? `${many(mem.length, "note")}${folders.length ? ` in ${many(folders.length, "folder")}` : ", the newest first"}.` : "";
     add.textContent = "Add to memory";
     if (!mem.length && !rules.length && !ways.length){ list.append(el("div","fv-none","Nothing kept yet. The project files its notes by itself: what the file holds, what you decide, what its answers find. A resource you add gives it more to read.")); return; }
     const row = m => {
@@ -306,8 +308,8 @@ function openMemory(opts = {}){
     };
     /* Instructions an older project holds come first, and say they are read at every message until a Brief takes their place; the notes are read as they bear on a question. */
     if (rules.length){ list.append(el("div","fv-eye",pj.data.brief ? "Instructions, replaced by the Brief" : "Instructions, read at every message")); for (const m of rules) list.append(row(m)); }
-    if (rules.length && mem.length) list.append(el("div","fv-eye","Notes"));
-    for (const m of mem) list.append(row(m));
+    if (folders.length) memoryFolders(list, mem, folders, row, pj, paint);
+    else { if (rules.length && mem.length) list.append(el("div","fv-eye","Notes")); for (const m of mem) list.append(row(m)); }
     if (ways.length){
       /* Where things are: learned from the questions, free, and a pointer only: an answer is always written from the sections as they are. */
       list.append(el("div","fv-eye","Where things are"), el("div","fv-none","Learned from your questions, so the chat opens these sections first."));
@@ -464,9 +466,10 @@ function openMemory(opts = {}){
       const many = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
       go.disabled = true; input.lock(true); status.classList.remove("bad"); status.textContent = "Filing the resource in the memory";
       try {
-        const r = await sendResource(pj.slug, { name: input.name(), text: input.text() }, t => { status.textContent = t; });
+        /* A memory with no folders yet is sorted into some when this drop is big: more than one piece. */
+        const r = await fileMemory(pj.slug, { name: input.name(), text: input.text() }, t => { status.textContent = t; }, { plan: !(pj.data.folders || []).length && input.text().length > RES_PIECE });
         await refreshMemory();
-        paint(r.cut ? `Only the first ${RES_CHARS.toLocaleString()} characters were read, about 16,000 words.` : `${many(r.notes, "note")} filed. The chat reads the ones that bear on a question.`);
+        paint(r.cut ? `Only the first ${RES_CHARS.toLocaleString()} characters were read, about ${RES_WORDS}.` : `${many(r.notes, "note")} filed${r.folders?.length ? ` in ${many(r.folders.length, "folder")}` : ""}. The chat reads the ones that bear on a question.`);
       } catch (e){ status.textContent = e.message; status.classList.add("bad"); go.disabled = false; input.lock(false); }
     };
     const row = el("div","pm-go"); row.append(go);
@@ -480,6 +483,62 @@ function openMemory(opts = {}){
   else (list.querySelector("button") || veil.querySelector("#pmClose")).focus();
   /* What it learned since the last answer is read again, so the list is current. */
   refreshMemory();
+}
+
+/**
+ * The notes of a project's memory in its folders: each folder folds shut, with its count and what goes in it, and stays as it was
+ * left while the sheet is open. The notes in no folder (the note on the file, what the chat filed outside them) come last.
+ */
+function memoryFolders(list, mem, folders, row, pj, paint){
+  const open = pj.memOpen || (pj.memOpen = new Set());
+  const loose = [], by = new Map(folders.map(f => [f.name, []]));
+  for (const m of mem) (by.get(m.folder) || loose).push(m);
+  for (const f of folders){
+    const ms = by.get(f.name);
+    const d = el("details","pm-fold"); d.open = open.has(f.name);
+    const s = el("summary"); s.append(el("b",null,f.name), el("i",null,String(ms.length)));
+    if (f.scope) s.append(el("span",null,f.scope));
+    d.append(s);
+    for (const m of ms) d.append(row(m));
+    if (!ms.length) d.append(el("div","fv-none","Nothing filed here yet."));
+    d.append(folderDelete(f, ms.length, pj, paint));
+    d.ontoggle = () => { if (d.open) open.add(f.name); else open.delete(f.name); };
+    list.append(d);
+  }
+  if (loose.length){ list.append(el("div","fv-eye","Other notes")); for (const m of loose) list.append(row(m)); }
+}
+
+/**
+ * Delete a folder of the memory, asked in place: its notes move to Other notes, or are forgotten with it. A folder with no note
+ * goes in one tap.
+ */
+function folderDelete(f, n, pj, paint){
+  const box = el("div","pm-fdel");
+  const ask = el("button","mini","Delete folder"); ask.type = "button";
+  const say = el("span","hint"); say.setAttribute("role","status");
+  const go = async forget => {
+    box.querySelectorAll("button").forEach(b => { b.disabled = true; });
+    try {
+      const r = await api("/api/project/folders", { brain: pj.slug, action: "remove", name: f.name, forget });
+      pj.data.folders = r.folders || []; pj.memOpen?.delete(f.name);
+      await refreshMemory();
+      paint(r.forgotten ? `${f.name} deleted, with its ${r.forgotten === 1 ? "note" : `${r.forgotten} notes`}.` : r.moved ? `${f.name} deleted. Its ${r.moved === 1 ? "note is" : `${r.moved} notes are`} under Other notes.` : `${f.name} deleted.`);
+    } catch (e){
+      say.textContent = /unreadable/.test(e.message) ? "The server is older than this page and cannot delete a folder yet. Run convex deploy." : e.message;
+      box.querySelectorAll("button").forEach(b => { b.disabled = false; });
+    }
+  };
+  ask.onclick = () => {
+    if (!n) return go(false);
+    box.innerHTML = "";
+    const keep = el("button","mini",`Keep its ${n === 1 ? "note" : `${n} notes`}`), drop = el("button","mini bad",`Forget ${n === 1 ? "it" : "them"} too`), back = el("button","mini","Cancel");
+    keep.type = drop.type = back.type = "button";
+    keep.onclick = () => go(false); drop.onclick = () => go(true);
+    back.onclick = () => { box.replaceWith(folderDelete(f, n, pj, paint)); };
+    box.append(el("span",null,`Delete ${f.name}?`), keep, drop, back, say);
+  };
+  box.append(ask, say);
+  return box;
 }
 
 /* ---- changes to the file ---- */

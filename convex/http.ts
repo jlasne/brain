@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine, isCloser, threadOf, priorOf, checkSources, askKey, poolPrint, SHORT_READ, INDEX_SHORT, NEAR_SHORT, NEAR_NEEDED, NEAR_FLOOR, PRIOR_MAX } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
-import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, writeBrief, gapsOf, readBlocks } from "./project";
+import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, planFolders, writeBrief, gapsOf, readBlocks } from "./project";
 import { withSpend, withChatSpend, guardBudget } from "./spend";
 import { parseExport, RESTORE_CHARS } from "./restore";
 import { colNames, downloadText, csvOf, parseCsv, madeName, splitKey, fileKey } from "./sheet";
@@ -1818,6 +1818,21 @@ route("/api/project/instructions", async (ctx, _req, b) => {
 });
 
 /** A resource the owner dropped into the project, typed, pasted or read from a file in the browser: one model call writes it as notes in the project's memory. */
+/**
+ * The folders of a project's memory, by action:
+ *   plan    sorted once, from the first big drop, before its notes are filed: one model call.
+ *   remove  one folder deleted: its notes move to Other notes, or are forgotten with it when `forget` is true.
+ */
+route("/api/project/folders", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const brain = String(b.brain ?? "");
+  switch (String(b.action ?? "plan")) {
+    case "plan": return await withSpend(ctx, { space: who.space, brain }, meter => planFolders(ctx, { space: who.space, brain, text: String(b.text ?? ""), key: keyFor(who), model: modelFor(who, b), meter }));
+    case "remove": return await ctx.runMutation(internal.projects.folderRemove, { space: who.space, brain, name: String(b.name ?? ""), forget: b.forget === true });
+    default: return { error: "plan or remove" };
+  }
+});
+
 route("/api/project/resource", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   const brain = String(b.brain ?? "");

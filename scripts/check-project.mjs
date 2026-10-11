@@ -245,6 +245,7 @@ globalThis.fetch = async (_u, opt) => {
   else if (/You route questions to the right entries/.test(sys)) { if (reply.routerFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.folders ?? { picks: [], terms: [] }); }
   else if (/You are the chat of a project/.test(sys)) out = typeof reply.answer === "function" ? reply.answer(user) : JSON.stringify(reply.answer ?? { reply: "ok", proposal: false, quotes: [], edits: [] });
   else if (/You write the memory notes of a file/.test(sys)) { if (reply.aboutFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.about ?? { notes: [] }); }
+  else if (/You sort a project's memory into folders/.test(sys)) { if (reply.foldersFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.folders ?? { folders: [] }); }
   else if (/You write the memory notes of a resource/.test(sys)) { if (reply.resourceFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.resource ?? { notes: [] }); }
   else if (/You write the memory notes of an instruction file/.test(sys)) { if (reply.instructionsFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.instructions ?? { notes: [] }); }
   else if (/You write one line about a file/.test(sys)) { if (reply.lineFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.fileLine ?? { line: "" }); }
@@ -992,6 +993,87 @@ const docProject = async (w, name, text, kind = "doc") => {
   const rl = await project.fileResource(w.ctx, { space: SPACE, brain: p, name: "long.md", text: "word ".repeat(10000) });
   const longAsk = last(/You write the memory notes of a resource/).user;
   check("a long text is read up to 20,000 characters in one call, and the reply says it was cut", /"long\.md", 20000 characters\n/.test(longAsk) && longAsk.slice(longAsk.indexOf("characters\n") + 11).length === 20000 && rl.cut === true, String(longAsk.length));
+  reply = {};
+}
+
+/* ================= a first big memory, sorted into folders ================= */
+
+{
+  const w = makeCtx();
+  const p = await docProject(w, "Gym launch", midDoc);
+  const get = () => w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  const chat = (q, extra = {}) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0, ...extra });
+  check("a project starts with no folders in its memory", same((await get()).folders, []));
+  /* 4 parts of 20,000 characters: the plan reads the opening of each */
+  const big = Array.from({ length: 4 }, (_, i) => `Part ${i + 1} opens here. ` + "word ".repeat(3996) + "x").join("");
+  reply = { folders: { folders: [{ name: "Pricing", scope: "What the gym charges." }, { name: "Clients", scope: "Who signs up and why." }, { name: "pricing", scope: "Twice." },
+    { name: "Misc", scope: "Anything." }, { name: "Launch plan — dates", scope: "Dates and steps." }] } };
+  const n0 = sent.length;
+  const pl = await project.planFolders(w.ctx, { space: SPACE, brain: p, text: big });
+  const asked = last(/You sort a project's memory into folders/);
+  check("one call reads the opening of each part of a big drop, with the project's name and the size", sent.length === n0 + 1 && asked.user.includes('THE PROJECT "Gym launch", 80000 characters dropped')
+    && (asked.user.match(/^PART \d+$/gm) || []).length === 4 && /PART 3\nPart 3 opens here\./.test(asked.user) && asked.user.length < 13000, String(asked.user.length));
+  check("it keeps the folders named once, never Misc, a dash made a comma, and the project holds them", same(pl.folders.map(f => f.name), ["Pricing", "Clients", "Launch plan, dates"])
+    && same((await get()).folders.map(f => f.name), ["Pricing", "Clients", "Launch plan, dates"]) && (await get()).folders[0].scope === "What the gym charges.", JSON.stringify(pl));
+  const n1 = sent.length;
+  const kept = await project.planFolders(w.ctx, { space: SPACE, brain: p, text: "Other words." });
+  check("a project that has folders keeps them, and asks no model", kept.kept === true && sent.length === n1 && kept.folders.length === 3);
+
+  /* the notes of a drop go into them */
+  reply = { resource: { notes: [
+    { title: "Monthly fee", claim: "49 euros a month.", position: "A member pays 49 euros a month.", summaryLine: "49 euros", folder: "pricing" },
+    { title: "Students", claim: "Students are a third.", position: "Students are a third of the members.", summaryLine: "A third", folder: "Clients" },
+    { title: "Parking", claim: "Parking is free.", position: "Parking is free for members.", summaryLine: "Free", folder: "Facilities" }] } };
+  await project.fileResource(w.ctx, { space: SPACE, brain: p, name: "notes.md", text: "49 euros a month. Students are a third. Parking is free." });
+  const fr = last(/You write the memory notes of a resource/);
+  check("the filer is shown the folders and asked to put each note in one", /THE MEMORY'S FOLDERS \(name: what goes in it\)\nPricing: What the gym charges\.\nClients: Who signs up and why\.\nLaunch plan, dates: Dates and steps\./.test(fr.user)
+    && /"summaryLine":"","folder":""\}\]\}/.test(fr.user) && /"folder": the exact name of the folder/.test(fr.user), fr.user.slice(0, 900));
+  const fOf = async t => (await get()).memory.find(m => m.title === t)?.folder;
+  check("each note sits in its folder, matched in any case, and a folder the project lacks is left out", await fOf("Monthly fee") === "Pricing" && await fOf("Students") === "Clients" && await fOf("Parking") === undefined,
+    JSON.stringify((await get()).memory.map(m => [m.title, m.folder])));
+  reply = { resource: { notes: [{ title: "Monthly fee", claim: "Now 55 euros.", position: "A member pays 55 euros a month.", summaryLine: "55 euros" }] } };
+  await project.fileResource(w.ctx, { space: SPACE, brain: p, name: "update.md", text: "Now 55 euros." });
+  check("a note filed again with no folder keeps the one it had", await fOf("Monthly fee") === "Pricing" && (await get()).memory.find(m => m.title === "Monthly fee").position.includes("55"));
+
+  /* the chat: a note shows its folder, a folder's name brings its notes to the question, and a note it files goes in a folder */
+  reply = { route: routeOf({ terms: ["pricing"] }), answer: answerOf({ tldr: "55 euros.", notes: [{ title: "Family plan", claim: "Families pay 89 euros.", position: "Agreed: families pay 89 euros a month.", summaryLine: "89 euros", sections: [], folder: "PRICING" }] }) };
+  await chat("Tell me about pricing", { note: true });
+  const a = last(/You are the chat of a project/);
+  check("the chat reads a note with its folder, and the folder's name brings it to a question that names the folder", /PROJECT MEMORY\n(- .*\n)*- \[Pricing\] Monthly fee: A member pays 55 euros a month\./.test(a.user), a.user.slice(a.user.indexOf("PROJECT MEMORY"), a.user.indexOf("PROJECT MEMORY") + 400));
+  check("its rules name the folders a note may go in, and its reply carries one", /"folder": the folder of the memory the note goes in, one of: Pricing, Clients, Launch plan, dates\./.test(a.sys) && /"sections":\[\],"folder":""\}\]/.test(a.sys));
+  check("a note the chat files goes in the folder it named", await fOf("Family plan") === "Pricing", JSON.stringify((await get()).memory.map(m => [m.title, m.folder])));
+
+  /* a folder deleted: its notes move to Other notes, or go with it */
+  const kept1 = await w.ctx.runMutation("projects.folderRemove", { space: SPACE, brain: p, name: "Clients", forget: false });
+  check("a folder deleted with its notes kept: they stay, in no folder, and the other folders are as they were", kept1.moved === 1 && kept1.forgotten === 0 && await fOf("Students") === undefined
+    && (await get()).memory.some(m => m.title === "Students") && same((await get()).folders.map(f => f.name), ["Pricing", "Launch plan, dates"]), JSON.stringify(kept1));
+  const gone1 = await w.ctx.runMutation("projects.folderRemove", { space: SPACE, brain: p, name: "Pricing", forget: true });
+  const left = (await get()).memory.map(m => m.title);
+  check("a folder deleted with its notes forgotten: they go, and every other note stays", gone1.forgotten === 2 && !left.includes("Monthly fee") && !left.includes("Family plan") && left.includes("Students") && left.includes("Parking")
+    && same((await get()).folders.map(f => f.name), ["Launch plan, dates"]), JSON.stringify([gone1, left]));
+  const noSuch = await w.ctx.runMutation("projects.folderRemove", { space: SPACE, brain: p, name: "Pricing", forget: false }).catch(e => e.message);
+  const notMine = await w.ctx.runMutation("projects.folderRemove", { space: "squidgy", brain: p, name: "Launch plan, dates", forget: false }).catch(e => e.message);
+  check("a folder the project lacks, or a project of another workspace, is refused", /not in this project's memory/.test(String(noSuch)) && /not in this workspace/.test(String(notMine)), JSON.stringify([noSuch, notMine]));
+
+  /* a project with no folders: nothing about them anywhere */
+  const v = makeCtx();
+  const q = await docProject(v, "Plain", midDoc);
+  reply = { resource: { notes: [{ title: "Fee", claim: "49 euros.", position: "49 euros a month.", summaryLine: "49" }] } };
+  await project.fileResource(v.ctx, { space: SPACE, brain: q, name: "x.md", text: "49 euros." });
+  const plain = last(/You write the memory notes of a resource/);
+  reply = { route: routeOf(), answer: answerOf({ notes: [] }) };
+  await project.projectChat(v.ctx, { space: SPACE, brain: q, q: "What is the fee?", english: false, embeds: false, shared: shared0, note: true });
+  const pa = last(/You are the chat of a project/);
+  check("a project with no folders shows none to the filer or the chat", !/FOLDERS|"folder"/.test(plain.user) && !/"folder"/.test(pa.sys) && /- Fee: 49 euros a month\./.test(pa.user));
+
+  /* a model that fails leaves no folder */
+  reply = { foldersFail: true };
+  const down = await project.planFolders(v.ctx, { space: SPACE, brain: q, text: "Some words about the gym." }).catch(e => e.message);
+  reply = { folders: { folders: [{ name: "Misc", scope: "x" }] } };
+  const none = await project.planFolders(v.ctx, { space: SPACE, brain: q, text: "Some words about the gym." }).catch(e => e.message);
+  check("a model that fails, or a reply with no usable folder, leaves the project with none, and says why", typeof down === "string" && /could not be sorted into folders/.test(none) && same((await v.ctx.runQuery("projects.projectGet", { space: SPACE, brain: q })).folders, []), JSON.stringify([down, none]));
+  const other = await project.planFolders(v.ctx, { space: "squidgy", brain: q, text: "Words." }).catch(e => e.message);
+  check("a project of another workspace is refused", /not in this workspace/.test(String(other)));
   reply = {};
 }
 

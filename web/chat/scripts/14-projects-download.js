@@ -576,12 +576,12 @@ function pickFiles(accept, then){
 /** A file picked for the open project: read here, filed in sections. */
 function chooseFile(){ pickFile(PJ_FILES, file => fillProject(S.pj.slug, file, S.pj.fid || 1)); }
 
-/* A resource is sent in pieces of what one call reads, up to 5 of them. */
-const RES_PIECE = 20000, RES_PIECES = 5, RES_CHARS = RES_PIECE * RES_PIECES;
+/* A resource is sent in pieces of what one call reads, up to 10 of them: 200,000 characters, about 33,000 words. */
+const RES_PIECE = 20000, RES_PIECES = 10, RES_CHARS = RES_PIECE * RES_PIECES, RES_WORDS = "33,000 words";
 
 /**
  * A field for words, as the personal memory has one: typed or pasted, or a file added whose words join the field. It says how many
- * characters it holds, and how many are read: 6,000 of a Brief, 100,000 of a resource.
+ * characters it holds, and how many are read: 6,000 of a Brief, 200,000 of a resource.
  */
 function instructionsField(host, what = "brief"){
   host.innerHTML = `<textarea class="mem" rows="5" aria-label="Brief"></textarea>
@@ -599,7 +599,8 @@ function instructionsField(host, what = "brief"){
     sync();
   };
   ta.oninput = sync;
-  add.onclick = () => pickFile(RULE_FILES, async f => {
+  /* A file's words join the field after what it holds: from + file, or dropped on it. */
+  const take = async f => {
     add.disabled = true;
     try {
       const got = await readInstructions(f, t => say(t), what);
@@ -607,9 +608,10 @@ function instructionsField(host, what = "brief"){
       names.push(got.name); sync();
     } catch (e){ say(e.message, true); }
     finally { add.disabled = false; }
-  });
+  };
+  add.onclick = () => pickFile(RULE_FILES, take);
   aim(what);
-  return { ta, add, count, aim, text: () => ta.value.trim(), name: () => ta.value.trim() ? names.join(", ").slice(0, 120) : "", lock: on => { ta.disabled = on; add.disabled = on; } };
+  return { ta, add, count, aim, take, text: () => ta.value.trim(), name: () => ta.value.trim() ? names.join(", ").slice(0, 120) : "", lock: on => { ta.disabled = on; add.disabled = on; } };
 }
 
 /** A file read in this tab as words: Word, PDF, text, Markdown or HTML. A table is no instruction and no resource. */
@@ -642,6 +644,24 @@ function resourcePieces(text){
     out.push(rest.slice(0, cut).trim()); rest = rest.slice(cut).trim();
   }
   return { pieces: out, cut: !!rest };
+}
+
+/**
+ * Words for the project's memory: sorted into folders first when asked (one call names 3 to 8 topics from the drop, and a project
+ * that has folders keeps them), then filed as notes in pieces. A plan that fails leaves the notes unsorted, and they are filed all the same.
+ */
+async function fileMemory(slug, got, say, o = {}){
+  let folders = null, unsorted = "";
+  if (o.plan){
+    say("Sorting it into folders");
+    try { folders = (await api("/api/project/folders", { brain: slug, action: "plan", text: got.text })).folders || null; }
+    catch (e){
+      if (/unreadable/.test(e.message)) throw new Error("The server is older than this page and cannot sort a memory into folders yet. Run convex deploy.");
+      unsorted = e.message;
+    }
+  }
+  const r = await sendResource(slug, got, say);
+  return { ...r, folders, ...(unsorted ? { unsorted } : {}) };
 }
 
 /** A resource, typed or read from a file, sent in pieces to be filed as notes in the project's memory, which the chat then reads as they bear on a question. */
@@ -694,7 +714,7 @@ async function fillProject(slug, file, fid = 1){
 /** Files a new project starts with. More join from the project's + once it is open, up to 30. */
 const NEW_FILES = 3;
 
-/** New project: a name, up to 3 files dropped or chosen (or a blank to start from), and a Brief when there is one. */
+/** New project: a name, up to 3 files dropped or chosen (or a blank to start from), a Brief, and a first memory sorted into folders. */
 function openProjectSheet(){
   closeSide();
   const veil = el("div","veil");
@@ -708,6 +728,9 @@ function openProjectSheet(){
     <div class="f"><label>Brief <span class="pj-opt">optional</span></label>
       <div class="pj-rules" id="npRules"></div>
       <div class="hint">Who the chat is here, the goal, the audience, the rules. The chat reads it at every message. No Brief yet? Five questions write it, from the chat.</div></div>
+    <div class="f np-drop" id="npMem"><label>Memory <span class="pj-opt">optional</span></label>
+      <div class="pj-rules" id="npMemField"></div>
+      <div class="hint">What the chat should know from day one: notes, research, past work. Paste it, add files, or drop them here, up to ${RES_CHARS.toLocaleString()} characters. It is sorted into 3 to 8 folders in the project's memory, and the chat reads the notes that bear on a question.</div></div>
     <div class="f"><div class="pj-step" id="npStep" role="status"></div><div class="bad" id="npBad"></div></div>
     <footer><button class="ghost" id="npCancel" type="button">Cancel</button><button class="go" id="npMake" type="button">Create project</button></footer></div>`;
   document.body.append(veil);
@@ -718,6 +741,9 @@ function openProjectSheet(){
   let files = [], kind = "", busy = false, typed = false, over = "";
   const rules = instructionsField(veil.querySelector("#npRules"));
   rules.ta.id = "npRulesText"; rules.add.id = "npRulesAdd"; rules.count.id = "npRulesCount";
+  const memEl = veil.querySelector("#npMem"), mem = instructionsField(veil.querySelector("#npMemField"), "resource");
+  mem.ta.id = "npMemText"; mem.add.id = "npMemAdd"; mem.count.id = "npMemCount";
+  mem.ta.placeholder = "Paste what the project should know, or add files";
   const sync = () => {
     pick.classList.toggle("on", files.length > 0); pick.setAttribute("aria-pressed", String(files.length > 0));
     pick.textContent = files.length >= NEW_FILES ? `${NEW_FILES} files chosen` : files.length ? "Add files" : "Choose files";
@@ -753,18 +779,27 @@ function openProjectSheet(){
   pick.onclick = () => pickFiles(PJ_FILES, add);
   start.forEach(b => { b.onclick = () => { kind = kind === b.dataset.make ? "" : b.dataset.make; if (kind){ files = []; over = ""; } sync(); }; });
   cancel.onclick = shut; veil.onclick = e => { if (e.target === veil) shut(); };
-  /* A file dropped anywhere on the sheet joins the list. */
+  /* A file dropped on the memory joins its words; dropped anywhere else on the sheet, it joins the files. */
   const carries = e => [...(e.dataTransfer?.types || [])].includes("Files");
-  veil.ondragover = e => { if (!carries(e)) return; e.preventDefault(); if (!busy) dropEl.classList.add("over"); };
-  veil.ondragleave = e => { if (!veil.contains(e.relatedTarget)) dropEl.classList.remove("over"); };
-  veil.ondrop = e => { if (!carries(e)) return; e.preventDefault(); dropEl.classList.remove("over"); add([...(e.dataTransfer?.files || [])]); };
+  const target = e => memEl.contains(e.target) ? memEl : dropEl;
+  const unlit = () => { dropEl.classList.remove("over"); memEl.classList.remove("over"); };
+  veil.ondragover = e => { if (!carries(e)) return; e.preventDefault(); if (busy) return; const t = target(e); unlit(); t.classList.add("over"); };
+  veil.ondragleave = e => { if (!veil.contains(e.relatedTarget)) unlit(); };
+  veil.ondrop = async e => {
+    if (!carries(e)) return;
+    e.preventDefault(); const t = target(e); unlit();
+    const dropped = [...(e.dataTransfer?.files || [])];
+    if (busy || !dropped.length) return;
+    if (t === dropEl) return add(dropped);
+    for (const f of dropped) await mem.take(f);
+  };
   /* A name nothing else in the list has: New table, then New table 2. */
   const free = base => {
     const taken = new Set((S.projects || []).map(p => String(p.name).toLowerCase()));
     let n = base, i = 1; while (taken.has(n.toLowerCase())) n = `${base} ${++i}`;
     return n;
   };
-  const lock = on => { make.disabled = on; rules.lock(on); cancel.disabled = on; start.forEach(b => { b.disabled = on; }); sync(); };
+  const lock = on => { make.disabled = on; rules.lock(on); mem.lock(on); cancel.disabled = on; start.forEach(b => { b.disabled = on; }); sync(); };
   const run = async () => {
     const nm = name.value.trim() || (kind ? free(`New ${pjNoun(kind)}`) : files.length ? "" : free("New project"));
     if (!nm){ name.focus(); return; }
@@ -778,6 +813,7 @@ function openProjectSheet(){
       const got = [];
       for (const [i, f] of files.entries()) got.push(await readProjectFile(f, sayOf(i, f)));
       const words = rules.text() ? { name: rules.name(), text: rules.text() } : null;
+      const memo = mem.text() ? { name: mem.name(), text: mem.text() } : null;
       slug = (await api("/api/project/new", { name: nm, ...(kind ? { make: kind } : {}) })).slug;
       /* A server older than this page leaves the project with no file: say so, and leave nothing behind. */
       if (kind && !(await api("/api/project/get", { brain: slug })).file){
@@ -794,16 +830,20 @@ function openProjectSheet(){
         await uploadProject(key, g, sayOf(i, files[i]));
         stored = i + 1;
       }
-      let cut = false;
+      let cut = false, filed = null;
       if (words){ phase = "brief"; say("Saving the Brief"); cut = !!(await sendBrief(slug, words.text)).cut; }
+      /* The first memory: sorted into folders, then filed as notes in them. */
+      if (memo){ phase = "memory"; filed = await fileMemory(slug, memo, say, { plan: true }); }
       busy = false; veil.remove();
       await syncProjects();
       await openProject(slug);
       if (cut) pjNote(`Only the first ${BRIEF_CHARS.toLocaleString()} characters of the Brief were kept, about 1,000 words.`);
+      if (filed?.cut) pjNote(`Only the first ${RES_CHARS.toLocaleString()} characters of the memory were read, about ${RES_WORDS}.`);
+      if (filed?.unsorted) pjNote(`The memory was filed without folders: ${filed.unsorted}`);
     } catch (e){
       busy = false; lock(false);
       const left = files.length > 1 && stored < files.length ? `add ${files.slice(stored).map(f => f.name).join(" and ")} again from its +` : "add the file again";
-      stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to ${phase === "brief" ? "write the Brief again from Memory" : left}.` : e.message;
+      stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to ${phase === "brief" ? "write the Brief again from Memory" : phase === "memory" ? "add the memory again from Memory" : left}.` : e.message;
       if (slug){ make.textContent = "Open the project"; make.onclick = async () => { veil.remove(); await syncProjects(); await openProject(slug); }; }
     }
   };

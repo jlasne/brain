@@ -327,9 +327,61 @@ export async function fileInstructions(ctx: any, o: { space: string; brain: stri
 const RESOURCE_RULES = `You write the memory notes of a resource the owner dropped into a project, so the project's chat can answer from it later.
 Below: the resource's name when it came from a file, then its words.
 Reply with only JSON: {"notes":[{"title":"","claim":"","position":"","summaryLine":""}]}
-- One note for each fact, rule, definition, figure or decision that a question could ask for, at most 8, the one that matters most first. "title": 2 to 6 words naming the topic. "claim": one sentence with its numbers. "position": what the resource says about it, in 1 to 4 sentences, with every number, name and date as written. "summaryLine": under 15 words.
+- One note for each fact, rule, definition, figure or decision that a question could ask for, at most 10, the one that matters most first. "title": 2 to 6 words naming the topic. "claim": one sentence with its numbers. "position": what the resource says about it, in 1 to 4 sentences, with every number, name and date as written. "summaryLine": under 15 words.
 - Keep what the resource says. Never add a fact, never guess. Leave out menus, decoration and repetition.
 - Write it in English. ${NO_DASH}`;
+
+/* ---------- the folders of the memory ---------- */
+
+const FOLDER_RULES = `You sort what a project starts with into the folders of its memory, so each note it will hold has one clear place.
+Below: the project's name, then the opening of each part of what the owner dropped into it.
+Reply with only JSON: {"folders":[{"name":"","scope":""}]}
+- 3 to 8 folders that together cover everything below, with no two overlapping. 2 or 3 for a text under 10,000 characters.
+- "name": 1 to 3 words, a topic of this project ("Pricing", "Clients", "Launch plan"). Never "Misc", "Other" or "General".
+- "scope": one line under 15 words saying what goes in it.
+- Write them in English. ${NO_DASH}`;
+
+/** What the folder plan reads of a drop: the opening of each piece of 20,000 characters, up to 10 pieces. */
+const FOLDER_SKIM = 2500;
+
+/** A folder name as the memory keeps it: one line, 40 characters at most. */
+const folderName = (t: any) => String(t ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, 40);
+
+/**
+ * The folders of a project's memory, planned once from the first big drop into it: one model call reads the opening of each part
+ * and names 3 to 8 topics. A project that has folders keeps them, and the call is skipped.
+ */
+export async function planFolders(ctx: any, o: { space: string; brain: string; text: string; key?: string; model?: string; meter?: (u: any) => void }) {
+  const have: { name: string; scope: string }[] = await ctx.runQuery(internal.projects.foldersOf, { space: o.space, brain: o.brain });
+  if (have.length) return { folders: have, kept: true };
+  const text = String(o.text ?? "").replace(/\r/g, "").trim();
+  if (!text) throw new Error("the memory gave no text");
+  const got = await ctx.runQuery(internal.projects.projectGet, { space: o.space, brain: o.brain });
+  const parts: string[] = [];
+  for (let at = 0; at < text.length && parts.length < 10; at += MAX_CHARS.resource) parts.push(text.slice(at, at + FOLDER_SKIM));
+  const { text: raw, finish, usage } = await ask([
+    { role: "system", content: "You sort a project's memory into folders. You reply with JSON only." },
+    { role: "user", content: `${FOLDER_RULES}\n\nTHE PROJECT "${got.project.name}", ${text.length} characters dropped\n\n${parts.map((p, i) => `PART ${i + 1}\n${p}`).join("\n\n")}` },
+  ], { json: true, maxTokens: 800, temperature: 0, timeout: 60000, key: o.key, model: o.model });
+  o.meter?.(usage);
+  let d: any = null;
+  try { d = parseJson(String(raw), finish); } catch { d = null; }
+  const seen = new Set<string>();
+  const folders = (Array.isArray(d?.folders) ? d.folders : []).map((f: any) => ({ name: folderName(f?.name), scope: oneLine(f?.scope, 160) }))
+    .filter((f: any) => f.name.length >= 2 && !/^(misc|other|general)/i.test(f.name) && !seen.has(f.name.toLowerCase()) && seen.add(f.name.toLowerCase()))
+    .slice(0, 8);
+  if (!folders.length) throw new Error("the memory could not be sorted into folders. Try again.");
+  return { folders: await ctx.runMutation(internal.projects.foldersSave, { space: o.space, brain: o.brain, folders }) };
+}
+
+/** The folder a note named, as the project calls it: its exact name in any case, else none. */
+export function folderFor(folders: { name: string }[], named: any): string | undefined {
+  const want = folderName(named).toLowerCase();
+  return want ? folders.find(f => f.name.toLowerCase() === want)?.name : undefined;
+}
+
+/** The folders as a prompt lists them: a line each, the name, then what goes in it. */
+const foldersText = (folders: { name: string; scope: string }[]) => folders.map(f => `${f.name}: ${f.scope}`).join("\n");
 
 /**
  * A resource the owner dropped into the project, read into notes in its memory: a document, a text or the words of a page, with a
@@ -343,14 +395,18 @@ export async function fileResource(ctx: any, o: { space: string; brain: string; 
   const name = String(o.name ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
   /* The project must be this workspace's own before a model is asked anything. */
   const held: any[] = await ctx.runQuery(internal.projects.memoryOf, { space: o.space, brain: o.brain });
+  /* A memory sorted into folders files each note in one of them. */
+  const folders: { name: string; scope: string }[] = await ctx.runQuery(internal.projects.foldersOf, { space: o.space, brain: o.brain });
+  const sorted = folders.length ? `\n- "folder": the exact name of the folder under THE MEMORY'S FOLDERS the note belongs in.\n\nTHE MEMORY'S FOLDERS (name: what goes in it)\n${foldersText(folders)}` : "";
   const { text: raw, usage } = await ask([
     { role: "system", content: "You write the memory notes of a resource. You reply with JSON only." },
-    { role: "user", content: `${RESOURCE_RULES}\n\n${name ? `THE RESOURCE "${name}"` : "THE TEXT"}, ${text.length} characters\n${text}` },
-  ], { json: true, maxTokens: 3000, temperature: 0, timeout: 90000, key: o.key, model: o.model });
+    { role: "user", content: `${folders.length ? RESOURCE_RULES.replace('"summaryLine":""}]}', '"summaryLine":"","folder":""}]}') : RESOURCE_RULES}${sorted}\n\n${name ? `THE RESOURCE "${name}"` : "THE TEXT"}, ${text.length} characters\n${text}` },
+  ], { json: true, maxTokens: 3600, temperature: 0, timeout: 90000, key: o.key, model: o.model });
   o.meter?.(usage);
-  /* The note on the file is the project's own, and an instruction is never rewritten by a resource. */
+  /* The note on the file is the project's own, and an instruction is never rewritten by a resource. A folder the project lacks is left out. */
   const taken = new Set(held.filter(r => r.instructions).map(r => String(r.title).toLowerCase()));
-  const notes = readNotes(String(raw), "resource").filter(n => n.title.toLowerCase() !== "the file" && !taken.has(n.title.toLowerCase())).map(n => ({ ...n, position: n.position.slice(0, 900) }));
+  const notes = readNotes(String(raw), "resource").filter(n => n.title.toLowerCase() !== "the file" && !taken.has(n.title.toLowerCase()))
+    .map(n => { const { folder, ...rest } = n; const f = folderFor(folders, folder); return { ...rest, position: n.position.slice(0, 900), ...(f ? { folder: f } : {}) }; });
   if (!notes.length) throw new Error("the resource could not be read into notes. Try again.");
   const filed = await fileNotes(ctx, o.space, o.brain, held, notes, "resource", today(), [], [], "", "", name);
   return { notes: filed.new + filed.updated, titles: filed.titles, ...(whole.length > text.length ? { cut: true } : {}) };
@@ -675,7 +731,7 @@ THE STATE OF PLAY
 const NEXT_RULE = `- "next": one line under 15 words, written as the message the owner could send next ("Fill the 3 empty prices"). "" after small talk, or when the work is complete.
 `;
 
-export const ANSWER_RULES = (kind: string, english: boolean, o: { auto?: boolean; empty?: boolean; note?: boolean; edits?: boolean; rules?: string; brief?: string; next?: boolean; others?: boolean } = {}) => {
+export const ANSWER_RULES = (kind: string, english: boolean, o: { auto?: boolean; empty?: boolean; note?: boolean; edits?: boolean; rules?: string; brief?: string; next?: boolean; others?: boolean; folders?: string[] } = {}) => {
   const noun = kind === "table" ? "table" : kind === "html" ? "HTML page" : "document";
   /* How to change the file is sent when the message may change it, or when the router could not say. The rules every message needs come first. */
   const change = o.edits !== false;
@@ -721,8 +777,8 @@ THE FILE IS EMPTY
 - The owner will describe what they want. Build it complete in one go with the changes above. In "tldr", say what you made. In "reply", name the one thing to ask for next.
 - When THEIR FOLDERS hold what the owner points at, build from them: their names, numbers and dates as written. Say in "reply" which folder each part comes from. When a folder lacks something, build the rest and say what is missing.
 - A question is answered from THEIR FOLDERS and the memory, with no change. When the message says nothing to build, ask one question in "tldr" and make no change.
-` : ""}${o.note ? MEMORY_RULES + (o.next === false ? "" : NEXT_RULE) : ""}
-Reply with only JSON: {"tldr":"","reply":"","proposal":false,"enough":true,"quotes":[]${change ? `,"edits":[]` : ""}${o.note ? `,"notes":[{"title":"","update":"","claim":"","position":"","summaryLine":"","sections":[]}],"state":"","asks":[],"answered":[]${o.next === false ? "" : `,"next":""`}` : ""}}
+` : ""}${o.note ? MEMORY_RULES + (o.folders?.length ? `- "folder": the folder of the memory the note goes in, one of: ${o.folders.join(", ")}. "" when none fits.\n` : "") + (o.next === false ? "" : NEXT_RULE) : ""}
+Reply with only JSON: {"tldr":"","reply":"","proposal":false,"enough":true,"quotes":[]${change ? `,"edits":[]` : ""}${o.note ? `,"notes":[{"title":"","update":"","claim":"","position":"","summaryLine":"","sections":[]${o.folders?.length ? `,"folder":""` : ""}}],"state":"","asks":[],"answered":[]${o.next === false ? "" : `,"next":""`}` : ""}}
 - "quotes": up to 3 short passages of THE FILE, copied word for word, that the answer rests on. Empty when it rests on a folder or the memory alone${change ? ", or when you changed the file" : ""}.${o.rules ? `
 
 THE OWNER'S INSTRUCTIONS
@@ -731,7 +787,7 @@ ${o.rules}` : ""}`;
 };
 
 /** One note as the answer reads it. */
-const memoryLine = (r: any) => `- ${r.title}: ${oneLine(r.position || r.summaryLine, 500)}${r.updated ? ` (${r.updated})` : ""}${r.stale ? " [the file changed since]" : ""}`;
+const memoryLine = (r: any) => `- ${r.folder ? `[${r.folder}] ` : ""}${r.title}: ${oneLine(r.position || r.summaryLine, 500)}${r.updated ? ` (${r.updated})` : ""}${r.stale ? " [the file changed since]" : ""}`;
 
 /** Notes that share no word with the question, and are shown anyway: the newest ones, since a decision may bear on it in other words. */
 const LOOSE_NOTES = 2;
@@ -739,7 +795,7 @@ const LOOSE_NOTES = 2;
 /** Every note, the nearest to the question first: the note on the file, then the notes that share its words, then the rest in the order held. */
 function memoryRank(rows: any[], q: string): { r: any; s: number }[] {
   const want = new Set(keywords(q).map(stem));
-  const fit = (r: any) => r.title === "The file" ? 1e6 : keywords(`${r.title} ${r.position || r.summaryLine || ""}`).map(stem).filter((w: string) => want.has(w)).length;
+  const fit = (r: any) => r.title === "The file" ? 1e6 : keywords(`${r.folder ?? ""} ${r.title} ${r.position || r.summaryLine || ""}`).map(stem).filter((w: string) => want.has(w)).length;
   return rows.map((r, i) => ({ r, i, s: fit(r) })).sort((a, b) => b.s - a.s || a.i - b.i);
 }
 
@@ -1074,7 +1130,8 @@ export async function projectChat(ctx: any, o: ChatIn) {
   const writes = empty || kind === "html" || r.intent === "change";
   /* Thanks and goodbyes read no Brief and no instruction, as they read no note. The Brief takes the place of the instruction notes an older project holds. */
   const ruled = closer || brief ? [] : rulesPick(rules);
-  const system = ANSWER_RULES(kind, o.english, { auto: made, empty, note: framed, edits, next: nextOn, others: hasOthers && !closer,
+  const folders: { name: string; scope: string }[] = got.folders ?? [];
+  const system = ANSWER_RULES(kind, o.english, { auto: made, empty, note: framed, edits, next: nextOn, others: hasOthers && !closer, ...(folders.length ? { folders: folders.map(f => f.name) } : {}),
     ...(brief && !closer ? { brief } : {}), ...(ruled.length ? { rules: ruled.map(rulesLine).join("\n") } : {}) });
   const answerOf = async (user: string) => {
     const { text, finish, usage } = await ask([{ role: "system", content: system }, { role: "user", content: user }],
@@ -1168,7 +1225,9 @@ export async function projectChat(ctx: any, o: ChatIn) {
     try {
       const have = new Set<number>(cards.map((c: any) => c.sid));
       const notes = readNotes(JSON.stringify({ notes: d.notes }), "chat").slice(0, 2)
-        .map(n => n.sections ? { ...n, sections: doc ? n.sections.filter(x => have.has(x)).slice(0, 6).map(x => pointerOf(fid, x)) : [] } : n);
+        .map(n => n.sections ? { ...n, sections: doc ? n.sections.filter(x => have.has(x)).slice(0, 6).map(x => pointerOf(fid, x)) : [] } : n)
+        /* A note keeps a folder only when it is one of the project's. */
+        .map(n => { const { folder, ...rest } = n; const f = folderFor(folders, folder); return f ? { ...rest, folder: f } : rest; });
       if (notes.length) filed = await fileNotes(ctx, o.space, base, memory, notes, "chat", date, [], [], q);
     } catch (e: any) { console.log(`the notes were not filed: ${String(e?.message ?? e).slice(0, 160)}`); }
   }
