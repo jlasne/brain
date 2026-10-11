@@ -16,6 +16,7 @@ function pctRing(pct){
   return r;
 }
 const IC_EDIT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.2 4.3a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L9 19.5 4 20l.5-5Z"/></svg>`;
+const IC_BIN = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v5M14 11v5"/></svg>`;
 const dayOf = d => { const t = Date.parse(d); return isNaN(t) ? String(d || "") : new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
 /* A person's file: its sections, and its dates as people say them: a day, a month, or a year. */
 const FILE_SECTIONS = [["identity","Identity"], ["contact","Contact details"], ["you","You and them"], ["work","Work"], ["tastes","Tastes and character"], ["other","Other"]];
@@ -308,6 +309,8 @@ function folderHead({ b, self, live, reads, clashes, h, ro, panes }){
   }
   if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
   if (!S.demo && !ro && !self) btn("fvEdit", "Edit", IC_EDIT, () => openBrainSheet(b), "Its name and the line that decides what goes in");
+  /* Only a folder this workspace holds itself: one shared in from another is deleted at its home. */
+  if (!S.demo && !ro && !self && (b.space || S.space) === S.space) btn("fvDelete", "Delete", IC_BIN, () => openDeleteSheet(b), "This folder, its concepts and the sources only it holds, counted before anything goes");
   const x = btn("fvClose", "×", "", () => { S.folder = null; render(); $("input").focus(); }, "Back to the chat");
   x.classList.add("fv-x"); x.setAttribute("aria-label","Back to the chat");
   head.append(acts);

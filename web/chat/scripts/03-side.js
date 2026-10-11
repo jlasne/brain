@@ -563,7 +563,7 @@ function openBrainSheet(b){
         <div style="display:flex; gap:8px"><select id="rInto" class="pick" style="flex:1; min-width:0"></select><button class="ghost" id="rMerge" type="button">Merge</button></div></div>
       <div class="f" id="rDelF" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px">
         <label>Delete this folder</label>
-        <div class="hint" id="rDelSay" style="margin:0 0 8px">Its concepts, their links and the sources only it holds go for good. Settings, Export keeps a copy first.</div>
+        <div class="hint" style="margin:0 0 8px">Its concepts, their links and the sources only it holds go for good. What goes is counted first.</div>
         <button class="ghost del" id="rDel" type="button">Delete folder</button></div>
       <div class="f"><div id="rMsg" class="bad" role="alert"></div></div>
       <footer><button class="ghost" id="rCancel">Cancel</button><button class="go" id="rSave">Save</button></footer>
@@ -600,36 +600,9 @@ function openBrainSheet(b){
     push("ai", x => { x.innerHTML = rich(`**${esc(r.fromName)}** is now part of **${esc(r.intoName)}**: ${r.moved + r.joined} concepts` +
       `${r.joined ? `, ${r.joined} joined to a twin` : ""}, ${r.sources} source${r.sources === 1 ? "" : "s"}.`); });
   };
-  /* Delete: the first click counts what would go and says it; the second, on a button that names the folder, deletes it. */
-  const del = veil.querySelector("#rDel"), delSay = veil.querySelector("#rDelSay");
+  /* Delete opens its own sheet, which counts what would go before anything goes. */
   veil.querySelector("#rDelF").hidden = b.type === "personal" || !home(b);
-  const many = (n, w) => `${n.toLocaleString()} ${w}${n === 1 ? "" : "s"}`;
-  del.onclick = async () => {
-    if (!del.classList.contains("sure")){
-      del.disabled = true; msg.className = "spin"; msg.textContent = "Counting what it holds";
-      try {
-        const d = await api("/api/brain/delete", { slug: b.slug, dry: true });
-        delSay.textContent = `${d.name} holds ${many(d.concepts, "concept")} and ${many(d.sources, "source")}${d.sources ? `, ${d.alone.toLocaleString()} of them only here` : ""}.`
-          + (d.chats ? ` ${many(d.chats, "chat")} asked it: ${d.chats === 1 ? "it asks" : "they ask"} the other folders from now on.` : "")
-          + (d.shared.length ? ` It is shared with ${many(d.shared.length, "other workspace")}: it goes from there too.` : "")
-          + " This cannot be undone.";
-        del.classList.add("sure"); del.textContent = `Delete ${b.name} for good`; msg.className = "bad"; msg.textContent = "";
-      } catch (e){ msg.className = "bad"; msg.textContent = /unreadable/.test(e.message) ? "The server is older than this page and cannot delete a folder yet. Run convex deploy." : e.message; }
-      del.disabled = false;
-      return;
-    }
-    del.disabled = true; msg.className = "spin"; msg.textContent = "Deleting";
-    let r;
-    try { r = await api("/api/brain/delete", { slug: b.slug }); }
-    catch (e){ del.disabled = false; msg.className = "bad"; msg.textContent = e.message; return; }
-    shut();
-    if (S.folder === b.slug) S.folder = null;
-    S.picks = S.picks.filter(x => x !== b.slug); S.into = S.into.filter(x => x !== b.slug);
-    if (S.scope === b.slug) S.scope = "all";
-    await refresh();
-    render();
-    push("ai", x => { x.innerHTML = rich(`**${esc(r.name || b.name)}** is deleted: ${many(r.concepts || 0, "concept")}${r.sources ? `, ${many(r.sources, "source")} let go` : ""}.`); });
-  };
+  veil.querySelector("#rDel").onclick = () => { shut(); openDeleteSheet(b); };
   veil.onclick = e => { if(e.target===veil) shut(); };
   setTimeout(()=>nameI.focus(),30);
 
@@ -654,6 +627,46 @@ function openBrainSheet(b){
           : `**${esc(r.name)}** saved.`) +
         `\n\nScope: ${esc(r.scope || sc)}`); });
     } catch(e){ save.disabled=false; msg.className="bad"; msg.textContent = e.message; }
+  };
+}
+
+/**
+ * Delete a folder: what would go is counted and said, its concepts, its sources and those only it holds, the chats that asked it, the
+ * workspaces it is shared with; then one button that names the folder deletes it. Export keeps a copy first.
+ */
+function openDeleteSheet(b){
+  closeSide();
+  const veil = el("div","veil");
+  veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <header><h3 id="dTitle"></h3><p id="dSay" role="status">Counting what it holds</p></header>
+    <div class="f"><div class="hint">It cannot be undone. Settings, Export keeps a copy of every folder first.</div><div id="dMsg" class="bad" role="alert"></div></div>
+    <footer><button class="ghost" id="dCancel" type="button">Cancel</button><button class="go danger" id="dGo" type="button" disabled>Delete</button></footer></div>`;
+  veil.querySelector("#dTitle").textContent = `Delete ${b.name}?`;
+  document.body.append(veil);
+  const say = veil.querySelector("#dSay"), msg = veil.querySelector("#dMsg"), go = veil.querySelector("#dGo"), cancel = veil.querySelector("#dCancel");
+  let busy = false;
+  const shut = () => { if (!busy) veil.remove(); };
+  cancel.onclick = shut; veil.onclick = e => { if (e.target === veil) shut(); };
+  const many = (n, w) => `${n.toLocaleString()} ${w}${n === 1 ? "" : "s"}`;
+  const older = e => /unreadable/.test(e.message) ? "The server is older than this page and cannot delete a folder yet. Run convex deploy." : e.message;
+  api("/api/brain/delete", { slug: b.slug, dry: true }).then(d => {
+    say.textContent = `${d.name} holds ${many(d.concepts, "concept")} and ${many(d.sources, "source")}${d.sources ? `, ${d.alone.toLocaleString()} of them only here` : ""}.`
+      + (d.chats ? ` ${many(d.chats, "chat")} asked it: ${d.chats === 1 ? "it asks" : "they ask"} the other folders from now on.` : "")
+      + (d.shared.length ? ` It is shared with ${many(d.shared.length, "other workspace")}: it goes from there too.` : "");
+    go.textContent = `Delete ${b.name} for good`; go.disabled = false; go.focus();
+  }).catch(e => { say.textContent = ""; msg.textContent = older(e); });
+  go.onclick = async () => {
+    busy = true; go.disabled = cancel.disabled = true; msg.className = "spin"; msg.textContent = "Deleting";
+    let r;
+    try { r = await api("/api/brain/delete", { slug: b.slug }); }
+    catch (e){ busy = false; go.disabled = cancel.disabled = false; msg.className = "bad"; msg.textContent = older(e); return; }
+    busy = false; shut();
+    if (S.folder === b.slug) S.folder = null;
+    S.picks = S.picks.filter(x => x !== b.slug); S.into = S.into.filter(x => x !== b.slug);
+    if (S.scope === b.slug) S.scope = "all";
+    await refresh();
+    render();
+    push("ai", x => { x.innerHTML = rich(`**${esc(r.name || b.name)}** is deleted: ${many(r.concepts || 0, "concept")}${r.sources ? `, ${many(r.sources, "source")} let go` : ""}.`); });
   };
 }
 

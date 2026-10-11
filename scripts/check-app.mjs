@@ -625,23 +625,26 @@ async function boot(path, init, arg) {
   }, two);
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Content/.test(r.textContent)).querySelector(".ed.op").click());
   await page.waitForTimeout(120);
+  const acts = await page.evaluate(() => [...document.querySelectorAll(".fv-acts .fv-b")].map(b => b.id));
+  check("a folder's screen offers Delete beside Edit", acts.includes("fvDelete") && acts.indexOf("fvDelete") === acts.indexOf("fvEdit") + 1, JSON.stringify(acts));
+  await page.click("#fvDelete"); await page.waitForTimeout(250);
+  const d1 = await page.evaluate(() => ({ title: document.getElementById("dTitle")?.textContent, say: document.getElementById("dSay").textContent, btn: document.getElementById("dGo").textContent, off: document.getElementById("dGo").disabled,
+    focus: document.activeElement?.id, calls: window.__calls.filter(c => c.s.includes("/api/brain/delete")).map(c => c.body) }));
+  check("Delete opens a sheet that counts what would go: the concepts, the sources and those only here, the chats, the workspaces it is shared with",
+    d1.title === "Delete Content?" && d1.say === "Content holds 42 concepts and 12 sources, 9 of them only here. 3 chats asked it: they ask the other folders from now on. It is shared with 1 other workspace: it goes from there too."
+    && d1.btn === "Delete Content for good" && !d1.off && d1.focus === "dGo" && d1.calls.length === 1 && d1.calls[0].dry === true && d1.calls[0].slug === "content", JSON.stringify(d1));
+  await page.click("#dCancel"); await page.waitForTimeout(100);
+  check("Cancel deletes nothing", await page.evaluate(() => !document.querySelector(".veil") && window.__calls.filter(c => c.s.includes("/api/brain/delete")).every(c => c.body.dry)));
+  /* Edit's own Delete opens the same sheet */
   await page.click("#fvEdit"); await page.waitForTimeout(80);
-  const d0 = await page.evaluate(() => ({ btn: document.getElementById("rDel")?.textContent, hidden: document.getElementById("rDelF").hidden, say: document.getElementById("rDelSay").textContent }));
-  check("Edit offers Delete folder, and says what goes and how to keep a copy", d0.btn === "Delete folder" && !d0.hidden && /^Its concepts, their links and the sources only it holds go for good\. Settings, Export keeps a copy first\.$/.test(d0.say), JSON.stringify(d0));
-  await page.click("#rDel"); await page.waitForTimeout(200);
-  const d1 = await page.evaluate(() => ({ btn: document.getElementById("rDel").textContent, say: document.getElementById("rDelSay").textContent, calls: window.__calls.filter(c => c.s.includes("/api/brain/delete")).map(c => c.body) }));
-  check("the first click only counts: the concepts, the sources and those only here, the chats, the workspaces it is shared with, and that it cannot be undone",
-    d1.btn === "Delete Content for good" && d1.say === "Content holds 42 concepts and 12 sources, 9 of them only here. 3 chats asked it: they ask the other folders from now on. It is shared with 1 other workspace: it goes from there too. This cannot be undone."
-    && d1.calls.length === 1 && d1.calls[0].dry === true && d1.calls[0].slug === "content", JSON.stringify(d1));
-  await page.click("#rDel"); await page.waitForTimeout(300);
+  check("Edit says what goes, and its Delete folder opens the same sheet", /^Its concepts, their links and the sources only it holds go for good\./.test(await page.evaluate(() => document.querySelector("#rDelF .hint").textContent)));
+  await page.click("#rDel"); await page.waitForTimeout(250);
+  check("the same sheet, counted again", (await page.textContent("#dTitle")) === "Delete Content?" && (await page.textContent("#dGo")) === "Delete Content for good");
+  await page.click("#dGo"); await page.waitForTimeout(300);
   const d2 = await page.evaluate(() => ({ sent: window.__calls.filter(c => c.s.includes("/api/brain/delete")).pop().body, sheet: !!document.querySelector(".veil"),
     rows: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent), view: document.querySelector("main").dataset.view, said: [...document.querySelectorAll("#thread .msg.ai")].pop()?.textContent || "" }));
-  check("the second deletes it: the sheet closes, the folder leaves the list and its screen, and the chat says what went", d2.sent.slug === "content" && !d2.sent.dry && !d2.sheet && !d2.rows.includes("Content") && d2.view === "chat"
+  check("Delete for good deletes it: the sheet closes, the folder leaves the list and its screen, and the chat says what went", d2.sent.slug === "content" && !d2.sent.dry && !d2.sheet && !d2.rows.includes("Content") && d2.view === "chat"
     && /Content is deleted: 42 concepts, 12 sources let go\./.test(d2.said), JSON.stringify(d2));
-  /* the personal folder offers no Delete */
-  const self = await page.evaluate(() => { const r = [...document.querySelectorAll("#brains .brain-row")].find(x => /Wealth/.test(x.textContent)); r.querySelector(".ed.op").click(); return true; });
-  await page.waitForTimeout(120); await page.click("#fvEdit"); await page.waitForTimeout(80);
-  check("another folder of the workspace offers it too", self && await page.evaluate(() => !document.getElementById("rDelF").hidden));
   check("nothing threw deleting", !bad.length, bad.join(" | "));
   await page.close();
 }
