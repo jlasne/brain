@@ -16,6 +16,7 @@ import { ask, parseJson, canDrop } from "./lib";
 import type { Who } from "./lib";
 import { plainClaim, rewriteOf, lineOf } from "./drop";
 import { loadSpace } from "./space";
+import { STYLE } from "./style";
 
 export const REDERIVE_SYSTEM =
   "You maintain a knowledge base. You write in English. You reply with JSON only.";
@@ -27,7 +28,7 @@ RULES
 - One view per position, a few lines, stating what holds.
 - Write about the subject, never about the filing: no "the source", "this concept", "not covered by existing concepts".
 - Where the evidence disagrees, say which view holds and why. Never delete a view.
-- English, always. No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording.
+- English, always. ${STYLE}
 - summaryLine is ONE line, under 18 words.
 
 Reply with only JSON:

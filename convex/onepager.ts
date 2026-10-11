@@ -17,6 +17,7 @@ import { ask, parseJson, spaceName, today } from "./lib";
 import type { Who, Space } from "./lib";
 import { planDossier, writeDossier, keywords, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
+import { SHORT_STYLE, NO_DASH } from "./style";
 
 /* A bullet names its concept, then says it in one or two lines. */
 export type Bullet = { k: string; say: string };
@@ -66,7 +67,7 @@ export async function translatePage(p: Pager, lang: string, only?: "chrome",
           { role: "user", content: `Translate each string of the list into ${lang}.
 - Keep numbers, dates, names of people and places, and **bold** marks exactly as they are.
 - A name of a brain or a person stays as it is.
-- No em-dashes.
+- ${NO_DASH}
 Reply with only JSON: {"t":["..."]}, exactly ${list.length} strings, in the same order.
 
 ${JSON.stringify(list)}` },
@@ -285,7 +286,7 @@ SHAPE
 - Write only the bullets. No sources, no authors, no dates, no closing line.
 
 WORDS
-- English, always. No em-dashes. Under 30 words per sentence.
+- English, always. ${SHORT_STYLE}
 - Replace adjectives with data. No weasel words. Simple wording.
 - Say what holds rather than what does not.
 - Never invent evidence. Lay out what the stored knowledge holds on it, even
@@ -293,7 +294,7 @@ WORDS
   kind of source that would fill the gap.`;
 
 const WORDS = `WORDS
-- English, always. No em-dashes. Under 30 words per sentence.
+- English, always. ${SHORT_STYLE}
 - Replace adjectives with data. No weasel words. Simple wording.
 - Say what holds rather than what does not.
 - Use only the stored knowledge below. Never invent a fact or a figure.`;

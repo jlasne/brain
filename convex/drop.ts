@@ -18,6 +18,7 @@ import {
 import type { Who } from "./lib";
 import { keywords, rankConcepts, linkId, conceptSlug, compress, unionCap } from "./words";
 import { loadSpace } from "./space";
+import { STYLE } from "./style";
 export { compress } from "./words";
 
 /* ---------- the rules, named so two thinkers can share them ---------- */
@@ -167,7 +168,7 @@ RULES
 - OLD means the stored position holds, and the new claim joins the evidence as a minority view.
 - BOTH means the position holds and the clash goes into open conflicts, dated, with the reason.
 - Never delete a view.
-- English, always. No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording.
+- English, always. ${STYLE}
 - summaryLine is ONE line, under 18 words.
 - data lists only NEW figures from this source. STORED DATA is kept for you, so never repeat it.
 - conflicts lists only NEW clashes. OPEN CONFLICTS are kept for you, so never repeat them.

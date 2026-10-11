@@ -19,6 +19,7 @@
 
 import { internal } from "./_generated/api";
 import { sameTitle, idOf, fileText, FILE_SECTIONS, conceptSlug } from "./words";
+import { SHORT_STYLE, NO_DASH } from "./style";
 
 export type Note = { title: string; claim: string; position: string; summaryLine: string; update: string; orig?: string; sections?: number[] };
 /* What the personal folder keeps: English whatever was written ("en"), or the language written in ("same"). */
@@ -142,8 +143,8 @@ ${en ? `- "claim": what they said, in one sentence, in English, first person kep
   : `- "claim": what they said, in one sentence, in their own words and their language, first person kept ("I want to move to Lisbon").`}
 - "position": the note as it stands after this, 1 to 4 sentences, written to them as "you" ("You want to move to Lisbon in 2027."). For an update, rewrite it from what it held plus this. When they changed their mind, state the new view and name the one it replaces with its date, e.g. "You now prefer X (${date}); you said Y on 2026-09-12."
 - "summaryLine": the position in under 15 words, as "you" when it needs a subject.
-${en ? `- Write every field in English, whatever language they write in: titles, claims, positions, summaries, facts and moments. Translate faithfully; names, places, numbers and quotes keep their meaning. No em-dashes.`
-  : `- Keep their language. No em-dashes.`}
+${en ? `- Write every field in English, whatever language they write in: titles, claims, positions, summaries, facts and moments. Translate faithfully; names, places, numbers and quotes keep their meaning. ${NO_DASH}`
+  : `- Keep their language. ${NO_DASH}`}
 
 PEOPLE
 Each person has a FILE that only grows: lasting facts, the history of what happened, the people they are linked to, and what is still open. Send only what THE MESSAGE adds. The server folds it into the file and never loses what the file held.
@@ -426,7 +427,7 @@ export const REPLY_RULES =
 - Never invent a fact, a memory, a person or a view. Where the notes say nothing, lean from their values and say it is a lean: "I haven't decided, but I'd lean toward Porto."
 - Ask at most one question back, and only when it helps. A question back speaks to them as "you".
 - Never call them "the user", "the owner" or by their name.
-- No em-dashes. Under 30 words per sentence. Simple wording.`;
+- ${SHORT_STYLE} Simple wording.`;
 
 /**
  * A reply says the answer, never where it came from. The rules ask for
@@ -506,7 +507,7 @@ export function conceptRules(title: string, contact: boolean, english: boolean) 
 - A question, a greeting or a thank-you changes nothing: "change" is null.
 - Never invent. Only what the message says.
 - Every field of "change" is in English, whatever language they write in. "orig" keeps their sentence as written when it is not English.
-- ${english ? "Write the reply in English." : "Write the reply in the language of their message."} No em-dashes. Under 30 words per sentence.
+- ${english ? "Write the reply in English." : "Write the reply in the language of their message."} ${SHORT_STYLE}
 
 ${contact ? `THE CHANGE, for this person. Send only what the message adds or corrects.
 - "claim": what they said about this person, one sentence.
@@ -618,7 +619,7 @@ export const OPEN_RULES =
 - "follow": new follow-ups the comment creates, each under 20 words, 3 at most. Something the comment says is done is no follow-up. Never one that an item of the same person already covers, listed under ALREADY OPEN: reword that item with "text" instead.
 - "moment": when the comment tells something that happened, one sentence for the person's history, {"date":"YYYY-MM-DD, YYYY-MM or YYYY, from TODAY","text":"","seen":false}. "seen" is true when the owner was with the person that day. null otherwise.
 - Only what the comment says. Never invent. A comment that asks a question or says nothing new: "open", and nothing else.
-- Everything in English, whatever language the comment is in. No em-dashes. Under 30 words per sentence.
+- Everything in English, whatever language the comment is in. ${SHORT_STYLE}
 
 Reply with only JSON, one entry per item given: {"items":[{"n":1,"status":"done","text":"","follow":[],"moment":null}]}`;
 

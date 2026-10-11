@@ -28,6 +28,7 @@
  */
 
 import { internal } from "./_generated/api";
+import { SHORT_STYLE, NO_DASH } from "./style";
 
 export type Chapter = { key: string; title: string; questions: string[] };
 
@@ -496,7 +497,7 @@ KEEP IT LIGHT
 - Never ask for a list of more than 3, a long story, a routine minute by minute, or a text to write.
 - Keep the question under 20 words.
 - Write in the language of their message. Before they have written, use the language of their notes, or English when there are none.
-- No em-dashes. Under 30 words per sentence. Simple words.
+- ${SHORT_STYLE} Simple wording.
 
 FOLLOW UP, MOVE ON, OR ASK AGAIN
 - FOLLOW-UPS LEFT says how many follow-ups this question may still get.
@@ -683,7 +684,7 @@ Seven parts, in this order: ${PROFILE_PARTS.map(p => p.title).join(", ")}.
 - 3 to 7 short points a part, written to them as "you". Numbers and dates where the notes give them.
 - Only what the notes say. A part the notes do not cover gets one point: "Nothing yet. The interview asks it in chapters X." with its chapters: ${PROFILE_PARTS.map(p => `${p.title} ${p.from}`).join("; ")}.
 - Voice: how they write and talk, the words they use, their tone. Boundaries: what they refuse, and what stays private.
-- In the language of most notes. No em-dashes. Under 30 words per sentence.
+- In the language of most notes. ${SHORT_STYLE}
 
 Reply with only JSON: {"parts":[{"title":"Identity","points":[""]}]}`;
 
@@ -802,7 +803,7 @@ EACH SITUATION
 - The notes never say how they would reply, but what they do say lets someone deduce it: a value, a habit, a past choice, a number, a rule, how they talk to that person.
 - End with "Write your reply."
 - Vary the move: a yes or a no, a price or a deadline, a favour, an invitation, a refusal, a delicate moment, a quick answer. Vary the sender and the channel.
-- Write the message in the language its sender uses with them when the notes say so, English otherwise. Under 70 words in all. No em-dashes.
+- Write the message in the language its sender uses with them when the notes say so, English otherwise. Under 70 words in all. ${NO_DASH}
 - Never a situation a note already answers word for word.
 - ${TEST_N} different senders and moves, the hardest deduction first.
 

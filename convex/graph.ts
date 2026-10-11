@@ -24,6 +24,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { ask, parseJson, readSpace, today, OPENROUTER } from "./lib";
 import { idOf } from "./words";
+import { NO_DASH } from "./style";
 
 /* ---------- embeddings ---------- */
 
@@ -309,7 +310,7 @@ For each, write what FOLLOWS from holding both: one conclusion neither states al
 - "text": one or two sentences under 30 words each, naming both concepts' ideas, with a number when one is held.
 - Build only on what A and B say. No outside facts.
 - When the two only restate each other or nothing new follows, leave "text" empty.
-- English. No em-dashes. Plain words.
+- English. ${NO_DASH} Simple wording.
 
 Reply with only JSON: {"insights":[{"n":1,"title":"","text":""}]}
 

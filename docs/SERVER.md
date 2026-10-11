@@ -144,12 +144,9 @@ the contacts hold what it would say. Nothing but that
 brain's own folder and chat reads any of it.
 
 Projects, saved one-pagers, the Limited or Full side panel, the map, the scouts and the lab are gone from
-the code. Their tables stay in `schema.ts` until emptied, so a deploy accepts
-the rows still there. The nightly upkeep (`admin:upkeep`, 05:40 UTC) empties them
-once, on its own, and marks it done in `config` as `upkeep:removed-cleared:v1`;
-`npx convex run admin:upkeep --prod` runs it now. Once that row is there, delete
-the definitions of `modes`, `projects`, `onepagers`, `pages`, `gaps`, `heat`,
-`scouts`, `finds`, `labs` and `labTurns`.
+the code, and their ten tables are gone from `schema.ts`. A schema only checks the tables it lists, so a deploy
+accepts any of their rows still there. The nightly upkeep (`admin:upkeep`, 05:40 UTC) empties them once, on its
+own, and marks it done in `config` as `upkeep:removed-cleared:v1`; `npx convex run admin:upkeep --prod` runs it now.
 
 Doubled "Still open" lines are made one when the list opens. To do a whole
 workspace at once, from a terminal, with no model call:
@@ -243,6 +240,7 @@ convex/
   store.ts         every read and write, reached only through internal functions
   http.ts          the routes, and the gate every one of them passes
   spend.ts         the cost meter: a tally per kind of work, added once the work is done
+  style.ts         the house writing rules, written once and put into every prompt that needs them
   restore.ts       an export read back into folders, concepts and sources
 app/
   index.html       the interface, pointed at the deployment

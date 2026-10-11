@@ -207,68 +207,6 @@ export default defineSchema({
   }).index("by_space", ["space"]),
 
   /**
-   * REMOVED FEATURES. The tables modes, projects, onepagers and pages, with
-   * gaps, scouts, finds, heat, labs and labTurns further down, are no longer written or read:
-   * Projects, saved one-pagers, the side panel's mode, the old blind-spot log,
-   * the scouts and the map are gone. Their definitions stay only so a deploy
-   * accepts the rows still there. The nightly upkeep (admin:upkeep) empties
-   * them once, on its own, and marks it done in config
-   * ("upkeep:removed-cleared:v1"); after that these ten definitions can go.
-   */
-
-  /* A workspace's side panel mode. Removed. */
-  modes: defineTable({
-    space: v.string(),
-    full: v.boolean(),
-    updated: v.number(),
-  }).index("by_space", ["space"]),
-
-  /* A project: a chat and a page over some folders. Removed. */
-  projects: defineTable({
-    space: v.string(),
-    name: v.string(),
-    brains: v.array(v.string()),
-    /* In the owner's words: what the page keeps up to date, and how the chat answers. */
-    instructions: v.string(),
-    /* An HTML file, 60 KB at most, whose layout every build keeps. */
-    template: v.optional(v.string()),
-    templateName: v.optional(v.string()),
-    /* Rebuild the page when a source lands in one of its folders. Off unless the owner turns it on. */
-    auto: v.boolean(),
-    /* Answers from its chat waiting for the next Build, which puts them on the page. */
-    pending: v.optional(v.array(v.any())),
-    /* A source landed since the last build. */
-    stale: v.optional(v.boolean()),
-    /* When a background rebuild started, so the next drop does not start another. */
-    building: v.optional(v.number()),
-    /* Its chat: the last 40 questions and answers. */
-    turns: v.array(v.any()),
-    created: v.number(),
-    updated: v.number(),
-  }).index("by_space", ["space"]),
-
-  /* Every one-pager built, kept to open again. Removed: a page is built, shown and mailed, never stored. */
-  onepagers: defineTable({
-    space: v.string(),
-    owner: v.optional(v.string()),
-    title: v.string(),
-    /* The page as the app draws it, its text for Copy, and what built it, so Mail can build it again. */
-    page: v.any(),
-    text: v.string(),
-    ask: v.any(),
-    at: v.number(),
-  }).index("by_space_at", ["space", "at"]),
-
-  /* Each build of a project's page. Removed. */
-  pages: defineTable({
-    project: v.id("projects"),
-    v: v.number(),
-    html: v.string(),
-    why: v.string(),
-    at: v.number(),
-  }).index("by_project_v", ["project", "v"]),
-
-  /**
    * The models a workspace picked in Settings: one for the chat, Drop and
    * one-pagers, one for projects. Absent reads as the deployment's defaults.
    */
@@ -291,16 +229,6 @@ export default defineSchema({
     favPrices: v.optional(v.array(v.object({ id: v.string(), price: v.number() }))),
     updated: v.number(),
   }).index("by_space", ["space"]),
-
-  /* Questions the brains could not answer, once logged. Removed. */
-  gaps: defineTable({
-    space: v.string(),
-    q: v.string(),
-    gap: v.string(),
-    find: v.string(),
-    brains: v.array(v.string()),
-    at: v.number(),
-  }).index("by_space_at", ["space", "at"]),
 
   /* The public MCP endpoint has no passphrase, so a per-address counter is the
      only thing standing between a scraping loop and the deployment quota. */
@@ -479,82 +407,6 @@ export default defineSchema({
     profile: v.optional(v.any()),
     updated: v.number(),
   }).index("by_brain", ["space", "brain"]),
-
-  /* Removed with the scouts: nothing writes or reads these two. They stay until
-     admin:clearRemoved has emptied them, then these definitions go. A feed a
-     folder followed, and a piece a scout found. */
-  scouts: defineTable({
-    space: v.string(),
-    brain: v.string(),
-    /* The address you gave, and the RSS or Atom feed it led to. */
-    url: v.string(),
-    feed: v.string(),
-    name: v.string(),
-    kind: v.string(),          // "youtube" | "feed"
-    added: v.string(),
-    /* When it was last read, the newest piece it has seen, and why the last read failed. */
-    checked: v.optional(v.string()),
-    seen: v.optional(v.string()),
-    error: v.optional(v.string()),
-  }).index("by_space", ["space"]),
-
-  finds: defineTable({
-    space: v.string(),
-    brain: v.string(),
-    scout: v.string(),
-    link: v.string(),
-    key: v.string(),
-    title: v.string(),
-    date: v.string(),
-    author: v.string(),
-    status: v.string(),        // "new" | "read" | "failed" | "dropped" | "skipped"
-    found: v.string(),
-    /* What the read says: a summary, the concepts it bears on and how, the ideas it adds. */
-    read: v.optional(v.any()),
-    /* The text read, so dropping it reads it again for free. */
-    text: v.optional(v.string()),
-    error: v.optional(v.string()),
-  }).index("by_space", ["space", "status"]).index("by_key", ["space", "key"]).index("by_scout", ["scout"]),
-
-  /* Removed with the map: nothing writes or reads it. It stays until
-     admin:clearRemoved has emptied it, then this definition goes. */
-  heat: defineTable({
-    space: v.string(),
-    brain: v.string(),
-    slug: v.string(),
-    n: v.number(),
-    days: v.array(v.string()),
-  }).index("by_space", ["space"]).index("by_concept", ["space", "brain", "slug"]),
-
-  /* Removed with the lab (twin calls between two workspaces): nothing writes or
-     reads these two. They stay until admin:clearRemoved has emptied them, then
-     these definitions go. */
-  labs: defineTable({
-    title: v.string(),
-    topic: v.string(),
-    a: v.string(),
-    b: v.string(),
-    starter: v.string(),
-    status: v.string(),
-    turns: v.number(),
-    until: v.number(),
-    last: v.number(),
-    gen: v.number(),
-    note: v.optional(v.string()),
-    error: v.optional(v.string()),
-    created: v.number(),
-    updated: v.number(),
-  }),
-
-  labTurns: defineTable({
-    lab: v.id("labs"),
-    n: v.number(),
-    from: v.string(),
-    text: v.string(),
-    because: v.optional(v.string()),
-    done: v.optional(v.boolean()),
-    at: v.number(),
-  }).index("by_lab", ["lab", "n"]),
 
   /**
    * A project's one file, or its one table. The text is never kept whole: it

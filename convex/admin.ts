@@ -320,8 +320,8 @@ export const forgetOldKeys = internalMutation({
 /**
  * What the app no longer keeps: Projects and their pages, saved one-pagers,
  * the side panel's mode, the old blind-spot log, the scouts' feeds and finds, the map's question counts, and the lab's calls and turns. Their code is gone;
- * this empties their tables, 300 rows each a call. Run it until it says
- * "runAgain": false, then the tables can leave schema.ts.
+ * this empties their tables, 300 rows each a call, until it says "runAgain": false. They are out of schema.ts, which only
+ * checks the tables it lists, so their rows are read here by name.
  *
  *     npx convex run admin:clearRemoved --prod
  */

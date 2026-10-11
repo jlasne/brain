@@ -15,6 +15,7 @@
 import { internal } from "./_generated/api";
 import { ask, parseJson } from "./lib";
 import { plainClaim } from "./drop";
+import { STYLE, NO_DASH } from "./style";
 
 const CHECK_RULES = `Each item below is two claims a knowledge base recorded as clashing.
 
@@ -40,7 +41,7 @@ RULES
 - The other view stays as one sentence with its date, as a minority view.
 - Keep everything else the position says that the ruling does not touch.
 - summaryLine is one line, under 18 words.
-- English. No em-dashes. Under 30 words per sentence. Numbers over adjectives. Never mention sources, filing or concepts.
+- English. ${STYLE} Never mention sources, filing or concepts.
 
 Reply with only JSON: {"position":"","summaryLine":""}`;
 
@@ -52,7 +53,7 @@ const HINT_RULES = `Each item below is two claims on one concept of a knowledge 
 RULES
 - "a" or "b": that side holds. Between two claims on the same measure, the later date holds. A claim with a number and a date beats a vague one.
 - "both": they speak of different times, places, cases or horizons, so both hold.
-- why: under 14 words, naming the date, the number or the difference that decides. English. No em-dashes.
+- why: under 14 words, naming the date, the number or the difference that decides. English. ${NO_DASH}
 
 Reply with only JSON, one answer per item, in order: {"hints":[{"pick":"b","why":""}]}`;
 

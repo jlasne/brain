@@ -28,6 +28,7 @@ import { assemble, pageIds, asText, fullestPlan, docRules, BULLET_RULES, DOC_TIT
 import type { DocType } from "./onepager";
 import { dropCheck, dropSettle, feedable, fetchPage, planContext, knownAuthor, str, PLAN_RULES } from "./drop";
 import { loadSpace } from "./space";
+import { STYLE } from "./style";
 
 /** Versions this server speaks. The newest sits first, so it wins by default. */
 export const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
@@ -783,7 +784,7 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
         : `- Keep source names out of the answer text. Attribution goes on the sources line.`,
       `- Newer evidence wins on the same question, and better data overrides that.`,
       `- State an open conflict when it changes what the reader would do.`,
-      `- No em-dashes. Under 30 words per sentence. Data instead of adjectives. No weasel words. Simple wording. Say what holds.`,
+      `- ${STYLE} Say what holds.`,
       `- Close with one line: "Sources: {author}, {date} · {author}, {date}", listing only what you used.`,
       `- Answer from what is above, even partly: lead with the closest thing it holds on the subject. Where it falls short, say so in one sentence at the end, naming the kind of source that would fill the gap, and no more.`,
     ].join("\n");

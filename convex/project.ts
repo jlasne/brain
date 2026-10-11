@@ -35,6 +35,7 @@ import {
   readQuery, runQuery, resultText, colLine, MAX_OPS, BRIEF_MAX, NEXT_CHARS, ASK_CHARS, fileKey, splitKey, pointerOf, localSids,
 } from "./sheet";
 import type { Part, Sheet } from "./sheet";
+import { STYLE, NO_DASH } from "./style";
 
 /* ---------- reading a file in ---------- */
 
@@ -42,7 +43,7 @@ const SUMMARY_RULES = `You write one line of the contents list of a long file, f
 Reply with only JSON: {"title":"","summary":""}
 - "title": 2 to 8 words naming what the section is about. Keep the section's own heading when it has one.
 - "summary": one sentence of at most 25 words with the main facts, names and numbers a reader would look for here. Write it in English.
-- No em-dashes.`;
+- ${NO_DASH}`;
 
 const pageSuffix = (text: string) => {
   const p = pagesIn(text);
@@ -137,7 +138,7 @@ export async function finishFile(ctx: any, o: { space: string; brain: string; ve
 const FILE_LINE_RULES = `You write one line saying what a file holds, for the list of a project's files.
 Below: the file's name, then one line a section: id | title | summary.
 Reply with only JSON: {"line":""}
-- One sentence of at most 25 words: what the file is and what it covers, with its main names, numbers and dates. Only what is given. Write it in English. No em-dashes.`;
+- One sentence of at most 25 words: what the file is and what it covers, with its main names, numbers and dates. Only what is given. Write it in English. ${NO_DASH}`;
 
 /**
  * Once a file is read in: its line (what it is, for the map of the project's files) and its meaning (each section embedded, so a
@@ -206,7 +207,7 @@ const ABOUT_RULES = `You write the memory notes of a file, so a project knows wh
 Below: the file's name and kind, then its words or its contents.
 Reply with only JSON: {"notes":[{"title":"The file","update":"","claim":"","position":"","summaryLine":""}]}
 - The first note: "title" exactly "The file". "claim": one sentence saying what the file is and what it covers. "position": 3 to 6 sentences. What it is, who or what it covers, its main numbers and dates, and where each topic sits, by section title or page. "summaryLine": what the file is, in under 15 words.
-- Only what is given. Never guess. Write it in English. No em-dashes.`;
+- Only what is given. Never guess. Write it in English. ${NO_DASH}`;
 
 /** Asked of a long file, after the note on the file: one note a topic, each saying where it sits. */
 const TOPIC_RULES = `
@@ -263,7 +264,7 @@ Below: the file's name when it came from a file, then its words.
 Reply with only JSON: {"notes":[{"title":"","claim":"","position":"","summaryLine":""}]}
 - One note for each topic, at most 8, the one that matters most first. "title": 2 to 6 words naming the topic. "claim": one sentence with its numbers. "position": the instruction itself, in 1 to 3 sentences, with every number, name, limit and word to use or to avoid as written. "summaryLine": under 15 words.
 - Keep what the owner wrote. Never add a rule, never soften one, never join two different limits. Never guess.
-- Write it in English, and keep a word the owner wants used or avoided in its own language. No em-dashes.`;
+- Write it in English, and keep a word the owner wants used or avoided in its own language. ${NO_DASH}`;
 
 /** What the owner's instructions may add to a message, in characters: the notes that fit, in the order they were filed. */
 export const RULES_MAX = 2400;
@@ -315,7 +316,7 @@ Below: the resource's name when it came from a file, then its words.
 Reply with only JSON: {"notes":[{"title":"","claim":"","position":"","summaryLine":""}]}
 - One note for each fact, rule, definition, figure or decision that a question could ask for, at most 8, the one that matters most first. "title": 2 to 6 words naming the topic. "claim": one sentence with its numbers. "position": what the resource says about it, in 1 to 4 sentences, with every number, name and date as written. "summaryLine": under 15 words.
 - Keep what the resource says. Never add a fact, never guess. Leave out menus, decoration and repetition.
-- Write it in English. No em-dashes.`;
+- Write it in English. ${NO_DASH}`;
 
 /**
  * A resource the owner dropped into the project, read into notes in its memory: a document, a text or the words of a page, with a
@@ -349,7 +350,7 @@ Reply with only JSON: {"brief":""}
 - 4 to 8 lines. Each starts with a label and a colon, from this list: Goal, Audience, Tone and format, Always, Never, Speak up when. Leave a label out when the owner said nothing for it.
 - Use the owner's own words, numbers and names. Never add a rule, never soften one, never invent a fact.
 - Write instructions to the chat, in the imperative ("Quote prices in euros"). Under 250 words.
-- Write it in the language the owner answered in. No em-dashes.`;
+- Write it in the language the owner answered in. ${NO_DASH}`;
 
 /**
  * The Brief, written from the owner's answers to five questions: one model call. The owner reads it, edits it and saves it; nothing is
@@ -684,7 +685,7 @@ HOW TO ANSWER
 - Every number, name and date comes from what you were given. Never invent one.
 - "enough": true when the answer rests on what you were given, or when the message asks you to write, change, judge or talk from the owner's own words. false only when the question asks for a fact, a figure, a name or a decision that THE FILE, PROJECT MEMORY and THEIR FOLDERS do not hold. Then "tldr" says in one sentence what is missing, and "reply" asks the owner to drop a resource that holds it: a document, a link or a text, added from Memory.
 - Name where each point comes from, in the words of the answer: a page ("p. 3"), a section title, rows ("rows 4, 5, 10") or a folder.
-- No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
+- ${STYLE} Say what holds rather than what does not.
 - Plain sentences, one idea a line. **Bold** only a key number or name. A short list only for options or steps. No headings.
 ${english ? "- Write in English, whatever language the question is in." : "- Write in the language of the question."}
 

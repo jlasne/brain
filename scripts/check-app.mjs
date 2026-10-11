@@ -1725,12 +1725,18 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click("#micBtn"); await page.evaluate(() => window.__say(["bonjour", "bonjour à tous"])); await page.waitForTimeout(700);
   const run = await page.evaluate(() => ({ value: document.getElementById("input").value, starts: window.__voice.length, continuous: window.__voice.at(-1)?.continuous,
     on: document.getElementById("micBtn").classList.contains("on") }));
-  check("on Android the mic listens one phrase at a time, again until two runs in a row hear nothing, and the words come out once",
-    run.value === "bonjour à tous" && run.continuous === false && run.starts === 4 && !run.on, JSON.stringify(run));
+  check("on Android the mic listens one phrase a run, starts the next run at once, and the words come out once",
+    run.value === "bonjour à tous" && run.continuous === false && run.starts >= 4 && run.on, JSON.stringify(run));
+  await page.evaluate(() => window.__say(["et merci"])); await page.waitForTimeout(400);
+  check("a phrase in a later run joins what came before, once", await page.inputValue("#input") === "bonjour à tous et merci", await page.inputValue("#input"));
+  await page.waitForTimeout(10300);
+  const quiet = await page.evaluate(() => ({ value: document.getElementById("input").value, on: document.getElementById("micBtn").classList.contains("on"), strip: !!document.querySelector(".vstrip") }));
+  check("10 seconds with nothing new heard end it, and every word heard stays", quiet.value === "bonjour à tous et merci" && !quiet.on && !quiet.strip, JSON.stringify(quiet));
+  const before = await page.evaluate(() => window.__voice.length);
   await page.click("#micBtn"); await page.waitForTimeout(40);
   await page.click("#micBtn"); await page.waitForTimeout(250);
   const stopped = await page.evaluate(() => ({ starts: window.__voice.length, on: document.getElementById("micBtn").classList.contains("on") }));
-  check("a tap on the mic stops it for good: it never starts again by itself", stopped.starts === 5 && !stopped.on, JSON.stringify(stopped));
+  check("a tap on the mic stops it for good: it never starts again by itself", stopped.starts === before + 1 && !stopped.on, JSON.stringify({ before, ...stopped }));
   check("nothing threw on the phone's mic", !bad.length, bad.join(" | "));
   await page.close();
 }
@@ -1767,11 +1773,29 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const on = await page.evaluate(() => ({ value: document.getElementById("input").value, on: document.getElementById("micBtn").classList.contains("on"),
     pressed: document.getElementById("micBtn").getAttribute("aria-pressed"), hint: document.getElementById("tHint").textContent, lang: window.__voice[0]?.lang }));
   check("once picked, the mic listens in it, says which, and writes after what was typed", on.value === "Quick one: what do my brains say on sleep"
-    && on.on && on.pressed === "true" && on.hint === "Listening in English. Tap the mic to stop." && on.lang === "en-US", JSON.stringify(on));
+    && on.on && on.pressed === "true" && on.hint === "Listening in English. Tap Done when you finish." && on.lang === "en-US", JSON.stringify(on));
   await page.click("#micBtn"); await page.waitForTimeout(80);
   const off = await page.evaluate(() => ({ on: document.getElementById("micBtn").classList.contains("on"), send: document.getElementById("send").disabled,
     hint: document.getElementById("tHint").textContent }));
   check("a second tap stops it, and the words wait to be sent", !off.on && !off.send && off.hint === "", JSON.stringify(off));
+  /* the strip over the bar: how long it listens, Cancel and Done */
+  await page.fill("#input", "Typed:");
+  await page.click("#micBtn"); await page.waitForTimeout(150);
+  const strip = await page.evaluate(() => { const s = document.querySelector(".vstrip"), b = document.querySelector(".box").getBoundingClientRect(), r = s?.getBoundingClientRect();
+    return { t: s?.querySelector(".vs-t").textContent, time: s?.querySelector(".vs-time").textContent, btns: [...(s?.querySelectorAll("button") || [])].map(x => x.textContent).join(","), above: !!r && r.bottom <= b.top + 1 }; });
+  check("while it listens, a strip over the bar says what it listens in and for how long, with Cancel and Done",
+    strip.t === "Listening in English" && strip.time === "0:00" && strip.btns === "Cancel,Done" && strip.above, JSON.stringify(strip));
+  await page.click(".vstrip .vs-x"); await page.waitForTimeout(80);
+  const cancelled = await page.evaluate(() => ({ value: document.getElementById("input").value, on: document.getElementById("micBtn").classList.contains("on"), strip: !!document.querySelector(".vstrip") }));
+  check("Cancel keeps nothing heard: the box goes back to what was typed, and the strip goes", cancelled.value === "Typed:" && !cancelled.on && !cancelled.strip, JSON.stringify(cancelled));
+  await page.click("#micBtn"); await page.waitForTimeout(150);
+  await page.click(".vstrip .vs-ok"); await page.waitForTimeout(80);
+  const done = await page.evaluate(() => ({ value: document.getElementById("input").value, on: document.getElementById("micBtn").classList.contains("on"), strip: !!document.querySelector(".vstrip") }));
+  check("Done keeps the words heard, after what was typed", done.value === "Typed: what do my brains say on sleep" && !done.on && !done.strip, JSON.stringify(done));
+  await page.click("#micBtn"); await page.waitForTimeout(150);
+  await page.focus("#input"); await page.keyboard.press("End"); await page.keyboard.type("?"); await page.waitForTimeout(60);
+  const typed = await page.evaluate(() => ({ value: document.getElementById("input").value, on: document.getElementById("micBtn").classList.contains("on") }));
+  check("a key typed while it listens stops it, and the box keeps both", typed.value === "Typed: what do my brains say on sleep what do my brains say on sleep?" && !typed.on, JSON.stringify(typed));
 
   /* French: set once in Settings, then the mic in the folded bar. */
   check("the bar carries no language chip: the voice language lives in Settings", await page.evaluate(() => !document.getElementById("voiceLang")));
@@ -1784,9 +1808,10 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelector(".veil")?.remove());
   await page.fill("#input", ""); await page.evaluate(() => document.activeElement?.blur()); await page.waitForTimeout(250);
   check("the bar rests folded", await page.evaluate(() => document.querySelector(".composer-wrap").classList.contains("compact")));
+  const n0 = await page.evaluate(() => window.__voice.length);
   await page.click("#micBtn"); await page.waitForTimeout(150);
   const heard = await page.evaluate(() => ({ lang: window.__voice.at(-1)?.lang, n: window.__voice.length, hint: document.getElementById("tHint").textContent }));
-  check("a tap on the mic in the folded bar starts it, listening in French", heard.n === 2 && heard.lang === "fr-FR" && heard.hint === "Listening in French. Tap the mic to stop.", JSON.stringify(heard));
+  check("a tap on the mic in the folded bar starts it, listening in French", heard.n === n0 + 1 && heard.lang === "fr-FR" && heard.hint === "Listening in French. Tap Done when you finish.", JSON.stringify(heard));
   await page.click("#micBtn"); await page.waitForTimeout(80);
   await page.evaluate(() => document.getElementById("dropBtn").click()); await page.waitForTimeout(60);
   check("a drop takes a source, so the mic steps aside", await page.evaluate(() => document.getElementById("micBtn").hidden));
@@ -2367,7 +2392,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
-/* ---- still open: an icon beside the inbox counts every person's open lines; a comment on each, one send ---- */
+/* ---- still open, in the inbox: the oldest lines with a tick each, the whole list a tap away; a comment on each, one send ---- */
 {
   const card = (slug, title, open) => ({ brain: "me", slug, n: 1, title, summaryLine: "A person", tag: "contact", ev: 1, updated: "2026-10-04", ...(open === undefined ? {} : { open }) });
   const mine = (open) => ({ ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "", owner: null }],
@@ -2377,7 +2402,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     window.__calls = [];
     let people = [
       { id: "me/marc", title: "Marc Dupont", line: "Your co-founder", items: [{ k: "k1", t: "Send Marc the contract", at: "2026-09-01" }, { k: "k2", t: "Introduce Marc to Paul", at: "2026-09-20" }] },
-      { id: "me/paul", title: "Paul", line: "Someone you will introduce to Marc", items: [{ k: "k3", t: "Pay Paul's invoice", at: "2026-10-01" }] }];
+      { id: "me/paul", title: "Paul", line: "Someone you will introduce to Marc", items: [{ k: "k3", t: "Pay Paul's invoice", at: new Date().toISOString().slice(0, 10) }] }];
     let fail = true, live = false;
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
@@ -2398,16 +2423,41 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       return Response.json({ chats: [] });
     };
   }, state);
+  /* The inbox: the 3 oldest lines, a tick each, and the list a tap away. Its number counts a line once it is a week old. */
+  const inboxStill = pg => pg.evaluate(() => {
+    const g = [...document.querySelectorAll("#inbox .ib-g")].find(x => x.querySelector("h4")?.textContent === "Still open");
+    return { rows: g ? [...g.querySelectorAll(".ib-still .ib-t")].map(x => x.textContent) : null, since: g?.querySelector(".ib-still .ib-s")?.textContent,
+      more: g ? [...g.querySelectorAll(".ib-it .ib-t")].map(x => x.textContent).join("|") : "", badge: Number(document.getElementById("inboxN").textContent || 0) };
+  });
+  {
+    const a = await boot2(mine({ marc: 2, paul: 1, lea: 0 }));
+    await a.page.waitForTimeout(500);
+    check("no icon of its own beside the inbox", await a.page.evaluate(() => !document.getElementById("stillBtn") && !document.querySelector(".still-btn")));
+    check("the lines are read once at the start, with no model", await a.page.evaluate(() => JSON.stringify(window.__calls.filter(x => x.s.includes("/api/personal/open")).map(x => x.body.action || "list"))) === '["list"]');
+    await a.page.click("#inboxBtn"); await a.page.waitForTimeout(200);
+    const s0 = await inboxStill(a.page);
+    check("the inbox lists the oldest lines first, each with its person, and a row to the whole list",
+      JSON.stringify(s0.rows) === '["Marc Dupont: Send Marc the contract","Marc Dupont: Introduce Marc to Paul","Paul: Pay Paul\'s invoice"]' && /^Open since /.test(s0.since || "")
+      && s0.more === "Comment on a line", JSON.stringify(s0));
+    await a.page.click("#inbox .ib-still .pf-tick >> nth=0"); await a.page.waitForTimeout(250);
+    const s1 = await inboxStill(a.page);
+    const call = await a.page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/personal/contact")).pop()?.body);
+    check("a tick in the inbox closes a line at once, with no model, and a line a week old leaves the count",
+      call?.action === "part" && call?.key === "k1" && call?.done === true && JSON.stringify(s1.rows) === '["Marc Dupont: Introduce Marc to Paul","Paul: Pay Paul\'s invoice"]' && s1.badge === s0.badge - 1,
+      JSON.stringify({ call, s1, before: s0.badge }));
+    await a.page.click("#inbox .ib-still .pf-tick >> nth=1"); await a.page.waitForTimeout(250);
+    const s2 = await inboxStill(a.page);
+    check("a line opened today was never in the count", JSON.stringify(s2.rows) === '["Marc Dupont: Introduce Marc to Paul"]' && s2.badge === s1.badge, JSON.stringify(s2));
+    check("nothing threw in the inbox's open lines", !a.bad.length, a.bad.join(" | "));
+    await a.page.close();
+  }
   const { page, bad } = await boot2(mine({ marc: 2, paul: 1, lea: 0 }));
   await page.waitForTimeout(500);
-  const icon = await page.evaluate(() => { const b = document.getElementById("stillBtn"), i = document.getElementById("inboxBtn"); return { hidden: b.hidden, n: document.getElementById("stillN").textContent,
-    label: b.getAttribute("aria-label"), left: b.getBoundingClientRect().right <= i.getBoundingClientRect().left, same: Math.abs(b.getBoundingClientRect().top - i.getBoundingClientRect().top) < 2 }; });
-  check("an icon beside the inbox counts every open line of every person, from their cards", !icon.hidden && icon.n === "3" && /3 lines/.test(icon.label) && icon.left && icon.same, JSON.stringify(icon));
-  check("no call reads the files for it, since every card carries its count", !(await page.evaluate(() => window.__calls.some(x => x.s.includes("/api/personal/open")))));
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent))?.querySelector(".ed.op")?.click());
   await page.waitForTimeout(350);
   check("the personal folder keeps its own actions: no Still open button there", await page.evaluate(() => !document.getElementById("fvOpen")));
-  await page.click("#stillBtn"); await page.waitForTimeout(300);
+  await page.click("#inboxBtn"); await page.waitForTimeout(200);
+  await page.click("#inbox .ib-it.still"); await page.waitForTimeout(300);
   const first = await page.evaluate(() => ({ title: document.querySelector('[aria-label="Still open"] h3')?.textContent, n: document.querySelector(".op-n")?.textContent,
     people: [...document.querySelectorAll(".op-p")].map(p => p.querySelector(".op-h b").textContent + ":" + [...p.querySelectorAll(".op-row .pf-orow span")].map(x => x.textContent).join("|")),
     inputs: document.querySelectorAll(".op-in").length, since: document.querySelector(".op-row time")?.textContent, send: document.getElementById("opSend").disabled }));
@@ -2422,45 +2472,51 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     await page.setViewportSize({ width: w, height: h });
     /* The sheet is still settling after the resize: look until its bar is down, for a second at most. */
     await page.waitForFunction(() => { const f = document.querySelector(".op-sheet > footer"); return !!f && Math.abs(f.getBoundingClientRect().bottom - innerHeight) < 2; }, null, { timeout: 1500 }).catch(() => {});
-    const ph = await page.evaluate(() => { const f = document.querySelector(".op-sheet > footer").getBoundingClientRect(), s = document.getElementById("stillBtn").getBoundingClientRect(),
+    const ph = await page.evaluate(() => { const f = document.querySelector(".op-sheet > footer").getBoundingClientRect(),
       i = document.getElementById("inboxBtn").getBoundingClientRect(), t = document.querySelector(".op-row .pf-tick").getBoundingClientRect(), n = document.querySelector(".op-row .op-in");
-      return { wide: document.documentElement.scrollWidth > innerWidth, pinned: Math.abs(f.bottom - innerHeight) < 2, apart: s.right <= i.left, size: Math.min(s.width, s.height, i.width, i.height),
+      return { wide: document.documentElement.scrollWidth > innerWidth, pinned: Math.abs(f.bottom - innerHeight) < 2, size: Math.min(i.width, i.height),
         font: parseFloat(getComputedStyle(n).fontSize), inH: n.getBoundingClientRect().height, send: document.getElementById("opSend").getBoundingClientRect().height, tick: t.width }; });
-    check(`on a ${w}px phone the Send updates bar stays at the bottom, the icons are 40px and apart, the comment box is 46px at 16px, and nothing scrolls sideways`,
-      !ph.wide && ph.pinned && ph.apart && ph.size >= 40 && ph.font >= 16 && ph.inH >= 46 && ph.send >= 48, JSON.stringify(ph));
+    check(`on a ${w}px phone the Send updates bar stays at the bottom, the inbox is 40px, the comment box is 46px at 16px, and nothing scrolls sideways`,
+      !ph.wide && ph.pinned && ph.size >= 40 && ph.font >= 16 && ph.inH >= 46 && ph.send >= 48, JSON.stringify(ph));
   }
   await page.setViewportSize(vp); await page.waitForTimeout(150);
   await page.click("#opSend"); await page.waitForTimeout(400);
   const one = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/personal/open") && x.body.action === "send").pop()?.body,
     say: document.getElementById("opSay")?.textContent, keep: document.querySelector('.op-row[data-k="k2"] .op-in')?.value,
-    left: [...document.querySelectorAll(".op-row")].map(r => r.dataset.k).join(","), badge: document.getElementById("stillN").textContent }));
+    left: [...document.querySelectorAll(".op-row")].map(r => r.dataset.k).join(",") }));
   check("one send carries every comment with its person and line, and nothing else", one.sent?.brain === "me" && JSON.stringify(one.sent.updates) ===
     JSON.stringify([{ id: "me/marc", k: "k1", comment: "Signed on Tuesday, he invoices in November" }, { id: "me/marc", k: "k2", comment: "Done, they met on Friday" }]), JSON.stringify(one.sent));
-  check("it says what changed, the line closed leaves, the one passed over keeps its comment to send again, and the icon counts what is left",
-    /1 done, 1 follow-up added, 1 moment added to a history\. 1 line did not go through: send again\./.test(one.say || "") && one.left === "k2,k3" && one.keep === "Done, they met on Friday" && one.badge === "2", JSON.stringify(one));
+  check("it says what changed, the line closed leaves, and the one passed over keeps its comment to send again",
+    /1 done, 1 follow-up added, 1 moment added to a history\. 1 line did not go through: send again\./.test(one.say || "") && one.left === "k2,k3" && one.keep === "Done, they met on Friday", JSON.stringify(one));
   await page.click("#opSend"); await page.waitForTimeout(400);
   const two = await page.evaluate(() => ({ n: document.querySelector(".op-n")?.textContent, say: document.getElementById("opSay")?.textContent,
-    sent: window.__calls.filter(x => x.s.includes("/api/personal/open") && x.body.action === "send").pop()?.body.updates.length, badge: document.getElementById("stillN").textContent }));
-  check("sent again, it goes through, and what is left is listed and counted", two.sent === 1 && two.n === "1 open line, 1 person" && /^1 still open\.$/.test(two.say || "") && two.badge === "1", JSON.stringify(two));
+    sent: window.__calls.filter(x => x.s.includes("/api/personal/open") && x.body.action === "send").pop()?.body.updates.length }));
+  check("sent again, it goes through, and what is left is listed and counted", two.sent === 1 && two.n === "1 open line, 1 person" && /^1 still open\.$/.test(two.say || ""), JSON.stringify(two));
   await page.click(".op-row .pf-tick"); await page.waitForTimeout(300);
-  const tick = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s.includes("/api/personal/contact")).pop()?.body, empty: document.getElementById("opList")?.textContent,
-    icon: document.getElementById("stillBtn").hidden }));
-  check("a tick closes a line at once, with no model, an empty list says so, and the icon goes", tick.call?.action === "part" && tick.call?.part === "open" && tick.call?.key === "k3" && tick.call?.done === true
-    && /Nothing open/.test(tick.empty || "") && tick.icon, JSON.stringify(tick));
+  const tick = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s.includes("/api/personal/contact")).pop()?.body, empty: document.getElementById("opList")?.textContent }));
+  await page.click("#opDone"); await page.waitForTimeout(150);
+  await page.click("#inboxBtn"); await page.waitForTimeout(200);
+  const gone = await inboxStill(page);
+  check("a tick closes a line at once, with no model, an empty list says so, and the inbox has nothing still open", tick.call?.action === "part" && tick.call?.part === "open" && tick.call?.key === "k3" && tick.call?.done === true
+    && /Nothing open/.test(tick.empty || "") && gone.rows === null, JSON.stringify({ tick, gone }));
   check("nothing threw around the open lines", !bad.length, bad.join(" | "));
   await page.close();
 
   /* Cards made before the count existed read it once, and are healed. */
   const old = await boot2(mine(undefined));
   await old.page.waitForTimeout(600);
-  const healed = await old.page.evaluate(() => ({ calls: window.__calls.filter(x => x.s.includes("/api/personal/open")).map(x => x.body.action || "list"), n: document.getElementById("stillN").textContent, hidden: document.getElementById("stillBtn").hidden }));
-  check("cards with no count are read once from the files, and the icon shows the total", JSON.stringify(healed.calls) === '["list"]' && healed.n === "3" && !healed.hidden, JSON.stringify(healed));
+  const healed = await old.page.evaluate(() => ({ calls: window.__calls.filter(x => x.s.includes("/api/personal/open")).map(x => x.body.action || "list") }));
+  await old.page.click("#inboxBtn"); await old.page.waitForTimeout(200);
+  const oldRows = (await inboxStill(old.page)).rows;
+  check("cards with no count are read once from the files, and the inbox lists their lines", JSON.stringify(healed.calls) === '["list"]' && oldRows?.length === 3, JSON.stringify({ healed, oldRows }));
   check("nothing threw healing the count", !old.bad.length, old.bad.join(" | "));
   await old.page.close();
   /* Nothing open: no icon, no call. */
   const none = await boot2(mine({ marc: 0, paul: 0, lea: 0 }));
   await none.page.waitForTimeout(500);
-  check("with nothing open there is no icon and no read", await none.page.evaluate(() => document.getElementById("stillBtn").hidden && !window.__calls.some(x => x.s.includes("/api/personal/open"))));
+  const noRead = await none.page.evaluate(() => !window.__calls.some(x => x.s.includes("/api/personal/open")));
+  await none.page.click("#inboxBtn"); await none.page.waitForTimeout(200);
+  check("with nothing open there is no read and no Still open in the inbox", noRead && (await inboxStill(none.page)).rows === null);
   await none.page.close();
 }
 
@@ -4448,7 +4504,7 @@ for (const space of ["octopus", "squidgy"]) {
   const on = await page.evaluate(() => ({ value: document.querySelector(".pj-comp textarea").value, on: document.querySelector(".pj-mic").classList.contains("on"), pressed: document.querySelector(".pj-mic").getAttribute("aria-pressed"),
     label: document.querySelector(".pj-mic").getAttribute("aria-label"), line: document.querySelector(".pj-vh").textContent, shown: !document.querySelector(".pj-vh").hidden, lang: window.__voice[0]?.lang, send: document.querySelector(".pj-send").disabled }));
   check("a tap listens in the language picked in Settings, says which, lights up, and writes after what was typed, with Send ready", on.value === "Quick one: what is the goal" && on.on && on.pressed === "true" && on.label === "Stop talking"
-    && on.line === "Listening in French. Tap the mic to stop." && on.shown && on.lang === "fr-FR" && !on.send, JSON.stringify(on));
+    && on.line === "Listening in French. Tap Done when you finish." && on.shown && on.lang === "fr-FR" && !on.send, JSON.stringify(on));
   await page.click(".pj-mic"); await page.waitForTimeout(80);
   const off = await page.evaluate(() => ({ value: document.querySelector(".pj-comp textarea").value, on: document.querySelector(".pj-mic").classList.contains("on"), line: document.querySelector(".pj-vh").hidden, focus: document.activeElement === document.querySelector(".pj-comp textarea"), send: document.querySelector(".pj-send").disabled }));
   check("a second tap stops it: the words stay, the line goes, the cursor is in the field, and the words wait to be sent", off.value === "Quick one: what is the goal" && !off.on && off.line && off.focus && !off.send, JSON.stringify(off));
@@ -4994,7 +5050,7 @@ for (const space of ["octopus", "squidgy"]) {
 
   /* light by default, dark from Settings, and back */
   const l0 = await page.evaluate(dark);
-  check("with no choice made the page follows the device, here light", l0.theme === "" && lum(l0.bg) > 600, JSON.stringify(l0));
+  check("with no choice made the page follows the device, here light", l0.theme === "light" && lum(l0.bg) > 600, JSON.stringify(l0));
   await page.click("#keyBtn"); await page.waitForTimeout(250);
   const seg = await page.evaluate(() => ({ opts: [...document.querySelectorAll("#themePick button")].map(b => b.textContent + ":" + b.getAttribute("aria-checked")).join(","), focusIn: !!document.activeElement?.closest(".veil") }));
   check("Settings offers System, Light and Dark, System on", seg.opts === "System:true,Light:false,Dark:false", seg.opts);
@@ -5008,7 +5064,7 @@ for (const space of ["octopus", "squidgy"]) {
   const d2 = await page.evaluate(dark);
   check("Light turns it back", d2.theme === "light" && lum(d2.bg) > 600, JSON.stringify(d2));
   await page.click('#themePick button[data-v="system"]'); await page.waitForTimeout(100);
-  check("System forgets the choice and follows the device again", await page.evaluate(() => !document.documentElement.dataset.theme && localStorage.getItem("octopus.theme") === null));
+  check("System forgets the choice and follows the device again", await page.evaluate(() => document.documentElement.dataset.theme === "light" && localStorage.getItem("octopus.theme") === null));
   /* Restore: an export picked here is sent whole, and what came back is said */
   const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.click("#setRestore")]);
   await chooser.setFiles({ name: "octopus-brains-2026-10-01.md", mimeType: "text/markdown", buffer: Buffer.from("# MAP\n\n| Brain | Type | Concepts | Scope |\n|---|---|---|---|\n| brain-subject-wealth | subject | 1 | money |\n") });
@@ -5045,8 +5101,72 @@ for (const space of ["octopus", "squidgy"]) {
   await again.page.close();
   const sys = await mk();
   await sys.page.emulateMedia({ colorScheme: "dark" }); await sys.page.waitForTimeout(200);
-  check("with System, a device set to dark gets the dark page", await sys.page.evaluate(() => !document.documentElement.dataset.theme && (getComputedStyle(document.body).backgroundColor.match(/\d+/g) || []).slice(0, 3).map(Number).reduce((a, b) => a + b, 0) < 120));
+  check("with System, a device set to dark gets the dark page", await sys.page.evaluate(() => document.documentElement.dataset.theme === "dark" && (getComputedStyle(document.body).backgroundColor.match(/\d+/g) || []).slice(0, 3).map(Number).reduce((a, b) => a + b, 0) < 120));
   await sys.page.close();
+}
+
+
+/* ---- every screen size: no sideways scroll, no text under 12 pixels, a finger's room on touch, the chat bar in its place ---- */
+{
+  const names = ["Content strategy and distribution", "Wealth", "Aswath Damodaran", "Pricing", "Health"];
+  const st = { ...STATE, brains: names.map(n => ({ slug: n.toLowerCase().replace(/[^a-z]+/g, "-"), name: n, type: "subject", scope: "s", owner: null })),
+    concepts: names.flatMap(n => [1, 2].map(k => ({ brain: n.toLowerCase().replace(/[^a-z]+/g, "-"), slug: "c" + k, n: k, title: "Concept " + k, summaryLine: "l" }))) };
+  const chats = Array.from({ length: 9 }, (_, i) => ({ id: "k" + i, title: "Question " + i, brain: "all", pinned: i === 0, updated: Date.now() - i * 1000, turns: 1 }));
+  const open = async (w, h, touch) => {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const page = await ctx.newPage(); const bad = [];
+    page.on("pageerror", e => bad.push(e.message));
+    await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+    await page.addInitScript(([st, chats]) => { sessionStorage.setItem("octopus.token.v1", "t");
+      window.fetch = async u => String(u).includes("/api/state") ? Response.json(st) : Response.json({ chats }); }, [st, chats]);
+    await page.goto(ORIGIN + "/chat.html", { waitUntil: "domcontentloaded" }); await page.waitForTimeout(600);
+    return { ctx, page, bad };
+  };
+  const SIZES = [[320, 568, true], [360, 740, true], [390, 844, true], [430, 932, true], [844, 390, true], [768, 1024, true], [1024, 768, true], [1440, 900, false], [2560, 1440, false]];
+  const wide = [], tiny = [];
+  for (const [w, h, touch] of SIZES){
+    const { ctx, page, bad } = await open(w, h, touch);
+    const r = await page.evaluate(() => ({ over: document.documentElement.scrollWidth - innerWidth,
+      tiny: [...document.querySelectorAll("body *")].filter(e => { const s = getComputedStyle(e); const r = e.getBoundingClientRect();
+        return r.width > 0 && s.visibility !== "hidden" && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && parseFloat(s.fontSize) > 0 && parseFloat(s.fontSize) < 12; }).length }));
+    if (r.over > 0) wide.push(`${w}x${h}`);
+    if (r.tiny) tiny.push(`${w}x${h}:${r.tiny}`);
+    if (bad.length) tiny.push(`${w}x${h} threw ${bad[0]}`);
+    await ctx.close();
+  }
+  check("at 9 sizes from 320 to 2,560 pixels the page never scrolls sideways", !wide.length, wide.join(", "));
+  check("and no text on screen is under 12 pixels", !tiny.length, tiny.join(", "));
+
+  /* a 320 pixel phone: the questions to try clear the chat bar, and the picker shows its mark rather than one letter */
+  { const { ctx, page } = await open(320, 568, true);
+    const m = await page.evaluate(() => ({ last: document.querySelector(".zero .try button:last-child")?.getBoundingClientRect().bottom,
+      bar: document.querySelector(".composer-wrap .box").getBoundingClientRect().top, label: getComputedStyle(document.getElementById("scopeVal")).display,
+      mark: document.getElementById("scopeMark").getBoundingClientRect().width }));
+    check("on a 320 x 568 phone the three questions to try sit above the chat bar, and the picker shows its mark whole", m.last <= m.bar && m.label === "none" && m.mark >= 16, JSON.stringify(m));
+    await ctx.close(); }
+
+  /* a phone held sideways: the field and its buttons share one row */
+  { const { ctx, page } = await open(844, 390, true);
+    await page.click("#input"); await page.waitForTimeout(250);
+    const b = await page.evaluate(() => ({ h: Math.round(document.querySelector(".composer-wrap .box").getBoundingClientRect().height), screen: innerHeight }));
+    check("on a phone held sideways the open chat bar is one row, at most 64 pixels of the 390", b.h <= 64, JSON.stringify(b));
+    await ctx.close(); }
+
+  /* a tablet in landscape: the desktop layout, with every side panel control a finger's size */
+  { const { ctx, page } = await open(1024, 768, true);
+    const t = await page.evaluate(() => [...document.querySelectorAll("aside button, aside [role=button], aside a[href]")].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < innerHeight; })
+      .map(e => { const r = e.getBoundingClientRect(), a = getComputedStyle(e, "::after"); const pad = a.content !== "none" && a.position === "absolute" ? 2 * Math.max(0, -parseFloat(a.top) || 0) : 0;
+        return { id: e.id || e.className, h: Math.round(Math.min(r.width, r.height) + pad) }; }).filter(x => x.h < 40));
+    check("on a tablet in landscape every control of the side panel is at least 40 pixels", !t.length, JSON.stringify(t));
+    await ctx.close(); }
+
+  /* the side panel: five chats, then See all */
+  { const { ctx, page } = await open(1440, 900, false);
+    const a = await page.evaluate(() => ({ rows: document.querySelectorAll("#chats .chat-row").length, more: document.querySelector("#chats .side-more")?.textContent }));
+    await page.click("#chats .side-more"); await page.waitForTimeout(100);
+    const b = await page.evaluate(() => ({ rows: document.querySelectorAll("#chats .chat-row").length, more: document.querySelector("#chats .side-more")?.textContent }));
+    check("the side panel shows 5 chats and See all, which opens the other 4 and folds back", a.rows === 5 && a.more === "See all 9" && b.rows === 9 && b.more === "Show fewer", JSON.stringify({ a, b }));
+    await ctx.close(); }
 }
 
 await browser.close();

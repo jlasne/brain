@@ -38,6 +38,7 @@ import {
 } from "./twin";
 import type { RoundQ } from "./twin";
 import type { Marks } from "./twin";
+import { STYLE, SHORT_STYLE } from "./style";
 
 const router = httpRouter();
 
@@ -961,7 +962,7 @@ ${learning
 - Then a blank line, then one line: "Sources: {author}, {date} - {author}, {date}" listing only sources you used. Omit that line if you used none.
 ${english ? "- Write in English, whatever language the question is in. The sources line stays as it is."
   : "- Write in the language of the QUESTION: a question in French gets French, one in English gets English. The stored knowledge is in English; translate what you use, numbers and names kept as they are. The sources line stays as it is."}
-- No em-dashes. Under 30 words per sentence. Replace adjectives with data. No weasel words. Simple wording. Say what holds rather than what does not.
+- ${STYLE} Say what holds rather than what does not.
 - ALWAYS ANSWER WITH WHAT IS HELD, even when it is partial. Lead with the closest thing the stored knowledge says on the subject: how the term is used, what it sits beside, the method it belongs to, the related figures. A short partial answer beats a refusal.
 - When the question asks what a named term, formula or rule is, and the stored knowledge uses it without spelling it out, give its textbook form on one line that starts "General knowledge, not from your sources:". Only that one line comes from outside, and never a figure, a date or a view.
 - AT MOST ONE SENTENCE about what is missing, as the last line before the sources, naming the kind of source that would fill it. Never open with it, never list what is absent, never write that you cannot answer.
@@ -1193,7 +1194,7 @@ ${isPerson ? "- This is a PERSON folder: name that person throughout." : "- Neve
 - Only what the concept below holds. Never invent evidence.
 - When the question goes beyond this concept, say in one sentence that this chat covers ${c.title} alone and that the main chat reads every folder.
 - Then a blank line, then one line: "Sources: {author}, {date} - {author}, {date}" listing only the evidence you used. Omit it if you used none.
-- No em-dashes. Under 30 words per sentence. Simple wording. No file paths.
+- ${SHORT_STYLE} Simple wording. No file paths.
 ${earlier ? `
 EARLIER IN THIS CHAT (context only, never a source)
 ${earlier}
@@ -1616,7 +1617,7 @@ export const MERGE_RULES =
 
 - "position": the person's summary, 3 to 6 sentences, written to the owner as "you": who the person is to you, how you met, their work and city, what matters most about them now. Their full history and facts stay in their file; this is the summary on top of it. When two facts disagree, state the newer one.
 - "summaryLine": who they are to you, under 15 words.
-- Only what the cards and the mentions say. Write in the language asked below. No em-dashes. Under 30 words per sentence.
+- Only what the cards and the mentions say. Write in the language asked below. ${SHORT_STYLE}
 
 Reply with only JSON: {"position":"","summaryLine":""}`;
 
