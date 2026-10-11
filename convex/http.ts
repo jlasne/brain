@@ -19,7 +19,7 @@ import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from 
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, translatePage, langOf, DOC_TYPES } from "./onepager";
 import type { DocType } from "./onepager";
-import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine, isCloser, threadOf, priorOf, checkSources, askKey, poolPrint, INDEX_SHORT, NEAR_SHORT, NEAR_NEEDED, NEAR_FLOOR, PRIOR_MAX } from "./words";
+import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine, isCloser, threadOf, priorOf, checkSources, askKey, poolPrint, SHORT_READ, INDEX_SHORT, NEAR_SHORT, NEAR_NEEDED, NEAR_FLOOR, PRIOR_MAX } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
 import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, writeBrief, gapsOf, readBlocks } from "./project";
@@ -58,7 +58,7 @@ const router = httpRouter();
 type Caller = Who & { demo: boolean; byok: boolean; key?: string; visitor: string | null; wsName: string;
   /* The models this workspace picked in Settings, or null for the defaults,
      and its languages: what the personal folder keeps, how answers come back. */
-  models: { chat: string | null; reply?: string; voice?: string | null;
+  models: { chat: string | null; reply?: string; voice?: string | null; depth?: string;
     /* Favourite models, when the workspace has them: the cheapest of them is the one in `chat`. */
     favs?: string[]; favAt?: number | null; favPrices?: { id: string; price: number }[] } };
 const KEY_RE = /^sk-or-[A-Za-z0-9_-]{20,200}$/;
@@ -79,7 +79,7 @@ async function gate(ctx: any, body: any, opts: { ownerOnly?: boolean } = {}): Pr
   const byok = ws?.kind === "byok";
   const k = String(body?.key ?? "").trim();
   /* The demo always runs on the defaults. */
-  const models = demo ? { chat: null, reply: "same", voice: null } : await ctx.runQuery(internal.store.modelsOf, { space: who.space });
+  const models = demo ? { chat: null, reply: "same", voice: null, depth: "long" } : await ctx.runQuery(internal.store.modelsOf, { space: who.space });
   return { ...who, kind: "owner", demo, byok, models, visitor: demo ? who.visitor : null, wsName: ws?.name ?? spaceName(who.space),
     key: byok ? (KEY_RE.test(k) ? k : undefined) : ws?.kind === "demo" ? (process.env.DEMO_OPENROUTER_API_KEY || undefined) : undefined };
 }
@@ -444,7 +444,7 @@ route("/api/state", async (ctx, _req, b) => {
   const projects = who.demo ? [] : await ctx.runQuery(internal.projects.projectsOf, { space: who.space });
   /* The model in use, and the default Settings offers to go back to. */
   const models = { chat: who.models.chat || MODEL, chatDefault: MODEL,
-    reply: who.models.reply === "en" ? "en" : "same", voice: who.models.voice ?? null,
+    reply: who.models.reply === "en" ? "en" : "same", voice: who.models.voice ?? null, depth: who.models.depth === "short" ? "short" : "long",
     ...(who.models.favs?.length ? { favs: who.models.favs, favAt: who.models.favAt ?? null, favPrices: who.models.favPrices ?? [] } : {}) };
   return { ...s, projects, model: models.chat, models, chunk: CHUNK,
            space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand };
@@ -468,11 +468,13 @@ route("/api/models", async (ctx, _req, b) => {
   /* The languages: how answers come back, and the one the mic listens in. */
   const reply = "reply" in b ? (b.reply === "en" ? "en" : "same") : undefined;
   const voice = "voice" in b ? (b.voice ? String(b.voice) : null) : undefined;
-  if (chat === undefined && !reply && voice === undefined) return { error: "say which model or language to change" };
+  /* How much a Normal answer reads: short or long. */
+  const depth = "depth" in b ? (b.depth === "short" ? "short" : "long") : undefined;
+  if (chat === undefined && !reply && voice === undefined && !depth) return { error: "say which model, language or answer length to change" };
   const r = await ctx.runMutation(internal.store.setModels, { space: who.space,
     ...(chat !== undefined ? { chat: chat === MODEL ? null : chat, favs: null } : {}),
-    ...(reply ? { reply } : {}), ...(voice !== undefined ? { voice } : {}) });
-  return { chat: r.chat || MODEL, reply: r.reply, voice: r.voice, favs: r.favs ?? null };
+    ...(reply ? { reply } : {}), ...(voice !== undefined ? { voice } : {}), ...(depth ? { depth } : {}) });
+  return { chat: r.chat || MODEL, reply: r.reply, voice: r.voice, depth: r.depth, favs: r.favs ?? null };
 });
 
 /**
@@ -867,7 +869,9 @@ async function folderChat(ctx: any, who: Caller, b: any, every: any, only: strin
   /* The same question, asked the same way, on folders that have not changed since: the answer given then, for no model call. A follow-up
      reads its thread, so only a question that opens a chat is given again. */
   const fresh = !(Array.isArray(b.history) && b.history.length) && q.trim().length >= 3;
-  const cacheKey = fresh ? askKey({ q, scope: many ? scoped.map((x: any) => x.slug).sort().join(",") : only ?? "all", tags, level, lang: english ? "en" : "same", model: mName ?? MODEL }) : "";
+  /* Short, set in Settings: a Normal answer reads its 12 best concepts within 30,000 characters. Educational and Learning read in full. */
+  const brief = who.models?.depth === "short" && level === "normal";
+  const cacheKey = fresh ? askKey({ q, scope: many ? scoped.map((x: any) => x.slug).sort().join(",") : only ?? "all", tags, level: brief ? "normal/short" : level, lang: english ? "en" : "same", model: mName ?? MODEL }) : "";
   const fp = fresh ? poolPrint(pool, concepts) : "";
   if (fresh) {
     const hit = await ctx.runQuery(internal.store.answerGet, { space: who.space, key: cacheKey }).catch(() => null);
@@ -891,8 +895,8 @@ async function folderChat(ctx: any, who: Caller, b: any, every: any, only: strin
   const plan = planDossier(pool, concepts, q, b.history, { ...route, routed: judged(route, short), ran: route.routed, near: open, ...(route.routed ? {} : { prior }) });
   const notHeld = heldNothing(route, open, plan);
   const whole = await ctx.runQuery(internal.store.conceptsByIds,
-    { space: who.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
-  const pick = writeDossier(pool, plan, new Map(whole.map((c: any) => [idOf(c), c])));
+    { space: who.space, ids: plan.lead.slice(0, brief ? 24 : OPEN_READ).map(idOf) });
+  const pick = writeDossier(pool, plan, new Map(whole.map((c: any) => [idOf(c), c])), brief ? SHORT_READ : {});
   /* What follows from the opened concepts and the ones they link to across
      folders: derived, and said so. */
   const derived: any[] = pick.opened.length ? await ctx.runQuery(internal.graph.insightsFor, { space: who.space, ids: pick.opened.map(idOf) }) : [];

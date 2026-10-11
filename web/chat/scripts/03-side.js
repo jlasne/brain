@@ -86,6 +86,7 @@ function markOf(){
 function paintSpace(){
   document.documentElement.dataset.space = S.space;
   try { sessionStorage.setItem(SPACE_KEY, S.space); } catch {}
+  if (INSTALLED) try { localStorage.setItem("octopus.app.space", S.space); } catch {}
   document.title = S.spaceName;
   $("spaceName").textContent = S.spaceName;
   $("spaceNameBar").textContent = S.spaceName;

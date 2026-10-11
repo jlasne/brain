@@ -97,6 +97,9 @@ export function rankConcepts(concepts: any[], words: string[], brains: any[] = [
    and up to 40 more named by title within 4,000. About 16,000 tokens at most,
    whatever the size of the brains behind it. */
 export const FULL_MAX = 30, FULL_CHARS = 60000, TITLE_MAX = 40, TITLE_CHARS = 4000;
+/* What a Normal answer reads in Short, set in Settings: its 12 best concepts within 30,000 characters, and 25 more by title. About a third
+   of a question's cost. */
+export const SHORT_READ = { fullMax: 12, fullChars: 30000, titleMax: 25, titleChars: 2500 };
 /**
  * When the router picked concepts, those open first, then the ones named in the question, the nearest in meaning and the ones they link to; a
  * concept that only shares a word with the question fills the dossier up to this many concepts in all, no more. Loose matches were most of

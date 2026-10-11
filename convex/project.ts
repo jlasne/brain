@@ -39,8 +39,9 @@ import { STYLE, NO_DASH } from "./style";
 
 /* ---------- reading a file in ---------- */
 
-const SUMMARY_RULES = `You write one line of the contents list of a long file, for the section below.
-Reply with only JSON: {"title":"","summary":""}
+const SUMMARY_RULES = `You write the lines of the contents list of a long file, one for each numbered section below.
+Reply with only JSON: {"lines":[{"n":1,"title":"","summary":""}]}
+- One line for each section, with "n" its number.
 - "title": 2 to 8 words naming what the section is about. Keep the section's own heading when it has one.
 - "summary": one sentence of at most 25 words with the main facts, names and numbers a reader would look for here. Write it in English.
 - ${NO_DASH}`;
@@ -50,36 +51,48 @@ const pageSuffix = (text: string) => {
   return p ? ` (${p.from === p.to ? "p. " + p.from : `pp. ${p.from} to ${p.to}`})` : "";
 };
 
+/** Sections written up in one call: the rules and the instructions are sent once for all of them. */
+const LINES_A_CALL = 4;
+
 /**
- * A title and a one line summary for each section, six at a time. A section
- * the model fails on keeps the title and the opening words it already has, so
- * a busy model never stops a file from being read.
+ * A title and a one line summary for each section, four sections a call, six
+ * calls at a time. A section the model fails on, or leaves out of its reply,
+ * keeps the title and the opening words it already has, so a busy model never
+ * stops a file from being read.
  */
 export async function summarise(parts: Part[], o: { key?: string; model?: string; meter?: (u: any) => void }): Promise<{ title: string; summary: string }[]> {
   const out: { title: string; summary: string }[] = parts.map(p => ({ title: p.title, summary: openingOf(p.text) }));
+  const batches: number[][] = [];
+  for (let i = 0; i < parts.length; i += LINES_A_CALL) batches.push(parts.slice(i, i + LINES_A_CALL).map((_, k) => i + k));
+  const one = (t: any, n: number) => String(t ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, n);
   let next = 0;
   const worker = async () => {
     for (;;) {
-      const i = next++;
-      if (i >= parts.length) return;
-      const p = parts[i];
+      const batch = batches[next++];
+      if (!batch) return;
       try {
+        const sections = batch.map((i, k) => `SECTION ${k + 1}\n${parts[i].text.slice(0, SECTION_CHARS + 2000)}`).join("\n\n");
         const { text, finish, usage } = await ask([
           { role: "system", content: "You write contents lines for long files. You reply with JSON only." },
-          { role: "user", content: `${SUMMARY_RULES}\n\nSECTION\n${p.text.slice(0, SECTION_CHARS + 2000)}` },
-        ], { json: true, maxTokens: 300, timeout: 60000, temperature: 0, key: o.key, model: o.model });
+          { role: "user", content: `${SUMMARY_RULES}\n\n${sections}` },
+        ], { json: true, maxTokens: 150 + 250 * batch.length, timeout: 90000, temperature: 0, key: o.key, model: o.model });
         o.meter?.(usage);
         const d = parseJson(String(text), finish);
-        const one = (t: any, n: number) => String(t ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, n);
-        const headed = /^#{1,3}\s+\S/m.test(withoutPages(p.text));
-        const title = headed ? p.title : one(d?.title, 90) || p.title;
-        out[i] = { title: title + (headed ? "" : pageSuffix(p.text)), summary: one(d?.summary, 220) || out[i].summary };
+        const lines: any[] = Array.isArray(d?.lines) ? d.lines : [];
+        batch.forEach((i, k) => {
+          const line = lines.find(l => Number(l?.n) === k + 1);
+          if (!line) { console.log(`a section kept its opening words: the reply had no line ${k + 1}`); return; }
+          const p = parts[i];
+          const headed = /^#{1,3}\s+\S/m.test(withoutPages(p.text));
+          const title = headed ? p.title : one(line.title, 90) || p.title;
+          out[i] = { title: title + (headed ? "" : pageSuffix(p.text)), summary: one(line.summary, 220) || out[i].summary };
+        });
       } catch (e: any) {
-        console.log(`a section kept its opening words: ${String(e?.message ?? e).slice(0, 140)}`);
+        console.log(`${batch.length} section${batch.length === 1 ? "" : "s"} kept their opening words: ${String(e?.message ?? e).slice(0, 140)}`);
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(6, parts.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(6, batches.length) }, worker));
   return out;
 }
 

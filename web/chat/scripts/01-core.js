@@ -3,6 +3,12 @@
 
 const API = window.OCTOPUS_API;
 const TOKEN_KEY = "octopus.token.v1";
+/* Running as an installed app, from the home screen or the dock, rather than in a browser tab. */
+const INSTALLED = (() => { try { return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch { return false; } })();
+/* The browser's own install prompt, kept for Settings, Install: it comes once, before anything asks for it. */
+var installAsk = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installAsk = e; });
+window.addEventListener("appinstalled", () => { installAsk = null; });
 /* A workspace's own model key, in a workspace made on the visitor's key. It
    is kept in this browser, one per workspace, until Sign out forgets it. It
    travels only with the calls that spend a model, and the server keeps no

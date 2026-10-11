@@ -447,7 +447,7 @@ async function boot(path, init, arg) {
   await page.waitForTimeout(150);
   const setup = await page.evaluate(() => ({ model: document.querySelector("#setModel .val")?.textContent,
     exp: !!document.getElementById("setExport"), order: [...document.querySelectorAll(".sheet .set-row button")].map(b => b.id).join(",") }));
-  check("Settings holds the model, the export and Restore; Audit has its own section", setup.order === "setModel,setExport,setRestore" && setup.model === "model"
+  check("Settings holds the model, the export, Restore and App; Audit has its own section", setup.order === "setModel,setExport,setRestore,setInstall" && setup.model === "model"
     && await page.evaluate(() => !!document.getElementById("auditBlock") && !document.getElementById("setTidy")), JSON.stringify(setup));
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#setExport")]);
   const { readFileSync } = await import("node:fs");
@@ -5033,6 +5033,7 @@ for (const space of ["octopus", "squidgy"]) {
         if (path === "/api/health") return J({ conflicted: [], health: arg.state.brains.map(b => ({ slug: b.slug, score: 7.4, best: "Keep feeding it.", parts: {} })) });
         if (path === "/api/project/list") return J({ projects: [] });
         if (path === "/api/restore") { window.__restore = JSON.parse(opt?.body || "{}"); return J({ brains: { added: 1, kept: 2, skipped: 0 }, concepts: { added: 40, kept: 3, skipped: 0 }, sources: { added: 12, kept: 0 }, linking: 40 }); }
+        if (path === "/api/models") { window.__models = JSON.parse(opt?.body || "{}"); return J({ chat: "m/x", reply: "same", voice: null, depth: window.__models.depth }); }
         return J({ chats: [{ id: "c1", title: "A chat", brain: "all", pinned: false, updated: Date.now(), n: 1 }] });
       };
     }, { state, theme: opts.theme || "" });
@@ -5071,6 +5072,19 @@ for (const space of ["octopus", "squidgy"]) {
   await page.waitForTimeout(300);
   const rsd = await page.evaluate(() => ({ sent: window.__restore?.text?.slice(0, 5), msg: document.getElementById("restoreMsg").textContent }));
   check("Restore sends the export picked and says what it added and what it kept", rsd.sent === "# MAP" && rsd.msg === "Restored 1 folder, 40 concepts and 12 sources. 5 already here, kept as they are. Their links follow in a minute.", JSON.stringify(rsd));
+  /* Answers: Long unless Short was picked, and the pick is saved for the workspace */
+  const dp0 = await page.evaluate(() => ({ on: document.querySelector("#depthPick .on")?.dataset.v, msg: document.getElementById("depthMsg").textContent }));
+  check("Answers is Long by default and says how much a Normal answer reads", dp0.on === "long" && /^Long: a Normal answer reads up to 30 concepts/.test(dp0.msg), JSON.stringify(dp0));
+  await page.click('#depthPick button[data-v="short"]'); await page.waitForTimeout(200);
+  const dp1 = await page.evaluate(() => ({ sent: window.__models?.depth, on: document.querySelector("#depthPick .on")?.dataset.v, msg: document.getElementById("depthMsg").textContent }));
+  check("Short is sent, turns on, and says it reads 12 concepts", dp1.sent === "short" && dp1.on === "short" && /12 best concepts/.test(dp1.msg), JSON.stringify(dp1));
+  /* App: where to tap with no browser prompt, and the browser's prompt when it gave one */
+  await page.click("#setInstall"); await page.waitForTimeout(100);
+  check("App with no browser prompt says where to tap on this device", /Chrome or Edge|Safari|Android/.test(await page.textContent("#restoreMsg")), await page.textContent("#restoreMsg"));
+  await page.evaluate(() => { const e = new Event("beforeinstallprompt"); e.prompt = async () => { window.__prompted = true; }; e.userChoice = Promise.resolve({ outcome: "accepted" }); window.dispatchEvent(e); });
+  await page.click("#setInstall"); await page.waitForTimeout(150);
+  const ins = await page.evaluate(() => ({ prompted: !!window.__prompted, msg: document.getElementById("restoreMsg").textContent }));
+  check("App with the browser's prompt opens it and says where Tasu now opens", ins.prompted && /^Installed\. Tasu opens from your home screen or dock/.test(ins.msg), JSON.stringify(ins));
   await page.keyboard.press("Escape"); await page.waitForTimeout(150);
   check("Escape closes Settings and the focus goes back to the button that opened it", await page.evaluate(() => !document.querySelector(".veil") && document.activeElement?.id === "keyBtn"));
 

@@ -238,7 +238,9 @@ globalThis.fetch = async (_u, opt) => {
   const sys = String(body.messages[0].content), user = String(body.messages[body.messages.length - 1].content);
   sent.push({ sys, user, model: body.model });
   let out;
-  if (/You write contents lines/.test(sys)) out = JSON.stringify({ title: "About " + user.split("SECTION\n")[1].split(/\s+/).slice(0, 2).join(" "), summary: "Covers " + user.split("SECTION\n")[1].split(/\s+/).slice(0, 5).join(" ") + "." });
+  if (/You write contents lines/.test(sys)) { if (reply.linesFail) return new Response("busy", { status: 503 });
+    const secs = [...user.matchAll(/SECTION (\d+)\n([\s\S]*?)(?=\n\nSECTION \d+\n|$)/g)].filter(m => !(reply.dropLine && +m[1] === reply.dropLine));
+    out = JSON.stringify({ lines: secs.map(m => ({ n: +m[1], title: "About " + m[2].split(/\s+/).slice(0, 2).join(" "), summary: "Covers " + m[2].split(/\s+/).slice(0, 5).join(" ") + "." })) }); }
   else if (/You route a project's questions/.test(sys)) out = JSON.stringify(typeof reply.route === "function" ? reply.route(user) : reply.route ?? { intent: "ask", sections: [], query: null, folders: [], terms: [] });
   else if (/You route questions to the right entries/.test(sys)) { if (reply.routerFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.folders ?? { picks: [], terms: [] }); }
   else if (/You are the chat of a project/.test(sys)) out = typeof reply.answer === "function" ? reply.answer(user) : JSON.stringify(reply.answer ?? { reply: "ok", proposal: false, quotes: [], edits: [] });
@@ -276,6 +278,22 @@ const added2 = await project.addDocPiece(W.ctx, { space: SPACE, brain: slugP, ve
 check("a long document is cut in sections of at most 12,000 characters, piece after piece", added1.sections >= 2 && added2.sections > added1.sections && W.T.projectSections.every(x => x.text.length <= 12000), JSON.stringify([added1, added2]));
 check("every section has a contents line from the model", W.T.projectCards.every(c => /^About /.test(c.title) && /^Covers /.test(c.summary)), JSON.stringify(W.T.projectCards[0]));
 check("the words of the file are kept, none lost", W.T.projectSections.map(x => x.text).join("\n\n") === longDoc);
+{
+  /* Contents lines four sections a call: the rules go once for the four, and a line missing from a reply leaves that section its opening words. */
+  const parts = Array.from({ length: 9 }, (_, i) => ({ title: `Part ${i + 1}`, text: `Body ${i + 1} ` + "word ".repeat(20) }));
+  const before = sent.length;
+  const lines = await project.summarise(parts, {});
+  const calls = sent.slice(before).filter(m => /You write contents lines/.test(m.sys));
+  check("9 sections are written up in 3 calls of at most 4, each line back on its own section",
+    calls.length === 3 && calls.every(c => (c.user.match(/^SECTION \d+$/gm) || []).length <= 4) && lines.every((l, i) => l.title === `About Body ${i + 1}` && /^Covers Body /.test(l.summary)), JSON.stringify(lines.slice(0, 2)));
+  reply.dropLine = 2;
+  const gap = await project.summarise(parts.slice(0, 4), {});
+  check("a section the reply leaves out keeps its title and its opening words, the others get their lines", gap[1].title === "Part 2" && /^Body 2/.test(gap[1].summary) && gap[0].title === "About Body 1" && gap[3].title === "About Body 4", JSON.stringify(gap));
+  reply.dropLine = 0; reply.linesFail = true;
+  const down = await project.summarise(parts.slice(0, 5), {});
+  check("a model that is down leaves every section its title and opening words, and the file is still read", down.every((l, i) => l.title === `Part ${i + 1}` && /^Body /.test(l.summary)), JSON.stringify(down[0]));
+  reply.linesFail = false;
+}
 const fin = await project.finishFile(W.ctx, { space: SPACE, brain: slugP, ver: begin.ver });
 let got = await W.ctx.runQuery("projects.projectGet", { space: SPACE, brain: slugP });
 check("the file opens once the last piece is in", got.file.status === "ready" && got.file.sections === fin.sections && got.cards.length === fin.sections && got.file.chars === W.T.projectSections.reduce((n, x) => n + x.text.length, 0));
@@ -2707,6 +2725,22 @@ const docProject = async (w, name, text, kind = "doc") => {
   check("once anything it could read changes, even in another folder it reads, the question is asked afresh", sent.length > s0);
   changed.position = was;
   KEEP_ANSWERS = false;
+
+  /* Answers, Short or Long: set in Settings for the workspace. Short: a Normal answer reads its 12 best concepts. */
+  const openedN = () => (last(/You are the user's own knowledge base, answering from what it holds/).user.match(/^### /gm) || []).length;
+  reply = { usage: price, kb: "Money ideas hold.", folders: { picks: Array.from({ length: 40 }, (_, i) => i + 1), terms: ["money"] } };
+  await call("/api/ask", { q: "What do we know about money ideas?", brain: "all" });
+  const longN = openedN();
+  const setS = await call("/api/models", { depth: "short" });
+  await call("/api/ask", { q: "What do we know about money ideas?", brain: "all" });
+  const shortN = openedN();
+  await call("/api/ask", { q: "What do we know about money ideas?", brain: "all", level: "educational" });
+  const eduN = openedN();
+  check("Settings saves Short for the workspace, and the state carries it", setS.depth === "short" && (await call("/api/state")).models.depth === "short", JSON.stringify(setS));
+  check("in Short a Normal answer reads at most its 12 best concepts; Long reads up to 30; Educational reads in full either way",
+    shortN > 0 && shortN <= 12 && longN > 12 && eduN > 12, JSON.stringify({ longN, shortN, eduN }));
+  await call("/api/models", { depth: "long" });
+  check("Long is the default it goes back to", (await call("/api/state")).models.depth === "long");
 
   /* everything that asks a model is counted, by kind */
   reply = { usage: price, kb: "ok" };

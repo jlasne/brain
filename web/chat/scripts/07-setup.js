@@ -7,6 +7,14 @@
  * and what the transcript service has cost. The deployment's key pays for
  * every model call, so there is no key to set here.
  */
+/** Where to tap to install Tasu, for a browser that gives no prompt of its own. */
+function installSteps(){
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return "On iPhone and iPad: in Safari, tap Share, then Add to Home Screen.";
+  if (/Android/.test(ua)) return "On Android: in Chrome, open the menu, then Install app or Add to Home screen.";
+  if (/Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome|Edg/.test(ua)) return "On a Mac: in Safari, open File, then Add to Dock.";
+  return "In Chrome or Edge: the install icon at the right of the address bar, or the menu, then Install Tasu.";
+}
 async function openSetupSheet(opts = {}){
   if (opts instanceof Event) opts = {};
   closeSide();
@@ -24,11 +32,17 @@ async function openSetupSheet(opts = {}){
           <span class="lbl">Export</span><span class="val">markdown</span></button>
         <button class="foot-btn" id="setRestore" title="Read an export back: the folders, concepts and sources this workspace is missing are added, and what it holds is kept" ${S.demo ? "hidden" : ""}>
           <span class="lbl">Restore</span><span class="val">from an export</span></button>
+        <button class="foot-btn" id="setInstall" title="Tasu on this device's home screen or dock, in a window of its own">
+          <span class="lbl">App</span><span class="val">${INSTALLED ? "installed" : "install"}</span></button>
       </div>
       <div class="hint" id="restoreMsg" role="status" style="margin:4px 0 0"></div>
       <div class="f lang-row theme-row" style="margin-top:10px"><span>Appearance</span>
         <div class="seg" id="themePick" role="radiogroup" aria-label="Light or dark">
           <button type="button" role="radio" data-v="system">System</button><button type="button" role="radio" data-v="light">Light</button><button type="button" role="radio" data-v="dark">Dark</button></div></div>
+      <div class="f lang-row theme-row" style="margin-top:10px" ${S.demo ? "hidden" : ""}><span>Answers</span>
+        <div class="seg" id="depthPick" role="radiogroup" aria-label="How much an answer reads">
+          <button type="button" role="radio" data-v="short">Short</button><button type="button" role="radio" data-v="long">Long</button></div></div>
+      <div class="hint" id="depthMsg" role="status" style="margin:4px 0 0" ${S.demo ? "hidden" : ""}></div>
 
       <details class="f sh-fold" id="auditBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${S.demo ? "hidden" : ""}>
         <summary><span>Audit</span><b id="auditSum" class="sh-count"></b></summary>
@@ -330,6 +344,36 @@ async function openSetupSheet(opts = {}){
   const paintTheme = () => { for (const x of themeSeg.children){ const on = x.dataset.v === themeOf(); x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); } };
   paintTheme();
   themeSeg.onclick = e => { const x = e.target.closest("button[data-v]"); if (!x) return; setTheme(x.dataset.v); paintTheme(); };
+  /* Answers, Short or Long: how much a Normal answer reads, saved for the workspace. */
+  const depthSeg = veil.querySelector("#depthPick"), depthMsg = veil.querySelector("#depthMsg");
+  const DEPTH_SAY = { short: "Short: a Normal answer reads its 12 best concepts, for about a third less a question. Educational and Learning read in full.",
+    long: "Long: a Normal answer reads up to 30 concepts, for questions that pull many sources together." };
+  const depthNow = () => S.models?.depth === "short" ? "short" : "long";
+  const paintDepth = () => { for (const x of depthSeg.children){ const on = x.dataset.v === depthNow(); x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }
+    depthMsg.textContent = DEPTH_SAY[depthNow()]; };
+  paintDepth();
+  depthSeg.onclick = async e => {
+    const x = e.target.closest("button[data-v]");
+    if (!x || x.dataset.v === depthNow()) return;
+    depthMsg.textContent = "Saving";
+    try { const r = await api("/api/models", { depth: x.dataset.v }); S.models = { ...(S.models || {}), depth: r.depth }; paintDepth(); }
+    catch (err) { depthMsg.textContent = err.message; }
+  };
+  /* Install: the browser's own prompt where it gives one; elsewhere, where to tap; once installed, where it is. */
+  const inst = veil.querySelector("#setInstall"), instMsg = veil.querySelector("#restoreMsg");
+  inst.onclick = async () => {
+    if (INSTALLED){ instMsg.textContent = "Tasu runs as an app on this device, from its home screen or dock."; return; }
+    if (installAsk){
+      const ask = installAsk; installAsk = null;
+      try {
+        await ask.prompt();
+        const r = await ask.userChoice;
+        instMsg.textContent = r?.outcome === "accepted" ? "Installed. Tasu opens from your home screen or dock, in a window of its own." : "Install skipped. Tap App again when you want it.";
+      } catch { instMsg.textContent = installSteps(); }
+      return;
+    }
+    instMsg.textContent = installSteps();
+  };
   const langSeg = (id, key, def, said) => {
     const seg = veil.querySelector("#" + id), msg = veil.querySelector("#langMsg");
     const now = () => key === "voice" ? voiceLang() : (S.models?.[key] || def);

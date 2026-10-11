@@ -105,5 +105,32 @@ for (const page of pages) {
   if (ok) console.log(`  ok   ${page}  (${scripts.length} script block${scripts.length === 1 ? "" : "s"}, ${asked.size} elements)`);
 }
 
+/* The install manifest. A phone that cannot parse it, or finds an icon
+   missing or the wrong size, offers no install and says nothing. */
+{
+  const at = "manifest.webmanifest";
+  let ok = true;
+  let m = null;
+  try { m = JSON.parse(readFileSync(join(APP, at), "utf8")); }
+  catch (e) { ok = false; fail(at, "is not valid JSON: " + e.message); }
+  if (m) {
+    for (const key of ["name", "short_name", "start_url", "display"]) if (!m[key]) { ok = false; fail(at, `has no ${key}`); }
+    const icons = m.icons ?? [];
+    /* A PNG's width and height sit at bytes 16 to 24 of its header. */
+    const size = file => { const b = readFileSync(file); return `${b.readUInt32BE(16)}x${b.readUInt32BE(20)}`; };
+    for (const need of ["192x192", "512x512"]) if (!icons.some(i => i.sizes === need && i.type === "image/png")) { ok = false; fail(at, `has no ${need} PNG icon`); }
+    for (const i of icons) {
+      const file = join(APP, i.src.replace(/^\//, ""));
+      let real = null;
+      try { real = i.type === "image/png" ? size(file) : (readFileSync(file), i.sizes); }
+      catch { ok = false; fail(at, `points at ${i.src}, which is missing`); continue; }
+      if (real !== i.sizes) { ok = false; fail(at, `says ${i.src} is ${i.sizes}, the file is ${real}`); }
+    }
+  }
+  const chat = readFileSync(join(APP, "chat.html"), "utf8");
+  if (!chat.includes(`<link rel="manifest" href="/${at}">`)) { ok = false; fail("chat.html", "does not link the install manifest"); }
+  if (ok) console.log(`  ok   ${at}  (${m.icons.length} icons)`);
+}
+
 console.log(failures ? `\n${failures} problem${failures === 1 ? "" : "s"}` : "\nall pages clean");
 process.exit(failures ? 1 : 0);

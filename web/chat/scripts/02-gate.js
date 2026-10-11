@@ -12,6 +12,11 @@ const cap = t => String(t || "").charAt(0).toUpperCase() + String(t || "").slice
  * The workspace this address asks for: /chat?w=octopus. An empty w asks for
  * one by name. With no w at all the tab keeps what it holds, so null.
  */
+/** The workspace an installed app opened last: the app opens on it, behind its passphrase. A browser tab goes by its address. */
+function appSpace(){
+  if (!INSTALLED) return null;
+  try { const s = localStorage.getItem("octopus.app.space") || ""; return /^[a-z0-9][a-z0-9-]{1,31}$/.test(s) ? s : null; } catch { return null; }
+}
 function askedSpace(){
   let q;
   try { q = new URLSearchParams(location.search); } catch { return null; }
@@ -117,7 +122,7 @@ function deadScreen(why) {
 /* ============ boot ============ */
 (async () => {
   render(); sizeBox();                       // the shell paints straight away
-  const w = askedSpace(), held = sessionStorage.getItem(SPACE_KEY) || "";
+  const w = askedSpace() ?? appSpace(), held = sessionStorage.getItem(SPACE_KEY) || "";
   if (S.space) { S.spaceName = KNOWN_NAMES[S.space] || titleCase(S.space); paintSpace(); }
   let saved = sessionStorage.getItem(TOKEN_KEY);
   /* An address that names another workspace than the one this tab holds
