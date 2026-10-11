@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="2480 checks passing" src="https://img.shields.io/badge/checks-2480%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="2488 checks passing" src="https://img.shields.io/badge/checks-2488%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="Installs on phone and desktop" src="https://img.shields.io/badge/app-phone%20and%20desktop-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -148,7 +148,7 @@ A third kind of folder, next to subjects and experts. You talk to it, and it kee
 
 Files, tables and pages, with a chat beside them and a memory of their own.
 
-- **Start from a file, or from a blank.** Word, PDF, text, Markdown, HTML, Excel or CSV. Or pick a type and describe it: the chat writes it from your words and your folders.
+- **Start from up to 3 files, or from a blank.** Drop them on New project, or choose them: Word, PDF, text, Markdown, HTML, Excel or CSV. Or pick a type and describe it: the chat writes it from your words and your folders.
 - **Up to 30 files** as tabs. The chat changes the open file and reads the others.
 - **Changes you can undo.** A change to a file you dropped waits for your click. A change to a file made here applies at once. Each has Undo.
 - **A Brief, if you want one.** Who the chat is, the goal, the audience and the rules, up to 6,000 characters. Type it, add a file, or answer 5 questions by voice.
@@ -244,7 +244,7 @@ The app's source sits in `web/chat/`, one file a screen. `npm run build` joins i
 
 ```bash
 npm run build     # web/chat into app/chat.html
-npm run check     # the build first, then 2480 checks
+npm run check     # the build first, then 2488 checks
 npm run deploy    # the server, to Convex
 ```
 
@@ -258,7 +258,7 @@ skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a folder
 ```
 
-`npm run check` runs 2480 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, projects, and the app itself in a real browser at 9 screen sizes.
+`npm run check` runs 2488 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, projects, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 

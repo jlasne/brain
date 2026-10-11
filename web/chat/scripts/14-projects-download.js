@@ -566,6 +566,13 @@ function pickFile(accept, then){
   document.body.append(inp); inp.click();
 }
 
+/** Several files picked at once. */
+function pickFiles(accept, then){
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = accept; inp.multiple = true; inp.hidden = true;
+  inp.onchange = () => { const files = [...(inp.files || [])]; inp.remove(); if (files.length) then(files); };
+  document.body.append(inp); inp.click();
+}
+
 /** A file picked for the open project: read here, filed in sections. */
 function chooseFile(){ pickFile(PJ_FILES, file => fillProject(S.pj.slug, file, S.pj.fid || 1)); }
 
@@ -684,15 +691,19 @@ async function fillProject(slug, file, fid = 1){
   }
 }
 
-/** New project: a name, the file it updates (one you have, or one started from nothing), and a Brief when there is one. */
+/** Files a new project starts with. More join from the project's + once it is open, up to 30. */
+const NEW_FILES = 3;
+
+/** New project: a name, up to 3 files dropped or chosen (or a blank to start from), and a Brief when there is one. */
 function openProjectSheet(){
   closeSide();
   const veil = el("div","veil");
   veil.innerHTML = `<div class="sheet roomy" role="dialog" aria-modal="true" aria-labelledby="npTitle">
-    <header><h3 id="npTitle">New project</h3><p>One file, table or page, with a chat beside it and a memory of its own. Only this project and your personal folder read that memory.</p></header>
+    <header><h3 id="npTitle">New project</h3><p>Files, tables and pages, with a chat beside them and a memory of its own. Only this project and your personal folder read that memory.</p></header>
     <div class="f"><label for="npName">Name</label><input id="npName" autocomplete="off" maxlength="60" placeholder="New project"></div>
-    <div class="f"><label>The file to update</label>
-      <div class="pj-make"><button class="ghost" id="npPick" type="button">Choose a file</button><button class="ghost" data-make="doc" type="button">Document</button><button class="ghost" data-make="table" type="button">Table</button><button class="ghost" data-make="html" type="button">HTML page</button></div>
+    <div class="f np-drop" id="npDrop"><label>Files <span class="pj-opt">up to ${NEW_FILES}, optional</span></label>
+      <div class="pj-make"><button class="ghost" id="npPick" type="button">Choose files</button><button class="ghost" data-make="doc" type="button">Document</button><button class="ghost" data-make="table" type="button">Table</button><button class="ghost" data-make="html" type="button">HTML page</button></div>
+      <div class="np-list" id="npList"></div>
       <div class="hint" id="npFile"></div></div>
     <div class="f"><label>Brief <span class="pj-opt">optional</span></label>
       <div class="pj-rules" id="npRules"></div>
@@ -700,44 +711,72 @@ function openProjectSheet(){
     <div class="f"><div class="pj-step" id="npStep" role="status"></div><div class="bad" id="npBad"></div></div>
     <footer><button class="ghost" id="npCancel" type="button">Cancel</button><button class="go" id="npMake" type="button">Create project</button></footer></div>`;
   document.body.append(veil);
-  const name = veil.querySelector("#npName"), pick = veil.querySelector("#npPick"), fileEl = veil.querySelector("#npFile"),
-        stepEl = veil.querySelector("#npStep"), bad = veil.querySelector("#npBad"), make = veil.querySelector("#npMake"), cancel = veil.querySelector("#npCancel");
+  const name = veil.querySelector("#npName"), pick = veil.querySelector("#npPick"), fileEl = veil.querySelector("#npFile"), listEl = veil.querySelector("#npList"),
+        dropEl = veil.querySelector("#npDrop"), stepEl = veil.querySelector("#npStep"), bad = veil.querySelector("#npBad"), make = veil.querySelector("#npMake"), cancel = veil.querySelector("#npCancel");
   const start = veil.querySelectorAll("[data-make]");
-  /* The file to update is one thing: a file chosen, or a type to start from nothing, or neither, and the chat picks the type. */
-  let file = null, kind = "", busy = false, typed = false;
+  /* Up to 3 files, or a blank to start from, or neither, and the chat picks the type. The first file is the one the project opens on. */
+  let files = [], kind = "", busy = false, typed = false, over = "";
   const rules = instructionsField(veil.querySelector("#npRules"));
   rules.ta.id = "npRulesText"; rules.add.id = "npRulesAdd"; rules.count.id = "npRulesCount";
   const sync = () => {
-    pick.classList.toggle("on", !!file); pick.setAttribute("aria-pressed", String(!!file));
+    pick.classList.toggle("on", files.length > 0); pick.setAttribute("aria-pressed", String(files.length > 0));
+    pick.textContent = files.length >= NEW_FILES ? `${NEW_FILES} files chosen` : files.length ? "Add files" : "Choose files";
+    pick.disabled = busy || files.length >= NEW_FILES;
     start.forEach(b => { b.classList.toggle("on", b.dataset.make === kind); b.setAttribute("aria-pressed", String(b.dataset.make === kind)); });
-    fileEl.textContent = file ? file.name : kind ? `An empty ${pjNoun(kind)}. Describe it in the chat, from your words and your folders. Every change can be undone.`
-      : "Word, PDF, text, Markdown, HTML, Excel or CSV, of any length. Or start from nothing and describe it in the chat: with no type, the chat picks one.";
+    listEl.innerHTML = "";
+    files.forEach((f, i) => {
+      const row = el("div","np-f"); row.append(el("span",null,f.name));
+      const x = el("button","np-x","×"); x.type = "button"; x.setAttribute("aria-label", `Remove ${f.name}`); x.disabled = busy;
+      x.onclick = () => { files.splice(i, 1); over = ""; sync(); };
+      row.append(x); listEl.append(row);
+    });
+    fileEl.textContent = (files.length === 1 ? "The project opens on it."
+      : files.length ? `The project opens on ${files[0].name}. The chat reads all ${files.length}.`
+      : kind ? `An empty ${pjNoun(kind)}. Describe it in the chat, from your words and your folders. Every change can be undone.`
+      : `Drop up to ${NEW_FILES} files here, or choose them: Word, PDF, text, Markdown, HTML, Excel or CSV, of any length. Or start from a blank and describe it in the chat: with no type, the chat picks one.`)
+      + (over ? " " + over : "");
+  };
+  /* Files join the list once each, up to 3. What is left over is said, with where to add it later. */
+  const add = more => {
+    if (busy || !more.length) return;
+    const seen = new Set(files.map(f => `${f.name}|${f.size}`));
+    const fresh = more.filter(f => !seen.has(`${f.name}|${f.size}`));
+    const room = NEW_FILES - files.length, kept = fresh.slice(0, Math.max(0, room));
+    over = fresh.length > kept.length ? `${fresh.length - kept.length} more left out: a new project takes ${NEW_FILES}. Add them from its + once it is open.` : "";
+    if (!kept.length){ sync(); return; }
+    files = files.concat(kept); kind = "";
+    if (!typed || !name.value.trim()) name.value = files[0].name.replace(/\.[^.]+$/, "").slice(0, 60);
+    sync();
   };
   const shut = () => { if (!busy) veil.remove(); };
   name.oninput = () => { typed = true; };
-  pick.onclick = () => pickFile(PJ_FILES, f => {
-    file = f; kind = "";
-    if (!typed || !name.value.trim()) name.value = f.name.replace(/\.[^.]+$/, "").slice(0, 60);
-    sync();
-  });
-  start.forEach(b => { b.onclick = () => { kind = kind === b.dataset.make ? "" : b.dataset.make; if (kind) file = null; sync(); }; });
+  pick.onclick = () => pickFiles(PJ_FILES, add);
+  start.forEach(b => { b.onclick = () => { kind = kind === b.dataset.make ? "" : b.dataset.make; if (kind){ files = []; over = ""; } sync(); }; });
   cancel.onclick = shut; veil.onclick = e => { if (e.target === veil) shut(); };
+  /* A file dropped anywhere on the sheet joins the list. */
+  const carries = e => [...(e.dataTransfer?.types || [])].includes("Files");
+  veil.ondragover = e => { if (!carries(e)) return; e.preventDefault(); if (!busy) dropEl.classList.add("over"); };
+  veil.ondragleave = e => { if (!veil.contains(e.relatedTarget)) dropEl.classList.remove("over"); };
+  veil.ondrop = e => { if (!carries(e)) return; e.preventDefault(); dropEl.classList.remove("over"); add([...(e.dataTransfer?.files || [])]); };
   /* A name nothing else in the list has: New table, then New table 2. */
   const free = base => {
     const taken = new Set((S.projects || []).map(p => String(p.name).toLowerCase()));
     let n = base, i = 1; while (taken.has(n.toLowerCase())) n = `${base} ${++i}`;
     return n;
   };
-  const lock = on => { make.disabled = on; pick.disabled = on; rules.lock(on); cancel.disabled = on; start.forEach(b => { b.disabled = on; }); };
+  const lock = on => { make.disabled = on; rules.lock(on); cancel.disabled = on; start.forEach(b => { b.disabled = on; }); sync(); };
   const run = async () => {
-    const nm = name.value.trim() || (kind ? free(`New ${pjNoun(kind)}`) : file ? "" : free("New project"));
+    const nm = name.value.trim() || (kind ? free(`New ${pjNoun(kind)}`) : files.length ? "" : free("New project"));
     if (!nm){ name.focus(); return; }
     busy = true; lock(true); bad.textContent = "";
     const say = t => { stepEl.textContent = t; };
-    let slug = "", phase = "file";
+    /* Each step names its file when there are several. */
+    const sayOf = (i, f) => t => say(files.length > 1 ? `${f.name}, ${i + 1} of ${files.length}: ${t}` : t);
+    let slug = "", phase = "file", stored = 0;
     try {
       /* What is read here is read first: a file that cannot be read makes no project. */
-      const got = file ? await readProjectFile(file, say) : null;
+      const got = [];
+      for (const [i, f] of files.entries()) got.push(await readProjectFile(f, sayOf(i, f)));
       const words = rules.text() ? { name: rules.name(), text: rules.text() } : null;
       slug = (await api("/api/project/new", { name: nm, ...(kind ? { make: kind } : {}) })).slug;
       /* A server older than this page leaves the project with no file: say so, and leave nothing behind. */
@@ -745,7 +784,16 @@ function openProjectSheet(){
         try { await api("/api/project/delete", { brain: slug }); slug = ""; } catch { /* the project stays, and the line below says so */ }
         throw new Error("The server is older than this page and cannot start a file from nothing yet. Run convex deploy, then try again.");
       }
-      if (got) await uploadProject(slug, got, say);
+      /* The first file is the project's own; the others are files beside it, as the + adds them. */
+      for (const [i, g] of got.entries()){
+        let key = slug;
+        if (i > 0){
+          try { key = (await api("/api/project/file", { brain: slug, action: "new", kind: g.kind, name: g.name, made: false })).key; }
+          catch (e){ throw new Error(/unreadable/.test(e.message) ? "The server is older than this page and cannot hold several files yet. Run convex deploy." : e.message); }
+        }
+        await uploadProject(key, g, sayOf(i, files[i]));
+        stored = i + 1;
+      }
       let cut = false;
       if (words){ phase = "brief"; say("Saving the Brief"); cut = !!(await sendBrief(slug, words.text)).cut; }
       busy = false; veil.remove();
@@ -754,7 +802,8 @@ function openProjectSheet(){
       if (cut) pjNote(`Only the first ${BRIEF_CHARS.toLocaleString()} characters of the Brief were kept, about 1,000 words.`);
     } catch (e){
       busy = false; lock(false);
-      stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to ${phase === "brief" ? "write the Brief again from Memory" : "add the file again"}.` : e.message;
+      const left = files.length > 1 && stored < files.length ? `add ${files.slice(stored).map(f => f.name).join(" and ")} again from its +` : "add the file again";
+      stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to ${phase === "brief" ? "write the Brief again from Memory" : left}.` : e.message;
       if (slug){ make.textContent = "Open the project"; make.onclick = async () => { veil.remove(); await syncProjects(); await openProject(slug); }; }
     }
   };

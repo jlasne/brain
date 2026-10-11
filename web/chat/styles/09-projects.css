@@ -234,6 +234,15 @@
   .pm-note .pj-make{ margin:12px 0 2px; }
   .sheet .pj-opt{ margin-left:6px; font:400 12px/1 var(--sans); color:var(--ink-4); }
   .sheet #npFile{ overflow-wrap:anywhere; }
+  /* New project: the files field takes a drop from anywhere on the sheet, and lists what is chosen, each with its ×. */
+  .sheet .np-drop{ margin-left:-10px; margin-right:-10px; padding:8px 10px; border:1.5px dashed transparent; border-radius:12px; transition:border-color .12s, background .12s; }
+  .sheet .np-drop.over{ border-color:var(--accent-fill); background:var(--accent-soft); }
+  .sheet .np-list{ display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+  .sheet .np-list:empty{ display:none; }
+  .sheet .np-f{ display:flex; align-items:center; gap:8px; min-width:0; padding:6px 6px 6px 12px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface); font:500 13.5px/1.4 var(--sans); color:var(--ink); }
+  .sheet .np-f span{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sheet .np-x{ flex:none; width:32px; height:32px; border-radius:8px; font:400 18px/1 var(--sans); color:var(--ink-3); }
+  .sheet .np-x:hover{ background:var(--surface-3); color:var(--ink); }
   .sheet header p.bad{ color:var(--bad); }
   #pmAdd{ margin-right:auto; }
   #pmAdd[hidden]{ display:none; }

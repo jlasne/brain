@@ -3491,6 +3491,7 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/project/forget") { P.memory = P.memory.filter(x => x.slug !== body.slug); return J({ ok: true }); }
       if (path === "/api/project/edit") { const e = P.edits.find(x => x.id === body.id); if (window.__editFail) return J({ error: "the file changed since this was proposed. Ask again." }); e.status = { apply: "applied", undo: "undone", dismiss: "dismissed" }[body.action]; return J({ ok: true }); }
       if (path === "/api/project/new") return J({ slug: "fresh" });
+      if (path === "/api/project/file" && body.action === "new") { window.__fid = (window.__fid || 1) + 1; return J({ fid: window.__fid, key: `${body.brain}~${window.__fid}` }); }
       if (path === "/api/project/begin") return J({ ver: 1 });
       if (path === "/api/project/part") { if (window.__partFails) return J({ error: "the model host was unreachable" }); return J({ sections: 1, chars: 10 }); }
       if (path === "/api/project/finish") return J({ sections: 1, chars: 10 });
@@ -3736,12 +3737,47 @@ for (const space of ["octopus", "squidgy"]) {
   const [fc] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npPick")]);
   await fc.setFiles({ name: "offers.csv", mimeType: "text/csv", buffer: Buffer.from("Program,Price\nGame Jam,1200\nIndie Sprint,690\n\n") });
   await page.waitForTimeout(200);
-  check("a file chosen names the project, and shows its own name", (await page.inputValue("#npName")) === "offers" && (await page.textContent("#npFile")) === "offers.csv");
+  check("a file chosen names the project, and shows its own name with its ×", (await page.inputValue("#npName")) === "offers" && (await page.textContent("#npList .np-f span")) === "offers.csv"
+    && (await page.textContent("#npFile")) === "The project opens on it." && (await page.getAttribute("#npList .np-x", "aria-label")) === "Remove offers.csv");
   await page.fill("#npName", "Offer list"); await page.click("#npMake"); await page.waitForTimeout(900);
   const up = await page.evaluate(() => window.__calls.filter(x => /api\/project\/(new|begin|part|finish)/.test(x.s)).map(x => ({ s: x.s.split("/").pop(), b: x.body })));
   check("it makes the project, opens a table, sends its rows, and finishes", JSON.stringify(up.map(x => x.s)) === '["new","begin","part","finish"]' && up[0].b.name === "Offer list"
     && up[1].b.kind === "table" && up[1].b.sheets[0].name === "offers" && JSON.stringify(up[1].b.sheets[0].header) === '["Program","Price"]'
     && JSON.stringify(up[2].b.rows) === '[["Game Jam","1200"],["Indie Sprint","690"]]' && up[2].b.sheet === 0 && up[2].b.ver === 1 && up[3].b.ver === 1, JSON.stringify(up));
+
+  /* several files: chosen together, dropped on the sheet, up to 3, each with its × */
+  await page.click("#newProject"); await page.waitForTimeout(200);
+  const label = await page.evaluate(() => ({ label: document.querySelector("#npDrop > label").textContent, pick: document.getElementById("npPick").textContent, hint: document.getElementById("npFile").textContent }));
+  check("New project asks for files, up to 3, chosen or dropped, or a blank to start from", label.label === "Files up to 3, optional" && label.pick === "Choose files" && /^Drop up to 3 files here, or choose them/.test(label.hint) && /start from a blank/.test(label.hint), JSON.stringify(label));
+  const [fcMany] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npPick")]);
+  await fcMany.setFiles([{ name: "plan.md", mimeType: "text/markdown", buffer: Buffer.from("# Plan\n\nLaunch in May.") }, { name: "budget.csv", mimeType: "text/csv", buffer: Buffer.from("Item,Cost\nAds,900\n") }]);
+  await page.waitForTimeout(150);
+  const two = await page.evaluate(() => ({ names: [...document.querySelectorAll("#npList .np-f span")].map(x => x.textContent), hint: document.getElementById("npFile").textContent, name: document.getElementById("npName").value, pick: document.getElementById("npPick").textContent }));
+  check("two files chosen together are listed in order, the project takes the first one's name and opens on it", JSON.stringify(two.names) === '["plan.md","budget.csv"]' && two.name === "plan" && two.hint === "The project opens on plan.md. The chat reads all 2." && two.pick === "Add files", JSON.stringify(two));
+  const dropOn = (names) => page.evaluate(names => { const dt = new DataTransfer(); for (const n of names) dt.items.add(new File([`# ${n}\n\nWords of ${n}.`], n, { type: "text/markdown" }));
+    const sheet = document.querySelector(".veil .sheet"); sheet.dispatchEvent(new DragEvent("dragover", { dataTransfer: dt, bubbles: true, cancelable: true }));
+    const lit = document.getElementById("npDrop").classList.contains("over"); sheet.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true })); return lit; }, names);
+  const lit = await dropOn(["notes.md", "extra.md"]); await page.waitForTimeout(150);
+  const three = await page.evaluate(() => ({ names: [...document.querySelectorAll("#npList .np-f span")].map(x => x.textContent), hint: document.getElementById("npFile").textContent, pick: document.getElementById("npPick"), over: document.getElementById("npDrop").classList.contains("over") }))
+    .then(async r => ({ ...r, pick: await page.evaluate(() => ({ text: document.getElementById("npPick").textContent, off: document.getElementById("npPick").disabled })) }));
+  check("files dropped on the sheet light the field and join the list, 3 at most, and what is left out is said with where to add it", lit && !three.over && JSON.stringify(three.names) === '["plan.md","budget.csv","notes.md"]'
+    && /1 more left out: a new project takes 3\. Add them from its \+ once it is open\./.test(three.hint) && three.pick.text === "3 files chosen" && three.pick.off, JSON.stringify(three));
+  await dropOn(["plan.md"]); await page.waitForTimeout(100);
+  check("a file already in the list is not added twice", (await page.$$("#npList .np-f")).length === 3);
+  await page.click('#npList .np-x[aria-label="Remove notes.md"]'); await page.waitForTimeout(100);
+  const rm = await page.evaluate(() => ({ names: [...document.querySelectorAll("#npList .np-f span")].map(x => x.textContent), off: document.getElementById("npPick").disabled, hint: document.getElementById("npFile").textContent }));
+  check("× takes a file out, and Choose is back", JSON.stringify(rm.names) === '["plan.md","budget.csv"]' && !rm.off && !/left out/.test(rm.hint), JSON.stringify(rm));
+  await page.click("[data-make=doc]");
+  check("a blank picked clears the files: one or the other", await page.evaluate(() => document.querySelectorAll("#npList .np-f").length === 0 && /^An empty document/.test(document.getElementById("npFile").textContent)));
+  await dropOn(["plan.md", "budget.md"]); await page.waitForTimeout(100);
+  check("and files dropped let the blank go", await page.evaluate(() => document.querySelectorAll("#npList .np-f").length === 2 && document.querySelectorAll(".pj-make .on").length === 1 && document.getElementById("npPick").classList.contains("on")));
+  const before = await page.evaluate(() => window.__calls.length);
+  await page.fill("#npName", "Launch"); await page.click("#npMake"); await page.waitForTimeout(1200);
+  const many = await page.evaluate(n => window.__calls.slice(n).filter(x => /api\/project\/(new|file|begin|part|finish)$/.test(x.s)).map(x => ({ s: x.s.split("/").pop(), b: x.body })), before);
+  check("Create makes the project, files the first as its own and the second beside it, each read in sections",
+    JSON.stringify(many.map(x => x.s)) === '["new","begin","part","finish","file","begin","part","finish"]' && many[0].b.name === "Launch" && many[0].b.make === undefined
+    && many[1].b.brain === "fresh" && many[1].b.name === "plan.md" && many[4].b.action === "new" && many[4].b.made === false && many[4].b.name === "budget.md" && many[4].b.kind === "doc"
+    && many[5].b.brain === "fresh~2" && many[6].b.brain === "fresh~2" && many[7].b.brain === "fresh~2", JSON.stringify(many));
   await page.click("#newProject"); await page.waitForTimeout(200);
   const [fcBig] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npPick")]);
   const callsBefore = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/begin").length);
@@ -3950,10 +3986,10 @@ for (const space of ["octopus", "squidgy"]) {
   const sheet = await page.evaluate(() => ({ makes: [...document.querySelectorAll("[data-make]")].map(b => b.textContent).join(), file: document.getElementById("npFile").textContent }));
   check("a new project can start from nothing: a document, a table or an HTML page", sheet.makes === "Document,Table,HTML page" && /HTML/.test(sheet.file), JSON.stringify(sheet));
 
-  /* one field for the file to update: a file you have, a type to start from nothing, or neither */
+  /* one field for the files: up to 3 you have, a type to start from nothing, or neither */
   const oneField = await page.evaluate(() => ({ labels: [...document.querySelectorAll(".sheet label")].map(l => l.textContent.replace(/\s+/g, " ").trim()), row: [...document.querySelectorAll(".pj-make button")].map(b => b.textContent).join(),
     sections: document.querySelectorAll(".sheet .f").length }));
-  check("the sheet asks for one file to update, with a file or a type in one row, and a Brief apart, optional", JSON.stringify(oneField.labels) === '["Name","The file to update","Brief optional"]' && oneField.row === "Choose a file,Document,Table,HTML page", JSON.stringify(oneField));
+  check("the sheet asks for files, with Choose or a type in one row, and a Brief apart, optional", JSON.stringify(oneField.labels) === '["Name","Files up to 3, optional","Brief optional"]' && oneField.row === "Choose files,Document,Table,HTML page", JSON.stringify(oneField));
   await page.click("[data-make=html]");
   const kindOn = await page.evaluate(() => ({ on: [...document.querySelectorAll(".pj-make .on")].map(b => b.textContent).join(), file: document.getElementById("npFile").textContent, news: window.__calls.filter(x => x.s === "/api/project/new").length }));
   check("a type is chosen, not made: it lights, says what it is, and nothing is created before Create project", kindOn.on === "HTML page" && /^An empty page\. Describe it in the chat/.test(kindOn.file) && kindOn.news === 0, JSON.stringify(kindOn));
@@ -3964,7 +4000,7 @@ for (const space of ["octopus", "squidgy"]) {
   await fcM.setFiles({ name: "plan.md", mimeType: "text/markdown", buffer: Buffer.from("# Plan\n\nWords.") });
   await page.waitForTimeout(150);
   const swap1 = await page.evaluate(() => ({ on: [...document.querySelectorAll(".pj-make .on")].map(b => b.textContent).join(), file: document.getElementById("npFile").textContent, name: document.getElementById("npName").value }));
-  check("a file chosen takes the place of a type, and names the project", swap1.on === "Choose a file" && swap1.file === "plan.md" && swap1.name === "plan", JSON.stringify(swap1));
+  check("a file chosen takes the place of a type, and names the project", swap1.on === "Add files" && swap1.file === "The project opens on it." && swap1.name === "plan", JSON.stringify(swap1));
   await page.click("[data-make=doc]");
   const swap2 = await page.evaluate(() => ({ on: [...document.querySelectorAll(".pj-make .on")].map(b => b.textContent).join(), file: document.getElementById("npFile").textContent }));
   check("and a type takes the place of a file", swap2.on === "Document" && /^An empty document\./.test(swap2.file), JSON.stringify(swap2));
@@ -3973,7 +4009,7 @@ for (const space of ["octopus", "squidgy"]) {
     asFile: [...document.querySelectorAll(".sheet button")].some(b => b.textContent === "Choose a file" && b.closest("#npRules")) }));
   check("the Brief is a text field like the personal memory's, with a + file button, and no file button of their own", field.ta === "TEXTAREA" && /^Paste or write the Brief here/.test(field.ph) && field.add === "+ file" && !field.asFile && /The chat reads it at every message/.test(field.hint), JSON.stringify(field));
   await page.fill("#npRulesText", "Write formally.");
-  check("it counts what it holds, and the file to update keeps its type", (await page.textContent("#npRulesCount")) === "15 characters" && (await page.evaluate(() => [...document.querySelectorAll(".pj-make .on")].map(b => b.textContent).join())) === "Document");
+  check("it counts what it holds, and the files field keeps its type", (await page.textContent("#npRulesCount")) === "15 characters" && (await page.evaluate(() => [...document.querySelectorAll(".pj-make .on")].map(b => b.textContent).join())) === "Document");
   await page.fill("#npRulesText", "");
   const [fcR0] = await Promise.all([page.waitForEvent("filechooser"), page.click("#npRulesAdd")]);
   await fcR0.setFiles({ name: "rules.md", mimeType: "text/markdown", buffer: Buffer.from("Write formally.") });
