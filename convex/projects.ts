@@ -883,7 +883,7 @@ export const folderRemove = internalMutation({
     for (const c of await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", b.slug)).collect()) {
       if (c.folder !== a.name) continue;
       if (a.forget) { await dropConcept(ctx, c); forgotten++; }
-      else { await ctx.db.patch(c._id, { folder: undefined }); moved++; }
+      else { await ctx.db.patch(c._id, { folder: undefined }); await syncCard(ctx, c._id); moved++; }
     }
     const folders = have.filter(f => f.name !== a.name);
     await frameWrite(ctx, b.slug, { folders });

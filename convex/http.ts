@@ -608,6 +608,23 @@ route("/api/brain/merge", async (ctx, _req, b) => {
 });
 
 /**
+ * Delete a folder of this workspace: with dry, what would go, for the confirm to name. Otherwise a batch at a time until nothing is
+ * left, the counts of the last batch said back. Never a personal folder, a project, or one shared in from elsewhere.
+ */
+route("/api/brain/delete", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const slug = String(b.slug ?? "");
+  if (b.dry) return await ctx.runMutation(internal.store.brainDelete, { space: who.space, slug, dry: true });
+  let concepts = 0;
+  for (let i = 0; i < 100; i++) {
+    const r = await ctx.runMutation(internal.store.brainDelete, { space: who.space, slug });
+    concepts += r.concepts ?? 0;
+    if (!r.more) return { ...r, concepts };
+  }
+  return { error: "that folder is large: ask again to finish deleting it" };
+});
+
+/**
  * A folder read for concepts held twice, titles not in English and concepts
  * with no position. Read only: the owner rules on each finding.
  */

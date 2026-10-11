@@ -709,6 +709,81 @@ export const mergeBrains = internalMutation({
   handler: async (ctx, a) => await mergeInto(ctx, a),
 });
 
+/** Concepts a delete takes in one write: their cards and meaning go with them. */
+const DELETE_BATCH = 150;
+
+/**
+ * A folder deleted, a batch at a time. Its concepts go with their cards and
+ * meaning, 150 a call, and the caller asks again while `more` is true. Then,
+ * once: links from other folders into it are cut, its topics and the insights
+ * that rest on it go, a source it alone held goes with its note, its waiting
+ * candidates go, and a chat that asked it asks the rest. The folder row goes
+ * last, so a delete stopped half way finishes when asked again. Only this
+ * workspace's own folder, never a personal one or a project. With dry, it only
+ * counts what would go.
+ */
+export async function deleteBrain(ctx: any, a: { space: string; slug: string; dry?: boolean }) {
+  const space = readSpace(a.space);
+  const b = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", a.slug)).unique();
+  if (!b || !inSpace(b, space)) throw new Error(`no folder "${a.slug}" in this workspace`);
+  if (readSpace(b.space) !== space) throw new Error("this folder was shared with this workspace: only its home workspace can delete it");
+  if (b.type === "personal") throw new Error("a personal folder is never deleted");
+  if (b.type === "project") throw new Error("a project is deleted from its own screen");
+  const prefix = `${a.slug}/`, inIt = (r: any) => String(r).startsWith(prefix);
+  const sources = (await ctx.db.query("sources").collect()).filter((s: any) => (s.brains ?? []).includes(a.slug));
+  const chats = (await ctx.db.query("chats").withIndex("by_space_updated", (q: any) => q.eq("space", space)).collect())
+    .filter((ch: any) => String(ch.brain).split(",").includes(a.slug));
+  if (a.dry) {
+    const concepts = (await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", a.slug)).collect()).length;
+    return { name: b.name, concepts, sources: sources.length, alone: sources.filter((s: any) => s.brains.length === 1).length, chats: chats.length,
+      shared: [...(b.shared ?? []), ...(b.viewers ?? [])] };
+  }
+  const batch = await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", a.slug)).take(DELETE_BATCH);
+  for (const c of batch) {
+    for (const card of await ctx.db.query("cards").withIndex("by_cid", (q: any) => q.eq("cid", c._id)).collect()) await ctx.db.delete(card._id);
+    for (const vec of await ctx.db.query("vectors").withIndex("by_cid", (q: any) => q.eq("cid", c._id)).collect()) await ctx.db.delete(vec._id);
+    await ctx.db.delete(c._id);
+  }
+  if (batch.length === DELETE_BATCH) return { more: true, concepts: batch.length };
+  const done = { links: 0, topics: 0, insights: 0, sources: 0, chats: 0, candidates: 0 };
+  /* Links from the other folders into this one are cut. */
+  for (const card of await ctx.db.query("cards").collect()) {
+    if (!(card.related ?? []).some(inIt)) continue;
+    const c = await ctx.db.get(card.cid);
+    if (!c) continue;
+    await ctx.db.patch(c._id, { related: (c.related ?? []).filter((r: string) => !inIt(r)), ...(c.kinds ? { kinds: c.kinds.filter((k: any) => !inIt(k.to)) } : {}) });
+    await syncCard(ctx, c._id); done.links++;
+  }
+  for (const t of await ctx.db.query("topics").withIndex("by_brain", (q: any) => q.eq("brain", a.slug)).collect()) { await ctx.db.delete(t._id); done.topics++; }
+  /* An insight rests on two concepts, from any workspace the folder was shared with: one of them here, and it goes. */
+  for (const x of await ctx.db.query("insights").collect()) {
+    if (inIt(x.a) || inIt(x.b)) { await ctx.db.delete(x._id); done.insights++; }
+  }
+  /* A source this folder alone held goes with its note; one another folder holds stays there. */
+  for (const s of sources) {
+    const rest = s.brains.filter((x: string) => x !== a.slug);
+    if (rest.length) await ctx.db.patch(s._id, { brains: rest });
+    else {
+      await ctx.db.delete(s._id);
+      for (const n of await ctx.db.query("notes").withIndex("by_sid", (q: any) => q.eq("sid", s.sid)).collect()) await ctx.db.delete(n._id);
+    }
+    done.sources++;
+  }
+  for (const c of await ctx.db.query("candidates").withIndex("by_brain_slug", (q: any) => q.eq("brain", a.slug)).collect()) { await ctx.db.delete(c._id); done.candidates++; }
+  for (const ch of chats) {
+    const rest = String(ch.brain).split(",").filter(x => x && x !== a.slug);
+    await ctx.db.patch(ch._id, { brain: rest.length ? rest.join(",") : "all" }); done.chats++;
+  }
+  await ctx.db.delete(b._id);
+  return { more: false, name: b.name, concepts: batch.length, ...done };
+}
+
+/** The app's Delete folder: a batch a call; with dry, the counts the confirm names. */
+export const brainDelete = internalMutation({
+  args: { space: v.string(), slug: v.string(), dry: v.optional(v.boolean()) },
+  handler: async (ctx, a) => await deleteBrain(ctx, a),
+});
+
 /**
  * The row a title already has. Titles over 48 characters used to be cut to a
  * shared prefix, so two ideas could land on one row. The new id keeps them

@@ -561,6 +561,10 @@ function openBrainSheet(b){
         <label for="rInto">Merge into another folder</label>
         <div class="hint" style="margin:0 0 8px">Every concept, source and link moves there, and this folder goes. A concept with the same title joins its twin.</div>
         <div style="display:flex; gap:8px"><select id="rInto" class="pick" style="flex:1; min-width:0"></select><button class="ghost" id="rMerge" type="button">Merge</button></div></div>
+      <div class="f" id="rDelF" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px">
+        <label>Delete this folder</label>
+        <div class="hint" id="rDelSay" style="margin:0 0 8px">Its concepts, their links and the sources only it holds go for good. Settings, Export keeps a copy first.</div>
+        <button class="ghost del" id="rDel" type="button">Delete folder</button></div>
       <div class="f"><div id="rMsg" class="bad" role="alert"></div></div>
       <footer><button class="ghost" id="rCancel">Cancel</button><button class="go" id="rSave">Save</button></footer>
     </div>`;
@@ -595,6 +599,36 @@ function openBrainSheet(b){
     openFolder(S.brains.find(x => x.slug === t.slug));
     push("ai", x => { x.innerHTML = rich(`**${esc(r.fromName)}** is now part of **${esc(r.intoName)}**: ${r.moved + r.joined} concepts` +
       `${r.joined ? `, ${r.joined} joined to a twin` : ""}, ${r.sources} source${r.sources === 1 ? "" : "s"}.`); });
+  };
+  /* Delete: the first click counts what would go and says it; the second, on a button that names the folder, deletes it. */
+  const del = veil.querySelector("#rDel"), delSay = veil.querySelector("#rDelSay");
+  veil.querySelector("#rDelF").hidden = b.type === "personal" || !home(b);
+  const many = (n, w) => `${n.toLocaleString()} ${w}${n === 1 ? "" : "s"}`;
+  del.onclick = async () => {
+    if (!del.classList.contains("sure")){
+      del.disabled = true; msg.className = "spin"; msg.textContent = "Counting what it holds";
+      try {
+        const d = await api("/api/brain/delete", { slug: b.slug, dry: true });
+        delSay.textContent = `${d.name} holds ${many(d.concepts, "concept")} and ${many(d.sources, "source")}${d.sources ? `, ${d.alone.toLocaleString()} of them only here` : ""}.`
+          + (d.chats ? ` ${many(d.chats, "chat")} asked it: ${d.chats === 1 ? "it asks" : "they ask"} the other folders from now on.` : "")
+          + (d.shared.length ? ` It is shared with ${many(d.shared.length, "other workspace")}: it goes from there too.` : "")
+          + " This cannot be undone.";
+        del.classList.add("sure"); del.textContent = `Delete ${b.name} for good`; msg.className = "bad"; msg.textContent = "";
+      } catch (e){ msg.className = "bad"; msg.textContent = /unreadable/.test(e.message) ? "The server is older than this page and cannot delete a folder yet. Run convex deploy." : e.message; }
+      del.disabled = false;
+      return;
+    }
+    del.disabled = true; msg.className = "spin"; msg.textContent = "Deleting";
+    let r;
+    try { r = await api("/api/brain/delete", { slug: b.slug }); }
+    catch (e){ del.disabled = false; msg.className = "bad"; msg.textContent = e.message; return; }
+    shut();
+    if (S.folder === b.slug) S.folder = null;
+    S.picks = S.picks.filter(x => x !== b.slug); S.into = S.into.filter(x => x !== b.slug);
+    if (S.scope === b.slug) S.scope = "all";
+    await refresh();
+    render();
+    push("ai", x => { x.innerHTML = rich(`**${esc(r.name || b.name)}** is deleted: ${many(r.concepts || 0, "concept")}${r.sources ? `, ${many(r.sources, "source")} let go` : ""}.`); });
   };
   veil.onclick = e => { if(e.target===veil) shut(); };
   setTimeout(()=>nameI.focus(),30);

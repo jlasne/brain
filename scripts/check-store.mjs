@@ -1182,6 +1182,56 @@ I run a marathon in May.
   check("the old folder goes, with no card left behind", !T.brains.some(b => b.slug === "gold") && !T.cards.some(c => c.brain === "gold") && r.merged, JSON.stringify(r));
 }
 
+/* ---- a folder deleted ---- */
+{
+  const { T, ctx } = seed();
+  T.brains.push({ _id: "b3", slug: "gold", name: "Gold", type: "subject", scope: "s", space: undefined, shared: ["squidgy"] },
+                { _id: "b4", slug: "me", name: "Me", type: "personal", scope: "", space: undefined },
+                { _id: "b5", slug: "plan", name: "Plan", type: "project", scope: "", space: undefined },
+                { _id: "b6", slug: "pals", name: "Pals", type: "subject", scope: "s", space: "squidgy", shared: ["octopus"] });
+  T.concepts.push(
+    { _id: "c3", brain: "gold", slug: "gold", n: 1, title: "Gold", position: "Gold holds in crises.", summaryLine: "", evidence: [], data: [], conflicts: [], sources: ["s-b"], related: ["wealth/gold"], updated: "x" },
+    { _id: "c4", brain: "gold", slug: "bullion-vaults", n: 2, title: "Bullion vaults", position: "", summaryLine: "", evidence: [], data: [], conflicts: [], sources: ["s-g"], related: ["gold/gold"], updated: "x" });
+  T.concepts[1].related = ["wealth/gold", "gold/bullion-vaults"]; T.concepts[1].kinds = [{ to: "gold/bullion-vaults", type: "needs" }, { to: "wealth/gold", type: "supports" }];
+  for (const c of T.concepts) await store.syncCard(ctx, c._id);
+  T.vectors = [{ _id: "v3", cid: "c3", brain: "gold", vec: [] }, { _id: "v4", cid: "c4", brain: "gold", vec: [] }, { _id: "v1", cid: "c1", brain: "wealth", vec: [] }];
+  T.sources.push({ _id: "s3", sid: "s-b", link: "", linkKey: "", title: "Gold talk", author: "B", date: "x", location: "", brains: ["gold", "wealth"], stored: "x" },
+                 { _id: "s4", sid: "s-g", link: "", linkKey: "", title: "Vault tour", author: "C", date: "x", location: "", brains: ["gold"], stored: "x" });
+  T.notes.push({ _id: "n3", sid: "s-g", title: "Vault tour", author: "C", date: "x", topics: [], quotes: [], thin: [], connections: [], findings: {}, written: "x" },
+               { _id: "n4", sid: "s-b", title: "Gold talk", author: "B", date: "x", topics: [], quotes: [], thin: [], connections: [], findings: {}, written: "x" });
+  T.candidates = [{ _id: "k1", brain: "gold", slug: "coins", title: "Coins", notes: [], count: 1, updated: "x" }, { _id: "k2", brain: "wealth", slug: "rings", title: "Rings", notes: [], count: 1, updated: "x" }];
+  T.chats = [{ _id: "h1", space: "octopus", title: "q", brain: "gold,wealth", pinned: false, turns: [], created: 1, updated: 1 },
+             { _id: "h2", space: "octopus", title: "r", brain: "gold", pinned: false, turns: [], created: 1, updated: 1 }];
+  T.topics = [{ _id: "t1", space: "octopus", brain: "gold", title: "Safety", summary: "", members: [], updated: "x" }, { _id: "t2", space: "octopus", brain: "wealth", title: "Money", summary: "", members: [], updated: "x" }];
+  T.insights = [{ _id: "i1", space: "octopus", key: "1", a: "gold/gold", b: "wealth/gold", type: "x", title: "x", text: "x", at: "x" },
+                { _id: "i2", space: "octopus", key: "2", a: "wealth/gold", b: "gold/bullion-vaults", type: "x", title: "x", text: "x", at: "x" },
+                { _id: "i3", space: "octopus", key: "3", a: "wealth/gold", b: "wealth/silver", type: "x", title: "x", text: "x", at: "x" }];
+  const snap = JSON.stringify(T);
+  const dry = await run(store.brainDelete, ctx, { space: "octopus", slug: "gold", dry: true });
+  check("a dry delete counts what would go, and writes nothing", dry.name === "Gold" && dry.concepts === 2 && dry.sources === 2 && dry.alone === 1 && dry.chats === 2 && JSON.stringify(dry.shared) === '["squidgy"]' && JSON.stringify(T) === snap, JSON.stringify(dry));
+  check("a personal folder is never deleted, and a project goes from its own screen", /personal/.test(await throws(run(store.brainDelete, ctx, { space: "octopus", slug: "me" }))) && /own screen/.test(await throws(run(store.brainDelete, ctx, { space: "octopus", slug: "plan" }))));
+  check("a folder of another workspace, or one shared in from there, is refused", /no folder/.test(await throws(run(store.brainDelete, ctx, { space: "octopus", slug: "dogs" }))) && /only its home workspace/.test(await throws(run(store.brainDelete, ctx, { space: "octopus", slug: "pals" }))) && JSON.stringify(T) === snap);
+  const r = await run(store.brainDelete, ctx, { space: "octopus", slug: "gold" });
+  check("the folder goes, with its concepts, their cards and their meaning", !r.more && r.concepts === 2 && !T.brains.some(b => b.slug === "gold") && !T.concepts.some(c => c.brain === "gold") && !T.cards.some(c => c.brain === "gold")
+    && JSON.stringify(T.vectors.map(x => x._id)) === '["v1"]', JSON.stringify(r));
+  check("links from other folders into it are cut, and the rest kept", JSON.stringify(T.concepts.find(c => c._id === "c2").related) === '["wealth/gold"]' && JSON.stringify(T.concepts.find(c => c._id === "c2").kinds) === '[{"to":"wealth/gold","type":"supports"}]'
+    && JSON.stringify(T.cards.find(c => c.cid === "c2").related) === '["wealth/gold"]', JSON.stringify(T.concepts.find(c => c._id === "c2")));
+  check("a source it alone held goes with its note; one another folder holds stays there", !T.sources.some(s => s.sid === "s-g") && !T.notes.some(n => n.sid === "s-g") && JSON.stringify(T.sources.find(s => s.sid === "s-b").brains) === '["wealth"]' && T.notes.some(n => n.sid === "s-b"));
+  check("its topics, the insights that rest on it and its candidates go; the others stay", JSON.stringify(T.topics.map(t => t._id)) === '["t2"]' && JSON.stringify(T.insights.map(x => x._id)) === '["i3"]' && JSON.stringify(T.candidates.map(x => x._id)) === '["k2"]');
+  check("a chat that asked it asks the rest, or every folder when it asked it alone", T.chats.find(c => c._id === "h1").brain === "wealth" && T.chats.find(c => c._id === "h2").brain === "all");
+  check("the counts come back", r.sources === 2 && r.chats === 2 && r.links === 1 && r.topics === 1 && r.insights === 2 && r.candidates === 1, JSON.stringify(r));
+  check("asked again, it is gone", /no folder/.test(await throws(run(store.brainDelete, ctx, { space: "octopus", slug: "gold" }))));
+  /* a big folder goes a batch at a time */
+  const big = seed();
+  big.T.brains.push({ _id: "b9", slug: "big", name: "Big", type: "subject", scope: "s", space: undefined });
+  for (let i = 0; i < 160; i++) big.T.concepts.push({ _id: "x" + i, brain: "big", slug: "c" + i, n: i, title: "C" + i, position: "", summaryLine: "", evidence: [], data: [], conflicts: [], sources: [], related: [], updated: "x" });
+  const first = await run(store.brainDelete, big.ctx, { space: "octopus", slug: "big" });
+  const halfway = big.T.brains.some(b => b.slug === "big") && big.T.concepts.filter(c => c.brain === "big").length === 10;
+  const second = await run(store.brainDelete, big.ctx, { space: "octopus", slug: "big" });
+  check("a big folder goes 150 concepts a call, the row last, so a stop half way finishes when asked again", first.more === true && first.concepts === 150 && halfway
+    && second.more === false && second.concepts === 10 && !big.T.brains.some(b => b.slug === "big"), JSON.stringify([first, second]));
+}
+
 /* ---- concepts of one folder joined, and a title changed in place ---- */
 {
   const { T, ctx } = seed();

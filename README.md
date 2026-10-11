@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="2488 checks passing" src="https://img.shields.io/badge/checks-2488%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="2532 checks passing" src="https://img.shields.io/badge/checks-2532%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="Installs on phone and desktop" src="https://img.shields.io/badge/app-phone%20and%20desktop-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -92,7 +92,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 ### Folders
 
 - **A drop keeps everything.** Every number, date and name of the source is checked against what was filed, and anything missing goes in word for word. The card says it: "All of it kept: 7,020 words, 145 numbers, dates and names, 23 topics, filed into 18 concepts".
-- **A folder, open.** Its scope, counts, health and next move, then every concept, newest first. Chat in it, drop into it, or rename it from there.
+- **A folder, open.** Its scope, counts, health and next move, then every concept, newest first. Chat in it, drop into it, rename it, merge it into another, or delete it from there. Delete first counts what goes: "Content holds 42 concepts and 12 sources, 9 of them only here".
 - **Every drop grows the graph.** Each new idea links to its 6 nearest in meaning, in any language: needs, causes, supports, contradicts or example. Folders sort themselves into topics.
 - **What follows.** Two linked ideas from different folders can add up to a third. A drop writes up to 5, marked as Tasu's own conclusion.
 - **One page, any shape.** A folder or a question becomes a summary, a quiz, a deep dive or use cases, in 9 languages.
@@ -155,7 +155,8 @@ Files, tables and pages, with a chat beside them and a memory of their own.
 - **It keeps track.** A State of play, the questions waiting for you, and one line to send next. Gaps lists empty placeholders, empty cells, past dates and numbers that differ, with no model call.
 - **It reads only what a question needs.** A file of up to 4,000 pages is filed in sections, each with a contents line, written 4 sections a call. 1,000 questions on a 143-page file cost $0.26, down from $0.47. 1,000 thank-yous cost $0.07, down from $0.25.
 - **Exact tables.** Up to 40,000 rows, searched by filter and totals over every row.
-- **A memory that fills itself.** A note on each file, what you decide, and what answers find, each pointing at its sections.
+- **A first memory, sorted.** New project takes files, a Brief and a memory: paste notes, research or past work, up to 200,000 characters. One call sorts it into 3 to 8 folders, and each note lands in one. Memory shows the folders; delete one and its notes move to Other notes, or go with it.
+- **A memory that fills itself.** A note on each file, what you decide, and what answers find, each pointing at its sections and filed in its folder.
 - **Download** a document as Markdown, PDF or a web page, and a table as Excel, CSV or Markdown, written in your browser.
 
 ## Workspaces
@@ -244,7 +245,7 @@ The app's source sits in `web/chat/`, one file a screen. `npm run build` joins i
 
 ```bash
 npm run build     # web/chat into app/chat.html
-npm run check     # the build first, then 2488 checks
+npm run check     # the build first, then 2532 checks
 npm run deploy    # the server, to Convex
 ```
 
@@ -258,7 +259,7 @@ skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a folder
 ```
 
-`npm run check` runs 2488 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, projects, and the app itself in a real browser at 9 screen sizes.
+`npm run check` runs 2532 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, projects, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 

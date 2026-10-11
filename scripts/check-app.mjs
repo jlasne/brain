@@ -606,6 +606,46 @@ async function boot(path, init, arg) {
   await page.close();
 }
 
+/* ---- Delete folder: what would go is counted and said, then a second click on a button that names the folder deletes it ---- */
+{
+  const two = { ...STATE, brains: [...STATE.brains, { slug: "wealth", name: "Wealth", type: "subject", scope: "w", owner: null }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test"); window.__calls = [];
+    let s0 = state;
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/brain/delete")) {
+        if (body.dry) return Response.json({ name: "Content", concepts: 42, sources: 12, alone: 9, chats: 3, shared: ["squidgy"] });
+        s0 = { ...s0, brains: s0.brains.filter(b => b.slug !== body.slug) };
+        return Response.json({ more: false, name: "Content", concepts: 42, sources: 12, chats: 3, links: 4, topics: 2, insights: 1, candidates: 0 });
+      }
+      if (s.includes("/api/state")) return Response.json(s0);
+      return Response.json({ chats: [], health: [] });
+    };
+  }, two);
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Content/.test(r.textContent)).querySelector(".ed.op").click());
+  await page.waitForTimeout(120);
+  await page.click("#fvEdit"); await page.waitForTimeout(80);
+  const d0 = await page.evaluate(() => ({ btn: document.getElementById("rDel")?.textContent, hidden: document.getElementById("rDelF").hidden, say: document.getElementById("rDelSay").textContent }));
+  check("Edit offers Delete folder, and says what goes and how to keep a copy", d0.btn === "Delete folder" && !d0.hidden && /^Its concepts, their links and the sources only it holds go for good\. Settings, Export keeps a copy first\.$/.test(d0.say), JSON.stringify(d0));
+  await page.click("#rDel"); await page.waitForTimeout(200);
+  const d1 = await page.evaluate(() => ({ btn: document.getElementById("rDel").textContent, say: document.getElementById("rDelSay").textContent, calls: window.__calls.filter(c => c.s.includes("/api/brain/delete")).map(c => c.body) }));
+  check("the first click only counts: the concepts, the sources and those only here, the chats, the workspaces it is shared with, and that it cannot be undone",
+    d1.btn === "Delete Content for good" && d1.say === "Content holds 42 concepts and 12 sources, 9 of them only here. 3 chats asked it: they ask the other folders from now on. It is shared with 1 other workspace: it goes from there too. This cannot be undone."
+    && d1.calls.length === 1 && d1.calls[0].dry === true && d1.calls[0].slug === "content", JSON.stringify(d1));
+  await page.click("#rDel"); await page.waitForTimeout(300);
+  const d2 = await page.evaluate(() => ({ sent: window.__calls.filter(c => c.s.includes("/api/brain/delete")).pop().body, sheet: !!document.querySelector(".veil"),
+    rows: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent), view: document.querySelector("main").dataset.view, said: [...document.querySelectorAll("#thread .msg.ai")].pop()?.textContent || "" }));
+  check("the second deletes it: the sheet closes, the folder leaves the list and its screen, and the chat says what went", d2.sent.slug === "content" && !d2.sent.dry && !d2.sheet && !d2.rows.includes("Content") && d2.view === "chat"
+    && /Content is deleted: 42 concepts, 12 sources let go\./.test(d2.said), JSON.stringify(d2));
+  /* the personal folder offers no Delete */
+  const self = await page.evaluate(() => { const r = [...document.querySelectorAll("#brains .brain-row")].find(x => /Wealth/.test(x.textContent)); r.querySelector(".ed.op").click(); return true; });
+  await page.waitForTimeout(120); await page.click("#fvEdit"); await page.waitForTimeout(80);
+  check("another folder of the workspace offers it too", self && await page.evaluate(() => !document.getElementById("rDelF").hidden));
+  check("nothing threw deleting", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- a concept opens whole, with its evidence and its links ---- */
 {
   const withOne = { ...STATE, concepts: [{ brain: "content", slug: "offer", n: 1, title: "Offer first", summaryLine: "Offer beats audience.", ev: 1, src: 1 }] };

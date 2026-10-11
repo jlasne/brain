@@ -251,4 +251,5 @@
   }
 
   .sheet .ghost.sure{ border-color:var(--bad); color:var(--bad); }
+  .sheet .ghost.del{ color:var(--bad); }
 
