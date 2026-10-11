@@ -130,14 +130,19 @@ $("input").addEventListener("keydown", e => {
 $("send").onclick = go;
 
 /* ============ voice ============ */
-/* Talk instead of typing. The browser's own speech service listens: Safari
-   on iPhone, iPad and Mac, Chrome and Edge. It is free and needs no key.
-   Where a browser has none, the mic says how to dictate with the system's
-   own, which every phone and computer carries. */
+/* Talk instead of typing. Whisper writes it (06-voice), as long as you talk, in
+   any language, unless the workspace picked the browser in Settings. The
+   browser's own speech service is free and needs no key: Safari on iPhone, iPad
+   and Mac, Chrome and Edge, and the demo listens with it. Where a browser has
+   none, the mic says how to dictate with the system's own. */
 const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-/* The languages the mic offers: code, chip, name. */
+/* The languages the mic offers: code, chip, name. Whisper is told the first two letters, or none with Detect. */
 const VOICE_LANGS = [["en-US", "EN", "English"], ["fr-FR", "FR", "French"], ["es-ES", "ES", "Spanish"],
-  ["de-DE", "DE", "German"], ["it-IT", "IT", "Italian"], ["pt-PT", "PT", "Portuguese"]];
+  ["de-DE", "DE", "German"], ["it-IT", "IT", "Italian"], ["pt-PT", "PT", "Portuguese"], ["nl-NL", "NL", "Dutch"], ["pl-PL", "PL", "Polish"],
+  ["sv-SE", "SV", "Swedish"], ["da-DK", "DA", "Danish"], ["nb-NO", "NO", "Norwegian"], ["fi-FI", "FI", "Finnish"], ["cs-CZ", "CS", "Czech"],
+  ["ro-RO", "RO", "Romanian"], ["el-GR", "EL", "Greek"], ["ru-RU", "RU", "Russian"], ["uk-UA", "UK", "Ukrainian"], ["tr-TR", "TR", "Turkish"],
+  ["ar-SA", "AR", "Arabic"], ["he-IL", "HE", "Hebrew"], ["hi-IN", "HI", "Hindi"], ["ja-JP", "JA", "Japanese"], ["ko-KR", "KO", "Korean"],
+  ["zh-CN", "ZH", "Chinese"], ["id-ID", "ID", "Indonesian"], ["vi-VN", "VI", "Vietnamese"], ["th-TH", "TH", "Thai"]];
 /* var, not let: the shell paints once before this line is reached, and reads them. */
 var rec = null, voiceStrip = null;
 /* Chrome on Android listens badly in one long run: it hands back every partial of a phrase as a result of its own,
@@ -192,10 +197,12 @@ function renderMic(){
  * is on, so a pause never loses what came before. It stops after 10 seconds of quiet or 2 minutes in all, and typing stops it.
  */
 function startVoice(bar = mainBar){
+  if (micEngine() === "whisper") return startWhisper(bar);
   const field = bar.field();
   if (!Speech){ bar.say(systemDictation()); field.focus(); return; }
-  /* No language picked yet: Settings opens on it. */
-  if (!voiceLang()){ bar.say("Pick the language the mic listens in, then tap the mic."); openSetupSheet({ voice: true }); return; }
+  /* No language picked yet, or Detect, which only Whisper can do: Settings opens on it. */
+  const lang = voiceLang();
+  if (!lang || lang === "auto"){ bar.say("Pick the language the mic listens in, then tap the mic."); openSetupSheet({ voice: true }); return; }
   endVoice();
   const v = { bar, before: field.value, kept: "", live: "", at: Date.now(), last: Date.now(), runs: 0, stopping: false, broke: "", r: null };
   /* A key typed into the box takes over: the mic stops, and the box stays as it is. */
@@ -259,6 +266,7 @@ function keepLive(v){
 /** Done: the service is asked to stop and hands back its last words as it ends. If it never ends, what was heard is kept anyway. */
 function stopVoice(){
   const v = rec; if (!v) return;
+  if (v.whisper) return stopWhisper(v);
   if (v.stopping){ keepLive(v); finishVoice(v); return; }
   v.stopping = true; paintStrip();
   try { v.r.userStopped = true; v.r.stop(); } catch { /* it had stopped already */ }
@@ -284,6 +292,7 @@ function quitVoice(v){
   rec = null; S.listening = false;
   clearInterval(v.tick); clearTimeout(v.end);
   v.bar.field().removeEventListener("input", v.onType);
+  if (v.whisper) dropWhisper(v);
   if (v.r){ v.r.userStopped = true; try { v.r.abort ? v.r.abort() : v.r.stop(); } catch { /* it had stopped already */ } }
   paintStrip(); v.bar.paint?.();
 }
@@ -301,7 +310,13 @@ function paintStrip(){
   }
   if (!voiceStrip.isConnected) document.body.append(voiceStrip);
   const s = Math.floor((Date.now() - v.at) / 1000);
-  voiceStrip.querySelector(".vs-t").textContent = v.stopping ? "Keeping the last words" : `Listening in ${voiceName()}`;
+  if (v.whisper){
+    const n = writing(v);
+    voiceStrip.querySelector(".vs-t").textContent = v.stopping ? (n ? `Writing the last ${n === 1 ? "piece" : `${n} pieces`}` : "Writing")
+      : voiceLang() && voiceLang() !== "auto" ? `Listening in ${voiceName()}` : "Listening, in any language";
+    /* The dot moves with the voice, so you see it hears you. */
+    voiceStrip.querySelector(".vs-dot").style.transform = `scale(${(1 + v.level * 1.4).toFixed(2)})`;
+  } else voiceStrip.querySelector(".vs-t").textContent = v.stopping ? "Keeping the last words" : `Listening in ${voiceName()}`;
   voiceStrip.querySelector(".vs-time").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   const box = (v.bar.host ? v.bar.host() : v.bar.field().parentElement)?.getBoundingClientRect();
   if (!box) return;
@@ -316,9 +331,9 @@ function paintStrip(){
    demo keeps the pick in this browser. */
 function voiceLang(){
   const set = S.demo ? localVoice() : S.models?.voice;
-  return VOICE_LANGS.some(x => x[0] === set) ? set : "";
+  return set === "auto" || VOICE_LANGS.some(x => x[0] === set) ? set : "";
 }
-function voiceName(){ return (VOICE_LANGS.find(x => x[0] === voiceLang()) || ["", "", ""])[2]; }
+function voiceName(){ return voiceLang() === "auto" ? "any language" : (VOICE_LANGS.find(x => x[0] === voiceLang()) || ["", "", ""])[2]; }
 function localVoice(){ try { return localStorage.getItem("octopus.voice") || ""; } catch { return ""; } }
 
 /* ---- light or dark ---- */

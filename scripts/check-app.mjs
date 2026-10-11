@@ -84,7 +84,8 @@ const check = (what, ok, saw) => {
   failures++; console.log(`  FAIL ${what}${saw ? "\n       " + saw : ""}`);
 };
 
-const browser = await chromium.launch();
+/* Sound may play with no tap first: the stand-in microphone of the voice checks is a tone. */
+const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
 
 /**
  * A page with nothing outside this machine behind it.
@@ -1733,6 +1734,95 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await ctx.close();
 }
 
+/* ---- talk with Whisper: as long as you want, a piece at a time, in the order said ---- */
+{
+  const st = { ...STATE, models: { chat: "m/x", chatDefault: "m/x", reply: "same", voice: "fr-FR", depth: "long", mic: "whisper" } };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    /* A piece ends at the first pause after a second and a half here, not 20 seconds. */
+    sessionStorage.setItem("octopus.voice.piece", "1500");
+    /* The microphone: a steady tone whose loudness the checks set, 0 for silence. */
+    navigator.mediaDevices.getUserMedia = async () => {
+      const ac = new AudioContext(); await ac.resume();
+      const osc = ac.createOscillator(), gain = ac.createGain(), out = ac.createMediaStreamDestination();
+      gain.gain.value = window.__loud ?? 0.5; osc.frequency.value = 220; osc.connect(gain); gain.connect(out); osc.start();
+      window.__gain = gain; return out.stream;
+    };
+    window.__said = [];
+    window.fetch = async (u, opt) => { const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/voice")) {
+        window.__said.push({ format: body.format, lang: body.lang, seconds: body.seconds, bytes: (body.audio || "").length });
+        if (window.__voiceFail) return Response.json({ error: "the model key was refused for voice (401: bad key). Check the key at openrouter.ai/keys." });
+        await new Promise(ok => setTimeout(ok, 150));
+        return Response.json({ text: `Bonjour ${window.__said.length}.`, seconds: body.seconds }); }
+      if (s.includes("/api/models")) { window.__models = body; return Response.json({ chat: "m/x", reply: "same", voice: body.voice ?? state.models.voice, depth: "long", mic: body.mic ?? state.models.mic }); }
+      return Response.json({ chats: [] }); };
+  }, st);
+  await page.fill("#input", "Note:");
+  await page.click("#micBtn"); await page.waitForTimeout(700);
+  const w0 = await page.evaluate(() => ({ t: document.querySelector(".vstrip .vs-t")?.textContent, dot: document.querySelector(".vstrip .vs-dot")?.style.transform, on: document.getElementById("micBtn").classList.contains("on") }));
+  check("Whisper listens in the language picked, and the dot grows with the voice", w0.t === "Listening in French" && /^scale\((1\.[5-9]|2)/.test(w0.dot || "") && w0.on, JSON.stringify(w0));
+  /* talk, pause: the piece ends at the pause and is written while the next records */
+  await page.waitForTimeout(1100);
+  await page.evaluate(() => { window.__gain.gain.value = 0; }); await page.waitForTimeout(900);
+  const w1 = await page.evaluate(() => ({ said: window.__said.slice(), value: document.getElementById("input").value, on: document.getElementById("micBtn").classList.contains("on") }));
+  check("a piece ends at the first pause past its length, goes to Whisper as webm in French with its seconds, and its words join the box while the mic stays on",
+    w1.said.length === 1 && w1.said[0].format === "webm" && w1.said[0].lang === "fr" && w1.said[0].seconds >= 1.5 && w1.said[0].seconds < 4 && w1.said[0].bytes > 100
+    && w1.value === "Note: Bonjour 1." && w1.on, JSON.stringify(w1));
+  await page.evaluate(() => { window.__gain.gain.value = 0.5; }); await page.waitForTimeout(800);
+  await page.click(".vstrip .vs-ok"); await page.waitForTimeout(80);
+  const w2 = await page.evaluate(() => document.querySelector(".vstrip .vs-t")?.textContent);
+  await page.waitForTimeout(700);
+  const w3 = await page.evaluate(() => ({ said: window.__said.length, value: document.getElementById("input").value, strip: !!document.querySelector(".vstrip"), on: document.getElementById("micBtn").classList.contains("on"), hint: document.getElementById("tHint").textContent }));
+  check("Done writes the last piece first, and says so while it does", /^Writing/.test(w2 || ""), String(w2));
+  check("then every piece is in the box, in the order said, and the mic is off", w3.said === 2 && w3.value === "Note: Bonjour 1. Bonjour 2." && !w3.strip && !w3.on && w3.hint === "", JSON.stringify(w3));
+  /* silence is never sent */
+  await page.fill("#input", "");
+  await page.evaluate(() => { window.__loud = 0; });
+  await page.click("#micBtn"); await page.waitForTimeout(2600);
+  await page.click(".vstrip .vs-ok"); await page.waitForTimeout(500);
+  const quiet = await page.evaluate(() => ({ said: window.__said.length, value: document.getElementById("input").value, hint: document.getElementById("tHint").textContent }));
+  check("a talk with no speech in it sends nothing to Whisper, and says nothing was heard", quiet.said === 2 && quiet.value === "" && quiet.hint === "Nothing was heard. Check the microphone, then tap the mic again.", JSON.stringify(quiet));
+  /* Cancel keeps nothing, even a piece written after it */
+  await page.evaluate(() => { window.__loud = 0.5; });
+  await page.fill("#input", "Kept as typed");
+  await page.click("#micBtn"); await page.waitForTimeout(1700);
+  await page.evaluate(() => { window.__gain.gain.value = 0; }); await page.waitForTimeout(560);
+  await page.click(".vstrip .vs-x"); await page.waitForTimeout(500);
+  check("Cancel puts the box back as it was, and a piece written after it is not added", await page.evaluate(() => document.getElementById("input").value === "Kept as typed" && !document.querySelector(".vstrip")));
+  /* a piece the host refuses: what it was is said, the rest stays */
+  await page.fill("#input", "");
+  await page.evaluate(() => { window.__voiceFail = true; });
+  await page.click("#micBtn"); await page.waitForTimeout(900);
+  await page.click(".vstrip .vs-ok"); await page.waitForTimeout(600);
+  const lost = await page.evaluate(() => document.getElementById("tHint").textContent);
+  check("a piece that cannot be written says how long it was and why, with no silent loss", /^\d+ seconds? could not be written: the model key was refused for voice/.test(lost), lost);
+  await page.evaluate(() => { window.__voiceFail = false; });
+  /* Settings: Whisper or the browser, and the language with Detect */
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(150);
+  await page.click("#langBlock > summary");
+  const set0 = await page.evaluate(() => ({ seg: [...document.querySelectorAll("#micPick button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")).join(), say: document.getElementById("micSay").textContent,
+    opts: [...document.querySelectorAll("#langVoice option")].map(o => o.value), value: document.getElementById("langVoice").value, sum: document.querySelector("#langBlock > summary").textContent }));
+  check("Settings, Languages: Voice is Whisper, with what it does and costs, and the mic language offers Detect before 27 languages",
+    set0.seg === "Whisper*,Browser" && /^Whisper writes it: as long as you talk, in any language, with punctuation and names\. About \$0\.04 an hour of talking, counted under Voice in Cost\.$/.test(set0.say)
+    && set0.opts[0] === "auto" && set0.opts.length === 28 && set0.value === "fr-FR" && /mic in French/.test(set0.sum), JSON.stringify(set0));
+  await page.selectOption("#langVoice", "auto"); await page.waitForTimeout(150);
+  check("Detect is saved: Whisper tells the language", await page.evaluate(() => window.__models.voice === "auto" && /any language, and Whisper tells which/.test(document.getElementById("langMsg").textContent)));
+  await page.click('#micPick button[data-v="browser"]'); await page.waitForTimeout(150);
+  const set1 = await page.evaluate(() => ({ sent: window.__models.mic, say: document.getElementById("micSay").textContent, first: document.querySelector("#langVoice option")?.value }));
+  check("Browser is saved, says it is free and stops at 2 minutes, and its language list has no Detect", set1.sent === "browser" && /^The browser writes it: free/.test(set1.say) && set1.first === "", JSON.stringify(set1));
+  await page.click('#micPick button[data-v="whisper"]'); await page.waitForTimeout(150);
+  await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelector(".veil")?.remove());
+  /* Detect: no language is sent, and the strip says any language */
+  await page.click("#micBtn"); await page.waitForTimeout(700);
+  const any = await page.evaluate(() => document.querySelector(".vstrip .vs-t")?.textContent);
+  await page.click(".vstrip .vs-ok"); await page.waitForTimeout(700);
+  check("with Detect, it listens in any language and sends no language to Whisper", any === "Listening, in any language" && await page.evaluate(() => window.__said.at(-1).lang === ""), String(any));
+  check("nothing threw while talking", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- talk on Android: no phrase said twice, and it listens one phrase at a time ---- */
 {
   const { page, bad } = await boot("/chat.html", state => {
@@ -1805,12 +1895,14 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.fill("#input", "Quick one:");
   await page.click("#micBtn"); await page.waitForTimeout(200);
   const ask = await page.evaluate(() => ({ heard: window.__voice.length, open: !!document.getElementById("langVoice"),
-    langs: [...document.querySelectorAll("#langVoice button")].map(b => b.textContent), lit: document.querySelectorAll("#langVoice .on").length,
+    langs: [...document.querySelectorAll("#langVoice option")].map(b => b.textContent), lit: document.getElementById("langVoice")?.value ? 1 : 0,
     asked: document.querySelector(".lang-row.ask") !== null, msg: document.getElementById("langMsg")?.textContent }));
   check("with no language picked, the mic opens Settings on Voice input and listens to nothing",
     ask.heard === 0 && ask.open && ask.asked && ask.lit === 0 && /Pick the language the mic listens in/.test(ask.msg || ""), JSON.stringify(ask));
-  check("Voice input has no Auto: a language is picked", JSON.stringify(ask.langs) === '["English","French","Spanish","German","Italian","Portuguese"]', JSON.stringify(ask.langs));
-  await page.click('#langVoice button[data-v="en-US"]'); await page.waitForTimeout(150);
+  check("with the browser writing it, the mic language has no Detect: one is picked from 27", ask.langs.length === 28 && ask.langs[0] === "Pick a language" && ask.langs.slice(1, 7).join() === "English,French,Spanish,German,Italian,Portuguese"
+    && ask.langs.includes("Japanese") && !ask.langs.some(l => /Detect/.test(l)), JSON.stringify(ask.langs));
+  check("a server older than this page offers no Whisper: the voice choice is left out", await page.evaluate(() => document.getElementById("micRow").hidden));
+  await page.selectOption("#langVoice", "en-US"); await page.waitForTimeout(150);
   await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelector(".veil")?.remove());
   await page.click("#micBtn"); await page.waitForTimeout(150);
   const on = await page.evaluate(() => ({ value: document.getElementById("input").value, on: document.getElementById("micBtn").classList.contains("on"),
@@ -1846,8 +1938,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("closed, Languages says where it stands", await page.evaluate(() => document.querySelector("#langBlock > summary").textContent) === "Languagesanswers as you write · mic in English",
     await page.evaluate(() => document.querySelector("#langBlock > summary").textContent));
   await page.click("#langBlock > summary");
-  await page.click('#langVoice button[data-v="fr-FR"]'); await page.waitForTimeout(150);
-  check("Settings, Languages, Voice input: French saved for the workspace", await page.evaluate(() => document.querySelector("#langVoice .on")?.textContent) === "French");
+  await page.selectOption("#langVoice", "fr-FR"); await page.waitForTimeout(150);
+  check("Settings, Languages, Mic language: French saved for the workspace", await page.evaluate(() => document.getElementById("langVoice").value === "fr-FR" && /^Saved\. The mic listens in French, on every device/.test(document.getElementById("langMsg").textContent)));
   await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelector(".veil")?.remove());
   await page.fill("#input", ""); await page.evaluate(() => document.activeElement?.blur()); await page.waitForTimeout(250);
   check("the bar rests folded", await page.evaluate(() => document.querySelector(".composer-wrap").classList.contains("compact")));

@@ -949,22 +949,29 @@ I run a marathon in May.
 /* ---- the model and the languages are picked per workspace ---- */
 {
   const { ctx } = seed();
-  check("a workspace starts on the default model, kept in English, answered as asked", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"reply":"same","voice":null,"depth":"long"}');
+  check("a workspace starts on the default model, kept in English, answered as asked", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"reply":"same","voice":null,"depth":"long","mic":"whisper"}');
   await run(store.setModels, ctx, { space: "octopus", chat: "openai/gpt-5" });
-  check("a model picked is kept", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","reply":"same","voice":null,"depth":"long"}');
-  check("another workspace keeps its own", JSON.stringify(await run(store.modelsOf, ctx, { space: "squidgy" })) === '{"chat":null,"reply":"same","voice":null,"depth":"long"}');
+  check("a model picked is kept", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","reply":"same","voice":null,"depth":"long","mic":"whisper"}');
+  check("another workspace keeps its own", JSON.stringify(await run(store.modelsOf, ctx, { space: "squidgy" })) === '{"chat":null,"reply":"same","voice":null,"depth":"long","mic":"whisper"}');
   await run(store.setModels, ctx, { space: "octopus", reply: "en", voice: "fr-FR" });
-  check("the answer and voice languages are saved apart, and the model stays", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","reply":"en","voice":"fr-FR","depth":"long"}');
+  check("the answer and voice languages are saved apart, and the model stays", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":"openai/gpt-5","reply":"en","voice":"fr-FR","depth":"long","mic":"whisper"}');
   await run(store.setModels, ctx, { space: "octopus", chat: null, voice: "xx-YY" });
-  check("an unknown voice goes back to the browser's, and a model change leaves the reply alone", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"reply":"en","voice":null,"depth":"long"}');
+  check("an unknown voice goes back to the browser's, and a model change leaves the reply alone", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"reply":"en","voice":null,"depth":"long","mic":"whisper"}');
   await run(store.setModels, ctx, { space: "octopus", depth: "short" });
-  check("Short answers are kept, and leave the model and the languages alone", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"reply":"en","voice":null,"depth":"short"}');
+  check("Short answers are kept, and leave the model and the languages alone", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === '{"chat":null,"reply":"en","voice":null,"depth":"short","mic":"whisper"}');
   await run(store.setModels, ctx, { space: "octopus", depth: "anything" });
   check("any other length is Long, the default", (await run(store.modelsOf, ctx, { space: "octopus" })).depth === "long");
+  await run(store.setModels, ctx, { space: "octopus", mic: "browser" });
+  check("the browser can be picked to write the voice, leaving the rest alone", (await run(store.modelsOf, ctx, { space: "octopus" })).mic === "browser" && (await run(store.modelsOf, ctx, { space: "octopus" })).depth === "long");
+  await run(store.setModels, ctx, { space: "octopus", mic: "whisper" });
+  check("and Whisper again, the default", (await run(store.modelsOf, ctx, { space: "octopus" })).mic === "whisper");
+  await run(store.setModels, ctx, { space: "octopus", voice: "auto" });
+  check("Detect is a language the mic may take, and Japanese too", (await run(store.modelsOf, ctx, { space: "octopus" })).voice === "auto"
+    && (await run(store.setModels, ctx, { space: "octopus", voice: "ja-JP" })).voice === "ja-JP");
   /* A row written when projects had a model of their own keeps working, and loses that field on the next save. */
   const old = seed();
   old.T.models = [{ _id: "m1", space: "octopus", chat: "x/y", project: "z/old", reply: "en", updated: 1 }];
-  check("a row from before, with a project model, still reads", JSON.stringify(await run(store.modelsOf, old.ctx, { space: "octopus" })) === '{"chat":"x/y","reply":"en","voice":null,"depth":"long"}');
+  check("a row from before, with a project model, still reads", JSON.stringify(await run(store.modelsOf, old.ctx, { space: "octopus" })) === '{"chat":"x/y","reply":"en","voice":null,"depth":"long","mic":"whisper"}');
   await run(store.setModels, old.ctx, { space: "octopus", voice: "fr-FR" });
   check("and the old field goes on its next save", old.T.models[0].project === undefined && old.T.models[0].chat === "x/y");
 }
@@ -986,7 +993,7 @@ I run a marathon in May.
   const set = await run(admin.setModel, ctx, { model: DS });
   check("set, the three run on that model", JSON.stringify(pick()) === JSON.stringify({ octopus: DS, squidgy: DS, pandaaahh: DS, demo: null, acme: null }) && !set.dry, JSON.stringify(pick()));
   check("the demo and a visitor's own-key workspace are left on the default", !T.models.some(m => m.space === "demo" || m.space === "acme"));
-  check("what a workspace chose for its languages is kept", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === `{"chat":"${DS}","reply":"en","voice":"fr-FR","depth":"long"}`, JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })));
+  check("what a workspace chose for its languages is kept", JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })) === `{"chat":"${DS}","reply":"en","voice":"fr-FR","depth":"long","mic":"whisper"}`, JSON.stringify(await run(store.modelsOf, ctx, { space: "octopus" })));
   check("and each reads it back as its model", (await run(store.modelsOf, ctx, { space: "pandaaahh" })).chat === DS && (await run(store.modelsOf, ctx, { space: "squidgy" })).chat === DS);
 
   const some = await run(admin.setModel, ctx, { model: "z-ai/glm-5.3", spaces: ["PandAAAHH"] });

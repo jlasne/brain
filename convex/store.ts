@@ -1554,14 +1554,15 @@ export const modelsOf = internalQuery({
   handler: async (ctx, a) => {
     const r = await modelsRow(ctx, readSpace(a.space));
     return { chat: r?.chat ?? null, reply: r?.reply === "en" ? "en" : "same", voice: VOICES.includes(r?.voice) ? r.voice : null,
-      depth: r?.depth === "short" ? "short" : "long",
+      depth: r?.depth === "short" ? "short" : "long", mic: r?.mic === "browser" ? "browser" : "whisper",
       /* The favourites, only when there are some: the model running is the cheapest of them. */
       ...(r?.favs?.length ? { favs: r.favs as string[], favAt: (r.favAt ?? null) as number | null, favPrices: (r.favPrices ?? []) as { id: string; price: number }[] } : {}) };
   },
 });
 
-/* The languages the mic may listen in. */
-export const VOICES = ["en-US", "fr-FR", "es-ES", "de-DE", "it-IT", "pt-PT"];
+/* The languages the mic may listen in, and "auto": Whisper works the language out itself. */
+export const VOICES = ["auto", "en-US", "fr-FR", "es-ES", "de-DE", "it-IT", "pt-PT", "nl-NL", "pl-PL", "sv-SE", "da-DK", "nb-NO", "fi-FI", "cs-CZ",
+  "ro-RO", "el-GR", "ru-RU", "uk-UA", "tr-TR", "ar-SA", "he-IL", "hi-IN", "ja-JP", "ko-KR", "zh-CN", "id-ID", "vi-VN", "th-TH"];
 
 /** A new pick. null goes back to the default; absent leaves it. */
 /**
@@ -1569,28 +1570,29 @@ export const VOICES = ["en-US", "fr-FR", "es-ES", "de-DE", "it-IT", "pt-PT"];
  * change. A list of favourites is kept with when it was priced and what each one
  * cost; no list (null or empty) clears all three.
  */
-export async function putModels(ctx: any, a: { space: string; chat?: string | null; reply?: string; voice?: string | null; depth?: string;
+export async function putModels(ctx: any, a: { space: string; chat?: string | null; reply?: string; voice?: string | null; depth?: string; mic?: string;
     favs?: string[] | null; favAt?: number; favPrices?: { id: string; price: number }[] }) {
   const space = readSpace(a.space), row = await modelsRow(ctx, space), at = Date.now();
-  const next: any = { chat: row?.chat, reply: row?.reply, voice: row?.voice, depth: row?.depth, favs: row?.favs, favAt: row?.favAt, favPrices: row?.favPrices };
+  const next: any = { chat: row?.chat, reply: row?.reply, voice: row?.voice, depth: row?.depth, mic: row?.mic, favs: row?.favs, favAt: row?.favAt, favPrices: row?.favPrices };
   if (a.chat !== undefined) next.chat = a.chat ?? undefined;
   if (a.reply !== undefined) next.reply = a.reply === "en" ? "en" : "same";
   if (a.voice !== undefined) next.voice = VOICES.includes(a.voice as string) ? a.voice : undefined;
   if (a.depth !== undefined) next.depth = a.depth === "short" ? "short" : undefined;
+  if (a.mic !== undefined) next.mic = a.mic === "browser" ? "browser" : undefined;
   if (a.favs !== undefined) next.favs = a.favs?.length ? a.favs : undefined;
   if (!next.favs) { next.favAt = undefined; next.favPrices = undefined; }
   else { if (a.favAt !== undefined) next.favAt = a.favAt; if (a.favPrices !== undefined) next.favPrices = a.favPrices; }
   for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
-  const cleared = { chat: undefined, project: undefined, voice: undefined, depth: undefined, favs: undefined, favAt: undefined, favPrices: undefined };
+  const cleared = { chat: undefined, project: undefined, voice: undefined, depth: undefined, mic: undefined, favs: undefined, favAt: undefined, favPrices: undefined };
   if (row) await ctx.db.patch(row._id, { ...cleared, ...next, updated: at });
   else await ctx.db.insert("models", { space, ...next, updated: at });
-  return { chat: next.chat ?? null, reply: next.reply === "en" ? "en" : "same", voice: next.voice ?? null, depth: next.depth === "short" ? "short" : "long",
+  return { chat: next.chat ?? null, reply: next.reply === "en" ? "en" : "same", voice: next.voice ?? null, depth: next.depth === "short" ? "short" : "long", mic: next.mic === "browser" ? "browser" : "whisper",
     favs: (next.favs ?? null) as string[] | null };
 }
 
 export const setModels = internalMutation({
   args: { space: v.string(), chat: v.optional(v.union(v.string(), v.null())),
-          reply: v.optional(v.string()), voice: v.optional(v.union(v.string(), v.null())), depth: v.optional(v.string()),
+          reply: v.optional(v.string()), voice: v.optional(v.union(v.string(), v.null())), depth: v.optional(v.string()), mic: v.optional(v.string()),
           /* null ends the daily choice among favourites: a model picked by hand stays. */
           favs: v.optional(v.union(v.array(v.string()), v.null())) },
   handler: async (ctx, a) => await putModels(ctx, a),

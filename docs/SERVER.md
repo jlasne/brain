@@ -106,8 +106,27 @@ in: each claim carries `orig`, the words as written, when they were in
 another language. Per workspace, in the `models` row and Settings: `reply`
 is how answers come back, `same` (the default, the language asked in) or
 `en`, for the chat, the personal chat and the interview's questions; `voice`
-is the language the mic listens in, one of en-US, fr-FR, es-ES, de-DE,
-it-IT, pt-PT, or null for the browser's. Both are set through `/api/models`.
+is the language the mic listens in, one of 27 (en-US, fr-FR, es-ES, de-DE,
+it-IT, pt-PT, nl-NL, ja-JP and the rest), `auto` for Whisper to tell, or null;
+`mic` is what writes the voice, absent for Whisper or `browser`. All are set
+through `/api/models`.
+
+Voice. Whisper large-v3 turbo writes what is said into the mic, through
+OpenRouter's transcription endpoint (`/audio/transcriptions`) on the
+workspace's key, at $0.04 an hour of audio. The app records with the
+browser's MediaRecorder (webm in Chrome and Edge, ogg in Firefox, mp4 in
+Safari, sent as m4a) and cuts a piece at the first pause of half a second
+after 20 seconds, never past 28, the next piece recording before the last
+stops so no word falls between. It measures the loudness as it records: a
+piece with under a third of a second of speech is never sent, and the mic
+stops by itself after 3 minutes with nothing said. Each piece goes to
+`/api/voice` as base64 with its format, the language in two letters (none
+with `auto`) and its seconds; a host that fails is asked twice more, and the
+words join the box in the order said. Lines Whisper is known to write over
+silence (subtitle credits) are dropped. The cost is the host's price, or the
+seconds at $0.04 an hour, counted under Voice. The demo, a server older than
+the page and a browser that cannot record listen with the browser's own
+speech service, which needs a language picked and stops after 2 minutes.
 
 A personal brain interviews its owner. 335 questions in 17 chapters, written
 for anyone and asked in the model's own words, fitted to what the notes say.
@@ -242,6 +261,7 @@ convex/
   spend.ts         the cost meter: a tally per kind of work, added once the work is done
   style.ts         the house writing rules, written once and put into every prompt that needs them
   restore.ts       an export read back into folders, concepts and sources
+  voice.ts         a piece of speech written by Whisper large-v3 turbo through OpenRouter
 app/
   index.html       the landing, pointed at the deployment
   chat.html        the app, built from web/chat: never edited by hand
@@ -304,7 +324,8 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/drop/link` | Links everything a drop wrote, once, in the background | Yes |
 | `/api/drop/merge` | Before storing: groups new titles that name one idea twice, joins a new idea to the concept already holding it, and gives a title not in English its English one | Yes |
 | `/api/ask` | The answer (see The chats), with `opened`, the concepts it read, for the page to send back with the thread. Thanks, a greeting or a goodbye is answered in one short call that reads nothing. With `concept`, it reads that one concept alone; in a personal folder, what the message adds or corrects is written to the note or the person's file at once, and `changed` says what moved. With `tags`, the slugs of folders named with @ in the message, it reads those folders and no other (in the personal chat: the personal folder, those folders and those projects), and `tagged` (`called` in the personal chat) names them | Yes |
-| `/api/models` | The workspace's model, and the languages of its answers and its mic. `null` goes back to the default. A model picked here ends the daily choice among favourites, and the answer says so (`favs: null`) | Owner |
+| `/api/voice` | A piece of speech, about 20 seconds as base64 with its format, language and seconds, written by Whisper large-v3 turbo through OpenRouter on the workspace's key. Counted under Voice. Never the demo | Yes |
+| `/api/models` | The workspace's model, the languages of its answers and its mic, and what writes the voice (`mic`: whisper or browser). `null` goes back to the default. A model picked here ends the daily choice among favourites, and the answer says so (`favs: null`) | Owner |
 | `/api/onepager` | A summary in bullets of a brain, a group or a question, or a document: a quiz, a deep dive, use cases, or a type you describe. Built, shown and never stored. Sends it too, when given an address | Yes |
 | `/api/fetch` | Opens a link, or fetches a video's transcript | Yes |
 | `/api/usage` | What transcripts have cost, from both sides | Yes |
@@ -446,7 +467,7 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `projectThreads` | a project's running thread: its last 4 exchanges | folder |
 | `projectEdits` | the changes the chat proposed to a file, with what each replaced so it can be undone. The last 10 of each file stay | file and time |
 | `projectSpend` | what the projects cost: one row a project a month (UTC, "2026-10") with the dollars the model host reported, the calls it gave a price for and all the calls, the tokens in and out and the part reused. A project taken away keeps its rows, so the month's total is what was spent | workspace and month, project and month |
-| `chatSpend` | what everything but the projects costs: one row a kind a month, with the dollars the model host reported, the calls it gave a price for and all the calls, the tokens in, out and reused, and `reused`, the answers given again for no call. The kinds: `folders` (the main chat, a folder's, a concept's), `personal` (the personal chat, the interview, remember, people and contacts), `drops` (read, plan, merge, settle), `upkeep` (linking, topics, conflicts, tidy, rederive) and `pager` (one-pagers). The demo is not counted | workspace and month |
+| `chatSpend` | what everything but the projects costs: one row a kind a month, with the dollars the model host reported, the calls it gave a price for and all the calls, the tokens in, out and reused, and `reused`, the answers given again for no call. The kinds: `folders` (the main chat, a folder's, a concept's), `personal` (the personal chat, the interview, remember, people and contacts), `drops` (read, plan, merge, settle), `upkeep` (linking, topics, conflicts, tidy, rederive), `pager` (one-pagers) and `voice` (Whisper, by the second). The demo is not counted | workspace and month |
 | `answerCache` | a question asked to open a chat, and its answer: the key (the question in lower case, the folders, the tags, the level, the language and the model), the print of the folders it read, the answer, its source count, the concepts it opened and the folders tagged. A row is replaced when the same key is asked again, and rows older than 14 days go 20 at a time | workspace and key, workspace and time |
 | `projectBudget` | the most a workspace's projects may cost in a month, when its owner set one | workspace |
 | `projectBriefs` | what belongs to the project as a whole: the Brief, the State of play, the questions waiting for the owner, whether answers end with a next step, and the number the next file takes | folder |

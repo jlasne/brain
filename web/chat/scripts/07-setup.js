@@ -117,9 +117,9 @@ async function openSetupSheet(opts = {}){
   dRow.append(dt, dGo);
   veil.querySelector("#auditSum").textContent = [dueN ? `${dueN} due` : "", dn ? `${dn} to decide` : ""].filter(Boolean).join(" \u00b7 ");
   const langSum = () => {
-    const v = voiceLang(), name = v ? (VOICE_LANGS.find(x => x[0] === v) || [])[2] || v : "";
+    const v = voiceLang(), w = micEngine() === "whisper", name = v === "auto" ? (w ? "any language" : "") : v ? (VOICE_LANGS.find(x => x[0] === v) || [])[2] || v : w ? "any language" : "";
     veil.querySelector("#langSum").textContent = [S.demo ? "" : S.models?.reply === "en" ? "answers in English" : "answers as you write",
-      Speech ? (name ? `mic in ${name}` : "mic not set") : ""].filter(Boolean).join(" · ");
+      w || Speech ? (name ? `mic in ${name}` : "mic not set") : ""].filter(Boolean).join(" · ");
   };
   langSum();
   veil.querySelector("#lookSum").textContent = S.brand ? "your own" : "default";
@@ -262,12 +262,12 @@ function setupMarkup(){
         <div class="lang-row" ${S.demo ? "hidden" : ""}><span>Answers in the chat</span>
           <div class="seg" id="langReply" role="radiogroup" aria-label="The language answers come back in">
             <button type="button" role="radio" data-v="same">As you write</button><button type="button" role="radio" data-v="en">In English</button></div></div>
-        <div class="lang-row"><span>Voice input</span>
-          <div class="seg seg-wrap" id="langVoice" role="radiogroup" aria-label="The language the mic listens in">
-            <button type="button" role="radio" data-v="en-US">English</button>
-            <button type="button" role="radio" data-v="fr-FR">French</button><button type="button" role="radio" data-v="es-ES">Spanish</button>
-            <button type="button" role="radio" data-v="de-DE">German</button><button type="button" role="radio" data-v="it-IT">Italian</button>
-            <button type="button" role="radio" data-v="pt-PT">Portuguese</button></div></div>
+        <div class="lang-row" id="micRow" ${S.demo ? "hidden" : ""}><span>Voice</span>
+          <div class="seg" id="micPick" role="radiogroup" aria-label="What writes what you say">
+            <button type="button" role="radio" data-v="whisper">Whisper</button><button type="button" role="radio" data-v="browser">Browser</button></div></div>
+        <div class="hint" id="micSay" style="margin:2px 0 8px" ${S.demo ? "hidden" : ""}></div>
+        <div class="lang-row"><span>Mic language</span>
+          <select id="langVoice" class="pick" aria-label="The language the mic listens in"></select></div>
         <div class="hint" id="langMsg" role="status" style="margin-top:6px"></div>
       </details>
 
@@ -337,6 +337,55 @@ function setupMarkup(){
     </div>`;
 }
 
+/**
+ * Settings, the voice: what writes what you say, Whisper or the browser, and the language the mic listens in. Whisper takes any
+ * length and tells the language by itself with Detect; the browser is free, hears one language you pick, up to 2 minutes at a time.
+ * Saved for the workspace; the demo listens with the browser and keeps its language in this browser.
+ */
+function setupMic({ veil, langSum }){
+  const seg = veil.querySelector("#micPick"), say = veil.querySelector("#micSay"), pick = veil.querySelector("#langVoice"), msg = veil.querySelector("#langMsg");
+  const MIC_SAY = { whisper: "Whisper writes it: as long as you talk, in any language, with punctuation and names. About $0.04 an hour of talking, counted under Voice in Cost.",
+    browser: "The browser writes it: free, in Chrome, Edge and Safari, up to 2 minutes at a time, in the one language picked below." };
+  const engine = () => micEngine();
+  const paint = () => {
+    const w = engine() === "whisper";
+    for (const x of seg.children){ const on = x.dataset.v === (S.models?.mic === "whisper" ? "whisper" : "browser"); x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); }
+    say.textContent = MIC_SAY[w ? "whisper" : "browser"] + (S.models?.mic === "whisper" && !recorderOK() ? " This browser cannot record, so it listens with its own service here." : "");
+    const now = voiceLang();
+    pick.innerHTML = (w ? `<option value="auto">Detect: any language</option>` : `<option value="">Pick a language</option>`)
+      + VOICE_LANGS.map(x => `<option value="${x[0]}">${esc(x[2])}</option>`).join("");
+    pick.value = now === "auto" ? (w ? "auto" : "") : now || (w ? "auto" : "");
+    pick.closest(".lang-row").hidden = !w && !Speech;
+  };
+  /* An older server has no Whisper: the choice is left out, and the browser listens. */
+  veil.querySelector("#micRow").hidden = S.demo || !S.models?.mic;
+  say.hidden = veil.querySelector("#micRow").hidden;
+  paint();
+  seg.onclick = async e => {
+    const x = e.target.closest("button[data-v]");
+    if (!x || x.dataset.v === S.models?.mic) return;
+    msg.textContent = "Saving";
+    try {
+      const r = await api("/api/models", { mic: x.dataset.v });
+      S.models = { ...(S.models || {}), mic: r.mic };
+      paint(); langSum();
+      msg.textContent = r.mic === "whisper" ? "Saved. Whisper writes what you say, on every device of this workspace." : "Saved. The browser writes what you say, free, on every device of this workspace.";
+    } catch (err){ msg.textContent = err.message; }
+  };
+  pick.onchange = async () => {
+    const v = pick.value;
+    const said = () => `Saved. The mic listens in ${v === "auto" ? "any language, and Whisper tells which" : (VOICE_LANGS.find(x => x[0] === v) || [])[2] || v}${S.demo ? ", in this browser" : ", on every device of this workspace"}. Tap the mic to talk.`;
+    if (!v){ return; }
+    if (S.demo){ setLocalVoice(v); langSum(); msg.textContent = said(); return; }
+    msg.textContent = "Saving";
+    try {
+      const r = await api("/api/models", { voice: v });
+      S.models = { ...(S.models || {}), voice: r.voice };
+      langSum(); msg.textContent = said();
+    } catch (err){ msg.textContent = err.message; }
+  };
+}
+
 /** Settings, what the projects and the chats cost this month, and the cap. */
 function setupSpend({ veil }){
   /* ---- what the projects cost, and the cap ---- */
@@ -345,7 +394,7 @@ function setupSpend({ veil }){
     const sum = veil.querySelector("#spendSum"), body = veil.querySelector("#spendBody"), note = veil.querySelector("#spendMsg");
     const capIn = veil.querySelector("#spendCap"), save = veil.querySelector("#spendSave"), off = veil.querySelector("#spendOff");
     /* Everything outside the projects that asks a model, by kind, in this order. */
-    const KINDS = { folders: "Folder chat", personal: "Personal chat", drops: "Drops", upkeep: "Upkeep", pager: "One-pagers" };
+    const KINDS = { folders: "Folder chat", personal: "Personal chat", drops: "Drops", upkeep: "Upkeep", pager: "One-pagers", voice: "Voice" };
     const paint = r => {
       /* The projects and the chats, added: what the month cost in all. The cap is about the projects alone. */
       const chats = (r.chats || []).filter(c => KINDS[c.kind]).sort((a, b) => Object.keys(KINDS).indexOf(a.kind) - Object.keys(KINDS).indexOf(b.kind));
@@ -490,16 +539,16 @@ function setupPrefs({ veil, langSum }){
     }
     instMsg.textContent = installSteps();
   };
+  /* How answers come back: as you write, or in English, saved for the workspace on a tap. */
   const langSeg = (id, key, def, said) => {
     const seg = veil.querySelector("#" + id), msg = veil.querySelector("#langMsg");
-    const now = () => key === "voice" ? voiceLang() : (S.models?.[key] || def);
+    const now = () => S.models?.[key] || def;
     const paint = () => { for (const x of seg.children){ const on = x.dataset.v === now(); x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on)); } };
-    seg.closest(".lang-row").hidden = key === "voice" ? !Speech : S.demo;
+    seg.closest(".lang-row").hidden = S.demo;
     paint();
     seg.onclick = async e => {
       const x = e.target.closest("button[data-v]");
       if (!x || x.dataset.v === now()) return;
-      if (key === "voice" && S.demo){ setLocalVoice(x.dataset.v); paint(); langSum(); msg.textContent = said(x.dataset.v); return; }
       msg.textContent = "Saving";
       try {
         const r = await api("/api/models", { [key]: x.dataset.v || null });
@@ -509,7 +558,7 @@ function setupPrefs({ veil, langSum }){
     };
   };
   langSeg("langReply", "reply", "same", v => v === "en" ? "Saved. Answers come back in English." : "Saved. Answers come back in the language you write in.");
-  langSeg("langVoice", "voice", "", v => `Saved. The mic listens in ${(VOICE_LANGS.find(x => x[0] === v) || [])[2] || v}${S.demo ? ", in this browser" : ", on every device of this workspace"}. Tap the mic to talk.`);
+  setupMic({ veil, langSum });
 }
 
 /**

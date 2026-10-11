@@ -38,6 +38,7 @@ import {
 } from "./twin";
 import type { RoundQ } from "./twin";
 import type { Marks } from "./twin";
+import { transcribe } from "./voice";
 import { STYLE, SHORT_STYLE } from "./style";
 
 const router = httpRouter();
@@ -58,7 +59,7 @@ const router = httpRouter();
 type Caller = Who & { demo: boolean; byok: boolean; key?: string; visitor: string | null; wsName: string;
   /* The models this workspace picked in Settings, or null for the defaults,
      and its languages: what the personal folder keeps, how answers come back. */
-  models: { chat: string | null; reply?: string; voice?: string | null; depth?: string;
+  models: { chat: string | null; reply?: string; voice?: string | null; depth?: string; mic?: string;
     /* Favourite models, when the workspace has them: the cheapest of them is the one in `chat`. */
     favs?: string[]; favAt?: number | null; favPrices?: { id: string; price: number }[] } };
 const KEY_RE = /^sk-or-[A-Za-z0-9_-]{20,200}$/;
@@ -79,7 +80,7 @@ async function gate(ctx: any, body: any, opts: { ownerOnly?: boolean } = {}): Pr
   const byok = ws?.kind === "byok";
   const k = String(body?.key ?? "").trim();
   /* The demo always runs on the defaults. */
-  const models = demo ? { chat: null, reply: "same", voice: null, depth: "long" } : await ctx.runQuery(internal.store.modelsOf, { space: who.space });
+  const models = demo ? { chat: null, reply: "same", voice: null, depth: "long", mic: "browser" } : await ctx.runQuery(internal.store.modelsOf, { space: who.space });
   return { ...who, kind: "owner", demo, byok, models, visitor: demo ? who.visitor : null, wsName: ws?.name ?? spaceName(who.space),
     key: byok ? (KEY_RE.test(k) ? k : undefined) : ws?.kind === "demo" ? (process.env.DEMO_OPENROUTER_API_KEY || undefined) : undefined };
 }
@@ -445,6 +446,8 @@ route("/api/state", async (ctx, _req, b) => {
   /* The model in use, and the default Settings offers to go back to. */
   const models = { chat: who.models.chat || MODEL, chatDefault: MODEL,
     reply: who.models.reply === "en" ? "en" : "same", voice: who.models.voice ?? null, depth: who.models.depth === "short" ? "short" : "long",
+    /* What writes the voice: the demo keeps the browser's own; every other workspace Whisper unless it picked the browser. */
+    mic: who.demo || who.models.mic === "browser" ? "browser" : "whisper",
     ...(who.models.favs?.length ? { favs: who.models.favs, favAt: who.models.favAt ?? null, favPrices: who.models.favPrices ?? [] } : {}) };
   return { ...s, projects, model: models.chat, models, chunk: CHUNK,
            space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand };
@@ -455,6 +458,18 @@ route("/api/state", async (ctx, _req, b) => {
  * Drop and writes one-pagers. null goes back to the default. A model picked
  * here, or the default, ends the daily choice among favourites, if there was one.
  */
+/**
+ * A piece of speech written by Whisper: about 20 seconds of audio the app recorded, cut at a pause, as base64, with its format, the
+ * language picked in Settings (two letters, or none to let Whisper tell), and how long it lasts. It runs on the workspace's key and
+ * is counted under Voice in Settings. The demo listens with the browser's own speech service.
+ */
+route("/api/voice", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  if (who.demo) throw new Error("the demo listens with the browser's own voice input. Make your own workspace to talk with Whisper.");
+  return await metered(ctx, who, "voice", meter => transcribe({ audio: String(b.audio ?? ""), format: String(b.format ?? ""), lang: String(b.lang ?? ""),
+    seconds: Number(b.seconds) || 0, key: keyFor(who), meter }));
+});
+
 route("/api/models", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   const one = (k: "chat") => {
@@ -470,11 +485,13 @@ route("/api/models", async (ctx, _req, b) => {
   const voice = "voice" in b ? (b.voice ? String(b.voice) : null) : undefined;
   /* How much a Normal answer reads: short or long. */
   const depth = "depth" in b ? (b.depth === "short" ? "short" : "long") : undefined;
-  if (chat === undefined && !reply && voice === undefined && !depth) return { error: "say which model, language or answer length to change" };
+  /* What writes the voice: Whisper, or the browser's own speech service. */
+  const mic = "mic" in b ? (b.mic === "browser" ? "browser" : "whisper") : undefined;
+  if (chat === undefined && !reply && voice === undefined && !depth && !mic) return { error: "say which model, language, answer length or voice to change" };
   const r = await ctx.runMutation(internal.store.setModels, { space: who.space,
     ...(chat !== undefined ? { chat: chat === MODEL ? null : chat, favs: null } : {}),
-    ...(reply ? { reply } : {}), ...(voice !== undefined ? { voice } : {}), ...(depth ? { depth } : {}) });
-  return { chat: r.chat || MODEL, reply: r.reply, voice: r.voice, depth: r.depth, favs: r.favs ?? null };
+    ...(reply ? { reply } : {}), ...(voice !== undefined ? { voice } : {}), ...(depth ? { depth } : {}), ...(mic ? { mic } : {}) });
+  return { chat: r.chat || MODEL, reply: r.reply, voice: r.voice, depth: r.depth, mic: r.mic, favs: r.favs ?? null };
 });
 
 /**

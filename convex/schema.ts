@@ -225,6 +225,8 @@ export default defineSchema({
     voice: v.optional(v.string()),
     /* How much a Normal answer reads: "short" (its 12 best concepts) or "long" (up to 30, the default). */
     depth: v.optional(v.string()),
+    /* What writes what is said into the mic: "browser", the free speech service of the browser, or absent for Whisper. */
+    mic: v.optional(v.string()),
     /* Favourites: models to choose among, the cheapest one running. A daily
        check writes `chat` from this list, with when it looked and each model's
        price in dollars per million tokens. A model picked by hand clears all three. */
