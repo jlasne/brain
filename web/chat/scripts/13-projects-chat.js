@@ -102,9 +102,20 @@ function paintSide(){
   pj.size();
 }
 
+/** What the owner wrote: a long paste, a log or a list, folds to its first lines, with a tap to see it whole. */
+function qEls(q){
+  const b = el("div","pj-q",q), text = String(q ?? ""), lines = text.split("\n").length;
+  if (lines <= 12 && text.length <= 1200) return [b];
+  b.classList.add("fold");
+  const all = lines > 12 ? `${lines} lines` : `${text.length.toLocaleString("en-US")} characters`;
+  const more = el("button","pj-qmore",`Show all ${all}`); more.type = "button"; more.setAttribute("aria-expanded","false");
+  more.onclick = () => { const shut = b.classList.toggle("fold"); more.textContent = shut ? `Show all ${all}` : "Show less"; more.setAttribute("aria-expanded", String(!shut)); };
+  return [b, more];
+}
+
 function turnEl(t){
   const w = el("div","pj-turn"); w.dataset.id = t.id || "";
-  w.append(el("div","pj-q",t.q));
+  w.append(...qEls(t.q));
   const a = el("div","pj-a");
   /* As in the normal chat: the answer on the page, in plain lines. What it read, in the memory, the file and the folders, stays behind it. */
   const text = [t.lead, t.a].filter(Boolean).join("\n\n");
@@ -140,7 +151,7 @@ async function sendProject(q){
   const hadFile = !!pj.data.file, sentFid = pj.fid || 1;
   const box = pj.thread;
   box.querySelector(".pj-hint")?.remove(); box.querySelector(".pj-try")?.remove();
-  const w = el("div","pj-turn"); w.append(el("div","pj-q",q));
+  const w = el("div","pj-turn"); w.append(...qEls(q));
   const a = el("div","pj-a"); thinkInto(a, pj.data.file ? "Reading the file" : "Making it"); w.append(a);
   box.append(w); box.scrollTop = box.scrollHeight;
   try {

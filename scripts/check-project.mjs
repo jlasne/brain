@@ -582,6 +582,45 @@ const gt = await T2.ctx.runQuery("projects.projectGet", { space: SPACE, brain: s
   check("a sheet downloads as its header and its rows", meta.sheets[0].header.join() === "Program,Price,Plan" && all.length === 700 && all[0][0] === "Program 1");
 }
 
+/* ---- a log pasted in the chat goes into the table: read word for word later, and added in one change ---- */
+{
+  const w = makeCtx();
+  const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Cap Spartan" });
+  const b = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p, name: "log.csv", kind: "table", sheets: [{ name: "log.csv", header: ["Date", "Exercise", "Reps"] }] });
+  await project.addRowPiece(w.ctx, { space: SPACE, brain: p, ver: b.ver, sheet: 0, rows: [["2026-10-01", "Squat", "10"]] });
+  await project.finishFile(w.ctx, { space: SPACE, brain: p, ver: b.ver });
+  const chat = q => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0 });
+  const log = Array.from({ length: 40 }, (_, i) => `2026-10-${String(2 + (i % 9)).padStart(2, "0")} Push-up ${10 + i}`).join("\n");
+  /* the log comes first, with a question */
+  reply = { route: routeOf(), answer: answerOf({ tldr: "Noted.", reply: "" }) };
+  await chat(`Here is my log for October:\n${log}`);
+  /* then the ask to put it in */
+  const rows = Array.from({ length: 40 }, (_, i) => [`2026-10-${String(2 + (i % 9)).padStart(2, "0")}`, "Push-up", String(10 + i)]);
+  reply = { route: routeOf({ intent: "change" }), answer: answerOf({ tldr: "Added the 40 lines of your log.", edits: [{ op: "append", sheet: 1, rows }] }) };
+  const t = await chat("Create the table with the log I wrote above");
+  const sent = last(/You are the chat of a project/);
+  check("a log pasted earlier is read again word for word, every line, as the owner's material", sent.user.includes("WHAT THE OWNER WROTE EARLIER IN THIS CHAT, word for word") && sent.user.includes("2026-10-02 Push-up 10") && sent.user.includes("Push-up 49"),
+    sent.user.split("WHAT THE OWNER WROTE EARLIER")[1]?.slice(0, 200));
+  check("and the rules say it may go into the file, while the chat's own answers never count as a source", /It is the owner's material: when they ask, it goes into the file as written\./.test(sent.sys) && /Your own earlier answers are never a source\./.test(sent.user));
+  check("a table is told to take a log whole, with one append for many rows", /"op":"append"/.test(sent.sys) && /every line a row, the values as written, nothing summed, merged or left out/.test(sent.sys));
+  check("40 rows go in one change, past the 12 changes an answer takes", t.edit?.preview?.[0]?.label === "40 new rows at the end" && /and 37 more$/.test(t.edit.preview[0].after), JSON.stringify(t.edit?.preview));
+  await w.ctx.runMutation("projects.editApply", { space: SPACE, brain: p, id: t.edit.id });
+  const all = (await w.ctx.runQuery("projects.rowsPage", { space: SPACE, brain: p, sheet: 0, from: 1, n: 100 })).rows;
+  const g = await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  check("applied, the rows follow the one there before, in order, and the count says 41", all.length === 41 && all[0].cells[1] === "Squat" && all[1].cells.join() === "2026-10-02,Push-up,10" && all[40].cells[2] === "49" && g.file.sheets[0].rows === 41, JSON.stringify(all.slice(0, 3)));
+  await w.ctx.runMutation("projects.editUndo", { space: SPACE, brain: p, id: t.edit.id });
+  const back = await w.ctx.runQuery("projects.projectGet", { space: SPACE, brain: p });
+  check("Undo takes the added rows away whole", back.file.sheets[0].rows === 1 && (await w.ctx.runQuery("projects.rowsPage", { space: SPACE, brain: p, sheet: 0, from: 1, n: 10 })).rows.length === 1);
+  /* a short question is no material; a long message is read to 40,000 characters, and says so past it */
+  check("a short question is never read as material", project.pasted("What did I lift on Monday?") === false && project.pasted("a\nb\nc\nd\ne") === true && project.pasted("x".repeat(401)) === true);
+  reply = { route: routeOf(), answer: answerOf({ tldr: "Read.", reply: "" }) };
+  const long = await chat("L".repeat(45000));
+  check("a message is read to 40,000 characters, up from 4,000, and the answer says what was left", last(/You are the chat of a project/).user.includes("L".repeat(40000)) && !last(/You are the chat of a project/).user.includes("L".repeat(40001))
+    && /Only the first 40,000 characters of your message were read\. Send the rest in a second message\./.test(long.a), long.a);
+  const ext = project.pastedBefore([{ q: "A".repeat(20000), at: 1 }, { q: "B".repeat(20000), at: 2 }, { q: "short one", at: 3 }]);
+  check("what was pasted earlier is read newest first, within 30,000 characters", ext.indexOf("B") < ext.indexOf("A") && (ext.match(/[AB]/g) || []).length === 30000 && /its first part/.test(ext), String(ext.length));
+}
+
 /* ---- the project files its own notes ---- */
 {
   const w = makeCtx();

@@ -231,9 +231,9 @@ async function addFile(file){
   const sh = progressSheet(`Reading ${file.name}`);
   let made = null;
   try {
-    const got = await readProjectFile(file, sh.say);
+    const got = await readProjectFile(file, sh.read);
     made = await fileCall({ action: "new", kind: got.kind, name: got.name, made: false });
-    await uploadProject(made.key, got, sh.say);
+    await uploadProject(made.key, got, sh.store);
     sh.close();
     await syncProjects();
     if (S.pj === pj) await showFile(made.fid);

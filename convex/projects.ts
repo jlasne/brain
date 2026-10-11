@@ -1036,6 +1036,16 @@ async function check(ctx: any, brain: string, raw: any[]) {
         if (after) { const got = await rowsAt(ctx, brain, si, [after]); if (!got.has(after)) { reject(`row ${after} is not in the table`); continue; } touched.add(got.get(after)!.sid); }
         ops.push({ op: "add", sheet: si + 1, after, values: Object.fromEntries(cols.map((c, i) => [c.name, row[i]]).filter(([, x]) => x)) });
         preview.push({ label: `New row ${after ? `after row ${after}` : "at the end"}${sname}`, before: "", after: short(row.join(" | "), 160) });
+      } else if (kind === "append") {
+        /* Many rows at the end in one change, in the order of the columns: a log or a list the owner pasted. */
+        if (!cols.length) { reject("that sheet has no columns yet: build it with a table change"); continue; }
+        const rows: string[][] = (Array.isArray(o.rows) ? o.rows : []).slice(0, TABLE_OP_ROWS)
+          .map((r: any) => Array.isArray(r) ? cols.map((_, i) => String(r[i] ?? "").slice(0, 2000)) : rowFrom(cols, r && typeof r === "object" ? r : {}))
+          .filter((r: string[]) => r.some(c => c.trim()));
+        if (!rows.length) { reject("new rows need values"); continue; }
+        ops.push({ op: "append", sheet: si + 1, rows });
+        preview.push({ label: `${rows.length} new row${rows.length === 1 ? "" : "s"} at the end${sname}`, before: "",
+          after: rows.slice(0, 3).map(r => short(r.join(" | "), 160)).join("\n") + (rows.length > 3 ? `\nand ${rows.length - 3} more` : "") });
       } else reject(`"${kind}" is not a change a table takes`);
     }
   }
@@ -1218,6 +1228,20 @@ export const editApply = internalMutation({
           await ctx.db.patch(body._id, { text });
           await ctx.db.patch(card._id, { chars: text.length, rows: out.length });
           wrote.set(cards[k].sid, text);
+        }
+        /* Rows added at the end go in blocks of their own, after the last: Undo takes them away whole. */
+        const appended = ops.filter(x => x.op === "append").flatMap(x => (x.rows ?? []) as string[][]);
+        if (appended.length) {
+          const now = await fileOf(ctx, a.brain);
+          let sid = now.next;
+          for (const b of blocksOf(appended)) {
+            const text = csvOf(b);
+            await ctx.db.insert("projectCards", { brain: a.brain, sid, ord: sid, sheet: si, title: "Rows", summary: "", chars: text.length, rows: b.length });
+            await ctx.db.insert("projectSections", { brain: a.brain, sid, text });
+            before.push({ sid, inserted: true, wrote: fnv(text) });
+            sid++;
+          }
+          await ctx.db.patch(now._id, { next: sid });
         }
         const rowsNow = (await cardsOf(ctx, a.brain)).filter((c: any) => c.sheet === si).reduce((n: number, c: any) => n + (c.rows ?? 0), 0);
         const fresh = await fileOf(ctx, a.brain);

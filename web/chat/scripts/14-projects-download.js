@@ -682,25 +682,106 @@ async function sendResource(slug, got, say){
   return { notes, cut };
 }
 
-/** A sheet that says where a file stands while it is read and filed. */
+/** How long a step took, as the steps list says it: <0.1 s, 0.4 s, 12 s, 1 min 5 s. */
+function took(ms){
+  const s = ms / 1000;
+  return s < 0.1 ? "<0.1 s" : s < 10 ? `${s.toFixed(1)} s` : s < 60 ? `${Math.round(s)} s` : `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`;
+}
+/** How far a step's own line says it is: "page 5 of 40" is 4 of 40 done, "rows 501 to 1000 of 2000" is 500 of 2000. */
+function stepPart(t){
+  const m = [...String(t).matchAll(/(\d[\d,]*)(?: to \d[\d,]*)? of (\d[\d,]*)/g)].pop();
+  if (!m) return 0;
+  const a = Number(m[1].replace(/,/g, "")), b = Number(m[2].replace(/,/g, ""));
+  return b ? Math.min(1, Math.max(0, (a - 1) / b)) : 0;
+}
+
+/**
+ * Where a project stands while it is made, drawn: the percent and the time so far, a bar that fills by the weight of each step,
+ * and the steps on a rail, each lit as it starts and checked as it ends, with how long it took. `stages` are { k, label, w },
+ * w being the share of the bar a step takes. Between two lines the bar creeps toward the end of the step it is on, so a long
+ * model call never looks frozen, and it never runs past that step. The tab's title carries the percent.
+ */
+function buildTrack(host, stages, word = "Creating"){
+  const total = stages.reduce((a, x) => a + x.w, 0) || 1, t0 = Date.now();
+  host.classList.add("nb");
+  host.innerHTML = `<div class="nb-top"><b class="nb-pct">0%</b><span class="nb-time">0:00</span></div>
+    <div class="nb-bar" role="progressbar" aria-label="${esc(word)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+    <ol class="nb-steps"></ol>`;
+  const pct = host.querySelector(".nb-pct"), time = host.querySelector(".nb-time"), bar = host.querySelector(".nb-bar"), fill = bar.firstElementChild, list = host.querySelector(".nb-steps");
+  const rows = stages.map(x => {
+    const li = el("li","wait");
+    li.innerHTML = `<span class="nb-node" aria-hidden="true"><svg viewBox="0 0 16 16"><path class="ok" d="M4 8.4l2.6 2.6L12 5.6"/><path class="no" d="M5 5l6 6M11 5l-6 6"/></svg></span>
+      <span class="nb-txt"><b></b><span class="nb-d" role="status"></span></span><span class="nb-s"></span>`;
+    li.querySelector("b").textContent = x.label;
+    list.append(li);
+    return { ...x, li, d: li.querySelector(".nb-d"), sec: li.querySelector(".nb-s"), at: 0 };
+  });
+  let cur = -1, real = 0, shown = 0, over = false;
+  const startOf = i => rows.slice(0, i).reduce((a, r) => a + r.w, 0) / total;
+  const paint = () => {
+    const p = Math.min(100, Math.floor(shown * 100));
+    pct.textContent = p + "%"; fill.style.width = (shown * 100).toFixed(2) + "%"; bar.setAttribute("aria-valuenow", String(p));
+    const s = Math.floor((Date.now() - t0) / 1000);
+    time.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    tabTitle(over ? "" : `${word} ${p}%`);
+  };
+  const tick = setInterval(() => {
+    if (over || !host.isConnected){ clearInterval(tick); return; }
+    const end = cur < 0 ? 0 : startOf(cur + 1) - 0.01;
+    shown = Math.max(real, shown + Math.max(0, end - shown) * 0.03);
+    paint();
+  }, 200);
+  const shut = r => { r.li.className = "done"; r.sec.textContent = r.at ? took(Date.now() - r.at) : ""; r.d.textContent = ""; };
+  const end = () => { over = true; clearInterval(tick); };
+  return {
+    /** Step `k` is under way; `t` says where it is, and `of` is [i, n] when it runs over several files. */
+    at(k, t = "", of = null){
+      const i = rows.findIndex(r => r.k === k); if (i < 0 || over) return;
+      if (i !== cur){
+        for (let j = Math.max(0, cur); j < i; j++) shut(rows[j]);
+        rows[i].li.className = "now"; rows[i].at = Date.now(); cur = i;
+      }
+      rows[i].d.textContent = of && of[1] > 1 ? `${of[0] + 1} of ${of[1]} · ${t}` : t;
+      const part = of ? (of[0] + stepPart(t)) / of[1] : stepPart(t);
+      real = Math.max(real, startOf(i) + rows[i].w / total * Math.min(1, part));
+      shown = Math.max(shown, real); paint();
+    },
+    /** Every step is done: the bar is full, and turns green. */
+    done(){ if (over) return; rows.slice(Math.max(0, cur)).forEach(shut); real = shown = 1; paint(); end(); host.classList.add("over"); tabTitle(""); },
+    /** The step under way failed: it is marked, and the bar stops where it was. */
+    fail(){ if (over) return; if (cur >= 0) rows[cur].li.className = "fail"; end(); host.classList.add("failed"); tabTitle(""); },
+    /** Put away with nothing marked: the sheet goes back to its form. */
+    stop(){ end(); tabTitle(""); },
+  };
+}
+/** A sheet put away once its work is done: it holds the full bar a moment, then fades, its ids gone so a new sheet never meets them. */
+function leaveSheet(veil){
+  veil.querySelectorAll("[id]").forEach(x => x.removeAttribute("id"));
+  veil.className = "veil-out";
+  setTimeout(() => veil.remove(), 520);
+}
+
+/** A sheet that draws where a file stands while it is read and filed. */
 function progressSheet(title){
   const veil = el("div","veil");
   veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ppTitle"><header><h3 id="ppTitle"></h3>
-    <p>The file is read in this tab. Only its words and rows are sent.</p></header><div class="f"><div class="pj-step" role="status"></div><div class="bad"></div></div>
+    <p>The file is read in this tab. Only its words and rows are sent.</p></header><div class="f"><div class="pp-track"></div><div class="bad"></div></div>
     <footer hidden><button class="ghost">Close</button></footer></div>`;
   veil.querySelector("h3").textContent = title;
   document.body.append(veil);
-  const step = veil.querySelector(".pj-step"), bad = veil.querySelector(".bad"), foot = veil.querySelector("footer");
+  const bad = veil.querySelector(".bad"), foot = veil.querySelector("footer");
+  const tr = buildTrack(veil.querySelector(".pp-track"), [{ k: "read", label: "Read it", w: 1 }, { k: "store", label: "Cut it into sections", w: 2 }], "Reading");
   foot.querySelector("button").onclick = () => veil.remove();
-  return { say: t => { step.textContent = t; tabTitle(t.startsWith("Reading") ? "Reading" : ""); }, fail: msg => { step.textContent = ""; bad.textContent = msg; foot.hidden = false; tabTitle(""); }, close: () => { veil.remove(); tabTitle(""); } };
+  return { read: t => tr.at("read", t), store: t => tr.at("store", t),
+    fail: msg => { tr.fail(); bad.textContent = msg; foot.hidden = false; }, close: () => { tr.done(); leaveSheet(veil); } };
 }
 
 /** Read a file and fill a project's file with it: the first by default, or the one numbered. */
 async function fillProject(slug, file, fid = 1){
   const sh = progressSheet(`Reading ${file.name}`);
   try {
-    const got = await readProjectFile(file, sh.say);
-    await uploadProject(fileKeyOf(slug, fid), got, sh.say);
+    const got = await readProjectFile(file, sh.read);
+    await uploadProject(fileKeyOf(slug, fid), got, sh.store);
     sh.close();
     await syncProjects();
     if (S.project === slug){ S.pj.marks = null; S.pj.sheet = 0; S.pj.data = null; paintProject(); await loadProject(); }
@@ -731,11 +812,11 @@ function openProjectSheet(){
     <div class="f np-drop" id="npMem"><label>Memory <span class="pj-opt">optional</span></label>
       <div class="pj-rules" id="npMemField"></div>
       <div class="hint">What the chat should know from day one: notes, research, past work. Paste it, add files, or drop them here, up to ${RES_CHARS.toLocaleString()} characters. It is sorted into 3 to 8 folders in the project's memory, and the chat reads the notes that bear on a question.</div></div>
-    <div class="f"><div class="pj-step" id="npStep" role="status"></div><div class="bad" id="npBad"></div></div>
+    <div class="f np-end"><div id="npBuild" hidden></div><div class="bad" id="npBad"></div></div>
     <footer><button class="ghost" id="npCancel" type="button">Cancel</button><button class="go" id="npMake" type="button">Create project</button></footer></div>`;
   document.body.append(veil);
   const name = veil.querySelector("#npName"), pick = veil.querySelector("#npPick"), fileEl = veil.querySelector("#npFile"), listEl = veil.querySelector("#npList"),
-        dropEl = veil.querySelector("#npDrop"), stepEl = veil.querySelector("#npStep"), bad = veil.querySelector("#npBad"), make = veil.querySelector("#npMake"), cancel = veil.querySelector("#npCancel");
+        dropEl = veil.querySelector("#npDrop"), buildEl = veil.querySelector("#npBuild"), bad = veil.querySelector("#npBad"), make = veil.querySelector("#npMake"), cancel = veil.querySelector("#npCancel");
   const start = veil.querySelectorAll("[data-make]");
   /* Up to 3 files, or a blank to start from, or neither, and the chat picks the type. The first file is the one the project opens on. */
   let files = [], kind = "", busy = false, typed = false, over = "";
@@ -804,16 +885,27 @@ function openProjectSheet(){
     const nm = name.value.trim() || (kind ? free(`New ${pjNoun(kind)}`) : files.length ? "" : free("New project"));
     if (!nm){ name.focus(); return; }
     busy = true; lock(true); bad.textContent = "";
-    const say = t => { stepEl.textContent = t; };
-    /* Each step names its file when there are several. */
-    const sayOf = (i, f) => t => say(files.length > 1 ? `${f.name}, ${i + 1} of ${files.length}: ${t}` : t);
+    const words = rules.text() ? { name: rules.name(), text: rules.text() } : null;
+    const memo = mem.text() ? { name: mem.name(), text: mem.text() } : null;
+    /* While it is made, the form steps aside for the steps it takes, drawn: only the steps this project needs, each its share of the bar. */
+    const form = [...veil.querySelectorAll(".sheet > .f:not(.np-end)")], foot = veil.querySelector("footer"), h3 = veil.querySelector("#npTitle"), lede = veil.querySelector(".sheet > header p");
+    const n = files.length, was = [h3.textContent, lede.textContent];
+    const tr = buildTrack(buildEl, [
+      ...(n ? [{ k: "read", label: n > 1 ? `Read ${n} files` : `Read ${files[0].name}`, w: n }] : []),
+      { k: "make", label: kind ? `Make the project, with a blank ${pjNoun(kind)}` : "Make the project", w: 0.6 },
+      ...(n ? [{ k: "store", label: n > 1 ? `Cut ${n} files into sections` : "Cut it into sections", w: 2 * n }] : []),
+      ...(words ? [{ k: "brief", label: "Save the Brief", w: 0.6 }] : []),
+      ...(memo ? [{ k: "memory", label: "Sort the memory into folders", w: 2.5 }] : []),
+    ]);
+    form.forEach(f => { f.hidden = true; }); foot.hidden = true; buildEl.hidden = false;
+    h3.textContent = `Creating ${nm}`;
+    lede.textContent = n ? "The files are read in this tab. Only their words and rows are sent." : "The name and what you wrote go to the server.";
     let slug = "", phase = "file", stored = 0;
     try {
       /* What is read here is read first: a file that cannot be read makes no project. */
       const got = [];
-      for (const [i, f] of files.entries()) got.push(await readProjectFile(f, sayOf(i, f)));
-      const words = rules.text() ? { name: rules.name(), text: rules.text() } : null;
-      const memo = mem.text() ? { name: mem.name(), text: mem.text() } : null;
+      for (const [i, f] of files.entries()) got.push(await readProjectFile(f, t => tr.at("read", t, [i, n])));
+      tr.at("make", kind ? `Starting a blank ${pjNoun(kind)}` : "");
       slug = (await api("/api/project/new", { name: nm, ...(kind ? { make: kind } : {}) })).slug;
       /* A server older than this page leaves the project with no file: say so, and leave nothing behind. */
       if (kind && !(await api("/api/project/get", { brain: slug })).file){
@@ -823,27 +915,33 @@ function openProjectSheet(){
       /* The first file is the project's own; the others are files beside it, as the + adds them. */
       for (const [i, g] of got.entries()){
         let key = slug;
+        tr.at("store", `Opening ${g.name}`, [i, n]);
         if (i > 0){
           try { key = (await api("/api/project/file", { brain: slug, action: "new", kind: g.kind, name: g.name, made: false })).key; }
           catch (e){ throw new Error(/unreadable/.test(e.message) ? "The server is older than this page and cannot hold several files yet. Run convex deploy." : e.message); }
         }
-        await uploadProject(key, g, sayOf(i, files[i]));
+        await uploadProject(key, g, t => tr.at("store", t, [i, n]));
         stored = i + 1;
       }
       let cut = false, filed = null;
-      if (words){ phase = "brief"; say("Saving the Brief"); cut = !!(await sendBrief(slug, words.text)).cut; }
+      if (words){ phase = "brief"; tr.at("brief", `${words.text.length.toLocaleString()} characters`); cut = !!(await sendBrief(slug, words.text)).cut; }
       /* The first memory: sorted into folders, then filed as notes in them. */
-      if (memo){ phase = "memory"; filed = await fileMemory(slug, memo, say, { plan: true }); }
-      busy = false; veil.remove();
+      if (memo){ phase = "memory"; filed = await fileMemory(slug, memo, t => tr.at("memory", t), { plan: true }); }
+      /* Done: the bar fills and turns green, the title says so, and the sheet fades as the project opens behind it. */
+      tr.done(); h3.textContent = `${nm} is ready`;
+      busy = false; leaveSheet(veil);
       await syncProjects();
       await openProject(slug);
       if (cut) pjNote(`Only the first ${BRIEF_CHARS.toLocaleString()} characters of the Brief were kept, about 1,000 words.`);
       if (filed?.cut) pjNote(`Only the first ${RES_CHARS.toLocaleString()} characters of the memory were read, about ${RES_WORDS}.`);
       if (filed?.unsorted) pjNote(`The memory was filed without folders: ${filed.unsorted}`);
     } catch (e){
-      busy = false; lock(false);
-      const left = files.length > 1 && stored < files.length ? `add ${files.slice(stored).map(f => f.name).join(" and ")} again from its +` : "add the file again";
-      stepEl.textContent = ""; bad.textContent = slug ? `${e.message} The project was made: open it to ${phase === "brief" ? "write the Brief again from Memory" : phase === "memory" ? "add the memory again from Memory" : left}.` : e.message;
+      busy = false; lock(false); foot.hidden = false;
+      /* Made: the steps stay, the one that failed marked. Not made: the form comes back as it was, to change and try again. */
+      if (slug) tr.fail();
+      else { tr.stop(); buildEl.hidden = true; form.forEach(f => { f.hidden = false; }); [h3.textContent, lede.textContent] = was; }
+      const left = n > 1 && stored < n ? `add ${files.slice(stored).map(f => f.name).join(" and ")} again from its +` : "add the file again";
+      bad.textContent = slug ? `${e.message} The project was made: open it to ${phase === "brief" ? "write the Brief again from Memory" : phase === "memory" ? "add the memory again from Memory" : left}.` : e.message;
       if (slug){ make.textContent = "Open the project"; make.onclick = async () => { veil.remove(); await syncProjects(); await openProject(slug); }; }
     }
   };

@@ -93,7 +93,7 @@
 
     /* Dialogs rise from the bottom, where the thumb is, and scroll inside
        themselves, so a tall one with the keyboard open is never cut off. */
-    .veil{ place-items:end center; padding:0; }
+    .veil, .veil-out{ place-items:end center; padding:0; }
     .sheet{
       max-width:none; max-height:92dvh; overflow-y:auto;
       border-radius:18px 18px 0 0; border-bottom:none;

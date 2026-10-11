@@ -3649,7 +3649,7 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/project/new") return J({ slug: "fresh" });
       if (path === "/api/project/file" && body.action === "new") { window.__fid = (window.__fid || 1) + 1; return J({ fid: window.__fid, key: `${body.brain}~${window.__fid}` }); }
       if (path === "/api/project/begin") return J({ ver: 1 });
-      if (path === "/api/project/part") { if (window.__partFails) return J({ error: "the model host was unreachable" }); return J({ sections: 1, chars: 10 }); }
+      if (path === "/api/project/part") { while (window.__partHold) await new Promise(ok => setTimeout(ok, 50)); if (window.__partFails) return J({ error: "the model host was unreachable" }); return J({ sections: 1, chars: 10 }); }
       if (path === "/api/project/finish") return J({ sections: 1, chars: 10 });
       if (path === "/api/project/rename") { P.project.name = body.name; arg.state.projects.find(x => x.slug === body.brain).name = body.name; return J({ slug: body.brain, name: body.name }); }
       if (path === "/api/project/delete") { arg.state.projects = arg.state.projects.filter(x => x.slug !== body.brain); return J({ ok: true }); }
@@ -3873,6 +3873,16 @@ for (const space of ["octopus", "squidgy"]) {
   await page.fill(".pj-comp textarea", "Which cost more than 1,200?"); await page.keyboard.press("Enter"); await page.waitForTimeout(600);
   const marked = await page.evaluate(() => ({ rows: [...document.querySelectorAll(".pj-grid tr.used")].map(r => r.dataset.n).join(), chip: !!document.querySelector(".pj-used") }));
   check("the rows an answer used are marked in the grid, and no chip under the answer names them", marked.rows === "1,3" && !marked.chip, JSON.stringify(marked));
+  /* a log pasted in the chat: its first lines, and a tap to see it whole */
+  const logText = Array.from({ length: 30 }, (_, i) => `2026-10-${String(1 + (i % 9)).padStart(2, "0")} Push-up ${10 + i}`).join("\n");
+  await page.evaluate(() => { window.__reply = (b, P) => ({ id: "t2", q: b.q, a: "Added the 30 lines.", proposal: false, quotes: [], used: { file: { name: P.file.name, whole: false }, folders: [], memory: 0 } }); });
+  await page.fill(".pj-comp textarea", logText); await page.click(".pj-send"); await page.waitForTimeout(600);
+  const folded = await page.evaluate(() => { const q = [...document.querySelectorAll(".pj-q")].pop(), b = q?.nextElementSibling;
+    return { fold: q?.classList.contains("fold"), short: q ? q.clientHeight < q.scrollHeight : false, btn: b?.className === "pj-qmore" ? b.textContent : "", whole: q?.textContent.split("\n").length }; });
+  check("a log pasted in the chat shows its first lines, keeps every one, and offers to show all", folded.fold && folded.short && folded.btn === "Show all 30 lines" && folded.whole === 30, JSON.stringify(folded));
+  await page.click(".pj-qmore >> nth=-1"); await page.waitForTimeout(80);
+  check("a tap shows it whole, and the button says Show less", await page.evaluate(() => { const q = [...document.querySelectorAll(".pj-q")].pop(); return !q.classList.contains("fold") && q.clientHeight >= q.scrollHeight && q.nextElementSibling.textContent === "Show less"; }));
+  check("a short question stays as it is, with no button", await page.evaluate(() => { const q = [...document.querySelectorAll(".pj-q")].find(x => x.textContent === "Which cost more than 1,200?"); return q && !q.classList.contains("fold") && q.nextElementSibling?.className !== "pj-qmore"; }));
   await page.click(".pj-sheets button >> text=Notes"); await page.waitForTimeout(400);
   check("a second sheet reads from its own first row", (await page.evaluate(() => window.__calls.filter(x => x.s === "/api/project/rows").pop()?.body))?.sheet === 1);
 
@@ -3895,7 +3905,25 @@ for (const space of ["octopus", "squidgy"]) {
   await page.waitForTimeout(200);
   check("a file chosen names the project, and shows its own name with its ×", (await page.inputValue("#npName")) === "offers" && (await page.textContent("#npList .np-f span")) === "offers.csv"
     && (await page.textContent("#npFile")) === "The project opens on it." && (await page.getAttribute("#npList .np-x", "aria-label")) === "Remove offers.csv");
-  await page.fill("#npName", "Offer list"); await page.click("#npMake"); await page.waitForTimeout(900);
+  await page.fill("#npName", "Offer list");
+  /* while it is made: the form steps aside for the steps it takes, with a bar, the percent and the time */
+  await page.evaluate(() => { window.__partHold = true; });
+  await page.click("#npMake"); await page.waitForTimeout(400);
+  const mid = await page.evaluate(() => ({ title: document.getElementById("npTitle").textContent, form: !!document.getElementById("npName").closest(".f")?.hidden, foot: document.querySelector(".veil footer").hidden,
+    steps: [...document.querySelectorAll(".nb-steps li")].map(li => `${li.className}:${li.querySelector("b").textContent}`), now: document.querySelector(".nb-steps li.now .nb-d")?.textContent,
+    pct: parseInt(document.querySelector(".nb-pct").textContent), bar: document.querySelector(".nb-bar").getAttribute("aria-valuenow"), width: parseFloat(document.querySelector(".nb-bar i").style.width),
+    took: document.querySelector(".nb-steps li.done .nb-s")?.textContent, time: document.querySelector(".nb-time").textContent, tab: document.title }));
+  check("while a project is made, the sheet draws its steps: done ones checked with their time, the one under way lit with where it is, the rest waiting",
+    mid.title === "Creating Offer list" && mid.form && mid.foot && JSON.stringify(mid.steps) === '["done:Read offers.csv","done:Make the project","now:Cut it into sections"]'
+    && /^Storing offers: rows 1 to 2 of 2$/.test(mid.now || "") && /^(<0\.1|\d+\.\d) s$/.test(mid.took || "") && /^0:0\d$/.test(mid.time), JSON.stringify(mid));
+  check("the bar and the percent agree, past the steps done and short of the end, and the tab carries the percent", mid.pct > 20 && mid.pct < 100 && String(mid.pct) === mid.bar && Math.floor(mid.width) >= mid.pct - 1
+    && mid.tab === `Creating ${mid.pct}% · Octopus`, JSON.stringify(mid));
+  await page.evaluate(() => { window.__partHold = false; }); await page.waitForTimeout(150);
+  const fin = await page.evaluate(() => ({ over: !!document.querySelector(".veil-out .nb.over"), pct: document.querySelector(".veil-out .nb-pct")?.textContent, ids: document.querySelectorAll(".veil-out [id]").length,
+    done: [...document.querySelectorAll(".veil-out .nb-steps li")].every(li => li.className === "done"), veil: !!document.querySelector(".veil"), title: document.querySelector(".veil-out h3")?.textContent }));
+  check("once made, every step is checked, the bar is full and green, the title says it is ready, and the sheet fades with no id left to clash", fin.over && fin.pct === "100%" && fin.done && fin.ids === 0 && !fin.veil && fin.title === "Offer list is ready", JSON.stringify(fin));
+  await page.waitForTimeout(750);
+  check("then the sheet is gone, and the tab title is back", await page.evaluate(() => !document.querySelector(".veil-out") && document.title === "Octopus"));
   const up = await page.evaluate(() => window.__calls.filter(x => /api\/project\/(new|begin|part|finish)/.test(x.s)).map(x => ({ s: x.s.split("/").pop(), b: x.body })));
   check("it makes the project, opens a table, sends its rows, and finishes", JSON.stringify(up.map(x => x.s)) === '["new","begin","part","finish"]' && up[0].b.name === "Offer list"
     && up[1].b.kind === "table" && up[1].b.sheets[0].name === "offers" && JSON.stringify(up[1].b.sheets[0].header) === '["Program","Price"]'
@@ -3955,6 +3983,8 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#npMake"); await page.waitForTimeout(500);
   const zip = await page.evaluate(() => ({ bad: document.getElementById("npBad").textContent, btn: document.getElementById("npMake").textContent,
     made: window.__calls.filter(x => x.s === "/api/project/new").length }));
+  check("a file that cannot be read brings the form back as it was, with nothing drawn", await page.evaluate(() => document.getElementById("npBuild").hidden && !document.getElementById("npName").closest(".f").hidden
+    && document.getElementById("npTitle").textContent === "New project" && !document.querySelector(".veil footer").hidden));
   check("a file the project cannot read says so, and makes no project", /is a \.zip\. A project reads Word, PDF, text, Markdown, HTML, Excel and CSV files\./.test(zip.bad) && zip.btn === "Create project" && !/was made/.test(zip.bad) && zip.made === newsBefore, JSON.stringify(zip));
   await page.keyboard.press("Escape"); await page.evaluate(() => document.querySelector(".veil")?.remove());
   await page.evaluate(() => { window.__partFails = true; });
@@ -4423,7 +4453,9 @@ for (const space of ["octopus", "squidgy"]) {
   await page.fill("#npName", "Second brief"); await page.click("[data-make=doc]");
   await page.fill("#npRulesText", "Write in a formal tone.");
   await page.click("#npMake"); await page.waitForTimeout(900);
-  const failed = await page.evaluate(() => ({ bad: document.getElementById("npBad").textContent, btn: document.getElementById("npMake").textContent, disabled: document.getElementById("npMake").disabled, sheet: !!document.querySelector(".veil") }));
+  const failed = await page.evaluate(() => ({ bad: document.getElementById("npBad").textContent, btn: document.getElementById("npMake").textContent, disabled: document.getElementById("npMake").disabled, sheet: !!document.querySelector(".veil"),
+    steps: [...document.querySelectorAll(".nb-steps li")].map(li => `${li.className}:${li.querySelector("b").textContent}`) }));
+  check("the steps stay, the one that failed marked in red", JSON.stringify(failed.steps) === '["done:Make the project, with a blank document","fail:Save the Brief"]', JSON.stringify(failed.steps));
   check("when the Brief cannot be saved, the project is made, and the sheet says why and how to write the Brief again", /the model host was unreachable/.test(failed.bad) && /The project was made: open it to write the Brief again from Memory\./.test(failed.bad) && failed.btn === "Open the project" && !failed.disabled && failed.sheet, JSON.stringify(failed));
   await page.click("#npMake"); await page.waitForTimeout(700);
   await page.evaluate(() => { window.__briefFail = false; window.__newState = false; });

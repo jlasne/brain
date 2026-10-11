@@ -1,12 +1,17 @@
 /* 06-dialogs.css: Dialogs, sheets and the passphrase screen. */
 
   /* ============ modal ============ */
-  .veil{
+  .veil, .veil-out{
     position:fixed; inset:0; background:rgba(20,20,19,.44); backdrop-filter:blur(3px);
     display:grid; place-items:center; padding:20px; z-index:50;
     animation:fade .18s var(--ease) both;
   }
   @keyframes fade{ from{opacity:0} to{opacity:1} }
+  /* A sheet whose work is done: it holds a moment, then fades and sinks, and lets every tap through to the page behind. */
+  .veil-out{ pointer-events:none; animation:veilOut .22s .26s var(--ease) both; }
+  .veil-out .sheet{ animation:sheetOut .22s .26s var(--ease) both; }
+  @keyframes veilOut{ to{ opacity:0; } }
+  @keyframes sheetOut{ to{ opacity:0; transform:translateY(10px) scale(.985); } }
   .sheet{
     width:100%; max-width:480px; background:var(--surface);
     /* A tall sheet, Setup above all, scrolls inside itself rather than losing its top. */
