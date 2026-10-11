@@ -243,9 +243,18 @@ convex/
   style.ts         the house writing rules, written once and put into every prompt that needs them
   restore.ts       an export read back into folders, concepts and sources
 app/
-  index.html       the interface, pointed at the deployment
+  index.html       the landing, pointed at the deployment
+  chat.html        the app, built from web/chat: never edited by hand
+  manifest.webmanifest, brand/   what a phone or a computer reads to install Tasu as an app
+web/chat/
+  page.html        the page, with a marker where the styles go and one where the scripts go
+  styles/          10 stylesheets, one a screen, joined in the order of their numbers
+  scripts/         18 scripts, one a screen, joined in the order of their numbers
+scripts/build-app.mjs   joins web/chat into app/chat.html: npm run build
 vercel.json        serves app/ as the site root
 ```
+
+**The app is built, and the built file is kept.** The source of the app is `web/chat/`, cut by screen: the side panel, the inbox, Settings, a folder, the projects, Drop. `npm run build` joins it into `app/chat.html`, the one file the host serves, with no build step on the host. The built file is committed, and `npm run check` starts by building it again in memory: a built file that differs from its source fails the check. Each part opens with one comment that says what it holds, which the build leaves out, so the built file is the same byte for byte as the one written by hand before the split. No function is longer than 250 lines.
 
 ## Two stores, one command
 
@@ -458,6 +467,7 @@ The folders' chat (the main chat, one folder, or the folders ticked) and the per
 - **The Sources line is checked.** An entry whose author is in none of the opened concepts' evidence is taken out; a line left empty goes whole. One shared name is enough, so "Damodaran" counts for "Aswath Damodaran".
 - **A number or a question mark is a question.** "Great, thanks. For 2025?" is answered, not thanked.
 - **The same question twice costs nothing.** A question that opens a chat is saved with its answer, under a key made of the question (lower case, spaces and end marks trimmed), the folders asked, the tags, the level, the language and the model. Asked again within 14 days, on folders whose print has not moved, the saved answer comes back for no model call, and Settings counts it as reused. The print covers each card of the folders asked (its title, position, summary line, evidence, data, conflicts, links and file) and each folder's name and scope, so a drop, an edit, a rename or a new concept makes the next answer fresh. A follow-up reads its thread, so it is always answered anew.
+- **Short or Long.** Settings, Answers sets how much a Normal answer reads, for the whole workspace, kept in `models.depth`. Long is the default: up to 30 concepts opened in full within 60,000 characters, and 40 more by their title. Short opens the 12 best within 30,000 characters, and 25 more by their title, for about a third less a question. Educational and Learning answers read in full either way. A saved answer is kept apart for each, so a switch never brings back an answer read the other way.
 - **The meaning follows the concept.** A rename or a merge moves each concept's vector to its new folder as the concept moves, and a concept that goes takes its vector with it.
 
 Measured on the code with a recording model: 12 folders, concepts of about 2,000 characters, a thread of 4, tokens as characters over 4, $0.065 in and $0.18 out per million. Before is the version that showed the router every title and opened every word match. Messages are in tokens sent, with the price of one message in cents.
@@ -494,11 +504,15 @@ Every model call outside the projects is counted in `chatSpend`, by kind, from t
 
 Settings, Export writes every folder of the workspace as one markdown file: a MAP of the folders with their names, the SOURCES with their titles, each folder's SUMMARY, and each concept with its title, summary line, position, evidence, data, open conflicts, sources, typed links and other names. Settings, Restore reads that file back in one step. `restore.ts` reads it by its headings, so an export from before titles, names and links were written still restores: a title then comes from the folder's summary list, and a name from the slug. `restoreBatch` in `store.ts` adds what is missing and keeps what is there, so a restore run twice adds nothing the second time. Projects are not restored: they hold files, which an export does not.
 
+## Install as an app
+
+Tasu installs from the browser, with no app store. `app/manifest.webmanifest` names it, opens it on `/chat` in a window of its own, and gives the icons: 192 and 512 pixels, a 512 one with room to be cut round, and the SVG, all drawn from the brand mark on white. Settings, App does the rest. Where the browser offers its own install prompt (Chrome and Edge on a computer, Chrome on Android), App opens it and says what was chosen. Where it offers none, App says where to tap: on an iPhone or an iPad, Share then Add to Home Screen; on a Mac in Safari, File then Add to Dock. Installed, it says so, and the app opens on the workspace used last. Nothing is sent to the server: the page check reads the manifest, its icons and their sizes.
+
 ## Projects
 
 A project is one file, one table or one HTML page with a chat beside it and a memory of its own. It is a folder of type `project`, so its memory has the format every folder has: concepts with a position and dated evidence. Everything else about it lives in six tables of its own. A file comes from a drop, or is made in the project: the owner picks a document, a table or an HTML page, describes it in the chat, and the chat writes it.
 
-**Size does not set the cost.** A document is cut in sections of about 12,000 characters (3,000 tokens), up to 1,000 of them, about 4,000 pages. Each gets a title and a one line summary when it is read in: that is the contents list. A question does not read the file. One step reads the contents list, the titles of what the project remembers, and the question, and names the sections the answer needs, so the answer reads up to eight sections and the cost follows the question. A file of more than 40 sections shows that step a short list first (see Memory as a shortcut below). The same step says when a message needs none of the file (thanks, small talk, a question the memory answers) and when it is about the whole file. A file under 8,000 characters, about 3 pages, is read whole and needs no contents list. A file up to 48,000 characters, about 16 pages, is read whole only when the message is about all of it, or when a change to a page needs its markup and its style together, or when the step fails. A longer file asked about as a whole is answered from its contents lines, which summarise every section. When the file is short and there is no other folder to consider, the step is skipped.
+**Size does not set the cost.** A document is cut in sections of about 12,000 characters (3,000 tokens), up to 1,000 of them, about 4,000 pages. Each gets a title and a one line summary when it is read in: that is the contents list. The lines are written four sections a call, six calls at a time, so the rules go once for four sections. A section the reply leaves out, or a call that fails, keeps its own heading and its opening words, and the file is read in all the same. A question does not read the file. One step reads the contents list, the titles of what the project remembers, and the question, and names the sections the answer needs, so the answer reads up to eight sections and the cost follows the question. A file of more than 40 sections shows that step a short list first (see Memory as a shortcut below). The same step says when a message needs none of the file (thanks, small talk, a question the memory answers) and when it is about the whole file. A file under 8,000 characters, about 3 pages, is read whole and needs no contents list. A file up to 48,000 characters, about 16 pages, is read whole only when the message is about all of it, or when a change to a page needs its markup and its style together, or when the step fails. A longer file asked about as a whole is answered from its contents lines, which summarise every section. When the file is short and there is no other folder to consider, the step is skipped.
 
 What one message costs, measured on this code with a recording model and DeepSeek V4 Flash prices ($0.065 in, $0.18 out per million tokens), with the memory call included:
 

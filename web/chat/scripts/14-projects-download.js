@@ -287,63 +287,7 @@ function pdfFromMarkdown(md, title){
   const esc = s => s.replace(/[\\()]/g, m => "\\" + m);
   const num = n => (Math.round(n * 100) / 100).toString();
 
-  /* Inline Markdown as runs of one font each. */
-  const inline = (s, f) => {
-    const runs = [], push = (t, ff) => { if (t) runs.push({ t, f: ff }); };
-    const re = /`([^`]+)`|(!?)\[([^\]]*)\]\(([^)\s]*)[^)]*\)|\*\*([^\s*](?:[^*]*[^\s*])?)\*\*|\*([^\s*](?:[^*]*[^\s*])?)\*|<br\s*\/?>|<\/?[a-zA-Z][^>]*>|\\([*_`\[\]()#>|\\-])/g;
-    let last = 0, m;
-    while ((m = re.exec(s))){
-      push(s.slice(last, m.index), f); last = m.index + m[0].length;
-      if (m[1] != null) push(m[1], "C");
-      else if (m[3] != null){ push(m[3], f); if (!m[2] && m[4] && m[4] !== m[3]) push(` (${m[4]})`, f); }
-      else if (m[5] != null) runs.push(...inline(m[5], f === "I" || f === "BI" ? "BI" : "B"));
-      else if (m[6] != null) runs.push(...inline(m[6], f === "B" || f === "BI" ? "BI" : "I"));
-      else if (/^<br/i.test(m[0])) push("\n", f);
-      else if (m[7] != null) push(m[7], f);
-    }
-    push(s.slice(last), f);
-    return runs;
-  };
-  /* Words with their font, ready to wrap; `sp` says whitespace follows the word. */
-  const wordsOf = (runs, sz) => {
-    const out = [];
-    for (const r of runs){
-      for (const p of bytes(r.t).split(/(\n|\s+)/)){
-        if (!p) continue;
-        if (p === "\n") out.push({ br: true });
-        else if (/^\s+$/.test(p)) { if (out.length && !out[out.length - 1].br) out[out.length - 1].sp = true; }
-        else out.push({ t: p, f: r.f, w: width(p, r.f, sz), sp: false });
-      }
-    }
-    return out;
-  };
-  /* Words as lines no wider than `max`; each word knows the space before it. A word wider than a line is cut where it overflows. */
-  const wrap = (words, max, sz) => {
-    const lines = []; let cur = [], x = 0;
-    const flush = () => { lines.push(cur); cur = []; x = 0; };
-    for (const w of words){
-      if (w.br){ flush(); continue; }
-      const prev = cur[cur.length - 1];
-      const gap = prev && prev.sp ? width(" ", prev.f, sz) : 0;
-      if (w.w > max){
-        if (cur.length) flush();
-        let rest = w.t;
-        while (rest){
-          let n = rest.length;
-          while (n > 1 && width(rest.slice(0, n), w.f, sz) > max) n--;
-          const piece = rest.slice(0, n); rest = rest.slice(n);
-          cur.push({ t: piece, f: w.f, w: width(piece, w.f, sz), sp: !rest && w.sp, lead: 0 }); x = width(piece, w.f, sz);
-          if (rest) flush();
-        }
-        continue;
-      }
-      if (cur.length && x + gap + w.w > max) flush();
-      const lead = cur.length ? (cur[cur.length - 1].sp ? width(" ", cur[cur.length - 1].f, sz) : 0) : 0;
-      cur.push({ ...w, lead }); x += lead + w.w;
-    }
-    if (cur.length || !lines.length) flush();
-    return lines;
-  };
+  const { wrap, wordsOf, inline } = pdfWrap({ bytes, width });
 
   /* ---- the page ---- */
   const PW = 595.28, PH = 841.89, ML = 56, MR = 56, MT = 60, MB = 62, TW = PW - ML - MR;
@@ -386,47 +330,7 @@ function pdfFromMarkdown(md, title){
     y -= after;
   };
 
-  /* ---- Markdown as blocks ---- */
-  const src = String(md ?? "").replace(/\r\n?/g, "\n").split("\n");
-  const blocks = [];
-  const cellsOf = r => r.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
-  const isSep = r => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(r.trim());
-  const itemRe = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/;
-  for (let i = 0; i < src.length;){
-    const ln = src[i], t = ln.trim();
-    if (!t){ i++; continue; }
-    let m;
-    if ((m = /^(```|~~~)/.exec(t))){
-      const body = []; i++;
-      while (i < src.length && !/^(```|~~~)/.test(src[i].trim())) body.push(src[i++]);
-      i++; blocks.push({ k: "code", lines: body }); continue;
-    }
-    if (/^\[\[p\. \d+\]\]$/.test(t)){ i++; continue; }
-    if ((m = /^(#{1,6})\s+(.*?)\s*#*$/.exec(t))){ blocks.push({ k: "h", n: m[1].length, s: m[2] }); i++; continue; }
-    if (/^([-*_])(\s*\1){2,}$/.test(t)){ blocks.push({ k: "hr" }); i++; continue; }
-    if (/^>/.test(t)){ const q = []; while (i < src.length && /^\s*>/.test(src[i])) q.push(src[i++].trim().replace(/^>\s?/, "")); blocks.push({ k: "quote", s: q.join(" ") }); continue; }
-    if (/^\|.*\|$/.test(t)){
-      const rows = []; while (i < src.length && /^\s*\|.*\|\s*$/.test(src[i])) rows.push(src[i++]);
-      const sep = rows.findIndex(isSep);
-      const body = rows.filter((r, j) => j !== sep).map(cellsOf);
-      blocks.push({ k: "table", head: sep > 0 ? body.slice(0, sep) : [], rows: sep > 0 ? body.slice(sep) : body }); continue;
-    }
-    if (itemRe.test(ln)){
-      const items = [];
-      while (i < src.length && src[i].trim()){
-        const li = itemRe.exec(src[i]);
-        if (li) items.push({ lvl: Math.min(3, Math.floor(li[1].replace(/\t/g, "    ").length / 2)), num: /\d/.test(li[2]) ? parseInt(li[2], 10) : 0, s: li[3] });
-        else if (/^\s+\S/.test(src[i]) && items.length) items[items.length - 1].s += " " + src[i].trim();
-        else break;
-        i++;
-      }
-      blocks.push({ k: "list", items }); continue;
-    }
-    /* A paragraph: the lines of a PDF or a text file break where the page ended, so a long line that stops no sentence reads on. */
-    const lines = [];
-    while (i < src.length && src[i].trim() && !/^(```|~~~|#{1,6}\s|>|\|.*\|$)/.test(src[i].trim()) && !itemRe.test(src[i]) && !/^([-*_])(\s*\1){2,}$/.test(src[i].trim())) lines.push(src[i++].trim());
-    blocks.push({ k: "p", lines });
-  }
+  const { blocks } = mdBlocks({ md });
 
   /* ---- laying the blocks out ---- */
   newPage();
@@ -538,6 +442,114 @@ function pdfFromMarkdown(md, title){
   const bin = new Uint8Array(out.length);
   for (let i = 0; i < out.length; i++) bin[i] = out.charCodeAt(i) & 255;
   return bin;
+}
+
+/** PDF writing: inline Markdown as runs of one font each, and a paragraph wrapped into lines that fit the width. */
+function pdfWrap({ bytes, width }){
+  /* Inline Markdown as runs of one font each. */
+  const inline = (s, f) => {
+    const runs = [], push = (t, ff) => { if (t) runs.push({ t, f: ff }); };
+    const re = /`([^`]+)`|(!?)\[([^\]]*)\]\(([^)\s]*)[^)]*\)|\*\*([^\s*](?:[^*]*[^\s*])?)\*\*|\*([^\s*](?:[^*]*[^\s*])?)\*|<br\s*\/?>|<\/?[a-zA-Z][^>]*>|\\([*_`\[\]()#>|\\-])/g;
+    let last = 0, m;
+    while ((m = re.exec(s))){
+      push(s.slice(last, m.index), f); last = m.index + m[0].length;
+      if (m[1] != null) push(m[1], "C");
+      else if (m[3] != null){ push(m[3], f); if (!m[2] && m[4] && m[4] !== m[3]) push(` (${m[4]})`, f); }
+      else if (m[5] != null) runs.push(...inline(m[5], f === "I" || f === "BI" ? "BI" : "B"));
+      else if (m[6] != null) runs.push(...inline(m[6], f === "B" || f === "BI" ? "BI" : "I"));
+      else if (/^<br/i.test(m[0])) push("\n", f);
+      else if (m[7] != null) push(m[7], f);
+    }
+    push(s.slice(last), f);
+    return runs;
+  };
+  /* Words with their font, ready to wrap; `sp` says whitespace follows the word. */
+  const wordsOf = (runs, sz) => {
+    const out = [];
+    for (const r of runs){
+      for (const p of bytes(r.t).split(/(\n|\s+)/)){
+        if (!p) continue;
+        if (p === "\n") out.push({ br: true });
+        else if (/^\s+$/.test(p)) { if (out.length && !out[out.length - 1].br) out[out.length - 1].sp = true; }
+        else out.push({ t: p, f: r.f, w: width(p, r.f, sz), sp: false });
+      }
+    }
+    return out;
+  };
+  /* Words as lines no wider than `max`; each word knows the space before it. A word wider than a line is cut where it overflows. */
+  const wrap = (words, max, sz) => {
+    const lines = []; let cur = [], x = 0;
+    const flush = () => { lines.push(cur); cur = []; x = 0; };
+    for (const w of words){
+      if (w.br){ flush(); continue; }
+      const prev = cur[cur.length - 1];
+      const gap = prev && prev.sp ? width(" ", prev.f, sz) : 0;
+      if (w.w > max){
+        if (cur.length) flush();
+        let rest = w.t;
+        while (rest){
+          let n = rest.length;
+          while (n > 1 && width(rest.slice(0, n), w.f, sz) > max) n--;
+          const piece = rest.slice(0, n); rest = rest.slice(n);
+          cur.push({ t: piece, f: w.f, w: width(piece, w.f, sz), sp: !rest && w.sp, lead: 0 }); x = width(piece, w.f, sz);
+          if (rest) flush();
+        }
+        continue;
+      }
+      if (cur.length && x + gap + w.w > max) flush();
+      const lead = cur.length ? (cur[cur.length - 1].sp ? width(" ", cur[cur.length - 1].f, sz) : 0) : 0;
+      cur.push({ ...w, lead }); x += lead + w.w;
+    }
+    if (cur.length || !lines.length) flush();
+    return lines;
+  };
+  return { wrap, wordsOf, inline };
+}
+
+/** PDF writing: Markdown read as blocks, a heading, a paragraph, a list item, a quote, code, a rule or a table. */
+function mdBlocks({ md }){
+  /* ---- Markdown as blocks ---- */
+  const src = String(md ?? "").replace(/\r\n?/g, "\n").split("\n");
+  const blocks = [];
+  const cellsOf = r => r.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+  const isSep = r => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(r.trim());
+  const itemRe = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/;
+  for (let i = 0; i < src.length;){
+    const ln = src[i], t = ln.trim();
+    if (!t){ i++; continue; }
+    let m;
+    if ((m = /^(```|~~~)/.exec(t))){
+      const body = []; i++;
+      while (i < src.length && !/^(```|~~~)/.test(src[i].trim())) body.push(src[i++]);
+      i++; blocks.push({ k: "code", lines: body }); continue;
+    }
+    if (/^\[\[p\. \d+\]\]$/.test(t)){ i++; continue; }
+    if ((m = /^(#{1,6})\s+(.*?)\s*#*$/.exec(t))){ blocks.push({ k: "h", n: m[1].length, s: m[2] }); i++; continue; }
+    if (/^([-*_])(\s*\1){2,}$/.test(t)){ blocks.push({ k: "hr" }); i++; continue; }
+    if (/^>/.test(t)){ const q = []; while (i < src.length && /^\s*>/.test(src[i])) q.push(src[i++].trim().replace(/^>\s?/, "")); blocks.push({ k: "quote", s: q.join(" ") }); continue; }
+    if (/^\|.*\|$/.test(t)){
+      const rows = []; while (i < src.length && /^\s*\|.*\|\s*$/.test(src[i])) rows.push(src[i++]);
+      const sep = rows.findIndex(isSep);
+      const body = rows.filter((r, j) => j !== sep).map(cellsOf);
+      blocks.push({ k: "table", head: sep > 0 ? body.slice(0, sep) : [], rows: sep > 0 ? body.slice(sep) : body }); continue;
+    }
+    if (itemRe.test(ln)){
+      const items = [];
+      while (i < src.length && src[i].trim()){
+        const li = itemRe.exec(src[i]);
+        if (li) items.push({ lvl: Math.min(3, Math.floor(li[1].replace(/\t/g, "    ").length / 2)), num: /\d/.test(li[2]) ? parseInt(li[2], 10) : 0, s: li[3] });
+        else if (/^\s+\S/.test(src[i]) && items.length) items[items.length - 1].s += " " + src[i].trim();
+        else break;
+        i++;
+      }
+      blocks.push({ k: "list", items }); continue;
+    }
+    /* A paragraph: the lines of a PDF or a text file break where the page ended, so a long line that stops no sentence reads on. */
+    const lines = [];
+    while (i < src.length && src[i].trim() && !/^(```|~~~|#{1,6}\s|>|\|.*\|$)/.test(src[i].trim()) && !itemRe.test(src[i]) && !/^([-*_])(\s*\1){2,}$/.test(src[i].trim())) lines.push(src[i++].trim());
+    blocks.push({ k: "p", lines });
+  }
+  return { blocks };
 }
 
 /** A line at the top of the file, for what did not work. It goes by itself. */

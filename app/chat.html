@@ -5174,7 +5174,212 @@ async function openSetupSheet(opts = {}){
   if (opts instanceof Event) opts = {};
   closeSide();
   const veil = el("div","veil");
-  veil.innerHTML = `
+  veil.innerHTML = setupMarkup();
+  document.body.append(veil);
+  const msg = veil.querySelector("#kMsg"), slot = veil.querySelector("#feedSlot");
+  /* A look previewed and not saved goes back to the saved one on close. */
+  let draft = null;
+  const shut = () => { if (draft) applyLook(S.brand); veil.remove(); };
+  veil.querySelector("#kDone").onclick = shut;
+  veil.onclick = e => { if(e.target===veil) shut(); };
+
+  setupSpend({ veil });
+
+  /* ---- the look: previewed as it changes, kept on Save ---- */
+  const lookImg = veil.querySelector("#lookImg"), lookMsg = veil.querySelector("#lookMsg"), lookSave = veil.querySelector("#lookSave");
+  const lookAccent = veil.querySelector("#lookAccent"), lookBg = veil.querySelector("#lookBg");
+  const cssHex = name => { const c = toRgb(getComputedStyle(document.documentElement).getPropertyValue(name)); return c ? rgbHex(c) : "#888888"; };
+  const paintLookInputs = () => {
+    lookImg.src = markOf();
+    lookAccent.value = S.brand?.accent || cssHex("--accent-fill");
+    lookBg.value = S.brand?.bg || cssHex("--bg");
+  };
+  paintLookInputs();
+  const preview = patch => {
+    draft = { ...(draft || S.brand || {}), ...patch };
+    applyLook(draft, { preview: true });
+    lookImg.src = markOf();
+    lookSave.disabled = false; lookMsg.textContent = "";
+  };
+  lookAccent.oninput = () => preview({ accent: lookAccent.value });
+  lookBg.oninput = () => preview({ bg: lookBg.value });
+  veil.querySelector("#lookLogo").onclick = () => veil.querySelector("#lookFile").click();
+  veil.querySelector("#lookFile").onchange = async ev => {
+    try { preview({ logo: await toLogo(ev.target.files?.[0]) }); }
+    catch (e) { lookMsg.textContent = e.message; }
+    ev.target.value = "";
+  };
+  lookSave.onclick = async () => {
+    if (!draft) return;
+    lookSave.disabled = true; lookMsg.textContent = "Saving";
+    try {
+      const r = await api("/api/brand", { logo: draft.logo ?? null, accent: draft.accent ?? null, bg: draft.bg ?? null });
+      draft = null; applyLook(r.brand || null); paintLookInputs();
+      veil.querySelector("#lookSum").textContent = r.brand ? "your own" : "default";
+      lookMsg.textContent = "Saved. Every page of this workspace wears it now.";
+    } catch (e) { lookSave.disabled = false; lookMsg.textContent = e.message; }
+  };
+  veil.querySelector("#lookReset").onclick = async () => {
+    lookMsg.textContent = "Resetting";
+    try {
+      await api("/api/brand", { reset: true });
+      draft = null; applyLook(null); paintLookInputs(); lookSave.disabled = true;
+      veil.querySelector("#lookSum").textContent = "default";
+      lookMsg.textContent = "Back to the default look.";
+    } catch (e) { lookMsg.textContent = e.message; }
+  };
+
+  /* ---- the passphrase: the current one proves it is you ---- */
+  const passMsg = veil.querySelector("#passMsg"), passGo = veil.querySelector("#passGo");
+  const passCur = veil.querySelector("#passCur"), passNew = veil.querySelector("#passNew");
+  passGo.onclick = async () => {
+    passMsg.className = "hint";
+    if (!passCur.value) { passMsg.textContent = "Type your current passphrase first."; return passCur.focus(); }
+    if (passNew.value.length < 8) { passMsg.textContent = "The new passphrase needs 8 characters or more."; return passNew.focus(); }
+    passGo.disabled = true; passMsg.textContent = "Changing";
+    try {
+      const r = await api("/api/passphrase", { current: passCur.value, next: passNew.value });
+      passCur.value = ""; passNew.value = "";
+      passMsg.textContent = r.ended ? `Changed. ${r.ended} other session${r.ended === 1 ? " is" : "s are"} signed out.` : "Changed. It opens this workspace from now on.";
+    } catch (e) { passMsg.textContent = e.message; }
+    passGo.disabled = false;
+  };
+
+  setupShare({ veil });
+
+  /* ---- the model and the export ---- */
+  veil.querySelector("#setModel").hidden = S.demo;
+  veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet(); };
+  /* Audit: one row per folder this workspace holds, the last run and what came since. */
+  const al = veil.querySelector("#auditList");
+  for (const b of auditFolders()){
+    const r = el("div","au-row"); r.dataset.slug = b.slug;
+    const due = auditDue(b), run = S.auditRun?.slug === b.slug && S.auditRun.state === "running";
+    if (run) r.classList.add("run");
+    const t = el("div","au-t"); t.append(el("b",null,b.name), el("span",null, run ? `Running · ${S.auditRun.step}` : auditLine(b)));
+    const go = el("button", due && !run ? "mini au-due" : "mini", run ? "Open" : due ? "Audit now" : "Audit"); go.type = "button";
+    go.onclick = () => { shut(); runAudit(b, run); };
+    r.append(t, go); al.append(r);
+  }
+  if (!al.children.length) al.append(el("div","hint","No folder to audit yet."));
+  /* Each fold says where it stands while closed. */
+  const dueN = auditFolders().filter(b => auditDue(b)).length;
+  /* The decisions an audit or a drop left: one row, and a button into them. */
+  const dn = decisionCount(), dRow = veil.querySelector("#auditDecide");
+  const dt = el("div","au-t"); dt.append(el("b",null,"Decisions"), el("span",null, dn ? decisionLine() : "Nothing waiting."));
+  const dGo = el("button", dn ? "mini au-due" : "mini", dn ? "Decide" : "Open"); dGo.type = "button";
+  dGo.onclick = () => { shut(); openDecide(); };
+  dRow.append(dt, dGo);
+  veil.querySelector("#auditSum").textContent = [dueN ? `${dueN} due` : "", dn ? `${dn} to decide` : ""].filter(Boolean).join(" \u00b7 ");
+  const langSum = () => {
+    const v = voiceLang(), name = v ? (VOICE_LANGS.find(x => x[0] === v) || [])[2] || v : "";
+    veil.querySelector("#langSum").textContent = [S.demo ? "" : S.models?.reply === "en" ? "answers in English" : "answers as you write",
+      Speech ? (name ? `mic in ${name}` : "mic not set") : ""].filter(Boolean).join(" · ");
+  };
+  langSum();
+  veil.querySelector("#lookSum").textContent = S.brand ? "your own" : "default";
+  setupPrefs({ veil, langSum });
+  /* The mic, tapped with no language picked, sends you here to pick one. */
+  if (opts.voice){
+    veil.querySelector("#langBlock").open = true;
+    const row = veil.querySelector("#langVoice").closest(".lang-row");
+    row.classList.add("ask");
+    veil.querySelector("#langMsg").textContent = "Pick the language the mic listens in. It hears one language at a time.";
+    setTimeout(() => row.scrollIntoView({ block: "center" }), 60);
+  }
+
+  /* Restore: an export picked here goes to the server whole, which adds what this workspace is missing and keeps what it has. */
+  const rst = veil.querySelector("#setRestore"), rmsg = veil.querySelector("#restoreMsg");
+  rst.onclick = () => pickFile(".md,.markdown,.txt,text/markdown,text/plain", async file => {
+    const v = rst.querySelector(".val");
+    rst.disabled = true; v.textContent = "reading"; rmsg.className = "hint"; rmsg.textContent = "";
+    try {
+      const text = await file.text();
+      v.textContent = "restoring";
+      const r = await api("/api/restore", { text });
+      const n = (k, one, many) => `${r[k].added} ${r[k].added === 1 ? one : many}`;
+      const kept = r.brains.kept + r.concepts.kept + r.sources.kept;
+      rmsg.textContent = `Restored ${n("brains", "folder", "folders")}, ${n("concepts", "concept", "concepts")} and ${n("sources", "source", "sources")}.` +
+        (kept ? ` ${kept} already here, kept as they are.` : "") + (r.brains.skipped ? ` ${r.brains.skipped} folder${r.brains.skipped === 1 ? "" : "s"} named in another workspace left out.` : "") +
+        (r.linking ? ` Their links follow in a minute.` : "");
+      v.textContent = "done";
+      refresh().catch(() => {});
+    } catch (e) { v.textContent = "failed"; rmsg.className = "hint bad"; rmsg.textContent = /unreadable|404/.test(e.message) ? "The server is older than this page and cannot restore yet. Run convex deploy." : e.message; }
+    finally { rst.disabled = false; setTimeout(() => { v.textContent = "from an export"; }, 2500); }
+  });
+
+  const exp = veil.querySelector("#setExport");
+  exp.onclick = async () => {
+    const v = exp.querySelector(".val");
+    v.textContent = "reading"; exp.disabled = true;
+    try { await exportAll(); v.textContent = "downloaded"; }
+    catch (e) { v.textContent = "failed"; msg.className = "bad"; msg.textContent = e.message; }
+    finally { exp.disabled = false; setTimeout(() => { v.textContent = "markdown"; }, 2000); }
+  };
+
+  /* ---- the address ---- */
+  const paint = (st) => {
+    slot.innerHTML = st.has ? `
+      <div class="urlbox"><input id="mcpFeed" readonly spellcheck="false" value="${esc(location.origin + "/mcp/v0?k=" + st.token)}"><button id="mcpFeedCopy">Copy</button></div>
+      <div class="hint">Made ${esc(st.made || "earlier")}. Paste it into Claude, ChatGPT or any MCP client.
+        Keep it private: whoever holds it can read and feed every ${esc(S.spaceName)} brain. The thinking
+        runs on that client's own model, so nothing is spent here.</div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button class="ghost" id="mcpNew">Replace it</button>
+        <button class="ghost" id="mcpOff">Turn it off</button>
+      </div>`
+    : `
+      <div class="hint">No address yet. Make one and your own Claude or ChatGPT can read the
+        ${esc(S.spaceName)} brains and drop sources into them. Every step runs on that client's model, so
+        it spends nothing here.</div>
+      <div style="margin-top:10px"><button class="ghost" id="mcpMake">Make the ${esc(S.spaceName)} address</button></div>`;
+
+    const copy = veil.querySelector("#mcpFeedCopy");
+    if (copy) copyTo(copy, veil.querySelector("#mcpFeed"));
+    const act = async (body, note) => {
+      msg.className="spin"; msg.textContent = "Saving";
+      try { const r = await api("/api/account/mcp", body);
+        if (r.error) throw new Error(r.error);
+        /* A success note is not an alert, so it reads at hint size. */
+        msg.className="hint"; msg.textContent = note; paint(r);
+      } catch(e){ msg.className="bad"; msg.textContent = e.message; }
+    };
+    const mk = veil.querySelector("#mcpMake") || veil.querySelector("#mcpNew");
+    if (mk) mk.onclick = () => act({ make: true }, "Address ready. Paste it into your client.");
+    const off = veil.querySelector("#mcpOff");
+    if (off) off.onclick = () => act({ forget: true }, "Turned off. A client holding it can no longer feed.");
+  };
+
+  /* ---- your own key, in a workspace that runs on one ---- */
+  const kIn = veil.querySelector("#ownKey"), kMsg = veil.querySelector("#ownKeyMsg");
+  if (S.byok){
+    kIn.value = myKey();
+    kMsg.textContent = myKey() ? "Saved in this browser." : "No key in this browser yet: asking and dropping need one.";
+    const saveKey = () => {
+      const k = kIn.value.trim();
+      if (!/^sk-or-[A-Za-z0-9_-]{20,200}$/.test(k)){ kMsg.textContent = "That is not an OpenRouter key. It starts with sk-or-"; return; }
+      setMyKey(k); kMsg.textContent = "Saved in this browser.";
+    };
+    veil.querySelector("#ownKeySave").onclick = saveKey;
+    kIn.onkeydown = e => { if (e.key === "Enter") saveKey(); };
+  }
+
+  /* The connector and the transcript service are the owner's. */
+  if (!ownerWs()) return;
+  slot.innerHTML = `<div class="hint">Checking</div>`;
+  try { paint(await api("/api/account/mcp", {})); }
+  catch(e){ slot.innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
+
+  /* ---- what the transcript service has cost ---- */
+  const use = veil.querySelector("#useSlot");
+  use.innerHTML = `<div class="hint">Checking</div>`;
+  try { use.innerHTML = usageLines(await api("/api/usage", { days: 30 })); }
+  catch(e){ use.innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
+}
+
+/** The Settings sheet as markup: every section, folded or open, before any of it is wired. */
+function setupMarkup(){
+  return `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Settings</h3>
       <p>${S.demo ? `The demo runs on the default model. Export its folders and pick the language of the mic.`
@@ -5285,14 +5490,10 @@ async function openSetupSheet(opts = {}){
       <div class="f"><div id="kMsg" class="bad" role="alert"></div></div>
       <footer><a class="ghost" href="/doc" style="text-decoration:none">MCP setup</a><button class="go" id="kDone">Done</button></footer>
     </div>`;
-  document.body.append(veil);
-  const msg = veil.querySelector("#kMsg"), slot = veil.querySelector("#feedSlot");
-  /* A look previewed and not saved goes back to the saved one on close. */
-  let draft = null;
-  const shut = () => { if (draft) applyLook(S.brand); veil.remove(); };
-  veil.querySelector("#kDone").onclick = shut;
-  veil.onclick = e => { if(e.target===veil) shut(); };
+}
 
+/** Settings, what the projects and the chats cost this month, and the cap. */
+function setupSpend({ veil }){
   /* ---- what the projects cost, and the cap ---- */
   const spendBlock = veil.querySelector("#spendBlock");
   if (!spendBlock.hidden){
@@ -5336,67 +5537,10 @@ async function openSetupSheet(opts = {}){
     capIn.onkeydown = e => { if (e.key === "Enter") save.click(); };
     api("/api/project/spend", {}).then(paint).catch(e => { body.innerHTML = ""; body.append(el("div","sp-note bad",/unreadable/.test(e.message) ? "The server is older than this page and cannot count yet. Run convex deploy." : e.message)); });
   }
+}
 
-  /* ---- the look: previewed as it changes, kept on Save ---- */
-  const lookImg = veil.querySelector("#lookImg"), lookMsg = veil.querySelector("#lookMsg"), lookSave = veil.querySelector("#lookSave");
-  const lookAccent = veil.querySelector("#lookAccent"), lookBg = veil.querySelector("#lookBg");
-  const cssHex = name => { const c = toRgb(getComputedStyle(document.documentElement).getPropertyValue(name)); return c ? rgbHex(c) : "#888888"; };
-  const paintLookInputs = () => {
-    lookImg.src = markOf();
-    lookAccent.value = S.brand?.accent || cssHex("--accent-fill");
-    lookBg.value = S.brand?.bg || cssHex("--bg");
-  };
-  paintLookInputs();
-  const preview = patch => {
-    draft = { ...(draft || S.brand || {}), ...patch };
-    applyLook(draft, { preview: true });
-    lookImg.src = markOf();
-    lookSave.disabled = false; lookMsg.textContent = "";
-  };
-  lookAccent.oninput = () => preview({ accent: lookAccent.value });
-  lookBg.oninput = () => preview({ bg: lookBg.value });
-  veil.querySelector("#lookLogo").onclick = () => veil.querySelector("#lookFile").click();
-  veil.querySelector("#lookFile").onchange = async ev => {
-    try { preview({ logo: await toLogo(ev.target.files?.[0]) }); }
-    catch (e) { lookMsg.textContent = e.message; }
-    ev.target.value = "";
-  };
-  lookSave.onclick = async () => {
-    if (!draft) return;
-    lookSave.disabled = true; lookMsg.textContent = "Saving";
-    try {
-      const r = await api("/api/brand", { logo: draft.logo ?? null, accent: draft.accent ?? null, bg: draft.bg ?? null });
-      draft = null; applyLook(r.brand || null); paintLookInputs();
-      veil.querySelector("#lookSum").textContent = r.brand ? "your own" : "default";
-      lookMsg.textContent = "Saved. Every page of this workspace wears it now.";
-    } catch (e) { lookSave.disabled = false; lookMsg.textContent = e.message; }
-  };
-  veil.querySelector("#lookReset").onclick = async () => {
-    lookMsg.textContent = "Resetting";
-    try {
-      await api("/api/brand", { reset: true });
-      draft = null; applyLook(null); paintLookInputs(); lookSave.disabled = true;
-      veil.querySelector("#lookSum").textContent = "default";
-      lookMsg.textContent = "Back to the default look.";
-    } catch (e) { lookMsg.textContent = e.message; }
-  };
-
-  /* ---- the passphrase: the current one proves it is you ---- */
-  const passMsg = veil.querySelector("#passMsg"), passGo = veil.querySelector("#passGo");
-  const passCur = veil.querySelector("#passCur"), passNew = veil.querySelector("#passNew");
-  passGo.onclick = async () => {
-    passMsg.className = "hint";
-    if (!passCur.value) { passMsg.textContent = "Type your current passphrase first."; return passCur.focus(); }
-    if (passNew.value.length < 8) { passMsg.textContent = "The new passphrase needs 8 characters or more."; return passNew.focus(); }
-    passGo.disabled = true; passMsg.textContent = "Changing";
-    try {
-      const r = await api("/api/passphrase", { current: passCur.value, next: passNew.value });
-      passCur.value = ""; passNew.value = "";
-      passMsg.textContent = r.ended ? `Changed. ${r.ended} other session${r.ended === 1 ? " is" : "s are"} signed out.` : "Changed. It opens this workspace from now on.";
-    } catch (e) { passMsg.textContent = e.message; }
-    passGo.disabled = false;
-  };
-
+/** Settings, Share brain: pick a workspace, then which brains go to it. */
+function setupShare({ veil }){
   /* ---- Share brain: pick a workspace, then which brains go to it ---- */
   const shareSlot = veil.querySelector("#shareSlot"), shareMsg = veil.querySelector("#shareMsg");
   const shareTo = veil.querySelector("#shareTo"), shareNote = veil.querySelector("#shareNote"), shareCount = veil.querySelector("#shareCount");
@@ -5460,38 +5604,10 @@ async function openSetupSheet(opts = {}){
   };
   shareTo.onchange = () => { shareMsg.textContent = ""; paintRows(); };
   if (ownerWs()) api("/api/share", {}).then(paintShare).catch(e => { shareSlot.innerHTML = ""; shareMsg.textContent = e.message; });
+}
 
-  /* ---- the model and the export ---- */
-  veil.querySelector("#setModel").hidden = S.demo;
-  veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet(); };
-  /* Audit: one row per folder this workspace holds, the last run and what came since. */
-  const al = veil.querySelector("#auditList");
-  for (const b of auditFolders()){
-    const r = el("div","au-row"); r.dataset.slug = b.slug;
-    const due = auditDue(b), run = S.auditRun?.slug === b.slug && S.auditRun.state === "running";
-    if (run) r.classList.add("run");
-    const t = el("div","au-t"); t.append(el("b",null,b.name), el("span",null, run ? `Running · ${S.auditRun.step}` : auditLine(b)));
-    const go = el("button", due && !run ? "mini au-due" : "mini", run ? "Open" : due ? "Audit now" : "Audit"); go.type = "button";
-    go.onclick = () => { shut(); runAudit(b, run); };
-    r.append(t, go); al.append(r);
-  }
-  if (!al.children.length) al.append(el("div","hint","No folder to audit yet."));
-  /* Each fold says where it stands while closed. */
-  const dueN = auditFolders().filter(b => auditDue(b)).length;
-  /* The decisions an audit or a drop left: one row, and a button into them. */
-  const dn = decisionCount(), dRow = veil.querySelector("#auditDecide");
-  const dt = el("div","au-t"); dt.append(el("b",null,"Decisions"), el("span",null, dn ? decisionLine() : "Nothing waiting."));
-  const dGo = el("button", dn ? "mini au-due" : "mini", dn ? "Decide" : "Open"); dGo.type = "button";
-  dGo.onclick = () => { shut(); openDecide(); };
-  dRow.append(dt, dGo);
-  veil.querySelector("#auditSum").textContent = [dueN ? `${dueN} due` : "", dn ? `${dn} to decide` : ""].filter(Boolean).join(" \u00b7 ");
-  const langSum = () => {
-    const v = voiceLang(), name = v ? (VOICE_LANGS.find(x => x[0] === v) || [])[2] || v : "";
-    veil.querySelector("#langSum").textContent = [S.demo ? "" : S.models?.reply === "en" ? "answers in English" : "answers as you write",
-      Speech ? (name ? `mic in ${name}` : "mic not set") : ""].filter(Boolean).join(" · ");
-  };
-  langSum();
-  veil.querySelector("#lookSum").textContent = S.brand ? "your own" : "default";
+/** Settings kept for this browser or the workspace: light or dark, Short or Long answers, the app on this device, and the languages. */
+function setupPrefs({ veil, langSum }){
   /* Languages: saved for the workspace on a tap. The demo keeps its voice
      language in this browser, since its settings are shared by every visitor. */
   /* Light, dark, or as the device is set: this browser only, at once, nothing sent. */
@@ -5549,102 +5665,6 @@ async function openSetupSheet(opts = {}){
   };
   langSeg("langReply", "reply", "same", v => v === "en" ? "Saved. Answers come back in English." : "Saved. Answers come back in the language you write in.");
   langSeg("langVoice", "voice", "", v => `Saved. The mic listens in ${(VOICE_LANGS.find(x => x[0] === v) || [])[2] || v}${S.demo ? ", in this browser" : ", on every device of this workspace"}. Tap the mic to talk.`);
-  /* The mic, tapped with no language picked, sends you here to pick one. */
-  if (opts.voice){
-    veil.querySelector("#langBlock").open = true;
-    const row = veil.querySelector("#langVoice").closest(".lang-row");
-    row.classList.add("ask");
-    veil.querySelector("#langMsg").textContent = "Pick the language the mic listens in. It hears one language at a time.";
-    setTimeout(() => row.scrollIntoView({ block: "center" }), 60);
-  }
-
-  /* Restore: an export picked here goes to the server whole, which adds what this workspace is missing and keeps what it has. */
-  const rst = veil.querySelector("#setRestore"), rmsg = veil.querySelector("#restoreMsg");
-  rst.onclick = () => pickFile(".md,.markdown,.txt,text/markdown,text/plain", async file => {
-    const v = rst.querySelector(".val");
-    rst.disabled = true; v.textContent = "reading"; rmsg.className = "hint"; rmsg.textContent = "";
-    try {
-      const text = await file.text();
-      v.textContent = "restoring";
-      const r = await api("/api/restore", { text });
-      const n = (k, one, many) => `${r[k].added} ${r[k].added === 1 ? one : many}`;
-      const kept = r.brains.kept + r.concepts.kept + r.sources.kept;
-      rmsg.textContent = `Restored ${n("brains", "folder", "folders")}, ${n("concepts", "concept", "concepts")} and ${n("sources", "source", "sources")}.` +
-        (kept ? ` ${kept} already here, kept as they are.` : "") + (r.brains.skipped ? ` ${r.brains.skipped} folder${r.brains.skipped === 1 ? "" : "s"} named in another workspace left out.` : "") +
-        (r.linking ? ` Their links follow in a minute.` : "");
-      v.textContent = "done";
-      refresh().catch(() => {});
-    } catch (e) { v.textContent = "failed"; rmsg.className = "hint bad"; rmsg.textContent = /unreadable|404/.test(e.message) ? "The server is older than this page and cannot restore yet. Run convex deploy." : e.message; }
-    finally { rst.disabled = false; setTimeout(() => { v.textContent = "from an export"; }, 2500); }
-  });
-
-  const exp = veil.querySelector("#setExport");
-  exp.onclick = async () => {
-    const v = exp.querySelector(".val");
-    v.textContent = "reading"; exp.disabled = true;
-    try { await exportAll(); v.textContent = "downloaded"; }
-    catch (e) { v.textContent = "failed"; msg.className = "bad"; msg.textContent = e.message; }
-    finally { exp.disabled = false; setTimeout(() => { v.textContent = "markdown"; }, 2000); }
-  };
-
-  /* ---- the address ---- */
-  const paint = (st) => {
-    slot.innerHTML = st.has ? `
-      <div class="urlbox"><input id="mcpFeed" readonly spellcheck="false" value="${esc(location.origin + "/mcp/v0?k=" + st.token)}"><button id="mcpFeedCopy">Copy</button></div>
-      <div class="hint">Made ${esc(st.made || "earlier")}. Paste it into Claude, ChatGPT or any MCP client.
-        Keep it private: whoever holds it can read and feed every ${esc(S.spaceName)} brain. The thinking
-        runs on that client's own model, so nothing is spent here.</div>
-      <div style="margin-top:10px;display:flex;gap:8px">
-        <button class="ghost" id="mcpNew">Replace it</button>
-        <button class="ghost" id="mcpOff">Turn it off</button>
-      </div>`
-    : `
-      <div class="hint">No address yet. Make one and your own Claude or ChatGPT can read the
-        ${esc(S.spaceName)} brains and drop sources into them. Every step runs on that client's model, so
-        it spends nothing here.</div>
-      <div style="margin-top:10px"><button class="ghost" id="mcpMake">Make the ${esc(S.spaceName)} address</button></div>`;
-
-    const copy = veil.querySelector("#mcpFeedCopy");
-    if (copy) copyTo(copy, veil.querySelector("#mcpFeed"));
-    const act = async (body, note) => {
-      msg.className="spin"; msg.textContent = "Saving";
-      try { const r = await api("/api/account/mcp", body);
-        if (r.error) throw new Error(r.error);
-        /* A success note is not an alert, so it reads at hint size. */
-        msg.className="hint"; msg.textContent = note; paint(r);
-      } catch(e){ msg.className="bad"; msg.textContent = e.message; }
-    };
-    const mk = veil.querySelector("#mcpMake") || veil.querySelector("#mcpNew");
-    if (mk) mk.onclick = () => act({ make: true }, "Address ready. Paste it into your client.");
-    const off = veil.querySelector("#mcpOff");
-    if (off) off.onclick = () => act({ forget: true }, "Turned off. A client holding it can no longer feed.");
-  };
-
-  /* ---- your own key, in a workspace that runs on one ---- */
-  const kIn = veil.querySelector("#ownKey"), kMsg = veil.querySelector("#ownKeyMsg");
-  if (S.byok){
-    kIn.value = myKey();
-    kMsg.textContent = myKey() ? "Saved in this browser." : "No key in this browser yet: asking and dropping need one.";
-    const saveKey = () => {
-      const k = kIn.value.trim();
-      if (!/^sk-or-[A-Za-z0-9_-]{20,200}$/.test(k)){ kMsg.textContent = "That is not an OpenRouter key. It starts with sk-or-"; return; }
-      setMyKey(k); kMsg.textContent = "Saved in this browser.";
-    };
-    veil.querySelector("#ownKeySave").onclick = saveKey;
-    kIn.onkeydown = e => { if (e.key === "Enter") saveKey(); };
-  }
-
-  /* The connector and the transcript service are the owner's. */
-  if (!ownerWs()) return;
-  slot.innerHTML = `<div class="hint">Checking</div>`;
-  try { paint(await api("/api/account/mcp", {})); }
-  catch(e){ slot.innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
-
-  /* ---- what the transcript service has cost ---- */
-  const use = veil.querySelector("#useSlot");
-  use.innerHTML = `<div class="hint">Checking</div>`;
-  try { use.innerHTML = usageLines(await api("/api/usage", { days: 30 })); }
-  catch(e){ use.innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
 }
 
 /**
@@ -6156,62 +6176,15 @@ function openFolder(b, openId, opts = {}){
   const fv = $("folderView"); fv.innerHTML = "";
   const self = isPersonal(b.slug), ro = readOnly(b);
   const sorted = () => conceptsOf(b.slug).slice().sort((x, y) => String(y.updated || "").localeCompare(String(x.updated || "")) || (y.src || 0) - (x.src || 0));
-  let cs = sorted();
+  /* What changes while the screen is open, shared with its parts below. */
+  const live = {};
+  live.cs = sorted();
   const reads = sourcesOf(b.slug).length, h = S.health[b.slug];
   const clashes = h ? (h.open || 0) : [...(S.conflicted || [])].filter(id => id.split("/")[0] === b.slug).length;
 
-  const head = el("header","fv-h");
-  const t = el("div","fv-t");
-  t.append(el("h2",null,b.name));
-  if (b.scope && !self) t.append(el("p",null,b.scope));
-  const nPeople = self ? cs.filter(c => c.tag === "contact").length : 0, nNotes = cs.length - nPeople;
-  t.append(el("p","fv-n", self ? `${nNotes} note${nNotes===1?"":"s"} · ${nPeople} ${nPeople===1?"person":"people"} · only its own chat reads it`
-    : `${cs.length} concept${cs.length===1?"":"s"} · ${reads} source${reads===1?"":"s"} · ${clashes} clash${clashes===1?"":"es"}`));
-  head.append(t);
-  if (h && !self){
-    const hl = el("button","fv-hl"); hl.type = "button"; hl.id = "fvHealth";
-    const ring = healthRing(h, b, false); ring.removeAttribute("aria-label");
-    const txt = el("div"); txt.append(el("b",null,`Health ${fmtScore(h.score)} / 10`), el("span","say",`Next: ${h.best}`));
-    hl.append(ring, txt);
-    hl.onclick = () => openHealthSheet(b);
-    head.append(hl);
-  }
-  /* A personal folder shows how well it knows you in place of a health score. */
-  if (self && !S.demo){
-    const tw = el("button","fv-hl"); tw.type = "button"; tw.id = "fvTwin";
-    const fillCard = iv => {
-      tw.innerHTML = "";
-      const ring = pctRing(iv ? iv.pct : 0); ring.removeAttribute("role");
-      const txt = el("div");
-      txt.append(el("b",null, iv ? `Twin ${iv.pct}% complete` : "Your twin"),
-        el("span","say", !iv ? "How well it knows you" : iv.on ? `Interview on · ${iv.chapter?.title || "last questions"}`
-          : iv.chapter ? `Next: ${iv.chapter.title}, ${iv.chapter.at} of ${iv.chapter.total} done` : "Every question asked"));
-      tw.append(ring, txt);
-    };
-    fillCard(S.iv[b.slug]);
-    tw.onclick = () => twinPane();
-    head.append(tw);
-    loadIv(b.slug).then(r => { if (r && S.folder === b.slug){ fillCard(r.interview); if (ivDone(r.interview)) acts.querySelector("#fvIv")?.remove(); if (ivFull(r.interview)) acts.querySelector("#fvProfile")?.remove(); } });
-  }
-  const acts = el("div","fv-acts");
-  const btn = (id, label, icon, fn, title) => {
-    const x = el("button","fv-b"); x.type = "button"; x.id = id; x.innerHTML = icon || ""; x.append(label);
-    if (title) x.title = title; x.onclick = fn; acts.append(x); return x;
-  };
-  btn("fvChat", "Chat in it", IC_CHAT, () => { S.folder = null; newChat(); $("input").focus(); });
-  if (self && !S.demo){
-    btn("fvMem", "Add memory", IC_DROP, () => openMemorySheet(b.slug), "Paste, or add a PDF, Word or text file about you. It is read like a drop.");
-    if (!ivDone(S.iv[b.slug])) btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
-      "It asks you questions, one at a time, to know you better. Stop any time.");
-    btn("fvTest", "Twin test", IC_TEST, () => testPane(), "5 messages to reply to, built from your notes: your twin replies first, from your notes alone, then the two replies are compared, and yours go into your notes");
-    /* At 100% the notes and the contacts hold all of it: the profile would only repeat them. */
-    if (!ivFull(S.iv[b.slug])) btn("fvProfile", "Twin profile", IC_PROFILE, () => profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
-  }
-  if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
-  if (!S.demo && !ro && !self) btn("fvEdit", "Edit", IC_EDIT, () => openBrainSheet(b), "Its name and the line that decides what goes in");
-  const x = btn("fvClose", "×", "", () => { S.folder = null; render(); $("input").focus(); }, "Back to the chat");
-  x.classList.add("fv-x"); x.setAttribute("aria-label","Back to the chat");
-  head.append(acts);
+  /* A personal folder's panes are made further down; the buttons of the head reach them here once made. */
+  const panes = {};
+  const { head } = folderHead({ b, self, live, reads, clashes, h, ro, panes });
 
   const cols = el("div","fv-cols");
   const list = el("div","fv-list");
@@ -6222,18 +6195,18 @@ function openFolder(b, openId, opts = {}){
   const topLine = el("p","fv-topline"); topLine.hidden = true;
   let topic = null;
   /* A personal folder holds notes and contacts: one card per person, tagged. */
-  let tab = self && openId && cs.find(c => `${c.brain}/${c.slug}` === openId)?.tag === "contact" ? "people" : "notes";
+  live.tab = self && openId && live.cs.find(c => `${c.brain}/${c.slug}` === openId)?.tag === "contact" ? "people" : "notes";
   const tabs = el("div","fv-tabs"); tabs.hidden = !self;
   const scan = el("div","fv-scan"); scan.hidden = true;
   const isPerson = c => c.tag === "contact";
-  const inTab = list0 => self ? list0.filter(c => (tab === "people") === isPerson(c)) : list0;
+  const inTab = list0 => self ? list0.filter(c => (live.tab === "people") === isPerson(c)) : list0;
   const paintTabs = () => {
     tabs.innerHTML = "";
     for (const [k, label] of [["notes","Notes"], ["people","People"]]){
-      const n = cs.filter(c => (k === "people") === isPerson(c)).length;
-      const x = el("button","fv-tab" + (tab === k ? " on" : "")); x.type = "button"; x.id = k === "people" ? "fvPeople" : "fvNotes";
+      const n = live.cs.filter(c => (k === "people") === isPerson(c)).length;
+      const x = el("button","fv-tab" + (live.tab === k ? " on" : "")); x.type = "button"; x.id = k === "people" ? "fvPeople" : "fvNotes";
       x.append(label, el("i",null,String(n)));
-      x.onclick = () => { tab = k; f.value = ""; f.placeholder = k === "people" ? "Filter people" : "Filter notes"; paintTabs(); paint(); paintScan(); };
+      x.onclick = () => { live.tab = k; f.value = ""; f.placeholder = k === "people" ? "Filter people" : "Filter notes"; paintTabs(); paint(); paintScan(); };
       tabs.append(x);
     }
   };
@@ -6263,20 +6236,20 @@ function openFolder(b, openId, opts = {}){
   cols.append(list, doc);
   fv.append(head, cols);
 
-  let openNow = null;
+  live.openNow = null;
   /* The page of a person open last: an edit brings you back to it. */
-  let pfTab = "overview";
+  live.pfTab = "overview";
   const paint = () => {
     rows.innerHTML = "";
     const q = f.value.trim().toLowerCase();
-    const base = inTab(topic ? cs.filter(c => topic.members.includes(`${c.brain}/${c.slug}`)) : cs);
+    const base = inTab(topic ? live.cs.filter(c => topic.members.includes(`${c.brain}/${c.slug}`)) : live.cs);
     const shown = q ? base.filter(c => (c.title + " " + (c.summaryLine || "") + " " + (c.aliases || []).join(" ")).toLowerCase().includes(q)) : base;
     if (!shown.length){ rows.append(el("div","fv-none", q ? "Nothing matches that."
-      : self && tab === "people" ? "No contact yet. Talk about someone and they get a card here."
-      : cs.length ? "No concept matches that." : self ? "Nothing yet. Talk to it and it files what you say." : "Nothing yet. Drop a source to feed it.")); return; }
+      : self && live.tab === "people" ? "No contact yet. Talk about someone and they get a card here."
+      : live.cs.length ? "No concept matches that." : self ? "Nothing yet. Talk to it and it files what you say." : "Nothing yet. Drop a source to feed it.")); return; }
     for (const c of shown){
       const id = `${c.brain}/${c.slug}`;
-      const r = el("button","fv-row" + (id === openNow ? " on" : "")); r.type = "button"; r.dataset.id = id;
+      const r = el("button","fv-row" + (id === live.openNow ? " on" : "")); r.type = "button"; r.dataset.id = id;
       r.append(el("b",null,c.title));
       if (c.summaryLine) r.append(el("span",null,c.summaryLine));
       r.append(el("small",null, isPerson(c)
@@ -6292,18 +6265,18 @@ function openFolder(b, openId, opts = {}){
   /* A concept of this folder opens here; one of another folder opens there. */
   const go = r => { const rb = r.split("/")[0]; if (rb === b.slug) show(r); else openFolder(S.brains.find(x => x.slug === rb), r); };
   const show = async id => {
-    openNow = id;
+    live.openNow = id;
     for (const r of rows.children) r.classList?.toggle("on", r.dataset?.id === id);
     cols.classList.add("reading");
     doc.innerHTML = ""; doc.scrollTop = 0;
     const inner = el("div","fv-in"); doc.append(inner);
-    const back = el("button","fv-back", self ? (tab === "people" ? "← All people" : "← All notes") : "← All concepts"); back.type = "button";
-    back.onclick = () => { cols.classList.remove("reading"); openNow = null; paint(); };
+    const back = el("button","fv-back", self ? (live.tab === "people" ? "← All people" : "← All notes") : "← All concepts"); back.type = "button";
+    back.onclick = () => { cols.classList.remove("reading"); live.openNow = null; paint(); };
     inner.append(back, el("div","fv-none","Opening"));
     let c, insights = [], linkedFrom = [], raw = null, pg = null;
     try { const got = await api("/api/concept", { id }); c = got.concept; insights = got.insights || []; linkedFrom = got.linkedFrom || []; raw = got.raw || null; pg = got.pages || null; }
     catch (e) { inner.lastChild.textContent = e.message; return; }
-    if (openNow !== id || S.folder !== b.slug) return;
+    if (live.openNow !== id || S.folder !== b.slug) return;
     if (!c){ inner.lastChild.textContent = "This concept is no longer here."; return; }
     inner.lastChild.remove();
     const person = c.tag === "contact";
@@ -6395,6 +6368,84 @@ function openFolder(b, openId, opts = {}){
     inner.append(a2);
   };
 
+  const { personTabs, personFile, rawNotes } = folderPeople({ live, show });
+
+  const { reload, editCard, mergePick } = folderEdits({ live, doc, b, show, sorted, self, paintTabs, paint });
+
+  const { backToAudit, personalAudit, tidy } = folderAudit({ live, paint, cols, doc, b, reload, isPerson });
+
+  Object.assign(panes, folderTwinPanes({ live, paint, cols, doc, b, reload }));
+
+  paint();
+  const wide = window.matchMedia("(min-width:861px)").matches;
+  if (opts.audit && opts.resume && S.auditRun?.slug === b.slug && S.auditRun.inner) backToAudit();
+  else if (opts.audit) (self ? personalAudit() : tidy());
+  else if (openId) show(openId);
+  else if (self && !S.demo && wide) panes.twinPane();
+  else if (wide && live.cs.length) show(`${live.cs[0].brain}/${live.cs[0].slug}`);
+  else { const p = el("div","fv-in"); p.append(el("div","fv-none", live.cs.length ? "Pick a concept to read it." : "")); doc.append(p); }
+  render();
+}
+
+/** The head of a folder screen: its name and counts, its health or twin card, and its actions. */
+function folderHead({ b, self, live, reads, clashes, h, ro, panes }){
+  const head = el("header","fv-h");
+  const t = el("div","fv-t");
+  t.append(el("h2",null,b.name));
+  if (b.scope && !self) t.append(el("p",null,b.scope));
+  const nPeople = self ? live.cs.filter(c => c.tag === "contact").length : 0, nNotes = live.cs.length - nPeople;
+  t.append(el("p","fv-n", self ? `${nNotes} note${nNotes===1?"":"s"} · ${nPeople} ${nPeople===1?"person":"people"} · only its own chat reads it`
+    : `${live.cs.length} concept${live.cs.length===1?"":"s"} · ${reads} source${reads===1?"":"s"} · ${clashes} clash${clashes===1?"":"es"}`));
+  head.append(t);
+  if (h && !self){
+    const hl = el("button","fv-hl"); hl.type = "button"; hl.id = "fvHealth";
+    const ring = healthRing(h, b, false); ring.removeAttribute("aria-label");
+    const txt = el("div"); txt.append(el("b",null,`Health ${fmtScore(h.score)} / 10`), el("span","say",`Next: ${h.best}`));
+    hl.append(ring, txt);
+    hl.onclick = () => openHealthSheet(b);
+    head.append(hl);
+  }
+  /* A personal folder shows how well it knows you in place of a health score. */
+  if (self && !S.demo){
+    const tw = el("button","fv-hl"); tw.type = "button"; tw.id = "fvTwin";
+    const fillCard = iv => {
+      tw.innerHTML = "";
+      const ring = pctRing(iv ? iv.pct : 0); ring.removeAttribute("role");
+      const txt = el("div");
+      txt.append(el("b",null, iv ? `Twin ${iv.pct}% complete` : "Your twin"),
+        el("span","say", !iv ? "How well it knows you" : iv.on ? `Interview on · ${iv.chapter?.title || "last questions"}`
+          : iv.chapter ? `Next: ${iv.chapter.title}, ${iv.chapter.at} of ${iv.chapter.total} done` : "Every question asked"));
+      tw.append(ring, txt);
+    };
+    fillCard(S.iv[b.slug]);
+    tw.onclick = () => panes.twinPane();
+    head.append(tw);
+    loadIv(b.slug).then(r => { if (r && S.folder === b.slug){ fillCard(r.interview); if (ivDone(r.interview)) acts.querySelector("#fvIv")?.remove(); if (ivFull(r.interview)) acts.querySelector("#fvProfile")?.remove(); } });
+  }
+  const acts = el("div","fv-acts");
+  const btn = (id, label, icon, fn, title) => {
+    const x = el("button","fv-b"); x.type = "button"; x.id = id; x.innerHTML = icon || ""; x.append(label);
+    if (title) x.title = title; x.onclick = fn; acts.append(x); return x;
+  };
+  btn("fvChat", "Chat in it", IC_CHAT, () => { S.folder = null; newChat(); $("input").focus(); });
+  if (self && !S.demo){
+    btn("fvMem", "Add memory", IC_DROP, () => openMemorySheet(b.slug), "Paste, or add a PDF, Word or text file about you. It is read like a drop.");
+    if (!ivDone(S.iv[b.slug])) btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
+      "It asks you questions, one at a time, to know you better. Stop any time.");
+    btn("fvTest", "Twin test", IC_TEST, () => panes.testPane(), "5 messages to reply to, built from your notes: your twin replies first, from your notes alone, then the two replies are compared, and yours go into your notes");
+    /* At 100% the notes and the contacts hold all of it: the profile would only repeat them. */
+    if (!ivFull(S.iv[b.slug])) btn("fvProfile", "Twin profile", IC_PROFILE, () => panes.profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
+  }
+  if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
+  if (!S.demo && !ro && !self) btn("fvEdit", "Edit", IC_EDIT, () => openBrainSheet(b), "Its name and the line that decides what goes in");
+  const x = btn("fvClose", "×", "", () => { S.folder = null; render(); $("input").focus(); }, "Back to the chat");
+  x.classList.add("fv-x"); x.setAttribute("aria-label","Back to the chat");
+  head.append(acts);
+  return { head };
+}
+
+/** A person's file in a personal folder: its tabs, its pages and the raw notes. */
+function folderPeople({ live, show }){
   /**
    * A person's file under the summary: what is still open, the facts by
    * section with the ones that no longer hold, the people linked both ways,
@@ -6409,7 +6460,7 @@ function openFolder(b, openId, opts = {}){
     const counts = { facts: (f.facts || []).filter(x => !x.until).length, history: f.n ?? (f.events || []).length,
       people: (f.links || []).length + linkedFrom.length, raw: raw?.total || 0 };
     const pick = k => {
-      pfTab = k;
+      live.pfTab = k;
       for (const b of tabs.children){ const on = b.dataset.k === k; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); }
       for (const [kk, p] of Object.entries(panes)) p.hidden = kk !== k;
     };
@@ -6421,7 +6472,7 @@ function openFolder(b, openId, opts = {}){
       const p = el("div","pf-pane"); p.dataset.k = k; p.id = "pfPane-" + k; p.setAttribute("role","tabpanel"); panes[k] = p;
     }
     inner.append(tabs, ...Object.values(panes));
-    pick(panes[pfTab] ? pfTab : "overview");
+    pick(panes[live.pfTab] ? live.pfTab : "overview");
     /* A count set once the page knows it: each person once, whichever way they link. */
     const count = (k, n) => { const b = tabs.querySelector(`[data-k="${k}"]`); b.querySelector("small")?.remove(); if (n) b.append(el("small",null,String(n))); };
     return { panes, pick, count };
@@ -6499,7 +6550,7 @@ function openFolder(b, openId, opts = {}){
     }
     if (!panes.facts.children.length) panes.facts.append(el("div","fv-li","No fact yet. Their city, work, phone or birthday land here as you mention them."));
 
-    const people = cs.filter(x => x.tag === "contact");
+    const people = live.cs.filter(x => x.tag === "contact");
     const find = n => people.find(x => [x.title, ...(x.aliases || [])].some(t => String(t).toLowerCase() === String(n).toLowerCase()));
     if ((f.links || []).length || linkedFrom.length){
       const sec = el("section","pf-sec"); sec.append(el("h4",null,"Their people"));
@@ -6589,10 +6640,14 @@ function openFolder(b, openId, opts = {}){
     box.append(list);
     inner.append(box);
   };
+  return { personTabs, personFile, rawNotes };
+}
 
+/** Editing a note or a person's card, merging two people, and reading the folder again after a change. */
+function folderEdits({ live, doc, b, show, sorted, self, paintTabs, paint }){
   /** A person's card, by hand: name, other names, line and card. */
   const editCard = (c, id) => {
-    openNow = id;
+    live.openNow = id;
     doc.innerHTML = ""; doc.scrollTop = 0;
     const inner = el("div","fv-in ct-form"); inner.id = "ctForm"; doc.append(inner);
     const back = el("button","fv-back","← Back to the card"); back.type = "button"; back.onclick = () => show(id);
@@ -6620,7 +6675,7 @@ function openFolder(b, openId, opts = {}){
   /** The other cards, to pick the one that is the same person. */
   const mergePick = (pick, c, id) => {
     pick.innerHTML = "";
-    const others = cs.filter(x => x.tag === "contact" && `${x.brain}/${x.slug}` !== id);
+    const others = live.cs.filter(x => x.tag === "contact" && `${x.brain}/${x.slug}` !== id);
     if (!others.length){ pick.append(el("p","tw-key","No other card to merge with yet.")); return; }
     pick.append(el("p","tw-key",`Pick the card that is the same person as ${c.title}. Its mentions and names join this card, and the card is written again as one.`));
     const q = el("input","fv-filter ct-find"); q.placeholder = "Find a person"; q.id = "ctFind";
@@ -6655,9 +6710,13 @@ function openFolder(b, openId, opts = {}){
   const reload = async () => {
     try { await refresh(); } catch (_) {}
     if (S.folder !== b.slug) return;
-    cs = sorted(); if (self) paintTabs(); paint();
+    live.cs = sorted(); if (self) paintTabs(); paint();
   };
+  return { reload, editCard, mergePick };
+}
 
+/** The audit of one folder in its reading column: the tidy pass of a subject folder and the personal audit. */
+function folderAudit({ live, paint, cols, doc, b, reload, isPerson }){
   /**
    * Tidy: what this folder holds twice, titles not in English, and concepts
    * with no position. It proposes; each finding waits for a click.
@@ -6665,7 +6724,7 @@ function openFolder(b, openId, opts = {}){
   /* The audit of a subject or person folder: what is filed twice, titles not
      in English, empty positions. Each one waits for your call. */
   const tidy = async () => {
-    openNow = null; paint();
+    live.openNow = null; paint();
     cols.classList.add("reading");
     doc.innerHTML = ""; doc.scrollTop = 0;
     const inner = el("div","fv-in tidy"); inner.id = "tidyPane"; doc.append(inner);
@@ -6673,10 +6732,10 @@ function openFolder(b, openId, opts = {}){
     back.onclick = () => { cols.classList.remove("reading"); paint(); };
     inner.append(back, el("div","fv-eye",`Audit · ${b.name}`), el("h1",null,"Audit this folder"));
     const n = el("p","fv-pos");
-    n.textContent = `It reads ${cs.length} concepts for ideas filed twice, titles not in English and concepts with no position.`;
+    n.textContent = `It reads ${live.cs.length} concepts for ideas filed twice, titles not in English and concepts with no position.`;
     inner.append(n);
     const load = auditLoader(inner, b);
-    load.step(`Reading ${cs.length} concept${cs.length === 1 ? "" : "s"}`);
+    load.step(`Reading ${live.cs.length} concept${live.cs.length === 1 ? "" : "s"}`);
     let r;
     try { r = await api("/api/brain/tidy", { brain: b.slug }); if (r.error) throw new Error(r.error); }
     catch (e) { load.end(false); inner.append(el("div","fv-li bad",e.message), feedbackButton(e.message, { where: "audit", scope: b.slug })); return; }
@@ -6698,7 +6757,7 @@ function openFolder(b, openId, opts = {}){
      ones with only a card given a full file, then the same person filed
      twice, each pair for you to merge or keep apart. */
   const personalAudit = async () => {
-    openNow = null; paint();
+    live.openNow = null; paint();
     cols.classList.add("reading");
     doc.innerHTML = ""; doc.scrollTop = 0;
     const inner = el("div","fv-in tidy"); inner.id = "auditPane"; doc.append(inner);
@@ -6766,7 +6825,7 @@ function openFolder(b, openId, opts = {}){
 
   /* An audit you left, back where it is: still running, or ended. */
   const backToAudit = () => {
-    openNow = null; paint();
+    live.openNow = null; paint();
     cols.classList.add("reading");
     doc.innerHTML = ""; doc.scrollTop = 0;
     const a = S.auditRun; doc.append(a.inner);
@@ -6774,10 +6833,14 @@ function openFolder(b, openId, opts = {}){
     if (back) back.onclick = () => { cols.classList.remove("reading"); paint(); };
     if (a.state !== "running"){ a.seen = true; paintInbox(); }
   };
+  return { backToAudit, personalAudit, tidy };
+}
 
+/** A personal folder's twin, its test and its profile, each shown in the reading column of the folder screen. */
+function folderTwinPanes({ live, paint, cols, doc, b, reload }){
   /* ---- a personal folder: the twin, its test and its profile ---- */
   const pane = (id, eye, title) => {
-    openNow = null; paint();
+    live.openNow = null; paint();
     cols.classList.add("reading");
     doc.innerHTML = ""; doc.scrollTop = 0;
     const inner = el("div","fv-in tw"); inner.id = id; doc.append(inner);
@@ -6988,16 +7051,7 @@ function openFolder(b, openId, opts = {}){
       sec.append(ul); inner.append(sec);
     }
   };
-
-  paint();
-  const wide = window.matchMedia("(min-width:861px)").matches;
-  if (opts.audit && opts.resume && S.auditRun?.slug === b.slug && S.auditRun.inner) backToAudit();
-  else if (opts.audit) (self ? personalAudit() : tidy());
-  else if (openId) show(openId);
-  else if (self && !S.demo && wide) twinPane();
-  else if (wide && cs.length) show(`${cs[0].brain}/${cs[0].slug}`);
-  else { const p = el("div","fv-in"); p.append(el("div","fv-none", cs.length ? "Pick a concept to read it." : "")); doc.append(p); }
-  render();
+  return { twinPane, testPane, profilePane };
 }
 
 /**
@@ -7680,118 +7734,9 @@ function pdfMarkdown(pages) {
       p.rows = p.rows.filter((r) => r.k[0] === "|" || (seen.get(r.k).size < need && !(PN.test(r.t) && r.h < small)));
     });
 
-    // 5. Prose columns: one gutter x shared by many lines. Read the left column fully, then the right.
-    const columns = (rows, pw, depth) => {
-      const diff = new Array(Math.ceil(pw) + 4).fill(0);
-      rows.forEach((r) => {
-        for (let i = 1; i < r.segs.length; i++) {
-          const a = Math.max(0, Math.ceil(r.segs[i - 1].x1) + 2), b = Math.min(diff.length - 2, Math.floor(r.segs[i].x0) - 2);
-          if (b >= a) { diff[a]++; diff[b + 1]--; }
-        }
-      });
-      let run = 0, best = 0, x1 = 0, x2 = 0;
-      diff.forEach((d, x) => {
-        run += d;
-        if (run > best) { best = run; x1 = x2 = x; } else if (best > 0 && run === best && x === x2 + 1) x2 = x;
-      });
-      if (best < 4) return [rows];
-      const xs = (x1 + x2) / 2;
-      const isL = (it) => it.x + it.w <= xs + 1;
-      // 0 left only, 1 right only, 2 both sides, 3 something crosses the gutter
-      const kind = rows.map((r) => {
-        if (r.its.some((it) => !isL(it) && it.x < xs - 1)) return 3;
-        return r.its.some(isL) ? (r.its.some((it) => !isL(it)) ? 2 : 0) : 1;
-      });
-      // prose columns have long text on both sides of the gutter, table cells are short
-      const lens = [];
-      rows.forEach((r, i) => {
-        const chars = (side) => r.its.reduce((n, it) => n + (isL(it) === side ? it.s.length : 0), 0);
-        if (kind[i] === 2) lens.push(Math.min(chars(true), chars(false)));
-      });
-      lens.sort((a, b) => a - b);
-      if (lens.length < 4 || lens[lens.length >> 1] < 20) return [rows];
-      // a big one-sided line with nothing beside it (a section title) ends the columns above it
-      rows.forEach((r, i) => {
-        if (kind[i] > 1 || r.h <= 1.2 * bodyH) return;
-        let busy = false;
-        [-1, 1].forEach((d) => {
-          for (let k = i + d; rows[k] && Math.abs(rows[k].y - r.y) <= 1.2 * r.h; k += d) {
-            busy = busy || kind[k] === 2 || kind[k] === 1 - kind[i];
-          }
-        });
-        if (!busy) kind[i] = 3;
-      });
-      const out = [];
-      let flow = [];
-      for (let i = 0; i < rows.length; ) {
-        if (kind[i] !== 2) { flow.push(rows[i++]); continue; }
-        let j = i;
-        while (j < rows.length && kind[j] !== 3) j++;
-        if (flow.length) out.push(flow);
-        flow = [];
-        const sides = [[], []];
-        rows.slice(i, j).forEach((r) => {
-          [r.its.filter(isL), r.its.filter((it) => !isL(it))].forEach((its, s) => { if (its.length) sides[s].push(mkRow(its)); });
-        });
-        sides.forEach((rs) => (depth < 2 ? columns(rs, pw, depth + 1) : [rs]).forEach((c) => out.push(c)));
-        i = j;
-      }
-      if (flow.length) out.push(flow);
-      return out;
-    };
+    const { columns } = pdfColumns({ bodyH, mkRow });
 
-    // 6. Tables: lines whose cells (segments) fall in the same x bands row after row.
-    const LEADER = /_{3,}|\.{5,}|\u2026{2,}|-{5,}/; // fill-in lines and dot leaders are forms, not tables
-    const near = (a) => a.sort((u, v) => u - v).some((v, i) => i > 0 && v - a[i - 1] <= 3);
-    const tableAt = (rows, i) => {
-      const bands = [], run = [];
-      // The band of each cell. Only multi-cell lines may open a band, wrapped lines must start at a band edge.
-      const fit = (r, grow) => {
-        const idx = r.segs.map((s) => {
-          const hit = bands.reduce((a, b, k) => (s.x0 <= b.x1 + 2 && s.x1 >= b.x0 - 2 ? a.concat(k) : a), []);
-          if (hit.length > 1 || (!grow && (!hit.length || Math.abs(s.x0 - bands[hit[0]].x0) > 3))) return NaN;
-          return hit.length ? hit[0] : -1;
-        });
-        const old = idx.filter((k) => k >= 0);
-        if (idx.some(isNaN) || new Set(old).size !== old.length) return null;
-        r.segs.forEach((s, n) => {
-          if (idx[n] < 0) idx[n] = bands.push({ x0: s.x0, x1: s.x1 }) - 1;
-          const b = bands[idx[n]];
-          b.x0 = Math.min(b.x0, s.x0);
-          b.x1 = Math.max(b.x1, s.x1);
-        });
-        return idx;
-      };
-      let j = i;
-      for (; j < rows.length; j++) {
-        const r = rows[j], multi = r.segs.length > 1;
-        const far = j > i && rows[j - 1].y - r.y > (multi ? 3.5 : 1.6) * r.h;
-        const idx = r.h > 1.25 * bodyH || LEADER.test(r.text) || far ? null : fit(r, multi);
-        if (!idx) break;
-        run.push({ r, idx });
-      }
-      const multi = run.filter((e) => e.r.segs.length > 1);
-      // at least two columns must repeat their left or right edge row after row
-      const aligned = bands.filter((b, k) => {
-        const cells = multi.flatMap((e) => e.r.segs.filter((s, n) => e.idx[n] === k));
-        return near(cells.map((s) => s.x0)) || near(cells.map((s) => s.x1));
-      }).length;
-      if (multi.length < 2 || aligned < 2) return null;
-      const nb = bands.length, order = bands.map((b, k) => k).sort((a, b) => bands[a].x0 - bands[b].x0), pos = [];
-      order.forEach((k, n) => { pos[k] = n; });
-      const ps = run.map((e, k) => (k && e.r.segs.length === nb ? run[k - 1].r.y - e.r.y : 0)).filter(Boolean);
-      ps.sort((a, b) => a - b);
-      const rowP = ps[ps.length >> 1] || 0; // usual pitch from one row to the next
-      const lines = [];
-      run.forEach((e, k) => {
-        // a line with an empty cell, close under the line above, is wrapped cell text
-        const wrap = k && e.r.segs.length < nb && run[k - 1].r.y - e.r.y <= (rowP ? 0.75 * rowP : 1.5 * e.r.h);
-        if (!wrap) lines.push(new Array(nb).fill(""));
-        const row = lines[lines.length - 1];
-        e.r.segs.forEach((s, n) => { const c = pos[e.idx[n]]; row[c] = row[c] ? joinLines(row[c], s.text) : s.text; });
-      });
-      return lines.length < 2 ? null : { end: j, lines, cols: order.map((k) => bands[k]) };
-    };
+    const { LEADER, tableAt } = pdfTables({ bodyH, joinLines });
     const tmd = (lines) => {
       const row = (cells) => "| " + cells.map((c) => c.replace(/\|/g, "\\|")).join(" | ") + " |";
       return [row(lines[0]), row(lines[0].map(() => "---"))].concat(lines.slice(1).map(row)).join("\n");
@@ -7841,86 +7786,7 @@ function pdfMarkdown(pages) {
     heads.map((u) => u.h).sort((a, b) => b - a).forEach((h) => { if (!cl.length || h < cl[cl.length - 1] * 0.97) cl.push(h); });
     heads.forEach((u) => { u.level = Math.min(3, 1 + cl.findIndex((c) => u.h >= c * 0.97)); });
 
-    // 9. Lines to blocks (paragraph, list item, heading, table) inside one chunk.
-    const TERM = /[.!?:;]["'\u201D\u2019)\]]?$/;
-    const listX = []; // indents that held a run of list items anywhere in the document
-    const chunkBlocks = (us) => {
-      // this column's own text size (a page can mix sizes, e.g. 9pt columns and 10.5pt notes)
-      const hc = {};
-      us.forEach((u) => { if (!u.table && !u.level && u.segs.length === 1) tally(hc, Math.round(u.h * 2), u.tx.length); });
-      const cH = (+mode(hc) || 2 * bodyH) / 2;
-      const isBody = (u) => u.h >= 0.85 * cH && u.h <= 1.08 * cH;
-      const txt = us.filter((u) => !u.table && !u.level && u.segs.length === 1 && isBody(u)), fc = {};
-      txt.forEach((u) => { u.bt = true; tally(fc, u.f, u.tx.length); });
-      // the left margin is the smallest edge shared by a few lines; then the right edge, the usual leading and the font of this column
-      const xs = txt.map((u) => u.x0).sort((a, b) => a - b), few = Math.max(2, 0.15 * xs.length);
-      let M = xs.length ? xs[0] : 0;
-      for (let i = 0, j = 0; i < xs.length; i++) {
-        while (j < xs.length && xs[j] <= xs[i] + 3) j++;
-        if (j - i >= few) { M = xs[i]; break; }
-      }
-      const colR = txt.reduce((m, u) => Math.max(m, u.x1), 0), colW = Math.max(1, colR - M);
-      const lead = []; // the pitch after a full-width line is surely inside a paragraph
-      us.forEach((b, k) => {
-        const a = us[k - 1], p = k ? a.y - b.y : 0;
-        const full = k && a.bt && b.bt && a.x1 >= colR - 0.06 * colW && b.x0 >= a.x0 - 3;
-        if (full && p >= 0.9 * b.h && p <= 2.5 * b.h) lead.push(p);
-      });
-      lead.sort((a, b) => a - b);
-      const L = lead.length > 1 ? lead[lead.length >> 1] : 0, cf = mode(fc);
-      // does line u start a new block after block b?
-      const brk = (b, u) => {
-        const a = b.last, pitch = a.y - u.y, dx = u.x0 - a.x0, ind = Math.max(6, 0.8 * u.h);
-        const end = TERM.test(a.text), short = a.x1 < colR - 0.12 * colW;
-        if (pitch > (L ? 1.3 * L : 1.6 * u.h)) return true;
-        // a number inside a wrapped sentence is not a list marker, a bullet glyph always is
-        if (u.mk) return !!u.mk[1] || !!b.mk || end || short;
-        if (dx > ind && !(b.mk && u.f === b.f)) return true; // indent step in; hanging list text is not one
-        if (dx < -ind && b.n > 1) return true;
-        if (b.n === 1 && short && u.f !== a.f) return true; // a short line in another font over body text: a run-in heading
-        if (L && pitch - L >= Math.max(1.5, 0.08 * L) && (short || end)) return true; // small extra gap after a short line
-        return L > 0 && a.x1 < colR - 0.35 * colW && end && /^[\p{Lu}\d"(\u201C]/u.test(u.text);
-      };
-      const out = [];
-      let cur = null;
-      us.forEach((u) => {
-        if (u.table) { out.push({ t: "table", text: tmd(u.lines) }); cur = null; return; }
-        if (u.level) {
-          if (cur && cur.t === "h" && cur.level === u.level && cur.last.y - u.y <= 1.5 * u.h) {
-            cur.text = joinLines(cur.text, u.tx);
-            cur.last = u;
-            cur.n++;
-          } else out.push(cur = { t: "h", level: u.level, text: u.tx, last: u, n: 1, x0: u.x0, f: u.f });
-          return;
-        }
-        // a signature line, with its wide gap, stays alone, unless it is just a stretched justified line
-        const stretched = Math.abs(u.x1 - colR) < 3 && Math.abs(u.x0 - M) < 3 && u.gm <= 2.5 * u.h;
-        const solo = LEADER.test(u.text) || (u.segs.length > 1 && !stretched);
-        u.text = solo ? u.text : u.tx;
-        u.mk = !solo && isBody(u) ? OPEN.exec(u.text) : null;
-        if (solo) {
-          out.push({ t: "p", text: u.text, x0: u.x0, f: u.f, solo: true });
-          cur = null;
-        } else if (cur && cur.t === "p" && !cur.solo && !brk(cur, u)) {
-          cur.text = joinLines(cur.text, u.text);
-          cur.last = u;
-          cur.n++;
-          cur.x0 = Math.min(cur.x0, u.x0);
-        } else out.push(cur = { t: "p", text: u.text, x0: u.x0, f: u.f, last: u, n: 1, mk: u.mk });
-      });
-      out.forEach((b) => {
-        if (b.t === "h" && (b.n > 3 || b.text.length > 120)) b.t = "p"; // a long run of big text is a paragraph
-        b.ind = b.t === "p" && !b.mk && !b.solo && b.x0 > M + Math.max(6, 0.9 * cH);
-        b.dif = b.f !== cf;
-      });
-      // two or more indented blocks in a row with the same left edge are list items
-      for (let i = 0, j; i < out.length; i = j + 1) {
-        for (j = i; out[i].ind && j + 1 < out.length && out[j + 1].ind && Math.abs(out[j + 1].x0 - out[i].x0) <= 3; ) j++;
-        if (j > i) { listX.push(out[i].x0); out.slice(i, j + 1).forEach((b) => { b.t = "li"; }); }
-      }
-      out.forEach((b) => { if (b.mk) b.t = "li"; });
-      return out;
-    };
+    const { chunkBlocks, listX } = pdfBlocks({ mode, bodyH, tally, LEADER, OPEN, tmd, joinLines });
     const pageBlocks = chunksOf.map((cs) => cs.reduce((acc, c) => acc.concat(chunkBlocks(c)), []));
     // a lone indented block: a list item if that indent is a list elsewhere, else a quote when the font differs
     pageBlocks.forEach((bs) => bs.forEach((b) => {
@@ -7952,6 +7818,212 @@ function pdfMarkdown(pages) {
   } catch (e) {
     return plain();
   }
+}
+
+/** PDF reading, step 5: prose columns found from one gutter shared by many lines, the left one read first. */
+function pdfColumns({ bodyH, mkRow }){
+  // 5. Prose columns: one gutter x shared by many lines. Read the left column fully, then the right.
+  const columns = (rows, pw, depth) => {
+    const diff = new Array(Math.ceil(pw) + 4).fill(0);
+    rows.forEach((r) => {
+      for (let i = 1; i < r.segs.length; i++) {
+        const a = Math.max(0, Math.ceil(r.segs[i - 1].x1) + 2), b = Math.min(diff.length - 2, Math.floor(r.segs[i].x0) - 2);
+        if (b >= a) { diff[a]++; diff[b + 1]--; }
+      }
+    });
+    let run = 0, best = 0, x1 = 0, x2 = 0;
+    diff.forEach((d, x) => {
+      run += d;
+      if (run > best) { best = run; x1 = x2 = x; } else if (best > 0 && run === best && x === x2 + 1) x2 = x;
+    });
+    if (best < 4) return [rows];
+    const xs = (x1 + x2) / 2;
+    const isL = (it) => it.x + it.w <= xs + 1;
+    // 0 left only, 1 right only, 2 both sides, 3 something crosses the gutter
+    const kind = rows.map((r) => {
+      if (r.its.some((it) => !isL(it) && it.x < xs - 1)) return 3;
+      return r.its.some(isL) ? (r.its.some((it) => !isL(it)) ? 2 : 0) : 1;
+    });
+    // prose columns have long text on both sides of the gutter, table cells are short
+    const lens = [];
+    rows.forEach((r, i) => {
+      const chars = (side) => r.its.reduce((n, it) => n + (isL(it) === side ? it.s.length : 0), 0);
+      if (kind[i] === 2) lens.push(Math.min(chars(true), chars(false)));
+    });
+    lens.sort((a, b) => a - b);
+    if (lens.length < 4 || lens[lens.length >> 1] < 20) return [rows];
+    // a big one-sided line with nothing beside it (a section title) ends the columns above it
+    rows.forEach((r, i) => {
+      if (kind[i] > 1 || r.h <= 1.2 * bodyH) return;
+      let busy = false;
+      [-1, 1].forEach((d) => {
+        for (let k = i + d; rows[k] && Math.abs(rows[k].y - r.y) <= 1.2 * r.h; k += d) {
+          busy = busy || kind[k] === 2 || kind[k] === 1 - kind[i];
+        }
+      });
+      if (!busy) kind[i] = 3;
+    });
+    const out = [];
+    let flow = [];
+    for (let i = 0; i < rows.length; ) {
+      if (kind[i] !== 2) { flow.push(rows[i++]); continue; }
+      let j = i;
+      while (j < rows.length && kind[j] !== 3) j++;
+      if (flow.length) out.push(flow);
+      flow = [];
+      const sides = [[], []];
+      rows.slice(i, j).forEach((r) => {
+        [r.its.filter(isL), r.its.filter((it) => !isL(it))].forEach((its, s) => { if (its.length) sides[s].push(mkRow(its)); });
+      });
+      sides.forEach((rs) => (depth < 2 ? columns(rs, pw, depth + 1) : [rs]).forEach((c) => out.push(c)));
+      i = j;
+    }
+    if (flow.length) out.push(flow);
+    return out;
+  };
+  return { columns };
+}
+
+/** PDF reading, step 6: tables found where the cells of lines fall in the same x bands row after row. */
+function pdfTables({ bodyH, joinLines }){
+  // 6. Tables: lines whose cells (segments) fall in the same x bands row after row.
+  const LEADER = /_{3,}|\.{5,}|\u2026{2,}|-{5,}/; // fill-in lines and dot leaders are forms, not tables
+  const near = (a) => a.sort((u, v) => u - v).some((v, i) => i > 0 && v - a[i - 1] <= 3);
+  const tableAt = (rows, i) => {
+    const bands = [], run = [];
+    // The band of each cell. Only multi-cell lines may open a band, wrapped lines must start at a band edge.
+    const fit = (r, grow) => {
+      const idx = r.segs.map((s) => {
+        const hit = bands.reduce((a, b, k) => (s.x0 <= b.x1 + 2 && s.x1 >= b.x0 - 2 ? a.concat(k) : a), []);
+        if (hit.length > 1 || (!grow && (!hit.length || Math.abs(s.x0 - bands[hit[0]].x0) > 3))) return NaN;
+        return hit.length ? hit[0] : -1;
+      });
+      const old = idx.filter((k) => k >= 0);
+      if (idx.some(isNaN) || new Set(old).size !== old.length) return null;
+      r.segs.forEach((s, n) => {
+        if (idx[n] < 0) idx[n] = bands.push({ x0: s.x0, x1: s.x1 }) - 1;
+        const b = bands[idx[n]];
+        b.x0 = Math.min(b.x0, s.x0);
+        b.x1 = Math.max(b.x1, s.x1);
+      });
+      return idx;
+    };
+    let j = i;
+    for (; j < rows.length; j++) {
+      const r = rows[j], multi = r.segs.length > 1;
+      const far = j > i && rows[j - 1].y - r.y > (multi ? 3.5 : 1.6) * r.h;
+      const idx = r.h > 1.25 * bodyH || LEADER.test(r.text) || far ? null : fit(r, multi);
+      if (!idx) break;
+      run.push({ r, idx });
+    }
+    const multi = run.filter((e) => e.r.segs.length > 1);
+    // at least two columns must repeat their left or right edge row after row
+    const aligned = bands.filter((b, k) => {
+      const cells = multi.flatMap((e) => e.r.segs.filter((s, n) => e.idx[n] === k));
+      return near(cells.map((s) => s.x0)) || near(cells.map((s) => s.x1));
+    }).length;
+    if (multi.length < 2 || aligned < 2) return null;
+    const nb = bands.length, order = bands.map((b, k) => k).sort((a, b) => bands[a].x0 - bands[b].x0), pos = [];
+    order.forEach((k, n) => { pos[k] = n; });
+    const ps = run.map((e, k) => (k && e.r.segs.length === nb ? run[k - 1].r.y - e.r.y : 0)).filter(Boolean);
+    ps.sort((a, b) => a - b);
+    const rowP = ps[ps.length >> 1] || 0; // usual pitch from one row to the next
+    const lines = [];
+    run.forEach((e, k) => {
+      // a line with an empty cell, close under the line above, is wrapped cell text
+      const wrap = k && e.r.segs.length < nb && run[k - 1].r.y - e.r.y <= (rowP ? 0.75 * rowP : 1.5 * e.r.h);
+      if (!wrap) lines.push(new Array(nb).fill(""));
+      const row = lines[lines.length - 1];
+      e.r.segs.forEach((s, n) => { const c = pos[e.idx[n]]; row[c] = row[c] ? joinLines(row[c], s.text) : s.text; });
+    });
+    return lines.length < 2 ? null : { end: j, lines, cols: order.map((k) => bands[k]) };
+  };
+  return { LEADER, tableAt };
+}
+
+/** PDF reading, step 9: the lines of one chunk turned into blocks, a paragraph, a list item, a heading or a table. */
+function pdfBlocks({ mode, bodyH, tally, LEADER, OPEN, tmd, joinLines }){
+  // 9. Lines to blocks (paragraph, list item, heading, table) inside one chunk.
+  const TERM = /[.!?:;]["'\u201D\u2019)\]]?$/;
+  const listX = []; // indents that held a run of list items anywhere in the document
+  const chunkBlocks = (us) => {
+    // this column's own text size (a page can mix sizes, e.g. 9pt columns and 10.5pt notes)
+    const hc = {};
+    us.forEach((u) => { if (!u.table && !u.level && u.segs.length === 1) tally(hc, Math.round(u.h * 2), u.tx.length); });
+    const cH = (+mode(hc) || 2 * bodyH) / 2;
+    const isBody = (u) => u.h >= 0.85 * cH && u.h <= 1.08 * cH;
+    const txt = us.filter((u) => !u.table && !u.level && u.segs.length === 1 && isBody(u)), fc = {};
+    txt.forEach((u) => { u.bt = true; tally(fc, u.f, u.tx.length); });
+    // the left margin is the smallest edge shared by a few lines; then the right edge, the usual leading and the font of this column
+    const xs = txt.map((u) => u.x0).sort((a, b) => a - b), few = Math.max(2, 0.15 * xs.length);
+    let M = xs.length ? xs[0] : 0;
+    for (let i = 0, j = 0; i < xs.length; i++) {
+      while (j < xs.length && xs[j] <= xs[i] + 3) j++;
+      if (j - i >= few) { M = xs[i]; break; }
+    }
+    const colR = txt.reduce((m, u) => Math.max(m, u.x1), 0), colW = Math.max(1, colR - M);
+    const lead = []; // the pitch after a full-width line is surely inside a paragraph
+    us.forEach((b, k) => {
+      const a = us[k - 1], p = k ? a.y - b.y : 0;
+      const full = k && a.bt && b.bt && a.x1 >= colR - 0.06 * colW && b.x0 >= a.x0 - 3;
+      if (full && p >= 0.9 * b.h && p <= 2.5 * b.h) lead.push(p);
+    });
+    lead.sort((a, b) => a - b);
+    const L = lead.length > 1 ? lead[lead.length >> 1] : 0, cf = mode(fc);
+    // does line u start a new block after block b?
+    const brk = (b, u) => {
+      const a = b.last, pitch = a.y - u.y, dx = u.x0 - a.x0, ind = Math.max(6, 0.8 * u.h);
+      const end = TERM.test(a.text), short = a.x1 < colR - 0.12 * colW;
+      if (pitch > (L ? 1.3 * L : 1.6 * u.h)) return true;
+      // a number inside a wrapped sentence is not a list marker, a bullet glyph always is
+      if (u.mk) return !!u.mk[1] || !!b.mk || end || short;
+      if (dx > ind && !(b.mk && u.f === b.f)) return true; // indent step in; hanging list text is not one
+      if (dx < -ind && b.n > 1) return true;
+      if (b.n === 1 && short && u.f !== a.f) return true; // a short line in another font over body text: a run-in heading
+      if (L && pitch - L >= Math.max(1.5, 0.08 * L) && (short || end)) return true; // small extra gap after a short line
+      return L > 0 && a.x1 < colR - 0.35 * colW && end && /^[\p{Lu}\d"(\u201C]/u.test(u.text);
+    };
+    const out = [];
+    let cur = null;
+    us.forEach((u) => {
+      if (u.table) { out.push({ t: "table", text: tmd(u.lines) }); cur = null; return; }
+      if (u.level) {
+        if (cur && cur.t === "h" && cur.level === u.level && cur.last.y - u.y <= 1.5 * u.h) {
+          cur.text = joinLines(cur.text, u.tx);
+          cur.last = u;
+          cur.n++;
+        } else out.push(cur = { t: "h", level: u.level, text: u.tx, last: u, n: 1, x0: u.x0, f: u.f });
+        return;
+      }
+      // a signature line, with its wide gap, stays alone, unless it is just a stretched justified line
+      const stretched = Math.abs(u.x1 - colR) < 3 && Math.abs(u.x0 - M) < 3 && u.gm <= 2.5 * u.h;
+      const solo = LEADER.test(u.text) || (u.segs.length > 1 && !stretched);
+      u.text = solo ? u.text : u.tx;
+      u.mk = !solo && isBody(u) ? OPEN.exec(u.text) : null;
+      if (solo) {
+        out.push({ t: "p", text: u.text, x0: u.x0, f: u.f, solo: true });
+        cur = null;
+      } else if (cur && cur.t === "p" && !cur.solo && !brk(cur, u)) {
+        cur.text = joinLines(cur.text, u.text);
+        cur.last = u;
+        cur.n++;
+        cur.x0 = Math.min(cur.x0, u.x0);
+      } else out.push(cur = { t: "p", text: u.text, x0: u.x0, f: u.f, last: u, n: 1, mk: u.mk });
+    });
+    out.forEach((b) => {
+      if (b.t === "h" && (b.n > 3 || b.text.length > 120)) b.t = "p"; // a long run of big text is a paragraph
+      b.ind = b.t === "p" && !b.mk && !b.solo && b.x0 > M + Math.max(6, 0.9 * cH);
+      b.dif = b.f !== cf;
+    });
+    // two or more indented blocks in a row with the same left edge are list items
+    for (let i = 0, j; i < out.length; i = j + 1) {
+      for (j = i; out[i].ind && j + 1 < out.length && out[j + 1].ind && Math.abs(out[j + 1].x0 - out[i].x0) <= 3; ) j++;
+      if (j > i) { listX.push(out[i].x0); out.slice(i, j + 1).forEach((b) => { b.t = "li"; }); }
+    }
+    out.forEach((b) => { if (b.mk) b.t = "li"; });
+    return out;
+  };
+  return { chunkBlocks, listX };
 }
 
 /** One page of a PDF as the layout reader takes it: each piece of text, where it stands and how big it is. */
@@ -9750,63 +9822,7 @@ function pdfFromMarkdown(md, title){
   const esc = s => s.replace(/[\\()]/g, m => "\\" + m);
   const num = n => (Math.round(n * 100) / 100).toString();
 
-  /* Inline Markdown as runs of one font each. */
-  const inline = (s, f) => {
-    const runs = [], push = (t, ff) => { if (t) runs.push({ t, f: ff }); };
-    const re = /`([^`]+)`|(!?)\[([^\]]*)\]\(([^)\s]*)[^)]*\)|\*\*([^\s*](?:[^*]*[^\s*])?)\*\*|\*([^\s*](?:[^*]*[^\s*])?)\*|<br\s*\/?>|<\/?[a-zA-Z][^>]*>|\\([*_`\[\]()#>|\\-])/g;
-    let last = 0, m;
-    while ((m = re.exec(s))){
-      push(s.slice(last, m.index), f); last = m.index + m[0].length;
-      if (m[1] != null) push(m[1], "C");
-      else if (m[3] != null){ push(m[3], f); if (!m[2] && m[4] && m[4] !== m[3]) push(` (${m[4]})`, f); }
-      else if (m[5] != null) runs.push(...inline(m[5], f === "I" || f === "BI" ? "BI" : "B"));
-      else if (m[6] != null) runs.push(...inline(m[6], f === "B" || f === "BI" ? "BI" : "I"));
-      else if (/^<br/i.test(m[0])) push("\n", f);
-      else if (m[7] != null) push(m[7], f);
-    }
-    push(s.slice(last), f);
-    return runs;
-  };
-  /* Words with their font, ready to wrap; `sp` says whitespace follows the word. */
-  const wordsOf = (runs, sz) => {
-    const out = [];
-    for (const r of runs){
-      for (const p of bytes(r.t).split(/(\n|\s+)/)){
-        if (!p) continue;
-        if (p === "\n") out.push({ br: true });
-        else if (/^\s+$/.test(p)) { if (out.length && !out[out.length - 1].br) out[out.length - 1].sp = true; }
-        else out.push({ t: p, f: r.f, w: width(p, r.f, sz), sp: false });
-      }
-    }
-    return out;
-  };
-  /* Words as lines no wider than `max`; each word knows the space before it. A word wider than a line is cut where it overflows. */
-  const wrap = (words, max, sz) => {
-    const lines = []; let cur = [], x = 0;
-    const flush = () => { lines.push(cur); cur = []; x = 0; };
-    for (const w of words){
-      if (w.br){ flush(); continue; }
-      const prev = cur[cur.length - 1];
-      const gap = prev && prev.sp ? width(" ", prev.f, sz) : 0;
-      if (w.w > max){
-        if (cur.length) flush();
-        let rest = w.t;
-        while (rest){
-          let n = rest.length;
-          while (n > 1 && width(rest.slice(0, n), w.f, sz) > max) n--;
-          const piece = rest.slice(0, n); rest = rest.slice(n);
-          cur.push({ t: piece, f: w.f, w: width(piece, w.f, sz), sp: !rest && w.sp, lead: 0 }); x = width(piece, w.f, sz);
-          if (rest) flush();
-        }
-        continue;
-      }
-      if (cur.length && x + gap + w.w > max) flush();
-      const lead = cur.length ? (cur[cur.length - 1].sp ? width(" ", cur[cur.length - 1].f, sz) : 0) : 0;
-      cur.push({ ...w, lead }); x += lead + w.w;
-    }
-    if (cur.length || !lines.length) flush();
-    return lines;
-  };
+  const { wrap, wordsOf, inline } = pdfWrap({ bytes, width });
 
   /* ---- the page ---- */
   const PW = 595.28, PH = 841.89, ML = 56, MR = 56, MT = 60, MB = 62, TW = PW - ML - MR;
@@ -9849,47 +9865,7 @@ function pdfFromMarkdown(md, title){
     y -= after;
   };
 
-  /* ---- Markdown as blocks ---- */
-  const src = String(md ?? "").replace(/\r\n?/g, "\n").split("\n");
-  const blocks = [];
-  const cellsOf = r => r.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
-  const isSep = r => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(r.trim());
-  const itemRe = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/;
-  for (let i = 0; i < src.length;){
-    const ln = src[i], t = ln.trim();
-    if (!t){ i++; continue; }
-    let m;
-    if ((m = /^(```|~~~)/.exec(t))){
-      const body = []; i++;
-      while (i < src.length && !/^(```|~~~)/.test(src[i].trim())) body.push(src[i++]);
-      i++; blocks.push({ k: "code", lines: body }); continue;
-    }
-    if (/^\[\[p\. \d+\]\]$/.test(t)){ i++; continue; }
-    if ((m = /^(#{1,6})\s+(.*?)\s*#*$/.exec(t))){ blocks.push({ k: "h", n: m[1].length, s: m[2] }); i++; continue; }
-    if (/^([-*_])(\s*\1){2,}$/.test(t)){ blocks.push({ k: "hr" }); i++; continue; }
-    if (/^>/.test(t)){ const q = []; while (i < src.length && /^\s*>/.test(src[i])) q.push(src[i++].trim().replace(/^>\s?/, "")); blocks.push({ k: "quote", s: q.join(" ") }); continue; }
-    if (/^\|.*\|$/.test(t)){
-      const rows = []; while (i < src.length && /^\s*\|.*\|\s*$/.test(src[i])) rows.push(src[i++]);
-      const sep = rows.findIndex(isSep);
-      const body = rows.filter((r, j) => j !== sep).map(cellsOf);
-      blocks.push({ k: "table", head: sep > 0 ? body.slice(0, sep) : [], rows: sep > 0 ? body.slice(sep) : body }); continue;
-    }
-    if (itemRe.test(ln)){
-      const items = [];
-      while (i < src.length && src[i].trim()){
-        const li = itemRe.exec(src[i]);
-        if (li) items.push({ lvl: Math.min(3, Math.floor(li[1].replace(/\t/g, "    ").length / 2)), num: /\d/.test(li[2]) ? parseInt(li[2], 10) : 0, s: li[3] });
-        else if (/^\s+\S/.test(src[i]) && items.length) items[items.length - 1].s += " " + src[i].trim();
-        else break;
-        i++;
-      }
-      blocks.push({ k: "list", items }); continue;
-    }
-    /* A paragraph: the lines of a PDF or a text file break where the page ended, so a long line that stops no sentence reads on. */
-    const lines = [];
-    while (i < src.length && src[i].trim() && !/^(```|~~~|#{1,6}\s|>|\|.*\|$)/.test(src[i].trim()) && !itemRe.test(src[i]) && !/^([-*_])(\s*\1){2,}$/.test(src[i].trim())) lines.push(src[i++].trim());
-    blocks.push({ k: "p", lines });
-  }
+  const { blocks } = mdBlocks({ md });
 
   /* ---- laying the blocks out ---- */
   newPage();
@@ -10001,6 +9977,114 @@ function pdfFromMarkdown(md, title){
   const bin = new Uint8Array(out.length);
   for (let i = 0; i < out.length; i++) bin[i] = out.charCodeAt(i) & 255;
   return bin;
+}
+
+/** PDF writing: inline Markdown as runs of one font each, and a paragraph wrapped into lines that fit the width. */
+function pdfWrap({ bytes, width }){
+  /* Inline Markdown as runs of one font each. */
+  const inline = (s, f) => {
+    const runs = [], push = (t, ff) => { if (t) runs.push({ t, f: ff }); };
+    const re = /`([^`]+)`|(!?)\[([^\]]*)\]\(([^)\s]*)[^)]*\)|\*\*([^\s*](?:[^*]*[^\s*])?)\*\*|\*([^\s*](?:[^*]*[^\s*])?)\*|<br\s*\/?>|<\/?[a-zA-Z][^>]*>|\\([*_`\[\]()#>|\\-])/g;
+    let last = 0, m;
+    while ((m = re.exec(s))){
+      push(s.slice(last, m.index), f); last = m.index + m[0].length;
+      if (m[1] != null) push(m[1], "C");
+      else if (m[3] != null){ push(m[3], f); if (!m[2] && m[4] && m[4] !== m[3]) push(` (${m[4]})`, f); }
+      else if (m[5] != null) runs.push(...inline(m[5], f === "I" || f === "BI" ? "BI" : "B"));
+      else if (m[6] != null) runs.push(...inline(m[6], f === "B" || f === "BI" ? "BI" : "I"));
+      else if (/^<br/i.test(m[0])) push("\n", f);
+      else if (m[7] != null) push(m[7], f);
+    }
+    push(s.slice(last), f);
+    return runs;
+  };
+  /* Words with their font, ready to wrap; `sp` says whitespace follows the word. */
+  const wordsOf = (runs, sz) => {
+    const out = [];
+    for (const r of runs){
+      for (const p of bytes(r.t).split(/(\n|\s+)/)){
+        if (!p) continue;
+        if (p === "\n") out.push({ br: true });
+        else if (/^\s+$/.test(p)) { if (out.length && !out[out.length - 1].br) out[out.length - 1].sp = true; }
+        else out.push({ t: p, f: r.f, w: width(p, r.f, sz), sp: false });
+      }
+    }
+    return out;
+  };
+  /* Words as lines no wider than `max`; each word knows the space before it. A word wider than a line is cut where it overflows. */
+  const wrap = (words, max, sz) => {
+    const lines = []; let cur = [], x = 0;
+    const flush = () => { lines.push(cur); cur = []; x = 0; };
+    for (const w of words){
+      if (w.br){ flush(); continue; }
+      const prev = cur[cur.length - 1];
+      const gap = prev && prev.sp ? width(" ", prev.f, sz) : 0;
+      if (w.w > max){
+        if (cur.length) flush();
+        let rest = w.t;
+        while (rest){
+          let n = rest.length;
+          while (n > 1 && width(rest.slice(0, n), w.f, sz) > max) n--;
+          const piece = rest.slice(0, n); rest = rest.slice(n);
+          cur.push({ t: piece, f: w.f, w: width(piece, w.f, sz), sp: !rest && w.sp, lead: 0 }); x = width(piece, w.f, sz);
+          if (rest) flush();
+        }
+        continue;
+      }
+      if (cur.length && x + gap + w.w > max) flush();
+      const lead = cur.length ? (cur[cur.length - 1].sp ? width(" ", cur[cur.length - 1].f, sz) : 0) : 0;
+      cur.push({ ...w, lead }); x += lead + w.w;
+    }
+    if (cur.length || !lines.length) flush();
+    return lines;
+  };
+  return { wrap, wordsOf, inline };
+}
+
+/** PDF writing: Markdown read as blocks, a heading, a paragraph, a list item, a quote, code, a rule or a table. */
+function mdBlocks({ md }){
+  /* ---- Markdown as blocks ---- */
+  const src = String(md ?? "").replace(/\r\n?/g, "\n").split("\n");
+  const blocks = [];
+  const cellsOf = r => r.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+  const isSep = r => /^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$/.test(r.trim());
+  const itemRe = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/;
+  for (let i = 0; i < src.length;){
+    const ln = src[i], t = ln.trim();
+    if (!t){ i++; continue; }
+    let m;
+    if ((m = /^(```|~~~)/.exec(t))){
+      const body = []; i++;
+      while (i < src.length && !/^(```|~~~)/.test(src[i].trim())) body.push(src[i++]);
+      i++; blocks.push({ k: "code", lines: body }); continue;
+    }
+    if (/^\[\[p\. \d+\]\]$/.test(t)){ i++; continue; }
+    if ((m = /^(#{1,6})\s+(.*?)\s*#*$/.exec(t))){ blocks.push({ k: "h", n: m[1].length, s: m[2] }); i++; continue; }
+    if (/^([-*_])(\s*\1){2,}$/.test(t)){ blocks.push({ k: "hr" }); i++; continue; }
+    if (/^>/.test(t)){ const q = []; while (i < src.length && /^\s*>/.test(src[i])) q.push(src[i++].trim().replace(/^>\s?/, "")); blocks.push({ k: "quote", s: q.join(" ") }); continue; }
+    if (/^\|.*\|$/.test(t)){
+      const rows = []; while (i < src.length && /^\s*\|.*\|\s*$/.test(src[i])) rows.push(src[i++]);
+      const sep = rows.findIndex(isSep);
+      const body = rows.filter((r, j) => j !== sep).map(cellsOf);
+      blocks.push({ k: "table", head: sep > 0 ? body.slice(0, sep) : [], rows: sep > 0 ? body.slice(sep) : body }); continue;
+    }
+    if (itemRe.test(ln)){
+      const items = [];
+      while (i < src.length && src[i].trim()){
+        const li = itemRe.exec(src[i]);
+        if (li) items.push({ lvl: Math.min(3, Math.floor(li[1].replace(/\t/g, "    ").length / 2)), num: /\d/.test(li[2]) ? parseInt(li[2], 10) : 0, s: li[3] });
+        else if (/^\s+\S/.test(src[i]) && items.length) items[items.length - 1].s += " " + src[i].trim();
+        else break;
+        i++;
+      }
+      blocks.push({ k: "list", items }); continue;
+    }
+    /* A paragraph: the lines of a PDF or a text file break where the page ended, so a long line that stops no sentence reads on. */
+    const lines = [];
+    while (i < src.length && src[i].trim() && !/^(```|~~~|#{1,6}\s|>|\|.*\|$)/.test(src[i].trim()) && !itemRe.test(src[i]) && !/^([-*_])(\s*\1){2,}$/.test(src[i].trim())) lines.push(src[i++].trim());
+    blocks.push({ k: "p", lines });
+  }
+  return { blocks };
 }
 
 /** A line at the top of the file, for what did not work. It goes by itself. */

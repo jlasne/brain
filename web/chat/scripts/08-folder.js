@@ -46,62 +46,15 @@ function openFolder(b, openId, opts = {}){
   const fv = $("folderView"); fv.innerHTML = "";
   const self = isPersonal(b.slug), ro = readOnly(b);
   const sorted = () => conceptsOf(b.slug).slice().sort((x, y) => String(y.updated || "").localeCompare(String(x.updated || "")) || (y.src || 0) - (x.src || 0));
-  let cs = sorted();
+  /* What changes while the screen is open, shared with its parts below. */
+  const live = {};
+  live.cs = sorted();
   const reads = sourcesOf(b.slug).length, h = S.health[b.slug];
   const clashes = h ? (h.open || 0) : [...(S.conflicted || [])].filter(id => id.split("/")[0] === b.slug).length;
 
-  const head = el("header","fv-h");
-  const t = el("div","fv-t");
-  t.append(el("h2",null,b.name));
-  if (b.scope && !self) t.append(el("p",null,b.scope));
-  const nPeople = self ? cs.filter(c => c.tag === "contact").length : 0, nNotes = cs.length - nPeople;
-  t.append(el("p","fv-n", self ? `${nNotes} note${nNotes===1?"":"s"} · ${nPeople} ${nPeople===1?"person":"people"} · only its own chat reads it`
-    : `${cs.length} concept${cs.length===1?"":"s"} · ${reads} source${reads===1?"":"s"} · ${clashes} clash${clashes===1?"":"es"}`));
-  head.append(t);
-  if (h && !self){
-    const hl = el("button","fv-hl"); hl.type = "button"; hl.id = "fvHealth";
-    const ring = healthRing(h, b, false); ring.removeAttribute("aria-label");
-    const txt = el("div"); txt.append(el("b",null,`Health ${fmtScore(h.score)} / 10`), el("span","say",`Next: ${h.best}`));
-    hl.append(ring, txt);
-    hl.onclick = () => openHealthSheet(b);
-    head.append(hl);
-  }
-  /* A personal folder shows how well it knows you in place of a health score. */
-  if (self && !S.demo){
-    const tw = el("button","fv-hl"); tw.type = "button"; tw.id = "fvTwin";
-    const fillCard = iv => {
-      tw.innerHTML = "";
-      const ring = pctRing(iv ? iv.pct : 0); ring.removeAttribute("role");
-      const txt = el("div");
-      txt.append(el("b",null, iv ? `Twin ${iv.pct}% complete` : "Your twin"),
-        el("span","say", !iv ? "How well it knows you" : iv.on ? `Interview on · ${iv.chapter?.title || "last questions"}`
-          : iv.chapter ? `Next: ${iv.chapter.title}, ${iv.chapter.at} of ${iv.chapter.total} done` : "Every question asked"));
-      tw.append(ring, txt);
-    };
-    fillCard(S.iv[b.slug]);
-    tw.onclick = () => twinPane();
-    head.append(tw);
-    loadIv(b.slug).then(r => { if (r && S.folder === b.slug){ fillCard(r.interview); if (ivDone(r.interview)) acts.querySelector("#fvIv")?.remove(); if (ivFull(r.interview)) acts.querySelector("#fvProfile")?.remove(); } });
-  }
-  const acts = el("div","fv-acts");
-  const btn = (id, label, icon, fn, title) => {
-    const x = el("button","fv-b"); x.type = "button"; x.id = id; x.innerHTML = icon || ""; x.append(label);
-    if (title) x.title = title; x.onclick = fn; acts.append(x); return x;
-  };
-  btn("fvChat", "Chat in it", IC_CHAT, () => { S.folder = null; newChat(); $("input").focus(); });
-  if (self && !S.demo){
-    btn("fvMem", "Add memory", IC_DROP, () => openMemorySheet(b.slug), "Paste, or add a PDF, Word or text file about you. It is read like a drop.");
-    if (!ivDone(S.iv[b.slug])) btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
-      "It asks you questions, one at a time, to know you better. Stop any time.");
-    btn("fvTest", "Twin test", IC_TEST, () => testPane(), "5 messages to reply to, built from your notes: your twin replies first, from your notes alone, then the two replies are compared, and yours go into your notes");
-    /* At 100% the notes and the contacts hold all of it: the profile would only repeat them. */
-    if (!ivFull(S.iv[b.slug])) btn("fvProfile", "Twin profile", IC_PROFILE, () => profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
-  }
-  if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
-  if (!S.demo && !ro && !self) btn("fvEdit", "Edit", IC_EDIT, () => openBrainSheet(b), "Its name and the line that decides what goes in");
-  const x = btn("fvClose", "×", "", () => { S.folder = null; render(); $("input").focus(); }, "Back to the chat");
-  x.classList.add("fv-x"); x.setAttribute("aria-label","Back to the chat");
-  head.append(acts);
+  /* A personal folder's panes are made further down; the buttons of the head reach them here once made. */
+  const panes = {};
+  const { head } = folderHead({ b, self, live, reads, clashes, h, ro, panes });
 
   const cols = el("div","fv-cols");
   const list = el("div","fv-list");
@@ -112,18 +65,18 @@ function openFolder(b, openId, opts = {}){
   const topLine = el("p","fv-topline"); topLine.hidden = true;
   let topic = null;
   /* A personal folder holds notes and contacts: one card per person, tagged. */
-  let tab = self && openId && cs.find(c => `${c.brain}/${c.slug}` === openId)?.tag === "contact" ? "people" : "notes";
+  live.tab = self && openId && live.cs.find(c => `${c.brain}/${c.slug}` === openId)?.tag === "contact" ? "people" : "notes";
   const tabs = el("div","fv-tabs"); tabs.hidden = !self;
   const scan = el("div","fv-scan"); scan.hidden = true;
   const isPerson = c => c.tag === "contact";
-  const inTab = list0 => self ? list0.filter(c => (tab === "people") === isPerson(c)) : list0;
+  const inTab = list0 => self ? list0.filter(c => (live.tab === "people") === isPerson(c)) : list0;
   const paintTabs = () => {
     tabs.innerHTML = "";
     for (const [k, label] of [["notes","Notes"], ["people","People"]]){
-      const n = cs.filter(c => (k === "people") === isPerson(c)).length;
-      const x = el("button","fv-tab" + (tab === k ? " on" : "")); x.type = "button"; x.id = k === "people" ? "fvPeople" : "fvNotes";
+      const n = live.cs.filter(c => (k === "people") === isPerson(c)).length;
+      const x = el("button","fv-tab" + (live.tab === k ? " on" : "")); x.type = "button"; x.id = k === "people" ? "fvPeople" : "fvNotes";
       x.append(label, el("i",null,String(n)));
-      x.onclick = () => { tab = k; f.value = ""; f.placeholder = k === "people" ? "Filter people" : "Filter notes"; paintTabs(); paint(); paintScan(); };
+      x.onclick = () => { live.tab = k; f.value = ""; f.placeholder = k === "people" ? "Filter people" : "Filter notes"; paintTabs(); paint(); paintScan(); };
       tabs.append(x);
     }
   };
@@ -153,20 +106,20 @@ function openFolder(b, openId, opts = {}){
   cols.append(list, doc);
   fv.append(head, cols);
 
-  let openNow = null;
+  live.openNow = null;
   /* The page of a person open last: an edit brings you back to it. */
-  let pfTab = "overview";
+  live.pfTab = "overview";
   const paint = () => {
     rows.innerHTML = "";
     const q = f.value.trim().toLowerCase();
-    const base = inTab(topic ? cs.filter(c => topic.members.includes(`${c.brain}/${c.slug}`)) : cs);
+    const base = inTab(topic ? live.cs.filter(c => topic.members.includes(`${c.brain}/${c.slug}`)) : live.cs);
     const shown = q ? base.filter(c => (c.title + " " + (c.summaryLine || "") + " " + (c.aliases || []).join(" ")).toLowerCase().includes(q)) : base;
     if (!shown.length){ rows.append(el("div","fv-none", q ? "Nothing matches that."
-      : self && tab === "people" ? "No contact yet. Talk about someone and they get a card here."
-      : cs.length ? "No concept matches that." : self ? "Nothing yet. Talk to it and it files what you say." : "Nothing yet. Drop a source to feed it.")); return; }
+      : self && live.tab === "people" ? "No contact yet. Talk about someone and they get a card here."
+      : live.cs.length ? "No concept matches that." : self ? "Nothing yet. Talk to it and it files what you say." : "Nothing yet. Drop a source to feed it.")); return; }
     for (const c of shown){
       const id = `${c.brain}/${c.slug}`;
-      const r = el("button","fv-row" + (id === openNow ? " on" : "")); r.type = "button"; r.dataset.id = id;
+      const r = el("button","fv-row" + (id === live.openNow ? " on" : "")); r.type = "button"; r.dataset.id = id;
       r.append(el("b",null,c.title));
       if (c.summaryLine) r.append(el("span",null,c.summaryLine));
       r.append(el("small",null, isPerson(c)
@@ -182,18 +135,18 @@ function openFolder(b, openId, opts = {}){
   /* A concept of this folder opens here; one of another folder opens there. */
   const go = r => { const rb = r.split("/")[0]; if (rb === b.slug) show(r); else openFolder(S.brains.find(x => x.slug === rb), r); };
   const show = async id => {
-    openNow = id;
+    live.openNow = id;
     for (const r of rows.children) r.classList?.toggle("on", r.dataset?.id === id);
     cols.classList.add("reading");
     doc.innerHTML = ""; doc.scrollTop = 0;
     const inner = el("div","fv-in"); doc.append(inner);
-    const back = el("button","fv-back", self ? (tab === "people" ? "← All people" : "← All notes") : "← All concepts"); back.type = "button";
-    back.onclick = () => { cols.classList.remove("reading"); openNow = null; paint(); };
+    const back = el("button","fv-back", self ? (live.tab === "people" ? "← All people" : "← All notes") : "← All concepts"); back.type = "button";
+    back.onclick = () => { cols.classList.remove("reading"); live.openNow = null; paint(); };
     inner.append(back, el("div","fv-none","Opening"));
     let c, insights = [], linkedFrom = [], raw = null, pg = null;
     try { const got = await api("/api/concept", { id }); c = got.concept; insights = got.insights || []; linkedFrom = got.linkedFrom || []; raw = got.raw || null; pg = got.pages || null; }
     catch (e) { inner.lastChild.textContent = e.message; return; }
-    if (openNow !== id || S.folder !== b.slug) return;
+    if (live.openNow !== id || S.folder !== b.slug) return;
     if (!c){ inner.lastChild.textContent = "This concept is no longer here."; return; }
     inner.lastChild.remove();
     const person = c.tag === "contact";
@@ -285,6 +238,84 @@ function openFolder(b, openId, opts = {}){
     inner.append(a2);
   };
 
+  const { personTabs, personFile, rawNotes } = folderPeople({ live, show });
+
+  const { reload, editCard, mergePick } = folderEdits({ live, doc, b, show, sorted, self, paintTabs, paint });
+
+  const { backToAudit, personalAudit, tidy } = folderAudit({ live, paint, cols, doc, b, reload, isPerson });
+
+  Object.assign(panes, folderTwinPanes({ live, paint, cols, doc, b, reload }));
+
+  paint();
+  const wide = window.matchMedia("(min-width:861px)").matches;
+  if (opts.audit && opts.resume && S.auditRun?.slug === b.slug && S.auditRun.inner) backToAudit();
+  else if (opts.audit) (self ? personalAudit() : tidy());
+  else if (openId) show(openId);
+  else if (self && !S.demo && wide) panes.twinPane();
+  else if (wide && live.cs.length) show(`${live.cs[0].brain}/${live.cs[0].slug}`);
+  else { const p = el("div","fv-in"); p.append(el("div","fv-none", live.cs.length ? "Pick a concept to read it." : "")); doc.append(p); }
+  render();
+}
+
+/** The head of a folder screen: its name and counts, its health or twin card, and its actions. */
+function folderHead({ b, self, live, reads, clashes, h, ro, panes }){
+  const head = el("header","fv-h");
+  const t = el("div","fv-t");
+  t.append(el("h2",null,b.name));
+  if (b.scope && !self) t.append(el("p",null,b.scope));
+  const nPeople = self ? live.cs.filter(c => c.tag === "contact").length : 0, nNotes = live.cs.length - nPeople;
+  t.append(el("p","fv-n", self ? `${nNotes} note${nNotes===1?"":"s"} · ${nPeople} ${nPeople===1?"person":"people"} · only its own chat reads it`
+    : `${live.cs.length} concept${live.cs.length===1?"":"s"} · ${reads} source${reads===1?"":"s"} · ${clashes} clash${clashes===1?"":"es"}`));
+  head.append(t);
+  if (h && !self){
+    const hl = el("button","fv-hl"); hl.type = "button"; hl.id = "fvHealth";
+    const ring = healthRing(h, b, false); ring.removeAttribute("aria-label");
+    const txt = el("div"); txt.append(el("b",null,`Health ${fmtScore(h.score)} / 10`), el("span","say",`Next: ${h.best}`));
+    hl.append(ring, txt);
+    hl.onclick = () => openHealthSheet(b);
+    head.append(hl);
+  }
+  /* A personal folder shows how well it knows you in place of a health score. */
+  if (self && !S.demo){
+    const tw = el("button","fv-hl"); tw.type = "button"; tw.id = "fvTwin";
+    const fillCard = iv => {
+      tw.innerHTML = "";
+      const ring = pctRing(iv ? iv.pct : 0); ring.removeAttribute("role");
+      const txt = el("div");
+      txt.append(el("b",null, iv ? `Twin ${iv.pct}% complete` : "Your twin"),
+        el("span","say", !iv ? "How well it knows you" : iv.on ? `Interview on · ${iv.chapter?.title || "last questions"}`
+          : iv.chapter ? `Next: ${iv.chapter.title}, ${iv.chapter.at} of ${iv.chapter.total} done` : "Every question asked"));
+      tw.append(ring, txt);
+    };
+    fillCard(S.iv[b.slug]);
+    tw.onclick = () => panes.twinPane();
+    head.append(tw);
+    loadIv(b.slug).then(r => { if (r && S.folder === b.slug){ fillCard(r.interview); if (ivDone(r.interview)) acts.querySelector("#fvIv")?.remove(); if (ivFull(r.interview)) acts.querySelector("#fvProfile")?.remove(); } });
+  }
+  const acts = el("div","fv-acts");
+  const btn = (id, label, icon, fn, title) => {
+    const x = el("button","fv-b"); x.type = "button"; x.id = id; x.innerHTML = icon || ""; x.append(label);
+    if (title) x.title = title; x.onclick = fn; acts.append(x); return x;
+  };
+  btn("fvChat", "Chat in it", IC_CHAT, () => { S.folder = null; newChat(); $("input").focus(); });
+  if (self && !S.demo){
+    btn("fvMem", "Add memory", IC_DROP, () => openMemorySheet(b.slug), "Paste, or add a PDF, Word or text file about you. It is read like a drop.");
+    if (!ivDone(S.iv[b.slug])) btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
+      "It asks you questions, one at a time, to know you better. Stop any time.");
+    btn("fvTest", "Twin test", IC_TEST, () => panes.testPane(), "5 messages to reply to, built from your notes: your twin replies first, from your notes alone, then the two replies are compared, and yours go into your notes");
+    /* At 100% the notes and the contacts hold all of it: the profile would only repeat them. */
+    if (!ivFull(S.iv[b.slug])) btn("fvProfile", "Twin profile", IC_PROFILE, () => panes.profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
+  }
+  if (!self && !ro) btn("fvDrop", "Drop into it", IC_DROP, () => { S.folder = null; setPicks([b.slug]); openDrop(); });
+  if (!S.demo && !ro && !self) btn("fvEdit", "Edit", IC_EDIT, () => openBrainSheet(b), "Its name and the line that decides what goes in");
+  const x = btn("fvClose", "×", "", () => { S.folder = null; render(); $("input").focus(); }, "Back to the chat");
+  x.classList.add("fv-x"); x.setAttribute("aria-label","Back to the chat");
+  head.append(acts);
+  return { head };
+}
+
+/** A person's file in a personal folder: its tabs, its pages and the raw notes. */
+function folderPeople({ live, show }){
   /**
    * A person's file under the summary: what is still open, the facts by
    * section with the ones that no longer hold, the people linked both ways,
@@ -299,7 +330,7 @@ function openFolder(b, openId, opts = {}){
     const counts = { facts: (f.facts || []).filter(x => !x.until).length, history: f.n ?? (f.events || []).length,
       people: (f.links || []).length + linkedFrom.length, raw: raw?.total || 0 };
     const pick = k => {
-      pfTab = k;
+      live.pfTab = k;
       for (const b of tabs.children){ const on = b.dataset.k === k; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); }
       for (const [kk, p] of Object.entries(panes)) p.hidden = kk !== k;
     };
@@ -311,7 +342,7 @@ function openFolder(b, openId, opts = {}){
       const p = el("div","pf-pane"); p.dataset.k = k; p.id = "pfPane-" + k; p.setAttribute("role","tabpanel"); panes[k] = p;
     }
     inner.append(tabs, ...Object.values(panes));
-    pick(panes[pfTab] ? pfTab : "overview");
+    pick(panes[live.pfTab] ? live.pfTab : "overview");
     /* A count set once the page knows it: each person once, whichever way they link. */
     const count = (k, n) => { const b = tabs.querySelector(`[data-k="${k}"]`); b.querySelector("small")?.remove(); if (n) b.append(el("small",null,String(n))); };
     return { panes, pick, count };
@@ -389,7 +420,7 @@ function openFolder(b, openId, opts = {}){
     }
     if (!panes.facts.children.length) panes.facts.append(el("div","fv-li","No fact yet. Their city, work, phone or birthday land here as you mention them."));
 
-    const people = cs.filter(x => x.tag === "contact");
+    const people = live.cs.filter(x => x.tag === "contact");
     const find = n => people.find(x => [x.title, ...(x.aliases || [])].some(t => String(t).toLowerCase() === String(n).toLowerCase()));
     if ((f.links || []).length || linkedFrom.length){
       const sec = el("section","pf-sec"); sec.append(el("h4",null,"Their people"));
@@ -479,10 +510,14 @@ function openFolder(b, openId, opts = {}){
     box.append(list);
     inner.append(box);
   };
+  return { personTabs, personFile, rawNotes };
+}
 
+/** Editing a note or a person's card, merging two people, and reading the folder again after a change. */
+function folderEdits({ live, doc, b, show, sorted, self, paintTabs, paint }){
   /** A person's card, by hand: name, other names, line and card. */
   const editCard = (c, id) => {
-    openNow = id;
+    live.openNow = id;
     doc.innerHTML = ""; doc.scrollTop = 0;
     const inner = el("div","fv-in ct-form"); inner.id = "ctForm"; doc.append(inner);
     const back = el("button","fv-back","← Back to the card"); back.type = "button"; back.onclick = () => show(id);
@@ -510,7 +545,7 @@ function openFolder(b, openId, opts = {}){
   /** The other cards, to pick the one that is the same person. */
   const mergePick = (pick, c, id) => {
     pick.innerHTML = "";
-    const others = cs.filter(x => x.tag === "contact" && `${x.brain}/${x.slug}` !== id);
+    const others = live.cs.filter(x => x.tag === "contact" && `${x.brain}/${x.slug}` !== id);
     if (!others.length){ pick.append(el("p","tw-key","No other card to merge with yet.")); return; }
     pick.append(el("p","tw-key",`Pick the card that is the same person as ${c.title}. Its mentions and names join this card, and the card is written again as one.`));
     const q = el("input","fv-filter ct-find"); q.placeholder = "Find a person"; q.id = "ctFind";
@@ -545,9 +580,13 @@ function openFolder(b, openId, opts = {}){
   const reload = async () => {
     try { await refresh(); } catch (_) {}
     if (S.folder !== b.slug) return;
-    cs = sorted(); if (self) paintTabs(); paint();
+    live.cs = sorted(); if (self) paintTabs(); paint();
   };
+  return { reload, editCard, mergePick };
+}
 
+/** The audit of one folder in its reading column: the tidy pass of a subject folder and the personal audit. */
+function folderAudit({ live, paint, cols, doc, b, reload, isPerson }){
   /**
    * Tidy: what this folder holds twice, titles not in English, and concepts
    * with no position. It proposes; each finding waits for a click.
@@ -555,7 +594,7 @@ function openFolder(b, openId, opts = {}){
   /* The audit of a subject or person folder: what is filed twice, titles not
      in English, empty positions. Each one waits for your call. */
   const tidy = async () => {
-    openNow = null; paint();
+    live.openNow = null; paint();
     cols.classList.add("reading");
     doc.innerHTML = ""; doc.scrollTop = 0;
     const inner = el("div","fv-in tidy"); inner.id = "tidyPane"; doc.append(inner);
@@ -563,10 +602,10 @@ function openFolder(b, openId, opts = {}){
     back.onclick = () => { cols.classList.remove("reading"); paint(); };
     inner.append(back, el("div","fv-eye",`Audit · ${b.name}`), el("h1",null,"Audit this folder"));
     const n = el("p","fv-pos");
-    n.textContent = `It reads ${cs.length} concepts for ideas filed twice, titles not in English and concepts with no position.`;
+    n.textContent = `It reads ${live.cs.length} concepts for ideas filed twice, titles not in English and concepts with no position.`;
     inner.append(n);
     const load = auditLoader(inner, b);
-    load.step(`Reading ${cs.length} concept${cs.length === 1 ? "" : "s"}`);
+    load.step(`Reading ${live.cs.length} concept${live.cs.length === 1 ? "" : "s"}`);
     let r;
     try { r = await api("/api/brain/tidy", { brain: b.slug }); if (r.error) throw new Error(r.error); }
     catch (e) { load.end(false); inner.append(el("div","fv-li bad",e.message), feedbackButton(e.message, { where: "audit", scope: b.slug })); return; }
@@ -588,7 +627,7 @@ function openFolder(b, openId, opts = {}){
      ones with only a card given a full file, then the same person filed
      twice, each pair for you to merge or keep apart. */
   const personalAudit = async () => {
-    openNow = null; paint();
+    live.openNow = null; paint();
     cols.classList.add("reading");
     doc.innerHTML = ""; doc.scrollTop = 0;
     const inner = el("div","fv-in tidy"); inner.id = "auditPane"; doc.append(inner);
@@ -656,7 +695,7 @@ function openFolder(b, openId, opts = {}){
 
   /* An audit you left, back where it is: still running, or ended. */
   const backToAudit = () => {
-    openNow = null; paint();
+    live.openNow = null; paint();
     cols.classList.add("reading");
     doc.innerHTML = ""; doc.scrollTop = 0;
     const a = S.auditRun; doc.append(a.inner);
@@ -664,10 +703,14 @@ function openFolder(b, openId, opts = {}){
     if (back) back.onclick = () => { cols.classList.remove("reading"); paint(); };
     if (a.state !== "running"){ a.seen = true; paintInbox(); }
   };
+  return { backToAudit, personalAudit, tidy };
+}
 
+/** A personal folder's twin, its test and its profile, each shown in the reading column of the folder screen. */
+function folderTwinPanes({ live, paint, cols, doc, b, reload }){
   /* ---- a personal folder: the twin, its test and its profile ---- */
   const pane = (id, eye, title) => {
-    openNow = null; paint();
+    live.openNow = null; paint();
     cols.classList.add("reading");
     doc.innerHTML = ""; doc.scrollTop = 0;
     const inner = el("div","fv-in tw"); inner.id = id; doc.append(inner);
@@ -878,16 +921,7 @@ function openFolder(b, openId, opts = {}){
       sec.append(ul); inner.append(sec);
     }
   };
-
-  paint();
-  const wide = window.matchMedia("(min-width:861px)").matches;
-  if (opts.audit && opts.resume && S.auditRun?.slug === b.slug && S.auditRun.inner) backToAudit();
-  else if (opts.audit) (self ? personalAudit() : tidy());
-  else if (openId) show(openId);
-  else if (self && !S.demo && wide) twinPane();
-  else if (wide && cs.length) show(`${cs[0].brain}/${cs[0].slug}`);
-  else { const p = el("div","fv-in"); p.append(el("div","fv-none", cs.length ? "Pick a concept to read it." : "")); doc.append(p); }
-  render();
+  return { twinPane, testPane, profilePane };
 }
 
 /**

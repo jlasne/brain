@@ -22,11 +22,18 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const html = readFileSync(join(ROOT, "app", "chat.html"), "utf8");
-const at = html.indexOf("function pdfMarkdown(pages)");
-if (at < 0) { console.log("  FAIL the page has no pdfMarkdown"); process.exit(1); }
-let depth = 0, end = at;
-for (let i = html.indexOf("{", at); i < html.length; i++) { if (html[i] === "{") depth++; if (html[i] === "}" && --depth === 0) { end = i + 1; break; } }
-const src = html.slice(at, end);
+/* pdfMarkdown and the steps it calls, each lifted out of the page whole. */
+const lift = name => {
+  const at = html.indexOf(`function ${name}(`);
+  if (at < 0) { console.log(`  FAIL the page has no ${name}`); process.exit(1); }
+  /* past the parameters first, since a parameter list can hold braces of its own */
+  let depth = 0, body = at;
+  for (let i = html.indexOf("(", at); i < html.length; i++) { if (html[i] === "(") depth++; if (html[i] === ")" && --depth === 0) { body = i; break; } }
+  let end = at;
+  for (let i = html.indexOf("{", body); i < html.length; i++) { if (html[i] === "{") depth++; if (html[i] === "}" && --depth === 0) { end = i + 1; break; } }
+  return html.slice(at, end);
+};
+const src = ["pdfMarkdown", "pdfColumns", "pdfTables", "pdfBlocks"].map(lift).join("\n");
 const pdfMarkdown = new Function(src + "; return pdfMarkdown;")();
 const fx = name => JSON.parse(readFileSync(join(ROOT, "scripts", "fixtures", `pdf-${name}.json`), "utf8"));
 

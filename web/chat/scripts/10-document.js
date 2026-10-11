@@ -138,118 +138,9 @@ function pdfMarkdown(pages) {
       p.rows = p.rows.filter((r) => r.k[0] === "|" || (seen.get(r.k).size < need && !(PN.test(r.t) && r.h < small)));
     });
 
-    // 5. Prose columns: one gutter x shared by many lines. Read the left column fully, then the right.
-    const columns = (rows, pw, depth) => {
-      const diff = new Array(Math.ceil(pw) + 4).fill(0);
-      rows.forEach((r) => {
-        for (let i = 1; i < r.segs.length; i++) {
-          const a = Math.max(0, Math.ceil(r.segs[i - 1].x1) + 2), b = Math.min(diff.length - 2, Math.floor(r.segs[i].x0) - 2);
-          if (b >= a) { diff[a]++; diff[b + 1]--; }
-        }
-      });
-      let run = 0, best = 0, x1 = 0, x2 = 0;
-      diff.forEach((d, x) => {
-        run += d;
-        if (run > best) { best = run; x1 = x2 = x; } else if (best > 0 && run === best && x === x2 + 1) x2 = x;
-      });
-      if (best < 4) return [rows];
-      const xs = (x1 + x2) / 2;
-      const isL = (it) => it.x + it.w <= xs + 1;
-      // 0 left only, 1 right only, 2 both sides, 3 something crosses the gutter
-      const kind = rows.map((r) => {
-        if (r.its.some((it) => !isL(it) && it.x < xs - 1)) return 3;
-        return r.its.some(isL) ? (r.its.some((it) => !isL(it)) ? 2 : 0) : 1;
-      });
-      // prose columns have long text on both sides of the gutter, table cells are short
-      const lens = [];
-      rows.forEach((r, i) => {
-        const chars = (side) => r.its.reduce((n, it) => n + (isL(it) === side ? it.s.length : 0), 0);
-        if (kind[i] === 2) lens.push(Math.min(chars(true), chars(false)));
-      });
-      lens.sort((a, b) => a - b);
-      if (lens.length < 4 || lens[lens.length >> 1] < 20) return [rows];
-      // a big one-sided line with nothing beside it (a section title) ends the columns above it
-      rows.forEach((r, i) => {
-        if (kind[i] > 1 || r.h <= 1.2 * bodyH) return;
-        let busy = false;
-        [-1, 1].forEach((d) => {
-          for (let k = i + d; rows[k] && Math.abs(rows[k].y - r.y) <= 1.2 * r.h; k += d) {
-            busy = busy || kind[k] === 2 || kind[k] === 1 - kind[i];
-          }
-        });
-        if (!busy) kind[i] = 3;
-      });
-      const out = [];
-      let flow = [];
-      for (let i = 0; i < rows.length; ) {
-        if (kind[i] !== 2) { flow.push(rows[i++]); continue; }
-        let j = i;
-        while (j < rows.length && kind[j] !== 3) j++;
-        if (flow.length) out.push(flow);
-        flow = [];
-        const sides = [[], []];
-        rows.slice(i, j).forEach((r) => {
-          [r.its.filter(isL), r.its.filter((it) => !isL(it))].forEach((its, s) => { if (its.length) sides[s].push(mkRow(its)); });
-        });
-        sides.forEach((rs) => (depth < 2 ? columns(rs, pw, depth + 1) : [rs]).forEach((c) => out.push(c)));
-        i = j;
-      }
-      if (flow.length) out.push(flow);
-      return out;
-    };
+    const { columns } = pdfColumns({ bodyH, mkRow });
 
-    // 6. Tables: lines whose cells (segments) fall in the same x bands row after row.
-    const LEADER = /_{3,}|\.{5,}|\u2026{2,}|-{5,}/; // fill-in lines and dot leaders are forms, not tables
-    const near = (a) => a.sort((u, v) => u - v).some((v, i) => i > 0 && v - a[i - 1] <= 3);
-    const tableAt = (rows, i) => {
-      const bands = [], run = [];
-      // The band of each cell. Only multi-cell lines may open a band, wrapped lines must start at a band edge.
-      const fit = (r, grow) => {
-        const idx = r.segs.map((s) => {
-          const hit = bands.reduce((a, b, k) => (s.x0 <= b.x1 + 2 && s.x1 >= b.x0 - 2 ? a.concat(k) : a), []);
-          if (hit.length > 1 || (!grow && (!hit.length || Math.abs(s.x0 - bands[hit[0]].x0) > 3))) return NaN;
-          return hit.length ? hit[0] : -1;
-        });
-        const old = idx.filter((k) => k >= 0);
-        if (idx.some(isNaN) || new Set(old).size !== old.length) return null;
-        r.segs.forEach((s, n) => {
-          if (idx[n] < 0) idx[n] = bands.push({ x0: s.x0, x1: s.x1 }) - 1;
-          const b = bands[idx[n]];
-          b.x0 = Math.min(b.x0, s.x0);
-          b.x1 = Math.max(b.x1, s.x1);
-        });
-        return idx;
-      };
-      let j = i;
-      for (; j < rows.length; j++) {
-        const r = rows[j], multi = r.segs.length > 1;
-        const far = j > i && rows[j - 1].y - r.y > (multi ? 3.5 : 1.6) * r.h;
-        const idx = r.h > 1.25 * bodyH || LEADER.test(r.text) || far ? null : fit(r, multi);
-        if (!idx) break;
-        run.push({ r, idx });
-      }
-      const multi = run.filter((e) => e.r.segs.length > 1);
-      // at least two columns must repeat their left or right edge row after row
-      const aligned = bands.filter((b, k) => {
-        const cells = multi.flatMap((e) => e.r.segs.filter((s, n) => e.idx[n] === k));
-        return near(cells.map((s) => s.x0)) || near(cells.map((s) => s.x1));
-      }).length;
-      if (multi.length < 2 || aligned < 2) return null;
-      const nb = bands.length, order = bands.map((b, k) => k).sort((a, b) => bands[a].x0 - bands[b].x0), pos = [];
-      order.forEach((k, n) => { pos[k] = n; });
-      const ps = run.map((e, k) => (k && e.r.segs.length === nb ? run[k - 1].r.y - e.r.y : 0)).filter(Boolean);
-      ps.sort((a, b) => a - b);
-      const rowP = ps[ps.length >> 1] || 0; // usual pitch from one row to the next
-      const lines = [];
-      run.forEach((e, k) => {
-        // a line with an empty cell, close under the line above, is wrapped cell text
-        const wrap = k && e.r.segs.length < nb && run[k - 1].r.y - e.r.y <= (rowP ? 0.75 * rowP : 1.5 * e.r.h);
-        if (!wrap) lines.push(new Array(nb).fill(""));
-        const row = lines[lines.length - 1];
-        e.r.segs.forEach((s, n) => { const c = pos[e.idx[n]]; row[c] = row[c] ? joinLines(row[c], s.text) : s.text; });
-      });
-      return lines.length < 2 ? null : { end: j, lines, cols: order.map((k) => bands[k]) };
-    };
+    const { LEADER, tableAt } = pdfTables({ bodyH, joinLines });
     const tmd = (lines) => {
       const row = (cells) => "| " + cells.map((c) => c.replace(/\|/g, "\\|")).join(" | ") + " |";
       return [row(lines[0]), row(lines[0].map(() => "---"))].concat(lines.slice(1).map(row)).join("\n");
@@ -299,86 +190,7 @@ function pdfMarkdown(pages) {
     heads.map((u) => u.h).sort((a, b) => b - a).forEach((h) => { if (!cl.length || h < cl[cl.length - 1] * 0.97) cl.push(h); });
     heads.forEach((u) => { u.level = Math.min(3, 1 + cl.findIndex((c) => u.h >= c * 0.97)); });
 
-    // 9. Lines to blocks (paragraph, list item, heading, table) inside one chunk.
-    const TERM = /[.!?:;]["'\u201D\u2019)\]]?$/;
-    const listX = []; // indents that held a run of list items anywhere in the document
-    const chunkBlocks = (us) => {
-      // this column's own text size (a page can mix sizes, e.g. 9pt columns and 10.5pt notes)
-      const hc = {};
-      us.forEach((u) => { if (!u.table && !u.level && u.segs.length === 1) tally(hc, Math.round(u.h * 2), u.tx.length); });
-      const cH = (+mode(hc) || 2 * bodyH) / 2;
-      const isBody = (u) => u.h >= 0.85 * cH && u.h <= 1.08 * cH;
-      const txt = us.filter((u) => !u.table && !u.level && u.segs.length === 1 && isBody(u)), fc = {};
-      txt.forEach((u) => { u.bt = true; tally(fc, u.f, u.tx.length); });
-      // the left margin is the smallest edge shared by a few lines; then the right edge, the usual leading and the font of this column
-      const xs = txt.map((u) => u.x0).sort((a, b) => a - b), few = Math.max(2, 0.15 * xs.length);
-      let M = xs.length ? xs[0] : 0;
-      for (let i = 0, j = 0; i < xs.length; i++) {
-        while (j < xs.length && xs[j] <= xs[i] + 3) j++;
-        if (j - i >= few) { M = xs[i]; break; }
-      }
-      const colR = txt.reduce((m, u) => Math.max(m, u.x1), 0), colW = Math.max(1, colR - M);
-      const lead = []; // the pitch after a full-width line is surely inside a paragraph
-      us.forEach((b, k) => {
-        const a = us[k - 1], p = k ? a.y - b.y : 0;
-        const full = k && a.bt && b.bt && a.x1 >= colR - 0.06 * colW && b.x0 >= a.x0 - 3;
-        if (full && p >= 0.9 * b.h && p <= 2.5 * b.h) lead.push(p);
-      });
-      lead.sort((a, b) => a - b);
-      const L = lead.length > 1 ? lead[lead.length >> 1] : 0, cf = mode(fc);
-      // does line u start a new block after block b?
-      const brk = (b, u) => {
-        const a = b.last, pitch = a.y - u.y, dx = u.x0 - a.x0, ind = Math.max(6, 0.8 * u.h);
-        const end = TERM.test(a.text), short = a.x1 < colR - 0.12 * colW;
-        if (pitch > (L ? 1.3 * L : 1.6 * u.h)) return true;
-        // a number inside a wrapped sentence is not a list marker, a bullet glyph always is
-        if (u.mk) return !!u.mk[1] || !!b.mk || end || short;
-        if (dx > ind && !(b.mk && u.f === b.f)) return true; // indent step in; hanging list text is not one
-        if (dx < -ind && b.n > 1) return true;
-        if (b.n === 1 && short && u.f !== a.f) return true; // a short line in another font over body text: a run-in heading
-        if (L && pitch - L >= Math.max(1.5, 0.08 * L) && (short || end)) return true; // small extra gap after a short line
-        return L > 0 && a.x1 < colR - 0.35 * colW && end && /^[\p{Lu}\d"(\u201C]/u.test(u.text);
-      };
-      const out = [];
-      let cur = null;
-      us.forEach((u) => {
-        if (u.table) { out.push({ t: "table", text: tmd(u.lines) }); cur = null; return; }
-        if (u.level) {
-          if (cur && cur.t === "h" && cur.level === u.level && cur.last.y - u.y <= 1.5 * u.h) {
-            cur.text = joinLines(cur.text, u.tx);
-            cur.last = u;
-            cur.n++;
-          } else out.push(cur = { t: "h", level: u.level, text: u.tx, last: u, n: 1, x0: u.x0, f: u.f });
-          return;
-        }
-        // a signature line, with its wide gap, stays alone, unless it is just a stretched justified line
-        const stretched = Math.abs(u.x1 - colR) < 3 && Math.abs(u.x0 - M) < 3 && u.gm <= 2.5 * u.h;
-        const solo = LEADER.test(u.text) || (u.segs.length > 1 && !stretched);
-        u.text = solo ? u.text : u.tx;
-        u.mk = !solo && isBody(u) ? OPEN.exec(u.text) : null;
-        if (solo) {
-          out.push({ t: "p", text: u.text, x0: u.x0, f: u.f, solo: true });
-          cur = null;
-        } else if (cur && cur.t === "p" && !cur.solo && !brk(cur, u)) {
-          cur.text = joinLines(cur.text, u.text);
-          cur.last = u;
-          cur.n++;
-          cur.x0 = Math.min(cur.x0, u.x0);
-        } else out.push(cur = { t: "p", text: u.text, x0: u.x0, f: u.f, last: u, n: 1, mk: u.mk });
-      });
-      out.forEach((b) => {
-        if (b.t === "h" && (b.n > 3 || b.text.length > 120)) b.t = "p"; // a long run of big text is a paragraph
-        b.ind = b.t === "p" && !b.mk && !b.solo && b.x0 > M + Math.max(6, 0.9 * cH);
-        b.dif = b.f !== cf;
-      });
-      // two or more indented blocks in a row with the same left edge are list items
-      for (let i = 0, j; i < out.length; i = j + 1) {
-        for (j = i; out[i].ind && j + 1 < out.length && out[j + 1].ind && Math.abs(out[j + 1].x0 - out[i].x0) <= 3; ) j++;
-        if (j > i) { listX.push(out[i].x0); out.slice(i, j + 1).forEach((b) => { b.t = "li"; }); }
-      }
-      out.forEach((b) => { if (b.mk) b.t = "li"; });
-      return out;
-    };
+    const { chunkBlocks, listX } = pdfBlocks({ mode, bodyH, tally, LEADER, OPEN, tmd, joinLines });
     const pageBlocks = chunksOf.map((cs) => cs.reduce((acc, c) => acc.concat(chunkBlocks(c)), []));
     // a lone indented block: a list item if that indent is a list elsewhere, else a quote when the font differs
     pageBlocks.forEach((bs) => bs.forEach((b) => {
@@ -410,6 +222,212 @@ function pdfMarkdown(pages) {
   } catch (e) {
     return plain();
   }
+}
+
+/** PDF reading, step 5: prose columns found from one gutter shared by many lines, the left one read first. */
+function pdfColumns({ bodyH, mkRow }){
+  // 5. Prose columns: one gutter x shared by many lines. Read the left column fully, then the right.
+  const columns = (rows, pw, depth) => {
+    const diff = new Array(Math.ceil(pw) + 4).fill(0);
+    rows.forEach((r) => {
+      for (let i = 1; i < r.segs.length; i++) {
+        const a = Math.max(0, Math.ceil(r.segs[i - 1].x1) + 2), b = Math.min(diff.length - 2, Math.floor(r.segs[i].x0) - 2);
+        if (b >= a) { diff[a]++; diff[b + 1]--; }
+      }
+    });
+    let run = 0, best = 0, x1 = 0, x2 = 0;
+    diff.forEach((d, x) => {
+      run += d;
+      if (run > best) { best = run; x1 = x2 = x; } else if (best > 0 && run === best && x === x2 + 1) x2 = x;
+    });
+    if (best < 4) return [rows];
+    const xs = (x1 + x2) / 2;
+    const isL = (it) => it.x + it.w <= xs + 1;
+    // 0 left only, 1 right only, 2 both sides, 3 something crosses the gutter
+    const kind = rows.map((r) => {
+      if (r.its.some((it) => !isL(it) && it.x < xs - 1)) return 3;
+      return r.its.some(isL) ? (r.its.some((it) => !isL(it)) ? 2 : 0) : 1;
+    });
+    // prose columns have long text on both sides of the gutter, table cells are short
+    const lens = [];
+    rows.forEach((r, i) => {
+      const chars = (side) => r.its.reduce((n, it) => n + (isL(it) === side ? it.s.length : 0), 0);
+      if (kind[i] === 2) lens.push(Math.min(chars(true), chars(false)));
+    });
+    lens.sort((a, b) => a - b);
+    if (lens.length < 4 || lens[lens.length >> 1] < 20) return [rows];
+    // a big one-sided line with nothing beside it (a section title) ends the columns above it
+    rows.forEach((r, i) => {
+      if (kind[i] > 1 || r.h <= 1.2 * bodyH) return;
+      let busy = false;
+      [-1, 1].forEach((d) => {
+        for (let k = i + d; rows[k] && Math.abs(rows[k].y - r.y) <= 1.2 * r.h; k += d) {
+          busy = busy || kind[k] === 2 || kind[k] === 1 - kind[i];
+        }
+      });
+      if (!busy) kind[i] = 3;
+    });
+    const out = [];
+    let flow = [];
+    for (let i = 0; i < rows.length; ) {
+      if (kind[i] !== 2) { flow.push(rows[i++]); continue; }
+      let j = i;
+      while (j < rows.length && kind[j] !== 3) j++;
+      if (flow.length) out.push(flow);
+      flow = [];
+      const sides = [[], []];
+      rows.slice(i, j).forEach((r) => {
+        [r.its.filter(isL), r.its.filter((it) => !isL(it))].forEach((its, s) => { if (its.length) sides[s].push(mkRow(its)); });
+      });
+      sides.forEach((rs) => (depth < 2 ? columns(rs, pw, depth + 1) : [rs]).forEach((c) => out.push(c)));
+      i = j;
+    }
+    if (flow.length) out.push(flow);
+    return out;
+  };
+  return { columns };
+}
+
+/** PDF reading, step 6: tables found where the cells of lines fall in the same x bands row after row. */
+function pdfTables({ bodyH, joinLines }){
+  // 6. Tables: lines whose cells (segments) fall in the same x bands row after row.
+  const LEADER = /_{3,}|\.{5,}|\u2026{2,}|-{5,}/; // fill-in lines and dot leaders are forms, not tables
+  const near = (a) => a.sort((u, v) => u - v).some((v, i) => i > 0 && v - a[i - 1] <= 3);
+  const tableAt = (rows, i) => {
+    const bands = [], run = [];
+    // The band of each cell. Only multi-cell lines may open a band, wrapped lines must start at a band edge.
+    const fit = (r, grow) => {
+      const idx = r.segs.map((s) => {
+        const hit = bands.reduce((a, b, k) => (s.x0 <= b.x1 + 2 && s.x1 >= b.x0 - 2 ? a.concat(k) : a), []);
+        if (hit.length > 1 || (!grow && (!hit.length || Math.abs(s.x0 - bands[hit[0]].x0) > 3))) return NaN;
+        return hit.length ? hit[0] : -1;
+      });
+      const old = idx.filter((k) => k >= 0);
+      if (idx.some(isNaN) || new Set(old).size !== old.length) return null;
+      r.segs.forEach((s, n) => {
+        if (idx[n] < 0) idx[n] = bands.push({ x0: s.x0, x1: s.x1 }) - 1;
+        const b = bands[idx[n]];
+        b.x0 = Math.min(b.x0, s.x0);
+        b.x1 = Math.max(b.x1, s.x1);
+      });
+      return idx;
+    };
+    let j = i;
+    for (; j < rows.length; j++) {
+      const r = rows[j], multi = r.segs.length > 1;
+      const far = j > i && rows[j - 1].y - r.y > (multi ? 3.5 : 1.6) * r.h;
+      const idx = r.h > 1.25 * bodyH || LEADER.test(r.text) || far ? null : fit(r, multi);
+      if (!idx) break;
+      run.push({ r, idx });
+    }
+    const multi = run.filter((e) => e.r.segs.length > 1);
+    // at least two columns must repeat their left or right edge row after row
+    const aligned = bands.filter((b, k) => {
+      const cells = multi.flatMap((e) => e.r.segs.filter((s, n) => e.idx[n] === k));
+      return near(cells.map((s) => s.x0)) || near(cells.map((s) => s.x1));
+    }).length;
+    if (multi.length < 2 || aligned < 2) return null;
+    const nb = bands.length, order = bands.map((b, k) => k).sort((a, b) => bands[a].x0 - bands[b].x0), pos = [];
+    order.forEach((k, n) => { pos[k] = n; });
+    const ps = run.map((e, k) => (k && e.r.segs.length === nb ? run[k - 1].r.y - e.r.y : 0)).filter(Boolean);
+    ps.sort((a, b) => a - b);
+    const rowP = ps[ps.length >> 1] || 0; // usual pitch from one row to the next
+    const lines = [];
+    run.forEach((e, k) => {
+      // a line with an empty cell, close under the line above, is wrapped cell text
+      const wrap = k && e.r.segs.length < nb && run[k - 1].r.y - e.r.y <= (rowP ? 0.75 * rowP : 1.5 * e.r.h);
+      if (!wrap) lines.push(new Array(nb).fill(""));
+      const row = lines[lines.length - 1];
+      e.r.segs.forEach((s, n) => { const c = pos[e.idx[n]]; row[c] = row[c] ? joinLines(row[c], s.text) : s.text; });
+    });
+    return lines.length < 2 ? null : { end: j, lines, cols: order.map((k) => bands[k]) };
+  };
+  return { LEADER, tableAt };
+}
+
+/** PDF reading, step 9: the lines of one chunk turned into blocks, a paragraph, a list item, a heading or a table. */
+function pdfBlocks({ mode, bodyH, tally, LEADER, OPEN, tmd, joinLines }){
+  // 9. Lines to blocks (paragraph, list item, heading, table) inside one chunk.
+  const TERM = /[.!?:;]["'\u201D\u2019)\]]?$/;
+  const listX = []; // indents that held a run of list items anywhere in the document
+  const chunkBlocks = (us) => {
+    // this column's own text size (a page can mix sizes, e.g. 9pt columns and 10.5pt notes)
+    const hc = {};
+    us.forEach((u) => { if (!u.table && !u.level && u.segs.length === 1) tally(hc, Math.round(u.h * 2), u.tx.length); });
+    const cH = (+mode(hc) || 2 * bodyH) / 2;
+    const isBody = (u) => u.h >= 0.85 * cH && u.h <= 1.08 * cH;
+    const txt = us.filter((u) => !u.table && !u.level && u.segs.length === 1 && isBody(u)), fc = {};
+    txt.forEach((u) => { u.bt = true; tally(fc, u.f, u.tx.length); });
+    // the left margin is the smallest edge shared by a few lines; then the right edge, the usual leading and the font of this column
+    const xs = txt.map((u) => u.x0).sort((a, b) => a - b), few = Math.max(2, 0.15 * xs.length);
+    let M = xs.length ? xs[0] : 0;
+    for (let i = 0, j = 0; i < xs.length; i++) {
+      while (j < xs.length && xs[j] <= xs[i] + 3) j++;
+      if (j - i >= few) { M = xs[i]; break; }
+    }
+    const colR = txt.reduce((m, u) => Math.max(m, u.x1), 0), colW = Math.max(1, colR - M);
+    const lead = []; // the pitch after a full-width line is surely inside a paragraph
+    us.forEach((b, k) => {
+      const a = us[k - 1], p = k ? a.y - b.y : 0;
+      const full = k && a.bt && b.bt && a.x1 >= colR - 0.06 * colW && b.x0 >= a.x0 - 3;
+      if (full && p >= 0.9 * b.h && p <= 2.5 * b.h) lead.push(p);
+    });
+    lead.sort((a, b) => a - b);
+    const L = lead.length > 1 ? lead[lead.length >> 1] : 0, cf = mode(fc);
+    // does line u start a new block after block b?
+    const brk = (b, u) => {
+      const a = b.last, pitch = a.y - u.y, dx = u.x0 - a.x0, ind = Math.max(6, 0.8 * u.h);
+      const end = TERM.test(a.text), short = a.x1 < colR - 0.12 * colW;
+      if (pitch > (L ? 1.3 * L : 1.6 * u.h)) return true;
+      // a number inside a wrapped sentence is not a list marker, a bullet glyph always is
+      if (u.mk) return !!u.mk[1] || !!b.mk || end || short;
+      if (dx > ind && !(b.mk && u.f === b.f)) return true; // indent step in; hanging list text is not one
+      if (dx < -ind && b.n > 1) return true;
+      if (b.n === 1 && short && u.f !== a.f) return true; // a short line in another font over body text: a run-in heading
+      if (L && pitch - L >= Math.max(1.5, 0.08 * L) && (short || end)) return true; // small extra gap after a short line
+      return L > 0 && a.x1 < colR - 0.35 * colW && end && /^[\p{Lu}\d"(\u201C]/u.test(u.text);
+    };
+    const out = [];
+    let cur = null;
+    us.forEach((u) => {
+      if (u.table) { out.push({ t: "table", text: tmd(u.lines) }); cur = null; return; }
+      if (u.level) {
+        if (cur && cur.t === "h" && cur.level === u.level && cur.last.y - u.y <= 1.5 * u.h) {
+          cur.text = joinLines(cur.text, u.tx);
+          cur.last = u;
+          cur.n++;
+        } else out.push(cur = { t: "h", level: u.level, text: u.tx, last: u, n: 1, x0: u.x0, f: u.f });
+        return;
+      }
+      // a signature line, with its wide gap, stays alone, unless it is just a stretched justified line
+      const stretched = Math.abs(u.x1 - colR) < 3 && Math.abs(u.x0 - M) < 3 && u.gm <= 2.5 * u.h;
+      const solo = LEADER.test(u.text) || (u.segs.length > 1 && !stretched);
+      u.text = solo ? u.text : u.tx;
+      u.mk = !solo && isBody(u) ? OPEN.exec(u.text) : null;
+      if (solo) {
+        out.push({ t: "p", text: u.text, x0: u.x0, f: u.f, solo: true });
+        cur = null;
+      } else if (cur && cur.t === "p" && !cur.solo && !brk(cur, u)) {
+        cur.text = joinLines(cur.text, u.text);
+        cur.last = u;
+        cur.n++;
+        cur.x0 = Math.min(cur.x0, u.x0);
+      } else out.push(cur = { t: "p", text: u.text, x0: u.x0, f: u.f, last: u, n: 1, mk: u.mk });
+    });
+    out.forEach((b) => {
+      if (b.t === "h" && (b.n > 3 || b.text.length > 120)) b.t = "p"; // a long run of big text is a paragraph
+      b.ind = b.t === "p" && !b.mk && !b.solo && b.x0 > M + Math.max(6, 0.9 * cH);
+      b.dif = b.f !== cf;
+    });
+    // two or more indented blocks in a row with the same left edge are list items
+    for (let i = 0, j; i < out.length; i = j + 1) {
+      for (j = i; out[i].ind && j + 1 < out.length && out[j + 1].ind && Math.abs(out[j + 1].x0 - out[i].x0) <= 3; ) j++;
+      if (j > i) { listX.push(out[i].x0); out.slice(i, j + 1).forEach((b) => { b.t = "li"; }); }
+    }
+    out.forEach((b) => { if (b.mk) b.t = "li"; });
+    return out;
+  };
+  return { chunkBlocks, listX };
 }
 
 /** One page of a PDF as the layout reader takes it: each piece of text, where it stands and how big it is. */

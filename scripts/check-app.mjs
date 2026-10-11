@@ -4334,7 +4334,10 @@ for (const space of ["octopus", "squidgy"]) {
   const srcApp = await readFile(join(APP, "chat.html"), "utf8");
   const modelCalls = /const MODEL_CALLS = new Set\(\[([^\]]*)\]\)/.exec(srcApp)?.[1] ?? "";
   check("every project call that spends a model carries a workspace's own key: a piece, the end of a file, a resource, the Brief, the chat", ["part", "finish", "resource", "brief", "chat"].every(n => modelCalls.includes(`"/api/project/${n}"`)), modelCalls.slice(-120));
-  const grab = name => { const at = srcApp.indexOf(`function ${name}(`); let depth = 0, end = at; for (let i = srcApp.indexOf("{", at); i < srcApp.length; i++){ if (srcApp[i] === "{") depth++; if (srcApp[i] === "}" && --depth === 0){ end = i + 1; break; } } return srcApp.slice(at, end); };
+  /* A function lifted out of the page whole: past its parameters first, since they can hold braces of their own. */
+  const grab = name => { const at = srcApp.indexOf(`function ${name}(`); let depth = 0, body = at, end = at;
+    for (let i = srcApp.indexOf("(", at); i < srcApp.length; i++){ if (srcApp[i] === "(") depth++; if (srcApp[i] === ")" && --depth === 0){ body = i; break; } }
+    for (let i = srcApp.indexOf("{", body); i < srcApp.length; i++){ if (srcApp[i] === "{") depth++; if (srcApp[i] === "}" && --depth === 0){ end = i + 1; break; } } return srcApp.slice(at, end); };
   const conv = `const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));` + grab("mdView") + grab("htmlToMd") + "; return { mdView, htmlToMd };";
   const md = await page.evaluate(code => { const { mdView, htmlToMd } = new Function(code)(); return ({
     nested: mdView("- a\n  - b\n- c"), ol: mdView("3. x\n4. y"), code: mdView("```\n<b>x</b>\n```"), quote: mdView("> hi\n> there"), hr: mdView("one\n\n---\n\ntwo"),
@@ -4380,7 +4383,7 @@ for (const space of ["octopus", "squidgy"]) {
     return { long: { pages: long.pages, bad: long.bad, last: long.last, head: long.head, amount: long.words.filter(w => w === "Amount").length }, small: { pages: small.pages, bad: small.bad, words: small.words.join(" ") },
       edge: { pages: edge.pages, bad: edge.bad }, word: { pages: word.pages, pieces: word.words.filter(w => /^x+$/.test(w)).length }, sym: sym.words.join(" "), other, tm, none, html,
       xl: { names: got[0].names, first: got[0].sheets[got[0].names[0]], o: got[0].o, type: blob.type, size: blob.size } }; },
-    `const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));` + grab("pdfFromMarkdown") + grab("htmlDocument") + grab("tableMarkdown") + grab("xlsxBlob") + grab("mdView") + "; return { pdfFromMarkdown, htmlDocument, tableMarkdown, xlsxBlob, mdView };");
+    `const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));` + grab("pdfFromMarkdown") + grab("pdfWrap") + grab("mdBlocks") + grab("htmlDocument") + grab("tableMarkdown") + grab("xlsxBlob") + grab("mdView") + "; return { pdfFromMarkdown, htmlDocument, tableMarkdown, xlsxBlob, mdView };");
   check("a long document comes out as a PDF of many pages, every offset right, the page number on each, the header of a long table repeated", exp.long.head === "%PDF-1.4" && exp.long.pages >= 20 && exp.long.bad === 0 && exp.long.last === `${exp.long.pages} / ${exp.long.pages}` && exp.long.amount >= 3, JSON.stringify(exp.long));
   check("accents, quotes, the euro sign and a dash are printed; bold, list, quote, code and rule are kept; a PDF's page mark is not", exp.small.pages === 1 && exp.small.bad === 0 && /Café/.test(exp.small.words) && /100 \u0080 and \u0093quotes\u0094 \u0097 done\./.test(exp.small.words) && /bold/.test(exp.small.words) && !/p\. 2/.test(exp.small.words), JSON.stringify(exp.small));
   check("an empty document is still a valid page, and a word wider than the line is cut where it runs out", exp.edge.pages === 1 && exp.edge.bad === 0 && exp.word.pages === 1 && exp.word.pieces >= 4, JSON.stringify([exp.edge, exp.word]));

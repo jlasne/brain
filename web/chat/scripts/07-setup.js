@@ -19,7 +19,212 @@ async function openSetupSheet(opts = {}){
   if (opts instanceof Event) opts = {};
   closeSide();
   const veil = el("div","veil");
-  veil.innerHTML = `
+  veil.innerHTML = setupMarkup();
+  document.body.append(veil);
+  const msg = veil.querySelector("#kMsg"), slot = veil.querySelector("#feedSlot");
+  /* A look previewed and not saved goes back to the saved one on close. */
+  let draft = null;
+  const shut = () => { if (draft) applyLook(S.brand); veil.remove(); };
+  veil.querySelector("#kDone").onclick = shut;
+  veil.onclick = e => { if(e.target===veil) shut(); };
+
+  setupSpend({ veil });
+
+  /* ---- the look: previewed as it changes, kept on Save ---- */
+  const lookImg = veil.querySelector("#lookImg"), lookMsg = veil.querySelector("#lookMsg"), lookSave = veil.querySelector("#lookSave");
+  const lookAccent = veil.querySelector("#lookAccent"), lookBg = veil.querySelector("#lookBg");
+  const cssHex = name => { const c = toRgb(getComputedStyle(document.documentElement).getPropertyValue(name)); return c ? rgbHex(c) : "#888888"; };
+  const paintLookInputs = () => {
+    lookImg.src = markOf();
+    lookAccent.value = S.brand?.accent || cssHex("--accent-fill");
+    lookBg.value = S.brand?.bg || cssHex("--bg");
+  };
+  paintLookInputs();
+  const preview = patch => {
+    draft = { ...(draft || S.brand || {}), ...patch };
+    applyLook(draft, { preview: true });
+    lookImg.src = markOf();
+    lookSave.disabled = false; lookMsg.textContent = "";
+  };
+  lookAccent.oninput = () => preview({ accent: lookAccent.value });
+  lookBg.oninput = () => preview({ bg: lookBg.value });
+  veil.querySelector("#lookLogo").onclick = () => veil.querySelector("#lookFile").click();
+  veil.querySelector("#lookFile").onchange = async ev => {
+    try { preview({ logo: await toLogo(ev.target.files?.[0]) }); }
+    catch (e) { lookMsg.textContent = e.message; }
+    ev.target.value = "";
+  };
+  lookSave.onclick = async () => {
+    if (!draft) return;
+    lookSave.disabled = true; lookMsg.textContent = "Saving";
+    try {
+      const r = await api("/api/brand", { logo: draft.logo ?? null, accent: draft.accent ?? null, bg: draft.bg ?? null });
+      draft = null; applyLook(r.brand || null); paintLookInputs();
+      veil.querySelector("#lookSum").textContent = r.brand ? "your own" : "default";
+      lookMsg.textContent = "Saved. Every page of this workspace wears it now.";
+    } catch (e) { lookSave.disabled = false; lookMsg.textContent = e.message; }
+  };
+  veil.querySelector("#lookReset").onclick = async () => {
+    lookMsg.textContent = "Resetting";
+    try {
+      await api("/api/brand", { reset: true });
+      draft = null; applyLook(null); paintLookInputs(); lookSave.disabled = true;
+      veil.querySelector("#lookSum").textContent = "default";
+      lookMsg.textContent = "Back to the default look.";
+    } catch (e) { lookMsg.textContent = e.message; }
+  };
+
+  /* ---- the passphrase: the current one proves it is you ---- */
+  const passMsg = veil.querySelector("#passMsg"), passGo = veil.querySelector("#passGo");
+  const passCur = veil.querySelector("#passCur"), passNew = veil.querySelector("#passNew");
+  passGo.onclick = async () => {
+    passMsg.className = "hint";
+    if (!passCur.value) { passMsg.textContent = "Type your current passphrase first."; return passCur.focus(); }
+    if (passNew.value.length < 8) { passMsg.textContent = "The new passphrase needs 8 characters or more."; return passNew.focus(); }
+    passGo.disabled = true; passMsg.textContent = "Changing";
+    try {
+      const r = await api("/api/passphrase", { current: passCur.value, next: passNew.value });
+      passCur.value = ""; passNew.value = "";
+      passMsg.textContent = r.ended ? `Changed. ${r.ended} other session${r.ended === 1 ? " is" : "s are"} signed out.` : "Changed. It opens this workspace from now on.";
+    } catch (e) { passMsg.textContent = e.message; }
+    passGo.disabled = false;
+  };
+
+  setupShare({ veil });
+
+  /* ---- the model and the export ---- */
+  veil.querySelector("#setModel").hidden = S.demo;
+  veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet(); };
+  /* Audit: one row per folder this workspace holds, the last run and what came since. */
+  const al = veil.querySelector("#auditList");
+  for (const b of auditFolders()){
+    const r = el("div","au-row"); r.dataset.slug = b.slug;
+    const due = auditDue(b), run = S.auditRun?.slug === b.slug && S.auditRun.state === "running";
+    if (run) r.classList.add("run");
+    const t = el("div","au-t"); t.append(el("b",null,b.name), el("span",null, run ? `Running · ${S.auditRun.step}` : auditLine(b)));
+    const go = el("button", due && !run ? "mini au-due" : "mini", run ? "Open" : due ? "Audit now" : "Audit"); go.type = "button";
+    go.onclick = () => { shut(); runAudit(b, run); };
+    r.append(t, go); al.append(r);
+  }
+  if (!al.children.length) al.append(el("div","hint","No folder to audit yet."));
+  /* Each fold says where it stands while closed. */
+  const dueN = auditFolders().filter(b => auditDue(b)).length;
+  /* The decisions an audit or a drop left: one row, and a button into them. */
+  const dn = decisionCount(), dRow = veil.querySelector("#auditDecide");
+  const dt = el("div","au-t"); dt.append(el("b",null,"Decisions"), el("span",null, dn ? decisionLine() : "Nothing waiting."));
+  const dGo = el("button", dn ? "mini au-due" : "mini", dn ? "Decide" : "Open"); dGo.type = "button";
+  dGo.onclick = () => { shut(); openDecide(); };
+  dRow.append(dt, dGo);
+  veil.querySelector("#auditSum").textContent = [dueN ? `${dueN} due` : "", dn ? `${dn} to decide` : ""].filter(Boolean).join(" \u00b7 ");
+  const langSum = () => {
+    const v = voiceLang(), name = v ? (VOICE_LANGS.find(x => x[0] === v) || [])[2] || v : "";
+    veil.querySelector("#langSum").textContent = [S.demo ? "" : S.models?.reply === "en" ? "answers in English" : "answers as you write",
+      Speech ? (name ? `mic in ${name}` : "mic not set") : ""].filter(Boolean).join(" · ");
+  };
+  langSum();
+  veil.querySelector("#lookSum").textContent = S.brand ? "your own" : "default";
+  setupPrefs({ veil, langSum });
+  /* The mic, tapped with no language picked, sends you here to pick one. */
+  if (opts.voice){
+    veil.querySelector("#langBlock").open = true;
+    const row = veil.querySelector("#langVoice").closest(".lang-row");
+    row.classList.add("ask");
+    veil.querySelector("#langMsg").textContent = "Pick the language the mic listens in. It hears one language at a time.";
+    setTimeout(() => row.scrollIntoView({ block: "center" }), 60);
+  }
+
+  /* Restore: an export picked here goes to the server whole, which adds what this workspace is missing and keeps what it has. */
+  const rst = veil.querySelector("#setRestore"), rmsg = veil.querySelector("#restoreMsg");
+  rst.onclick = () => pickFile(".md,.markdown,.txt,text/markdown,text/plain", async file => {
+    const v = rst.querySelector(".val");
+    rst.disabled = true; v.textContent = "reading"; rmsg.className = "hint"; rmsg.textContent = "";
+    try {
+      const text = await file.text();
+      v.textContent = "restoring";
+      const r = await api("/api/restore", { text });
+      const n = (k, one, many) => `${r[k].added} ${r[k].added === 1 ? one : many}`;
+      const kept = r.brains.kept + r.concepts.kept + r.sources.kept;
+      rmsg.textContent = `Restored ${n("brains", "folder", "folders")}, ${n("concepts", "concept", "concepts")} and ${n("sources", "source", "sources")}.` +
+        (kept ? ` ${kept} already here, kept as they are.` : "") + (r.brains.skipped ? ` ${r.brains.skipped} folder${r.brains.skipped === 1 ? "" : "s"} named in another workspace left out.` : "") +
+        (r.linking ? ` Their links follow in a minute.` : "");
+      v.textContent = "done";
+      refresh().catch(() => {});
+    } catch (e) { v.textContent = "failed"; rmsg.className = "hint bad"; rmsg.textContent = /unreadable|404/.test(e.message) ? "The server is older than this page and cannot restore yet. Run convex deploy." : e.message; }
+    finally { rst.disabled = false; setTimeout(() => { v.textContent = "from an export"; }, 2500); }
+  });
+
+  const exp = veil.querySelector("#setExport");
+  exp.onclick = async () => {
+    const v = exp.querySelector(".val");
+    v.textContent = "reading"; exp.disabled = true;
+    try { await exportAll(); v.textContent = "downloaded"; }
+    catch (e) { v.textContent = "failed"; msg.className = "bad"; msg.textContent = e.message; }
+    finally { exp.disabled = false; setTimeout(() => { v.textContent = "markdown"; }, 2000); }
+  };
+
+  /* ---- the address ---- */
+  const paint = (st) => {
+    slot.innerHTML = st.has ? `
+      <div class="urlbox"><input id="mcpFeed" readonly spellcheck="false" value="${esc(location.origin + "/mcp/v0?k=" + st.token)}"><button id="mcpFeedCopy">Copy</button></div>
+      <div class="hint">Made ${esc(st.made || "earlier")}. Paste it into Claude, ChatGPT or any MCP client.
+        Keep it private: whoever holds it can read and feed every ${esc(S.spaceName)} brain. The thinking
+        runs on that client's own model, so nothing is spent here.</div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button class="ghost" id="mcpNew">Replace it</button>
+        <button class="ghost" id="mcpOff">Turn it off</button>
+      </div>`
+    : `
+      <div class="hint">No address yet. Make one and your own Claude or ChatGPT can read the
+        ${esc(S.spaceName)} brains and drop sources into them. Every step runs on that client's model, so
+        it spends nothing here.</div>
+      <div style="margin-top:10px"><button class="ghost" id="mcpMake">Make the ${esc(S.spaceName)} address</button></div>`;
+
+    const copy = veil.querySelector("#mcpFeedCopy");
+    if (copy) copyTo(copy, veil.querySelector("#mcpFeed"));
+    const act = async (body, note) => {
+      msg.className="spin"; msg.textContent = "Saving";
+      try { const r = await api("/api/account/mcp", body);
+        if (r.error) throw new Error(r.error);
+        /* A success note is not an alert, so it reads at hint size. */
+        msg.className="hint"; msg.textContent = note; paint(r);
+      } catch(e){ msg.className="bad"; msg.textContent = e.message; }
+    };
+    const mk = veil.querySelector("#mcpMake") || veil.querySelector("#mcpNew");
+    if (mk) mk.onclick = () => act({ make: true }, "Address ready. Paste it into your client.");
+    const off = veil.querySelector("#mcpOff");
+    if (off) off.onclick = () => act({ forget: true }, "Turned off. A client holding it can no longer feed.");
+  };
+
+  /* ---- your own key, in a workspace that runs on one ---- */
+  const kIn = veil.querySelector("#ownKey"), kMsg = veil.querySelector("#ownKeyMsg");
+  if (S.byok){
+    kIn.value = myKey();
+    kMsg.textContent = myKey() ? "Saved in this browser." : "No key in this browser yet: asking and dropping need one.";
+    const saveKey = () => {
+      const k = kIn.value.trim();
+      if (!/^sk-or-[A-Za-z0-9_-]{20,200}$/.test(k)){ kMsg.textContent = "That is not an OpenRouter key. It starts with sk-or-"; return; }
+      setMyKey(k); kMsg.textContent = "Saved in this browser.";
+    };
+    veil.querySelector("#ownKeySave").onclick = saveKey;
+    kIn.onkeydown = e => { if (e.key === "Enter") saveKey(); };
+  }
+
+  /* The connector and the transcript service are the owner's. */
+  if (!ownerWs()) return;
+  slot.innerHTML = `<div class="hint">Checking</div>`;
+  try { paint(await api("/api/account/mcp", {})); }
+  catch(e){ slot.innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
+
+  /* ---- what the transcript service has cost ---- */
+  const use = veil.querySelector("#useSlot");
+  use.innerHTML = `<div class="hint">Checking</div>`;
+  try { use.innerHTML = usageLines(await api("/api/usage", { days: 30 })); }
+  catch(e){ use.innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
+}
+
+/** The Settings sheet as markup: every section, folded or open, before any of it is wired. */
+function setupMarkup(){
+  return `
     <div class="sheet" role="dialog" aria-modal="true">
       <header><h3>Settings</h3>
       <p>${S.demo ? `The demo runs on the default model. Export its folders and pick the language of the mic.`
@@ -130,14 +335,10 @@ async function openSetupSheet(opts = {}){
       <div class="f"><div id="kMsg" class="bad" role="alert"></div></div>
       <footer><a class="ghost" href="/doc" style="text-decoration:none">MCP setup</a><button class="go" id="kDone">Done</button></footer>
     </div>`;
-  document.body.append(veil);
-  const msg = veil.querySelector("#kMsg"), slot = veil.querySelector("#feedSlot");
-  /* A look previewed and not saved goes back to the saved one on close. */
-  let draft = null;
-  const shut = () => { if (draft) applyLook(S.brand); veil.remove(); };
-  veil.querySelector("#kDone").onclick = shut;
-  veil.onclick = e => { if(e.target===veil) shut(); };
+}
 
+/** Settings, what the projects and the chats cost this month, and the cap. */
+function setupSpend({ veil }){
   /* ---- what the projects cost, and the cap ---- */
   const spendBlock = veil.querySelector("#spendBlock");
   if (!spendBlock.hidden){
@@ -181,67 +382,10 @@ async function openSetupSheet(opts = {}){
     capIn.onkeydown = e => { if (e.key === "Enter") save.click(); };
     api("/api/project/spend", {}).then(paint).catch(e => { body.innerHTML = ""; body.append(el("div","sp-note bad",/unreadable/.test(e.message) ? "The server is older than this page and cannot count yet. Run convex deploy." : e.message)); });
   }
+}
 
-  /* ---- the look: previewed as it changes, kept on Save ---- */
-  const lookImg = veil.querySelector("#lookImg"), lookMsg = veil.querySelector("#lookMsg"), lookSave = veil.querySelector("#lookSave");
-  const lookAccent = veil.querySelector("#lookAccent"), lookBg = veil.querySelector("#lookBg");
-  const cssHex = name => { const c = toRgb(getComputedStyle(document.documentElement).getPropertyValue(name)); return c ? rgbHex(c) : "#888888"; };
-  const paintLookInputs = () => {
-    lookImg.src = markOf();
-    lookAccent.value = S.brand?.accent || cssHex("--accent-fill");
-    lookBg.value = S.brand?.bg || cssHex("--bg");
-  };
-  paintLookInputs();
-  const preview = patch => {
-    draft = { ...(draft || S.brand || {}), ...patch };
-    applyLook(draft, { preview: true });
-    lookImg.src = markOf();
-    lookSave.disabled = false; lookMsg.textContent = "";
-  };
-  lookAccent.oninput = () => preview({ accent: lookAccent.value });
-  lookBg.oninput = () => preview({ bg: lookBg.value });
-  veil.querySelector("#lookLogo").onclick = () => veil.querySelector("#lookFile").click();
-  veil.querySelector("#lookFile").onchange = async ev => {
-    try { preview({ logo: await toLogo(ev.target.files?.[0]) }); }
-    catch (e) { lookMsg.textContent = e.message; }
-    ev.target.value = "";
-  };
-  lookSave.onclick = async () => {
-    if (!draft) return;
-    lookSave.disabled = true; lookMsg.textContent = "Saving";
-    try {
-      const r = await api("/api/brand", { logo: draft.logo ?? null, accent: draft.accent ?? null, bg: draft.bg ?? null });
-      draft = null; applyLook(r.brand || null); paintLookInputs();
-      veil.querySelector("#lookSum").textContent = r.brand ? "your own" : "default";
-      lookMsg.textContent = "Saved. Every page of this workspace wears it now.";
-    } catch (e) { lookSave.disabled = false; lookMsg.textContent = e.message; }
-  };
-  veil.querySelector("#lookReset").onclick = async () => {
-    lookMsg.textContent = "Resetting";
-    try {
-      await api("/api/brand", { reset: true });
-      draft = null; applyLook(null); paintLookInputs(); lookSave.disabled = true;
-      veil.querySelector("#lookSum").textContent = "default";
-      lookMsg.textContent = "Back to the default look.";
-    } catch (e) { lookMsg.textContent = e.message; }
-  };
-
-  /* ---- the passphrase: the current one proves it is you ---- */
-  const passMsg = veil.querySelector("#passMsg"), passGo = veil.querySelector("#passGo");
-  const passCur = veil.querySelector("#passCur"), passNew = veil.querySelector("#passNew");
-  passGo.onclick = async () => {
-    passMsg.className = "hint";
-    if (!passCur.value) { passMsg.textContent = "Type your current passphrase first."; return passCur.focus(); }
-    if (passNew.value.length < 8) { passMsg.textContent = "The new passphrase needs 8 characters or more."; return passNew.focus(); }
-    passGo.disabled = true; passMsg.textContent = "Changing";
-    try {
-      const r = await api("/api/passphrase", { current: passCur.value, next: passNew.value });
-      passCur.value = ""; passNew.value = "";
-      passMsg.textContent = r.ended ? `Changed. ${r.ended} other session${r.ended === 1 ? " is" : "s are"} signed out.` : "Changed. It opens this workspace from now on.";
-    } catch (e) { passMsg.textContent = e.message; }
-    passGo.disabled = false;
-  };
-
+/** Settings, Share brain: pick a workspace, then which brains go to it. */
+function setupShare({ veil }){
   /* ---- Share brain: pick a workspace, then which brains go to it ---- */
   const shareSlot = veil.querySelector("#shareSlot"), shareMsg = veil.querySelector("#shareMsg");
   const shareTo = veil.querySelector("#shareTo"), shareNote = veil.querySelector("#shareNote"), shareCount = veil.querySelector("#shareCount");
@@ -305,38 +449,10 @@ async function openSetupSheet(opts = {}){
   };
   shareTo.onchange = () => { shareMsg.textContent = ""; paintRows(); };
   if (ownerWs()) api("/api/share", {}).then(paintShare).catch(e => { shareSlot.innerHTML = ""; shareMsg.textContent = e.message; });
+}
 
-  /* ---- the model and the export ---- */
-  veil.querySelector("#setModel").hidden = S.demo;
-  veil.querySelector("#setModel").onclick = () => { shut(); openModelSheet(); };
-  /* Audit: one row per folder this workspace holds, the last run and what came since. */
-  const al = veil.querySelector("#auditList");
-  for (const b of auditFolders()){
-    const r = el("div","au-row"); r.dataset.slug = b.slug;
-    const due = auditDue(b), run = S.auditRun?.slug === b.slug && S.auditRun.state === "running";
-    if (run) r.classList.add("run");
-    const t = el("div","au-t"); t.append(el("b",null,b.name), el("span",null, run ? `Running · ${S.auditRun.step}` : auditLine(b)));
-    const go = el("button", due && !run ? "mini au-due" : "mini", run ? "Open" : due ? "Audit now" : "Audit"); go.type = "button";
-    go.onclick = () => { shut(); runAudit(b, run); };
-    r.append(t, go); al.append(r);
-  }
-  if (!al.children.length) al.append(el("div","hint","No folder to audit yet."));
-  /* Each fold says where it stands while closed. */
-  const dueN = auditFolders().filter(b => auditDue(b)).length;
-  /* The decisions an audit or a drop left: one row, and a button into them. */
-  const dn = decisionCount(), dRow = veil.querySelector("#auditDecide");
-  const dt = el("div","au-t"); dt.append(el("b",null,"Decisions"), el("span",null, dn ? decisionLine() : "Nothing waiting."));
-  const dGo = el("button", dn ? "mini au-due" : "mini", dn ? "Decide" : "Open"); dGo.type = "button";
-  dGo.onclick = () => { shut(); openDecide(); };
-  dRow.append(dt, dGo);
-  veil.querySelector("#auditSum").textContent = [dueN ? `${dueN} due` : "", dn ? `${dn} to decide` : ""].filter(Boolean).join(" \u00b7 ");
-  const langSum = () => {
-    const v = voiceLang(), name = v ? (VOICE_LANGS.find(x => x[0] === v) || [])[2] || v : "";
-    veil.querySelector("#langSum").textContent = [S.demo ? "" : S.models?.reply === "en" ? "answers in English" : "answers as you write",
-      Speech ? (name ? `mic in ${name}` : "mic not set") : ""].filter(Boolean).join(" · ");
-  };
-  langSum();
-  veil.querySelector("#lookSum").textContent = S.brand ? "your own" : "default";
+/** Settings kept for this browser or the workspace: light or dark, Short or Long answers, the app on this device, and the languages. */
+function setupPrefs({ veil, langSum }){
   /* Languages: saved for the workspace on a tap. The demo keeps its voice
      language in this browser, since its settings are shared by every visitor. */
   /* Light, dark, or as the device is set: this browser only, at once, nothing sent. */
@@ -394,102 +510,6 @@ async function openSetupSheet(opts = {}){
   };
   langSeg("langReply", "reply", "same", v => v === "en" ? "Saved. Answers come back in English." : "Saved. Answers come back in the language you write in.");
   langSeg("langVoice", "voice", "", v => `Saved. The mic listens in ${(VOICE_LANGS.find(x => x[0] === v) || [])[2] || v}${S.demo ? ", in this browser" : ", on every device of this workspace"}. Tap the mic to talk.`);
-  /* The mic, tapped with no language picked, sends you here to pick one. */
-  if (opts.voice){
-    veil.querySelector("#langBlock").open = true;
-    const row = veil.querySelector("#langVoice").closest(".lang-row");
-    row.classList.add("ask");
-    veil.querySelector("#langMsg").textContent = "Pick the language the mic listens in. It hears one language at a time.";
-    setTimeout(() => row.scrollIntoView({ block: "center" }), 60);
-  }
-
-  /* Restore: an export picked here goes to the server whole, which adds what this workspace is missing and keeps what it has. */
-  const rst = veil.querySelector("#setRestore"), rmsg = veil.querySelector("#restoreMsg");
-  rst.onclick = () => pickFile(".md,.markdown,.txt,text/markdown,text/plain", async file => {
-    const v = rst.querySelector(".val");
-    rst.disabled = true; v.textContent = "reading"; rmsg.className = "hint"; rmsg.textContent = "";
-    try {
-      const text = await file.text();
-      v.textContent = "restoring";
-      const r = await api("/api/restore", { text });
-      const n = (k, one, many) => `${r[k].added} ${r[k].added === 1 ? one : many}`;
-      const kept = r.brains.kept + r.concepts.kept + r.sources.kept;
-      rmsg.textContent = `Restored ${n("brains", "folder", "folders")}, ${n("concepts", "concept", "concepts")} and ${n("sources", "source", "sources")}.` +
-        (kept ? ` ${kept} already here, kept as they are.` : "") + (r.brains.skipped ? ` ${r.brains.skipped} folder${r.brains.skipped === 1 ? "" : "s"} named in another workspace left out.` : "") +
-        (r.linking ? ` Their links follow in a minute.` : "");
-      v.textContent = "done";
-      refresh().catch(() => {});
-    } catch (e) { v.textContent = "failed"; rmsg.className = "hint bad"; rmsg.textContent = /unreadable|404/.test(e.message) ? "The server is older than this page and cannot restore yet. Run convex deploy." : e.message; }
-    finally { rst.disabled = false; setTimeout(() => { v.textContent = "from an export"; }, 2500); }
-  });
-
-  const exp = veil.querySelector("#setExport");
-  exp.onclick = async () => {
-    const v = exp.querySelector(".val");
-    v.textContent = "reading"; exp.disabled = true;
-    try { await exportAll(); v.textContent = "downloaded"; }
-    catch (e) { v.textContent = "failed"; msg.className = "bad"; msg.textContent = e.message; }
-    finally { exp.disabled = false; setTimeout(() => { v.textContent = "markdown"; }, 2000); }
-  };
-
-  /* ---- the address ---- */
-  const paint = (st) => {
-    slot.innerHTML = st.has ? `
-      <div class="urlbox"><input id="mcpFeed" readonly spellcheck="false" value="${esc(location.origin + "/mcp/v0?k=" + st.token)}"><button id="mcpFeedCopy">Copy</button></div>
-      <div class="hint">Made ${esc(st.made || "earlier")}. Paste it into Claude, ChatGPT or any MCP client.
-        Keep it private: whoever holds it can read and feed every ${esc(S.spaceName)} brain. The thinking
-        runs on that client's own model, so nothing is spent here.</div>
-      <div style="margin-top:10px;display:flex;gap:8px">
-        <button class="ghost" id="mcpNew">Replace it</button>
-        <button class="ghost" id="mcpOff">Turn it off</button>
-      </div>`
-    : `
-      <div class="hint">No address yet. Make one and your own Claude or ChatGPT can read the
-        ${esc(S.spaceName)} brains and drop sources into them. Every step runs on that client's model, so
-        it spends nothing here.</div>
-      <div style="margin-top:10px"><button class="ghost" id="mcpMake">Make the ${esc(S.spaceName)} address</button></div>`;
-
-    const copy = veil.querySelector("#mcpFeedCopy");
-    if (copy) copyTo(copy, veil.querySelector("#mcpFeed"));
-    const act = async (body, note) => {
-      msg.className="spin"; msg.textContent = "Saving";
-      try { const r = await api("/api/account/mcp", body);
-        if (r.error) throw new Error(r.error);
-        /* A success note is not an alert, so it reads at hint size. */
-        msg.className="hint"; msg.textContent = note; paint(r);
-      } catch(e){ msg.className="bad"; msg.textContent = e.message; }
-    };
-    const mk = veil.querySelector("#mcpMake") || veil.querySelector("#mcpNew");
-    if (mk) mk.onclick = () => act({ make: true }, "Address ready. Paste it into your client.");
-    const off = veil.querySelector("#mcpOff");
-    if (off) off.onclick = () => act({ forget: true }, "Turned off. A client holding it can no longer feed.");
-  };
-
-  /* ---- your own key, in a workspace that runs on one ---- */
-  const kIn = veil.querySelector("#ownKey"), kMsg = veil.querySelector("#ownKeyMsg");
-  if (S.byok){
-    kIn.value = myKey();
-    kMsg.textContent = myKey() ? "Saved in this browser." : "No key in this browser yet: asking and dropping need one.";
-    const saveKey = () => {
-      const k = kIn.value.trim();
-      if (!/^sk-or-[A-Za-z0-9_-]{20,200}$/.test(k)){ kMsg.textContent = "That is not an OpenRouter key. It starts with sk-or-"; return; }
-      setMyKey(k); kMsg.textContent = "Saved in this browser.";
-    };
-    veil.querySelector("#ownKeySave").onclick = saveKey;
-    kIn.onkeydown = e => { if (e.key === "Enter") saveKey(); };
-  }
-
-  /* The connector and the transcript service are the owner's. */
-  if (!ownerWs()) return;
-  slot.innerHTML = `<div class="hint">Checking</div>`;
-  try { paint(await api("/api/account/mcp", {})); }
-  catch(e){ slot.innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
-
-  /* ---- what the transcript service has cost ---- */
-  const use = veil.querySelector("#useSlot");
-  use.innerHTML = `<div class="hint">Checking</div>`;
-  try { use.innerHTML = usageLines(await api("/api/usage", { days: 30 })); }
-  catch(e){ use.innerHTML = `<div class="hint">${esc(e.message)}</div>`; }
 }
 
 /**

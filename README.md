@@ -10,9 +10,9 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="2466 checks passing" src="https://img.shields.io/badge/checks-2466%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="2480 checks passing" src="https://img.shields.io/badge/checks-2480%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
-<img alt="One-pagers in 9 languages" src="https://img.shields.io/badge/one--pagers-9%20languages-52525b?style=flat-square&labelColor=18181b">
+<img alt="Installs on phone and desktop" src="https://img.shields.io/badge/app-phone%20and%20desktop-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
 
 <br><br>
@@ -23,11 +23,13 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 <br>
 
+[What it does](#what-it-does) · [Why it holds up](#why-it-holds-up) · [Compared](#compared) · [Inside the app](#inside-the-app) · [Personal folder](#the-personal-folder-alpha) · [Projects](#projects) · [Workspaces](#workspaces) · [Run your own](#run-your-own) · [Work on it](#work-on-it)
+
 ## What it does
 
 <img src="docs/img/goods.jpg" alt="Drop and Ask, and why it holds up" width="100%">
 
-**Drop.** A link, a PDF, a Word file, a video or a transcript. It pulls out each idea with its numbers and files it under a concept, signed with author and date. A claim that clashes with what you hold waits for your call.
+**Drop.** A link, a PDF, a Word file, a video or a transcript. Each idea is filed under a concept with its numbers, signed with author and date. A claim that clashes with what you hold waits for your call.
 
 **Ask.** Ask anything, at 3 levels: the answer, a lesson from zero, or guided steps. It answers from your sources only, and the last line names who said it and when.
 
@@ -35,16 +37,18 @@ Drop compiles each source once. Ask reads what was compiled. The [white paper](h
 
 ## Why it holds up
 
-- **Zero duplicates.** A source dropped twice is caught on arrival. A new idea joins the concept it belongs to.
-- **Zero hidden contradictions.** Every clash is caught at drop and waits for your call, one swipe each. Each concept keeps one clear position.
-- **Lightweight.** It keeps the claims and drops the raw transcript. Search reads a 1 KB card per concept.
-- **Fast search.** The question is embedded first, so the router reads the 120 titles nearest in meaning, then at most 30 concepts open in full. A brain of 1,000 concepts costs the router 1,750 tokens, not 12,700.
-- **Scalable.** A question reads 69,000 characters of your brain at most, at any size. Thanks and greetings read none of it.
-- **Your data.** In your own database or as markdown files, exported in one click and restored in one. Open source, on your own key.
+| | |
+|---|---|
+| **Zero duplicates** | A source dropped twice is caught on arrival. A new idea joins the concept it belongs to. |
+| **Zero hidden contradictions** | Every clash is caught at drop and waits for your call, one swipe each. Each concept keeps one position. |
+| **Light** | It keeps the claims and drops the raw transcript. Search reads a 1 KB card per concept. |
+| **Fast search** | The router reads the 120 titles nearest in meaning, then opens 30 concepts at most. 1,000 concepts cost it 1,750 tokens, down from 12,700. |
+| **Flat cost** | A question reads 69,000 characters at most, at any size. A thank-you reads none. |
+| **Your data** | In your own database or as markdown files. Exported in one click, restored in one. Open source, on your own key. |
 
 ## Compared
 
-A classic AI chat answers from its training data. Karpathy's LLM wiki compiles your files into pages. A brain compiles them into **positions**, each backed by dated evidence you can open, and asks you when two sources clash.
+A classic AI chat answers from its training data. Karpathy's LLM wiki compiles your files into pages. Tasu compiles them into **positions**, each backed by dated evidence you can open, and asks you when two sources clash.
 
 | | Classic AI chat | Karpathy's LLM wiki | **Tasu** |
 |---|---|---|---|
@@ -52,8 +56,8 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 | Proof | None, or a link it made up | A summary per page | **Author and date on every claim** |
 | When sources disagree | Blended into one answer | Left side by side | **Flagged at each drop; you rule in a swipe** |
 | New information | Frozen at the training date | Added when you run the agent | **Filed the day you drop it** |
-| Whose view | An average of the internet | Your topics | **One brain per subject, per expert, or for you** |
-| Setup | A chat box | Scripts, Obsidian, a coding agent | **A web page, on desktop and phone** |
+| Whose view | An average of the internet | Your topics | **One folder per subject, per expert, or for you** |
+| Setup | A chat box | Scripts, Obsidian, a coding agent | **A web page, or an app on phone and desktop** |
 | What you get | A reply | Pages, slides, charts | **Answers at 3 levels, one-pagers in 9 languages, a health score** |
 
 ## Inside the app
@@ -62,73 +66,101 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 <tr>
 <td width="33%" valign="top">
 <img src="docs/img/demo.jpg" alt="An answer with its sources">
-<br><b>Answers with receipts.</b> Every line comes from a source you fed it, and the sources line names each author and date. Newer evidence wins on the same question.
+<br><b>Answers with receipts.</b> Every line comes from a source you fed it. The sources line names each author and date. Newer evidence wins on the same question.
 </td>
 <td width="33%" valign="top">
 <img src="docs/img/deck.jpg" alt="Settling a clash, one card at a time">
 <br><b>It argues back.</b> A source that contradicts what you hold waits for your call. Swipe: A holds, B holds, or both. The position is rewritten from all its evidence.
 </td>
 <td width="33%" valign="top">
-<img src="docs/img/personal.jpg" alt="A personal brain filing what you say">
-<br><b>It learns you.</b> A personal brain files what you tell it as dated notes, and says what it filed. Your other brains never read it.
+<img src="docs/img/personal.jpg" alt="A personal folder filing what you say">
+<br><b>It learns you.</b> A personal folder files what you tell it as dated notes, and says what it filed. Your other folders never read it.
 </td>
 </tr>
 </table>
 
-- **One field on the landing.** A passphrase opens the workspace it belongs to; any other, or none, opens the demo. The workspaces sit along the top, each opening on its own page.
-- **A calm side panel.** Drop, One-pager and Settings sit on top. Chats and Folders follow, each a list that folds. Every folder is listed: yours first, then the ones another workspace lets you ask and drop into, then the ones you may only ask.
-- **The chat bar floats** over the thread, with the folder picker, the level, the mic and send in one place.
-- **Chat in several folders.** Click a folder to tick it, and tick as many as you like: the question reads those alone. The chat only asks.
-- **Tag a folder with @.** In the folders chat, the personal chat and a project's chat, type @ and pick a folder: the chat reads it, and says so under the answer, like "Read @Pricing". Tag up to 4. In the personal chat, a project can be tagged too.
-- **A folder, open.** Open fills the main area: its scope, its counts, its health and the next move, then every concept, newest first, with the one open beside them. Chat in it, Drop into it, or edit its name and scope from there. The bar below asks that folder.
-- **The model, picked in Settings.** It answers, reads drops and writes one-pagers: GLM 5.3 Flash by default, saved for the whole workspace. A workspace can be given a list of favourite models instead, and the cheapest runs: each morning the average price OpenRouter charges for a call is compared (4 tokens read for 1 written), and the model changes only for a favourite at least 10% cheaper. Settings, Model names the favourites, the prices and the day.
-- **A drop stores everything.** Every number, date and name of the source is looked for in what was read; the passages holding the ones left out are read again, and what is still missing goes in word for word. Every topic lands in a concept, opinions with nothing behind them included: one placed nowhere is filed once more, then becomes a concept of its own. A reply cut short is read again in halves, never kept half. The card says it in one line: "All of it kept: 7,020 words, 145 numbers, dates and names, 23 topics, filed into 18 concepts".
-- **Drop on its own screen.** Drop sits in the side panel and opens a screen with its own log. The chat waits as it was, one click away.
-- **New folder.** A folder is fed by Drop, and one switch says it holds one person's view. A personal folder is fed by what you say.
-- **Projects.** Files, tables and pages, with a chat beside them and a memory of its own. A project starts on one file to update: choose a Word, PDF, text, Markdown, HTML, Excel or CSV file, or start from nothing, pick a type or leave it open, and describe it in the chat. A Brief is optional: it says who the chat is here, the goal, the audience and the rules, in up to 6,000 characters, and the chat reads it at every message. Type or paste it in a text field, as in the personal memory, add a file whose words join the field (Word, PDF, text, Markdown or HTML), or answer five questions by voice or by text and read the Brief they write before you save it. The chat keeps a State of play, a short summary of where the project stands that it rewrites when an answer changes it, asks what it needs from you to go on (answer in the message bar, by voice or by text), and may end an answer with one line to send next, which you can turn off. A Gaps button lists, with no model call, the placeholders nobody filled, the empty cells, the dates in the past and the numbers that differ between two sections, and a tap asks the chat to fix one. The chat picks the type from your words, writes the file from them and from your folders, and changes it as you go, each change with an Undo. A project holds up to 30 files, as tabs above the open one. The plus adds a file you have, or makes a blank document, table or page to describe in the chat, and a menu renames or removes the open file. The chat changes the open file and reads the others: it knows what each one holds, and the few sections that bear on a question are found with no model call, by words and by meaning, in the same language or in another. A page shows as it renders, or as its code. A PDF keeps its headings, tables and lists, and loses its repeated headers and footers. The file takes two thirds of the screen and the chat one third. The chat looks like the normal chat: your message in a grey bubble, the answer in plain lines on the page with no card, and the accent colour kept for the send button. Nothing sits under an answer: what the chat read in the memory, the file and the folders stays behind it, with no chip, no TL;DR label, no Refine button, no token count and no price. A phone shows one at a time, in a row of two buttons, the file and the chat, each 36 pixels high. Memory is one small button by the message bar, with its count of notes: it opens a list in the format of a folder's concepts, the newest first, and a tap opens a note, where it can be forgotten. The sheet leads with the Brief, the State of play, the questions waiting for you and the next step switch. Add to memory takes a resource. Settings shows what your projects and your chats cost: this month and the month before in dollars as the model host reports them, the folders' chat and the personal chat apart from the projects, the tokens with how much was reused, each project's share, and an optional monthly cap on the projects that stops a message, a file read in, a resource and a Brief written when it is reached. Download asks for a format: a document as Markdown, PDF or a web page, a page as a web page or Markdown, a table as Excel, CSV or Markdown, all written in your browser. With no project, the Projects panel shows only its header and its plus. A file of up to 4,000 pages is filed in sections with a contents line each, and a question opens only the sections it needs: small talk reads none of the file, and a file of 13 pages costs half as much a message as when it was read whole. The project learns where things are as you chat, for no model call, and shows the chat a short list of sections first: 1,000 questions on a file of 143 pages cost $0.26, down from $0.47, and 1,000 thanks cost $0.07, down from $0.25, with the memory kept for free. A long section is read as the passages that bear on the question. 1,000 messages that call a folder of 400 notes cost $0.50, down from $1.14. A table of up to 40,000 rows is searched by filter and totals over every row, so a count or an average is exact. Each answer is the answer first, in one or two plain sentences, then at most 4 short lines of support, with where each comes from. The chat reads the memory first, then the file, then your other folders when they help, never the personal one. When what it read does not hold the fact, it reads the rest of the file and the folders it had left out, once, and answers again. When it still lacks the fact, it says what is missing and offers Add a resource: a document, a text or the words of a page, which Memory files as notes the chat reads when they bear on a question, up to 100,000 characters, sent in pieces of 20,000. Ask for a brainstorm and it answers with a proposal. A change to a file you dropped waits for your click. A change to a file made here applies at once. The project's memory fills itself, with no button, in the folder format: a note on its file, what you decide, and what its answers find, each note naming the sections it rests on and marked when the file changes under it. The last 4 exchanges stay. Only the project and your personal folder read its memory.
-- **Talk instead of typing.** Tap the mic and speak, in the language picked in Settings, Languages: English, French, Spanish, German, Italian or Portuguese. Nothing is guessed: a tap before one is picked opens Settings on it. While it listens, a strip over the bar shows how long, with Cancel and Done: Done waits for the last words and keeps them, Cancel puts back what you had typed. It stops after 10 seconds of quiet or 2 minutes, and a key you type stops it with both kept. A pause never loses what came before: each run of the speech service starts the next at once. On Android it listens one phrase a run, so nothing is said twice, and a word repeated 4 times or more keeps one. Every chat has the mic: the chat bar, which serves the folders, your personal folder, a note and the interview, and the message bar of a project. One mic listens at a time, and it stops when a message is sent or its screen goes. It uses the free speech service in Safari on iPhone and Mac, Chrome and Edge. Elsewhere it points to the dictation your device already has.
-- **Light or dark.** Settings, Appearance: System, Light or Dark, kept in this browser and worn from the first paint. A workspace keeps its own colour in both.
-- **Follow-ups that hold.** An answer remembers the concepts it read, so "and the second one?" finds what it named. A concept opens on its meaning alone only when it is close enough, and a question nothing answers is told so first. The Sources line keeps only authors found in what was read.
-- **Every drop grows the graph.** Each new idea finds its 6 nearest by meaning, in any language. Each link says how: needs, causes, supports, contradicts or example. Folders sort themselves into topics.
-- **What follows.** Two linked ideas from different folders can add up to a third. Each drop writes up to 5, marked as Tasu's own conclusion, never a source, and answers can use them.
-- **One page, any shape.** A brain or a question becomes a summary, a quiz, a deep dive or use cases, in 9 languages.
-- **Chats that stay.** Reopen, rename, pin up to 5. Old ones clear after 30 days. The side panel shows 5, and See all opens the rest, so the folders stay in view.
-- **Ask twice, pay once.** The same question on folders that have not changed gets the answer it got before, for no model call, for 14 days. A drop or an edit in those folders makes the next answer fresh. A follow-up is always answered anew.
-- **Every cost in one place.** Settings, Cost shows this month in dollars for each kind of work: folder chat, personal chat, drops, upkeep, one-pagers and projects, with the answers given again for free.
-- **Restore in one step.** Settings, Restore reads an export back: the folders, concepts and sources missing come back with their links, and what is already there stays as it is.
-- **Questions run in the background.** Ask, then open another chat, a folder or Drop: the answer lands in its own chat. A drop reads on while you chat.
-- **An error says what to do.** A dropped connection or a timeout offers Try again, which sends the same message once more in place. Every error offers Send feedback, which mails the error, where it happened and the message behind it, 5 an hour at most.
-- **An inbox, top right.** A bubble counts what waits for you and opens a panel: answers ready and unread, questions on their way, a drop not finished, the personal folder's weekly audit, what is still open with your people, and the decisions. A ring turns on it while something runs.
-- **Decisions, with a call ready.** Every call waiting sits in one list, grouped by folder and topic: clashes, concepts filed twice, titles not in English, empty positions, the same person on two cards. Each comes with a suggested call and its reason: "B holds. The later claim: September 2026 over February 2026". Accept one, pick another call, or Accept all in one tap. It runs on while you look elsewhere. "Swipe the clashes" opens the conflict deck, which shows the same suggestion on each card. A same-person call shows both people side by side: mentions, open lines, last day seen, who they are to you, the facts that tell people apart (email, phone, city, job) and their latest moments. The call can be to merge into either name.
-- **Settings, folded.** Audit, Languages, Look and Passphrase each fold shut and say where they stand: "2 due · 3 to decide", "mic in French", "default".
-- **Audit, in Settings.** One fold for audits and clashes. It lists every folder you own, each with the date of its last audit, and one Decisions row counts what waits and opens the list. A folder's audit finds concepts filed twice, titles not in English and empty positions. The personal folder's audit files the people in your older notes and finds the cards of one person. You decide each pair: Merge, or Keep apart, and a pair kept apart never comes back. While it runs, it shows the step it is on, a bar and the time it has run, then "Audit finished in 1 min 04s". Leave it, and the inbox shows its step, then that it finished. After 50 new sources, a folder is audited on its own the next time you open Tasu, and what it finds waits as decisions. The personal folder asks every 7 days, since its people need you.
-- **Chat about one concept.** Chat about it, from any concept, opens a chat that reads that concept alone.
-- **Greys, and your look.** Tasu wears greys and near-black. Octopus keeps its orange and Squidgy its brown. Each workspace can set a logo, an accent and a page colour, previewed as you pick them.
-- **A memory for Claude.** The owner's workspaces connect to Claude through MCP: Claude reads and feeds the brains with its own model.
+### Chat
 
-## The personal brain <sup>alpha</sup>
+- **Pick the folders.** Tick as many as you like in the side panel, or type @ to tag up to 4 in any chat. The answer says what it read: "Read @Pricing".
+- **Talk instead of typing.** The mic listens in English, French, Spanish, German, Italian or Portuguese. A strip shows the time, with Done and Cancel. It stops after 10 seconds of quiet or 2 minutes.
+- **Follow-ups that hold.** An answer remembers the concepts it read, so "and the second one?" finds what it named.
+- **Ask twice, pay once.** The same question on unchanged folders returns the saved answer for 14 days, with no model call.
+- **It runs in the background.** Open another chat, a folder or Drop: the answer lands in its own chat, and the inbox counts it.
+- **Errors say what to do.** Try again resends the message in place. Send feedback mails the error, 5 an hour at most.
+- **Chats stay.** Rename them and pin up to 5. The side panel shows 5, and See all opens the rest. Old ones clear after 30 days.
 
-A third kind of brain, next to subjects and experts. You talk to it, and it keeps what you said.
+### Folders
 
-- **It files your words.** Each message becomes up to 3 notes, each claim dated and signed "You". Only your words get filed.
-- **A change of mind** rewrites the note: the new view, and the one it replaces with its date.
-- **Add memory.** In the bar of the personal chat, in the personal folder, or by dropping a file on the personal chat. Paste what another assistant knows about you, or add a PDF, Word, text or JSON file. It is checked like a drop: every number, date and name is looked for in what was filed, the passages holding the ones left out are filed again, and what is still missing is kept word for word. The result says "All of it kept". It files in the background: close it, and the inbox shows the piece it is on, then what it filed. One stopped by an error goes on from where it stopped.
-- **It answers as your twin.** Its notes read "You want to move to Lisbon". Its replies speak as you would: "I want Porto in 2027". It decides with your values and rules from the twin profile, and gives the rule: "I'd pass. I never trade learning for 20% more salary." It answers straight away, with no "based on what you told me" and no dates of notes.
-- **The interview ends at 100%.** Once every question is answered or known, the Interview button leaves the chat, the folder and the twin pane.
-- **It calls your other brains on its own.** When one holds something that bears on what you said, it brings it up and names it: "your Health brain says 3 to 5 g a day". A line under the reply shows which brains it called.
-- **A person is a folder.** Their page opens on an Overview (what is still open, the latest moments), then Facts, History a year at a time, Their people and Raw notes a month at a time. Each moment is stored on its own, so a person grows without a size limit, and the AI reads the moments that bear on what you say first, whatever their age.
-- **Still open, in the inbox.** The inbox lists the 3 oldest promises and follow-ups from your people's files, each with a tick, and one row opens the whole list, grouped by person, the oldest first. A line counts in the inbox's number once it has been open a week. Tick a line that is done. Or write under it what changed: "signed Tuesday, he invoices in November". One send updates every line you commented: closed, dropped, reworded, with a follow-up or a moment of their history added when you told one. A line already open is updated, never listed twice: the same words in another order, or with a date added, are one line, and a done closes it. Lines doubled before are made one when you open the list. Your comment stays word for word in their raw notes.
-- **A file per person.** Each person you mention, by name or by role, gets a file: a short summary on top, then what is still open, their facts by section (identity, contact details, you and them, work, tastes), their people both ways, and their whole history, year by year, each moment dated and told with its details. It only grows: a changed fact keeps the old one with the day it ended, and after the history come its raw notes: every message you sent about them, word for word, dated, in the language you wrote it. The People tab lists them, the most recent first. Settings, Audit, finds the people in your older notes. Edit a card by hand, or merge two cards of the same person: the mentions and names join, and the card is written again as one.
-- **It interviews you.** Tap Interview me: one quick question at a time, from 335 in 17 chapters, life story first. Each takes under 30 seconds: a fact, a choice, a number or one sentence. A one-word answer gets one follow-up, a question your notes already answer is skipped, and every 10 answers it reads back 3 notes for you to confirm or correct. Say skip to pass; Stop pauses it, and it picks up where you left off.
-- **It asks in passing.** Every few messages, when you asked nothing, it may end its reply with one question from the chapters it knows least.
-- **Your twin, measured, and taught.** Each twin test is 5 new situations built from your own notes and the people in them: a message lands, an email, a text or a chat, and you write the reply you would send. Your notes imply each reply and never state it. Your twin replies first, from your notes alone, and says which notes it used. The two replies are compared for you on the decision, the facts and the voice: Same, Close or Different, with no score to give by hand. Then your replies go into your notes, so what it missed, it answers the same next time. It is the training for the day your twin answers your messages. With fewer than 6 notes, the interview's question bank asks instead. Every test is kept in a history, with its score and each pair. Until the interview reaches 100%, the twin profile writes your notes as 7 parts: identity, values, beliefs, decision rules, voice, knowledge and boundaries. At 100% it goes: the notes and the contacts hold all of it.
-- **Any language in, English kept.** Write or talk in French or any other language. Every note and file is kept in English, your own words beside each line. In Settings, Languages, pick how chat answers come back (as you write, or in English) and the language the mic listens in.
-- **Edit by talking.** Chat about it, on a note or a person, opens a chat on that one alone. A fact, a date or a correction you give is written to it at once, and the reply says what changed: the summary, the lines added, the lines taken out.
+- **A drop keeps everything.** Every number, date and name of the source is checked against what was filed, and anything missing goes in word for word. The card says it: "All of it kept: 7,020 words, 145 numbers, dates and names, 23 topics, filed into 18 concepts".
+- **A folder, open.** Its scope, counts, health and next move, then every concept, newest first. Chat in it, drop into it, or rename it from there.
+- **Every drop grows the graph.** Each new idea links to its 6 nearest in meaning, in any language: needs, causes, supports, contradicts or example. Folders sort themselves into topics.
+- **What follows.** Two linked ideas from different folders can add up to a third. A drop writes up to 5, marked as Tasu's own conclusion.
+- **One page, any shape.** A folder or a question becomes a summary, a quiz, a deep dive or use cases, in 9 languages.
+- **Decisions, with a call ready.** Clashes, concepts filed twice, titles not in English, empty positions and the same person on two cards sit in one list, grouped by folder. Each has a suggested call and its reason: "B holds. The later claim: September 2026 over February 2026". Accept one, or all in one tap.
+- **Audit.** After 50 new sources, a folder is audited on its own the next time you open Tasu. The personal folder asks every 7 days.
+
+### Inbox
+
+A bubble at the top right counts what waits for you: answers ready, questions on their way, a drop in progress, the weekly audit, the decisions, and what is still open with your people. A ring turns on it while something runs.
+
+### Settings
+
+| | |
+|---|---|
+| **Model** | GLM 5.3 Flash by default, for the whole workspace. Or a list of favourites: each morning the cheapest runs, when it is at least 10% cheaper. |
+| **Answers** | Short reads the 12 best concepts, for about a third less a question. Long reads up to 30. Educational and Learning answers read in full either way. |
+| **App** | Installs Tasu on the home screen or the dock. See [Install as an app](#install-as-an-app). |
+| **Appearance** | System, Light or Dark, kept in this browser. |
+| **Languages** | The language of answers (as you write, or English) and of the mic. |
+| **Cost** | This month in dollars for each kind of work: folder chat, personal chat, drops, upkeep, one-pagers and projects. An optional monthly cap on projects. |
+| **Export, Restore** | Every folder as one markdown file, and read back in one step: what is missing returns, what is there stays. |
+| **Audit, Look, Passphrase, Share** | Audits and clashes; a logo, an accent and a page colour; a new passphrase that signs others out; a folder shared with another workspace. |
+
+### Install as an app
+
+Tasu installs from the browser. The app stores play no part.
+
+| Device | Where to tap |
+|---|---|
+| iPhone, iPad | Safari, Share, then Add to Home Screen |
+| Android | Chrome menu, then Install app |
+| Mac | Safari, File, then Add to Dock |
+| Windows, Mac, Linux | Chrome or Edge, the install icon in the address bar |
+
+Settings, App opens the browser's own prompt where there is one, and shows these steps everywhere else. Installed, Tasu opens in a window of its own, on the workspace used last, with the Tasu icon.
+
+## The personal folder <sup>alpha</sup>
+
+A third kind of folder, next to subjects and experts. You talk to it, and it keeps what you said.
+
+- **It files your words.** Each message becomes up to 3 notes, each dated and signed "You". A change of mind rewrites the note and keeps the old view with its date.
+- **Add memory.** Paste what another assistant knows about you, or add a PDF, Word, text or JSON file. It is checked like a drop, and the result says "All of it kept".
+- **It answers as your twin.** "I want Porto in 2027." It decides with your own rules and names them: "I'd pass. I never trade learning for 20% more salary."
+- **It calls your other folders.** When one bears on what you said, it brings it up: "your Health folder says 3 to 5 g a day".
+- **A person is a folder.** Overview, Facts, History a year at a time, Their people, and Raw notes word for word. A changed fact keeps the old one with the day it ended.
+- **Still open, in the inbox.** The 3 oldest promises and follow-ups from your people, each with a tick. Comment under a line, and one send updates every line you commented.
+- **It interviews you.** 335 quick questions in 17 chapters, life story first, each under 30 seconds. It skips what your notes already answer, and ends at 100%.
+- **Your twin, tested.** 5 situations built from your notes. Your twin replies first, then you do, and the two are compared on the decision, the facts and the voice. Your replies go into your notes.
+- **Any language in, English kept.** Write or talk in any language. Notes are kept in English, your own words beside each line.
 - **Private.** Its own chat is its only reader.
+
+## Projects
+
+Files, tables and pages, with a chat beside them and a memory of their own.
+
+- **Start from a file, or from a blank.** Word, PDF, text, Markdown, HTML, Excel or CSV. Or pick a type and describe it: the chat writes it from your words and your folders.
+- **Up to 30 files** as tabs. The chat changes the open file and reads the others.
+- **Changes you can undo.** A change to a file you dropped waits for your click. A change to a file made here applies at once. Each has Undo.
+- **A Brief, if you want one.** Who the chat is, the goal, the audience and the rules, up to 6,000 characters. Type it, add a file, or answer 5 questions by voice.
+- **It keeps track.** A State of play, the questions waiting for you, and one line to send next. Gaps lists empty placeholders, empty cells, past dates and numbers that differ, with no model call.
+- **It reads only what a question needs.** A file of up to 4,000 pages is filed in sections, each with a contents line, written 4 sections a call. 1,000 questions on a 143-page file cost $0.26, down from $0.47. 1,000 thank-yous cost $0.07, down from $0.25.
+- **Exact tables.** Up to 40,000 rows, searched by filter and totals over every row.
+- **A memory that fills itself.** A note on each file, what you decide, and what answers find, each pointing at its sections.
+- **Download** a document as Markdown, PDF or a web page, and a table as Excel, CSV or Markdown, written in your browser.
 
 ## Workspaces
 
-A workspace holds its own brains and chats, and sees nothing of the others.
+A workspace holds its own folders and chats, apart from every other.
 
 | | Octopus, Squidgy | The demo | Your own |
 |---|---|---|---|
@@ -136,15 +168,11 @@ A workspace holds its own brains and chats, and sees nothing of the others.
 | Enter | Its own page, passphrase on top | One click | Made on the landing |
 | Model calls paid by | The deployment's key | A separate demo key | **Your OpenRouter key** |
 | Limits | None | 30 drops and 300 questions a month, shared | Your key's own |
-| Create brains, personal brains | Yes | No | Yes |
+| New folders, personal folders | Yes | No | Yes |
 
-**A workspace for someone, on your key.** `npx convex run admin:makeWorkspace "{name:'PandAAAHH',pass:'ABC12345'}" --prod` makes an empty workspace behind that passphrase, which its owner changes from Setup. It runs on the deployment's key, like Octopus and Squidgy, and opens from the landing by its name. You can share a brain with it.
-
-**Share a brain.** In the owner's Settings, a fold called Share brain has a workspace select and a button per brain. It is one brain, not a copy. Shared with Squidgy, a drop in either workspace fills both, and a clash ruled in one is ruled in both. Shared with the demo, visitors can ask it and nobody can change it. Each workspace keeps its own passphrase, chats and other brains. A personal brain is never shared, and a workspace can leave a brain it was given.
-
-**Change the passphrase.** Settings asks for the current one, sets the new one, and signs everyone else out.
-
-**Your key stays yours.** It is checked once with OpenRouter, then kept in your browser, and travels only with the calls that need a model. The server keeps no copy. A workspace on its own key runs on that key only. Sign out forgets it.
+- **A workspace for someone, on your key.** `npx convex run admin:makeWorkspace "{name:'PandAAAHH',pass:'ABC12345'}" --prod` makes an empty workspace behind that passphrase. Its owner changes the passphrase from Settings.
+- **Share a folder.** One folder, two workspaces, one copy. A drop in either fills both, and a clash ruled in one is ruled in both. Shared with the demo, visitors can only ask it. A personal folder stays private.
+- **Your key stays yours.** It is checked once with OpenRouter, kept in your browser, and sent only with the calls that need a model. Sign out forgets it.
 
 ## Run your own
 
@@ -162,7 +190,7 @@ npx convex run admin:makeDemo '{"copy":["health","content","social"]}' --prod
 Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.convex.site` address. In Windows PowerShell, write each argument as `"{space:'octopus',pass:'...'}"`.
 
 <details>
-<summary><b>Settings</b></summary>
+<summary><b>Environment variables</b></summary>
 
 <br>
 
@@ -180,7 +208,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 | `DIGEST_TO` | Where the Monday digest goes: the week's sources, new concepts and open conflicts. |
 | `FEEDBACK_TO` | Where Send feedback mails an error. Unset, it goes to `DIGEST_TO`. |
 
-`admin:copyBrain '{"slug":"...","space":"demo"}'` adds one more brain to the demo. `digest:send '{"dry":true}'` previews the digest.
+`admin:copyBrain '{"slug":"...","space":"demo"}'` adds one more folder to the demo. `digest:send '{"dry":true}'` previews the digest.
 
 </details>
 
@@ -189,9 +217,9 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 
 <br>
 
-**Connector.** In an owner's workspace, Settings gives an MCP address. Paste it into Claude, ChatGPT or any MCP client: it reads and feeds that workspace's brains, and the client's own model does the thinking. `/doc` has the steps.
+**Connector.** In an owner's workspace, Settings gives an MCP address. Paste it into Claude, ChatGPT or any MCP client: it reads and feeds that workspace's folders, and the client's own model does the thinking. `/doc` has the steps.
 
-**Claude Code.** Copy `skill/brain/` into `~/.claude/skills/brain/`. The brains are then plain markdown files under `brains/`, following [the 41 rules](docs/PROTOCOL.md).
+**Claude Code.** Copy `skill/brain/` into `~/.claude/skills/brain/`. The folders are then plain markdown files under `brains/`, following [the 41 rules](docs/PROTOCOL.md).
 
 </details>
 
@@ -200,39 +228,37 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 
 <br>
 
-- Passphrases are stored as salted SHA-256 hashes, one per workspace: 8 wrong guesses close that door for an hour. Each guess is counted before it is checked, so guesses sent all at once get no more.
-- Every route checks the session before it reads a brain or calls a model.
-- The demo runs on the default model within its monthly limits, and cannot create, rename or connect brains.
-- A personal brain is read by its own chat only. Every other reader loads the workspace without it.
-- A visitor's OpenRouter key is never stored on the server. It travels only with the calls that spend a model, and Sign out forgets it. Raw transcripts are never stored either: only what was extracted.
-- Linking runs later on the deployment's key, so the demo and a workspace on its own key never start it.
+- Passphrases are stored as salted SHA-256 hashes, one per workspace. 8 wrong guesses close that door for an hour, and each guess is counted before it is checked.
+- Every route checks the session before it reads a folder or calls a model.
+- The demo runs on the default model within its monthly limits. Creating, renaming and connecting folders are closed to it.
+- A personal folder is read by its own chat only. Every other reader loads the workspace without it.
+- The server keeps only what was extracted: a visitor's OpenRouter key and raw transcripts stay out of it.
+- Linking runs later on the deployment's key, so it stays off in the demo and in a workspace on its own key.
 - The Word reader loads from cdnjs only if its bytes match the published hash.
 
 </details>
 
-<details>
-<summary><b>Project layout</b></summary>
+## Work on it
 
-<br>
-
-```
-app/            the landing, the app (one file), the white paper and the connector page
-convex/         the server: routes, store, drop, one-pager, health, conflicts, personal
-scripts/        2466 checks, the app driven in a real browser included
-docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
-skill/brain/    the same behaviour, as a Claude Code skill
-templates/      the markdown shape of a brain
-```
-
-</details>
-
-## Checks
+The app's source sits in `web/chat/`, one file a screen. `npm run build` joins it into `app/chat.html`, the one file the host serves. Commit both.
 
 ```bash
-npm run check
+npm run build     # web/chat into app/chat.html
+npm run check     # the build first, then 2480 checks
+npm run deploy    # the server, to Convex
 ```
 
-2466 checks: the pages parse and bind, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal brain, projects, and the app itself driven in a real browser.
+```
+app/            the landing, the built app, the white paper, the install manifest and icons
+web/chat/       the app's source: page.html, 10 stylesheets and 18 scripts, one a screen
+convex/         the server: routes, store, drop, one-pager, health, conflicts, personal, projects
+scripts/        the build and the checks, the app driven in a real browser included
+docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
+skill/brain/    the same behaviour, as a Claude Code skill
+templates/      the markdown shape of a folder
+```
+
+`npm run check` runs 2480 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, projects, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 
