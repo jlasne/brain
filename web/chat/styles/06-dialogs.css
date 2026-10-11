@@ -1,0 +1,147 @@
+/* 06-dialogs.css: Dialogs, sheets and the passphrase screen. */
+
+  /* ============ modal ============ */
+  .veil{
+    position:fixed; inset:0; background:rgba(20,20,19,.44); backdrop-filter:blur(3px);
+    display:grid; place-items:center; padding:20px; z-index:50;
+    animation:fade .18s var(--ease) both;
+  }
+  @keyframes fade{ from{opacity:0} to{opacity:1} }
+  .sheet{
+    width:100%; max-width:480px; background:var(--surface);
+    /* A tall sheet, Setup above all, scrolls inside itself rather than losing its top. */
+    max-height:calc(100dvh - 40px); overflow-y:auto; overscroll-behavior:contain;
+    border:1px solid var(--line); border-radius:18px;
+    box-shadow:var(--shadow-lift);
+    animation:rise .24s var(--ease) both;
+  }
+  .sheet header{ padding:18px 20px 14px; border-bottom:1px solid var(--line); }
+  .sheet h3{ font:600 19px/1.25 var(--sans); letter-spacing:-.01em; color:var(--ink); }
+  .sheet header p{ margin-top:7px; font-size:13.5px; line-height:1.55; color:var(--ink-3); }
+  .sheet .f{ padding:16px 20px 4px; }
+  .sheet .f + .f{ padding-top:0; }
+  .sheet label{
+    display:block; font:500 13px/1 var(--sans); color:var(--ink);
+    margin-bottom:7px;
+  }
+  /* Built from: folders as chips, several at once, grouped like the side panel. */
+  .pk-multi{ display:flex; flex-wrap:wrap; gap:6px; padding:2px; }
+  /* The one-pager: its title and its Build bar stay in view while the choices scroll. */
+  .pager-sheet{ max-width:560px; }
+  .pager-sheet > header{ position:sticky; top:0; z-index:2; background:var(--surface); }
+  .pager-sheet > footer{ position:sticky; bottom:0; z-index:2; background:var(--surface); border-top:1px solid var(--line); align-items:center; }
+  .pg-sum{ flex:1; min-width:0; margin-right:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:400 12.5px/1.3 var(--sans); color:var(--ink-3); }
+  @media (max-width:560px){
+    .pager-veil.veil{ padding:0; place-items:stretch; }
+    .pager-veil .sheet.pager-sheet{ width:100%; max-width:none; height:100dvh; max-height:none; border-radius:0; border:0; }
+    .pager-sheet > header p{ display:none; }
+    .pager-sheet > footer{ padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px)); flex-wrap:wrap; }
+    .pager-sheet > footer .pg-sum{ flex:1 0 100%; margin-bottom:8px; }
+    .pager-sheet > footer button{ flex:1; min-height:46px; }
+  }
+  .pk-multi .pm-g{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; width:100%; }
+  .pk-multi .pm-head{ width:100%; padding:6px 2px 0; border:0; background:none; text-align:left; cursor:pointer;
+    font:600 12px/1 var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); }
+  .pk-multi .pm-head:hover{ color:var(--ink); }
+  .pm-chip{ min-height:32px; padding:0 12px; border:1px solid var(--line-2); border-radius:999px; background:var(--surface); cursor:pointer;
+    font:500 13px/1 var(--sans); color:var(--ink-2); transition:background .15s ease, color .15s ease, border-color .15s ease, transform .1s ease; }
+  .pm-chip:hover{ border-color:var(--ink-4); color:var(--ink); }
+  .pm-chip:active{ transform:scale(.97); }
+  .pm-chip.on{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
+  .pm-chip i{ font-style:normal; font:500 12px/1 var(--mono); opacity:.7; margin-left:4px; }
+  @media (max-width:520px){ .pm-chip{ min-height:40px; } }
+  .sheet select.pick{
+    width:100%; border:1px solid var(--line-2); border-radius:9px; background:var(--bg);
+    padding:10px 12px; font:400 14.5px/1.5 var(--sans); color:var(--ink);
+  }
+  .sheet input, .sheet textarea{
+    width:100%; border:1px solid var(--line-2); border-radius:9px; background:var(--bg);
+    padding:10px 12px; font:400 14.5px/1.5 var(--sans); color:var(--ink);
+    transition:border-color .15s var(--ease);
+  }
+  .sheet input:focus, .sheet textarea:focus{ border-color:var(--accent-fill); }
+  .sheet textarea{ resize:vertical; min-height:62px; }
+  .sheet .hint{ margin-top:7px; font:400 13px/1.5 var(--sans); color:var(--ink-3); }
+  .sheet footer{ padding:16px 20px 18px; display:flex; justify-content:flex-end; gap:9px; }
+  .closest{
+    margin:0 20px 4px; padding:12px 14px; border-radius:12px;
+    border:1px solid var(--accent-line); background:var(--accent-soft);
+    font-size:13.5px; line-height:1.55;
+  }
+  .closest b{ display:block; font:600 12.5px/1 var(--sans); color:var(--accent); margin-bottom:6px; }
+  /* New folder: a folder fed by Drop, or a personal one fed by what you say. */
+  .kind{ display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:5px; border:1px solid var(--line); border-radius:13px; background:var(--bg); }
+  .kind button{ display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px; text-align:left; }
+  .kind button b{ display:block; font:600 14px/1.2 var(--sans); color:var(--ink-2); }
+  .kind button small{ display:block; margin-top:2px; font:400 12px/1.35 var(--sans); color:var(--ink-4); }
+  .kind button.on{ background:var(--surface); box-shadow:var(--shadow); }
+  .kind button.on b{ color:var(--ink); }
+  .kind .k-ic{ width:30px; height:30px; flex:none; display:grid; place-items:center; border-radius:9px; background:var(--accent-soft); color:var(--accent); }
+  .kind .k-ic.me{ background:var(--ink); color:var(--bg); }
+  .kind .k-ic svg{ width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .sheet .switch-row{ position:relative; display:flex; gap:12px; align-items:flex-start; margin:14px 20px 4px; padding:13px 14px;
+    border:1px solid var(--line); border-radius:12px; cursor:pointer; font:inherit; }
+  .sheet .switch-row.on{ border-color:var(--accent-line); background:var(--accent-soft); }
+  .sheet .switch-row[hidden]{ display:none; }
+  .sheet .switch-row input{ position:absolute; width:1px; height:1px; opacity:0; padding:0; border:0; }
+  .switch-row .sw{ position:relative; width:38px; height:22px; flex:none; margin-top:1px; border-radius:11px; background:var(--line-2); transition:background .15s var(--ease); }
+  .switch-row .sw::after{ content:""; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff;
+    box-shadow:0 1px 2px rgba(0,0,0,.2); transition:transform .15s var(--ease); }
+  .switch-row input:checked + .sw{ background:var(--accent-solid); }
+  .switch-row input:checked + .sw::after{ transform:translateX(16px); }
+  .switch-row input:focus-visible + .sw{ outline:2px solid var(--accent-fill); outline-offset:2px; }
+  .switch-row b{ display:block; font:600 14px/1.3 var(--sans); color:var(--ink); }
+  .switch-row small{ display:block; margin-top:3px; font:400 12.5px/1.5 var(--sans); color:var(--ink-3); }
+  .mine-note{ padding:11px 13px; border-radius:11px; background:var(--bg); border:1px solid var(--line); font:400 13px/1.5 var(--sans); color:var(--ink-3); }
+  .mine-note b{ color:var(--ink); font-weight:600; }
+  .sheet label .optl{ font-weight:400; color:var(--ink-4); }
+  .sheet.roomy .f + .f{ padding-top:12px; }
+
+  /* ============ gate ============ */
+  .app.locked{ filter:blur(2.5px); pointer-events:none; user-select:none; }
+  .sheet .mk{ width:30px; height:30px; color:var(--accent-fill); margin-bottom:13px; }
+  .sheet .mk svg{ width:100%; height:100%; display:block; }
+  .sheet .bad{ color:var(--accent); font-size:13.5px; line-height:1.5; margin-top:4px; min-height:1.2em; }
+  .sheet .spin{ color:var(--ink-3); font-size:13.5px; line-height:1.5; margin-top:4px; min-height:1.2em; }
+
+  /* A personal brain's reply says, quietly, what it filed. */
+  .filed{ margin-top:9px; font:400 12.5px/1.5 var(--sans); color:var(--ink-4); display:flex; align-items:center; gap:6px; }
+  .filed::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--accent-fill); flex:none; }
+  .filed.called{ margin-top:4px; }
+  .filed.called::before{ background:transparent; box-shadow:inset 0 0 0 1.5px var(--accent-fill); }
+  .sheet textarea.mem{ min-height:180px; font:400 14px/1.55 var(--sans); }
+  .mem-bar{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px; }
+
+  /* The look: a logo and two colours, previewed on the page as they change. */
+  .look{ display:flex; gap:10px; flex-wrap:wrap; }
+  .sheet .look-logo, .sheet .look-c{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; width:88px; min-height:84px; margin:0;
+    padding:10px 6px 9px; border:1px solid var(--line-2); border-radius:12px; background:var(--bg); cursor:pointer;
+    font:500 12px/1 var(--sans); color:var(--ink-3); transition:border-color .15s var(--ease);
+  }
+  .sheet .look-logo:hover, .sheet .look-c:hover{ border-color:var(--accent-fill); }
+  .look-logo img{ width:38px; height:38px; object-fit:contain; }
+  .sheet .look-c input{ width:38px; height:38px; padding:0; border:none; border-radius:50%; background:none; cursor:pointer; }
+  .look-c input::-webkit-color-swatch-wrapper{ padding:0; }
+  .look-c input::-webkit-color-swatch{ border:1px solid var(--line-2); border-radius:50%; }
+  .look-c input::-moz-color-swatch{ border:1px solid var(--line-2); border-radius:50%; }
+  .look-acts{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:12px; }
+
+  /* The passphrase, on top of the workspace it opens: the page behind wears
+     the workspace's colours and mark, blurred, and the card sits high, where
+     the eye lands first. */
+  .veil.gate-veil{ place-items:start center; padding:max(9vh, 20px) 20px 20px; background:rgba(20,20,19,.26); }
+  .sheet.wsgate{ max-width:400px; }
+  .wsgate .gmk{ display:block; width:46px; height:46px; object-fit:contain; margin-bottom:12px; }
+  .wsgate h3{ font-size:22px; letter-spacing:-.02em; }
+  .wsgate input{ font-size:16px; }
+  .wsgate .gmsg{ min-height:1.5em; color:var(--accent); }
+  .wsgate footer{ justify-content:space-between; align-items:center; }
+  .wsgate footer a.ghost{ text-decoration:none; }
+
+  label.check{
+    display:flex; align-items:flex-start; gap:8px; cursor:pointer;
+    font:400 14px/1.45 var(--sans); color:var(--ink-2);
+  }
+  label.check input{ width:auto; margin-top:2px; accent-color:var(--accent-fill); flex-shrink:0; }
+

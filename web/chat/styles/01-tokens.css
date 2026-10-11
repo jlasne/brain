@@ -1,0 +1,109 @@
+/* 01-tokens.css: Colours, fonts and the dark page: every token the rest is styled through, and each workspace's accent. */
+
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+  /* ======================================================================
+     TASU
+
+     Greys, white and near-black, the way the landing reads. A workspace
+     keeps its own accent: Octopus its orange, Squidgy its brown, and any
+     workspace the colours it sets in Settings.
+
+       --side          the side panel, a step off white
+       --accent-solid  the one filled button: near-black, or the workspace's
+       --serif         titles; --sans for everything read
+     ====================================================================== */
+  :root{
+    /* The mark the loader turns. */
+    --mark:url("/brand/tasu.svg");
+    --bg:#ffffff; --side:#f7f7f8; --surface:#ffffff; --surface-2:#f4f4f5; --surface-3:#e9e9ec;
+    --ink:#09090b; --ink-2:#27272a; --ink-3:#52525b; --ink-4:#6b6b74;
+    --line:#ececef; --line-2:#e1e1e5;
+    /* A side panel row under the pointer, and the one you are on. */
+    --side-hover:rgba(0,0,0,.045); --side-on:rgba(0,0,0,.065);
+    /* The chat bar's edge when it has the focus, and a health ring's three tones. */
+    --focus-line:#d4d4d8; --ring-hi:#27272a; --ring-mid:#8a8a93; --ring-lo:#c4c4cb;
+    --accent:#18181b; --accent-fill:#3f3f46; --accent-solid:#18181b; --accent-on:#ffffff;
+    --accent-soft:rgba(24,24,27,.05); --accent-line:rgba(24,24,27,.16);
+    --good:#3f7d5c; --warn:#94650f; --bad:#b3372a;
+    --shadow:0 1px 2px rgba(0,0,0,.04), 0 1px 6px rgba(0,0,0,.03);
+    --shadow-lift:0 8px 30px -4px rgba(0,0,0,.09), 0 4px 10px rgba(0,0,0,.03);
+    --sans:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+    --serif:"Frank Ruhl Libre","Iowan Old Style","Apple Garamond",Georgia,serif;
+    --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --ease:cubic-bezier(.22,1,.36,1);
+    color-scheme:light;
+  }
+  /* Octopus keeps its orange, as its accent only. */
+  :root[data-space="octopus"]{
+    --mark:url("/brand/logo-mark.png");
+    --accent:#a54b2f; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#ffffff;
+    --accent-soft:rgba(217,119,87,.09); --accent-line:rgba(217,119,87,.34);
+  }
+
+  /* Squidgy keeps its brown, as its accent only. */
+  :root[data-space="squidgy"]{
+    --mark:url("/brand/squidgy-mark.png");
+    --accent:#7a4e36; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
+    --accent-soft:rgba(168,112,78,.09); --accent-line:rgba(168,112,78,.36);
+  }
+
+  /* ======================================================================
+     DARK
+
+     The same greys, turned over: near-black pages, a side panel a step
+     lighter, text a step off white. Picked in Settings (System, Light or
+     Dark); System follows the device. The page always carries data-theme,
+     set before the first paint, so these colours are written once. A workspace's accent stays its own,
+     lifted so it reads on a dark page.
+     ====================================================================== */
+  :root[data-theme="dark"]{
+    --bg:#111113; --side:#161618; --surface:#1b1b1e; --surface-2:#222226; --surface-3:#2c2c31;
+    --ink:#f4f4f5; --ink-2:#e4e4e7; --ink-3:#b4b4bc; --ink-4:#8e8e98;
+    --line:#27272c; --line-2:#34343b;
+    --accent:#f4f4f5; --accent-fill:#d4d4d8; --accent-solid:#f4f4f5; --accent-on:#18181b;
+    --accent-soft:rgba(244,244,245,.07); --accent-line:rgba(244,244,245,.24);
+    --good:#6fbf8f; --warn:#d9a441; --bad:#f07466;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 1px 6px rgba(0,0,0,.3);
+    --shadow-lift:0 8px 30px -4px rgba(0,0,0,.65), 0 4px 10px rgba(0,0,0,.35);
+    --side-hover:rgba(255,255,255,.055); --side-on:rgba(255,255,255,.085);
+    --focus-line:#4a4a52; --ring-hi:#e4e4e7; --ring-mid:#8e8e98; --ring-lo:#4a4a52;
+    color-scheme:dark;
+  }
+  :root[data-theme="dark"][data-space="octopus"]{
+    --accent:#ef9e7f; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#ffffff;
+    --accent-soft:rgba(217,119,87,.15); --accent-line:rgba(217,119,87,.45);
+  }
+  :root[data-theme="dark"][data-space="squidgy"]{
+    --accent:#d6a688; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
+    --accent-soft:rgba(168,112,78,.16); --accent-line:rgba(168,112,78,.48);
+  }
+  /* The kinds of link keep their colours, lighter, on a dark page. */
+  :root[data-theme="dark"] .vw-link i.lk-needs{ color:#facc15; } :root[data-theme="dark"] .vw-link i.lk-causes{ color:#c4b5fd; }
+  :root[data-theme="dark"] .vw-link i.lk-supports{ color:#86efac; } :root[data-theme="dark"] .vw-link i.lk-contradicts{ color:#fca5a5; }
+  :root[data-theme="dark"] .vw-link i.lk-example{ color:#7dd3fc; }
+
+  /* The dog greets an empty thread. */
+  .zero-mark{ display:block; height:92px; width:auto; margin-bottom:22px; }
+  /* The octopus's loop, on the empty chat. Its frame holds the sparkles and
+     the landing ring, so it runs larger than a still mark. */
+  .zero-loop{ display:block; width:150px; height:150px; margin:-18px 0 6px -24px; pointer-events:none; }
+
+  html{ background:var(--bg); }
+  body{
+    background:var(--bg); color:var(--ink-2);
+    font:400 16px/1.62 var(--sans);
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    height:100dvh; overflow:hidden;
+  }
+  ::selection{ background:var(--accent-soft); color:var(--ink); }
+
+  button,input,textarea,select{ font:inherit; color:inherit; background:none; border:none; }
+  button{ cursor:pointer; }
+  :focus-visible{ outline:2px solid var(--accent-fill); outline-offset:2px; border-radius:4px; }
+
+  ::-webkit-scrollbar{ width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line-2); border-radius:10px; border:3px solid transparent; background-clip:content-box; }
+  ::-webkit-scrollbar-thumb:hover{ background:var(--surface-3); background-clip:content-box; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+

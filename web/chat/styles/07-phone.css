@@ -1,0 +1,158 @@
+/* 07-phone.css: Narrow screens and phones. */
+
+  /* ============ responsive ============ */
+  @media (max-width:860px){
+    .app{ grid-template-columns:1fr; }
+    aside{
+      position:fixed; inset:0 auto 0 0; width:264px; z-index:40;
+      transform:translateX(-100%); transition:transform .22s var(--ease), box-shadow .22s var(--ease);
+    }
+    /* The shadow comes with the drawer: closed, it bled a grey band down the left edge. */
+    aside.open{ transform:none; box-shadow:0 0 40px rgba(0,0,0,.5); }
+    .burger{ display:grid !important; }
+  }
+  .burger{
+    display:none; place-items:center; width:32px; height:32px; border-radius:7px;
+    border:1px solid var(--line); color:var(--ink-2); flex-shrink:0;
+  }
+  .topbar{
+    display:flex; align-items:center; gap:11px; padding:12px 20px;
+    border-bottom:1px solid var(--line); background:var(--surface-2);
+  }
+  @media (min-width:861px){ .topbar{ display:none; } }
+  .topbar h1{ font:600 16px/1 var(--sans); color:var(--ink); }
+  .barmark{ width:24px; height:24px; object-fit:contain; margin-right:-3px; }
+  .scrim{ display:none; }
+
+  /* ============ phone ============
+     Measured at 390 by 844. A thumb needs 44 pixels, so every control reaches
+     it. A field under 16 pixels makes iPhone zoom the page on every tap, so
+     every field is 16. Nothing here reaches past 860 pixels, so the desktop
+     layout does not move. */
+  @media (max-width:860px){
+    /* The drawer gets a dimmed backdrop, and a tap on it closes the drawer. */
+    .scrim{
+      display:block; position:fixed; inset:0; z-index:39;
+      background:rgba(20,20,19,.38); opacity:0; pointer-events:none;
+      transition:opacity .22s var(--ease);
+    }
+    aside.open ~ .scrim{ opacity:1; pointer-events:auto; }
+    .burger{ width:44px; height:44px; margin-left:-8px; border:none; }
+    .topbar{ padding:0 16px; gap:9px; position:relative; z-index:2; }
+    /* The name goes back to the door, so it is a target too. */
+    .topbar h1 a, .brand h1 a{ display:inline-block; padding:12px 4px; margin:0 -4px; }
+
+    /* Two rows, nothing off screen: Ask or Drop and the brains first, then
+       the levels and New thread. One row that scrolled sideways hid the
+       levels past the edge. */
+    .ctrls{ flex-wrap:wrap; row-gap:8px; margin:0 0 9px; }
+    .ctrls > *{ flex-shrink:0; }
+    /* A soft edge says the row goes on. */
+    .tools{
+      -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 28px), transparent);
+              mask-image:linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    }
+    .seg button{ min-height:42px; padding:0 17px; font-size:14px; }
+    .scope{ min-height:44px; }
+    .scope label{ font-size:14px; }
+    .scope select{ font-size:16px; min-height:42px; }
+    .pick-btn{ height:44px; font-size:14px; max-width:210px; }
+    .pick-menu{ width:min(320px, calc(100vw - 24px)); }
+    .pick-menu .pk-row{ padding:12px 10px; font-size:15px; }
+    .fresh{ height:44px; font-size:14px; padding:0 15px; }
+
+    /* Drop: the hint gets its own line, and the three tools share one row
+       that scrolls, so the send button stays on screen. */
+    .box .tbar .t{ flex:1 0 100%; order:-1; font-size:12px; }
+    .box .tbar .t:empty{ display:none; }
+    .tools{ flex:1 1 0; min-width:0; overflow-x:auto; scrollbar-width:none; }
+    .tools::-webkit-scrollbar{ display:none; }
+    .paste{ min-height:40px; padding:0 13px; font-size:12px; flex-shrink:0; }
+    .send{ width:44px; height:44px; }
+    .mic{ width:44px; height:44px; margin-left:auto; }
+    .box textarea{ font-size:16px; }
+    .dropsrc input{ font-size:16px; min-height:40px; }
+    .dropsrc label{ font-size:12px; }
+    .foot-note{ display:none; }
+
+    /* The sidebar, with 44 pixel rows. */
+    .brain-row .ed{ font-size:12px; }
+    .brain-row .ed{ padding:8px 9px; }
+    .foot-btn, .side-acts .sa{ min-height:44px; }
+    .group-h, .foot-btn .lbl{ font-size:12px; }
+    .foot-btn .val{ font-size:12.5px; }
+
+    /* In the thread. */
+    .smallbrain{ font-size:12px; }
+    .pager{ padding:18px 16px; }
+    .pager .acts{ gap:8px; }
+    .pager .acts input{ flex:1 0 100%; order:-1; font-size:16px; min-height:44px; }
+    .card-grid .author input, .card-grid .author select{ font-size:16px; min-height:44px; max-width:none; }
+    .pager .acts .fresh{ flex:1; }
+    .pager .foot, .pager h4{ font-size:12px; }
+
+    /* Dialogs rise from the bottom, where the thumb is, and scroll inside
+       themselves, so a tall one with the keyboard open is never cut off. */
+    .veil{ place-items:end center; padding:0; }
+    .sheet{
+      max-width:none; max-height:92dvh; overflow-y:auto;
+      border-radius:18px 18px 0 0; border-bottom:none;
+      animation:up .26s var(--ease) both;
+    }
+    .sheet input, .sheet textarea, .sheet select{ font-size:16px; }
+    .sheet footer button, .sheet .go, .sheet .ghost{ min-height:44px; }
+    .sheet .seg button{ min-height:42px; }
+  }
+  @keyframes up{ from{ transform:translateY(24px); opacity:0; } }
+
+  @media (max-width:520px){
+    /* On a phone, two rows: Ask or Drop and the brains, then the levels with
+       New thread beside them. */
+    .ctrls{ display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:8px; }
+    #scopeBtn{ grid-area:1 / 1 / 2 / 3; max-width:none; min-width:0; }
+    #scopeBtn:only-child, .ctrls:has(#freshBtn[hidden]) #scopeBtn{ grid-column:1 / 4; }
+    #levelWrap{ grid-area:2 / 1 / 3 / 4; display:flex; }
+    #levelWrap[hidden]{ display:none; }
+    #freshBtn{ grid-area:1 / 3; }
+    #levelWrap .seg.lv{ flex:1; }
+    #levelWrap .seg.lv button{ flex:1; justify-content:center; }
+    /* The level picked shows its name; the others show their icon. */
+    .seg.lv button{ padding:0 12px; }
+    .col, .composer, .foot-note{ padding-left:16px; padding-right:16px; }
+    .zero{ padding-left:16px; padding-right:16px; }
+    /* The empty chat stays short, so its questions to try are on screen. */
+    .zero{ padding-top:14px; }
+    .zero-mark{ height:52px; margin-bottom:12px; }
+    .zero-loop{ width:96px; height:96px; margin:-10px 0 0 -14px; }
+    .zero .lede{ display:none; }
+    .zero .try{ margin-top:14px; }
+    .zero .try button{ font-size:14px; }
+    /* The demo bar: one line of text, the three buttons on one row. */
+    .demo-bar{ margin-top:8px; padding:9px 11px; gap:8px; font-size:12.5px; line-height:1.45; }
+    .demo-bar .db-more{ display:none; }
+    .demo-bar .db-acts{ flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
+    .demo-bar .db-b{ padding:7px 10px; font-size:12px; white-space:nowrap; }
+    /* A personal chat: Add memory, the brain and New chat, on one row. */
+    #memBtn{ grid-area:1 / 1; }
+    .ctrls:has(#memBtn:not([hidden])) #scopeBtn{ grid-area:1 / 2; }
+    .pk-lbl{ display:none; }
+    /* A brain's open and edit become icons, so its name has room. */
+    .brain-row .nm{ flex:1 1 auto; min-width:0; }
+    .brain-row .ed{ font-size:0; width:30px; height:30px; padding:0; place-items:center; }
+    .brain-row:hover .ed, .brain-row.on .ed{ display:inline-grid; }
+    .brain-row .ed::before{ content:""; width:16px; height:16px; background:currentColor;
+      -webkit-mask:var(--ic) center/contain no-repeat; mask:var(--ic) center/contain no-repeat; }
+    .brain-row .ed.op{ --ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7Zm0 3.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z'/%3E%3C/svg%3E"); }
+    .card-grid{ grid-template-columns:1fr; gap:4px 0; }
+    .card-grid dt{ margin-top:8px; }
+    .cf{ grid-template-columns:1fr; gap:4px; }
+  }
+
+  @media (max-width:520px) and (hover:none){ .brain-row .ed{ display:inline-grid; } }
+
+  @media (prefers-reduced-motion:reduce){
+    *{ animation:none !important; transition:none !important; scroll-behavior:auto !important; }
+    /* A loop is motion too: the still mark stands in for it. */
+    :root[data-space="octopus"] .spinner{ background-image:var(--mark); }
+  }
+

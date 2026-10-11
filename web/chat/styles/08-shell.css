@@ -1,0 +1,254 @@
+/* 08-shell.css: The Tasu shell, last of the base so it settles what came before: side panel, chat bar and folder screens as they look today. */
+
+  /* ======================================================================
+     THE TASU SHELL
+
+     A flat side panel a step off white, rows that light grey under the
+     pointer, and the chat bar floating over the thread. Last in the sheet,
+     so it settles what came before it.
+     ====================================================================== */
+  /* ---- the side panel ----
+     One column, three layers: who you are (the workspace), what you do (New chat, then Drop and One-pager side by side), and what you
+     have (Chats, Projects, Folders). Settings and Sign out sit at the foot, where an account lives. A list is named by a quiet label, so the
+     rows carry the eye; the row you are on is filled, with a thin accent at its edge. */
+  aside{ background:var(--side); border-right:1px solid var(--line); }
+  .brand{ padding:14px 12px 10px 16px; gap:10px; min-height:58px; }
+  .brand .mark{ width:24px; height:24px; }
+  .brand h1{ flex:1; min-width:0; font:600 15.5px/1.2 var(--sans); letter-spacing:-.012em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .navtoggle{ width:30px; height:30px; border-radius:8px; color:var(--ink-4); }
+  .navtoggle:hover{ color:var(--ink); background:var(--side-hover); }
+  .side-scroll{ padding:4px 10px 16px; }
+
+  .side-acts{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:0 0 20px; }
+  .side-acts .sa{ display:flex; align-items:center; gap:8px; min-height:36px; padding:0 11px; border:1px solid var(--line-2); border-radius:9px;
+    background:var(--surface); box-shadow:0 1px 1px rgba(0,0,0,.025); font:500 13.5px/1 var(--sans); color:var(--ink-2);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;
+    transition:border-color .15s ease, color .15s ease, background .15s ease; }
+  .side-acts .sa:hover{ border-color:var(--ink-4); color:var(--ink); background:var(--surface); }
+  .side-acts .sa svg{ color:var(--ink-3); }
+  .side-acts .sa:hover svg{ color:var(--ink); }
+  .side-acts .sa.go{ grid-column:1 / -1; justify-content:center; min-height:40px; border-color:transparent; border-radius:10px;
+    background:var(--accent-solid); color:var(--accent-on); font-size:14px;
+    box-shadow:0 1px 2px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.10); }
+  .side-acts .sa.go svg{ color:currentColor; }
+  .side-acts .sa.go:hover{ background:var(--accent-solid); color:var(--accent-on); border-color:transparent; filter:brightness(1.1); }
+  .side-acts .sa.on{ border-color:var(--accent-line); background:var(--accent-soft); color:var(--accent); }
+  .side-acts .sa.on svg{ color:var(--accent); }
+  .side-acts .sa.go.on{ box-shadow:0 0 0 2px var(--side), 0 0 0 4px var(--accent-line); }
+
+  .panel{ background:transparent; border:0; border-radius:0; box-shadow:none; }
+  .panel + .panel{ margin-top:20px; }
+  /* A list's head: a quiet label, how many, a chevron that shows on the pointer, and its +. */
+  .panel-h{ min-height:30px; padding:0 2px 0 10px; border-radius:8px; transition:background .15s ease; }
+  .panel-h:hover{ background:var(--side-hover); }
+  .panel .fold-t{ flex:1; gap:7px; padding:7px 0; font:600 12px/1 var(--sans); letter-spacing:.075em; text-transform:uppercase; color:var(--ink-4); }
+  .panel .fold-t:hover{ color:var(--ink-2); }
+  .panel .fold-t b{ min-width:0; padding:0; border-radius:0; background:none; font:500 12px/1 var(--mono); letter-spacing:0; color:var(--ink-4); opacity:.85; }
+  .panel .fold-t b:empty{ display:none; }
+  .panel .chev{ width:6px; height:6px; margin:0 8px 0 auto; border:0; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor;
+    opacity:0; transform:translateY(-2px) rotate(45deg); transition:transform .25s var(--ease, ease), opacity .15s ease; }
+  .panel-h:hover .chev, .panel .fold-t:focus-visible .chev, .panel .fold-t[aria-expanded="false"] .chev{ opacity:1; }
+  .panel .fold-t[aria-expanded="false"] .chev{ transform:rotate(-45deg); }
+  .panel .side-plus{ width:28px; height:28px; border-radius:7px; background:transparent; color:var(--ink-4); }
+  .panel .side-plus:hover{ background:var(--surface); color:var(--ink); box-shadow:0 0 0 1px var(--line-2); }
+  .panel-b{ border-top:0; padding:4px 0 0; }
+  .panel-b:not([hidden]){ animation:pbOpen .26s var(--ease, ease) both; }
+  @keyframes pbOpen{ from{ opacity:0; transform:translateY(-4px); } to{ opacity:1; transform:none; } }
+  /* A group inside Folders: its name, how many, and a hairline to the edge. */
+  .panel .group-h{ display:flex; align-items:center; gap:8px; margin:12px 10px 4px; font:500 12px/1 var(--sans); letter-spacing:.04em;
+    text-transform:none; color:var(--ink-4); }
+  .panel .group-h::after{ content:attr(data-n); order:1; font:500 12px/1 var(--mono); letter-spacing:0; color:var(--ink-4); opacity:.75; }
+  .panel .group-h::before{ content:""; order:2; flex:1; height:1px; background:var(--line); }
+  .panel .group-h:first-child{ margin-top:4px; }
+  .brain-row .cnt{ margin-left:auto; font:500 12px/1 var(--mono); color:var(--ink-4); }
+  .brain-row .cnt:empty{ display:none; }
+  .brain-row .cnt + .hring{ margin-left:8px; }
+  .brain-row .ro-tag{ flex:none; padding:2px 6px; border-radius:6px; background:var(--side-hover); font:500 12px/1.2 var(--sans); color:var(--ink-3); }
+  .panel .empty-side{ padding:4px 10px; }
+
+  .chat-row, .brain-row{ min-height:34px; align-items:center; border:0; border-radius:8px; padding:6px 10px; }
+  .chat-row + .chat-row, .brain-row + .brain-row{ margin-top:1px; }
+  .chat-row:hover, .brain-row:hover{ background:var(--side-hover); }
+  .chat-row.on, .brain-row.on{ background:var(--side-on); border:0; box-shadow:inset 2px 0 0 var(--accent-fill); }
+  .chat-row .nm, .brain-row .nm{ font:400 13.5px/1.35 var(--sans); color:var(--ink-2); }
+  .chat-row.on .nm, .brain-row.on .nm{ font-weight:500; color:var(--ink); }
+  .brain-row.on .b-ic, .brain-row .b-ic{ color:var(--ink-4); }
+
+  /* The foot: Settings, then Sign out, on one line. */
+  .side-foot{ display:flex; flex-wrap:wrap; align-items:center; gap:4px; border-top:1px solid var(--line); padding:8px 10px 10px; }
+  .side-foot .side-go{ flex:1 0 100%; }
+  .sf-btn{ flex:1; min-width:0; display:flex; align-items:center; gap:9px; min-height:36px; padding:0 10px; border-radius:8px;
+    font:500 13.5px/1 var(--sans); color:var(--ink-2); transition:background .15s ease, color .15s ease; }
+  .sf-btn svg{ width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; color:var(--ink-3); }
+  .sf-btn:hover{ background:var(--side-hover); color:var(--ink); }
+  .sf-btn.on{ background:var(--side-on); color:var(--ink); }
+  .foot-link{ justify-self:auto; min-height:36px; padding:0 10px; border-radius:8px; font:500 12.5px/1 var(--sans); color:var(--ink-4); }
+  .foot-link:hover{ background:var(--side-hover); color:var(--ink); }
+  .side-go{ background:var(--surface); color:var(--ink); }
+
+  /* On a phone the side panel is a drawer, and every control in it reaches 44 pixels. Last, so nothing above undoes it. */
+  @media (max-width:860px){
+    .side-acts .sa{ min-height:44px; font-size:14.5px; }
+    .side-acts .sa.go{ min-height:46px; }
+    .panel-h{ min-height:40px; }
+    .panel .fold-t{ font-size:12px; padding:12px 0; }
+    .panel .chev{ opacity:1; }
+    .panel .side-plus{ width:40px; height:40px; }
+    .chat-row, .brain-row{ min-height:44px; }
+    .chat-row .nm, .brain-row .nm{ font-size:15px; }
+    .sf-btn, .foot-link{ min-height:44px; font-size:14.5px; }
+    .brand{ min-height:60px; }
+  }
+  /* A touch screen has no pointer to aim with: the small controls of a row grow to 36 pixels. */
+  @media (hover:none){
+    .chat-row .more{ width:36px; height:36px; line-height:36px; }
+    .ab-x{ width:36px; height:36px; }
+    .mini{ min-height:36px; }
+  }
+
+  /* The page, white, and the chat bar floating over it. */
+  main{ position:relative; background:var(--bg); }
+  .thread{ padding-bottom:calc(var(--bar-h, 150px) + 24px); scroll-padding-bottom:calc(var(--bar-h, 150px) + 24px); }
+  .fv-rows, .fv-doc{ padding-bottom:calc(var(--bar-h, 150px) + 16px); }
+  .composer-wrap{ position:absolute; left:0; right:0; bottom:0; z-index:5; border-top:0; padding:0 0 14px; pointer-events:none;
+    background:linear-gradient(to bottom, rgba(255,255,255,0), var(--bg) 42%); }
+  main[data-view="folder"] .composer-wrap{ border-top:0; left:340px; }
+  .composer{ pointer-events:auto; padding:22px 24px 0; }
+  .box{ border:1px solid var(--line-2); border-radius:18px; background:var(--surface);
+    box-shadow:0 8px 30px -6px rgba(0,0,0,.10), 0 2px 6px rgba(0,0,0,.04); }
+  .box:focus-within{ border-color:var(--focus-line); box-shadow:0 12px 36px -6px rgba(0,0,0,.13), 0 3px 8px rgba(0,0,0,.05); }
+  .box textarea{ padding-top:15px; }
+  .box .tbar{ gap:8px; padding:4px 10px 10px 12px; }
+  .box .tbar .ctrls{ margin:0; gap:6px; flex-wrap:nowrap; }
+  .box .tbar .pick-btn{ height:32px; border-radius:9px; border-color:var(--line-2); background:var(--surface); }
+  .box .tbar .seg{ border-color:var(--line-2); border-radius:9px; }
+  .box .tbar .seg button{ padding:6px 10px; }
+  .box .tbar .seg button.on{ background:var(--surface-2); color:var(--ink); }
+  .box .tbar .fresh{ height:32px; }
+  .send{ border-radius:10px; background:var(--accent-solid); color:var(--accent-on); }
+  .mic{ border-radius:10px; }
+  .foot-note{ pointer-events:auto; margin-top:8px; text-align:center; font:400 12px/1.4 var(--sans); color:var(--ink-4); }
+  /* The interview strip, above the chat bar: a way in, or where it stands. */
+  .iv-bar{ display:flex; justify-content:center; margin:0 auto 8px; }
+  .iv-bar[hidden]{ display:none; }
+  .iv-go{ display:inline-flex; align-items:center; gap:7px; min-height:32px; padding:0 13px 0 10px; border:1px solid var(--line-2); border-radius:99px;
+    background:var(--surface); box-shadow:0 4px 14px -6px rgba(0,0,0,.12); font:500 13px/1 var(--sans); color:var(--ink-2); cursor:pointer;
+    transition:border-color .15s ease, transform .2s cubic-bezier(.2,.85,.25,1); animation:barOpen .34s cubic-bezier(.2,.85,.25,1) both; }
+  .iv-go:hover{ border-color:var(--ink-4); color:var(--ink); transform:translateY(-1px); }
+  .iv-go svg{ width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .iv-go small{ font:500 12px/1 var(--mono); color:var(--ink-4); }
+  .iv-go[disabled]{ opacity:.5; cursor:default; transform:none; }
+  .iv-bar.on{ align-items:center; gap:10px; max-width:600px; padding:6px 6px 6px 14px; border:1px solid var(--line-2); border-radius:99px;
+    background:var(--surface); box-shadow:0 4px 14px -6px rgba(0,0,0,.12); animation:barOpen .34s cubic-bezier(.2,.85,.25,1) both; }
+  .iv-live{ display:flex; align-items:center; gap:7px; min-width:0; font:400 13px/1.2 var(--sans); color:var(--ink-3); white-space:nowrap; }
+  .iv-live b{ font-weight:600; color:var(--ink); }
+  .iv-at{ overflow:hidden; text-overflow:ellipsis; }
+  .iv-dot{ width:8px; height:8px; flex:none; border-radius:50%; background:var(--good); animation:ivPulse 1.8s ease-in-out infinite; }
+  @keyframes ivPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(63,125,92,.35); } 50%{ box-shadow:0 0 0 5px rgba(63,125,92,0); } }
+  .iv-track{ flex:1 1 60px; min-width:40px; height:5px; border-radius:99px; background:var(--surface-3); overflow:hidden; }
+  .iv-track i{ display:block; height:100%; background:var(--accent-solid); border-radius:99px; transition:width .6s cubic-bezier(.2,.85,.25,1); }
+  .iv-b{ flex:none; min-height:28px; padding:0 12px; border:1px solid var(--line-2); border-radius:99px; background:var(--surface);
+    font:500 12.5px/1 var(--sans); color:var(--ink-2); cursor:pointer; }
+  .iv-b:hover{ border-color:var(--ink-4); color:var(--ink); }
+  .iv-b.stop{ background:var(--accent-solid); border-color:var(--accent-solid); color:var(--accent-on); }
+  .iv-b[disabled]{ opacity:.5; cursor:default; }
+  .iv-note{ font:400 14px/1.5 var(--sans); color:var(--ink-3); }
+  @media (max-width:520px){
+    .iv-bar.on{ gap:7px; padding-left:11px; }
+    .iv-at{ display:none; }
+    .iv-b{ padding:0 10px; }
+  }
+  .dropsrc{ padding:11px 16px 10px; }
+
+  /* The bar folded: one line, the field and its send, so the thread keeps the
+     page. A click opens it to the folders, the levels and the hints. */
+  .composer{ max-width:820px; transition:max-width .42s cubic-bezier(.2,.85,.25,1), padding .3s ease; }
+  .box{ transition:border-radius .35s cubic-bezier(.2,.85,.25,1), box-shadow .3s ease, border-color .2s ease; }
+  .composer-wrap.compact .composer{ max-width:600px; }
+  .composer-wrap.compact .box{ display:flex; align-items:center; border-radius:999px; cursor:text;
+    box-shadow:0 6px 24px -8px rgba(0,0,0,.14), 0 1px 3px rgba(0,0,0,.05); }
+  .composer-wrap.compact .box:hover{ border-color:var(--focus-line); box-shadow:0 10px 30px -8px rgba(0,0,0,.18), 0 2px 4px rgba(0,0,0,.05); }
+  .composer-wrap.compact .box textarea{ flex:1; min-width:0; height:50px !important; padding:15px 8px 0 22px; overflow:hidden; cursor:text; }
+  .composer-wrap.compact .box .tbar{ flex:none; padding:0 7px 0 0; gap:6px; }
+  .composer-wrap.compact .tbar .ctrls, .composer-wrap.compact .tbar .t, .composer-wrap.compact .tbar .tools,
+  .composer-wrap.compact .foot-note, .composer-wrap.compact .dropsrc{ display:none; }
+  .composer-wrap.compact .send, .composer-wrap.compact .mic{ width:36px; height:36px; border-radius:50%; }
+  .composer-wrap:not(.compact) .tbar .ctrls, .composer-wrap:not(.compact) .foot-note{ animation:barOpen .34s cubic-bezier(.2,.85,.25,1) both; }
+  .composer-wrap:not(.compact) .tbar .ctrls > *{ animation:barOpen .34s cubic-bezier(.2,.85,.25,1) both; }
+  .composer-wrap:not(.compact) .tbar .ctrls > :nth-child(2){ animation-delay:.04s; }
+  .composer-wrap:not(.compact) .tbar .ctrls > :nth-child(3){ animation-delay:.08s; }
+  @keyframes barOpen{ from{ opacity:0; transform:translateY(6px) scale(.98); } to{ opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce){
+    .composer, .box{ transition:none; }
+    .composer-wrap:not(.compact) .tbar .ctrls, .composer-wrap:not(.compact) .tbar .ctrls > *, .composer-wrap:not(.compact) .foot-note{ animation:none; }
+  }
+
+  /* Easier to read: a wider column, darker text, more air between lines. */
+  .col{ max-width:820px; }
+  .msg.ai .body{ color:var(--ink); font-size:17px; line-height:1.72; }
+  .msg.ai .body p{ margin-bottom:1em; }
+  .msg.ai .body li{ margin:.3em 0; }
+  .msg.me .body{ font-size:16px; line-height:1.55; }
+  .msg{ animation:msgIn .4s cubic-bezier(.2,.85,.25,1) both; }
+  @keyframes msgIn{ from{ opacity:0; transform:translateY(10px); filter:blur(2px); } to{ opacity:1; transform:none; filter:none; } }
+
+  /* Titles in the serif, the way the landing sets them. */
+  .zero h2{ font:400 40px/1.06 var(--serif); letter-spacing:-.025em; }
+  .zero .lede{ color:var(--ink-3); }
+  .fv-t h2{ font:400 32px/1.08 var(--serif); letter-spacing:-.02em; }
+  .fv-in h1{ font:400 32px/1.1 var(--serif); letter-spacing:-.02em; }
+  .drop-head h2{ font:400 30px/1.1 var(--serif); letter-spacing:-.02em; }
+  .sheet header h3{ font:400 24px/1.15 var(--serif); letter-spacing:-.01em; }
+
+  /* The thread: your words in a grey bubble, the answer on the page. */
+  .msg.me .body{ background:var(--surface-2); border:0; border-radius:18px 18px 6px 18px; color:var(--ink); }
+  .msg.ai .who{ color:var(--ink-3); font-weight:500; }
+  .smallbrain{ color:var(--ink-3); border-color:var(--line-2); }
+  .fv-h, .fv-list{ border-color:var(--line); }
+  .fv-doc{ background:var(--bg); }
+  .fv-row:hover, .fv-row.on{ background:var(--surface-2); }
+  .fv-row.on{ box-shadow:inset 3px 0 0 var(--accent-solid); }
+  .demo-bar{ border-color:var(--line-2); background:var(--surface-2); }
+
+  @media (max-width:860px){
+    .topbar{ background:var(--side); }
+    .composer{ padding:16px 12px 0; }
+    .composer-wrap{ padding-bottom:10px; }
+    main[data-view="folder"] .composer-wrap{ left:0; }
+    /* The folders and levels share the row with the mic and send, which
+       stay at its end; a hint, when there is one, takes the row above. */
+    .box .tbar{ flex-wrap:wrap; row-gap:8px; }
+    .box .tbar .ctrls{ flex:1 1 auto; min-width:0; order:0; flex-wrap:wrap; }
+    .box .tbar .t:not(:empty){ flex:1 0 100%; order:-1; }
+    .box .tbar .pick-btn, .box .tbar .fresh{ height:44px; }
+    .zero h2{ font-size:30px; }
+    .fv-t h2{ font-size:26px; }
+  }
+
+  /* Health in grey shades: the fuller the ring, the darker. */
+  .h-hi{ stroke:var(--ring-hi); } .h-mid{ stroke:var(--ring-mid); } .h-lo{ stroke:var(--ring-lo); }
+  .hb-bar .h-hi{ background:var(--ring-hi); } .hb-bar .h-mid{ background:var(--ring-mid); } .hb-bar .h-lo{ background:var(--ring-lo); }
+
+  /* On a phone the open bar keeps one row of controls under the field: the
+     folders, the three levels as icons, the mic and send. The folder name
+     gives way first, cut short, so nothing overlaps. */
+  @media (max-width:520px){
+    .box .tbar{ flex-wrap:wrap; gap:6px; row-gap:6px; padding:4px 8px 8px 10px; }
+    .box .tbar .ctrls{ display:flex; flex:1 1 0; min-width:0; order:0; flex-wrap:nowrap; gap:6px; }
+    .box .tbar #scopeBtn{ flex:1 1 auto; min-width:0; width:auto; max-width:none; height:42px; padding:0 8px; }
+    .box .tbar #scopeBtn .pk-lbl:empty{ display:none; }
+    .box .tbar #scopeBtn .pk-val{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .box .tbar #levelWrap{ flex:none; display:flex; }
+    .box .tbar #levelWrap[hidden]{ display:none; }
+    .box .tbar .seg.lv{ height:auto; }
+    .box .tbar .seg.lv button{ min-height:0; height:40px; width:36px; padding:0; justify-content:center; }
+    .box .tbar .seg.lv button span{ display:none; }
+    .box .tbar #memBtn{ flex:none; height:42px; }
+    .box .tbar #freshBtn{ display:none; }
+    .box .tbar .t{ order:9; flex:1 0 100%; }
+    .box .tbar .tools{ flex:none; }
+    .box .tbar .mic, .box .tbar .send{ flex:none; width:42px; height:42px; margin-left:0; }
+  }
+
+  .sheet .ghost.sure{ border-color:var(--bad); color:var(--bad); }
+

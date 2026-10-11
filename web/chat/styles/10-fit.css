@@ -1,0 +1,59 @@
+/* 10-fit.css: The mic's strip, the chats' See all, and what each device needs: touch sizes, short phones, phones held sideways. */
+
+  /* The mic's strip, over the bar it listens in: how long, and Cancel or Done. Above every sheet, since a sheet's bar can listen too. */
+  .vstrip{ position:fixed; z-index:90; display:flex; align-items:center; gap:10px; padding:6px 6px 6px 14px; border-radius:999px;
+    background:var(--surface); border:1px solid var(--line-2); box-shadow:var(--shadow-lift); font:500 13px/1.2 var(--sans); color:var(--ink-2); }
+  .vstrip .vs-dot{ width:9px; height:9px; border-radius:50%; flex:none; background:var(--bad); animation:vsPulse 1.2s ease-in-out infinite; }
+  @keyframes vsPulse{ 50%{ opacity:.3; } }
+  .vstrip .vs-t{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .vstrip .vs-time{ font:500 12.5px/1 var(--mono); color:var(--ink-3); font-variant-numeric:tabular-nums; }
+  .vstrip button{ min-height:36px; padding:0 14px; border-radius:999px; border:1px solid var(--line-2); background:var(--surface);
+    font:500 13px/1 var(--sans); color:var(--ink-2); cursor:pointer; }
+  .vstrip button:hover{ border-color:var(--ink-4); color:var(--ink); }
+  .vstrip .vs-ok{ background:var(--accent-solid); border-color:transparent; color:var(--accent-on); }
+  .vstrip .vs-ok:hover{ color:var(--accent-on); filter:brightness(1.08); }
+  @media (hover:none){ .vstrip button{ min-height:40px; } }
+  @media (prefers-reduced-motion:reduce){ .vstrip .vs-dot{ animation:none; } }
+
+  /* The rest of the chats, one tap away. */
+  .side-more{ display:block; width:100%; min-height:34px; margin-top:2px; padding:0 10px; border-radius:8px; text-align:left;
+    font:500 13px/1 var(--sans); color:var(--ink-3); cursor:pointer; }
+  .side-more:hover{ background:var(--side-hover); color:var(--ink); }
+  /* A short phone: the octopus steps aside so the three example questions clear the chat bar. */
+  @media (max-width:520px) and (max-height:640px){ .zero-mark, .zero-loop{ display:none; } }
+  /* The narrowest phones: the picker keeps its mark and arrow, and its name stays in its title, rather than one letter of it. */
+  @media (max-width:360px){ .box .tbar #scopeBtn .pk-val, .box .tbar #scopeBtn .pk-lbl{ display:none; } }
+  /* A touch screen wide enough for the desktop layout, a tablet in landscape: every control takes a finger. */
+  @media (hover:none) and (pointer:coarse) and (min-width:861px){
+    .navtoggle{ width:40px; height:40px; }
+    .brand{ min-height:44px; }
+    .panel-h{ min-height:44px; }
+    .panel .fold-t{ min-height:44px; }
+    .panel .side-plus{ width:40px; height:40px; }
+    .chat-row, .brain-row, .side-more{ min-height:44px; }
+    .chat-row .more, .brain-row .hring{ min-width:40px; min-height:40px; }
+    .brain-row .ed{ display:inline-grid; place-items:center; min-height:40px; }
+    .side-acts .sa, .sf-btn, .foot-link{ min-height:44px; }
+    .box .tbar .pick-btn, .box .tbar .seg button, .box .tbar .fresh, .box .tbar .mic, .box .tbar .send{ min-height:40px; min-width:40px; }
+    .inbox-btn{ width:44px; height:44px; }
+    #spaceName{ display:inline-flex; align-items:center; min-height:40px; }
+    .veil .seg button{ min-height:40px; }
+  }
+  /* A fold in Settings opens from its whole row, not only from its words. */
+  .sh-fold > summary{ position:relative; }
+  .sh-fold > summary::before{ content:""; position:absolute; inset:-14px 0; }
+  /* A folder row's open button takes a finger on a touch screen: 40 pixels to tap, with no room taken from the folder's name. */
+  @media (hover:none){ .brain-row .ed{ position:relative; } .brain-row .ed::after{ content:""; position:absolute; inset:-6px; } }
+  /* A phone held sideways: little height, so the open chat bar keeps to one line of text and the thread keeps the rest. */
+  @media (max-height:500px) and (orientation:landscape){
+    .composer{ padding-top:8px; }
+    .composer-wrap{ padding-bottom:6px; }
+    .foot-note{ display:none; }
+    /* The field and its buttons share one row, so the bar is one line tall. */
+    .composer-wrap:not(.compact) .box{ display:flex; align-items:center; }
+    .composer-wrap:not(.compact) .box .dropsrc{ display:none; }
+    .composer-wrap:not(.compact) .box textarea{ flex:1; min-width:0; height:44px !important; max-height:44px; padding:11px 8px 0 16px; }
+    .composer-wrap:not(.compact) .box textarea::placeholder{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .composer-wrap:not(.compact) .box .tbar{ flex:none; flex-wrap:nowrap; padding:4px 6px 4px 0; }
+    .composer-wrap:not(.compact) .box .tbar .t{ display:none; }
+  }

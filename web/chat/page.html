@@ -1,0 +1,194 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tasu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="icon" href="/brand/tasu.svg" type="image/svg+xml">
+<link rel="icon" href="/brand/tasu-64.png" type="image/png" sizes="64x64">
+<link rel="apple-touch-icon" href="/brand/tasu-180.png">
+
+<script>
+  /* The workspace's colours before anything paints: the one the address asks
+     for, or else the one this tab last opened. An address with an empty w asks
+     for a workspace by name, in Tasu's own greys. */
+  /* Light, dark, or as the device is set: chosen in Settings, kept in this browser. The page always wears one of the two, so
+     the dark colours are written once; with no choice made, it follows the device, and changes with it. */
+  (function(){
+    const sys = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+    const pick = () => { try { const t = localStorage.getItem("octopus.theme"); if (t === "light" || t === "dark") return t; } catch {} return sys && sys.matches ? "dark" : "light"; };
+    document.documentElement.dataset.theme = pick();
+    try { sys.addEventListener("change", () => { document.documentElement.dataset.theme = pick(); }); } catch {}
+  })();
+  try {
+    const q = new URLSearchParams(location.search);
+    const s = (q.has("w") ? q.get("w") : sessionStorage.getItem("octopus.space") || "").toLowerCase();
+    if (/^[a-z0-9][a-z0-9-]{1,31}$/.test(s)) {
+      document.documentElement.dataset.space = s;
+      /* A workspace with a look of its own: the colours it last wore here. In the dark its page colours stay out, and its accent is
+         the colour itself, which reads on a dark page. */
+      const look = JSON.parse(localStorage.getItem("octopus.look." + s) || "null");
+      const t = document.documentElement.dataset.theme;
+      const dark = t === "dark" || (t !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      const PAGE = ["--bg", "--surface-2", "--surface-3", "--line", "--line-2", "--accent"];
+      if (look) for (const k in look) if (!dark || !PAGE.includes(k)) document.documentElement.style.setProperty(k, look[k]);
+      if (look && dark && look["--accent-fill"]) document.documentElement.style.setProperty("--accent", look["--accent-fill"]);
+    }
+  } catch {}
+</script>
+
+<script>
+  /* The deployment this app talks to. Public by design: the OpenRouter key
+     lives on the server and never reaches a browser. */
+  window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";
+  window.OCTOPUS_BUILD = "2026-09-15a";
+</script>
+
+<style>
+<!-- build: styles -->
+</style>
+
+
+<div class="app" id="app">
+
+  <aside id="side">
+    <div class="brand">
+      <span class="mark"><img id="spaceMark" src="/brand/tasu.svg" alt="" width="48" height="48"></span>
+      <h1><a href="/" id="spaceName" title="All workspaces">Tasu</a></h1>
+      <button class="navtoggle" id="navToggle" aria-label="Hide the side panel" title="Hide the side panel">&#171;</button>
+    </div>
+    <div class="side-scroll">
+      <!-- What to do, above the three lists: New chat, then Drop and One-pager side by side. -->
+      <div class="side-acts">
+        <button class="sa go" id="startBtn" type="button" title="Start a new chat">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
+        <button class="sa" id="dropBtn" type="button" title="Feed a folder: a link, a PDF, a Word file, a video or a transcript">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>Drop</button>
+        <button class="sa" id="pagerBtn" type="button" title="A folder, a group, or a question, as bullets on one page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>One-pager</button>
+      </div>
+      <section class="panel" id="chatsPanel">
+        <div class="panel-h" id="chatsH" title="Unpinned chats go 30 days after their last question, or past the newest 20. Up to 5 pinned chats stay.">
+          <button class="fold-t" id="chatsFold" aria-expanded="true" aria-controls="chatsBox">Chats <b id="ccount"></b><span class="chev"></span></button>
+        </div>
+        <div class="panel-b" id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="chats"></div></div>
+      </section>
+      <section class="panel" id="projectsPanel">
+        <div class="panel-h" id="projectsH" title="One file or one table, with a chat beside it and a memory of its own.">
+          <button class="fold-t" id="projectsFold" aria-expanded="true" aria-controls="projectsBox">Projects <b id="pcount"></b><span class="chev"></span></button>
+          <button class="side-plus" id="newProject" type="button" title="New project" aria-label="New project"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+        </div>
+        <div class="panel-b" id="projectsBox"><div id="projects"></div></div>
+      </section>
+      <section class="panel" id="brainsPanel">
+        <div class="panel-h" id="brainsH">
+          <button class="fold-t" id="brainsFold" aria-expanded="true" aria-controls="brainsBox">Folders <b id="bcount"></b><span class="chev"></span></button>
+          <button class="side-plus" id="newBrain" type="button" title="New folder" aria-label="New folder"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+        </div>
+        <div class="panel-b" id="brainsBox"><div id="brains"></div></div>
+      </section>
+    </div>
+    <div class="side-foot">
+      <button class="side-go" id="sideGo" type="button" hidden></button>
+      <button class="sf-btn" id="keyBtn" type="button" title="The model, the look, the export, the audit and its decisions, the MCP address and the transcript service">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>Settings</button>
+      <button class="foot-link" id="lockBtn" type="button" title="Sign out and forget your key">Sign out</button>
+    </div>
+  </aside>
+  <!-- Behind the drawer on a phone. A tap on it closes the drawer. -->
+  <div class="scrim" id="scrim"></div>
+
+  <main>
+    <button class="navopen" id="navOpen" aria-label="Show the side panel">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+    </button>
+    <!-- What runs and what waits: answers unread, questions on their way, a drop
+         not finished, open clashes. -->
+    <button class="inbox-btn" id="inboxBtn" type="button" aria-label="Inbox" aria-haspopup="dialog" aria-expanded="false" title="What is running and what waits for you">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13.5 5.6 5.4A2 2 0 0 1 7.5 4h9a2 2 0 0 1 1.9 1.4L21 13.5V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13.5h5l1.5 2.5h5l1.5-2.5h5"/></svg>
+      <span class="ib-n" id="inboxN" hidden></span>
+    </button>
+    <div class="inbox" id="inbox" role="dialog" aria-label="Inbox" hidden></div>
+    <div class="topbar">
+      <button class="burger" id="burger" aria-label="Menu">
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+      </button>
+      <img id="spaceMarkBar" class="barmark" src="/brand/tasu.svg" alt="" width="24" height="24">
+      <h1><a href="/" id="spaceNameBar" title="All workspaces">Tasu</a></h1>
+    </div>
+
+    <div class="demo-bar" id="demoBar" hidden>
+      <span class="db-t"><b>Live demo.</b> Every visitor shares 30 drops and 300 questions a month.<span class="db-more"> Your chats stay yours.</span></span>
+      <span class="db-acts"><button class="db-b" id="demoSettle" type="button">Settle a clash</button><a class="db-b main" href="/#create">Make your own</a></span>
+    </div>
+    <div class="drop-head" id="dropHead" hidden><div class="col">
+      <div><h2>Drop</h2><p>A link, a PDF, a Word file, a video or a transcript. It is read once, filed under the right folders, and each clash waits for your call.</p></div>
+      <button class="mini" id="dropClose" type="button">Back to the chat</button></div></div>
+    <section class="folder-view" id="folderView" hidden></section>
+    <section class="project-view" id="projectView" hidden></section>
+    <div class="thread" id="thread"></div>
+    <div class="thread" id="dropThread" hidden></div>
+
+    <div class="composer-wrap">
+      <div class="composer">
+        <!-- A personal chat's interview: a way in, or where it stands with Skip and Stop. -->
+        <div class="iv-bar" id="ivBar" hidden></div>
+        <div class="box">
+          <!-- A drop is two things: where it comes from, and what it says. They
+               were one box, and a link pasted alone read as a source with no
+               content. Named separately, each one says what it wants. -->
+          <div class="dropsrc" id="srcLine" hidden>
+            <label for="srcInput">Source</label>
+            <input id="srcInput" type="text" autocomplete="off" spellcheck="false"
+                   placeholder="The link, or where it comes from">
+          </div>
+          <!-- A chat about one concept says which, and leaves with its ×. -->
+          <div class="about" id="aboutLine" hidden></div>
+          <textarea id="input" rows="1" placeholder="Ask anything your folders have read."></textarea>
+          <input type="file" id="fileIn" hidden
+                 accept=".pdf,.txt,.md,.markdown,.text,.docx,.html,.htm,.xhtml,application/pdf,text/plain,text/markdown,text/html,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+          <div class="tbar">
+            <div class="ctrls">
+              <button class="pick-btn" id="scopeBtn" aria-haspopup="listbox" aria-expanded="false" title="Which folders to ask, or to feed">
+                <img class="pk-mark" id="scopeMark" src="/brand/tasu.svg" alt="" width="18" height="18">
+                <span class="pk-lbl" id="scopeLabel">Across</span>
+                <span class="pk-val" id="scopeVal">All folders</span>
+                <svg class="pk-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 7.5 6 4.5l3 3"/></svg>
+              </button>
+              <div id="levelWrap">
+                <div class="seg lv" id="level" role="radiogroup" aria-label="Level of the answer">
+                  <button data-v="normal" role="radio" title="Normal: the answer, with its numbers" aria-label="Normal">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg><span>Normal</span></button>
+                  <button data-v="educational" role="radio" title="Educational: terms defined, mechanism built, one worked example" aria-label="Educational">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5C5.5 4 8.5 4 12 6c3.5-2 6.5-2 9-.5V19c-2.5-1.5-5.5-1.5-9 .5-3.5-2-6.5-2-9-.5z"/><path d="M12 6v13.5"/></svg><span>Educational</span></button>
+                  <button data-v="learning" role="radio" title="Learning: no answer given, steps and hints to reach it yourself" aria-label="Learning">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 18h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.1V16h5v-.1c0-.8.4-1.6 1.1-2.1A6 6 0 0 0 12 3z"/></svg><span>Learning</span></button>
+                </div>
+              </div>
+              <button class="fresh" id="memBtn" hidden title="Paste or drop what another assistant knows about you">Add memory</button>
+              <button class="fresh" id="freshBtn" hidden title="Keep this chat in the list and start a new one">New chat</button>
+            </div>
+            <span class="t" id="tHint"></span>
+            <div class="tools">
+              <button class="paste" id="fileBtn" hidden title="Read a PDF, a Word file, a web page or a text file into the content">+ document</button>
+            </div>
+            <button class="mic" id="micBtn" type="button" aria-label="Talk" aria-pressed="false" title="Talk instead of typing">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="1.75" width="5" height="8" rx="2.5"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2"/></svg>
+            </button>
+            <button class="send" id="send" disabled aria-label="Send">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3M8 3L4 7M8 3l4 4"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="foot-note" id="footNote"></div>
+    </div>
+  </main>
+</div>
+<script>
+(() => {
+"use strict";
+<!-- build: scripts -->
+
+})();
+</script>
