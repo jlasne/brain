@@ -437,8 +437,8 @@ async function boot(path, init, arg) {
   await page.waitForTimeout(700);
   check("and it goes when the answer lands", await page.$(".thinking .spinner") === null);
   const acts = await page.evaluate(() => [...document.querySelectorAll(".msg.ai .ans-acts button")].map(b => b.textContent));
-  check("under the answer: Copy and One-pager from this", acts.join(",") === "Copy,One-pager from this", acts.join(","));
-  await page.click(".ans-acts button:nth-child(2)"); await page.waitForTimeout(120);
+  check("under the answer: One-pager from this, and no Copy", acts.join(",") === "One-pager from this", acts.join(","));
+  await page.click(".ans-acts button:nth-child(1)"); await page.waitForTimeout(120);
   const pre = await page.evaluate(() => ({ q: document.getElementById("pQ")?.value, pick: [...document.querySelectorAll("#pPick .pm-chip.on")].map(o => o.dataset.v).join(",") }));
   check("One-pager from this opens the page with the question and its brains", pre.q === "anything" && pre.pick === "all", JSON.stringify(pre));
   await page.click("#pCancel");
@@ -2180,7 +2180,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("a message goes to the personal brain, and the reply says what it filed", a.sent?.brain === "me" && a.filed === "Filed: 1 new note, 1 note updated",
     JSON.stringify(a));
   check("and names the other brain it called on its own", a.called === "Called your Health folder", JSON.stringify(a.called));
-  check("a personal reply offers no one-pager", JSON.stringify(a.pager) === '["Copy"]', JSON.stringify(a.pager));
+  check("a personal reply offers no one-pager, and no Copy", JSON.stringify(a.pager) === '[]', JSON.stringify(a.pager));
 
   /* Add memory: a long paste goes in pieces of 6,000 characters at most.
      The bar folded after the send, so a click in it opens it first. */

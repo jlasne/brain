@@ -11087,7 +11087,7 @@ async function doAsk(q, again){
 }
 /**
  * An answer on screen, live or from a saved chat: the small-brain note, the
- * answer and its two actions.
+ * answer and its one action.
  */
 function showAnswer(body, r, q, asked){
   if (r.sources > 0 && r.sources < 10)
@@ -11095,16 +11095,8 @@ function showAnswer(body, r, q, asked){
   const out = el("div"); out.innerHTML = splitAnswer(r.answer ?? r.a ?? ""); body.append(out);
   /* The folders the message tagged were read. A personal reply says it in its own line, below. */
   if (!r.personal && Array.isArray(r.tagged) && r.tagged.length) body.append(el("div","filed called",`Read ${r.tagged.map(n => "@" + n).join(", ")}`));
-  /* Two small actions: the answer to the clipboard, or the same question
-     as a one-pager. */
-  const text = String(r.answer ?? r.a ?? "");
+  /* One small action: the same question as a one-pager. */
   const acts = el("div","ans-acts");
-  const cp = el("button","mini","Copy");
-  cp.onclick = async () => {
-    try { await navigator.clipboard.writeText(text); cp.textContent = "Copied"; }
-    catch { cp.textContent = "Blocked"; }
-    setTimeout(() => { cp.textContent = "Copy"; }, 1600);
-  };
   const pg = el("button","mini","One-pager from this");
   pg.onclick = () => openPagerSheet({ q, pick: asked });
   /* A chat about one concept: what it wrote to it, and the way to it. */
@@ -11119,7 +11111,7 @@ function showAnswer(body, r, q, asked){
     }
     body.append(f);
   }
-  if (r.concept){ acts.append(cp); body.append(acts); return; }
+  if (r.concept) return;
   if (r.filed){
     const line = filedLine(r.filed);
     if (line){
@@ -11142,8 +11134,9 @@ function showAnswer(body, r, q, asked){
     }
     const call = calledLine(r.called);
     if (call) body.append(el("div","filed called",call));
-    acts.append(cp);
-  } else acts.append(cp, pg);
+    return;
+  }
+  acts.append(pg);
   body.append(acts);
 }
 
