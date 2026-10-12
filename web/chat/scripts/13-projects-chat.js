@@ -151,9 +151,9 @@ async function sendProject(q){
   const hadFile = !!pj.data.file, sentFid = pj.fid || 1;
   const box = pj.thread;
   box.querySelector(".pj-hint")?.remove(); box.querySelector(".pj-try")?.remove();
-  const w = el("div","pj-turn"); w.append(...qEls(q));
+  const w = el("div","pj-turn pj-rise"); w.append(...qEls(q));
   const a = el("div","pj-a"); thinkInto(a, pj.data.file ? "Reading the file" : "Making it"); w.append(a);
-  box.append(w); box.scrollTop = box.scrollHeight;
+  box.append(w); glide(box);
   try {
     const tags = tagsIn(q, tagChoices(false));
     const r = await api("/api/project/chat", { brain: pj.slug, q, ...pjOpen(), ...(tags.length ? { tags } : {}) });
@@ -168,7 +168,8 @@ async function sendProject(q){
       if (same) pj.data.edits = [{ id: r.turn.edit.id, at: Date.now(), status: r.turn.edit.status || "open", preview: r.turn.edit.preview }, ...pj.data.edits].slice(0, 10);
       else (pj.data.editState ||= {})[r.turn.edit.id] = r.turn.edit.status || "open";
     }
-    w.replaceWith(turnEl(r.turn));
+    const done = turnEl(r.turn); done.querySelector(".pj-a")?.classList.add("pj-fade");
+    w.replaceWith(done);
     /* A change applied, or a file the first description just made: the file side follows. */
     if (same && (r.turn.edit?.status === "applied" || (!hadFile && r.turn.edit))) { try { await refreshFile(); } catch { /* the page catches up at the next look */ } }
     if (r.turn.noted?.length || r.turn.stated || r.turn.asks?.length || r.turn.answered?.length) refreshMemory();
@@ -180,10 +181,27 @@ async function sendProject(q){
     const row = el("div","pj-tact");
     const again = el("button","ghost","Try again"); again.type = "button"; again.onclick = () => { w.remove(); pj.busy = false; sendProject(q); };
     row.append(again); err.append(row); a.append(err);
-  } finally { pj.busy = false; pj.size(); box.scrollTop = box.scrollHeight; }
+  } finally { pj.busy = false; pj.size(); glide(box); }
 }
+/** The thread slides to its newest line, rather than jumping there. */
+function glide(box){ try { box.scrollTo({ top: box.scrollHeight, behavior: "smooth" }); } catch { box.scrollTop = box.scrollHeight; } }
 
 /* ---- keeping, remembering, forgetting ---- */
+
+/**
+ * One file side takes over from another with no blank between them: the new one is drawn under the old, in the same place, and
+ * fades in once it shows something, 1.5 seconds on at most; then the old one goes.
+ */
+async function swapDoc(old, next){
+  const pj = S.pj;
+  old.classList.add("pj-prev"); old.setAttribute("aria-hidden","true"); old.inert = true;
+  old.querySelectorAll("[id]").forEach(x => x.removeAttribute("id"));
+  next.classList.add("pj-next");
+  old.after(next);
+  await Promise.race([pj.ready, new Promise(ok => setTimeout(ok, 1500))]);
+  window.requestAnimationFrame(() => next.classList.remove("pj-next"));
+  setTimeout(() => old.remove(), 200);
+}
 
 /** What the project remembers, read again after a message noted something. */
 async function refreshMemory(){
@@ -622,8 +640,15 @@ async function refreshFile(){
   pj.data.file = d.file; pj.data.cards = d.cards; pj.data.edits = d.edits; pj.data.files = d.files || []; pj.data.shortcuts = d.shortcuts || [];
   pj.data.editState = { ...(pj.data.editState || {}), ...(d.editState || {}) };
   pj.marks = null; pj.sheet = Math.min(pj.sheet || 0, Math.max(0, (d.file?.sheets?.length || 1) - 1));
-  const old = pj.root?.querySelector(".pj-doc");
-  if (old) old.replaceWith(docPane());
+  const old = pj.root?.querySelector(".pj-doc:not(.pj-prev)");
+  if (old){
+    /* The same file read again after a change: the new side opens where the old one was, and what changed glows. */
+    const same = old.dataset.fid === String(want) && old.dataset.kind === (d.file?.kind || "") && !!d.file?.chars;
+    const keep = same ? { top: old.querySelector(".pj-body")?.scrollTop || 0, gtop: old.querySelector(".pj-gridwrap")?.scrollTop || 0,
+      secs: new Map([...old.querySelectorAll(".pj-sec")].map(x => [x.dataset.sid, x._text])),
+      rows: new Set([...old.querySelectorAll(".pj-grid tbody tr[data-n]")].map(x => x._cells)) } : null;
+    await swapDoc(old, docPane({ keep }));
+  }
   const first = pj.root?.querySelector(".pj-seg")?.children[0];
   if (first) first.textContent = pjSeg(pj.data.file);
   if (pj.input) pj.input.placeholder = askHint(pj.data.file);

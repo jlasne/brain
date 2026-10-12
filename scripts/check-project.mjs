@@ -164,7 +164,6 @@ const project = await build("project");
 const space = await build("space");
 const graph = await build("graph");
 const words = await build("words");
-const gaps = await build("gaps");
 const find = await build("find");
 const http = await build("http");
 process.env.OPENROUTER_API_KEY = "test-key";
@@ -1938,53 +1937,6 @@ const docProject = async (w, name, text, kind = "doc") => {
   reply = {};
 }
 
-/* ================= the gaps in the file, found with no model ================= */
-
-{
-  const today = "2026-10-10";
-  const doc = [
-    { sid: 1, title: "Offer", text: "The Team plan costs €1,290 a seat.\n\nOwner: [Creator name]. Price for Starter: TBD. Footnote [1]. A [link](https://x.com). - [ ] task - [x] done. See [[p. 3]].\nLaunch by 2020-03-01 at the latest." },
-    { sid: 2, title: "Pricing", text: "The Team plan costs €1,190 a seat in the table.\n\nDeadline: 12 March 2020. Release in March 2020 is fixed. We met on 2019-05-01." },
-    { sid: 3, title: "Terms", text: "Refunds within 14 days. Team plan price is 1,290 euros. The plan starts on 2031-01-15." },
-  ];
-  const g = gaps.scanDoc(doc, today);
-  const of = k => g.filter(x => x.kind === k);
-  check("a placeholder nobody filled is found, with the section it stands in", of("placeholder").some(x => x.text === "[Creator name] is not filled in" && x.where === "Offer" && x.sid === 1) && of("placeholder").some(x => x.text === "TBD is not filled in"), JSON.stringify(of("placeholder")));
-  check("a link, a footnote, a checkbox and a page mark are not placeholders", of("placeholder").length === 2, JSON.stringify(of("placeholder")));
-  check("a date in the past next to a launch, a deadline or a release is found, in any of three forms", of("date").length === 3 && of("date").some(x => /^2020-03-01 is in the past/.test(x.text)) && of("date").some(x => /^12 March 2020 is in the past/.test(x.text)) && of("date").some(x => /^March 2020 is in the past/.test(x.text)), JSON.stringify(of("date")));
-  check("a past date with no cue that it was meant for later is left alone, and so is a date still ahead", !g.some(x => /2019-05-01|2031-01-15/.test(x.text)));
-  check("one thing with two numbers in two sections is found, both places named", of("number").length === 1 && /Two numbers for "team plan": €1,290 in Offer, €1,190 in Pricing/.test(of("number")[0].text), JSON.stringify(of("number")));
-  check("the list puts placeholders first, then dates, then numbers", g.map(x => x.kind).join() === "placeholder,placeholder,date,date,date,number", g.map(x => x.kind).join());
-  const page = gaps.scanDoc([{ sid: 1, title: "Page", text: "<script>var a = [Creator];</script><style>.x{}</style><p>Hello [Name]</p><p>Price: TBD</p>" }], today, true);
-  check("a page is read as a reader sees it: its scripts and brackets are left alone, its words are not", page.length === 1 && page[0].text === "TBD is not filled in", JSON.stringify(page));
-  check("French placeholders count", gaps.scanDoc([{ sid: 1, title: "Offre", text: "Prix : à définir. Contact : à compléter." }], today).length === 2);
-  check("a clean document has no gap", gaps.scanDoc([{ sid: 1, title: "Clean", text: "A short text with a price of €490." }], today).length === 0);
-  const many = gaps.scanDoc(Array.from({ length: 10 }, (_, i) => ({ sid: i + 1, title: `S${i}`, text: "TBD [Alpha one] [Beta two] [Gamma three] [Delta four] [Epsilon five]" })), today);
-  check("a section lists four placeholders and counts the rest", many.filter(x => x.sid === 1).length === 5 && /2 more placeholders/.test(many.filter(x => x.sid === 1)[4].text));
-  check("the list the owner sees is cut at 25 and says how many there are", gaps.gapList(many).gaps.length === 25 && gaps.gapList(many).total === many.length && many.length > 25);
-
-  const cols = [{ name: "Program", kind: "text", filled: 3 }, { name: "Price", kind: "num", filled: 2 }, { name: "Note", kind: "text", filled: 0 }];
-  const tg = gaps.scanTable([{ name: "Programs", cols, rows: 3 }], [["A,1,\nB,,\nC,TBD,"]]);
-  check("a table's columns filled in part, and empty, are found", tg.some(x => x.text === '1 empty cell in "Price"' && x.where === "Programs") && tg.some(x => x.text === 'The column "Note" is empty'), JSON.stringify(tg));
-  check("a placeholder in a cell is found with its row", tg.some(x => x.kind === "placeholder" && x.text === "TBD is not filled in, in row 3" && x.row === 3), JSON.stringify(tg));
-  check("a table with no row has no gap", gaps.scanTable([{ name: "T", cols: [{ name: "A", kind: "text", filled: 0 }], rows: 0 }], [[]]).length === 0);
-
-  /* read from the project, through the same pages a question reads */
-  const w = makeCtx();
-  const p = await docProject(w, "Gappy", "# Offer\n\nOwner: [Creator name]. Price: TBD.\n\n" + "word ".repeat(600));
-  const found = await project.gapsOf(w.ctx, { space: SPACE, brain: p });
-  check("a stored document is scanned, and the list names its file", found.file === "Gappy.md" && found.total === 2 && found.gaps[0].text === "[Creator name] is not filled in" && found.gaps[0].sid > 0, JSON.stringify(found));
-  const t = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "Gappy table" });
-  const tb = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: t, name: "t.csv", kind: "table", sheets: [{ name: "T", header: sheet.colNames(["Program", "Price"]) }] });
-  await project.addRowPiece(w.ctx, { space: SPACE, brain: t, ver: tb.ver, sheet: 0, rows: [["A", "10"], ["B", ""], ["C", "TBD"]] });
-  await project.finishFile(w.ctx, { space: SPACE, brain: t, ver: tb.ver });
-  const tfound = await project.gapsOf(w.ctx, { space: SPACE, brain: t });
-  check("a stored table is scanned: an empty cell, and a placeholder in row 3", tfound.gaps.some(x => x.text === '1 empty cell in "Price"') && tfound.gaps.some(x => x.text === "TBD is not filled in, in row 3"), JSON.stringify(tfound));
-  const none = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name: "No file" });
-  check("a project with no file has no gap to find", (await project.gapsOf(w.ctx, { space: SPACE, brain: none })).total === 0);
-  check("another workspace cannot scan it", /not in this workspace/.test(String(await project.gapsOf(w.ctx, { space: "squidgy", brain: p }).catch(e => e.message))));
-}
-
 /* ================= several files in one project ================= */
 
 {
@@ -2468,9 +2420,7 @@ const docProject = async (w, name, text, kind = "doc") => {
     && (await call("/api/project/brief", { brain: slugR, action: "drop", id: askId })).asks.length === 0, "");
   check("an action it does not know is refused with the list", /save, write, state, next or drop/.test((await call("/api/project/brief", { brain: slugR, action: "burn" })).error));
   check("an empty Brief clears it", (await call("/api/project/brief", { brain: slugR, text: "" })).text === "" && (await call("/api/project/get", { brain: slugR })).brief === null);
-  const gp = await call("/api/project/gaps", { brain: slugR });
-  check("the gaps route lists the file's gaps with how many there are, and is closed to another workspace", Array.isArray(gp.gaps) && gp.total === gp.gaps.length && gp.file === "brief.md"
-    && /not in this workspace/.test((await call("/api/project/gaps", { brain: slugR }, "squidgy-token")).error), JSON.stringify(gp));
+  check("the gaps route is gone", /no route|not found|unknown/i.test(JSON.stringify(await call("/api/project/gaps", { brain: slugR }).catch(e => ({ error: e.message })))), "");
   check("a project's state tells nothing of these to another workspace's list", (await call("/api/state", {}, "squidgy-token")).projects.length === 0);
 
   /* several files, through the routes */
@@ -2491,7 +2441,6 @@ const docProject = async (w, name, text, kind = "doc") => {
   check("opened by its number, the project gives that file's shape and sections, and the list of every file", gotf.file.id === termsF.fid && gotf.file.name === "terms.md" && gotf.files.map(f => f.id).join() === "1,2,3" && gotf.cards.length === upart.sections && gotf.project.slug === slugR);
   check("its sections are read as the page scrolls, and it downloads as itself", (await call("/api/project/doc", { brain: termsF.key, from: -1, n: 3 })).sections[0].text.startsWith("# Terms")
     && (await call("/api/project/download", { brain: termsF.key })).name === "terms.md" && (await call("/api/project/download", { brain: slugR })).name === "brief.md");
-  check("its gaps are its own", (await call("/api/project/gaps", { brain: termsF.key })).file === "terms.md");
   reply = { route: routeOf({ terms: ["refund"] }), answer: answerOf({ tldr: "14 days." }) };
   const cf = await call("/api/project/chat", { brain: slugR, file: termsF.fid, q: "How long do refunds stay open?" });
   check("a message goes to the file that is open, and the turn says so; the first file's turn does not", cf.turn.file === termsF.fid && last(/You are the chat of a project/).user.includes('THE FILE "terms.md"') && (await call("/api/project/chat", { brain: slugR, q: "Hello there again?" })).turn.file === undefined);
@@ -2583,7 +2532,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   check("a resource, instructions and a Brief written count a call each", s4.calls === s3.calls + 3, String(s4.calls - s3.calls));
   check("saving a Brief, a rename and a read ask no model and count nothing", await (async () => {
     await call("/api/project/brief", { brain: p, text: "Goal: fill 200 seats." }); await call("/api/project/get", { brain: p }); await call("/api/project/rename", { brain: p, name: "Launch brief" });
-    await call("/api/project/gaps", { brain: p }); return (await spend()).calls === s4.calls;
+    return (await spend()).calls === s4.calls;
   })());
 
   /* a host that gives no price */

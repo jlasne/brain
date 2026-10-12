@@ -37,7 +37,9 @@
   .side-acts .sa.go.on{ box-shadow:0 0 0 2px var(--side), 0 0 0 4px var(--accent-line); }
 
   .panel{ background:transparent; border:0; border-radius:0; box-shadow:none; }
-  .panel + .panel{ margin-top:20px; }
+  .panel + .panel{ margin-top:14px; }
+  /* A thin line in the workspace's accent closes Chats, Projects and Folders, so each list reads as its own block. */
+  .panel::after{ content:""; display:block; height:2px; margin:14px 10px 0; border-radius:2px; background:var(--accent-fill); opacity:.7; }
   /* A list's head: a quiet label, how many, a chevron that shows on the pointer, and its +. */
   .panel-h{ min-height:30px; padding:0 2px 0 10px; border-radius:8px; transition:background .15s ease; }
   .panel-h:hover{ background:var(--side-hover); }

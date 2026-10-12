@@ -104,32 +104,6 @@ function openDownload(anchor){
   });
 }
 
-/**
- * The gaps in the open file, found in code with no model: a placeholder nobody filled, an empty cell, a date in the past, two numbers
- * for one thing. A tap puts a request to fix one in the message bar.
- */
-async function openGaps(anchor){
-  const pj = S.pj; if (!pj?.data?.file) return;
-  if (dlMenu?.anchor === anchor){ closeDownload(); return; }
-  anchor.disabled = true;
-  let r;
-  try { r = await api("/api/project/gaps", { brain: pjKey() }); }
-  catch (e){ r = { error: /unreadable/.test(e.message) ? "The server is older than this page and cannot look for gaps yet. Run convex deploy." : e.message }; }
-  finally { anchor.disabled = false; }
-  if (S.pj !== pj) return;
-  popMenu(anchor, "Gaps in the file", menu => {
-    if (r.error){ menu.append(el("p",null,r.error)); return; }
-    if (!r.gaps.length){ menu.append(el("p",null,"No gap found: no placeholder, no empty cell, no date in the past, no two numbers for one thing.")); return; }
-    for (const g of r.gaps){
-      const b = el("button"); b.type = "button"; b.setAttribute("role","menuitem"); b.title = "Ask the chat to fix it";
-      b.append(el("b",null,g.text), el("span",null,g.where));
-      b.onclick = () => { closeDownload(); fillBar(`Fix this gap in ${g.where}: ${g.text}.`); };
-      menu.append(b);
-    }
-    if (r.total > r.gaps.length){ const n = r.total - r.gaps.length; menu.append(el("p",null,`${n} more ${n === 1 ? "is" : "are"} not shown.`)); }
-  }, "gaps");
-}
-
 /** A blob handed to the browser as a file with a name. */
 function saveBlob(blob, name){
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;

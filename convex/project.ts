@@ -27,7 +27,6 @@ import { newSpent, meter } from "./spend";
 import { routeQuestion } from "./route";
 import { planDossier, writeDossier, idOf, OPEN_READ, keywords, stem, tagsOf, taggedLine, isCloser, NEAR_SHORT } from "./words";
 import { embed, nearest } from "./graph";
-import { scanDoc, scanTable, gapList } from "./gaps";
 import { keysOf, askKeys, findIn, mapText, tableLine, FIND_CHARS } from "./find";
 import { readNotes, fileNotes, MAX_CHARS } from "./personal";
 import {
@@ -441,26 +440,6 @@ export async function writeBrief(ctx: any, o: { space: string; brain: string; an
   brief = brief.replace(/\r/g, "").replace(/\s*—\s*/g, ", ").trim().slice(0, BRIEF_MAX);
   if (!brief) throw new Error("the Brief could not be written. Try again.");
   return { text: brief };
-}
-
-/* ---------- the gaps in the file ---------- */
-
-/**
- * The gaps in the project's file: placeholders nobody filled, empty cells, dates in the past, two numbers for one thing. No model is
- * asked: the file is read in pages and scanned in code.
- */
-export async function gapsOf(ctx: any, o: { space: string; brain: string }) {
-  const got = await ctx.runQuery(internal.projects.projectGet, { space: o.space, brain: o.brain });
-  const file = got.file;
-  if (!file || file.status !== "ready" || !file.chars) return { gaps: [], total: 0, file: file?.name ?? "" };
-  if (file.kind === "table") {
-    const blocks: string[][] = [];
-    for (let i = 0; i < file.sheets.length; i++) blocks.push(await readBlocks(ctx, { space: o.space, brain: o.brain, sheet: i }));
-    return { ...gapList(scanTable(file.sheets, blocks)), file: file.name };
-  }
-  const texts = await readBlocks(ctx, { space: o.space, brain: o.brain });
-  const pieces = got.cards.map((c: any, i: number) => ({ sid: c.sid, title: c.title, text: texts[i] ?? "" }));
-  return { ...gapList(scanDoc(pieces, today(), file.kind === "html")), file: file.name };
 }
 
 /* ---------- the step before an answer ---------- */

@@ -40,7 +40,7 @@ async function openProject(slug){
 }
 /**
  * A project holds several files. The first is kept under the project's name and the others under `name~n`; every call about one file
- * (its sections, its rows, its changes, its download, its gaps, reading it in) takes that key. The thread, the memory and the Brief
+ * (its sections, its rows, its changes, its download, reading it in) takes that key. The thread, the memory and the Brief
  * are the project's, and take its name.
  */
 const fileKeyOf = (slug, fid) => fid > 1 ? `${slug}~${fid}` : slug;
@@ -77,7 +77,8 @@ function paintProject(){
   if (rec && rec.bar !== mainBar) endVoice();
   host.innerHTML = "";
   if (!pj) return;
-  if (!pj.data){ host.append(el("div","pj-loading","Opening the project")); return; }
+  /* While it opens, the shape of the project stands where it will be: no blank page, no jump when it comes. */
+  if (!pj.data){ host.append(pjSkeleton()); return; }
   const root = el("div","pj"); root.dataset.seg = pj.seg; pj.root = root;
   /* On a phone the file and the chat take turns. */
   const seg = el("div","pj-seg");
@@ -90,6 +91,27 @@ function paintProject(){
   host.append(root);
   paintSide();
 }
+/** The project's shape before it arrives: the head, a page of grey lines, and the chat's bar. */
+function pjSkeleton(){
+  const root = el("div","pj pj-wait"); root.dataset.seg = S.pj?.seg || "chat"; root.setAttribute("aria-busy","true"); root.setAttribute("aria-label","Opening the project");
+  const seg = el("div","pj-seg"); seg.append(el("button","on"," "), el("button",null," ")); seg.querySelectorAll("button").forEach(b => { b.type = "button"; b.disabled = true; });
+  const doc = el("section","pj-doc"), h = el("div","pj-h");
+  h.append(skelLines([["40%", 18]]));
+  const body = el("div","pj-body"), paper = el("div","pj-paper"), page = el("article","pj-page");
+  page.append(skelLines()); paper.append(page); body.append(paper); doc.append(h, body);
+  const chat = el("section","pj-chat"), th = el("div","pj-thread");
+  th.append(skelLines([["72%", 12], ["54%", 12], ["63%", 12]]));
+  chat.append(th, el("div","pj-comp pj-comp-skel"));
+  root.append(seg, doc, chat);
+  return root;
+}
+/** Grey lines that shimmer where words will be. Each is [width, height]. */
+function skelLines(lines = [["46%", 20], ["96%"], ["88%"], ["92%"], ["70%"], ["0"], ["94%"], ["84%"], ["90%"], ["58%"]]){
+  const box = el("div","pj-skel"); box.setAttribute("aria-hidden","true");
+  for (const [w, h = 11] of lines){ const i = el("i"); i.style.width = w; i.style.height = h + "px"; if (w === "0") i.className = "gap"; box.append(i); }
+  return box;
+}
+
 function showDoc(){
   const pj = S.pj; if (!pj?.root) return;
   pj.seg = "doc"; pj.root.dataset.seg = "doc";
@@ -107,10 +129,17 @@ function showChat(){
 
 /* ---- the file, on the left ---- */
 
-function docPane(){
+/**
+ * The file side. `keep` comes from the side it takes over for the same file: where it was scrolled to, and what each section and
+ * row held, so the new one opens at the same place and lights up what changed. `pj.ready` settles once the side shows something.
+ */
+function docPane(o = {}){
   const pj = S.pj, d = pj.data, f = d.file;
   pj.page = pj.grid = pj.more = pj.web = null;
+  pj.keep = o.keep || null;
+  pj.ready = new Promise(ok => { pj.isReady = ok; });
   const pane = el("section","pj-doc");
+  pane.dataset.fid = String(pj.fid || 1); pane.dataset.kind = f?.kind || "";
   const h = el("div","pj-h"), t = el("div","pj-t");
   const title = el("h2",null,d.project.name); title.title = "Rename the project"; title.onclick = renameProject;
   t.append(title);
@@ -130,13 +159,13 @@ function docPane(){
   }
   /* Only a project with no file offers to add one. A file it holds stays: the chat changes it, and another file is another project. */
   if (!f) btn("Add a file", () => chooseFile());
-  if (written) btn("Gaps", e => openGaps(e.currentTarget)).setAttribute("aria-haspopup", "menu");
   if (written) btn("Download", e => openDownload(e.currentTarget)).setAttribute("aria-haspopup", "menu");
   btn("Delete", deleteProject, "bad").title = "Delete the project with all its files";
   h.append(acts); pane.append(h);
   /* The files the project holds: one is open, and the chat changes that one. */
   if (pjFiles().length) pane.append(fileStrip());
   const body = el("div","pj-body"); pj.body = body; pane.append(body);
+  if (!f || !ready || !written) pj.isReady();
   if (!f || !ready) body.append(dropZone(f));
   else if (!written) body.append(emptyFile(f));
   else if (f.kind === "table") paintGrid(body);
@@ -332,6 +361,7 @@ function paintPage(body){
   const code = el("pre","pj-code");
   body.append(frame, code);
   pj.web = { frame, code };
+  frame.onload = () => pj.isReady?.();
   applyView();
   loadPage();
 }
@@ -347,7 +377,8 @@ async function loadPage(){
     const r = await api("/api/project/download", { brain: pjKey() });
     if (S.pj !== pj || pj.web !== w) return;
     w.frame.srcdoc = r.text; w.code.textContent = r.text;
-  } catch (e){ w.code.textContent = e.message; pj.view = "code"; applyView(); }
+    if (pj.view === "code") pj.isReady?.();
+  } catch (e){ w.code.textContent = e.message; pj.view = "code"; applyView(); pj.isReady?.(); }
 }
 
 function dropZone(f){
@@ -367,11 +398,12 @@ function dropZone(f){
 function paintPaper(body){
   const pj = S.pj;
   const paper = el("div","pj-paper"), page = el("article","pj-page");
+  page.append(skelLines());
   paper.append(page);
   const more = el("div","pj-more");
   body.append(paper, more);
   pj.page = page; pj.more = more; pj.docLast = -1; pj.docEnd = false; pj.docBusy = false;
-  body.onscroll = () => { if (!pj.docEnd && body.scrollTop + body.clientHeight > body.scrollHeight - 700) loadSections(); };
+  body.onscroll = () => { if (pj.body === body && !pj.docEnd && body.scrollTop + body.clientHeight > body.scrollHeight - 700) loadSections(); };
   loadSections();
 }
 async function loadSections(o = {}){
@@ -379,25 +411,46 @@ async function loadSections(o = {}){
   if (!pj?.page || pj.docBusy) return;
   pj.docBusy = true;
   try {
-    const r = await api("/api/project/doc", { brain: pjKey(), n: 3, ...(o.sid != null ? { sid: o.sid } : { from: pj.docLast }) });
-    if (S.pj !== pj) return;
+    const page = pj.page;
+    const r = await api("/api/project/doc", { brain: pjKey(), n: pj.keep?.top ? 6 : 3, ...(o.sid != null ? { sid: o.sid } : { from: pj.docLast }) });
+    if (S.pj !== pj || pj.page !== page) return;
+    page.querySelector(".pj-skel")?.remove();
     if (o.replace){ pj.page.innerHTML = ""; pj.docEnd = false; }
+    const was = pj.keep?.secs;
     for (const s of r.sections){
-      const a = el("section","pj-sec"); a.dataset.sid = s.sid;
+      const a = el("section","pj-sec"); a.dataset.sid = s.sid; a._text = s.text;
+      /* After a change, a section that is new or reads otherwise glows a moment. */
+      if (was?.size && was.get(String(s.sid)) !== s.text) a.classList.add("pj-new");
       const md = el("div","pj-md"); md.innerHTML = mdView(s.text); a.append(md);
       pj.page.append(a); pj.docLast = s.ord;
     }
     if (r.sections.length < 3) pj.docEnd = true;
     pj.more.textContent = pj.docEnd ? "End of the file" : "";
     applyMarks();
-  } catch (e){ pj.more.textContent = "Could not load more: " + e.message; pj.docEnd = true; }
+  } catch (e){ pj.more.textContent = "Could not load more: " + e.message; pj.docEnd = true; pj.page?.querySelector(".pj-skel")?.remove(); }
   finally { pj.docBusy = false; }
+  placeAgain();
   fillDoc();
+}
+/** Once the new side holds as much as the old one showed, it opens where the old one was, and says it is ready. */
+function placeAgain(){
+  const pj = S.pj, b = pj?.body; if (!b) return;
+  const k = pj.keep, g = pj.grid;
+  if (g && k?.gtop){
+    if (g.wrap.scrollHeight < k.gtop + g.wrap.clientHeight && g.last < g.total) return;
+    g.wrap.scrollTop = k.gtop; k.gtop = 0;
+  } else if (!g && k?.top){
+    if (b.scrollHeight < k.top + b.clientHeight && !pj.docEnd) return;
+    b.scrollTop = k.top; k.top = 0;
+  }
+  pj.isReady?.();
+  /* What changed is told apart for the first screens; a while later, what loads is simply the file. */
+  if (k && !k.timer) k.timer = setTimeout(() => { if (pj.keep === k) pj.keep = null; }, 3000);
 }
 /** A tall screen shows more than three sections: keep reading while the page is on screen and not yet full. */
 function fillDoc(){
   const pj = S.pj, b = pj?.body;
-  if (pj?.page && !pj.docEnd && !pj.docBusy && b.clientHeight > 0 && b.scrollHeight <= b.clientHeight + 700) loadSections();
+  if (pj?.page && !pj.docEnd && !pj.docBusy && b.clientHeight > 0 && (b.scrollHeight <= b.clientHeight + 700 || b.scrollHeight < (pj.keep?.top || 0) + b.clientHeight)) loadSections();
 }
 
 /** A table: a tab for each sheet, a grid with its row numbers, and what each column holds. */
@@ -406,7 +459,7 @@ function paintGrid(body){
   body.classList.add("tbl");
   if (f.sheets.length > 1){
     const tabs = el("div","pj-sheets");
-    f.sheets.forEach((s, i) => { const b = el("button", i === si ? "on" : "", s.name); b.type = "button"; b.onclick = () => { pj.sheet = i; body.innerHTML = ""; body.classList.remove("tbl"); paintGrid(body); }; tabs.append(b); });
+    f.sheets.forEach((s, i) => { const b = el("button", i === si ? "on" : "", s.name); b.type = "button"; b.onclick = () => { pj.sheet = i; pj.keep = null; body.innerHTML = ""; body.classList.remove("tbl"); paintGrid(body); }; tabs.append(b); });
     body.append(tabs);
   }
   const wrap = el("div","pj-gridwrap"), tbl = el("table","pj-grid"), thead = el("thead"), tr = el("tr");
@@ -414,6 +467,9 @@ function paintGrid(body){
   for (const c of sh.cols.length ? sh.cols : (sh.header || []).map(n => ({ name: n, kind: "text" }))) tr.append(el("th", c.kind === "num" ? "n" : "", c.name));
   thead.append(tr);
   const tb = el("tbody");
+  /* Grey rows hold the place until the first rows come. */
+  const width = Math.max(1, (sh.cols.length || (sh.header || []).length));
+  for (let i = 0; i < 8; i++){ const r = el("tr","pj-skelrow"); r.setAttribute("aria-hidden","true"); for (let j = 0; j <= width; j++) r.append(el("td",null,"")); tb.append(r); }
   tbl.append(thead, tb); wrap.append(tbl); body.append(wrap);
   const foot = el("details","pj-foot"), sum = el("summary");
   sum.innerHTML = `<b>${sh.rows.toLocaleString("en-US")}</b> rows · <b>${sh.cols.length}</b> columns · what each column holds`;
@@ -428,7 +484,8 @@ function paintGrid(body){
   }
   body.append(foot);
   pj.grid = { tb, wrap, sheet: si, last: 0, total: sh.rows, busy: false, cols: sh.cols };
-  wrap.onscroll = () => { if (wrap.scrollTop + wrap.clientHeight > wrap.scrollHeight - 500) loadRows(); };
+  const g = pj.grid;
+  wrap.onscroll = () => { if (pj.grid === g && wrap.scrollTop + wrap.clientHeight > wrap.scrollHeight - 500) loadRows(); };
   loadRows();
 }
 async function loadRows(o = {}){
@@ -437,24 +494,28 @@ async function loadRows(o = {}){
   g.busy = true;
   try {
     const from = o.from ?? g.last + 1;
-    const r = await api("/api/project/rows", { brain: pjKey(), sheet: g.sheet, from, n: 100 });
+    const r = await api("/api/project/rows", { brain: pjKey(), sheet: g.sheet, from, n: pj.keep?.gtop ? 300 : 100 });
     if (S.pj !== pj || pj.grid !== g) return;
+    g.tb.querySelectorAll(".pj-skelrow").forEach(x => x.remove());
     if (o.replace) g.tb.innerHTML = "";
+    const was = pj.keep?.rows;
     for (const row of r.rows){
-      const tr = el("tr"); tr.dataset.n = row.n;
+      const tr = el("tr"); tr.dataset.n = row.n; tr._cells = row.cells.join("\u0001");
+      if (was?.size && !was.has(tr._cells)) tr.classList.add("pj-new");
       tr.append(Object.assign(el("td","r"), { textContent: row.n }));
       row.cells.forEach((c, i) => tr.append(Object.assign(el("td", g.cols[i]?.kind === "num" ? "n" : ""), { textContent: c, title: c.length > 40 ? c : "" })));
       g.tb.append(tr); g.last = row.n;
     }
     g.total = r.total;
     applyMarks();
-  } catch (e){ /* the grid keeps what it has */ }
+  } catch (e){ g.tb.querySelectorAll(".pj-skelrow").forEach(x => x.remove()); }
   finally { g.busy = false; }
+  placeAgain();
   fillGrid();
 }
 function fillGrid(){
   const g = S.pj?.grid;
-  if (g && !g.busy && g.last < g.total && g.wrap.clientHeight > 0 && g.wrap.scrollHeight <= g.wrap.clientHeight + 500) loadRows();
+  if (g && !g.busy && g.last < g.total && g.wrap.clientHeight > 0 && (g.wrap.scrollHeight <= g.wrap.clientHeight + 500 || g.wrap.scrollHeight < (S.pj.keep?.gtop || 0) + g.wrap.clientHeight)) loadRows();
 }
 
 /* ---- what an answer used, marked in the file ---- */

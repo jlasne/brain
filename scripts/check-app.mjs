@@ -172,6 +172,10 @@ async function boot(path, init, arg) {
     };
   }, STATE);
   check("the app boots with nothing thrown", !bad.length, bad.join("\n       "));
+  const rules = await page.evaluate(() => { const fill = getComputedStyle(document.documentElement).getPropertyValue("--accent-fill").trim(), probe = document.createElement("i");
+    probe.style.color = fill; document.body.append(probe); const want = getComputedStyle(probe).color; probe.remove();
+    return ["chatsPanel", "projectsPanel", "brainsPanel"].map(id => { const a = getComputedStyle(document.getElementById(id), "::after"); return { id, h: a.height, same: a.backgroundColor === want }; }); });
+  check("a thin line in the workspace's accent closes Chats, Projects and Folders", rules.every(r => r.h === "2px" && r.same), JSON.stringify(rules));
 
   /* ---- simpler: one tool for the drop, one box for the text, no key to set ---- */
   const simple = await page.evaluate(() => ({
@@ -3638,14 +3642,15 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/state") return J({ ...arg.state, projects: arg.state.projects });
       if (path === "/api/health") return J({ conflicted: [], health: [] });
       if (path === "/api/project/list") return J({ projects: arg.state.projects });
-      if (path === "/api/project/get") return J(P);
+      if (path === "/api/project/get") { while (window.__getHold) await new Promise(ok => setTimeout(ok, 40)); return J(P); }
       if (path === "/api/project/doc") { const at = body.sid != null ? arg.doc.findIndex(d => d.sid === body.sid) : arg.doc.findIndex(d => d.ord > (body.from ?? -1)); return J({ sections: at < 0 ? [] : arg.doc.slice(at, at + (body.n || 3)) }); }
       if (path === "/api/project/rows") { const f = body.from || 1; return J({ rows: arg.rows.slice(f - 1, f - 1 + (body.n || 100)).map((cells, i) => ({ n: f + i, cells })), total: arg.rows.length }); }
       if (path === "/api/project/chat") {
         const t = window.__reply(body, P); P.turns.push(t); return J({ turn: t });
       }
       if (path === "/api/project/forget") { P.memory = P.memory.filter(x => x.slug !== body.slug); return J({ ok: true }); }
-      if (path === "/api/project/edit") { const e = P.edits.find(x => x.id === body.id); if (window.__editFail) return J({ error: "the file changed since this was proposed. Ask again." }); e.status = { apply: "applied", undo: "undone", dismiss: "dismissed" }[body.action]; return J({ ok: true }); }
+      if (path === "/api/project/edit") { const e = P.edits.find(x => x.id === body.id); if (window.__editFail) return J({ error: "the file changed since this was proposed. Ask again." });
+        if (window.__docEdit && body.action === "apply") arg.doc = arg.doc.map(d => d.sid === 2 ? { ...d, text: d.text.replace("€1,490", "€1,290") } : d); e.status = { apply: "applied", undo: "undone", dismiss: "dismissed" }[body.action]; return J({ ok: true }); }
       if (path === "/api/project/new") return J({ slug: "fresh" });
       if (path === "/api/project/file" && body.action === "new") { window.__fid = (window.__fid || 1) + 1; return J({ fid: window.__fid, key: `${body.brain}~${window.__fid}` }); }
       if (path === "/api/project/begin") return J({ ver: 1 });
@@ -3653,10 +3658,6 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/project/finish") return J({ sections: 1, chars: 10 });
       if (path === "/api/project/rename") { P.project.name = body.name; arg.state.projects.find(x => x.slug === body.brain).name = body.name; return J({ slug: body.brain, name: body.name }); }
       if (path === "/api/project/delete") { arg.state.projects = arg.state.projects.filter(x => x.slug !== body.brain); return J({ ok: true }); }
-      if (path === "/api/project/gaps") {
-        if (window.__gapsOld) return new Response("not found", { status: 404 });
-        return J(window.__gaps || { gaps: [], total: 0, file: P.file.name });
-      }
       if (path === "/api/project/download") { const sh = P.file.sheets[body.sheet || 0];
         return J({ name: P.file.name, kind: P.file.kind, sheet: sh?.name || "", text: P.file.kind === "table" ? (body.sheet ? "Note\nCall Ana\n" : 'Program,Price,Plan\nAlpha,490,Yes\nBeta,"1,200",No\nCode,00123,No\n') : arg.md }); }
       if (path === "/api/chats/get") return J({ chat: { id: body.id, title: "Is gold a hedge?", brain: "all", pinned: false, turns: [{ q: "Is gold a hedge?", a: "Gold held its value over 20 years.", sources: 4, level: "normal" }] } });
@@ -3685,7 +3686,16 @@ for (const space of ["octopus", "squidgy"]) {
 
   /* a chat is open, a project goes over it, and the chat's row brings the chat back: also when it is the chat already current */
   await page.click("#chats .chat-row >> nth=0"); await page.waitForTimeout(500);
-  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(700);
+  /* while a project opens, its shape stands where it will be: the head, grey lines for the page, the chat's bar */
+  await page.evaluate(() => { window.__getHold = true; });
+  await page.click("#projects .pj-row >> nth=0"); await page.waitForTimeout(200);
+  const shape = await page.evaluate(() => ({ wait: !!document.querySelector(".pj.pj-wait[aria-busy=true]"), page: document.querySelectorAll(".pj-wait .pj-page .pj-skel i").length,
+    chat: !!document.querySelector(".pj-wait .pj-chat .pj-comp-skel"), words: document.getElementById("projectView").innerText.trim() }));
+  check("while a project opens, its shape stands in place with grey lines, and no line of text jumps in first", shape.wait && shape.page >= 8 && shape.chat && shape.words === "", JSON.stringify(shape));
+  await page.evaluate(() => { window.__getHold = false; }); await page.waitForTimeout(500);
+  const came = await page.evaluate(() => ({ wait: !!document.querySelector(".pj-wait"), skel: document.querySelectorAll(".pj-skel").length, secs: document.querySelectorAll(".pj-page .pj-sec").length }));
+  check("then the project takes its place, the grey lines give way to the sections, which rise in", !came.wait && came.skel === 0 && came.secs === 3, JSON.stringify(came));
+  await page.waitForTimeout(200);
   const over = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, project: !document.getElementById("projectView").hidden }));
   await page.click("#chats .chat-row >> nth=0"); await page.waitForTimeout(400);
   const back = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, project: !document.getElementById("projectView").hidden, thread: !document.getElementById("thread").hidden,
@@ -3707,7 +3717,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("words in the file are text, never markup", !lay.pwned && lay.img === 0, JSON.stringify(lay));
   const wrapped = await page.evaluate(() => [...document.querySelectorAll('.pj-sec[data-sid="1"] p')].pop().innerHTML);
   check("lines a PDF broke at the page's edge read on, and a line that ends a sentence still breaks", /ships a game before the last day\. Seats are limited\.<br>By Ana/.test(wrapped), wrapped);
-  check("the head names the project and its file, with Download and Delete: no Contents, and no way to replace the file", lay.title === "Launch plan" && lay.chip === "brief-v3.docx" && lay.btns === "Gaps/Download/Delete", lay.btns);
+  check("the head names the project and its file, with Download and Delete: no Contents, and no way to replace the file", lay.title === "Launch plan" && lay.chip === "brief-v3.docx" && lay.btns === "Download/Delete", lay.btns);
 
   /* a question: sent, answered as a proposal, with what it used marked in the file */
   await page.fill(".pj-comp textarea", "Brainstorm: is Team too high?"); await page.keyboard.press("Enter"); await page.waitForTimeout(700);
@@ -3767,8 +3777,15 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click(".pj-edit .go"); await page.waitForTimeout(400);
   const refused = await page.evaluate(() => ({ msg: document.querySelector(".pj-edit .pj-msg")?.textContent, btns: [...document.querySelectorAll(".pj-edit .pj-tact button")].map(b => b.disabled).join(), kind: document.querySelector(".pj-edit .pj-ek").textContent }));
   check("a change the server refuses says why, and stays open to ask again", /changed since this was proposed/.test(refused.msg) && refused.btns === "false,false" && refused.kind === "Proposed change", JSON.stringify(refused));
-  await page.evaluate(() => { window.__editFail = false; });
+  await page.evaluate(() => { window.__editFail = false; window.__docEdit = true; });
+  await page.setViewportSize({ width: 1280, height: 520 }); await page.waitForTimeout(150);
+  const placed = await page.evaluate(() => { const b = document.querySelector(".pj-body"); b.scrollTop = 140; return b.scrollTop; });
   await page.click(".pj-edit .go"); await page.waitForTimeout(500);
+  const after = await page.evaluate(() => ({ sides: document.querySelectorAll(".pj-doc").length, prev: document.querySelectorAll(".pj-prev, .pj-next").length, top: document.querySelector(".pj-body").scrollTop,
+    glow: [...document.querySelectorAll(".pj-sec.pj-new")].map(x => x.dataset.sid), price: document.querySelector('.pj-sec[data-sid="2"]')?.textContent.includes("€1,290") }));
+  check("a change applied redraws the file in place: one side, at the same scroll, and only the section that changed glows", placed > 100 && after.sides === 1 && after.prev === 0 && Math.abs(after.top - placed) <= 2
+    && JSON.stringify(after.glow) === '["2"]' && after.price, JSON.stringify({ placed, ...after }));
+  await page.setViewportSize({ width: 1280, height: 860 }); await page.evaluate(() => { window.__docEdit = false; }); await page.waitForTimeout(150);
   const applied = await page.evaluate(() => ({ calls: window.__calls.filter(x => x.s === "/api/project/edit").map(x => x.body.action).join(), kind: document.querySelector(".pj-edit .pj-ek").textContent, btns: [...document.querySelectorAll(".pj-edit .pj-tact button")].map(b => b.textContent).join("/"),
     reloaded: window.__calls.filter(x => x.s === "/api/project/get").length }));
   check("Apply writes the change, the page reads the file again, and Undo is offered", applied.calls === "apply,apply" && applied.kind === "Applied" && applied.btns === "Undo" && applied.reloaded >= 2, JSON.stringify(applied));
@@ -3834,28 +3851,7 @@ for (const space of ["octopus", "squidgy"]) {
     seg: [...document.querySelectorAll(".pj-seg button")].map(b => b.textContent).join() }));
   check("a table shows a tab for each sheet, a grid with row numbers, numbers on the right", tbl.tabs === "Programs,Notes" && tbl.head === "#|Program|Price|Plan" && tbl.nums === "r||n|" && tbl.rows === 4 && tbl.first === "1" && tbl.seg === "Table,Chat", JSON.stringify(tbl));
   check("and what each column holds, computed when it was read", /4<\/b>|4 rows/.test(tbl.foot) || /^4 rows · 3 columns/.test(tbl.foot) ? tbl.stats[1] === "Price: total 5,130 · average 1,282.5 · lowest 490 · highest 2,400" && tbl.stats[2] === "Plan: Yes, No" : false, JSON.stringify(tbl));
-  check("a table offers Gaps, Download and Delete, never Contents or Replace", tbl.btn === "Gaps/Download/Delete", tbl.btn);
-  /* the gaps in the file: found in code, listed under the button, each one a request to the chat */
-  await page.evaluate(() => { window.__gaps = { file: "competitors.xlsx", total: 28, gaps: [{ kind: "empty", text: '1 empty cell in "Price"', where: "Programs", sheet: 0 }, { kind: "placeholder", text: "TBD is not filled in, in row 3", where: "Programs", sheet: 0, row: 3 },
-    ...Array.from({ length: 24 }, (_, i) => ({ kind: "number", text: `Two numbers for "thing ${i}"`, where: "Notes" }))] }; });
-  await page.click(".pj-acts button >> text=Gaps"); await page.waitForTimeout(250);
-  const gm = await page.evaluate(() => { const m = document.querySelector(".pj-menu.gaps"), r = m?.getBoundingClientRect(), b = [...document.querySelectorAll(".pj-acts button")].find(x => x.textContent === "Gaps");
-    return { n: m?.querySelectorAll("button").length, first: m?.querySelector("button b")?.textContent, where: m?.querySelector("button span")?.textContent, more: m?.querySelector("p")?.textContent, role: m?.getAttribute("role"),
-      expanded: b?.getAttribute("aria-expanded"), inside: r && r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, call: window.__calls.filter(x => x.s === "/api/project/gaps").pop()?.body }; });
-  check("Gaps lists what a reader would stop at, a line each with where it stands, inside the screen, and says how many more there are", gm.n === 26 && gm.first === '1 empty cell in "Price"' && gm.where === "Programs" && gm.more === "2 more are not shown." && gm.role === "menu" && gm.expanded === "true" && gm.inside && gm.call?.brain === "pricing-review", JSON.stringify(gm));
-  await page.click(".pj-menu.gaps button >> nth=1"); await page.waitForTimeout(200);
-  const gfill = await page.evaluate(() => ({ menu: !!document.querySelector(".pj-menu"), v: document.querySelector(".pj-comp textarea").value, focus: document.activeElement === document.querySelector(".pj-comp textarea") }));
-  check("a gap chosen puts a request to fix it in the message bar, and the menu goes", !gfill.menu && gfill.v === "Fix this gap in Programs: TBD is not filled in, in row 3." && gfill.focus, JSON.stringify(gfill));
-  await page.fill(".pj-comp textarea", "");
-  await page.evaluate(() => { window.__gaps = { file: "competitors.xlsx", total: 0, gaps: [] }; });
-  await page.click(".pj-acts button >> text=Gaps"); await page.waitForTimeout(200);
-  check("with none to find it says so", await page.evaluate(() => /^No gap found/.test(document.querySelector(".pj-menu.gaps p")?.textContent || "") && document.querySelectorAll(".pj-menu.gaps button").length === 0));
-  await page.click(".pj-acts button >> text=Gaps"); await page.waitForTimeout(150);
-  check("the button again closes it", await page.evaluate(() => !document.querySelector(".pj-menu")));
-  await page.evaluate(() => { window.__gapsOld = true; });
-  await page.click(".pj-acts button >> text=Gaps"); await page.waitForTimeout(250);
-  check("a server older than the page says so, and what to run", await page.evaluate(() => /cannot look for gaps yet\. Run convex deploy\./.test(document.querySelector(".pj-menu.gaps p")?.textContent || "")));
-  await page.keyboard.press("Escape"); await page.evaluate(() => { window.__gapsOld = false; });
+  check("a table offers Download and Delete, never Gaps, Contents or Replace", tbl.btn === "Download/Delete", tbl.btn);
   await page.evaluate(() => { window.__xl = []; window.XLSX = { utils: { book_new: () => ({ SheetNames: [], Sheets: {} }), aoa_to_sheet: rows => ({ rows }), book_append_sheet: (wb, ws, name) => { wb.SheetNames.push(name); wb.Sheets[name] = ws; } },
     write: (wb, o) => { window.__xl.push({ names: wb.SheetNames.slice(), sheets: wb.SheetNames.map(n => wb.Sheets[n].rows), o }); return new Uint8Array([80, 75, 3, 4]).buffer; } }; });
   await page.click(".pj-acts button >> text=Download"); await page.waitForTimeout(100);
@@ -4254,7 +4250,7 @@ for (const space of ["octopus", "squidgy"]) {
   const web = await page.evaluate(() => { const f = document.querySelector(".pj-frame"); return { sandbox: f?.getAttribute("sandbox"), src: f?.srcdoc, code: document.querySelector(".pj-code")?.hidden,
     acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), empty: !!document.querySelector(".pj-empty") }; });
   check("the page shows as it renders, in a frame that can reach nothing of the app", web.src === PAGE && web.sandbox === "allow-scripts allow-popups" && !/same-origin/.test(web.sandbox) && web.code === true && !web.empty, JSON.stringify(web));
-  check("the head offers Page and Code, and Download now", web.acts === "Page/Code/Gaps/Download/Delete", web.acts);
+  check("the head offers Page and Code, and Download now", web.acts === "Page/Code/Download/Delete", web.acts);
   await page.click(".pj-view button >> text=Code"); await page.waitForTimeout(150);
   const code = await page.evaluate(() => ({ text: document.querySelector(".pj-code").textContent, hidden: document.querySelector(".pj-code").hidden, frame: document.querySelector(".pj-frame").hidden, on: document.querySelector(".pj-view .on")?.textContent }));
   check("Code shows the page's words as they are written", code.text === PAGE && !code.hidden && code.frame && code.on === "Code", JSON.stringify(code));
@@ -4304,7 +4300,7 @@ for (const space of ["octopus", "squidgy"]) {
     acts: [...document.querySelectorAll(".pj-acts button")].map(b => b.textContent).join("/"), page: !!document.querySelector(".pj-paper .pj-page"), seg: document.querySelector(".pj-seg button")?.textContent,
     ph: document.querySelector(".pj-comp textarea").placeholder, words: document.querySelector(".pj-a .pj-md")?.textContent, chips: document.querySelectorAll(".pj-used").length,
     row: document.querySelector("#projects .pj-row.on")?.title }));
-  check("what is said makes the file: the drop gives way to the document, with its name, its buttons and its tab", !said.drop && said.page && said.chip === "New project.md" && said.acts === "Gaps/Download/Delete" && said.seg === "Document", JSON.stringify(said));
+  check("what is said makes the file: the drop gives way to the document, with its name, its buttons and its tab", !said.drop && said.page && said.chip === "New project.md" && said.acts === "Download/Delete" && said.seg === "Document", JSON.stringify(said));
   check("the message bar then asks about the document, the answer says in its words which folder it came from, with no chip, and the list knows the file", /^Ask about the document/.test(said.ph) && /^I wrote the brief from your Content folder\./.test(said.words) && said.chips === 0 && /New project\.md/.test(said.row), JSON.stringify(said));
 
   /* a server older than this page: nothing is left behind, and the sheet says what to do */

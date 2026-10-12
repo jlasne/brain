@@ -22,7 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine, isCloser, threadOf, priorOf, checkSources, askKey, poolPrint, SHORT_READ, INDEX_SHORT, NEAR_SHORT, NEAR_NEEDED, NEAR_FLOOR, PRIOR_MAX } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal, cardsFor } from "./space";
-import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, planFolders, writeBrief, gapsOf, readBlocks } from "./project";
+import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, planFolders, writeBrief, readBlocks } from "./project";
 import { withSpend, withChatSpend, guardBudget } from "./spend";
 import { parseExport, RESTORE_CHARS } from "./restore";
 import { colNames, downloadText, csvOf, parseCsv, madeName, splitKey, fileKey } from "./sheet";
@@ -1895,11 +1895,6 @@ route("/api/project/brief", async (ctx, _req, b) => {
 });
 
 /** The gaps in the project's file, found in code with no model: placeholders, empty cells, dates in the past, two numbers for one thing. */
-route("/api/project/gaps", async (ctx, _req, b) => {
-  const who = await gate(ctx, b);
-  return await gapsOf(ctx, { space: who.space, brain: String(b.brain ?? "") });
-});
-
 /** A message in a project's chat: read what it needs, answered, kept in the thread. */
 route("/api/project/chat", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });

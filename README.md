@@ -10,7 +10,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="2591 checks passing" src="https://img.shields.io/badge/checks-2591%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="2571 checks passing" src="https://img.shields.io/badge/checks-2571%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="Installs on phone and desktop" src="https://img.shields.io/badge/app-phone%20and%20desktop-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -152,7 +152,7 @@ Files, tables and pages, with a chat beside them and a memory of their own.
 - **Up to 30 files** as tabs. The chat changes the open file and reads the others.
 - **Changes you can undo.** A change to a file you dropped waits for your click. A change to a file made here applies at once. Each has Undo.
 - **A Brief, if you want one.** Who the chat is, the goal, the audience and the rules, up to 6,000 characters. Type it, add a file, or answer 5 questions by voice.
-- **It keeps track.** A State of play, the questions waiting for you, and one line to send next. Gaps lists empty placeholders, empty cells, past dates and numbers that differ, with no model call.
+- **It keeps track.** A State of play, the questions waiting for you, and one line to send next.
 - **It reads only what a question needs.** A file of up to 4,000 pages is filed in sections, each with a contents line, written 4 sections a call. 1,000 questions on a 143-page file cost $0.26, down from $0.47. 1,000 thank-yous cost $0.07, down from $0.25.
 - **Exact tables.** Up to 40,000 rows, searched by filter and totals over every row.
 - **Paste a log, then say "put it in the table".** A message takes up to 40,000 characters, about 400 lines. What you pasted in the last 4 messages is read again word for word, and up to 1,000 rows go in with one change you can undo.
@@ -246,7 +246,7 @@ The app's source sits in `web/chat/`, one file a screen. `npm run build` joins i
 
 ```bash
 npm run build     # web/chat into app/chat.html
-npm run check     # the build first, then 2591 checks
+npm run check     # the build first, then 2571 checks
 npm run deploy    # the server, to Convex
 ```
 
@@ -260,7 +260,7 @@ skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a folder
 ```
 
-`npm run check` runs 2591 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, projects, and the app itself in a real browser at 9 screen sizes.
+`npm run check` runs 2571 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, projects, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 

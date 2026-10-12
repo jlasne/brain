@@ -1689,7 +1689,9 @@
   .side-acts .sa.go.on{ box-shadow:0 0 0 2px var(--side), 0 0 0 4px var(--accent-line); }
 
   .panel{ background:transparent; border:0; border-radius:0; box-shadow:none; }
-  .panel + .panel{ margin-top:20px; }
+  .panel + .panel{ margin-top:14px; }
+  /* A thin line in the workspace's accent closes Chats, Projects and Folders, so each list reads as its own block. */
+  .panel::after{ content:""; display:block; height:2px; margin:14px 10px 0; border-radius:2px; background:var(--accent-fill); opacity:.7; }
   /* A list's head: a quiet label, how many, a chevron that shows on the pointer, and its +. */
   .panel-h{ min-height:30px; padding:0 2px 0 10px; border-radius:8px; transition:background .15s ease; }
   .panel-h:hover{ background:var(--side-hover); }
@@ -1920,8 +1922,41 @@
   .project-view[hidden]{ display:none; }
   main[data-view="project"] .composer-wrap, main[data-view="project"] .foot-note, main[data-view="project"] .demo-bar{ display:none; }
   .pj-loading{ margin:auto; font:400 14px/1.5 var(--sans); color:var(--ink-3); }
-  .pj{ flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,2fr) minmax(320px,1fr); }
+  .pj{ flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,2fr) minmax(320px,1fr); grid-template-rows:minmax(0,1fr); }
   .pj-doc, .pj-chat{ display:flex; flex-direction:column; min-width:0; min-height:0; }
+  /* Each side keeps its own cell, so a new file side can be drawn in the old one's place, under it, and fade in. */
+  .pj-doc{ grid-row:1; grid-column:1; transition:opacity .18s var(--ease); }
+  .pj-chat{ grid-row:1; grid-column:2; }
+  .pj-doc.pj-next{ opacity:0; pointer-events:none; }
+  .pj-doc.pj-prev{ pointer-events:none; }
+
+  /* Grey lines that shimmer where the words will be, while they come. */
+  .pj-skel{ display:flex; flex-direction:column; gap:12px; padding:2px 0; }
+  .pj-skel i{ display:block; max-width:100%; border-radius:6px;
+    background:linear-gradient(90deg, var(--surface-3) 0%, var(--surface-2) 45%, var(--surface-3) 90%) 0 0/300% 100%; animation:pjShimmer 1.4s linear infinite; }
+  .pj-skel i.gap{ height:6px !important; background:none; animation:none; }
+  .pj-h .pj-skel{ flex:1; }
+  .pj-thread .pj-skel{ align-items:flex-end; }
+  .pj-thread .pj-skel i{ border-radius:999px; }
+  .pj-comp-skel{ height:52px; }
+  .pj-wait .pj-seg button{ color:transparent; }
+  @keyframes pjShimmer{ from{ background-position:100% 0; } to{ background-position:0 0; } }
+  .pj-skelrow td{ height:34px; }
+  .pj-skelrow td::after{ content:""; display:block; height:10px; border-radius:5px; background:var(--surface-3); animation:pjPulse .9s ease-in-out infinite alternate; }
+
+  /* What arrives rises in: a section, a message, an answer. What a change touched glows a moment. */
+  .pj-sec{ animation:pjRise .28s var(--ease) both; }
+  .pj-rise{ animation:pjRise .28s var(--ease) both; }
+  .pj-a.pj-fade{ animation:pjRise .32s var(--ease) both; }
+  .pj-sec.pj-new{ border-radius:8px; animation:pjRise .28s var(--ease) both, pjGlow 2.6s ease-out .1s both; }
+  .pj-grid tr.pj-new td{ animation:pjGlowRow 2.6s ease-out .1s both; }
+  @keyframes pjRise{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+  @keyframes pjGlow{ 0%, 35%{ background:color-mix(in srgb, var(--accent-fill) 13%, transparent); box-shadow:0 0 0 8px color-mix(in srgb, var(--accent-fill) 13%, transparent); }
+    100%{ background:transparent; box-shadow:0 0 0 8px transparent; } }
+  @keyframes pjGlowRow{ 0%, 35%{ background:color-mix(in srgb, var(--accent-fill) 16%, transparent); } 100%{ background:transparent; } }
+  .pj-frame{ animation:fade .25s var(--ease) both; }
+  /* On a phone, the side shown fades in when the other is picked. */
+  @media (max-width:860px){ .pj[data-seg="doc"] .pj-doc, .pj[data-seg="chat"] .pj-chat{ animation:fade .18s var(--ease) both; } }
   .pj-doc{ background:var(--surface-2); border-right:1px solid var(--line); }
   .pj-chat{ background:var(--bg); }
   .pj-seg{ display:none; }
@@ -2127,12 +2162,6 @@
   .pj-menu button span{ font:400 12px/1 var(--mono); color:var(--ink-4); }
   .pj-menu p{ margin:4px 12px 6px; max-width:230px; font:400 12px/1.45 var(--sans); color:var(--ink-3); }
 
-  /* The gaps in the file: each one a line, and where it stands. */
-  .pj-menu.gaps{ width:min(440px, calc(100vw - 16px)); max-height:min(420px, calc(100vh - 80px)); overflow-y:auto; }
-  .pj-menu.gaps button{ flex-direction:column; align-items:flex-start; gap:3px; min-height:0; padding:9px 12px; }
-  .pj-menu.gaps button b{ font:500 13px/1.4 var(--sans); color:var(--ink); }
-  .pj-menu.gaps button span{ font:400 12px/1.3 var(--mono); color:var(--ink-4); }
-
   /* A project being made, or a file read into one: the percent and the time so far, a bar that fills by each step's share,
      and the steps on a rail, each lit as it starts and checked as it ends, with how long it took. */
   .nb{ padding:6px 0 10px; }
@@ -2223,7 +2252,9 @@
 
   /* On a phone the file and its chat take turns, and what is pressed is as small as a thumb allows: 36px, not 44. */
   @media (max-width:860px){
-    .pj{ display:flex; flex-direction:column; }
+    .pj{ display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr); }
+    .pj-seg{ grid-row:1; grid-column:1; }
+    .pj-doc, .pj-chat{ grid-row:2; grid-column:1; }
     .pj-seg{ flex:none; display:flex; gap:6px; padding:6px 10px; border-bottom:1px solid var(--line); background:var(--bg); }
     .pj-seg button{ flex:1; display:flex; align-items:center; justify-content:center; min-height:36px; border:1px solid var(--line-2); border-radius:8px; background:var(--surface); font:500 13px/1 var(--sans); color:var(--ink-3); }
     .pj-seg button.on{ background:var(--surface-3); border-color:var(--line-2); color:var(--ink); }
@@ -8860,7 +8891,7 @@ async function openProject(slug){
 }
 /**
  * A project holds several files. The first is kept under the project's name and the others under `name~n`; every call about one file
- * (its sections, its rows, its changes, its download, its gaps, reading it in) takes that key. The thread, the memory and the Brief
+ * (its sections, its rows, its changes, its download, reading it in) takes that key. The thread, the memory and the Brief
  * are the project's, and take its name.
  */
 const fileKeyOf = (slug, fid) => fid > 1 ? `${slug}~${fid}` : slug;
@@ -8897,7 +8928,8 @@ function paintProject(){
   if (rec && rec.bar !== mainBar) endVoice();
   host.innerHTML = "";
   if (!pj) return;
-  if (!pj.data){ host.append(el("div","pj-loading","Opening the project")); return; }
+  /* While it opens, the shape of the project stands where it will be: no blank page, no jump when it comes. */
+  if (!pj.data){ host.append(pjSkeleton()); return; }
   const root = el("div","pj"); root.dataset.seg = pj.seg; pj.root = root;
   /* On a phone the file and the chat take turns. */
   const seg = el("div","pj-seg");
@@ -8910,6 +8942,27 @@ function paintProject(){
   host.append(root);
   paintSide();
 }
+/** The project's shape before it arrives: the head, a page of grey lines, and the chat's bar. */
+function pjSkeleton(){
+  const root = el("div","pj pj-wait"); root.dataset.seg = S.pj?.seg || "chat"; root.setAttribute("aria-busy","true"); root.setAttribute("aria-label","Opening the project");
+  const seg = el("div","pj-seg"); seg.append(el("button","on"," "), el("button",null," ")); seg.querySelectorAll("button").forEach(b => { b.type = "button"; b.disabled = true; });
+  const doc = el("section","pj-doc"), h = el("div","pj-h");
+  h.append(skelLines([["40%", 18]]));
+  const body = el("div","pj-body"), paper = el("div","pj-paper"), page = el("article","pj-page");
+  page.append(skelLines()); paper.append(page); body.append(paper); doc.append(h, body);
+  const chat = el("section","pj-chat"), th = el("div","pj-thread");
+  th.append(skelLines([["72%", 12], ["54%", 12], ["63%", 12]]));
+  chat.append(th, el("div","pj-comp pj-comp-skel"));
+  root.append(seg, doc, chat);
+  return root;
+}
+/** Grey lines that shimmer where words will be. Each is [width, height]. */
+function skelLines(lines = [["46%", 20], ["96%"], ["88%"], ["92%"], ["70%"], ["0"], ["94%"], ["84%"], ["90%"], ["58%"]]){
+  const box = el("div","pj-skel"); box.setAttribute("aria-hidden","true");
+  for (const [w, h = 11] of lines){ const i = el("i"); i.style.width = w; i.style.height = h + "px"; if (w === "0") i.className = "gap"; box.append(i); }
+  return box;
+}
+
 function showDoc(){
   const pj = S.pj; if (!pj?.root) return;
   pj.seg = "doc"; pj.root.dataset.seg = "doc";
@@ -8927,10 +8980,17 @@ function showChat(){
 
 /* ---- the file, on the left ---- */
 
-function docPane(){
+/**
+ * The file side. `keep` comes from the side it takes over for the same file: where it was scrolled to, and what each section and
+ * row held, so the new one opens at the same place and lights up what changed. `pj.ready` settles once the side shows something.
+ */
+function docPane(o = {}){
   const pj = S.pj, d = pj.data, f = d.file;
   pj.page = pj.grid = pj.more = pj.web = null;
+  pj.keep = o.keep || null;
+  pj.ready = new Promise(ok => { pj.isReady = ok; });
   const pane = el("section","pj-doc");
+  pane.dataset.fid = String(pj.fid || 1); pane.dataset.kind = f?.kind || "";
   const h = el("div","pj-h"), t = el("div","pj-t");
   const title = el("h2",null,d.project.name); title.title = "Rename the project"; title.onclick = renameProject;
   t.append(title);
@@ -8950,13 +9010,13 @@ function docPane(){
   }
   /* Only a project with no file offers to add one. A file it holds stays: the chat changes it, and another file is another project. */
   if (!f) btn("Add a file", () => chooseFile());
-  if (written) btn("Gaps", e => openGaps(e.currentTarget)).setAttribute("aria-haspopup", "menu");
   if (written) btn("Download", e => openDownload(e.currentTarget)).setAttribute("aria-haspopup", "menu");
   btn("Delete", deleteProject, "bad").title = "Delete the project with all its files";
   h.append(acts); pane.append(h);
   /* The files the project holds: one is open, and the chat changes that one. */
   if (pjFiles().length) pane.append(fileStrip());
   const body = el("div","pj-body"); pj.body = body; pane.append(body);
+  if (!f || !ready || !written) pj.isReady();
   if (!f || !ready) body.append(dropZone(f));
   else if (!written) body.append(emptyFile(f));
   else if (f.kind === "table") paintGrid(body);
@@ -9152,6 +9212,7 @@ function paintPage(body){
   const code = el("pre","pj-code");
   body.append(frame, code);
   pj.web = { frame, code };
+  frame.onload = () => pj.isReady?.();
   applyView();
   loadPage();
 }
@@ -9167,7 +9228,8 @@ async function loadPage(){
     const r = await api("/api/project/download", { brain: pjKey() });
     if (S.pj !== pj || pj.web !== w) return;
     w.frame.srcdoc = r.text; w.code.textContent = r.text;
-  } catch (e){ w.code.textContent = e.message; pj.view = "code"; applyView(); }
+    if (pj.view === "code") pj.isReady?.();
+  } catch (e){ w.code.textContent = e.message; pj.view = "code"; applyView(); pj.isReady?.(); }
 }
 
 function dropZone(f){
@@ -9187,11 +9249,12 @@ function dropZone(f){
 function paintPaper(body){
   const pj = S.pj;
   const paper = el("div","pj-paper"), page = el("article","pj-page");
+  page.append(skelLines());
   paper.append(page);
   const more = el("div","pj-more");
   body.append(paper, more);
   pj.page = page; pj.more = more; pj.docLast = -1; pj.docEnd = false; pj.docBusy = false;
-  body.onscroll = () => { if (!pj.docEnd && body.scrollTop + body.clientHeight > body.scrollHeight - 700) loadSections(); };
+  body.onscroll = () => { if (pj.body === body && !pj.docEnd && body.scrollTop + body.clientHeight > body.scrollHeight - 700) loadSections(); };
   loadSections();
 }
 async function loadSections(o = {}){
@@ -9199,25 +9262,46 @@ async function loadSections(o = {}){
   if (!pj?.page || pj.docBusy) return;
   pj.docBusy = true;
   try {
-    const r = await api("/api/project/doc", { brain: pjKey(), n: 3, ...(o.sid != null ? { sid: o.sid } : { from: pj.docLast }) });
-    if (S.pj !== pj) return;
+    const page = pj.page;
+    const r = await api("/api/project/doc", { brain: pjKey(), n: pj.keep?.top ? 6 : 3, ...(o.sid != null ? { sid: o.sid } : { from: pj.docLast }) });
+    if (S.pj !== pj || pj.page !== page) return;
+    page.querySelector(".pj-skel")?.remove();
     if (o.replace){ pj.page.innerHTML = ""; pj.docEnd = false; }
+    const was = pj.keep?.secs;
     for (const s of r.sections){
-      const a = el("section","pj-sec"); a.dataset.sid = s.sid;
+      const a = el("section","pj-sec"); a.dataset.sid = s.sid; a._text = s.text;
+      /* After a change, a section that is new or reads otherwise glows a moment. */
+      if (was?.size && was.get(String(s.sid)) !== s.text) a.classList.add("pj-new");
       const md = el("div","pj-md"); md.innerHTML = mdView(s.text); a.append(md);
       pj.page.append(a); pj.docLast = s.ord;
     }
     if (r.sections.length < 3) pj.docEnd = true;
     pj.more.textContent = pj.docEnd ? "End of the file" : "";
     applyMarks();
-  } catch (e){ pj.more.textContent = "Could not load more: " + e.message; pj.docEnd = true; }
+  } catch (e){ pj.more.textContent = "Could not load more: " + e.message; pj.docEnd = true; pj.page?.querySelector(".pj-skel")?.remove(); }
   finally { pj.docBusy = false; }
+  placeAgain();
   fillDoc();
+}
+/** Once the new side holds as much as the old one showed, it opens where the old one was, and says it is ready. */
+function placeAgain(){
+  const pj = S.pj, b = pj?.body; if (!b) return;
+  const k = pj.keep, g = pj.grid;
+  if (g && k?.gtop){
+    if (g.wrap.scrollHeight < k.gtop + g.wrap.clientHeight && g.last < g.total) return;
+    g.wrap.scrollTop = k.gtop; k.gtop = 0;
+  } else if (!g && k?.top){
+    if (b.scrollHeight < k.top + b.clientHeight && !pj.docEnd) return;
+    b.scrollTop = k.top; k.top = 0;
+  }
+  pj.isReady?.();
+  /* What changed is told apart for the first screens; a while later, what loads is simply the file. */
+  if (k && !k.timer) k.timer = setTimeout(() => { if (pj.keep === k) pj.keep = null; }, 3000);
 }
 /** A tall screen shows more than three sections: keep reading while the page is on screen and not yet full. */
 function fillDoc(){
   const pj = S.pj, b = pj?.body;
-  if (pj?.page && !pj.docEnd && !pj.docBusy && b.clientHeight > 0 && b.scrollHeight <= b.clientHeight + 700) loadSections();
+  if (pj?.page && !pj.docEnd && !pj.docBusy && b.clientHeight > 0 && (b.scrollHeight <= b.clientHeight + 700 || b.scrollHeight < (pj.keep?.top || 0) + b.clientHeight)) loadSections();
 }
 
 /** A table: a tab for each sheet, a grid with its row numbers, and what each column holds. */
@@ -9226,7 +9310,7 @@ function paintGrid(body){
   body.classList.add("tbl");
   if (f.sheets.length > 1){
     const tabs = el("div","pj-sheets");
-    f.sheets.forEach((s, i) => { const b = el("button", i === si ? "on" : "", s.name); b.type = "button"; b.onclick = () => { pj.sheet = i; body.innerHTML = ""; body.classList.remove("tbl"); paintGrid(body); }; tabs.append(b); });
+    f.sheets.forEach((s, i) => { const b = el("button", i === si ? "on" : "", s.name); b.type = "button"; b.onclick = () => { pj.sheet = i; pj.keep = null; body.innerHTML = ""; body.classList.remove("tbl"); paintGrid(body); }; tabs.append(b); });
     body.append(tabs);
   }
   const wrap = el("div","pj-gridwrap"), tbl = el("table","pj-grid"), thead = el("thead"), tr = el("tr");
@@ -9234,6 +9318,9 @@ function paintGrid(body){
   for (const c of sh.cols.length ? sh.cols : (sh.header || []).map(n => ({ name: n, kind: "text" }))) tr.append(el("th", c.kind === "num" ? "n" : "", c.name));
   thead.append(tr);
   const tb = el("tbody");
+  /* Grey rows hold the place until the first rows come. */
+  const width = Math.max(1, (sh.cols.length || (sh.header || []).length));
+  for (let i = 0; i < 8; i++){ const r = el("tr","pj-skelrow"); r.setAttribute("aria-hidden","true"); for (let j = 0; j <= width; j++) r.append(el("td",null,"")); tb.append(r); }
   tbl.append(thead, tb); wrap.append(tbl); body.append(wrap);
   const foot = el("details","pj-foot"), sum = el("summary");
   sum.innerHTML = `<b>${sh.rows.toLocaleString("en-US")}</b> rows · <b>${sh.cols.length}</b> columns · what each column holds`;
@@ -9248,7 +9335,8 @@ function paintGrid(body){
   }
   body.append(foot);
   pj.grid = { tb, wrap, sheet: si, last: 0, total: sh.rows, busy: false, cols: sh.cols };
-  wrap.onscroll = () => { if (wrap.scrollTop + wrap.clientHeight > wrap.scrollHeight - 500) loadRows(); };
+  const g = pj.grid;
+  wrap.onscroll = () => { if (pj.grid === g && wrap.scrollTop + wrap.clientHeight > wrap.scrollHeight - 500) loadRows(); };
   loadRows();
 }
 async function loadRows(o = {}){
@@ -9257,24 +9345,28 @@ async function loadRows(o = {}){
   g.busy = true;
   try {
     const from = o.from ?? g.last + 1;
-    const r = await api("/api/project/rows", { brain: pjKey(), sheet: g.sheet, from, n: 100 });
+    const r = await api("/api/project/rows", { brain: pjKey(), sheet: g.sheet, from, n: pj.keep?.gtop ? 300 : 100 });
     if (S.pj !== pj || pj.grid !== g) return;
+    g.tb.querySelectorAll(".pj-skelrow").forEach(x => x.remove());
     if (o.replace) g.tb.innerHTML = "";
+    const was = pj.keep?.rows;
     for (const row of r.rows){
-      const tr = el("tr"); tr.dataset.n = row.n;
+      const tr = el("tr"); tr.dataset.n = row.n; tr._cells = row.cells.join("\u0001");
+      if (was?.size && !was.has(tr._cells)) tr.classList.add("pj-new");
       tr.append(Object.assign(el("td","r"), { textContent: row.n }));
       row.cells.forEach((c, i) => tr.append(Object.assign(el("td", g.cols[i]?.kind === "num" ? "n" : ""), { textContent: c, title: c.length > 40 ? c : "" })));
       g.tb.append(tr); g.last = row.n;
     }
     g.total = r.total;
     applyMarks();
-  } catch (e){ /* the grid keeps what it has */ }
+  } catch (e){ g.tb.querySelectorAll(".pj-skelrow").forEach(x => x.remove()); }
   finally { g.busy = false; }
+  placeAgain();
   fillGrid();
 }
 function fillGrid(){
   const g = S.pj?.grid;
-  if (g && !g.busy && g.last < g.total && g.wrap.clientHeight > 0 && g.wrap.scrollHeight <= g.wrap.clientHeight + 500) loadRows();
+  if (g && !g.busy && g.last < g.total && g.wrap.clientHeight > 0 && (g.wrap.scrollHeight <= g.wrap.clientHeight + 500 || g.wrap.scrollHeight < (S.pj.keep?.gtop || 0) + g.wrap.clientHeight)) loadRows();
 }
 
 /* ---- what an answer used, marked in the file ---- */
@@ -9496,9 +9588,9 @@ async function sendProject(q){
   const hadFile = !!pj.data.file, sentFid = pj.fid || 1;
   const box = pj.thread;
   box.querySelector(".pj-hint")?.remove(); box.querySelector(".pj-try")?.remove();
-  const w = el("div","pj-turn"); w.append(...qEls(q));
+  const w = el("div","pj-turn pj-rise"); w.append(...qEls(q));
   const a = el("div","pj-a"); thinkInto(a, pj.data.file ? "Reading the file" : "Making it"); w.append(a);
-  box.append(w); box.scrollTop = box.scrollHeight;
+  box.append(w); glide(box);
   try {
     const tags = tagsIn(q, tagChoices(false));
     const r = await api("/api/project/chat", { brain: pj.slug, q, ...pjOpen(), ...(tags.length ? { tags } : {}) });
@@ -9513,7 +9605,8 @@ async function sendProject(q){
       if (same) pj.data.edits = [{ id: r.turn.edit.id, at: Date.now(), status: r.turn.edit.status || "open", preview: r.turn.edit.preview }, ...pj.data.edits].slice(0, 10);
       else (pj.data.editState ||= {})[r.turn.edit.id] = r.turn.edit.status || "open";
     }
-    w.replaceWith(turnEl(r.turn));
+    const done = turnEl(r.turn); done.querySelector(".pj-a")?.classList.add("pj-fade");
+    w.replaceWith(done);
     /* A change applied, or a file the first description just made: the file side follows. */
     if (same && (r.turn.edit?.status === "applied" || (!hadFile && r.turn.edit))) { try { await refreshFile(); } catch { /* the page catches up at the next look */ } }
     if (r.turn.noted?.length || r.turn.stated || r.turn.asks?.length || r.turn.answered?.length) refreshMemory();
@@ -9525,10 +9618,27 @@ async function sendProject(q){
     const row = el("div","pj-tact");
     const again = el("button","ghost","Try again"); again.type = "button"; again.onclick = () => { w.remove(); pj.busy = false; sendProject(q); };
     row.append(again); err.append(row); a.append(err);
-  } finally { pj.busy = false; pj.size(); box.scrollTop = box.scrollHeight; }
+  } finally { pj.busy = false; pj.size(); glide(box); }
 }
+/** The thread slides to its newest line, rather than jumping there. */
+function glide(box){ try { box.scrollTo({ top: box.scrollHeight, behavior: "smooth" }); } catch { box.scrollTop = box.scrollHeight; } }
 
 /* ---- keeping, remembering, forgetting ---- */
+
+/**
+ * One file side takes over from another with no blank between them: the new one is drawn under the old, in the same place, and
+ * fades in once it shows something, 1.5 seconds on at most; then the old one goes.
+ */
+async function swapDoc(old, next){
+  const pj = S.pj;
+  old.classList.add("pj-prev"); old.setAttribute("aria-hidden","true"); old.inert = true;
+  old.querySelectorAll("[id]").forEach(x => x.removeAttribute("id"));
+  next.classList.add("pj-next");
+  old.after(next);
+  await Promise.race([pj.ready, new Promise(ok => setTimeout(ok, 1500))]);
+  window.requestAnimationFrame(() => next.classList.remove("pj-next"));
+  setTimeout(() => old.remove(), 200);
+}
 
 /** What the project remembers, read again after a message noted something. */
 async function refreshMemory(){
@@ -9967,8 +10077,15 @@ async function refreshFile(){
   pj.data.file = d.file; pj.data.cards = d.cards; pj.data.edits = d.edits; pj.data.files = d.files || []; pj.data.shortcuts = d.shortcuts || [];
   pj.data.editState = { ...(pj.data.editState || {}), ...(d.editState || {}) };
   pj.marks = null; pj.sheet = Math.min(pj.sheet || 0, Math.max(0, (d.file?.sheets?.length || 1) - 1));
-  const old = pj.root?.querySelector(".pj-doc");
-  if (old) old.replaceWith(docPane());
+  const old = pj.root?.querySelector(".pj-doc:not(.pj-prev)");
+  if (old){
+    /* The same file read again after a change: the new side opens where the old one was, and what changed glows. */
+    const same = old.dataset.fid === String(want) && old.dataset.kind === (d.file?.kind || "") && !!d.file?.chars;
+    const keep = same ? { top: old.querySelector(".pj-body")?.scrollTop || 0, gtop: old.querySelector(".pj-gridwrap")?.scrollTop || 0,
+      secs: new Map([...old.querySelectorAll(".pj-sec")].map(x => [x.dataset.sid, x._text])),
+      rows: new Set([...old.querySelectorAll(".pj-grid tbody tr[data-n]")].map(x => x._cells)) } : null;
+    await swapDoc(old, docPane({ keep }));
+  }
   const first = pj.root?.querySelector(".pj-seg")?.children[0];
   if (first) first.textContent = pjSeg(pj.data.file);
   if (pj.input) pj.input.placeholder = askHint(pj.data.file);
@@ -10078,32 +10195,6 @@ function openDownload(anchor){
     }
     if (kind === "table" && f.sheets.length > 1) menu.append(el("p",null,`Excel keeps all ${f.sheets.length} sheets. CSV and Markdown take the open one.`));
   });
-}
-
-/**
- * The gaps in the open file, found in code with no model: a placeholder nobody filled, an empty cell, a date in the past, two numbers
- * for one thing. A tap puts a request to fix one in the message bar.
- */
-async function openGaps(anchor){
-  const pj = S.pj; if (!pj?.data?.file) return;
-  if (dlMenu?.anchor === anchor){ closeDownload(); return; }
-  anchor.disabled = true;
-  let r;
-  try { r = await api("/api/project/gaps", { brain: pjKey() }); }
-  catch (e){ r = { error: /unreadable/.test(e.message) ? "The server is older than this page and cannot look for gaps yet. Run convex deploy." : e.message }; }
-  finally { anchor.disabled = false; }
-  if (S.pj !== pj) return;
-  popMenu(anchor, "Gaps in the file", menu => {
-    if (r.error){ menu.append(el("p",null,r.error)); return; }
-    if (!r.gaps.length){ menu.append(el("p",null,"No gap found: no placeholder, no empty cell, no date in the past, no two numbers for one thing.")); return; }
-    for (const g of r.gaps){
-      const b = el("button"); b.type = "button"; b.setAttribute("role","menuitem"); b.title = "Ask the chat to fix it";
-      b.append(el("b",null,g.text), el("span",null,g.where));
-      b.onclick = () => { closeDownload(); fillBar(`Fix this gap in ${g.where}: ${g.text}.`); };
-      menu.append(b);
-    }
-    if (r.total > r.gaps.length){ const n = r.total - r.gaps.length; menu.append(el("p",null,`${n} more ${n === 1 ? "is" : "are"} not shown.`)); }
-  }, "gaps");
 }
 
 /** A blob handed to the browser as a file with a name. */
