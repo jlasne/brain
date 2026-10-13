@@ -739,7 +739,7 @@ export const ANSWER_RULES = (kind: string, english: boolean, o: { auto?: boolean
 
 WHAT YOU READ
 - THE FILE: what the project holds. ${kind === "table" ? "A table's result is computed over every row, so its counts, totals and averages are exact. Use them as given and never add rows up yourself." : "The sections opened are shown in full. The others are named under ALSO IN THE FILE. When the message is about the whole file, THE FILE'S CONTENTS gives a summary line for every section."}
-${o.others ? `- THE PROJECT'S OTHER FILES: the files beside THE FILE, read only. A line names each one, and the sections that bear on the question are shown in full. You change only THE FILE: for a change in another file, name the file to open and ask again there. Name the file and the section when you use one.
+${o.others ? `- THE PROJECT'S OTHER FILES: the files beside THE FILE, read only. A line names each one, the sections that bear on the question are shown in full, and a table is shown with its columns and its rows. Use them as you use THE FILE, and name the file and the section or rows when you do. You change only THE FILE: for a change in another file, or a file of another kind (a page, a table), name the file to open, or the + to add it from, and ask again there. A file the project already holds is never something to drop again.
 ` : ""}- STATE OF PLAY: your own summary of where the project stands, from earlier exchanges. STILL OPEN: what you asked the owner and they have not answered.
 - PROJECT MEMORY: what the project knows: a note on the file, what the owner said and decided in earlier chats, and what earlier answers found in the file.
 - THEIR FOLDERS: notes from the owner's other folders, when they bear on the question.
@@ -777,7 +777,7 @@ ${kind === "html" ? `\n${HTML_PAGE}\n` : ""}` : ""}${o.empty ? `
 THE FILE IS EMPTY
 - The owner will describe what they want. Build it complete in one go with the changes above. In "tldr", say what you made. In "reply", name the one thing to ask for next.
 - When THEIR FOLDERS hold what the owner points at, build from them: their names, numbers and dates as written. Say in "reply" which folder each part comes from. When a folder lacks something, build the rest and say what is missing.
-- When the owner wrote material for it, in the message or under WHAT THE OWNER WROTE EARLIER (a log, a list, rows, figures), build from it: every line in, as written.
+- When the owner wrote material for it, in the message or under WHAT THE OWNER WROTE EARLIER (a log, a list, rows, figures), build from it: every line in, as written. The project's other files, tables and documents, are material too: build from their rows and words.
 - A question is answered from THEIR FOLDERS and the memory, with no change. When the message says nothing to build and the owner wrote no material, ask one question in "tldr" and make no change.
 ` : ""}${o.note ? MEMORY_RULES + (o.folders?.length ? `- "folder": the folder of the memory the note goes in, one of: ${o.folders.join(", ")}. "" when none fits.\n` : "") + (o.next === false ? "" : NEXT_RULE) : ""}
 Reply with only JSON: {"tldr":"","reply":"","proposal":false,"enough":true,"quotes":[]${change ? `,"edits":[]` : ""}${o.note ? `,"notes":[{"title":"","update":"","claim":"","position":"","summaryLine":"","sections":[]${o.folders?.length ? `,"folder":""` : ""}}],"state":"","asks":[],"answered":[]${o.next === false ? "" : `,"next":""`}` : ""}}
@@ -852,7 +852,7 @@ function tableWhole(sheets: Sheet[], blocksBySheet: string[][]): string {
  * embedded once, the nearest sections of the project's files; in another language too). Nothing here fails a message: a search that
  * cannot run reads what the other one found, or nothing.
  */
-export async function readOthers(ctx: any, o: { space: string; base: string; fid: number; q: string; terms: string[]; embeds: boolean; closer?: boolean }) {
+export async function readOthers(ctx: any, o: { space: string; base: string; fid: number; q: string; terms: string[]; embeds: boolean; closer?: boolean; talk?: boolean }) {
   const none = { map: "", text: "", used: [] as { fid: number; sid: number; file: string; title: string }[] };
   let found: { files: any[]; cards: any[] };
   const list = async () => await ctx.runQuery(internal.projects.searchCards, { space: o.space, brain: o.base, except: o.fid });
@@ -867,7 +867,9 @@ export async function readOthers(ctx: any, o: { space: string; base: string; fid
   } catch (e: any) { console.log(`the other files were not listed: ${String(e?.message ?? e).slice(0, 140)}`); return none; }
   if (!found.files.length || o.closer) return none;
   const map = mapText(found.files);
-  if (!found.cards.length) return { ...none, map };
+  /* The project's other tables: their columns, and their rows whole when they are small. A table has no sections to search. */
+  const grid = o.talk ? "" : await otherTables(ctx, o, found.files);
+  if (!found.cards.length) return { ...none, map, text: grid };
   const want = askKeys(o.q, o.terms);
   let meaning: { fid: number; sid: number; score: number }[] = [];
   if (o.embeds && ctx.vectorSearch) {
@@ -895,7 +897,33 @@ export async function readOthers(ctx: any, o: { space: string; base: string; fid
     parts.push(`--- SECTION ${h.fid}.${h.sid}: ${file.name}, ${sec[0].title}\n${room}`);
     used.push({ fid: h.fid, sid: h.sid, file: file.name, title: sec[0].title });
   }
-  return { map, text: parts.join("\n\n"), used };
+  return { map, text: [...parts, ...(grid ? [grid] : [])].join("\n\n"), used };
+}
+
+/* The most of the project's other tables one message reads: a table up to this size is read whole, the rest as columns and first rows. */
+const OTHER_TABLE_CHARS = 30000;
+/**
+ * The project's other tables as the answer reads them: every column with what it holds, and the rows. A table of up to 30,000
+ * characters in all (about 100 rows of 30 columns) is read whole; a bigger one gives its columns and first 20 rows, and says to open
+ * its tab to filter and total over every row. Nothing here fails a message.
+ */
+async function otherTables(ctx: any, o: { space: string; base: string; fid: number }, files: any[]): Promise<string> {
+  const out: string[] = [];
+  let room = OTHER_TABLE_CHARS;
+  try {
+    for (const f of files.filter((x: any) => x.kind === "table" && x.status === "ready" && x.id !== o.fid)) {
+      const got = await ctx.runQuery(internal.projects.projectGet, { space: o.space, brain: o.base, file: f.id });
+      const tf = got?.file; if (!tf?.sheets?.length || !tf.chars) continue;
+      const blocks: string[][] = [];
+      for (let i = 0; i < tf.sheets.length; i++) blocks.push(await readBlocks(ctx, { space: o.space, brain: fileKey(o.base, f.id), sheet: i }));
+      const size = blocks.reduce((n, b) => n + b.reduce((m, t) => m + t.length, 0), 0);
+      const head = `--- THE TABLE "${f.name}" (file ${f.id}), a file of this project, read only from here`;
+      if (size <= room) { room -= size; out.push(`${head}: every row\n${tableWhole(tf.sheets, blocks)}`); continue; }
+      const first = blocks.map(b => b.length ? parseCsv(b[0]).slice(0, 20) : []);
+      out.push(`${head}: its columns and first rows only, as it is too big to read here. Open its tab to filter it and total it over every row.\n${sheetsText(tf.sheets, first)}`);
+    }
+  } catch (e: any) { console.log(`the other tables were not read: ${String(e?.message ?? e).slice(0, 140)}`); }
+  return out.join("\n\n");
 }
 
 /* ---------- a question the project has answered before ---------- */
@@ -1102,7 +1130,7 @@ export async function projectChat(ctx: any, o: ChatIn) {
 
   /* The project's other files: a line each, and the sections of them that bear on the question. */
   const hasOthers = (got.files ?? []).some((f: any) => f.id !== fid);
-  const near = hasOthers ? await readOthers(ctx, { space: o.space, base, fid, q, terms: r.terms, embeds: o.embeds, closer }) : { map: "", text: "", used: [] as { fid: number; sid: number; file: string; title: string }[] };
+  const near = hasOthers ? await readOthers(ctx, { space: o.space, base, fid, q, terms: r.terms, embeds: o.embeds, closer, talk }) : { map: "", text: "", used: [] as { fid: number; sid: number; file: string; title: string }[] };
 
   /* 4. The answer. Thanks and goodbyes read no note. */
   const picked = closer ? [] : memoryPick(memory, 3000, q);

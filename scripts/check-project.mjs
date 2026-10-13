@@ -2025,7 +2025,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   const ask2 = usr();
   check("the answer is told the project's other files, a line each", /THE PROJECT'S OTHER FILES, read only \(id \| name \| what it is\)\n2 \| Notes to self \|/.test(ask2) && /\n3 \| Terms\.md \| The terms of sale: refunds within 14 days, payment in three parts\./.test(ask2), ask2.slice(ask2.indexOf("THE PROJECT'S OTHER")).slice(0, 400));
   check("and the section of another file that bears on the question, found by its words, in full", /FROM THE OTHER FILES, the sections that bear on the question\n--- SECTION 3\.1: Terms\.md, Refunds/.test(ask2) && ask2.includes("A refund needs a written request."), ask2.slice(ask2.indexOf("FROM THE OTHER")).slice(0, 300));
-  check("the rules say the other files are read only, that the chat changes THE FILE alone, and to say which file to open", /THE PROJECT'S OTHER FILES: the files beside THE FILE, read only/.test(sys()) && /You change only THE FILE: for a change in another file, name the file to open and ask again there/.test(sys()));
+  check("the rules say the other files are read only, that the chat changes THE FILE alone, and to say which file to open", /THE PROJECT'S OTHER FILES: the files beside THE FILE, read only/.test(sys()) && /You change only THE FILE: for a change in another file, or a file of another kind \(a page, a table\), name the file to open, or the \+ to add it from, and ask again there\. A file the project already holds is never something to drop again\./.test(sys()));
   check("the turn says which sections of which file it read", same(t2.used.others, [{ fid: 3, sid: termsCards[0].sid, file: "Terms.md", title: termsCards[0].title }]), JSON.stringify(t2.used.others));
   check("a section no word of the question reaches is not read", await (async () => { reply = { route: routeOf({ terms: ["weather"] }), answer: answerOf({ tldr: "Sunny." }) }; await chat("What is the weather in Lisbon?"); return !/FROM THE OTHER FILES/.test(usr()) && /THE PROJECT'S OTHER FILES, read only/.test(usr()); })());
   check("thanks reads none of the other files, not even their lines", await (async () => { reply = { route: routeOf(), answer: answerOf() }; await chat("thanks"); return !/OTHER FILES/.test(usr()) && !/THE PROJECT'S OTHER FILES/.test(sys()); })());
@@ -2071,6 +2071,23 @@ const docProject = async (w, name, text, kind = "doc") => {
   reply = { route: routeOf({ terms: ["price"] }), answer: answerOf({ tldr: "Open it." }) };
   await chat("What does Team cost in the price table?");
   check("the map names the table, and the chat is told to say which file to open for what it holds", /\n\d+ \| Prices\.csv \| Prices: 2 rows, columns Program, Price/.test(usr()));
+  check("and a small table beside the open file is read whole: its columns with what they hold, and every row", /--- THE TABLE "Prices\.csv" \(file \d+\), a file of this project, read only from here: every row\nSHEET 1 "Prices": 2 rows\. Columns:\n- Program \(text, 2 filled\)/.test(usr())
+    && /row \| Program \| Price\n1 \| Team \| 1,490\n2 \| Starter \| 490/.test(usr()), usr().slice(usr().indexOf("--- THE TABLE")).slice(0, 400));
+  reply = { route: routeOf(), answer: answerOf({ tldr: "ok." }) };
+  await chat("thanks");
+  check("thanks reads no row of it", !/--- THE TABLE/.test(usr()));
+  {
+    /* a table too big to read whole gives its columns and first 20 rows, and says to open its tab */
+    const big = await w.ctx.runMutation("projects.fileNew", { space: SPACE, brain: p, kind: "table", name: "Big.csv", made: false });
+    const bb = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: big.key, name: "Big.csv", kind: "table", sheets: [{ name: "Big", header: sheet.colNames(["Name", "Note"]) }] });
+    await project.addRowPiece(w.ctx, { space: SPACE, brain: big.key, ver: bb.ver, sheet: 0, rows: Array.from({ length: 400 }, (_, i) => [`Item ${i + 1}`, "x".repeat(100)]) });
+    await project.finishFile(w.ctx, { space: SPACE, brain: big.key, ver: bb.ver, embeds: false });
+    reply = { route: routeOf({ terms: ["price"] }), answer: answerOf({ tldr: "Open it." }) };
+    await chat("What does Team cost in the price table?");
+    const u = usr();
+    check("a table too big for that gives its columns and first rows, and says to open its tab to total it", /--- THE TABLE "Big\.csv" \(file \d+\)[^\n]*: its columns and first rows only, as it is too big to read here\. Open its tab to filter it and total it over every row\./.test(u)
+      && /First rows:\n1 \| Item 1 \|/.test(u.slice(u.indexOf('"Big.csv"'))) && !u.includes("Item 21 |"), u.slice(u.indexOf('"Big.csv"')).slice(0, 300));
+  }
 
   /* a table can be the open file: its rows are read from its own key */
   reply = { route: routeOf({ query: { where: [{ col: "Program", op: "=", value: "Team" }], show: ["Program", "Price"] } }), answer: answerOf({ tldr: "1,490." }) };
