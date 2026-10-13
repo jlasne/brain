@@ -464,7 +464,7 @@ The project is built on ONE file or table. Below are the file's contents, the fo
 Reply with only JSON: ${shape}
 
 - "intent": "ask" for a question, "brainstorm" when they want ideas, a choice or a decision, "change" when they ask to change the file or table. Also "change" when they paste rows, a log or a list for the file, or ask to put in it what they wrote earlier.
-- "all": true only when the message is about the whole file: a summary, a review of everything, a change everywhere. Otherwise false.
+- "all": true only when the message is about the whole file: a summary, a review of everything, a change everywhere, or (a table) a ranking, a comparison or a pick among the rows. Otherwise false.
 - "folders": the slugs of the owner's other folders that could add a fact, a number or a view the file lacks, at most 4. Empty when the file and the memory are enough. When the file is empty or there is none, the folders whose notes would fill it, the ones the owner names first.
 - "terms": the message as English search words: the subject, synonyms, abbreviations spelled out. Up to 12.
 - Match on meaning, whatever language the message is in.
@@ -902,6 +902,8 @@ export async function readOthers(ctx: any, o: { space: string; base: string; fid
 
 /* The most of the project's other tables one message reads: a table up to this size is read whole, the rest as columns and first rows. */
 const OTHER_TABLE_CHARS = 30000;
+/* A table of the open file up to this size is read whole when no filter was asked of it. */
+const TABLE_WHOLE_CHARS = 120000;
 /**
  * The project's other tables as the answer reads them: every column with what it holds, and the rows. A table of up to 30,000
  * characters in all (about 100 rows of 30 columns) is read whole; a bigger one gives its columns and first 20 rows, and says to open
@@ -1045,9 +1047,11 @@ export async function projectChat(ctx: any, o: ChatIn) {
   }
 
   /* 2. The file. */
-  const whole = !closer && (tiny || (mid && (r.all || !r.routed || (kind === "html" && r.intent === "change"))));
   /* What the router judged small talk: no section, no folder, no search word. */
   const talk = r.routed && r.intent === "ask" && !fresh && !r.sections.length && !r.all && !r.query && !r.folders.length && !r.terms.length;
+  /* A table the router asked no filter of is read whole, up to 120,000 characters (about 300 rows of 30 columns): what it asks is about its rows, and three rows cannot answer it. */
+  const wholeTable = table && !closer && !talk && !fresh && !r.query && file.chars <= TABLE_WHOLE_CHARS;
+  const whole = !closer && (tiny || wholeTable || (mid && (r.all || !r.routed || (kind === "html" && r.intent === "change"))));
   let fileText = "", opened: { sid: number; title: string }[] = [], rowsUsed: number[] = [], rowsSheet = 0, alsoIn = "", mapText = "";
   /* Some sections read as passages: the file as it would read whole, kept for the second pass. */
   let trimmed = false, fileWhole = "";

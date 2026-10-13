@@ -620,6 +620,38 @@ const gt = await T2.ctx.runQuery("projects.projectGet", { space: SPACE, brain: s
   check("what was pasted earlier is read newest first, within 30,000 characters", ext.indexOf("B") < ext.indexOf("A") && (ext.match(/[AB]/g) || []).length === 30000 && /its first part/.test(ext), String(ext.length));
 }
 
+/* ---- a table the router asked no filter of is read whole ---- */
+{
+  const w = makeCtx();
+  const mk = async (name, n, pad) => {
+    const p = await w.ctx.runMutation("projects.projectCreate", { space: SPACE, name });
+    const b = await w.ctx.runMutation("projects.fileBegin", { space: SPACE, brain: p, name: "a.csv", kind: "table", sheets: [{ name: "a.csv", header: ["Asset", "Fit", "Notes"] }] });
+    await project.addRowPiece(w.ctx, { space: SPACE, brain: p, ver: b.ver, sheet: 0, rows: Array.from({ length: n }, (_, i) => [`Asset ${i + 1}`, i % 2 ? "fit" : "misfit", "n".repeat(pad)]) });
+    await project.finishFile(w.ctx, { space: SPACE, brain: p, ver: b.ver });
+    return p;
+  };
+  const chat = (p, q) => project.projectChat(w.ctx, { space: SPACE, brain: p, q, english: false, embeds: false, shared: shared0 });
+  const p = await mk("Assets", 150, 60);
+  reply = { route: routeOf({ terms: ["portfolio", "best"] }), answer: answerOf({ tldr: "Four." }) };
+  await chat(p, "what is the best combination if I needed only 4 lines in my portfolio?");
+  let u = last(/You are the chat of a project/).user;
+  check("a table with no filter asked of it is read whole, every row, not the first three", /\n150 \| Asset 150 \| fit \|/.test(u) && /\n1 \| Asset 1 \| misfit \|/.test(u) && !/First rows:/.test(u), u.slice(u.indexOf("THE FILE")).slice(0, 300));
+  reply = { route: routeOf({ terms: ["fit"], query: { where: [{ col: "Fit", op: "=", value: "fit" }], limit: 5 } }), answer: answerOf({ tldr: "75." }) };
+  await chat(p, "how many fit?");
+  u = last(/You are the chat of a project/).user;
+  check("a filter the router asked for still gives its result over every row, not the table whole", /TABLE RESULT, computed over every row/.test(u) && !/\n150 \| Asset 150 \|/.test(u), u.slice(u.indexOf("THE FILE")).slice(0, 200));
+  reply = { route: routeOf({ intent: "ask" }), answer: answerOf() };
+  await chat(p, "ok");
+  u = last(/You are the chat of a project/).user;
+  check("small talk reads no row of it", !/\n150 \| Asset 150 \|/.test(u));
+  const huge = await mk("Huge", 600, 200);
+  reply = { route: routeOf({ terms: ["best"] }), answer: answerOf({ tldr: "Open it." }) };
+  await chat(huge, "what is the best combination of 4?");
+  u = last(/You are the chat of a project/).user;
+  check("a table past 120,000 characters is not read whole: its columns and first rows, as before", /First rows:/.test(u) && !/\n600 \| Asset 600 \|/.test(u));
+  check("the router is told that a ranking or a pick among the rows is about the whole table", /\(a table\) a ranking, a comparison or a pick among the rows/.test(last(/You decide what a project's chat must read/)?.user ?? last(/You route a project's questions/)?.user ?? ""));
+}
+
 /* ---- the project files its own notes ---- */
 {
   const w = makeCtx();
