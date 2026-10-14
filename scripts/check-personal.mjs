@@ -31,6 +31,7 @@ const store = await build("store");
 const personal = await build("personal");
 const space = await build("space");
 const twin = await build("twin");
+const daily = await build("daily");
 const words = await build("words");
 
 let failures = 0;
@@ -333,6 +334,107 @@ const TODAY = "2026-09-30";
     model: async () => JSON.stringify({ notes: [{ title: "Raised by grandmother", claim: "My grandmother raised me", position: "Your grandmother raised you.", summaryLine: "Raised by your grandmother" }] }) });
   const src = T.sources.find(x => x.sid === `me-interview-${TODAY}`);
   check("under the day's interview source, signed You", f.new === 1 && src?.title === `Interview, ${TODAY}` && src.author === "You" && T.concepts[0].evidence[0].author === "You", JSON.stringify(src));
+}
+
+/* ---- the daily log: a day told, one beat at a time, through the real store ---- */
+{
+  const { T, ctx } = makeCtx();
+  T.brains = [
+    { _id: "b1", slug: "me", name: "Me", type: "personal", scope: "", space: "acme" },
+    { _id: "b2", slug: "health", name: "Health", type: "subject", scope: "s", space: "acme" },
+  ];
+  const cards = [
+    { brain: "me", slug: "goal", title: "Revenue goal", summaryLine: "You want $10k a month from your apps.", updated: "2026-10-03" },
+    { brain: "health", slug: "sleep", title: "Sleep", summaryLine: "8 hours", updated: "2026-10-03" },
+  ];
+  const files = [], prompts = [];
+  const file = async (text, context) => { files.push({ text, context }); return { new: 1, updated: 0, titles: ["Note"] }; };
+  const row = () => T.interviews?.[0] ?? null;
+  const step = async (q, reply, opening = false, date = TODAY) => daily.dailyStep(ctx, { space: "acme", brain: "me", cards, row: row(), q, opening, date, file,
+    model: async m => { prompts.push(m); return typeof reply === "string" ? reply : JSON.stringify(reply); } });
+
+  check("8 beats, the first five the script's five lines", daily.BEATS.length === 8 && daily.BEATS.slice(0, 5).map(b => b.id).join() === "situation,desire,conflict,change,result");
+  const s1 = await step("", { ack: "A few quick questions about today.", question: "Where were you today, and what were you building?", next: "situation" }, true);
+  check("opening asks the first beat and files nothing", row().daily.on === true && row().daily.pending.beat === "situation" && files.length === 0
+    && s1.reply.endsWith("what were you building?"), JSON.stringify(row().daily));
+  check("the first open of all explains how it works", /FIRST TURN OF THE DAY/.test(prompts[0][0].content));
+  check("it reads the person's notes, and nothing from their other folders", /Revenue goal: You want \$10k a month/.test(prompts[0][1].content) && !/Sleep/.test(prompts[0][1].content));
+
+  await step("At home in Cork, on the outreach agent", { ack: "", question: "What did you want out of today?", next: "desire" });
+  check("an answer is filed as notes with its question as context", files[0]?.text === "At home in Cork, on the outreach agent" && files[0].context === "The brain asked: Where were you today, and what were you building?", JSON.stringify(files[0]));
+  check("and kept for the script, under its beat", row().daily.said[0]?.beat === "situation" && row().daily.marks.situation === "a" && row().daily.pending.beat === "desire");
+
+  await step("it went well", { question: "How many creators did you want to reach?", follow: true });
+  check("a vague answer gets one follow-up, and the beat stays open", row().daily.pending.beat === "desire" && row().daily.pending.follow === 1 && !row().daily.marks.desire);
+  await step("10 creators", { question: "Which one?", follow: true });
+  check("one follow-up at most: the next beat comes", row().daily.marks.desire === "a" && row().daily.pending.beat === "conflict" && row().daily.pending.follow === 0
+    && row().daily.pending.text === daily.askBeat("conflict"), JSON.stringify(row().daily.pending));
+
+  const n = files.length;
+  await step("skip", { question: "What did you decide today?", next: "change" });
+  check("skip passes the beat and files nothing", row().daily.marks.conflict === "s" && files.length === n && /\(they skipped this question\)/.test(prompts.at(-1)[1].content));
+  const calls = prompts.length;
+  const st = await step("stop", { question: "never asked" });
+  check("stop pauses where it stands, with no model call", row().daily.on === false && prompts.length === calls && /^Paused at Change, 2 of 8 answered today\./.test(st.reply), st.reply);
+  const back = await step("", { question: "never asked" }, true);
+  check("opened again, the question waiting comes back with no model call", row().daily.on === true && prompts.length === calls && /^Back to today\.\n\nWhat did you decide today\?$/.test(back.reply), back.reply);
+
+  await step("I cut the list to creators with 50k followers", { question: "What is true tonight that was not this morning?", next: "result", covered: [] });
+  await step("3 replies out of 10, 1 call booked", { question: "Where did you go today?", next: "life" });
+  check("five beats answered: ready for the script", daily.dailyView(row().daily, TODAY).ready === false && daily.answered(row().daily.marks) === 4);
+  await step("Lunch with Marc at the English Market", { question: "One thing someone a month behind you could use?", next: "lesson" });
+  const v = daily.dailyView(row().daily, TODAY);
+  check("the view counts answered, seen and ready", v.answered === 5 && v.seen === 6 && v.ready === true && v.beat.id === "lesson", JSON.stringify(v));
+
+  await ctx.runMutation("store.interviewSet", { space: "acme", brain: "me", patch: { daily: { ...row().daily, marks: { ...row().daily.marks, lesson: "a" }, pending: { beat: "why", text: "Why 50k?", follow: 0 } } } });
+  const last = await step("Big enough to sell, small enough to answer", { ack: "Thanks.", question: "" });
+  check("the last beat ends the day and points to the script", row().daily.on === false && !row().daily.pending && /LAST TURN/.test(prompts.at(-1)[0].content)
+    && /Tap Write the script/.test(last.reply), last.reply);
+  const again = await step("", { question: "never asked" }, true);
+  check("a reply naming no beat asks the next beat plainly", daily.readDayTurn(JSON.stringify({ question: "Anything else?" }), { next: daily.BEATS.slice(5), followLeft: 0 }).question === daily.askBeat("life"));
+  check("a day told opens on where it stands, with no model call", /^Today is told: 7 of 8 answered/.test(again.reply) && row().daily.on === false, again.reply);
+
+  /* A new day starts over, and keeps the series line. */
+  await ctx.runMutation("store.interviewSet", { space: "acme", brain: "me", patch: { daily: { ...row().daily, series: { line: "Day {n} working towards my first $10k a month", start: "2026-09-30" } } } });
+  const fresh = daily.dayOf(row().daily, "2026-10-01");
+  check("a new day starts over and keeps the series", fresh.said.length === 0 && Object.keys(fresh.marks).length === 0 && fresh.series.start === "2026-09-30" && fresh.opens === row().daily.opens);
+
+  let threw = "";
+  try { await ctx.runMutation("store.interviewSet", { space: "acme", brain: "health", patch: { daily: { on: true } } }); } catch (e) { threw = e.message; }
+  check("a daily log is kept for a personal brain only", /not a personal brain/.test(threw));
+}
+
+/* ---- the daily log: the series line and the script ---- */
+{
+  check("Day 1 is the start, and the count runs from it", daily.dayNumber("2026-09-30", "2026-09-30") === 1 && daily.dayNumber("2026-09-30", "2026-10-14") === 15
+    && daily.dayNumber("2026-10-20", "2026-10-14") === null && daily.dayNumber("", "2026-10-14") === null);
+  const series = { line: "Day {n} working towards my first $10k a month. I'm Jeremy, I'm 25, currently in Ireland.", start: "2026-09-30" };
+  const opening = daily.openingOf(series, "2026-10-14");
+  check("the opening fills in the day count", opening === "Day 15 working towards my first $10k a month. I'm Jeremy, I'm 25, currently in Ireland", opening);
+  check("a series is cleaned: dashes out, a bad date dropped, an empty line is none",
+    daily.cleanSeries({ line: "Day {n} — my first $10k", start: "nope" }).line === "Day {n}, my first $10k" && daily.cleanSeries({ line: "x", start: "nope" }).start === ""
+    && daily.cleanSeries({ line: "  " }) === null);
+  const raw = JSON.stringify({ trying: "trying to sign my second creator",
+    script: "tl;dr: one day of outreach.\n**Intro (0 to 4s)**\nCoffee\n**Situation**\nI'm Jeremy, I'm 25 and I build apps.\nToday I sent 10 messages.\n**Desire**\nI want 10 creators." });
+  const out = daily.readScript(raw, opening);
+  check("the opening leads Situation, ended with what they tried today", out.includes("**Situation**\nDay 15 working towards my first $10k a month. I'm Jeremy, I'm 25, currently in Ireland, trying to sign my second creator.\n"), out);
+  check("the rest of the script stays", out.includes("Today I sent 10 messages.") && out.includes("**Desire**\nI want 10 creators."), out);
+  const dup = daily.readScript(JSON.stringify({ trying: "sign a creator", script: "**Situation**: Day 15 working towards my first $10k a month, today.\nMore." }), opening);
+  check("an opening the model wrote anyway gives way to the set one", (dup.match(/Day 15/g) || []).length === 1 && /trying to sign a creator\.\nMore\./.test(dup), dup);
+  const bare = daily.readScript(JSON.stringify({ trying: "", script: "**Desire**\nX." }), opening);
+  check("with no Situation label, the opening leads the script", bare.startsWith("**Situation**\nDay 15 working"), bare);
+  check("with no series line, the script is the model's own", daily.readScript(JSON.stringify({ trying: "x", script: "**Situation**\nMine." }), "") === "**Situation**\nMine.");
+  const sp = daily.scriptPrompt({ said: [{ beat: "situation", q: "Where?", a: "Cork" }], near: [{ title: "Goal", position: "You want $10k a month." }], notes: [], opening, date: "2026-10-14" });
+  check("the script reads today's answers and the notes nearest them", /TODAY'S ANSWERS\nSituation\. Asked: Where\?\nThey said: Cork/.test(sp[1].content)
+    && /NOTES NEAREST TO TODAY\n- Goal: You want \$10k a month\./.test(sp[1].content) && /OPENING LINE\nDay 15 working/.test(sp[1].content));
+  const m = personal.filerPrompt("daily", "3 replies out of 10", "The brain asked: What is true tonight?", [], [], TODAY);
+  check("a daily answer is filed with its question as context", /about their day, in their daily log/.test(m[1].content) && /THE QUESTION IT ANSWERS/.test(m[1].content) && /THE ANSWER\n3 replies/.test(m[1].content));
+  const { T, ctx } = makeCtx();
+  T.brains = [{ _id: "b1", slug: "me", name: "Me", type: "personal", scope: "", space: "acme" }];
+  const f = await personal.remember(ctx, { space: "acme", brain: "me", cards: [], text: "3 replies out of 10", context: "The brain asked: What is true tonight?", kind: "daily", date: TODAY,
+    model: async () => JSON.stringify({ notes: [{ title: "Outreach replies", claim: "3 replies out of 10", position: "You got 3 replies out of 10.", summaryLine: "3 of 10 replied" }] }) });
+  const src = T.sources.find(x => x.sid === `me-daily-${TODAY}`);
+  check("under the day's daily log source, signed You", f.new === 1 && src?.title === `Daily log, ${TODAY}` && src.author === "You", JSON.stringify(src));
 }
 
 /* ---- the twin test and the profile ---- */

@@ -42,7 +42,7 @@ async function doAsk(q, again){
   try {
     /* "chat" files the turn in the chat on screen, or starts one. A chat
        about one concept sends that concept alone. */
-    const named = about || S.iv[scope]?.on ? [] : tagsIn(q, tagChoices(isPersonal(scope)));
+    const named = about || S.iv[scope]?.on || dailyToday(scope)?.on ? [] : tagsIn(q, tagChoices(isPersonal(scope)));
     /* An asset tagged travels apart from the folders: the message reads it, and may propose a change to it. */
     const tags = named.filter(t => !t.startsWith("asset:"));
     /* The assets it names, then the ones ticked in the picker: four at most. */
@@ -53,6 +53,7 @@ async function doAsk(q, again){
     const here = landed(job, r);
     if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, q, asked, true); }
     if (r.interview && isPersonal(scope)) S.iv[scope] = r.interview;
+    if (r.daily && isPersonal(scope)) S.daily[scope] = r.daily;
     if ((r.filed && (r.filed.new || r.filed.updated)) || r.changed) refresh().catch(() => {});
     /* Six turns is what a thread of follow-ups runs to before the subject has
        moved anyway. Only the last four travel. */
@@ -65,7 +66,7 @@ async function doAsk(q, again){
     renderComposer();
     if (here) bottom();
   } catch(e){
-    const where = about ? "chat about one concept" : isPersonal(scope) ? (S.iv[scope]?.on ? "interview" : "personal chat") : "chat";
+    const where = about ? "chat about one concept" : isPersonal(scope) ? (S.iv[scope]?.on ? "interview" : dailyToday(scope)?.on ? "daily log" : "personal chat") : "chat";
     if (job.body.isConnected) fail(job.body, e.message, { q, where, scope,
       retry: () => { if (chatBusy()) return; doAsk(q, job.body).finally(renderComposer); renderComposer(); } });
     job.error = e.message; endJob(job, false); renderComposer();
@@ -105,6 +106,8 @@ function showAnswer(body, r, q, asked, fresh){
     body.append(f);
   }
   if (r.concept) return;
+  /* A video script: one tap copies it. */
+  if (r.script){ scriptActs(body, r.answer ?? r.a ?? ""); return; }
   if (r.filed){
     const line = filedLine(r.filed);
     if (line){

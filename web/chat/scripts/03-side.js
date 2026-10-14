@@ -822,7 +822,8 @@ function renderComposer(){
      what another assistant already knows about you. */
   const about = S.mode === "ask" ? S.concept : null;
   const mine = S.mode === "ask" && isPersonal(S.scope) && !about;
-  const asking = mine && !!S.iv[S.scope]?.on;
+  const daily = mine && !!dailyToday(S.scope)?.on;
+  const asking = mine && (!!S.iv[S.scope]?.on || daily);
   paintAbout(about);
   $("memBtn").hidden = !mine || S.demo;
   /* It appears once there is something to forget. */
@@ -853,6 +854,8 @@ function renderComposer(){
   $("footNote").textContent = about
     ? (about.personal ? `This chat reads ${about.title} alone. A fact, a date or a correction you give is written to it at once.`
       : `This chat reads ${about.title} alone. A new chat reads every folder.`)
+    : daily
+    ? "Daily log: today's questions, one at a time, each answer filed as dated notes. Say skip to pass, or Stop any time."
     : asking
     ? "Interview: one question at a time, each answer filed as dated notes. Say skip to pass, or Stop any time."
     : mine

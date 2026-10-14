@@ -28,17 +28,22 @@ function paintIv(){
   bar.hidden = !show;
   if (!show) return;
   if (!(slug in S.iv)){ S.iv[slug] = null; loadIv(slug); }
-  const iv = S.iv[slug];
-  /* At 100% there is nothing left to ask, so the strip goes. */
-  if (ivDone(iv)){ bar.hidden = true; bar.innerHTML = ""; bar.dataset.key = ""; return; }
+  if (!(slug in S.daily)){ S.daily[slug] = null; loadDaily(slug); }
+  const iv = S.iv[slug], dl = dailyToday(slug);
+  /* Today told and its script not yet written: Write the script sits beside the interview's way in. */
+  const script = !!dl && !dl.on && dl.ready && !dl.script;
+  /* At 100% the interview has nothing left to ask, so the strip goes, unless today's log needs it. */
+  if (ivDone(iv) && !dl?.on && !script){ bar.hidden = true; bar.innerHTML = ""; bar.dataset.key = ""; return; }
   /* The bar repaints on every focus change: a strip rebuilt under a click
      would lose it, so it is drawn again only when what it says changes. */
   const busy = chatBusy();
-  const key = JSON.stringify([slug, !!iv?.on, iv?.pct, iv?.seen, iv?.chapter?.at, busy]);
+  const key = JSON.stringify([slug, !!iv?.on, iv?.pct, iv?.seen, iv?.chapter?.at, busy, !!dl?.on, dl?.seen, dl?.ready, script]);
   if (bar.dataset.key === key && bar.children.length) return;
   bar.dataset.key = key;
   bar.innerHTML = "";
-  bar.classList.toggle("on", !!iv?.on);
+  bar.classList.toggle("on", !!iv?.on || !!dl?.on);
+  /* Today's log under way has the strip to itself. */
+  if (dl?.on){ dailyStrip(bar, slug, dl, busy); return; }
   if (iv?.on){
     const ch = iv.chapter;
     const live = el("span","iv-live");
@@ -60,7 +65,8 @@ function paintIv(){
     goB.append(el("span",null, iv?.seen ? "Resume the interview" : "Interview me"));
     if (iv) goB.append(el("small",null,`twin ${iv.pct}%`));
     goB.onclick = () => startInterview(slug);
-    bar.append(goB);
+    if (!ivDone(iv)) bar.append(goB);
+    if (script) bar.append(scriptButton(slug, busy));
   }
 }
 
@@ -78,6 +84,8 @@ async function startInterview(slug){
     const here = landed(job, r);
     if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, "", slug); }
     if (r.interview) S.iv[slug] = r.interview;
+    /* One at a time: the interview pauses today's log. */
+    if (S.daily[slug]?.on) S.daily[slug] = { ...S.daily[slug], on: false };
     if (here){
       S.thread.push({ q: "", a: String(r.answer ?? "") });
       if (S.thread.length > 6) S.thread = S.thread.slice(-6);

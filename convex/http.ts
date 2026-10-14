@@ -35,10 +35,12 @@ import { embed, nearest } from "./graph";
 import {
   ahead, gaps, gapBlock, readGap, interviewStep, pausedLine, summary, notesText, readTwin, readProfile,
   cleanAnswers, TWIN_RULES, PROFILE_RULES, NATURAL_GAP, JUDGE_RULES, pairsText, readScores, interviewFull, pickTest, testView, scorePct, questionOf, TEST_N, HISTORY_MAX,
-  DEDUCE_MIN, DEDUCE_RULES, readQuestions, roundQs,
+  DEDUCE_MIN, DEDUCE_RULES, readQuestions, roundQs, notesOf,
 } from "./twin";
 import type { RoundQ } from "./twin";
 import type { Marks } from "./twin";
+import { dailyStep, dailyView, dayOf, pausedLine as dailyPaused, cleanSeries, openingOf, scriptPrompt, readScript, READY_AT, answered, left as beatsLeft } from "./daily";
+import { nearest as nearestNotes, isContact } from "./personal";
 import { transcribe } from "./voice";
 import { STYLE, SHORT_STYLE } from "./style";
 
@@ -1177,6 +1179,8 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   /* An interview under way takes the message as its answer. */
   const row = who.demo ? null : await ctx.runQuery(internal.store.interviewGet, { space: who.space, brain: mine.slug });
   if (row?.on) return await interviewTurn(ctx, who, b, mine, every.cards, row, false, tally);
+  /* Today's log under way takes the message as its answer. */
+  if (row?.daily?.on && row.daily.day === today()) return await dailyTurn(ctx, who, b, mine, every.cards, row, false, tally);
   const q = String(b.q ?? "").slice(0, MAX_CHARS.chat).trim();
   await demoCount(ctx, who, "ask");
   const date = today();
@@ -1450,7 +1454,8 @@ route("/api/interview", async (ctx, _req, b) => {
       case "state": return view(row);
       case "start": {
         if (!ahead(row?.marks ?? {}, 1).length && row) return { error: "every question is answered or skipped. Start over to go again." };
-        const r = await save({ on: true });
+        /* One at a time: the interview pauses today's log. */
+        const r = await save({ on: true, ...(row?.daily?.on ? { daily: { ...row.daily, on: false } } : {}) });
         /* The first start explains how it works: the count goes up after it. */
         const out = await interviewTurn(ctx, who, b, mine, cards, { ...r, opens: row?.opens ?? 0 }, true, meter);
         await save({ opens: (row?.opens ?? 0) + 1 });
@@ -1552,6 +1557,90 @@ route("/api/interview", async (ctx, _req, b) => {
         return view(await save({ profile: { parts, at: day, notes: notes.used } }));
       }
       default: return { error: "that is not something the interview does" };
+    }
+  });
+});
+
+/* ---------- the daily log ---------- */
+
+/**
+ * One turn of the daily log, with the chat it lands in. The turn itself, what
+ * it files, asks and marks, is dailyStep's.
+ */
+async function dailyTurn(ctx: any, who: Caller, b: any, mine: any, cards: any[], row: any, opening: boolean, meter?: (u: any) => void) {
+  const mKey = keyFor(who), mName = modelFor(who, b);
+  const q = opening ? "" : String(b.q ?? "").slice(0, MAX_CHARS.daily).trim();
+  const date = today();
+  const step = await dailyStep(ctx, { space: who.space, brain: mine.slug, cards, row, q, opening, date, english: who.models?.reply === "en",
+    model: async m => (await ask(m, { json: true, maxTokens: 900, key: mKey, model: mName, meter, timeout: 90000, temperature: 0.4 })).text,
+    /* A filing that fails is tried once more: an answer lost costs the owner a retype. */
+    file: async (text, context) => {
+      const run = (t: number) => remember(ctx, { space: who.space, brain: mine.slug, cards, text, context, kind: "daily", date, lang: storeLang(who),
+        model: async m => (await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, meter, timeout: t })).text });
+      return await fileTwice(run);
+    } });
+  const chat = await saveTurn(ctx, who, b, { brain: mine.slug, ...(opening ? { title: `Daily log, ${date}` } : {}) },
+    { q: q.slice(0, 2000), a: step.reply, level: "normal", sources: 0, filed: step.filed ?? null, called: [], daily: true });
+  return { answer: step.reply, sources: 0, level: "normal", personal: true, filed: step.filed, called: [],
+           daily: dailyView(step.daily, date), ...(chat ? { chat } : {}) };
+}
+
+/**
+ * The daily log of a personal brain, by action:
+ *   state    where today stands, and the series line
+ *   start    on, in the chat on screen, and the question waiting or the first beat
+ *   stop     off, where it stands
+ *   script   the 60-second video script, from today's answers and a light read of the notes. One model call.
+ *   series   the line that opens every script, with {n} as the day count, and its Day 1
+ * Only the owner, and only their personal brain: nothing else reads it.
+ */
+route("/api/daily", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return await metered(ctx, who, "personal", async meter => {
+    const got = await personalOf(ctx, who.space, String(b.brain ?? ""));
+    if (!got) return { error: "that is not a personal brain of this workspace" };
+    const { mine, cards } = got;
+    const row = await ctx.runQuery(internal.store.interviewGet, { space: who.space, brain: mine.slug });
+    const date = today();
+    const day = dayOf(row?.daily, date);
+    const save = (daily: any, extra: any = {}) => ctx.runMutation(internal.store.interviewSet, { space: who.space, brain: mine.slug, patch: { daily, ...extra } });
+    switch (String(b.action ?? "state")) {
+      case "state": return { daily: dailyView(row?.daily, date) };
+      case "start": {
+        /* One at a time: today's log pauses the interview. */
+        await save({ ...day, on: true }, row?.on ? { on: false } : {});
+        return await dailyTurn(ctx, who, b, mine, cards, { ...(row ?? {}), on: false, daily: { ...day, on: true } }, true, meter);
+      }
+      case "stop": {
+        const off = { ...day, on: false };
+        await save(off);
+        const v = dailyView(off, date);
+        return { daily: v, answer: dailyPaused(v) };
+      }
+      case "series": {
+        const series = cleanSeries(b.series);
+        await save({ ...day, series });
+        return { daily: dailyView({ ...day, series }, date) };
+      }
+      case "script": {
+        if (!day.said.length) return { error: "answer a few of today's questions first" };
+        if (answered(day.marks) < READY_AT && beatsLeft(day.marks).length) return { error: `answer at least ${READY_AT} of today's questions first, or skip the rest` };
+        const held = cards.filter((c: any) => c.brain === mine.slug && !isContact(c));
+        const told = day.said.map(s => s.a).join("\n");
+        const ids = nearestNotes(held, told, 6).map(idOf);
+        const near = ids.length ? await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids }) : [];
+        const opening = openingOf(day.series, date);
+        const { text, finish } = await ask(scriptPrompt({ said: day.said, near, notes: notesOf(held, 30), opening, date }),
+          { json: true, maxTokens: 4000, key: keyFor(who), model: modelFor(who, b), meter, timeout: 150000, temperature: 0.5 });
+        const script = readScript(text, opening);
+        if (!script) return { error: finish === "length" ? "the script ran out of room. Try again." : "the script could not be written this time. Try again." };
+        const saved = { ...day, on: false, script: { at: date, text: script.slice(0, 8000) } };
+        await save(saved);
+        const chat = await saveTurn(ctx, who, { ...b, q: "Write the script" }, { brain: mine.slug, title: `Video script, ${date}` },
+          { q: "Write the script", a: script, level: "normal", sources: 0, called: [], script: true });
+        return { answer: script, sources: 0, level: "normal", personal: true, script: true, daily: dailyView(saved, date), ...(chat ? { chat } : {}) };
+      }
+      default: return { error: "that is not something the daily log does" };
     }
   });
 });

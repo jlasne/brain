@@ -5,6 +5,7 @@ const IC_CHAT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11
 const IC_DROP = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>`;
 const IC_IV = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M10 9.3a2 2 0 1 1 2.7 1.9c-.4.2-.7.5-.7 1v.3M12 14.3v.1"/></svg>`;
 const IC_TEST = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6M10 4v5l-5 9a1.5 1.5 0 0 0 1.3 2h11.4a1.5 1.5 0 0 0 1.3-2l-5-9V4"/><path d="M7.5 14h9"/></svg>`;
+const IC_DAY = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4"/></svg>`;
 const IC_PROFILE = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg>`;
 /** A share out of 100 as a ring, the way a folder's health is drawn. */
 function pctRing(pct){
@@ -304,6 +305,9 @@ function folderHead({ b, self, live, reads, clashes, h, ro, panes }){
     if (!ivDone(S.iv[b.slug])) btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
       "It asks you questions, one at a time, to know you better. Stop any time.");
     btn("fvTest", "Twin test", IC_TEST, () => panes.testPane(), "5 messages to reply to, built from your notes: your twin replies first, from your notes alone, then the two replies are compared, and yours go into your notes");
+    /* The daily log, an add-on: today's questions in a chat of its own, filed here, and the day's video script. */
+    btn("fvDaily", "Daily log", IC_DAY, () => { S.folder = null; newChat(); startDaily(b.slug); },
+      "Today's questions, one at a time, in a chat of its own. Each answer goes into your notes, and the day becomes a 60-second video script");
     /* At 100% the notes and the contacts hold all of it: the profile would only repeat them. */
     if (!ivFull(S.iv[b.slug])) btn("fvProfile", "Twin profile", IC_PROFILE, () => panes.profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
   }
@@ -744,6 +748,7 @@ function folderTwinPanes({ live, paint, cols, doc, b, reload }){
       row.append(goB, el("span","ts-say", iv.on ? "It is on: your next message answers it." : "About 15 questions a sitting. Stop any time."));
     }
     inner.append(row);
+    inner.append(dailySection(b));
     const t = iv.test;
     inner.append(el("div","tw-score", !t.last ? "Twin score: take the twin test to measure it."
       : `Last twin test ${t.last.pct}% · average of the last ${Math.min(3, t.count)}: ${t.recent}% · ${t.count} test${t.count === 1 ? "" : "s"} taken`));

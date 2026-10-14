@@ -2349,7 +2349,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     pane: !!document.getElementById("twinPane"), chs: document.querySelectorAll("#twinPane .tw-ch").length, now: document.querySelector("#twinPane .tw-ch.now b")?.textContent,
     pos: document.querySelector("#twinPane .fv-pos")?.textContent }));
   check("a personal folder shows how complete its twin is in place of a health score", /Twin 4% complete/.test(fv.twin || "") && /Next: Life story, 12 of 28 done/.test(fv.twin || ""), fv.twin);
-  check("its actions: chat, add memory, interview, twin test and profile; never drop, edit or tidy", fv.acts.join() === "fvChat,fvMem,fvIv,fvTest,fvProfile,fvClose", fv.acts.join());
+  check("its actions: chat, add memory, interview, twin test, daily log and profile; never drop, edit or tidy", fv.acts.join() === "fvChat,fvMem,fvIv,fvTest,fvDaily,fvProfile,fvClose", fv.acts.join());
   check("it opens on the twin: the share covered and its 17 chapters, the current one marked", fv.pane && fv.chs === 17 && fv.now === "Life story" && /14 of 335 questions/.test(fv.pos || ""), JSON.stringify(fv));
 
   await page.click("#fvTest"); await page.waitForTimeout(250);
@@ -2407,6 +2407,72 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click("#fvIv"); await page.waitForTimeout(300);
   check("Interview from the folder goes back to the chat and asks", await page.evaluate(() => !!document.getElementById("ivStop") && /Who raised you/.test([...document.querySelectorAll(".msg.ai")].pop()?.textContent || "")));
   check("nothing threw around the interview", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- the daily log: next to the twin test, a chat of its own, and the script ---- */
+{
+  const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "", owner: null }],
+    concepts: [{ brain: "me", slug: "goal", n: 1, title: "Revenue goal", summaryLine: "You want $10k a month." }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    const day = new Date().toISOString().slice(0, 10);
+    const ids = ["situation","desire","conflict","change","result","life","lesson","why"], labels = ["Situation","Desire","Conflict","Change","Result","The day","Lesson","Why"];
+    let on = false, n = 0, script = false, series = null;
+    const view = () => ({ on, day, answered: n, total: 8, seen: n, beat: n < 8 ? { id: ids[n], label: labels[n] } : null,
+      beats: ids.map((id, i) => ({ id, label: labels[i], mark: i < n ? "a" : null })), ready: n >= 5, script: script ? { at: day } : null, series, dayNo: series ? 15 : null });
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/interview")) return Response.json({ interview: { on: false, pct: 4, covered: 14, seen: 14, total: 335, chapter: { key: "A", title: "Life story", total: 28, at: 12 },
+        chapters: [], pending: null, test: { count: 0, last: null, recent: null, open: false, learn: false }, profile: null }, test: { round: null, history: [] }, profile: null });
+      if (s.includes("/api/daily")) {
+        const a = body.action || "state";
+        if (a === "start") { on = true; return Response.json({ answer: "A few quick questions about today.\n\nWhere were you today?", daily: view(), chat: "d1", personal: true, filed: { new: 0, updated: 0, titles: [] }, called: [] }); }
+        if (a === "stop") { on = false; return Response.json({ daily: view(), answer: "Paused at Desire, 1 of 8 answered today. Tap Daily log to pick up where you left off." }); }
+        if (a === "series") { series = body.series; return Response.json({ daily: view() }); }
+        if (a === "script") { script = true; on = false; return Response.json({ answer: "tl;dr: a day of outreach.\n**Situation**\nDay 15 working towards my first $10k a month, trying to sign a creator.", daily: view(), chat: "d1", personal: true, script: true, sources: 0, level: "normal" }); }
+        return Response.json({ daily: view() });
+      }
+      if (s.includes("/api/ask")) { if (body.q !== "skip") n++; else n++; if (n >= 5) on = true;
+        return Response.json({ answer: n >= 8 ? "That's the day." : "Next question?", sources: 0, level: "normal", personal: true,
+          filed: body.q === "skip" ? { new: 0, updated: 0, titles: [] } : { new: 1, updated: 0, titles: ["Day"] }, called: [], daily: view(), chat: "d1" }); }
+      return Response.json({ chats: [] });
+    };
+  }, mine);
+  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent))?.querySelector(".ed.op")?.click());
+  await page.waitForTimeout(350);
+  const fv = await page.evaluate(() => ({ acts: [...document.querySelectorAll(".fv-acts .fv-b")].map(b => b.id), sec: document.querySelector("#twinPane #dlSec")?.textContent || "" }));
+  check("the personal folder offers the daily log next to the twin test", fv.acts.indexOf("fvDaily") === fv.acts.indexOf("fvTest") + 1, fv.acts.join());
+  check("the twin pane says what the daily log does, where today stands, and offers a series line", /60-second video script/.test(fv.sec) && /Today: 0 of 8 answered/.test(fv.sec) && /Set a series line/.test(fv.sec), fv.sec);
+  await page.click("#dlSeries"); await page.waitForTimeout(150);
+  await page.fill("#slLine", "Day {n} working towards my first $10k a month"); await page.fill("#slStart", "2026-09-30");
+  await page.click("#slSave"); await page.waitForTimeout(250);
+  const sl = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/daily") && x.body.action === "series").pop()?.body, sec: document.getElementById("dlSec")?.textContent || "" }));
+  check("a series line is saved with its Day 1, and the pane shows today's opening", sl.sent?.series?.line === "Day {n} working towards my first $10k a month" && sl.sent?.series?.start === "2026-09-30"
+    && /Every script opens: "Day 15 working towards my first \$10k a month"\. Today is Day 15\./.test(sl.sec), JSON.stringify(sl));
+  await page.click("#fvDaily"); await page.waitForTimeout(300);
+  const st = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/daily") && x.body.action === "start").pop()?.body,
+    ai: [...document.querySelectorAll("#thread .msg.ai")].pop()?.textContent, bar: document.getElementById("ivBar").textContent,
+    stop: !!document.getElementById("dlStop"), skip: !!document.getElementById("dlSkip"), script: !!document.getElementById("dlScript"),
+    ph: document.getElementById("input").placeholder, foot: document.getElementById("footNote").textContent }));
+  check("Daily log opens a chat of its own on today's first question", st.sent?.brain === "me" && st.sent?.chat === null && /Where were you today\?/.test(st.ai || ""), JSON.stringify(st));
+  check("while on, the strip says the beat and the count, with Skip and Stop, and no Script yet", /Daily log/.test(st.bar) && /Situation · 1 of 8/.test(st.bar) && st.skip && st.stop && !st.script, st.bar);
+  check("the bar asks for an answer, and says what happens to it", /Your answer/.test(st.ph) && /Daily log: today's questions/.test(st.foot), JSON.stringify(st));
+  for (const t of ["Cork, on the agent", "10 creators", "3 replies", "Cut the list"]) { await page.fill("#input", t); await page.click("#send"); await page.waitForTimeout(200); }
+  const mid = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/ask")).pop()?.body, bar: document.getElementById("ivBar").textContent, script: !!document.getElementById("dlScript") }));
+  check("each answer goes to the personal folder in the same chat", mid.sent?.brain === "me" && mid.sent?.chat === "d1" && mid.sent?.q === "Cut the list" && /Result · 5 of 8/.test(mid.bar) && !mid.script, JSON.stringify(mid));
+  await page.click("#dlSkip"); await page.waitForTimeout(250);
+  const ready = await page.evaluate(() => ({ q: window.__calls.filter(x => x.s.includes("/api/ask")).pop()?.body.q, script: !!document.getElementById("dlScript") }));
+  check("Skip sends skip, and at 5 answers the strip offers the script", ready.q === "skip" && ready.script, JSON.stringify(ready));
+  await page.click("#dlScript"); await page.waitForTimeout(300);
+  const sc = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/daily") && x.body.action === "script").pop()?.body,
+    ai: [...document.querySelectorAll("#thread .msg.ai")].pop()?.textContent || "", copy: [...document.querySelectorAll("#thread .msg.ai")].pop()?.querySelector(".ans-acts .mini")?.textContent,
+    stop: !!document.getElementById("dlStop") }));
+  check("Script writes today's script into the same chat, with a copy button", sc.sent?.chat === "d1" && /Day 15 working towards my first \$10k a month, trying to sign a creator\./.test(sc.ai)
+    && sc.copy === "Copy the script" && !sc.stop, JSON.stringify(sc));
+  check("nothing threw around the daily log", !bad.length, bad.join(" | "));
   await page.close();
 }
 

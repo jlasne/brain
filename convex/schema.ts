@@ -387,7 +387,7 @@ export default defineSchema({
     brain: v.string(),
     slug: v.string(),
     date: v.string(),
-    /* chat, interview or import */
+    /* chat, interview, daily or import */
     kind: v.string(),
     text: v.string(),
     /* For an interview answer, the question it answered. */
@@ -411,6 +411,8 @@ export default defineSchema({
     opens: v.optional(v.number()),
     test: v.optional(v.any()),
     profile: v.optional(v.any()),
+    /* The daily log: today's beats, the question waiting, today's answers and script, and the series line. */
+    daily: v.optional(v.any()),
     updated: v.number(),
   }).index("by_brain", ["space", "brain"]),
 

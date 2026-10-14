@@ -34,15 +34,16 @@ export type Person = { name: string; update: string; also: string[]; claim: stri
 export type Filed = { new: number; updated: number; titles: string[]; people?: string[]; kept?: string };
 /* "people" reads notes already held, for the people in them alone. */
 /* "files" builds the files of people already held from their cards and mentions. */
-export type Kind = "chat" | "import" | "interview" | "people" | "files";
+/* "daily" is an answer to the daily log, filed like an interview answer under the day's own source. */
+export type Kind = "chat" | "import" | "interview" | "daily" | "people" | "files";
 
 /* A chat message files a few notes at most; an interview answer, a long
    story told aloud, files more; an import more again per piece. */
-const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 20, people: 0, files: 0 };
+const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, daily: 6, import: 20, people: 0, files: 0 };
 /* People are filed apart from notes, each on their own card. */
-const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, people: 12, files: 6 };
+const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, daily: 6, import: 12, people: 12, files: 6 };
 /* What one call reads: the message, the answer, and a piece of an import. */
-export const MAX_CHARS: Record<Kind, number> = { chat: 4000, interview: 8000, import: 8000, people: 12000, files: 20000 };
+export const MAX_CHARS: Record<Kind, number> = { chat: 4000, interview: 8000, daily: 8000, import: 8000, people: 12000, files: 20000 };
 
 /** The tag a contact card carries. */
 export const CONTACT = "contact";
@@ -112,6 +113,8 @@ export function filerPrompt(kind: Kind, text: string, context: string, opened: a
     ? "a message its owner just typed in a chat with their personal brain"
     : kind === "interview"
     ? "its owner's answer to a question their personal brain asked in an interview, to know them better"
+    : kind === "daily"
+    ? "its owner's answer to a question their personal brain asked about their day, in their daily log"
     : kind === "people"
     ? "notes already in their personal brain, each with its date. File ONLY the people in them, as contacts, and no note"
     : kind === "files"
@@ -161,7 +164,7 @@ ${en ? `- "claim": what they said about this person, in one sentence, in English
 - "date": the date of the note it comes from.` : ""}${kind === "import" ? `
 - "raw": every sentence of THE PASTED TEXT about this person, copied word for word in its language, nothing left out.` : ""}
 ${context ? `
-${kind === "interview" ? "THE QUESTION IT ANSWERS" : "EARLIER IN THE CHAT"} (context only, never filed)
+${kind === "interview" || kind === "daily" ? "THE QUESTION IT ANSWERS" : "EARLIER IN THE CHAT"} (context only, never filed)
 ${context}
 ` : ""}
 HELD NOW
@@ -172,7 +175,7 @@ ${people || "(none yet)"}
 
 TODAY: ${date}
 
-${kind === "chat" ? "THE MESSAGE" : kind === "interview" ? "THE ANSWER" : kind === "people" ? "THE NOTES" : kind === "files" ? "THE CARDS" : "THE PASTED TEXT"}
+${kind === "chat" ? "THE MESSAGE" : kind === "interview" || kind === "daily" ? "THE ANSWER" : kind === "people" ? "THE NOTES" : kind === "files" ? "THE CARDS" : "THE PASTED TEXT"}
 ${text}
 
 Return: {"notes":[{"title":"","update":"","claim":"",${en ? '"orig":"",' : ""}"position":"","summaryLine":""}],"people":[{"name":"","update":"","also":[],"claim":"",${en ? '"orig":"",' : ""}"summary":"","summaryLine":"","facts":[{"section":"","label":"","value":""}],"events":[{"date":"","text":"","seen":false}],"links":[{"name":"","rel":""}],"open":[{"text":"","done":false}]${kind === "people" ? ',"date":""' : ""}${kind === "import" ? ',"raw":""' : ""}}]}` },
@@ -283,16 +286,16 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
      message whole, or from a pasted text the sentences about them. Notes
      already held add none. */
   const raw = async (title: string, slug: string | undefined, p?: Person) => {
-    const text = kind === "chat" || kind === "interview" ? said : kind === "import" ? (p?.raw || p?.orig || p?.claim || "") : "";
+    const text = kind === "chat" || kind === "interview" || kind === "daily" ? said : kind === "import" ? (p?.raw || p?.orig || p?.claim || "") : "";
     if (!String(text).trim()) return;
     try {
       await ctx.runMutation(internal.store.rawAdd, { brain, title, ...(slug ? { slug } : {}), date, kind, text: String(text),
-        ...(kind === "interview" && asked ? { asked } : {}) });
+        ...((kind === "interview" || kind === "daily") && asked ? { asked } : {}) });
     } catch { /* the file is written; the raw note waits for the next mention */ }
   };
   if (!quiet) await ctx.runMutation(internal.store.writeSource, { space, doc: {
     sid, link: "", linkKey: sid,
-    title: kind === "chat" ? `Chat, ${date}` : kind === "interview" ? `Interview, ${date}` : kind === "people" ? `People in your notes, ${date}` : `Imported memory, ${date}`,
+    title: kind === "chat" ? `Chat, ${date}` : kind === "interview" ? `Interview, ${date}` : kind === "daily" ? `Daily log, ${date}` : kind === "people" ? `People in your notes, ${date}` : `Imported memory, ${date}`,
     author, date, location: "", brains: [brain],
   } });
   for (const p of people) {
@@ -371,7 +374,7 @@ export async function remember(ctx: any, o: {
     .filter(c => !people.some(p => [p.update, p.name].some(t => t && (sameTitle(t, c.title) || (c.aliases ?? []).some((a: string) => sameTitle(a, t))))));
   const notes = bulk ? [] : readNotes(raw, o.kind);
   const filed = await fileNotes(ctx, o.space, o.brain, held, notes, o.kind, o.date, people, missed, text,
-    o.kind === "interview" ? context.replace(/^The brain asked:\s*/, "") : "");
+    o.kind === "interview" || o.kind === "daily" ? context.replace(/^The brain asked:\s*/, "") : "");
   return { ...filed, kept: keptText(notes, people) };
 }
 

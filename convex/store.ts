@@ -1644,7 +1644,7 @@ export const interviewSet = internalMutation({
     const space = readSpace(a.space);
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.brain)).unique();
     if (!b || b.type !== "personal" || readSpace(b.space) !== space) throw new Error("that is not a personal brain of this workspace");
-    const allowed = ["on", "marks", "pending", "sinceCheck", "sinceAsk", "opens", "test", "profile"];
+    const allowed = ["on", "marks", "pending", "sinceCheck", "sinceAsk", "opens", "test", "profile", "daily"];
     const patch: any = { updated: Date.now() };
     for (const k of allowed) if (k in (a.patch ?? {})) patch[k] = a.patch[k] ?? undefined;
     const had = await ctx.db.query("interviews").withIndex("by_brain", q => q.eq("space", space).eq("brain", a.brain)).first();
@@ -1943,12 +1943,12 @@ export const rawFromChats = internalMutation({
         const date = new Date(Number(t?.at) || chat.created).toISOString().slice(0, 10);
         if (text.length >= 2 && about && !seen.has(`${date}|${text}`)) {
           seen.add(`${date}|${text}`);
-          await ctx.db.insert("rawNotes", { brain: c.brain, slug: c.slug, date, kind: t.interview ? "interview" : "chat", text,
-            ...(t.interview && asked ? { asked: asked.slice(0, 600) } : {}), at: Number(t?.at) || chat.created });
+          await ctx.db.insert("rawNotes", { brain: c.brain, slug: c.slug, date, kind: t.interview ? "interview" : t.daily ? "daily" : "chat", text,
+            ...((t.interview || t.daily) && asked ? { asked: asked.slice(0, 600) } : {}), at: Number(t?.at) || chat.created });
           added++;
         }
         /* An interview turn's reply ends on the next question. */
-        asked = t?.interview ? String(t?.a ?? "").trim().split("\n").filter(Boolean).pop() ?? "" : "";
+        asked = t?.interview || t?.daily ? String(t?.a ?? "").trim().split("\n").filter(Boolean).pop() ?? "" : "";
       }
     }
     await ctx.db.patch(c._id, { rawScan: today() });

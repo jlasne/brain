@@ -651,6 +651,9 @@
   .ct-form input:focus, .ct-form textarea:focus{ outline:none; border-color:var(--ink-4); }
   /* The twin: how well a personal folder knows you, its test and its profile. */
   .tw-acts{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:16px; }
+  /* The daily log, in the twin pane: its way in and the series line. */
+  .dl-sec{ margin-top:26px; }
+  .dl-sec .mini{ margin-top:8px; }
   .tw-score{ margin-top:16px; padding:12px 14px; border-radius:12px; background:var(--side); font:500 14px/1.45 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
   .tw-chs{ display:grid; gap:2px; }
   .tw-ch{ display:grid; grid-template-columns:minmax(0,150px) minmax(0,1fr) 56px; align-items:center; gap:12px; padding:7px 10px; border-radius:9px; animation:tdIn .35s ease both; }
@@ -1771,6 +1774,7 @@
   /* The interview strip, above the chat bar: a way in, or where it stands. */
   .iv-bar{ display:flex; justify-content:center; margin:0 auto 8px; }
   .iv-bar[hidden]{ display:none; }
+  .iv-bar:not(.on){ gap:8px; flex-wrap:wrap; }
   .iv-go{ display:inline-flex; align-items:center; gap:7px; min-height:32px; padding:0 13px 0 10px; border:1px solid var(--line-2); border-radius:99px;
     background:var(--surface); box-shadow:0 4px 14px -6px rgba(0,0,0,.12); font:500 13px/1 var(--sans); color:var(--ink-2); cursor:pointer;
     transition:border-color .15s ease, transform .2s cubic-bezier(.2,.85,.25,1); animation:barOpen .34s cubic-bezier(.2,.85,.25,1) both; }
@@ -2398,7 +2402,7 @@ const S = {
   /* Each brain's health out of 10, and the concepts with an open conflict. */
   health: {}, conflicted: new Set(),
   /* Where each personal brain's interview stands, by slug, and its test and profile. */
-  iv: {}, ivFull: {},
+  iv: {}, ivFull: {}, daily: {},
   /* The demo, or a workspace on the visitor's own key. */
   demo: false, byok: false,
   /* The workspace's own look, as saved, and the logo on the page now. */
@@ -3608,7 +3612,8 @@ function renderComposer(){
      what another assistant already knows about you. */
   const about = S.mode === "ask" ? S.concept : null;
   const mine = S.mode === "ask" && isPersonal(S.scope) && !about;
-  const asking = mine && !!S.iv[S.scope]?.on;
+  const daily = mine && !!dailyToday(S.scope)?.on;
+  const asking = mine && (!!S.iv[S.scope]?.on || daily);
   paintAbout(about);
   $("memBtn").hidden = !mine || S.demo;
   /* It appears once there is something to forget. */
@@ -3639,6 +3644,8 @@ function renderComposer(){
   $("footNote").textContent = about
     ? (about.personal ? `This chat reads ${about.title} alone. A fact, a date or a correction you give is written to it at once.`
       : `This chat reads ${about.title} alone. A new chat reads every folder.`)
+    : daily
+    ? "Daily log: today's questions, one at a time, each answer filed as dated notes. Say skip to pass, or Stop any time."
     : asking
     ? "Interview: one question at a time, each answer filed as dated notes. Say skip to pass, or Stop any time."
     : mine
@@ -4700,7 +4707,7 @@ function attachMentions(ta, choices){
   });
 }
 /* The main bar: asking, in a folder's chat, in all of them or in the personal one. Not a drop, a chat about one concept or an interview. */
-attachMentions($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on ? tagChoices(isPersonal(S.scope)) : []);
+attachMentions($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices(isPersonal(S.scope)) : []);
 
 /* ============ input ============ */
 function sizeBox(){ const t=$("input"); t.style.height="auto"; t.style.height=Math.min(t.scrollHeight,210)+"px"; }
@@ -6394,6 +6401,7 @@ const IC_CHAT = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11
 const IC_DROP = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>`;
 const IC_IV = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M10 9.3a2 2 0 1 1 2.7 1.9c-.4.2-.7.5-.7 1v.3M12 14.3v.1"/></svg>`;
 const IC_TEST = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6M10 4v5l-5 9a1.5 1.5 0 0 0 1.3 2h11.4a1.5 1.5 0 0 0 1.3-2l-5-9V4"/><path d="M7.5 14h9"/></svg>`;
+const IC_DAY = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4"/></svg>`;
 const IC_PROFILE = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg>`;
 /** A share out of 100 as a ring, the way a folder's health is drawn. */
 function pctRing(pct){
@@ -6693,6 +6701,9 @@ function folderHead({ b, self, live, reads, clashes, h, ro, panes }){
     if (!ivDone(S.iv[b.slug])) btn("fvIv", S.iv[b.slug]?.seen ? "Resume the interview" : "Interview me", IC_IV, () => { S.folder = null; newChat(); startInterview(b.slug); },
       "It asks you questions, one at a time, to know you better. Stop any time.");
     btn("fvTest", "Twin test", IC_TEST, () => panes.testPane(), "5 messages to reply to, built from your notes: your twin replies first, from your notes alone, then the two replies are compared, and yours go into your notes");
+    /* The daily log, an add-on: today's questions in a chat of its own, filed here, and the day's video script. */
+    btn("fvDaily", "Daily log", IC_DAY, () => { S.folder = null; newChat(); startDaily(b.slug); },
+      "Today's questions, one at a time, in a chat of its own. Each answer goes into your notes, and the day becomes a 60-second video script");
     /* At 100% the notes and the contacts hold all of it: the profile would only repeat them. */
     if (!ivFull(S.iv[b.slug])) btn("fvProfile", "Twin profile", IC_PROFILE, () => panes.profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
   }
@@ -7133,6 +7144,7 @@ function folderTwinPanes({ live, paint, cols, doc, b, reload }){
       row.append(goB, el("span","ts-say", iv.on ? "It is on: your next message answers it." : "About 15 questions a sitting. Stop any time."));
     }
     inner.append(row);
+    inner.append(dailySection(b));
     const t = iv.test;
     inner.append(el("div","tw-score", !t.last ? "Twin score: take the twin test to measure it."
       : `Last twin test ${t.last.pct}% · average of the last ${Math.min(3, t.count)}: ${t.recent}% · ${t.count} test${t.count === 1 ? "" : "s"} taken`));
@@ -10050,7 +10062,7 @@ async function doAsk(q, again){
   try {
     /* "chat" files the turn in the chat on screen, or starts one. A chat
        about one concept sends that concept alone. */
-    const named = about || S.iv[scope]?.on ? [] : tagsIn(q, tagChoices(isPersonal(scope)));
+    const named = about || S.iv[scope]?.on || dailyToday(scope)?.on ? [] : tagsIn(q, tagChoices(isPersonal(scope)));
     /* An asset tagged travels apart from the folders: the message reads it, and may propose a change to it. */
     const tags = named.filter(t => !t.startsWith("asset:"));
     /* The assets it names, then the ones ticked in the picker: four at most. */
@@ -10061,6 +10073,7 @@ async function doAsk(q, again){
     const here = landed(job, r);
     if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, q, asked, true); }
     if (r.interview && isPersonal(scope)) S.iv[scope] = r.interview;
+    if (r.daily && isPersonal(scope)) S.daily[scope] = r.daily;
     if ((r.filed && (r.filed.new || r.filed.updated)) || r.changed) refresh().catch(() => {});
     /* Six turns is what a thread of follow-ups runs to before the subject has
        moved anyway. Only the last four travel. */
@@ -10073,7 +10086,7 @@ async function doAsk(q, again){
     renderComposer();
     if (here) bottom();
   } catch(e){
-    const where = about ? "chat about one concept" : isPersonal(scope) ? (S.iv[scope]?.on ? "interview" : "personal chat") : "chat";
+    const where = about ? "chat about one concept" : isPersonal(scope) ? (S.iv[scope]?.on ? "interview" : dailyToday(scope)?.on ? "daily log" : "personal chat") : "chat";
     if (job.body.isConnected) fail(job.body, e.message, { q, where, scope,
       retry: () => { if (chatBusy()) return; doAsk(q, job.body).finally(renderComposer); renderComposer(); } });
     job.error = e.message; endJob(job, false); renderComposer();
@@ -10113,6 +10126,8 @@ function showAnswer(body, r, q, asked, fresh){
     body.append(f);
   }
   if (r.concept) return;
+  /* A video script: one tap copies it. */
+  if (r.script){ scriptActs(body, r.answer ?? r.a ?? ""); return; }
   if (r.filed){
     const line = filedLine(r.filed);
     if (line){
@@ -10200,17 +10215,22 @@ function paintIv(){
   bar.hidden = !show;
   if (!show) return;
   if (!(slug in S.iv)){ S.iv[slug] = null; loadIv(slug); }
-  const iv = S.iv[slug];
-  /* At 100% there is nothing left to ask, so the strip goes. */
-  if (ivDone(iv)){ bar.hidden = true; bar.innerHTML = ""; bar.dataset.key = ""; return; }
+  if (!(slug in S.daily)){ S.daily[slug] = null; loadDaily(slug); }
+  const iv = S.iv[slug], dl = dailyToday(slug);
+  /* Today told and its script not yet written: Write the script sits beside the interview's way in. */
+  const script = !!dl && !dl.on && dl.ready && !dl.script;
+  /* At 100% the interview has nothing left to ask, so the strip goes, unless today's log needs it. */
+  if (ivDone(iv) && !dl?.on && !script){ bar.hidden = true; bar.innerHTML = ""; bar.dataset.key = ""; return; }
   /* The bar repaints on every focus change: a strip rebuilt under a click
      would lose it, so it is drawn again only when what it says changes. */
   const busy = chatBusy();
-  const key = JSON.stringify([slug, !!iv?.on, iv?.pct, iv?.seen, iv?.chapter?.at, busy]);
+  const key = JSON.stringify([slug, !!iv?.on, iv?.pct, iv?.seen, iv?.chapter?.at, busy, !!dl?.on, dl?.seen, dl?.ready, script]);
   if (bar.dataset.key === key && bar.children.length) return;
   bar.dataset.key = key;
   bar.innerHTML = "";
-  bar.classList.toggle("on", !!iv?.on);
+  bar.classList.toggle("on", !!iv?.on || !!dl?.on);
+  /* Today's log under way has the strip to itself. */
+  if (dl?.on){ dailyStrip(bar, slug, dl, busy); return; }
   if (iv?.on){
     const ch = iv.chapter;
     const live = el("span","iv-live");
@@ -10232,7 +10252,8 @@ function paintIv(){
     goB.append(el("span",null, iv?.seen ? "Resume the interview" : "Interview me"));
     if (iv) goB.append(el("small",null,`twin ${iv.pct}%`));
     goB.onclick = () => startInterview(slug);
-    bar.append(goB);
+    if (!ivDone(iv)) bar.append(goB);
+    if (script) bar.append(scriptButton(slug, busy));
   }
 }
 
@@ -10250,6 +10271,8 @@ async function startInterview(slug){
     const here = landed(job, r);
     if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, "", slug); }
     if (r.interview) S.iv[slug] = r.interview;
+    /* One at a time: the interview pauses today's log. */
+    if (S.daily[slug]?.on) S.daily[slug] = { ...S.daily[slug], on: false };
     if (here){
       S.thread.push({ q: "", a: String(r.answer ?? "") });
       if (S.thread.length > 6) S.thread = S.thread.slice(-6);
@@ -11219,6 +11242,175 @@ async function exportAll(){
     `${S.concepts.length} concept${S.concepts.length===1?"":"s"}, ${S.sources.length} source${S.sources.length===1?"":"s"}, ` +
     `${Math.round(md.length/1000)}k characters of markdown.`); });
   bottom();
+}
+/* ============ the daily log ============
+   An add-on of the personal folder. Once a day it asks about the day, one
+   question at a time, in a chat of its own, and files each answer as notes,
+   so the folder grows with every day told. Once 5 are answered, Write the
+   script turns the day into a 60-second video script. The strip above the
+   chat bar shows where today stands while it runs. */
+
+/** Today's log of a personal folder, or null when what is held is another day's. */
+function dailyToday(slug){
+  const d = S.daily[slug];
+  return d && d.day === new Date().toISOString().slice(0, 10) ? d : null;
+}
+
+/** Where today's log stands, read again from the server. */
+async function loadDaily(slug){
+  try {
+    const r = await api("/api/daily", { brain: slug });
+    S.daily[slug] = r.daily;
+    paintIv();
+    return r.daily;
+  } catch { return null; }
+}
+
+/** A call that lands in the chat on screen: the start of today's log, or its script. */
+async function dailyCall(slug, action, label){
+  if (chatBusy() || !isPersonal(slug)) return;
+  if (S.scope !== slug){ crossing(slug); S.picks = []; S.scope = slug; S.into = []; }
+  S.mode = "ask"; S.folder = null; S.concept = null;
+  render();
+  const job = addJob("", null, label);
+  job.body = thinking(job.label);
+  renderComposer();
+  try {
+    const r = await api("/api/daily", { action, brain: slug, chat: S.chatId, history: S.thread.slice(-4) });
+    const here = landed(job, r);
+    if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, "", slug); }
+    if (r.daily) S.daily[slug] = r.daily;
+    /* One at a time: today's log pauses the interview. */
+    if (action === "start" && S.iv[slug]) S.iv[slug] = { ...S.iv[slug], on: false };
+    if ((r.filed && (r.filed.new || r.filed.updated))) refresh().catch(() => {});
+    if (here){
+      S.thread.push({ q: "", a: String(r.answer ?? "") });
+      if (S.thread.length > 6) S.thread = S.thread.slice(-6);
+    }
+    endJob(job, true);
+  } catch (e) {
+    if (job.body.isConnected){ job.body.innerHTML = ""; job.body.append(el("div","err", e.message)); }
+    job.error = e.message; endJob(job, false);
+  } finally {
+    renderComposer(); bottom(); $("input").focus();
+  }
+}
+
+/** On, in the chat on screen, and the question waiting or today's first. */
+function startDaily(slug){ return dailyCall(slug, "start", "Picking today's first question"); }
+/** Today's 60-second video script, from today's answers and a light read of the notes. */
+function writeScript(slug){ return dailyCall(slug, "script", "Writing the script"); }
+
+/** Paused where it stands, with no model call. */
+async function stopDaily(slug){
+  if (chatBusy()) return;
+  try {
+    const r = await api("/api/daily", { action: "stop", brain: slug });
+    S.daily[slug] = r.daily;
+    push("ai", b => { b.append(el("div","iv-note", r.answer || "Paused.")); });
+  } catch (e) { push("ai", b => { b.append(el("div","err", e.message)); }); }
+  renderComposer(); bottom();
+}
+
+/** The strip while today's log runs: the beat it asks, the share told, Skip, Script once ready, and Stop. */
+function dailyStrip(bar, slug, dl, busy){
+  const live = el("span","iv-live");
+  live.append(el("i","iv-dot"), el("b",null,"Daily log"));
+  if (dl.beat) live.append(el("span","iv-at",`${dl.beat.label} · ${Math.min(dl.seen + 1, dl.total)} of ${dl.total}`));
+  const track = el("span","iv-track"); const fill = el("i"); fill.style.width = `${Math.max(2, 100 * dl.seen / dl.total)}%`; track.append(fill);
+  track.title = `${dl.answered} of ${dl.total} answered today`;
+  const skip = el("button","iv-b","Skip"); skip.type = "button"; skip.id = "dlSkip"; skip.disabled = busy;
+  skip.title = "Pass this question";
+  skip.onclick = () => { if (chatBusy()) return; $("input").value = "skip"; go(); };
+  bar.append(live, track, skip);
+  if (dl.ready){
+    const sc = el("button","iv-b","Script"); sc.type = "button"; sc.id = "dlScript"; sc.disabled = busy;
+    sc.title = "Write today's 60-second video script now";
+    sc.onclick = () => writeScript(slug);
+    bar.append(sc);
+  }
+  const stop = el("button","iv-b stop","Stop"); stop.type = "button"; stop.id = "dlStop"; stop.disabled = busy;
+  stop.title = "Pause today's log. It picks up where you left off.";
+  stop.onclick = () => stopDaily(slug);
+  bar.append(stop);
+}
+
+/** Write the script, beside the interview's way in, once today is told and not yet written. */
+function scriptButton(slug, busy){
+  const b = el("button","iv-go"); b.type = "button"; b.id = "dlWrite"; b.disabled = busy;
+  b.title = "Today's answers as a 60-second video script";
+  b.innerHTML = IC_DAY;
+  b.append(el("span",null,"Write the script"));
+  b.onclick = () => writeScript(slug);
+  return b;
+}
+
+/** The daily log in the twin pane: where today stands, its way in, and the series line. */
+function dailySection(b){
+  const box = el("section","dl-sec"); box.id = "dlSec";
+  box.append(el("h4",null,"Daily log"));
+  const say = el("p","fv-pos","Today's questions, one at a time, in a chat of its own. Each answer goes into your notes here, and the day becomes a 60-second video script.");
+  const now = el("div");
+  box.append(say, now);
+  const paint = dl => {
+    now.innerHTML = "";
+    const row = el("div","tw-acts");
+    const goB = el("button","go", dl?.on || dl?.seen ? "Resume today's log" : "Start today's log"); goB.type = "button"; goB.id = "dlGo";
+    goB.onclick = () => { S.folder = null; newChat(); startDaily(b.slug); };
+    const where = !dl ? "" : `Today: ${dl.answered} of ${dl.total} answered${dl.script ? " · script written" : dl.ready ? " · ready for its script" : ""}.`;
+    row.append(goB, el("span","ts-say", where));
+    const series = el("p","tw-key", dl?.series
+      ? `Every script opens: "${dl.series.line.replace(/\{n\}/gi, dl.dayNo || 1)}"${dl.dayNo ? `. Today is Day ${dl.dayNo}.` : "."}`
+      : "No series line: each script opens in its own words.");
+    const edit = el("button","mini", dl?.series ? "Change the series line" : "Set a series line"); edit.type = "button"; edit.id = "dlSeries";
+    edit.onclick = () => openSeriesSheet(b.slug, dl?.series, next => paint(next));
+    now.append(row, series, edit);
+  };
+  loadDaily(b.slug).then(paint);
+  return box;
+}
+
+/** The line that opens every script, with {n} as the day count from its Day 1. */
+function openSeriesSheet(slug, series, done){
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="slTitle">
+      <header><h3 id="slTitle">Series line</h3></header>
+      <div class="f"><label for="slLine">Every script opens with</label>
+        <textarea id="slLine" placeholder="Day {n} working towards my first $10k a month. I'm Jeremy, I'm 25, currently in Ireland"></textarea>
+        <div class="hint">{n} is the day count. The script ends the sentence with what you are trying to do that day. Empty: each script opens in its own words.</div></div>
+      <div class="f"><label for="slStart">Day 1</label><input id="slStart" type="date"></div>
+      <footer><button class="ghost" id="slCancel">Cancel</button><button class="go" id="slSave">Save</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const line = veil.querySelector("#slLine"), start = veil.querySelector("#slStart"), save = veil.querySelector("#slSave");
+  line.value = series?.line || "";
+  start.value = series?.start || new Date().toISOString().slice(0, 10);
+  const shut = () => veil.remove();
+  veil.querySelector("#slCancel").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  setTimeout(() => line.focus(), 30);
+  save.onclick = async () => {
+    save.disabled = true; save.textContent = "Saving";
+    try {
+      const r = await api("/api/daily", { action: "series", brain: slug, series: { line: line.value.trim(), start: start.value } });
+      S.daily[slug] = r.daily;
+      shut();
+      if (done) done(r.daily);
+    } catch (e) { save.disabled = false; save.textContent = "Save"; save.title = e.message; }
+  };
+}
+
+/** A script on screen: one tap copies it whole. */
+function scriptActs(body, text){
+  const acts = el("div","ans-acts");
+  const cp = el("button","mini","Copy the script"); cp.type = "button";
+  cp.onclick = async () => {
+    try { await navigator.clipboard.writeText(String(text || "")); cp.textContent = "Copied"; }
+    catch { cp.textContent = "Select it to copy"; }
+  };
+  acts.append(cp);
+  body.append(acts);
 }
 
 })();

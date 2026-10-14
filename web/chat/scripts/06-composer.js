@@ -117,7 +117,7 @@ function attachMentions(ta, choices){
   });
 }
 /* The main bar: asking, in a folder's chat, in all of them or in the personal one. Not a drop, a chat about one concept or an interview. */
-attachMentions($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on ? tagChoices(isPersonal(S.scope)) : []);
+attachMentions($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices(isPersonal(S.scope)) : []);
 
 /* ============ input ============ */
 function sizeBox(){ const t=$("input"); t.style.height="auto"; t.style.height=Math.min(t.scrollHeight,210)+"px"; }

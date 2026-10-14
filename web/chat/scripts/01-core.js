@@ -47,7 +47,7 @@ const S = {
   /* Each brain's health out of 10, and the concepts with an open conflict. */
   health: {}, conflicted: new Set(),
   /* Where each personal brain's interview stands, by slug, and its test and profile. */
-  iv: {}, ivFull: {},
+  iv: {}, ivFull: {}, daily: {},
   /* The demo, or a workspace on the visitor's own key. */
   demo: false, byok: false,
   /* The workspace's own look, as saved, and the logo on the page now. */

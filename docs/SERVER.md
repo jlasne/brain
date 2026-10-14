@@ -162,6 +162,24 @@ At 100% the profile is neither offered nor read by the chat: the notes and
 the contacts hold what it would say. Nothing but that
 brain's own folder and chat reads any of it.
 
+The daily log is an add-on of the personal folder, next to the twin test. It
+asks about today, one question at a time, in a chat of its own: 8 beats,
+situation, desire, conflict, change and result (the five lines of a video
+script), then the day around the work, the lesson and the why. A vague answer
+(a mood, a summary or a range, with no figure, name or moment) gets one
+follow-up. Each answer is filed as notes, kind `daily`, under the day's own
+source "Daily log, {date}", with the question as its context, and kept for the
+script under its beat. "skip", "stop" and "start" work as in the interview, and
+one runs at a time: starting either pauses the other. A reply that names no
+beat, or asks a follow-up past the one allowed, asks the next beat in plain
+words. From 5 answers, or once every beat is seen, Write the script makes a
+60-second script in one call: today's answers, the 6 notes nearest them in
+full, and the 30 newest as one line each. A series line set once
+("Day {n} working towards my first $10k a month", {n} counted from its Day 1)
+leads the Situation line, which the model ends with what they tried to do that
+day. A new day starts over and keeps the series line. It lives under `daily`
+in the `interviews` row, and the script stays in its chat.
+
 Projects (the first kind and the later one: their chat threads, section meanings, costs and caps), saved one-pagers, the
 Limited or Full side panel, the map, the scouts and the lab are gone from the code, and their fourteen tables are gone from
 `schema.ts`. A schema only checks the tables it lists, so a deploy accepts any of their rows still there. The nightly upkeep
@@ -273,7 +291,7 @@ app/
 web/chat/
   page.html        the page, with a marker where the styles go and one where the scripts go
   styles/          10 stylesheets, one a screen, joined in the order of their numbers
-  scripts/         19 scripts, one a screen, joined in the order of their numbers
+  scripts/         20 scripts, one a screen, joined in the order of their numbers
 scripts/build-app.mjs   joins web/chat into app/chat.html: npm run build
 vercel.json        serves app/ as the site root
 ```
@@ -348,6 +366,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/personal/page` | One page of a person: the moments of a `year`, or the raw notes of a `month` | Owner |
 | `/api/personal/people` | The people in a personal brain's older notes, filed as contacts, 20 notes a call; the app calls again with `at` until `next` is null | Owner |
 | `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `test` (the open round of 5 messages to reply to, built from the notes, or `fresh: true` for another), `check` (your replies, and the twin replies the same from the notes alone, with its reasons), `score` (a model compares the two, 0 to 2 a question, and the round goes into the history), `learn` (your answers filed as notes) and `profile` (the notes as 7 parts, offered until the interview reaches 100%). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
+| `/api/daily` | A personal brain's daily log, by `action`: `state`, `start` (on, in the chat sent, and the question waiting or today's first), `stop`, `script` (today's 60-second video script, saved in the chat) and `series` (`{line, start}`: the line that opens every script, `{n}` its day count from `start`). While on, `/api/ask` in that brain's chat takes each message as today's answer | Owner |
 | `/api/feedback` | Send feedback: mails one error, where it happened, the workspace and the message to `FEEDBACK_TO`, else `DIGEST_TO`. Another workspace's personal message keeps its words out. 5 an hour per sender, 20 per workspace | Yes |
 | `/api/assets/list` | The workspace's assets, newest first: name, kind, size, its web address when it is a page, and whether a version before it is kept for Undo | Yes |
 | `/api/assets/new` | A new asset: a blank document, table or page, or (`made: false`) the place a file read in the browser goes, then `begin`, `part` and `finish` on its number. `prev` makes it that asset's new version; `url` keeps the web address it was read from. 100 at most. Returns `fid`, the number every other asset route takes as `file` | Owner |
@@ -460,13 +479,13 @@ Two steps carry the design and both are judgment work: extracting wide on a sing
 | `feedback` | each error report sent: workspace, sender in the demo, its first words, when. It counts the hour; the mail holds the rest. Cleared after a week | space, then time |
 | `rawNotes` | everything said about a person of a personal folder, word for word and dated: one row a message, with the question it answered for an interview. Only that person's file reads it | brain, slug, then time |
 | `moments` | a person's history in a personal brain, one moment a row: date, what happened, whether you were together. The person's file keeps the count and the last day together, and a read carries the newest 300; older years come a page at a time | brain, slug, then date |
-| `interviews` | a personal brain's interview: each question answered, known from the notes or skipped, the one waiting, the twin test's answers and scores, and the profile | space, then brain |
+| `interviews` | a personal brain's interview: each question answered, known from the notes or skipped, the one waiting, the twin test's answers and scores, the profile, and under `daily` today's log: its beats, the question waiting, the answers, the script and the series line | space, then brain |
 | `insights` | what follows from two linked concepts: the pair, the kind of link, a title and a line | the pair, each side, space |
 | `projectFiles` | the assets, one row each under `assets-<space>~n` (and the files of a project made before the assets, until it is turned into assets): its name, document, page or table, whether it was made blank, its sheets with each column and what it holds, its size, its version, whether it is still being read, the number of the version it replaced and whether it is that hidden version, and the web address it was read from | file |
 | `projectCards` | the contents list: one light row for each section or block of rows, with its title, its line, its size and the keys it is found by (stems and numbers) | file and order, file and section |
 | `projectSections` | the words of each section, or the CSV rows of each block | file and section |
 | `projectEdits` | the changes a chat proposed to an asset, with what each replaced so it can be undone, and the new assets it proposed, with the number each was made as. The last 10 of each stay | file and time |
-| `chatSpend` | what the workspace costs: one row a kind a month (UTC, "2026-10"), with the dollars the model host reported, the calls it gave a price for and all the calls, the tokens in, out and reused, and `reused`, the answers given again for no call. The kinds: `folders` (the main chat, a folder's, a concept's), `personal` (the personal chat, the interview, remember, people and contacts), `assets` (a chat that tags one, a document read in, a project's notes), `drops` (read, plan, merge, settle), `upkeep` (linking, topics, conflicts, tidy, rederive), `pager` (one-pagers) and `voice` (Whisper, by the second). The demo is not counted | workspace and month |
+| `chatSpend` | what the workspace costs: one row a kind a month (UTC, "2026-10"), with the dollars the model host reported, the calls it gave a price for and all the calls, the tokens in, out and reused, and `reused`, the answers given again for no call. The kinds: `folders` (the main chat, a folder's, a concept's), `personal` (the personal chat, the interview, the daily log, remember, people and contacts), `assets` (a chat that tags one, a document read in, a project's notes), `drops` (read, plan, merge, settle), `upkeep` (linking, topics, conflicts, tidy, rederive), `pager` (one-pagers) and `voice` (Whisper, by the second). The demo is not counted | workspace and month |
 | `answerCache` | a question asked to open a chat, and its answer: the key (the question in lower case, the folders, the tags, the level, the language and the model), the print of the folders it read, the answer, its source count, the concepts it opened and the folders tagged. A row is replaced when the same key is asked again, and rows older than 14 days go 20 at a time | workspace and key, workspace and time |
 | `projectBriefs` | one row a folder of files: for the assets, the number the next one takes; for a project made before them, its Brief, State of play and open questions, read once for its notes | folder |
 
