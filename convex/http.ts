@@ -919,6 +919,8 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
     }
   }
   let answer = String(d?.answer ?? d?.reply ?? "").replace(/\s*—\s*/g, ", ").trim();
+  /* A long answer written as one block is cut into its sentences, a line each, so it never reads as a wall. */
+  if (answer.length > 500 && !answer.includes("\n")) answer = answer.split(/(?<=[.!?])\s+(?=[A-Z0-9"(])/).join("\n");
   if (lost) answer = `${answer ? `${answer}\n\n` : ""}The change it was writing ran too long to finish, so nothing is proposed. Ask for a smaller change, or one step at a time.`;
 
   /* Changes, kept as proposals on each asset they are for. */

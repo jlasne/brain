@@ -3721,7 +3721,7 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/assets/download") return J({ name: "Portfolio.html", kind: "html", text: "<!doctype html><h1>Portfolio</h1>" });
       if (path === "/api/ask") {
         if (!body.assets?.length) return J({ answer: "Copper and gold.", sources: 0, level: "normal" });
-        return J({ answer: "Copper, Gold and Silver fit, with returns of 9, 12 and 6.", sources: 0, level: "normal", assets: ["invest-assets.csv"],
+        return J({ answer: "Copper, Gold and Silver fit, with returns of **9**, 12 and 6.\n\n### Why\n\n- Copper returns 9.\n- Gold returns 12.\n\n| Asset | Return |\n|---|---|\n| Gold | 12 |", sources: 0, level: "normal", assets: ["invest-assets.csv"],
           edits: [{ id: "e1", fid: 2, name: "invest-assets.csv", status: "open", preview: [{ label: "Row 3, Fit", before: "misfit", after: "fit" }] }],
           create: { id: "c1", kind: "html", name: "Portfolio.html", status: "open", preview: [{ label: "The page", before: "", after: "<h1>Portfolio</h1>" }] } });
       }
@@ -3767,6 +3767,8 @@ for (const space of ["octopus", "squidgy"]) {
   const ans = await page.evaluate(() => { const m = [...document.querySelectorAll(".msg.ai")].pop(); return { read: [...m.querySelectorAll(".filed.called")].map(x => x.textContent),
     cards: [...m.querySelectorAll(".pj-edit")].map(c => [c.querySelector(".pj-ek").textContent, c.querySelector(".pj-ef").textContent, [...c.querySelectorAll(".pj-tact button")].map(b => b.textContent).join("/")]),
     del: m.querySelector(".as-edit del")?.textContent, ins: m.querySelector(".as-edit ins")?.textContent }; });
+  const shape = await page.evaluate(() => { const a = [...document.querySelectorAll(".msg.ai .as-answer")].pop(); return a ? { h: a.querySelector("h2,h3,h4")?.textContent, li: a.querySelectorAll("li").length, b: a.querySelector("strong")?.textContent, td: a.querySelectorAll("td").length } : null; });
+  check("an answer about assets reads as laid out: a heading, bullets, bold numbers and a table", shape?.h === "Why" && shape.li === 2 && shape.b === "9" && shape.td === 2, JSON.stringify(shape));
   check("the answer says what it read, and shows the change it proposes and the page it would make, nothing done yet", JSON.stringify(ans.read) === '["Read @invest-assets.csv"]'
     && JSON.stringify(ans.cards) === '[["Proposed change","In invest-assets.csv","Apply/Turn down"],["New page","Portfolio.html","Create it/Turn down"]]' && ans.del === "misfit" && ans.ins === "fit"
     && !(await page.evaluate(() => window.__calls.some(x => x.s === "/api/assets/edit" || x.s === "/api/assets/make"))), JSON.stringify(ans));

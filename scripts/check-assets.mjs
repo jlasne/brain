@@ -588,6 +588,10 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   reply = { asset: () => '{"answer":"The contract gives you 30% of revenue.\\nThe term runs 12 months and the exit clause' };
   const longA = await call("/api/ask", { q: "run an analysis of the contract", brain: "all", assets: [2], chat: null });
   check("an analysis cut off in its answer keeps every word it wrote, with no note about a change", longA.answer === "The contract gives you 30% of revenue.\nThe term runs 12 months and the exit clause...", JSON.stringify(longA.answer));
+  reply = { asset: { answer: Array.from({ length: 16 }, (_, i) => `Clause ${i + 1} sets a term of the offer.`).join(" "), edits: [], create: null } };
+  const wall = await call("/api/ask", { q: "run an analysis of the contract", brain: "all", assets: [2], chat: null });
+  check("a long answer written as one block comes back a sentence a line", wall.answer.split("\n").length === 16 && wall.answer.startsWith("Clause 1 sets a term of the offer.\nClause 2"), JSON.stringify(wall.answer.slice(0, 80)));
+  check("the rules ask for headings, bullets of one fact and sentences under 20 words", /"### " heading/.test(last(/You work on the owner's assets/).sys) && /one fact a bullet, under 20 words/.test(last(/You work on the owner's assets/).sys));
   let tries = 0;
   reply = { asset: () => ++tries === 1 ? '{"edits":[],"ans' : "## The analysis\n\nThe offer pays 30% of revenue." };
   const n1 = sent.length;

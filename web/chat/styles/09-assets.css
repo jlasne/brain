@@ -238,6 +238,14 @@
   .as-none{ margin:2px 10px 4px; font:400 12.5px/1.45 var(--sans); color:var(--ink-4); }
   .as-none.as-old{ color:var(--ink-2); }
   .msg .pj-edit{ margin-top:12px; }
+  /* An answer about assets: the chat's own size, short headings, bullets that breathe, a table that scrolls inside the answer. */
+  .msg.ai .as-answer{ font-size:15.5px; line-height:1.6; color:var(--ink); }
+  .msg.ai .as-answer h2, .msg.ai .as-answer h3, .msg.ai .as-answer h4{ margin:1.15em 0 .35em; font:600 15px/1.35 var(--sans); color:var(--ink); }
+  .msg.ai .as-answer p{ margin:.5em 0; }
+  .msg.ai .as-answer ul, .msg.ai .as-answer ol{ margin:.35em 0 .6em; padding-left:20px; }
+  .msg.ai .as-answer li{ margin:.28em 0; }
+  .msg.ai .as-answer li::marker{ color:var(--ink-4); }
+  .msg.ai .as-answer table{ font-size:14px; }
   .as-hint{ border-style:dashed; }
 
   /* Projects from before, turned into assets: a line in Assets, and a sheet that lists what each becomes. */

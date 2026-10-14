@@ -76,7 +76,9 @@ async function doAsk(q, again){
 function showAnswer(body, r, q, asked, fresh){
   if (r.sources > 0 && r.sources < 10)
     body.append(el("div","smallbrain",`Small folder: ${r.sources} source${r.sources===1?"":"s"} behind this`));
-  const out = el("div"); out.innerHTML = splitAnswer(r.answer ?? r.a ?? ""); body.append(out);
+  /* An answer about assets is Markdown laid out to scan: headings, bullets, tables. Every other answer reads a line at a time. */
+  const md = Array.isArray(r.assets) && r.assets.length;
+  const out = el("div", md ? "pj-md as-answer" : null); out.innerHTML = md ? mdView(r.answer ?? r.a ?? "") : splitAnswer(r.answer ?? r.a ?? ""); body.append(out);
   /* The folders the message tagged were read. A personal reply says it in its own line, below. */
   if (!r.personal && Array.isArray(r.tagged) && r.tagged.length) body.append(el("div","filed called",`Read ${r.tagged.map(n => "@" + n).join(", ")}`));
   /* The assets it read, and what it proposes to change or to make: nothing happens before Apply. */

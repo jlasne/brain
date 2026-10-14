@@ -2129,6 +2129,14 @@
   .as-none{ margin:2px 10px 4px; font:400 12.5px/1.45 var(--sans); color:var(--ink-4); }
   .as-none.as-old{ color:var(--ink-2); }
   .msg .pj-edit{ margin-top:12px; }
+  /* An answer about assets: the chat's own size, short headings, bullets that breathe, a table that scrolls inside the answer. */
+  .msg.ai .as-answer{ font-size:15.5px; line-height:1.6; color:var(--ink); }
+  .msg.ai .as-answer h2, .msg.ai .as-answer h3, .msg.ai .as-answer h4{ margin:1.15em 0 .35em; font:600 15px/1.35 var(--sans); color:var(--ink); }
+  .msg.ai .as-answer p{ margin:.5em 0; }
+  .msg.ai .as-answer ul, .msg.ai .as-answer ol{ margin:.35em 0 .6em; padding-left:20px; }
+  .msg.ai .as-answer li{ margin:.28em 0; }
+  .msg.ai .as-answer li::marker{ color:var(--ink-4); }
+  .msg.ai .as-answer table{ font-size:14px; }
   .as-hint{ border-style:dashed; }
 
   /* Projects from before, turned into assets: a line in Assets, and a sheet that lists what each becomes. */
@@ -10046,7 +10054,9 @@ async function doAsk(q, again){
 function showAnswer(body, r, q, asked, fresh){
   if (r.sources > 0 && r.sources < 10)
     body.append(el("div","smallbrain",`Small folder: ${r.sources} source${r.sources===1?"":"s"} behind this`));
-  const out = el("div"); out.innerHTML = splitAnswer(r.answer ?? r.a ?? ""); body.append(out);
+  /* An answer about assets is Markdown laid out to scan: headings, bullets, tables. Every other answer reads a line at a time. */
+  const md = Array.isArray(r.assets) && r.assets.length;
+  const out = el("div", md ? "pj-md as-answer" : null); out.innerHTML = md ? mdView(r.answer ?? r.a ?? "") : splitAnswer(r.answer ?? r.a ?? ""); body.append(out);
   /* The folders the message tagged were read. A personal reply says it in its own line, below. */
   if (!r.personal && Array.isArray(r.tagged) && r.tagged.length) body.append(el("div","filed called",`Read ${r.tagged.map(n => "@" + n).join(", ")}`));
   /* The assets it read, and what it proposes to change or to make: nothing happens before Apply. */
