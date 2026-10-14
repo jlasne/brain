@@ -27,6 +27,8 @@ export const EDIT_SECTIONS = 8;
 export const EDIT_CHARS = 60000;
 /** A section grows no further than this through changes. */
 export const SECTION_MAX = 30000;
+/** A sheet up to this size takes a change to its columns: every block is rewritten, and what it held is kept on the change for Undo. */
+export const COLUMN_CHANGE_CHARS = 400000;
 
 /**
  * The folder that holds a file, when it is one of this workspace's own: its assets, or a project not yet turned into assets. The key
@@ -338,7 +340,7 @@ async function check(ctx: any, brain: string, raw: any[]) {
   /* A sheet built whole in this change takes no other change in it. */
   const rebuilt = new Set<number>();
   const sheetOf = (o: any) => Math.max(0, Math.min(f.sheets.length - 1, Number(o?.sheet ?? 1) - 1 || 0));
-  if (f.kind === "table") for (const o of Array.isArray(raw) ? raw.slice(0, MAX_OPS) : []) if (String(o?.op ?? "").toLowerCase() === "table") rebuilt.add(sheetOf(o));
+  if (f.kind === "table") for (const o of Array.isArray(raw) ? raw.slice(0, MAX_OPS) : []) if (["table", "dropcols"].includes(String(o?.op ?? "").toLowerCase())) rebuilt.add(sheetOf(o));
   for (const o of (Array.isArray(raw) ? raw : []).slice(0, MAX_OPS)) {
     const kind = String(o?.op ?? "").toLowerCase();
     const words = String(o?.with ?? o?.text ?? "");
@@ -383,6 +385,21 @@ async function check(ctx: any, brain: string, raw: any[]) {
       const si = sheetOf(o);
       const sheet = f.sheets[si], cols: Col[] = sheet.cols ?? [];
       const sname = f.sheets.length > 1 ? ` (${sheet.name})` : "";
+      if (kind === "table" && sheet.rows > TABLE_OP_ROWS) { reject(`that sheet holds ${sheet.rows} rows, more than one change rebuilds: change its rows or its columns instead`); continue; }
+      if (kind === "dropcols") {
+        /* Whole columns removed: every row of the sheet loses them, and no row is written out again by the model. */
+        const asked = (Array.isArray(o.columns) ? o.columns : [o.col]).map((x: any) => String(x ?? "")).filter(Boolean).slice(0, 60);
+        const idx = [...new Set<number>(asked.map((n: string) => colIndex(cols, n)))];
+        const size = cards.filter((c: any) => c.sheet === si).reduce((n: number, c: any) => n + (c.chars ?? 0), 0);
+        if (ops.some(x => x.op === "dropcols" && x.sheet === si + 1)) { reject("remove the columns of a sheet in one change"); continue; }
+        if (!asked.length || idx.includes(-1)) { reject(`there is no column "${asked[idx.indexOf(-1)] ?? ""}"`); continue; }
+        if (idx.length >= cols.length) { reject("a table keeps at least one column"); continue; }
+        if (size > COLUMN_CHANGE_CHARS) { reject("that sheet is too big to change its columns here: download it, change it, and add it as a new version"); continue; }
+        const gone = idx.map(i => cols[i].name);
+        ops.push({ op: "dropcols", sheet: si + 1, columns: gone });
+        preview.push({ label: `Remove ${gone.length} column${gone.length === 1 ? "" : "s"}${sname}`, before: short(gone.join(", "), 200), after: `${cols.length - gone.length} columns left` });
+        continue;
+      }
       if (kind === "table") {
         const names = colNames((Array.isArray(o.columns) ? o.columns : []).map((x: any) => String(x ?? "").slice(0, 60)).slice(0, 60));
         if (!names.length || names.every((n: string) => /^Column \d+$/.test(n))) { reject("a table needs column names"); continue; }
@@ -555,6 +572,22 @@ export const editApply = internalMutation({
       for (const o of e.ops as Op[]) bySheet.set((o.sheet ?? 1) - 1, [...(bySheet.get((o.sheet ?? 1) - 1) ?? []), o]);
       for (const [si, ops] of bySheet) {
         const sheet = f.sheets[si], cols: Col[] = sheet.cols ?? [];
+        const dropped = ops.find(x => x.op === "dropcols");
+        if (dropped) {
+          /* Whole columns removed: each block is rewritten without them, and the sheet's columns come back on Undo. */
+          const gone = new Set(dropped.columns ?? []), keep = cols.map((_, i) => i).filter(i => !gone.has(cols[i].name));
+          for (const c of (await cardsOf(ctx, a.brain)).filter((x: any) => x.sheet === si)) {
+            const { card, body } = await touch(c.sid);
+            const text = csvOf(parseCsv(body.text).map(r => keep.map(i => r[i] ?? "")));
+            await ctx.db.patch(body._id, { text });
+            await ctx.db.patch(card._id, { chars: text.length });
+            wrote.set(c.sid, text);
+          }
+          before.push({ meta: true, si, sheet });
+          const now = await fileOf(ctx, a.brain);
+          await ctx.db.patch(now._id, { sheets: now.sheets.map((s: any, i: number) => i === si ? { ...s, header: keep.map(k => cols[k].name), cols: keep.map(k => cols[k]) } : s) });
+          continue;
+        }
         const built = ops.find(x => x.op === "table");
         if (built) {
           /* The sheet is built whole: what it held goes, and comes back on Undo with its columns. */

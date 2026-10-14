@@ -158,7 +158,8 @@ const TABLE_EDITS = `{"op":"set","sheet":1,"row":4,"col":"Price","value":"1290"}
   {"op":"delete","sheet":1,"rows":[7,8]}
   {"op":"table","sheet":1,"name":"Programs","columns":["Program","Price"],"rows":[["Pixel Forge","1350"]]}   (builds the whole sheet: for an empty table, or to restructure it. A sheet built this way takes no other change in the same go.)
   {"op":"append","sheet":1,"rows":[["Indie Sprint","690"],["Game Jam","1200"]]}   (adds many rows at the end, values in the order of the columns: one change for a whole log or list)
-  Only rows shown can change. "table" on an empty table, "append" on one that has rows.`;
+  {"op":"dropcols","sheet":1,"columns":["Beta","Return %/yr"]}   (removes whole columns from every row)
+  Only rows shown can change. "table" on an empty table, "append" on one that has rows. Never rebuild a table with "table" to remove columns or change a few cells: use "dropcols", "set", "add" or "delete".`;
 const HTML_PAGE = `THE PAGE
 - One self-contained HTML file: <!doctype html>, a <style> in the head, a <script> only when the page needs one. No other files. Images by https address only.
 - It reads well from 360 px wide. Real words from what the owner said, never placeholder text.

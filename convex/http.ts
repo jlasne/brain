@@ -889,9 +889,19 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
     { role: "user", content: `${read.join("\n\n")}\n\n${pool.length ? `THEIR FOLDERS\n${dossier}\n\n` : ""}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}TODAY: ${today()}\nMESSAGE: ${q}` },
   ], { json: true, maxTokens: q.length > 6000 ? 16000 : 8000, temperature: 0.2, key: mKey, model: mName, timeout: 170000 });
   tally(usage);
-  let d: any;
-  try { d = parseJson(String(text), finish); } catch { d = { answer: String(text).replace(/^```(?:json)?|```$/g, "").trim() }; }
+  let d: any, cut = false;
+  try { d = parseJson(String(text), finish); }
+  catch {
+    /* A reply cut off before its end: its answer is kept when it got that far, and what it proposed goes, never shown as code. */
+    const raw = String(text).replace(/^```(?:json)?|```$/g, "").trim();
+    cut = raw.startsWith("{");
+    let said = "";
+    const m = raw.match(/^\{\s*"answer"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    try { said = m ? JSON.parse(`"${m[1]}"`) : ""; } catch { said = ""; }
+    d = { answer: cut ? said : raw };
+  }
   let answer = String(d?.answer ?? d?.reply ?? "").replace(/\s*—\s*/g, ", ").trim();
+  if (cut) answer = `${answer ? `${answer}\n\n` : ""}The proposal ran too long to finish, so nothing is proposed. Ask for a smaller change, or one step at a time.`;
 
   /* Changes, kept as proposals on each asset they are for. */
   const edits: any[] = [], left: string[] = [];

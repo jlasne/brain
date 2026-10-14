@@ -470,6 +470,22 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   check("applied, they follow the last row, in order, and the count says 740", end.length === 42 && end[2].cells[0] === "Program log 1" && end[41].cells[1] === "49" && (await w.ctx.runQuery("files.fileGet", { space: SPACE, brain: p })).file.sheets[0].rows === 740);
   await w.ctx.runMutation("files.editUndo", { space: SPACE, brain: p, id: ap.id });
   check("Undo takes the added rows away whole", (await w.ctx.runQuery("files.fileGet", { space: SPACE, brain: p })).file.sheets[0].rows === 700);
+  /* whole columns removed: one small change, never the table written out again */
+  const dc = await propose([{ op: "dropcols", sheet: 1, columns: ["Price", "Plan"] }]);
+  check("removing columns is one change that names them", dc.id && /Remove 2 columns/.test(dc.preview[0].label) && dc.preview[0].before === "Price, Plan" && dc.preview[0].after === "1 columns left", JSON.stringify(dc));
+  await w.ctx.runMutation("files.editApply", { space: SPACE, brain: p, id: dc.id });
+  const dg = await w.ctx.runQuery("files.fileGet", { space: SPACE, brain: p }), dr = await rowsNow();
+  check("applied, every row loses them, and the sheet's columns follow", dg.file.sheets[0].cols.map(c => c.name).join() === "Program" && dr.every(r => r.cells.length === 1) && dr[699 - 600]?.cells[0] === "Program 100" && dg.file.sheets[0].rows === 700, JSON.stringify(dg.file.sheets[0].cols));
+  await w.ctx.runMutation("files.editUndo", { space: SPACE, brain: p, id: dc.id });
+  const ug = await w.ctx.runQuery("files.fileGet", { space: SPACE, brain: p }), ur = await rowsNow();
+  check("Undo brings the columns back, with every value", ug.file.sheets[0].cols.map(c => c.name).join() === "Program,Price,Plan" && ur[2].cells.join() === "Program 3,102,No", JSON.stringify(ur[2]));
+  const dbad = await propose([{ op: "dropcols", sheet: 1, columns: ["Nope"] }, { op: "dropcols", sheet: 1, columns: ["Program", "Price", "Plan"] }]);
+  check("a column that is not there is refused, and a table keeps at least one column", !dbad.id && /no column "Nope"/.test(dbad.bad[0]) && /at least one column/.test(dbad.bad[1]), JSON.stringify(dbad.bad));
+  const bf = await newFile(w, "table", "big.csv", [{ name: "big", header: ["A"] }]);
+  await reader.addRowPiece(w.ctx, { space: SPACE, brain: bf.key, ver: bf.ver, sheet: 0, rows: Array.from({ length: 1200 }, (_, i) => [`r${i}`]) });
+  await reader.finishFile(w.ctx, { space: SPACE, brain: bf.key, ver: bf.ver });
+  const big = await w.ctx.runMutation("files.editPropose", { space: SPACE, brain: bf.key, ops: [{ op: "table", sheet: 1, columns: ["A"], rows: [["x"]] }] });
+  check("a sheet of more rows than one change rebuilds is refused a rebuild, so no row is lost", !big.id && /more than one change rebuilds/.test(big.bad[0]), JSON.stringify(big.bad));
   const meta = await w.ctx.runQuery("files.fileMeta", { space: SPACE, brain: p });
   const all = (await reader.readBlocks(w.ctx, { space: SPACE, brain: p, sheet: 0 })).flatMap(t => sheet.parseCsv(t));
   check("a sheet downloads as its header and its rows", meta.sheets[0].header.join() === "Program,Price,Plan" && all.length === 700 && all[0][0] === "Program 1");
@@ -564,6 +580,12 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   await call("/api/assets/edit", { file: 2, id: a2.edits[0].id, action: "undo" });
   check("Undo takes it back: 102 rows", (await listed()).find(x => x.id === 2).rows === 102);
   check("an action that is not one is said so", /apply, undo or dismiss/.test((await call("/api/assets/edit", { file: 2, id: a2.edits[0].id, action: "x" })).error));
+
+  /* a reply cut off before its end: its answer stays, the half-written change goes, and no code is shown */
+  reply = { asset: () => '{"answer":"I will remove the 4 columns.","edits":[{"asset":2,"ops":[{"op":"table","sheet":1,"columns":["Asset"],"rows":[["Copper","Sec' };
+  const cutA = await call("/api/ask", { q: "remove the columns Fit and Return", brain: "all", assets: [2], chat: null });
+  check("a reply cut off keeps its answer, says nothing was proposed, and shows no code", /^I will remove the 4 columns\.\n\nThe proposal ran too long to finish, so nothing is proposed\./.test(cutA.answer) && !/[{}\[\]]/.test(cutA.answer) && !cutA.edits, JSON.stringify(cutA.answer));
+  check("the rules offer removing columns, and forbid rebuilding a table for it", /"op":"dropcols"/.test(last(/You work on the owner's assets/).sys) && /Never rebuild a table with "table" to remove columns/.test(last(/You work on the owner's assets/).sys));
 
   /* a new asset proposed, made, undone */
   reply = { asset: { answer: "This page shows the 4 lines.", edits: [], create: { kind: "html", name: "Portfolio", ops: [{ op: "insert", after: 0, title: "Page", text: "<!doctype html><html><body><h1>Portfolio</h1></body></html>" }] } } };
