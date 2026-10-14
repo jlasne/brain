@@ -584,7 +584,15 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   /* a reply cut off before its end: its answer stays, the half-written change goes, and no code is shown */
   reply = { asset: () => '{"answer":"I will remove the 4 columns.","edits":[{"asset":2,"ops":[{"op":"table","sheet":1,"columns":["Asset"],"rows":[["Copper","Sec' };
   const cutA = await call("/api/ask", { q: "remove the columns Fit and Return", brain: "all", assets: [2], chat: null });
-  check("a reply cut off keeps its answer, says nothing was proposed, and shows no code", /^I will remove the 4 columns\.\n\nThe proposal ran too long to finish, so nothing is proposed\./.test(cutA.answer) && !/[{}\[\]]/.test(cutA.answer) && !cutA.edits, JSON.stringify(cutA.answer));
+  check("a reply cut off keeps its answer, says nothing was proposed, and shows no code", /^I will remove the 4 columns\.\n\nThe change it was writing ran too long to finish, so nothing is proposed\./.test(cutA.answer) && !/[{}\[\]]/.test(cutA.answer) && !cutA.edits, JSON.stringify(cutA.answer));
+  reply = { asset: () => '{"answer":"The contract gives you 30% of revenue.\\nThe term runs 12 months and the exit clause' };
+  const longA = await call("/api/ask", { q: "run an analysis of the contract", brain: "all", assets: [2], chat: null });
+  check("an analysis cut off in its answer keeps every word it wrote, with no note about a change", longA.answer === "The contract gives you 30% of revenue.\nThe term runs 12 months and the exit clause...", JSON.stringify(longA.answer));
+  let tries = 0;
+  reply = { asset: () => ++tries === 1 ? '{"edits":[],"ans' : "## The analysis\n\nThe offer pays 30% of revenue." };
+  const n1 = sent.length;
+  const wordsA = await call("/api/ask", { q: "run an analysis of the contract", brain: "all", assets: [2], chat: null });
+  check("a reply with no answer in it is asked again for the answer alone, in words, and that answer is shown", wordsA.answer === "## The analysis\n\nThe offer pays 30% of revenue." && sent.slice(n1).length === 2 && /Reply in Markdown only/.test(sent.at(-1).sys), JSON.stringify(wordsA.answer));
   check("the rules offer removing columns, and forbid rebuilding a table for it", /"op":"dropcols"/.test(last(/You work on the owner's assets/).sys) && /Never rebuild a table with "table" to remove columns/.test(last(/You work on the owner's assets/).sys));
 
   /* a new asset proposed, made, undone */

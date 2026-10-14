@@ -845,6 +845,14 @@ const heldNothing = (route: { routed: boolean; picked: string[] }, open: string[
 /** The concepts a chat may read, by id: what the last answer opened is carried to the next message only when it is one of them. */
 const readable = (pool: any[], cards: any[]) => { const at = new Set(pool.map((x: any) => x.slug)); return new Set<string>(cards.filter((c: any) => at.has(c.brain)).map(idOf)); };
 
+/** The "answer" of a JSON reply that broke or stopped part way: the words as far as they go, unescaped. */
+function answerIn(raw: string): string {
+  const m = raw.match(/"answer"\s*:\s*"((?:[^"\\]|\\.)*)("?)/);
+  if (!m) return "";
+  const body = m[1].replace(/\\$/, "");
+  try { return JSON.parse(`"${body}"`).trim() + (m[2] ? "" : "..."); } catch { return body.replace(/\\n/g, "\n").replace(/\\"/g, '"').trim(); }
+}
+
 /**
  * A message that tags assets: those assets are read (a table whole up to 120,000 characters, a document up to 60,000, the rest by what
  * bears on the message), and the folders it tags, as the folders' chat reads them. The answer may propose changes to the assets and a
@@ -887,21 +895,31 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
   const { text, finish, usage } = await ask([
     { role: "system", content: ASSET_RULES(english, { folders: pool.length > 0 }) },
     { role: "user", content: `${read.join("\n\n")}\n\n${pool.length ? `THEIR FOLDERS\n${dossier}\n\n` : ""}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}TODAY: ${today()}\nMESSAGE: ${q}` },
-  ], { json: true, maxTokens: q.length > 6000 ? 16000 : 8000, temperature: 0.2, key: mKey, model: mName, timeout: 170000 });
+  ], { json: true, maxTokens: q.length > 6000 ? 24000 : 16000, temperature: 0.2, key: mKey, model: mName, timeout: 170000 });
   tally(usage);
-  let d: any, cut = false;
+  let d: any, lost = false;
   try { d = parseJson(String(text), finish); }
   catch {
-    /* A reply cut off before its end: its answer is kept when it got that far, and what it proposed goes, never shown as code. */
+    /* A reply cut off or broken: its answer is kept as far as it got, a change it was writing goes, and no code is ever shown. */
     const raw = String(text).replace(/^```(?:json)?|```$/g, "").trim();
-    cut = raw.startsWith("{");
-    let said = "";
-    const m = raw.match(/^\{\s*"answer"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-    try { said = m ? JSON.parse(`"${m[1]}"`) : ""; } catch { said = ""; }
-    d = { answer: cut ? said : raw };
+    if (!raw.startsWith("{")) d = { answer: raw };
+    else {
+      lost = /"ops"\s*:\s*\[\s*\{|"create"\s*:\s*\{/.test(raw);
+      d = { answer: answerIn(raw) };
+      /* Nothing of the answer came through: asked again for the answer alone, in words, with no change. */
+      if (!d.answer) {
+        const again = await ask([
+          { role: "system", content: ASSET_RULES(english, { folders: pool.length > 0 }).replace(/Reply with only JSON:[^\n]*$/, "Reply in Markdown only: the answer, under 700 words. No JSON, no change.") },
+          { role: "user", content: `${read.join("\n\n")}\n\n${pool.length ? `THEIR FOLDERS\n${dossier}\n\n` : ""}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}TODAY: ${today()}\nMESSAGE: ${q}` },
+        ], { maxTokens: 6000, temperature: 0.2, key: mKey, model: mName, timeout: 170000 });
+        tally(again.usage);
+        const words = String(again.text ?? "").replace(/^```(?:markdown)?|```$/g, "").trim();
+        d = { answer: words.startsWith("{") ? answerIn(words) : words };
+      }
+    }
   }
   let answer = String(d?.answer ?? d?.reply ?? "").replace(/\s*—\s*/g, ", ").trim();
-  if (cut) answer = `${answer ? `${answer}\n\n` : ""}The proposal ran too long to finish, so nothing is proposed. Ask for a smaller change, or one step at a time.`;
+  if (lost) answer = `${answer ? `${answer}\n\n` : ""}The change it was writing ran too long to finish, so nothing is proposed. Ask for a smaller change, or one step at a time.`;
 
   /* Changes, kept as proposals on each asset they are for. */
   const edits: any[] = [], left: string[] = [];
