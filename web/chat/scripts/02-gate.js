@@ -154,6 +154,8 @@ async function refresh(){
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
   S.projects = d.projects || [];
   S.assets = d.assets || [];
+  /* A server older than this page sends no assets: none of their routes is there yet. */
+  S.assetsOn = Array.isArray(d.assets);
   /* The model in use, and its default. */
   S.models = d.models || { chat: S.model, chatDefault: S.model };
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }

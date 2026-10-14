@@ -2127,6 +2127,7 @@
   .as-row .cnt{ font-size:11.5px; white-space:nowrap; }
   #assetsPanel.over{ outline:2px dashed var(--accent-fill); outline-offset:2px; border-radius:10px; }
   .as-none{ margin:2px 10px 4px; font:400 12.5px/1.45 var(--sans); color:var(--ink-4); }
+  .as-none.as-old{ color:var(--ink-2); }
   .msg .pj-edit{ margin-top:12px; }
   .as-hint{ border-style:dashed; }
 
@@ -2371,8 +2372,9 @@ const S = {
   picks: [],
   /* The folder open in the main area, or null for the chat. */
   folder: null,
-  /* The assets a chat calls with @, the number of the one open in the main area, and what it holds on screen. */
-  assets: [], asset: null, pj: null,
+  /* The assets a chat calls with @, the number of the one open in the main area, and what it holds on screen.
+     `assetsOn` is false while the server is older than this page and has no asset routes yet. */
+  assets: [], asset: null, pj: null, assetsOn: true,
   /* The projects made before the assets, still to be turned into assets. */
   projects: [],
   /* The last few turns of the current thread. It travels with each question so
@@ -2698,6 +2700,8 @@ async function refresh(){
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
   S.projects = d.projects || [];
   S.assets = d.assets || [];
+  /* A server older than this page sends no assets: none of their routes is there yet. */
+  S.assetsOn = Array.isArray(d.assets);
   /* The model in use, and its default. */
   S.models = d.models || { chat: S.model, chatDefault: S.model };
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
@@ -8840,6 +8844,9 @@ function fillGrid(){
   if (g && !g.busy && g.last < g.total && g.wrap.clientHeight > 0 && (g.wrap.scrollHeight <= g.wrap.clientHeight + 500 || g.wrap.scrollHeight < (S.pj.keep?.gtop || 0) + g.wrap.clientHeight)) loadRows();
 }
 const assetById = fid => (S.assets || []).find(a => a.id === fid);
+/** Said instead of failing when the server is older than this page: it answers none of the asset routes. */
+const ASSETS_OLD = "The server is older than this page and has no Assets yet. Run git pull, then npx convex deploy.";
+function assetsOld(){ if (S.assetsOn) return false; chatMsg(ASSETS_OLD); return true; }
 /** What the list says beside a name: its size, or that it is still being read. */
 function assetMeta(a){
   if (!a || a.status !== "ready") return "reading";
@@ -8855,6 +8862,7 @@ function renderAssets(){
   const box = $("assets"); box.innerHTML = "";
   const list = S.assets || [];
   $("acount").textContent = list.length || "";
+  if (!S.demo && !S.assetsOn){ box.append(el("div","side-note as-none as-old", ASSETS_OLD)); return; }
   /* Projects held from before become assets, once, when the owner says so. */
   const old = S.demo ? [] : (S.projects || []);
   if (old.length){
@@ -8884,13 +8892,14 @@ async function syncAssets(){
 {
   const panel = $("assetsPanel");
   const carries = e => [...(e.dataTransfer?.types || [])].includes("Files");
-  panel.addEventListener("dragover", e => { if (!carries(e) || S.demo) return; e.preventDefault(); panel.classList.add("over"); });
+  panel.addEventListener("dragover", e => { if (!carries(e) || S.demo || !S.assetsOn) return; e.preventDefault(); panel.classList.add("over"); });
   panel.addEventListener("dragleave", e => { if (!panel.contains(e.relatedTarget)) panel.classList.remove("over"); });
-  panel.addEventListener("drop", e => { if (!carries(e) || S.demo) return; e.preventDefault(); panel.classList.remove("over"); const files = [...(e.dataTransfer?.files || [])]; if (files.length) addAssets(files); });
+  panel.addEventListener("drop", e => { if (!carries(e) || S.demo || !S.assetsOn) return; e.preventDefault(); panel.classList.remove("over"); const files = [...(e.dataTransfer?.files || [])]; if (files.length) addAssets(files); });
 }
 
 /** The +: files you have, or a blank document, table or page to fill from a chat. */
 function openAssetAdd(anchor){
+  if (assetsOld()) return;
   popMenu(anchor, "Add an asset", menu => {
     for (const [k, label, hint] of [["add","Add files","Word, PDF, Excel, CSV, HTML"], ["link","Add a link","a web page, read and kept"], ["doc","New document","blank"], ["table","New table","blank"], ["html","New page","blank"]]){
       const b = el("button"); b.type = "button"; b.dataset.add = k; b.setAttribute("role","menuitem");
@@ -8939,7 +8948,7 @@ async function addAsset(file, prev = 0){
     await syncAssets();
     openAsset(made.fid);
   } catch (e){
-    sh.fail(made ? `${e.message} It is in Assets, not finished: open it to choose the file again.` : /unreadable/.test(e.message) ? "The server is older than this page and cannot keep assets yet. Run convex deploy." : e.message);
+    sh.fail(made ? `${e.message} It is in Assets, not finished: open it to choose the file again.` : e.message);
     await syncAssets();
   }
 }
@@ -8986,7 +8995,7 @@ async function addLink(url, prev = 0){
     await openAsset(made.fid);
     if (page.cut) pjNote("Only the first 60,000 characters of the page were kept.");
   } catch (e){
-    sh.fail(made ? `${e.message} It is in Assets, not finished: read it again from there.` : /unreadable/.test(e.message) ? "The server is older than this page and cannot keep assets yet. Run convex deploy." : e.message);
+    sh.fail(made ? `${e.message} It is in Assets, not finished: read it again from there.` : e.message);
     await syncAssets();
   }
 }
@@ -9000,7 +9009,7 @@ async function newAsset(kind){
     const r = await api("/api/assets/new", { kind, name });
     await syncAssets();
     openAsset(r.fid);
-  } catch (e){ chatMsg(/unreadable/.test(e.message) ? "The server is older than this page and cannot keep assets yet. Run convex deploy." : e.message); }
+  } catch (e){ chatMsg(e.message); }
 }
 
 /* ---- the viewer ---- */
@@ -9242,7 +9251,7 @@ function openConvert(){
         S.projects = (S.projects || []).filter(p => p.slug !== x.p.slug);
       } catch (e){
         failed++; x.r.classList.remove("run"); x.r.classList.add("fail");
-        x.st.textContent = "stopped"; bad.textContent = /unreadable/.test(e.message) ? "The server is older than this page and cannot turn projects into assets yet. Run convex deploy." : e.message;
+        x.st.textContent = "stopped"; bad.textContent = e.message;
       }
     }
     busy = false; cancel.disabled = false;

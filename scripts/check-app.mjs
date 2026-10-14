@@ -75,7 +75,7 @@ const STATE = {
   brains: [{ slug: "content", name: "Content", type: "subject", scope: "brand and content", owner: null }],
   concepts: [], sources: [], model: "test/model", chunk: 18000, mentions: 1,
   account: null, kind: "owner", owner: true, space: "octopus", spaceName: "Octopus",
-  hasKey: false, keyHint: "",
+  hasKey: false, keyHint: "", assets: [],
 };
 
 let failures = 0;
@@ -3853,6 +3853,28 @@ for (const space of ["octopus", "squidgy"]) {
       && done.assets.length === 3 && !done.banner, JSON.stringify(done));
     check("no page error turning projects into assets", cv.bad.length === 0, cv.bad.join(" | "));
     await cv.page.close();
+  }
+  /* a server older than this page: it has no asset route, and the page says what to run instead of failing */
+  {
+    const old = await boot("/chat.html", arg => {
+      if (window.top !== window) return;
+      sessionStorage.setItem("octopus.token.v1", "test");
+      window.__calls = [];
+      window.fetch = async (u, opt) => {
+        const path = String(u).replace(/^https?:\/\/[^/]+/, "");
+        window.__calls.push({ s: path });
+        if (path === "/api/state") return Response.json(arg.state);
+        if (path.startsWith("/api/assets/")) throw new TypeError("Failed to fetch");
+        return Response.json({ chats: [], conflicted: [], health: [] });
+      };
+    }, { state: { ...STATE, assets: undefined, projects: [{ slug: "cap-spartan", name: "cap-spartan", files: 2, memory: 3 }] } });
+    const o = await old.page.evaluate(() => ({ note: document.querySelector("#assets .as-old")?.textContent, conv: !!document.getElementById("assetsConvert") }));
+    check("a server older than this page: Assets says to pull and deploy, and offers no conversion that would fail", o.note === "The server is older than this page and has no Assets yet. Run git pull, then npx convex deploy." && !o.conv, JSON.stringify(o));
+    await old.page.click("#newAsset"); await old.page.waitForTimeout(100);
+    const p = await old.page.evaluate(() => ({ menu: !!document.querySelector(".pj-menu"), msg: document.getElementById("chatMsg").textContent, calls: window.__calls.filter(x => x.s.startsWith("/api/assets/")).length }));
+    check("and its + says the same, with no call sent", !p.menu && /Run git pull, then npx convex deploy\./.test(p.msg) && p.calls === 0, JSON.stringify(p));
+    check("no page error with an older server", old.bad.length === 0, old.bad.join(" | "));
+    await old.page.close();
   }
   /* the demo keeps none */
   const demo = await boot("/chat.html", init, { state: { ...STATE, demo: true }, assets: [] });
