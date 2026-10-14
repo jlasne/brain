@@ -212,7 +212,7 @@ export const shareBrain = internalMutation({
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
     if (!b || readSpace(b.space) !== home) throw new Error("that brain does not live in this workspace");
     if (b.type === "personal") throw new Error("a personal brain is never shared");
-    if (b.type === "project") throw new Error("a project is never shared");
+    if (b.type === "project") throw new Error("a folder that holds files is never shared");
     const to = String(a.to).trim().toLowerCase();
     const editor = to !== home && ((SPACES as readonly string[]).includes(to) || (await hostedSpaces(ctx)).some(h => h.slug === to));
     const viewer = !editor && to !== home && to === (await demoSlug(ctx));
@@ -494,8 +494,8 @@ export const renameBrain = internalMutation({
   handler: async (ctx, a) => {
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
     if (!b || readSpace(b.space) !== readSpace(a.space)) throw new Error("no such brain");
-    /* A project is renamed from its own screen: its file, thread and changes are kept under its slug. */
-    if (b.type === "project") throw new Error("rename a project from its own screen");
+    /* The folder of the assets, or a project made before them, keeps its name: its files stand under its slug. */
+    if (b.type === "project") throw new Error("that folder holds files: it keeps its name");
     if (a.account !== null && (b.owner ?? null) !== a.account) {
       throw new Error("that brain belongs to someone else");
     }
@@ -653,7 +653,7 @@ export async function mergeInto(ctx: any, a: { from: string; into: string; space
   if (!bFrom || readSpace(bFrom.space) !== space) throw new Error(`no folder "${a.from}" in this workspace`);
   if (!bInto || readSpace(bInto.space) !== space) throw new Error(`no folder "${a.into}" in this workspace`);
   if (bFrom.type === "personal" || bInto.type === "personal") throw new Error("a personal folder never merges");
-  if (bFrom.type === "project" || bInto.type === "project") throw new Error("a project never merges");
+  if (bFrom.type === "project" || bInto.type === "project") throw new Error("a folder that holds files never merges");
   const write = !a.dry;
   const done = { moved: 0, joined: 0, links: 0, sources: 0, candidates: 0, chats: 0 };
   /* Where each old concept now lives, so links into it can follow. */
@@ -728,7 +728,7 @@ export async function deleteBrain(ctx: any, a: { space: string; slug: string; dr
   if (!b || !inSpace(b, space)) throw new Error(`no folder "${a.slug}" in this workspace`);
   if (readSpace(b.space) !== space) throw new Error("this folder was shared with this workspace: only its home workspace can delete it");
   if (b.type === "personal") throw new Error("a personal folder is never deleted");
-  if (b.type === "project") throw new Error("a project is deleted from its own screen");
+  if (b.type === "project") throw new Error("that folder holds files: delete them from Assets");
   const prefix = `${a.slug}/`, inIt = (r: any) => String(r).startsWith(prefix);
   const sources = (await ctx.db.query("sources").collect()).filter((s: any) => (s.brains ?? []).includes(a.slug));
   const chats = (await ctx.db.query("chats").withIndex("by_space_updated", (q: any) => q.eq("space", space)).collect())
@@ -817,8 +817,6 @@ export const upsertConcept = internalMutation({
       /* Lists are joined with the row as it is now, not as the caller read it
          a minute ago, so a parallel write keeps what it added. */
       const d = a.doc ?? {};
-      /* An instruction of a project changes only when its owner adds the file again: a note a chat or a file filed under the same title never rewrites it. */
-      if (seen.tag === "instructions" && d.tag !== "instructions") return seen._id;
       await ctx.db.patch(seen._id, {
         ...d,
         ...(d.evidence ? { evidence: mergeEvidence(d.evidence, seen.evidence ?? []) } : {}),
@@ -1033,11 +1031,11 @@ const CARDS_READY = "cards:v1", CARDS_BUILDING = "cards:building";
  * stopped at 8,192, the most a single returned list may hold.
  */
 export const spaceHead = internalQuery({
-  args: { space: v.optional(v.string()), projects: v.optional(v.boolean()) },
+  args: { space: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const space = readSpace(a.space);
-    /* A project's folder is read by its own chat and by the personal chat, and by nothing else: callers ask for it. */
-    const brains = (await ctx.db.query("brains").collect()).filter(b => inSpace(b, space) && (a.projects || b.type !== "project"));
+    /* The folder that holds the assets, and a project made before them, is no folder a list or a chat reads. */
+    const brains = (await ctx.db.query("brains").collect()).filter(b => inSpace(b, space) && b.type !== "project");
     const mine = new Set(brains.map(b => b.slug));
     const ready = !!(await ctx.db.query("config").withIndex("by_key", q => q.eq("key", CARDS_READY)).unique());
     /* A source filed in two workspaces lists only this one's brains here. */

@@ -134,10 +134,10 @@ export default defineSchema({
     file: v.optional(v.any()),
     /* The day a contact's raw notes were last gathered from the saved chats. */
     rawScan: v.optional(v.string()),
-    /* In a project: the sections of its file this note rests on, and whether the file changed there since it was written. */
+    /* Left readable for the notes of a project made before the assets: the sections of its file a note rested on, whether the file
+       changed there since, and the folder of its memory. They go when the project is turned into assets. */
     sections: v.optional(v.array(v.number())),
     stale: v.optional(v.boolean()),
-    /* In a project: the folder of its memory this note sits in, one of the project's own. */
     folder: v.optional(v.string()),
     updated: v.string(),
   }).index("by_brain", ["brain"])
@@ -210,7 +210,7 @@ export default defineSchema({
 
   /**
    * The models a workspace picked in Settings: one for the chat, Drop and
-   * one-pagers, one for projects. Absent reads as the deployment's defaults.
+   * one-pagers. Absent reads as the deployment's defaults.
    */
   models: defineTable({
     space: v.string(),
@@ -415,19 +415,20 @@ export default defineSchema({
   }).index("by_brain", ["space", "brain"]),
 
   /**
-   * A project's one file, or its one table. The text is never kept whole: it
+   * An asset: a document, a page or a table. The text is never kept whole: it
    * is cut in sections, each with a light row in projectCards for the contents
    * list, and a heavy row in projectSections for the words. A question reads
-   * the cards and opens a few sections.
+   * the cards and opens the sections it needs. A project made before the
+   * assets holds its files here too, until it is turned into assets.
    */
   projectFiles: defineTable({
     space: v.string(),
-    /* The project's folder: a brain of type "project". */
+    /* The file's key: `assets-<space>~n`, or a project's slug for one of its files. */
     brain: v.string(),
     name: v.string(),
     /* "doc", "html" (a page, kept as text and shown rendered) or "table". */
     kind: v.string(),
-    /* Made in the project by describing it, not read from a file: the chat's changes to it apply at once, and can be undone. */
+    /* Made blank, not read from a file. */
     made: v.optional(v.boolean()),
     /* A table's sheets: name, columns with what they hold, and row count. A document has one with no columns. */
     sheets: v.array(v.any()),
@@ -442,7 +443,7 @@ export default defineSchema({
     /* Which read this is, so a new file replaces the old one whole. */
     ver: v.number(),
     at: v.number(),
-    /* What the file is, in one line, for the project's map of its files. */
+    /* Left readable for rows written before: a project's one line on the file, and what it learned about where things are. */
     line: v.optional(v.string()),
     /* An asset's earlier version: the file number it replaced, kept hidden so Undo can bring it back. */
     prev: v.optional(v.number()),
@@ -452,7 +453,6 @@ export default defineSchema({
     url: v.optional(v.string()),
     /* A project's file moving into the assets: the key its rows still stand under, until they have all moved. */
     from: v.optional(v.string()),
-    /* What the project has learned about where things are: the words of a question (stems), the sections that answered it, how often, and when. A new file takes them away. */
     routes: v.optional(v.array(v.object({ t: v.array(v.string()), s: v.array(v.number()), n: v.number(), at: v.number(), q: v.optional(v.string()) }))),
   }).index("by_brain", ["brain"]),
 
@@ -468,9 +468,9 @@ export default defineSchema({
     chars: v.number(),
     /* A table's block: how many rows it holds. */
     rows: v.optional(v.number()),
-    /* The words the section is known by: its most used stems and its numbers, so a question in the project's other files finds it without reading it. */
+    /* The words the section is known by: its most used stems and its numbers, so a message finds it without reading it. */
     keys: v.optional(v.array(v.string())),
-    /* Its meaning is kept (a row in projectVectors made from its title and summary). A section made by the chat has none until the next message that reads the project's other files makes it. */
+    /* Left readable for rows written before: whether a project kept the section's meaning. */
     meant: v.optional(v.boolean()),
   }).index("by_brain_ord", ["brain", "ord"])
     .index("by_brain_sid", ["brain", "sid"]),
@@ -482,20 +482,11 @@ export default defineSchema({
     text: v.string(),
   }).index("by_brain_sid", ["brain", "sid"]),
 
-  /* A project's one running thread: its last 4 exchanges, older ones gone. */
-  projectThreads: defineTable({
-    brain: v.string(),
-    turns: v.array(v.any()),
-    updated: v.number(),
-  }).index("by_brain", ["brain"]),
-
   /**
-   * What frames a project's chat beyond its notes, one row a project. The Brief
-   * is the owner's words on who the chat is here, the goal, the audience, the
-   * rules and when to speak up: every message reads it. The State of play is
-   * the chat's own short summary of where the project stands, rewritten when an
-   * exchange changes it. The asks are what the chat still needs from the
-   * owner. `next` is false when the owner turned off the closing next step.
+   * One row a folder of files. For the assets, the number the next asset
+   * takes. For a project made before the assets, what framed its chat: the
+   * Brief, the State of play and what it still asked, read once to write its
+   * notes when it is turned into assets.
    */
   projectBriefs: defineTable({
     brain: v.string(),
@@ -505,49 +496,16 @@ export default defineSchema({
     stateAt: v.optional(v.number()),
     asks: v.optional(v.array(v.object({ id: v.string(), q: v.string(), at: v.number() }))),
     next: v.optional(v.boolean()),
-    /* The number the next extra file takes: files are numbered from 2 and a number is never used twice. */
+    /* The number the next asset takes: assets are numbered from 2 and a number is never used twice. */
     nextFid: v.optional(v.number()),
-    /* The folders of the project's memory, sorted from the first big drop into it: each note sits in one. */
     folders: v.optional(v.array(v.object({ name: v.string(), scope: v.string() }))),
   }).index("by_brain", ["brain"]),
 
   /**
-   * The meaning of each section of a project's files, as numbers, so a question
-   * finds a section by what it says and not only by its words, in another
-   * language too. `base` is the project, so one search reads every file of it.
-   */
-  projectVectors: defineTable({
-    base: v.string(),
-    brain: v.string(),
-    sid: v.number(),
-    vec: v.array(v.float64()),
-  }).index("by_brain_sid", ["brain", "sid"])
-    .vectorIndex("by_vec", { vectorField: "vec", dimensions: 1024, filterFields: ["base"] }),
-
-  /**
-   * What a workspace's projects cost, month by month: one row a project a
-   * month, added to after each message, file read or Brief written, from the
-   * usage the model host reports. A call the host gave no price for counts in
-   * `calls` and not in `priced`, so the total says when it may be low.
-   */
-  projectSpend: defineTable({
-    space: v.string(),
-    /* UTC, "2026-10". */
-    month: v.string(),
-    brain: v.string(),
-    usd: v.number(),
-    priced: v.number(),
-    calls: v.number(),
-    tokensIn: v.number(),
-    tokensOut: v.number(),
-    cached: v.number(),
-    at: v.number(),
-  }).index("by_space_month", ["space", "month"])
-    .index("by_brain_month", ["brain", "month"]),
-
-  /**
-   * What the chats cost, month by month: one row a kind of chat ("folders" for the main chat and a folder's, "personal" for the personal
-   * brain's) a month, added to after each message from the usage the model host reports. Shown in Settings beside the projects.
+   * What the workspace costs, month by month: one row a kind of work ("folders" for the main chat and a folder's, "personal" for the
+   * personal brain's, "assets" for a chat that tags an asset and a file read in, and drops, upkeep, one-pagers and voice) a month,
+   * added to after each call from the usage the model host reports. A call the host gave no price for counts in `calls` and not in
+   * `priced`, so the total says when it may be low. Shown in Settings.
    */
   chatSpend: defineTable({
     space: v.string(),
@@ -580,15 +538,8 @@ export default defineSchema({
   }).index("by_space_key", ["space", "key"])
     .index("by_space_at", ["space", "at"]),
 
-  /* The most a workspace's projects may cost in a month, when the owner set one. */
-  projectBudget: defineTable({
-    space: v.string(),
-    cap: v.number(),
-    updated: v.number(),
-  }).index("by_space", ["space"]),
-
-  /* A change the chat proposed to the file: what it would do, what it replaced
-     once applied, so it can be undone. The last 10 stay. */
+  /* A change a chat proposed to an asset, or a new asset it proposed: what it
+     would do, what it replaced once applied, so it can be undone. The last 10 stay. */
   projectEdits: defineTable({
     brain: v.string(),
     at: v.number(),

@@ -9,7 +9,7 @@
      ====================================================================== */
   /* ---- the side panel ----
      One column, three layers: who you are (the workspace), what you do (New chat, then Drop and One-pager side by side), and what you
-     have (Chats, Projects, Folders). Settings and Sign out sit at the foot, where an account lives. A list is named by a quiet label, so the
+     have (Chats, Assets, Folders). Settings and Sign out sit at the foot, where an account lives. A list is named by a quiet label, so the
      rows carry the eye; the row you are on is filled, with a thin accent at its edge. */
   aside{ background:var(--side); border-right:1px solid var(--line); }
   .brand{ padding:14px 12px 10px 16px; gap:10px; min-height:58px; }
@@ -19,7 +19,7 @@
   .navtoggle:hover{ color:var(--ink); background:var(--side-hover); }
   .side-scroll{ padding:4px 10px 16px; }
 
-  /* New chat sits on the Chats line, filled in the workspace's accent: louder than the + of Projects and Folders. */
+  /* New chat sits on the Chats line, filled in the workspace's accent: louder than the + of Assets and Folders. */
   .side-new{ flex:none; display:inline-flex; align-items:center; gap:5px; min-height:28px; margin:0 2px 0 6px; padding:0 11px 0 8px; border-radius:999px;
     background:var(--accent-solid); color:var(--accent-on); font:600 12.5px/1 var(--sans); letter-spacing:0; text-transform:none; white-space:nowrap;
     box-shadow:0 1px 2px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.14); transition:filter .15s ease, transform .15s ease; }

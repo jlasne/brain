@@ -319,7 +319,8 @@ export const forgetOldKeys = internalMutation({
 
 /**
  * What the app no longer keeps: Projects and their pages, saved one-pagers,
- * the side panel's mode, the old blind-spot log, the scouts' feeds and finds, the map's question counts, and the lab's calls and turns. Their code is gone;
+ * the side panel's mode, the old blind-spot log, the scouts' feeds and finds, the map's question counts, the lab's calls and turns,
+ * and the later projects' chat threads, section meanings, costs and caps. Their code is gone;
  * this empties their tables, 300 rows each a call, until it says "runAgain": false. They are out of schema.ts, which only
  * checks the tables it lists, so their rows are read here by name.
  *
@@ -330,7 +331,7 @@ export const clearRemoved = internalMutation({
   handler: async (ctx) => await clearSome(ctx),
 });
 
-const REMOVED = ["pages", "projects", "onepagers", "modes", "gaps", "heat", "scouts", "finds", "labTurns", "labs"];
+const REMOVED = ["pages", "projects", "onepagers", "modes", "gaps", "heat", "scouts", "finds", "labTurns", "labs", "projectThreads", "projectVectors", "projectSpend", "projectBudget"];
 async function clearSome(ctx: any) {
   const deleted: Record<string, number> = {};
   let runAgain = false;
@@ -344,7 +345,7 @@ async function clearSome(ctx: any) {
 }
 
 /* Each job of upkeep runs until it is done once, then marks it here and is never read again. */
-export const VECTORS_FOLLOW = "upkeep:vectors-follow:v1", REMOVED_CLEARED = "upkeep:removed-cleared:v1";
+export const VECTORS_FOLLOW = "upkeep:vectors-follow:v1", REMOVED_CLEARED = "upkeep:removed-cleared:v2";
 
 /**
  * Work that runs once, on its own, from the nightly cron, a page at a time

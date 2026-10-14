@@ -23,7 +23,7 @@ Drop a talk, a PDF or a link. Each idea lands in a folder with its author and da
 
 <br>
 
-[What it does](#what-it-does) · [Why it holds up](#why-it-holds-up) · [Compared](#compared) · [Inside the app](#inside-the-app) · [Personal folder](#the-personal-folder-alpha) · [Assets](#assets) · [Projects](#projects) · [Workspaces](#workspaces) · [Run your own](#run-your-own) · [Work on it](#work-on-it)
+[What it does](#what-it-does) · [Why it holds up](#why-it-holds-up) · [Compared](#compared) · [Inside the app](#inside-the-app) · [Personal folder](#the-personal-folder-alpha) · [Assets](#assets) · [Workspaces](#workspaces) · [Run your own](#run-your-own) · [Work on it](#work-on-it)
 
 ## What it does
 
@@ -113,7 +113,7 @@ A bubble at the top right counts what waits for you: answers ready, questions on
 | **App** | Installs Tasu on the home screen or the dock. See [Install as an app](#install-as-an-app). |
 | **Appearance** | System, Light or Dark, kept in this browser. |
 | **Languages** | The language of answers (as you write, or English). Voice: Whisper (any length, any language) or the browser (free, 2 minutes). The mic language: 27, or Detect. |
-| **Cost** | This month in dollars for each kind of work: folder chat, personal chat, drops, upkeep, one-pagers, voice and projects. An optional monthly cap on projects. |
+| **Cost** | This month in dollars for each kind of work: folder chat, personal chat, assets, drops, upkeep, one-pagers and voice, and last month in all. |
 | **Export, Restore** | Every folder as one markdown file, and read back in one step: what is missing returns, what is there stays. |
 | **Audit, Look, Passphrase, Share** | Audits and clashes; a logo, an accent and a page colour; a new passphrase that signs others out; a folder shared with another workspace. |
 
@@ -155,22 +155,7 @@ Documents, tables, pages and web pages you keep. Any chat calls one with @, as i
 - **Versions.** A file dropped under a name an asset holds becomes its new version. The one before is kept: Undo brings it back.
 - **Cost, on the default model (GLM 5.3 Flash, $0.035 a million tokens read, $0.90 written).** A question on a 300-row table reads about 40,000 tokens: $0.0014, plus about $0.0005 for the answer. A proposed page or table of 3,000 tokens adds $0.003. Reading a 100-page PDF in costs about $0.005; a table or a link, nothing. Counted under Assets in Cost.
 - **See it.** A document's pages, a table's grid, a page as it renders or as code. Download a document as Markdown, PDF or a web page, a table as Excel, CSV or Markdown.
-
-## Projects
-
-Files, tables and pages, with a chat beside them and a memory of their own.
-
-- **Start from up to 3 files, or from a blank.** Drop them on New project, or choose them: Word, PDF, text, Markdown, HTML, Excel or CSV. Or pick a type and describe it: the chat writes it from your words and your folders.
-- **Up to 30 files** as tabs. The chat changes the open file and reads the others.
-- **Changes you can undo.** A change to a file you dropped waits for your click. A change to a file made here applies at once. Each has Undo.
-- **A Brief, if you want one.** Who the chat is, the goal, the audience and the rules, up to 6,000 characters. Type it, add a file, or answer 5 questions by voice.
-- **It keeps track.** A State of play, the questions waiting for you, and one line to send next.
-- **It reads only what a question needs.** A file of up to 4,000 pages is filed in sections, each with a contents line, written 4 sections a call. 1,000 questions on a 143-page file cost $0.26, down from $0.47. 1,000 thank-yous cost $0.07, down from $0.25.
-- **Exact tables.** Up to 40,000 rows, searched by filter and totals over every row.
-- **Paste a log, then say "put it in the table".** A message takes up to 40,000 characters, about 400 lines. What you pasted in the last 4 messages is read again word for word, and up to 1,000 rows go in with one change you can undo.
-- **A first memory, sorted.** New project takes files, a Brief and a memory: paste notes, research or past work, up to 200,000 characters. One call sorts it into 3 to 8 folders, and each note lands in one. Memory shows the folders; delete one and its notes move to Other notes, or go with it.
-- **A memory that fills itself.** A note on each file, what you decide, and what answers find, each pointing at its sections and filed in its folder.
-- **Download** a document as Markdown, PDF or a web page, and a table as Excel, CSV or Markdown, written in your browser.
+- **Projects from before.** A line in Assets turns them into assets, after a list of what each becomes: every file with all it holds, and the Brief, where it stood and what it kept as one document, Notes of the project. Its last 4 chat exchanges go. Nothing moves before you confirm.
 
 ## Workspaces
 
@@ -258,21 +243,21 @@ The app's source sits in `web/chat/`, one file a screen. `npm run build` joins i
 
 ```bash
 npm run build     # web/chat into app/chat.html
-npm run check     # the build first, then 2639 checks
+npm run check     # the build first, then 1866 checks
 npm run deploy    # the server, to Convex
 ```
 
 ```
 app/            the landing, the built app, the white paper, the install manifest and icons
-web/chat/       the app's source: page.html, 10 stylesheets and 18 scripts, one a screen
-convex/         the server: routes, store, drop, one-pager, health, conflicts, personal, projects
+web/chat/       the app's source: page.html, 10 stylesheets and 19 scripts, one a screen
+convex/         the server: routes, store, drop, one-pager, health, conflicts, personal, assets
 scripts/        the build and the checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
 skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a folder
 ```
 
-`npm run check` runs 2639 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, projects, and the app itself in a real browser at 9 screen sizes.
+`npm run check` runs 1866 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 

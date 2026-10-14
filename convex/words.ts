@@ -112,8 +112,8 @@ export const MIN_OPEN = 8;
  */
 export const INDEX_SHORT = 120, NEAR_SHORT = 40, NEAR_NEEDED = 20;
 /**
- * How close in meaning a concept must be to open on that alone once the router has read its title and passed it over: the floor the
- * project search uses for the same model. Below it, a near concept only shares a field with the question ("Tax shield" for a VAT rate).
+ * How close in meaning a concept must be to open on that alone once the router has read its title and passed it over. Below it, a
+ * near concept only shares a field with the question ("Tax shield" for a VAT rate).
  */
 export const NEAR_FLOOR = 0.45;
 /** The concepts the last answer opened, carried to the next message so "the second one" still finds its subject: this many at most. */

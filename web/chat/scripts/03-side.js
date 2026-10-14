@@ -230,13 +230,13 @@ function folds(){
   return folds.v;
 }
 function paintFolds(){
-  for (const k of ["chats","assets","projects","brains"]){
+  for (const k of ["chats","assets","brains"]){
     const shut = !!folds()[k];
     $(k + "Fold").setAttribute("aria-expanded", String(!shut));
     $(k + "Box").hidden = shut;
   }
 }
-for (const k of ["chats","assets","projects","brains"]) $(k + "Fold").onclick = () => {
+for (const k of ["chats","assets","brains"]) $(k + "Fold").onclick = () => {
   folds()[k] = !$(k + "Box").hidden;
   try { localStorage.setItem("octopus.fold", JSON.stringify(folds())); } catch {}
   paintFolds();
@@ -268,10 +268,10 @@ function chatRow(c){
   if (job){ const d = el("span","cr-dot" + (job.status === "running" ? " run" : "")); d.title = job.status === "running" ? "On its way" : "Answer unread"; row.append(d); }
   /* The pointer shows what it asked and how often. */
   row.title = `${c.title}\n${c.concept ? "About one concept" : brainLabel(c.brain)} \u00b7 ${c.turns} question${c.turns === 1 ? "" : "s"}`;
-  /* The chat already current still has to bring its screen back when a project, a folder or Drop is on top of it. */
+  /* The chat already current still has to bring its screen back when an asset, a folder or Drop is on top of it. */
   const open = () => {
     if (S.chatId !== c.id) openChat(c.id);
-    else if (S.project || S.folder || S.mode === "drop"){ S.folder = null; S.mode = "ask"; render(); closeSide(); }
+    else if (S.asset || S.folder || S.mode === "drop"){ S.folder = null; S.mode = "ask"; render(); closeSide(); }
     else closeSide();
   };
   row.onclick = open;

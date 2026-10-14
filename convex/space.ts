@@ -8,8 +8,8 @@
 
 import { internal } from "./_generated/api";
 
-export async function loadSpace(ctx: any, space: string, onHead?: (head: any) => Promise<void>, opts: { personal?: boolean; projects?: boolean } = {}) {
-  const head = await ctx.runQuery(internal.store.spaceHead, { space, ...(opts.projects ? { projects: true } : {}) });
+export async function loadSpace(ctx: any, space: string, onHead?: (head: any) => Promise<void>, opts: { personal?: boolean } = {}) {
+  const head = await ctx.runQuery(internal.store.spaceHead, { space });
   /* A caller can act on the head first: the app starts the card build here,
      before the heavier read that follows. */
   if (onHead) await onHead(head);
@@ -20,7 +20,7 @@ export async function loadSpace(ctx: any, space: string, onHead?: (head: any) =>
 }
 
 /** The cards of some brains, a brain at a time and a page at a time. */
-export async function cardsFor(ctx: any, slugs: string[], ready: boolean) {
+async function cardsFor(ctx: any, slugs: string[], ready: boolean) {
   const cards: any[] = [];
   for (const brain of slugs) {
     let cursor: string | null = null;
@@ -35,12 +35,11 @@ export async function cardsFor(ctx: any, slugs: string[], ready: boolean) {
 }
 
 /**
- * A space as every reader but a personal chat sees it: no personal brain, no
- * project, and none of their cards or sources. A project keeps what its owner
- * decided, so only its own chat and the personal chat read it.
+ * A space as every reader but a personal chat sees it: no personal brain, and
+ * none of its cards or sources.
  */
 export function withoutPersonal<T extends { brains: any[]; sources: any[]; cards?: any[] }>(s: T): T {
-  const mine = new Set(s.brains.filter((b: any) => b.type === "personal" || b.type === "project").map((b: any) => b.slug));
+  const mine = new Set(s.brains.filter((b: any) => b.type === "personal").map((b: any) => b.slug));
   if (!mine.size) return s;
   return {
     ...s,

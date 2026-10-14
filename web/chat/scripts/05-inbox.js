@@ -189,7 +189,6 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("inbox"
  * The inbox's number counts a line once it has been open a week, so a fresh promise never nags.
  */
 function personalOfSpace(){ return S.brains.find(b => b.type === "personal" && !readOnly(b) && (b.space || "octopus") === S.space); }
-function openLines(pb){ return S.concepts.reduce((n, c) => n + (c.brain === pb.slug && c.tag === "contact" ? (c.open || 0) : 0), 0); }
 const STILL_DAYS = 7;
 /** Every open line, the oldest first, each with its person. */
 function stillLines(){ return (S.still || []).flatMap(p => p.items.map(x => ({ p, x }))).sort((a, b) => String(a.x.at).localeCompare(String(b.x.at))); }

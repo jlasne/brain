@@ -1,12 +1,12 @@
 /**
  * A file or a table, cut in pieces and searched without reading all of it.
  *
- * A project holds one file of any size. A document is cut in sections of about
+ * An asset holds one file of any size. A document is cut in sections of about
  * 12,000 characters, each with a title and a one line summary: the contents
- * list. A question reads that list and opens only the sections it needs, the
- * way a question reads the concept titles of a folder. A table is cut in
- * blocks of rows, and a question about it becomes a filter and a few totals
- * that run over every row, so a count or a sum is exact whatever the size.
+ * list. A message reads the sections it needs and the list of the rest. A
+ * table is cut in blocks of rows, and a question about a big one becomes a
+ * filter and a few totals that run over every row, so a count or a sum is
+ * exact whatever the size.
  *
  * Pure functions only: no database, no model. The server wraps them.
  */
@@ -17,48 +17,20 @@
 export const SECTION_CHARS = 12000;
 /** A heading starts a new section once the one before holds at least this much. */
 export const SECTION_MIN = 2500;
-/** The contents list the chat reads. 1,000 sections is about 4,000 pages. */
+/** The sections a file may hold. 1,000 sections is about 4,000 pages. */
 export const MAX_SECTIONS = 1000;
-/** A text under this many characters is read whole for each question: its contents list would cost about as much as the text. */
-export const TINY_CHARS = 8000;
-/** A text up to this many characters is read whole when the question is about all of it. Longer, a question reads the sections it needs. */
-export const WHOLE_CHARS = 48000;
-/** A contents list this long or shorter goes to the router whole. A longer one goes as a short list first: what the project remembers, then the sections that share words with the message. */
-export const SHORT_AFTER = 40;
-export const SHORT_N = 12;
-/** Routes a project keeps: where things are, learned from its own answers. */
-export const ROUTES_KEEP = 40;
-/** What a project's file can be: words, a page of HTML (words shown rendered), or a table. */
+/** What a file can be: words, a page of HTML (words shown rendered), or a table. */
 export const FILE_KINDS = ["doc", "html", "table"];
-/** The name of a file made from nothing, from the project's name: a page, a table or a document. */
-export const madeName = (name: string, kind: string) =>
-  `${String(name ?? "").replace(/\s+/g, " ").trim().slice(0, 56) || "Untitled"}.${kind === "html" ? "html" : kind === "table" ? "csv" : "md"}`;
 /** The line a PDF page starts with, so an answer can name its page. */
 export const PAGE_LINE = /^\[\[p\. (\d+)\]\]$/;
 
-/** What the owner's Brief may hold, in characters: about 1,500 tokens. */
-export const BRIEF_MAX = 6000;
-/** What the State of play may hold, in characters: about 250 tokens. */
-export const STATE_MAX = 1500;
-/** What the chat still needs from the owner: at most this many questions, each this long. */
-export const ASKS_MAX = 8;
-export const ASK_CHARS = 160;
-/** The closing next step: one line. */
-export const NEXT_CHARS = 140;
-
 /**
- * Several files in one project. The first file is kept under the project's own
- * name; each other file is kept under `name~n`, and everything that reads or
- * changes one file (its sections, its changes, its download) takes that key. A
- * slug never holds a tilde, so a key is never taken for another project's.
+ * Assets: the documents, tables and pages a workspace keeps for its chats to read and change. They are the files of one hidden folder
+ * per workspace, and everything that reads or changes one (its sections, its changes, its download) takes its key, `assets-<space>~n`,
+ * n from 2. A folder's slug never holds a tilde, so a key is never taken for a folder's. A project made before the assets holds its
+ * first file under its own slug and the others under `slug~n`, until it is turned into assets.
  */
-export const MAX_FILES = 30;
 export const KEY_RE = /^[a-z0-9][a-z0-9-]*(~\d{1,5})?$/;
-/**
- * Assets: the documents, tables and pages a workspace keeps for its chats to read and change. They live as the files of one hidden
- * container per workspace, so they are read, cut, searched, changed and downloaded exactly as a project's files are. A chat calls one
- * with @. The first file number is never used: each asset is `assets-<space>~n`, n from 2.
- */
 export const ASSETS_MAX = 100;
 export const assetsSlug = (space: string) => `assets-${String(space || "").toLowerCase()}`;
 export const isAssets = (base: string) => /^assets-[a-z0-9-]+$/.test(String(base));
@@ -67,16 +39,6 @@ export const splitKey = (key: string): { base: string; fid: number } => {
   const [base, n] = String(key).split("~");
   return { base, fid: n ? Number(n) : 1 };
 };
-/**
- * A note names the sections it rests on by one number each. The first file
- * keeps its plain numbers; file n's sections are numbered n * 100,000 + their
- * own, so a note can rest on a section of any file.
- */
-export const FILE_SPAN = 100000;
-export const pointerOf = (fid: number, sid: number) => fid > 1 ? fid * FILE_SPAN + sid : sid;
-/** The sections of one file among the numbers a note holds, by their own numbers. */
-export const localSids = (pointers: number[], fid: number): number[] =>
-  (pointers ?? []).filter(p => fid > 1 ? Math.floor(p / FILE_SPAN) === fid : p < FILE_SPAN).map(p => fid > 1 ? p - fid * FILE_SPAN : p);
 
 export type Part = { title: string; text: string };
 

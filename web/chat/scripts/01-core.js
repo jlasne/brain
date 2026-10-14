@@ -16,7 +16,7 @@ window.addEventListener("appinstalled", () => { installAsk = null; });
 const MODEL_CALLS = new Set(["/api/ask", "/api/onepager", "/api/personal/remember", "/api/conflicts", "/api/conflicts/settle",
   "/api/drop/read", "/api/drop/plan", "/api/drop/merge", "/api/drop/settle",
   "/api/brain/tidy", "/api/concept/merge", "/api/concept/rederive", "/api/interview", "/api/personal/people", "/api/personal/open",
-  "/api/project/part", "/api/project/finish", "/api/project/instructions", "/api/project/resource", "/api/project/brief", "/api/project/chat"]);
+  "/api/assets/part", "/api/assets/adopt"]);
 
 const S = {
   token: null, brains: [], concepts: [], sources: [], model: "", pick: "",
@@ -31,10 +31,10 @@ const S = {
   picks: [],
   /* The folder open in the main area, or null for the chat. */
   folder: null,
-  /* The projects, the slug of the one open in the main space, and what it holds on screen. */
-  projects: [], project: null, pj: null,
-  /* The assets a chat calls with @, and the one open in the main area. */
-  assets: [], asset: null, assetsBase: "",
+  /* The assets a chat calls with @, the number of the one open in the main area, and what it holds on screen. */
+  assets: [], asset: null, pj: null,
+  /* The projects made before the assets, still to be turned into assets. */
+  projects: [],
   /* The last few turns of the current thread. It travels with each question so
      a follow-up means something, and it is never written down: closing the tab
      ends it. */
@@ -55,8 +55,8 @@ const S = {
   space: document.documentElement.dataset.space || "", spaceName: "Tasu",
 };
 
-/* One screen at a time: opening a folder, or going back to the chat, leaves the open project. */
-{ let folder = S.folder; Object.defineProperty(S, "folder", { enumerable: true, get: () => folder, set(v){ folder = v; S.project = null; S.asset = null; } }); }
+/* One screen at a time: opening a folder, or going back to the chat, leaves the open asset. */
+{ let folder = S.folder; Object.defineProperty(S, "folder", { enumerable: true, get: () => folder, set(v){ folder = v; S.asset = null; } }); }
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
    falls back to normal. */

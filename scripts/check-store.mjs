@@ -1216,7 +1216,7 @@ I run a marathon in May.
   const snap = JSON.stringify(T);
   const dry = await run(store.brainDelete, ctx, { space: "octopus", slug: "gold", dry: true });
   check("a dry delete counts what would go, and writes nothing", dry.name === "Gold" && dry.concepts === 2 && dry.sources === 2 && dry.alone === 1 && dry.chats === 2 && JSON.stringify(dry.shared) === '["squidgy"]' && JSON.stringify(T) === snap, JSON.stringify(dry));
-  check("a personal folder is never deleted, and a project goes from its own screen", /personal/.test(await throws(run(store.brainDelete, ctx, { space: "octopus", slug: "me" }))) && /own screen/.test(await throws(run(store.brainDelete, ctx, { space: "octopus", slug: "plan" }))));
+  check("a personal folder is never deleted, and a folder that holds files goes from Assets", /personal/.test(await throws(run(store.brainDelete, ctx, { space: "octopus", slug: "me" }))) && /delete them from Assets/.test(await throws(run(store.brainDelete, ctx, { space: "octopus", slug: "plan" }))));
   check("a folder of another workspace, or one shared in from there, is refused", /no folder/.test(await throws(run(store.brainDelete, ctx, { space: "octopus", slug: "dogs" }))) && /only its home workspace/.test(await throws(run(store.brainDelete, ctx, { space: "octopus", slug: "pals" }))) && JSON.stringify(T) === snap);
   const r = await run(store.brainDelete, ctx, { space: "octopus", slug: "gold" });
   check("the folder goes, with its concepts, their cards and their meaning", !r.more && r.concepts === 2 && !T.brains.some(b => b.slug === "gold") && !T.concepts.some(c => c.brain === "gold") && !T.cards.some(c => c.brain === "gold")

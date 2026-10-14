@@ -77,18 +77,13 @@
   .sh-fold > summary:focus-visible{ outline:2px solid var(--accent-line); outline-offset:3px; border-radius:6px; }
   .sh-fold label{ margin-top:2px; }
   .brain-row.shared .nm::after{ content:"\21C4"; margin-left:7px; font-size:12px; color:var(--ink-4); }
-  /* What the projects cost: figures in rows, and a cap in dollars. */
+  /* What the workspace costs: figures in rows. */
   .sp-row{ display:flex; align-items:baseline; justify-content:space-between; gap:4px 14px; padding:5px 0; font:400 13px/1.4 var(--sans); color:var(--ink-2); }
   .sp-row b{ font:600 13px/1.4 var(--sans); color:var(--ink); font-variant-numeric:tabular-nums; white-space:nowrap; }
   .sp-row small{ margin-left:8px; font:400 12px/1.3 var(--mono); color:var(--ink-3); }
   .sp-row.sub > span{ min-width:0; padding-left:12px; color:var(--ink-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .sp-note{ margin:8px 0 2px; font:400 12.5px/1.5 var(--sans); color:var(--ink-3); }
   .sp-note.bad{ color:var(--bad); }
-  .sp-cap{ margin-top:12px; }
-  .sp-cap label{ display:block; margin:0 0 4px; font:500 13px/1.4 var(--sans); color:var(--ink-2); }
-  .sp-cap .urlbox span{ display:flex; align-items:center; padding:0 0 0 11px; font:400 12px/1 var(--mono); color:var(--ink-3); }
-  .sp-cap .urlbox input{ padding-left:4px; }
-  .sh-count.bad{ color:var(--bad); }
 
   .urlbox{
     display:flex; align-items:stretch; gap:0; margin:4px 0 2px;

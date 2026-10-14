@@ -1,15 +1,7 @@
-/* 11-projects-read.js: Projects: the state, and reading a file in this tab. */
-
-/* ============ projects ============
-   A project is one file or one table, a chat beside it, and a memory of its
-   own. The file is read in this tab and goes to the server a piece at a time,
-   cut in sections. A question reads only the sections it needs, so a file of
-   any size answers at the cost of the question. The chat can propose changes
-   to the file; only a click applies them. */
+/* 11-files-read.js: reading a file in this tab, for an asset. The file is read here and goes to the server a piece at a time, cut in
+   sections, so a file of any size goes in and a chat reads only what it needs of it. */
 
 const PJ_FILES = ".pdf,.txt,.md,.markdown,.text,.docx,.csv,.tsv,.xlsx,.xls,.html,.htm,.xhtml";
-/* Instructions are words: no table. */
-const RULE_FILES = ".pdf,.txt,.md,.markdown,.text,.docx,.html,.htm,.xhtml";
 const PJ_PIECE = 120000;            /* characters of a document sent at a time */
 const PJ_ROWS = 4000;               /* rows of a sheet sent at a time */
 const XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
@@ -20,10 +12,10 @@ const PJ_ICON = {
   html: `<svg class="b-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 8l-4 4 4 4M15 8l4 4-4 4M13 6l-2 12"/></svg>`,
 };
 const pjIcon = k => PJ_ICON[k === "table" ? "table" : k === "html" ? "html" : "doc"];
-/** What a project's file is called: a document, a page or a table. */
+/** What an asset is called: a document, a page or a table. */
 const pjNoun = k => k === "table" ? "table" : k === "html" ? "page" : "document";
-/** The name of the file's side in the phone's two tabs. */
-const pjSeg = f => f?.kind === "table" ? "Table" : f?.kind === "html" ? "Page" : "Document";
+/** What an asset is, as a word that starts a line. */
+const kindTitle = f => f?.kind === "table" ? "Table" : f?.kind === "html" ? "Page" : "Document";
 
 /* ---- reading a file in this tab ---- */
 
@@ -255,7 +247,7 @@ function tableOf(name, sheets){
 }
 
 /** A chosen file as a document or a table, read here. The file itself is never uploaded: its text and rows are. */
-async function readProjectFile(file, say){
+async function readFileIn(file, say){
   const name = file.name || "file", ext = name.toLowerCase().split(".").pop();
   if (file.size > 30 * 1024 * 1024) throw new Error(`${name} is ${Math.round(file.size / 1048576)}MB. 30MB is the ceiling.`);
   say(`Reading ${name}`);
@@ -270,7 +262,7 @@ async function readProjectFile(file, say){
   if (ext === "xlsx" || ext === "xls"){ say("Loading the Excel reader"); return tableOf(name, await workbookSheets(file)); }
   if (["html", "htm", "xhtml"].includes(ext)) return { kind: "html", name, text: (await file.text()).trim() };
   if (["txt", "md", "markdown", "text"].includes(ext) || file.type.startsWith("text/")) return { kind: "doc", name, text: (await file.text()).trim() };
-  throw new Error(`${name} is a .${ext}. A project reads Word, PDF, text, Markdown, HTML, Excel and CSV files.`);
+  throw new Error(`${name} is a .${ext}. An asset is a Word, PDF, text, Markdown, HTML, Excel or CSV file.`);
 }
 
 /** A text cut in pieces of about `max` characters, on paragraph breaks. */
@@ -285,13 +277,13 @@ function cutText(t, max){
   return out;
 }
 
-/** The file sent to the server a piece at a time. `step` says where it stands. */
-async function uploadProject(key, got, step){
-  /* What a project holds is said before the first piece goes, not after most of them have. */
-  if (got.kind !== "table" && got.text.length > 12000000) throw new Error(`${got.name} is longer than a project reads: about 4,000 pages.`);
+/** The file sent to the server a piece at a time, as asset number `fid`. `step` says where it stands. */
+async function uploadAsset(fid, got, step){
+  /* What an asset holds is said before the first piece goes, not after most of them have. */
+  if (got.kind !== "table" && got.text.length > 12000000) throw new Error(`${got.name} is longer than an asset holds: about 4,000 pages.`);
   if (got.kind === "table" && got.sheets.reduce((n, s) => n + s.rows.reduce((a, r) => a + r.reduce((b, c) => b + c.length + 1, 0), 0), 0) > 6000000)
-    throw new Error(`${got.name} is bigger than a project reads: about 40,000 rows of 10 columns.`);
-  const begin = await api("/api/project/begin", { brain: key, name: got.name, kind: got.kind,
+    throw new Error(`${got.name} is bigger than an asset holds: about 40,000 rows of 10 columns.`);
+  const begin = await api("/api/assets/begin", { file: fid, name: got.name, kind: got.kind,
     ...(got.kind === "table" ? { sheets: got.sheets.map(s => ({ name: s.name, header: s.header })) } : {}) });
   if (got.kind !== "table"){
     const pieces = cutText(got.text, PJ_PIECE);
@@ -299,7 +291,7 @@ async function uploadProject(key, got, step){
     let page = 0;
     for (let i = 0; i < pieces.length; i++){
       step(pieces.length > 1 ? `Cutting it in sections: part ${i + 1} of ${pieces.length}` : "Cutting it in sections");
-      await api("/api/project/part", { brain: key, ver: begin.ver, text: pieces[i], page });
+      await api("/api/assets/part", { file: fid, ver: begin.ver, text: pieces[i], page });
       const last = [...pieces[i].matchAll(/^\[\[p\. (\d+)\]\]$/gm)].pop();
       if (last) page = Number(last[1]);
     }
@@ -309,12 +301,12 @@ async function uploadProject(key, got, step){
         let n = 0, chars = 0;
         while (at + n < s.rows.length && n < PJ_ROWS && chars < 150000){ chars += s.rows[at + n].reduce((a, c) => a + c.length + 1, 0); n++; }
         step(`Storing ${s.name}: rows ${at + 1} to ${at + n} of ${s.rows.length}`);
-        await api("/api/project/part", { brain: key, ver: begin.ver, sheet: si, rows: s.rows.slice(at, at + n) });
+        await api("/api/assets/part", { file: fid, ver: begin.ver, sheet: si, rows: s.rows.slice(at, at + n) });
         at += n;
       }
     }
   }
   step("Counting what each column holds");
-  return await api("/api/project/finish", { brain: key, ver: begin.ver });
+  return await api("/api/assets/finish", { file: fid, ver: begin.ver });
 }
 

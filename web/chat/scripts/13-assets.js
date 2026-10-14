@@ -1,10 +1,6 @@
-/* 12-assets.js: Assets: the documents, tables and pages a chat calls with @. The side panel's list, adding one, the viewer, and the cards
-   of what a chat proposes to change or to make. */
+/* 13-assets.js: Assets: the documents, tables and pages a chat calls with @. The side panel's list, adding one, the asset open in the
+   main area, turning the projects made before into assets, and the cards of what a chat proposes to change or to make. */
 
-/* ---- where they live ---- */
-/** The key of the workspace's assets, as the server named it, and of one asset in it. */
-const assetsBase = () => S.assetsBase || `assets-${String(S.space || "").toLowerCase()}`;
-const assetKey = fid => `${assetsBase()}~${fid}`;
 const assetById = fid => (S.assets || []).find(a => a.id === fid);
 /** What the list says beside a name: its size, or that it is still being read. */
 function assetMeta(a){
@@ -36,14 +32,14 @@ function renderAssets(){
     row.dataset.fid = String(a.id);
     const tick = el("span","tick"); tick.innerHTML = pjIcon(a.kind);
     row.append(tick, el("span","nm",a.name), el("span","cnt", assetMeta(a)));
-    row.title = `${a.name}\n${a.line || pjSeg(a)}. In a chat, call it with @.`;
+    row.title = `${a.name}\n${kindTitle(a)}. In a chat, call it with @.`;
     row.onclick = () => openAsset(a.id);
     box.append(row);
   }
 }
 /** The list read again after a change. */
 async function syncAssets(){
-  try { const r = await api("/api/assets/list"); S.assets = r.assets || []; if (r.base) S.assetsBase = r.base; } catch { /* the list catches up at the next refresh */ }
+  try { S.assets = (await api("/api/assets/list")).assets || []; } catch { /* the list catches up at the next refresh */ }
   renderAssets();
 }
 /* A file dropped on the panel is added. */
@@ -98,10 +94,9 @@ async function addAsset(file, prev = 0){
   const sh = progressSheet(`Reading ${file.name}`);
   let made = null;
   try {
-    const got = await readProjectFile(file, sh.read);
+    const got = await readFileIn(file, sh.read);
     made = await api("/api/assets/new", { kind: got.kind, name: got.name, made: false, ...(prev ? { prev } : {}) });
-    if (made.base) S.assetsBase = made.base;
-    await uploadProject(made.key, got, sh.store);
+    await uploadAsset(made.fid, got, sh.store);
     sh.close();
     await syncAssets();
     openAsset(made.fid);
@@ -147,8 +142,7 @@ async function addLink(url, prev = 0){
     sh.read(`Reading ${name}`);
     const page = await api("/api/fetch", { url });
     made = await api("/api/assets/new", { kind: "doc", name, made: false, url: page.url || url, ...(prev ? { prev } : {}) });
-    if (made.base) S.assetsBase = made.base;
-    await uploadProject(made.key, { kind: "doc", name, text: page.text }, sh.store);
+    await uploadAsset(made.fid, { kind: "doc", name, text: page.text }, sh.store);
     sh.close();
     await syncAssets();
     await openAsset(made.fid);
@@ -166,7 +160,6 @@ async function newAsset(kind){
   let name = base, n = 1; while (taken.has(name.toLowerCase())) name = `${base} ${++n}`;
   try {
     const r = await api("/api/assets/new", { kind, name });
-    if (r.base) S.assetsBase = r.base;
     await syncAssets();
     openAsset(r.fid);
   } catch (e){ chatMsg(/unreadable/.test(e.message) ? "The server is older than this page and cannot keep assets yet. Run convex deploy." : e.message); }
@@ -176,14 +169,13 @@ async function newAsset(kind){
 /** An asset open in the main area, as it reads: a document's pages, a table's grid, a page as it renders. */
 async function openAsset(fid){
   closeSide(); closeDownload();
-  document.querySelector(".veil.pm")?.remove();
   S.folder = null; S.mode = "ask"; S.asset = fid;
-  S.pj = { slug: assetsBase(), fid, data: null, seg: "doc", sheet: 0, busy: false, marks: null, asset: true };
+  S.pj = { fid, data: null, sheet: 0 };
   render();
   try { await loadAsset(); }
   catch (e){
-    if (S.pj?.fid !== fid || !S.pj.asset) return;
-    const host = $("projectView"); host.innerHTML = "";
+    if (S.pj?.fid !== fid) return;
+    const host = $("assetView"); host.innerHTML = "";
     const err = el("div","pj-loading"); err.append(el("p",null,e.message));
     const again = el("button","mini","Try again"); again.type = "button"; again.style.marginTop = "10px"; again.onclick = () => openAsset(fid);
     err.append(again); host.append(err);
@@ -191,29 +183,33 @@ async function openAsset(fid){
 }
 async function loadAsset(){
   const pj = S.pj;
-  const d = await api("/api/project/get", { brain: pj.slug, file: pj.fid });
+  const d = await assetCall("/api/assets/get");
   if (S.pj !== pj) return;
   pj.data = d;
   paintAsset();
 }
 function paintAsset(){
-  const host = $("projectView"), pj = S.pj;
+  const host = $("assetView"), pj = S.pj;
   closeDownload();
   host.innerHTML = "";
-  if (!pj?.asset) return;
+  if (!pj) return;
   if (!pj.data){
     /* While it opens, its shape stands where it will be. */
-    const root = el("div","pj asset pj-wait"); root.dataset.seg = "doc"; root.setAttribute("aria-busy","true"); root.setAttribute("aria-label","Opening the asset");
+    const root = el("div","pj pj-opening"); root.setAttribute("aria-busy","true"); root.setAttribute("aria-label","Opening the asset");
     const doc = el("section","pj-doc"), h = el("div","pj-h"); h.append(skelLines([["34%", 18]]));
     const body = el("div","pj-body"), paper = el("div","pj-paper"), page = el("article","pj-page");
     page.append(skelLines()); paper.append(page); body.append(paper); doc.append(h, body); root.append(doc);
     host.append(root); return;
   }
-  const root = el("div","pj asset"); root.dataset.seg = "doc"; pj.root = root;
+  const root = el("div","pj"); pj.root = root;
   root.append(assetPane());
   host.append(root);
 }
-/** The asset's side: its name, what it is, what can be done with it, and what it holds. `keep` is as for a project's file side. */
+/**
+ * The asset's pane: its name, what it is, what can be done with it, and what it holds. `keep` comes from the pane it takes over for the
+ * same asset: where it was scrolled to, and what each section and row held, so the new one opens at the same place and lights up what
+ * changed. `pj.ready` settles once the pane shows something.
+ */
 function assetPane(o = {}){
   const pj = S.pj, f = pj.data.file, a = assetById(pj.fid) || {};
   pj.page = pj.grid = pj.more = pj.web = null;
@@ -224,7 +220,7 @@ function assetPane(o = {}){
   const h = el("div","pj-h"), t = el("div","pj-t");
   const title = el("h2",null,f.name); title.title = "Rename it"; title.onclick = renameAsset;
   t.append(title, el("span","as-sub", a.url ? `Web page · read ${new Date(f.at || Date.now()).toISOString().slice(0, 10)} from ${a.url} · call it in a chat with @`
-    : `${pjSeg(f)} · ${assetMeta({ ...a, ...f, sections: f.sections, rows: a.rows })} · call it in a chat with @`));
+    : `${kindTitle(f)} · ${assetMeta({ ...a, ...f, sections: f.sections, rows: a.rows })} · call it in a chat with @`));
   h.append(t);
   const acts = el("div","pj-acts");
   const btn = (label, fn, cls) => { const b = el("button","pj-b" + (cls ? " " + cls : ""),label); b.type = "button"; b.onclick = fn; acts.append(b); return b; };
@@ -277,11 +273,11 @@ function assetUnfinished(f){
 }
 /** The open asset read in again from the start, from a file chosen again. */
 async function refillAsset(file){
-  const pj = S.pj; if (!pj?.asset) return;
+  const pj = S.pj; if (!pj) return;
   const sh = progressSheet(`Reading ${file.name}`);
   try {
-    const got = await readProjectFile(file, sh.read);
-    await uploadProject(assetKey(pj.fid), got, sh.store);
+    const got = await readFileIn(file, sh.read);
+    await uploadAsset(pj.fid, got, sh.store);
     sh.close();
   } catch (e){ sh.fail(e.message); }
   await syncAssets();
@@ -289,10 +285,10 @@ async function refillAsset(file){
 }
 /** The open asset read again after a change, drawn in place: the same scroll, and what changed glows. */
 async function refreshAsset(){
-  const pj = S.pj; if (!pj?.asset) return;
-  const d = await api("/api/project/get", { brain: pj.slug, file: pj.fid });
+  const pj = S.pj; if (!pj) return;
+  const d = await assetCall("/api/assets/get");
   if (S.pj !== pj) return;
-  pj.data = d; pj.marks = null;
+  pj.data = d;
   const old = pj.root?.querySelector(".pj-doc:not(.pj-prev)");
   if (!old){ paintAsset(); return; }
   const same = old.dataset.kind === (d.file?.kind || "") && !!d.file?.chars;
@@ -309,7 +305,7 @@ function askAboutAsset(){
   const inp = $("input"); inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length);
 }
 function renameAsset(){
-  const pj = S.pj; if (!pj?.asset) return;
+  const pj = S.pj; if (!pj) return;
   const veil = el("div","veil");
   veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="arTitle">
     <header><h3 id="arTitle">Rename the asset</h3><p>A chat calls it by this name, with @.</p></header>
@@ -332,7 +328,7 @@ function renameAsset(){
   setTimeout(() => { inp.focus(); inp.select(); }, 30);
 }
 function deleteAsset(){
-  const pj = S.pj; if (!pj?.asset) return;
+  const pj = S.pj; if (!pj) return;
   const veil = el("div","veil");
   veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="adTitle"><header><h3 id="adTitle"></h3>
     <p>What it holds goes, with its changes and the version kept for its Undo. A chat that called it can no longer read it.</p></header>
@@ -355,16 +351,16 @@ function deleteAsset(){
   };
 }
 async function undoVersion(btn){
-  const pj = S.pj; if (!pj?.asset) return;
+  const pj = S.pj; if (!pj) return;
   btn.disabled = true;
   try { const r = await api("/api/assets/file", { action: "undo", file: pj.fid }); await syncAssets(); openAsset(r.back); }
   catch (e){ btn.disabled = false; pjNote(e.message); }
 }
 
-/* ---- projects held from before, turned into assets ---- */
+/* ---- projects made before the assets, turned into assets ---- */
 /** What a project becomes: its files, and a notes document when it kept anything. */
 function convertLine(p){
-  const files = p.files || (p.file ? 1 : 0);
+  const files = p.files || 0;
   const parts = [files ? `${files} file${files === 1 ? "" : "s"}` : "", p.memory ? `notes of ${p.memory} thing${p.memory === 1 ? "" : "s"} it kept` : ""].filter(Boolean);
   return parts.length ? `${parts.join(" and ")} become${parts.length === 1 && files === 1 && !p.memory ? "s" : ""} assets` : "nothing to keep: it goes";
 }
@@ -405,14 +401,13 @@ function openConvert(){
         const n = (r.files || []).length;
         x.st.textContent = [n ? `${n} file${n === 1 ? "" : "s"}` : "", r.notes ? "its notes" : ""].filter(Boolean).join(" and ") || "done";
         x.r.classList.remove("run"); x.r.classList.add("done");
-        if (S.project === x.p.slug){ S.project = null; S.pj = null; }
+        S.projects = (S.projects || []).filter(p => p.slug !== x.p.slug);
       } catch (e){
         failed++; x.r.classList.remove("run"); x.r.classList.add("fail");
         x.st.textContent = "stopped"; bad.textContent = /unreadable/.test(e.message) ? "The server is older than this page and cannot turn projects into assets yet. Run convex deploy." : e.message;
       }
     }
     busy = false; cancel.disabled = false;
-    try { S.projects = (await api("/api/project/list")).projects || []; } catch { /* the list catches up at the next refresh */ }
     await syncAssets(); render();
     go.disabled = false;
     if (!failed){ go.dataset.done = "1"; go.textContent = "Done"; cancel.hidden = true; }
@@ -447,10 +442,10 @@ function assetEditCard(e){
     btns.forEach(b => { b.disabled = true; });
     c.querySelector(".pj-msg")?.remove();
     try {
-      await api("/api/project/edit", { brain: assetKey(e.fid), id: e.id, action });
+      await api("/api/assets/edit", { file: e.fid, id: e.id, action });
       e.status = action === "apply" ? "applied" : action === "undo" ? "undone" : "dismissed";
       c.replaceWith(assetEditCard(e));
-      if (action !== "dismiss"){ syncAssets(); if (S.pj?.asset && S.pj.fid === e.fid) refreshAsset().catch(() => {}); }
+      if (action !== "dismiss"){ syncAssets(); if (S.pj?.fid === e.fid) refreshAsset().catch(() => {}); }
     } catch (err){
       btns.forEach(b => { b.disabled = false; });
       c.append(el("div","pj-msg",err.message));

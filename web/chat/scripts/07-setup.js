@@ -276,11 +276,8 @@ function setupMarkup(){
 
       <details class="f sh-fold" id="spendBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${S.demo ? "hidden" : ""}>
         <summary><span>Cost</span><b id="spendSum" class="sh-count"></b></summary>
-        <div class="hint" style="margin:8px 0 10px">What this workspace cost this month, as the model host reports it: projects, chats, drops, upkeep and one-pagers. A cap on the projects stops them for the rest of the month.</div>
+        <div class="hint" style="margin:8px 0 10px">What this workspace cost this month, as the model host reports it: chats, assets, drops, upkeep, one-pagers and voice.</div>
         <div id="spendBody"><div class="hint">Loading</div></div>
-        <div class="sp-cap"><label for="spendCap">Monthly cap on projects</label>
-          <div class="urlbox"><span aria-hidden="true">$</span><input id="spendCap" inputmode="decimal" autocomplete="off" placeholder="No cap" aria-label="Monthly cap in dollars"><button id="spendSave" type="button">Save</button><button id="spendOff" type="button">No cap</button></div></div>
-        <div class="hint" id="spendMsg" role="status" style="margin-top:6px"></div>
       </details>
 
       <details class="f sh-fold" id="lookBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${S.demo ? "hidden" : ""}>
@@ -390,50 +387,29 @@ function setupMic({ veil, langSum }){
   };
 }
 
-/** Settings, what the projects and the chats cost this month, and the cap. */
+/** Settings, what the workspace cost this month, kind by kind. */
 function setupSpend({ veil }){
-  /* ---- what the projects cost, and the cap ---- */
   const spendBlock = veil.querySelector("#spendBlock");
   if (!spendBlock.hidden){
-    const sum = veil.querySelector("#spendSum"), body = veil.querySelector("#spendBody"), note = veil.querySelector("#spendMsg");
-    const capIn = veil.querySelector("#spendCap"), save = veil.querySelector("#spendSave"), off = veil.querySelector("#spendOff");
-    /* Everything outside the projects that asks a model, by kind, in this order. */
-    const KINDS = { folders: "Folder chat", personal: "Personal chat", drops: "Drops", upkeep: "Upkeep", pager: "One-pagers", voice: "Voice", assets: "Assets" };
+    const sum = veil.querySelector("#spendSum"), body = veil.querySelector("#spendBody");
+    /* Everything that asks a model, by kind, in this order. */
+    const KINDS = { folders: "Folder chat", personal: "Personal chat", assets: "Assets", drops: "Drops", upkeep: "Upkeep", pager: "One-pagers", voice: "Voice" };
     const paint = r => {
-      /* The projects and the chats, added: what the month cost in all. The cap is about the projects alone. */
       const chats = (r.chats || []).filter(c => KINDS[c.kind]).sort((a, b) => Object.keys(KINDS).indexOf(a.kind) - Object.keys(KINDS).indexOf(b.kind));
-      const all = { usd: r.usd, calls: r.calls, priced: r.priced, tokensIn: r.tokensIn, tokensOut: r.tokensOut, cached: r.cached };
+      const all = { usd: 0, calls: 0, priced: 0, tokensIn: 0, tokensOut: 0, cached: 0 };
       for (const c of chats) for (const k of Object.keys(all)) all[k] += c[k] || 0;
-      sum.textContent = r.over ? "cap reached" : `${spendUsd(all.usd)} this month`; sum.classList.toggle("bad", !!r.over);
+      sum.textContent = `${spendUsd(all.usd)} this month`;
       body.innerHTML = "";
       const row = (name, usd, more, cls) => { const x = el("div","sp-row" + (cls ? " " + cls : "")); x.append(el("span",null,name)); const b = el("b",null,usd); if (more) b.append(el("small",null,more)); x.append(b); body.append(x); };
       const calls = n => `${n.toLocaleString("en-US")} call${n === 1 ? "" : "s"}`;
       const reused = all.tokensIn ? Math.round(100 * all.cached / all.tokensIn) : 0;
       row("This month", spendUsd(all.usd), all.calls ? calls(all.calls) : "");
-      if (chats.length || r.calls){
-        if (r.calls) row("Projects", spendUsd(r.usd), calls(r.calls), "sub");
-        for (const c of chats) row(KINDS[c.kind], spendUsd(c.usd), calls(c.calls) + (c.reused ? `, ${c.reused.toLocaleString("en-US")} reused free` : ""), "sub");
-      }
+      for (const c of chats) row(KINDS[c.kind], spendUsd(c.usd), calls(c.calls) + (c.reused ? `, ${c.reused.toLocaleString("en-US")} reused free` : ""), "sub");
       if (all.calls) row("Tokens", `${spendTok(all.tokensIn)} in, ${spendTok(all.tokensOut)} out`, reused ? `${reused}% reused` : "");
-      if (r.projects.length) body.append(el("div","sp-note","By project"));
-      for (const p of r.projects) row(p.name || "A deleted project", spendUsd(p.usd), `${p.calls.toLocaleString("en-US")}`, "sub");
       row("Last month", spendUsd(r.last.usd));
       if (all.calls && all.priced < all.calls){ const n = all.calls - all.priced; body.append(el("div","sp-note",`${n.toLocaleString("en-US")} call${n === 1 ? "" : "s"} came back with no price, so the dollars may be low. The tokens are exact.`)); }
-      if (r.over) body.append(el("div","sp-note bad","The cap is reached. A message, a file read in, a resource and a Brief written wait until the 1st, or until you raise the cap."));
-      capIn.value = r.cap != null ? String(r.cap) : ""; off.hidden = r.cap == null;
     };
-    const go = async cap => {
-      note.className = "hint"; note.textContent = "Saving"; save.disabled = off.disabled = true;
-      try {
-        const r = await api("/api/project/spend", { cap });
-        paint(r); note.textContent = r.cap == null ? "No cap. Projects run as long as the model host allows." : `Capped at ${spendUsd(r.cap)} a month. Saved.`;
-      } catch (e){ note.className = "hint bad"; note.textContent = /unreadable/.test(e.message) ? "The server is older than this page and cannot cap yet. Run convex deploy." : e.message; }
-      finally { save.disabled = off.disabled = false; }
-    };
-    save.onclick = () => { const t = capIn.value.trim().replace(/^\$/, "").replace(",", "."); if (!t) return go(null); const n = Number(t); if (!(n > 0)){ note.className = "hint bad"; note.textContent = "A cap is a number of dollars, like 5 or 12.50."; return capIn.focus(); } go(n); };
-    off.onclick = () => go(null);
-    capIn.onkeydown = e => { if (e.key === "Enter") save.click(); };
-    api("/api/project/spend", {}).then(paint).catch(e => { body.innerHTML = ""; body.append(el("div","sp-note bad",/unreadable/.test(e.message) ? "The server is older than this page and cannot count yet. Run convex deploy." : e.message)); });
+    api("/api/spend").then(paint).catch(e => { body.innerHTML = ""; body.append(el("div","sp-note bad",/unreadable/.test(e.message) ? "The server is older than this page and cannot count yet. Run convex deploy." : e.message)); });
   }
 }
 
@@ -634,7 +610,7 @@ async function models(){
 }
 
 const money = n => n === 0 ? "free" : n < 1 ? "$" + n.toFixed(3).replace(/0+$/,"").replace(/\.$/,"") : "$" + n.toFixed(2);
-/** What projects cost, in dollars: cents from ten cents, a place more below, and four under a cent. */
+/** What the workspace cost, in dollars: cents from ten cents, a place more below, and four under a cent. */
 const spendUsd = n => "$" + (n >= 0.1 || n === 0 ? n.toFixed(2) : n >= 0.01 ? n.toFixed(3) : n.toFixed(4));
 /** Tokens as a person reads them: 950, 12.4k, 3.20M. */
 const spendTok = n => n < 1000 ? String(Math.round(n)) : n < 1e6 ? (n / 1000).toFixed(1) + "k" : (n / 1e6).toFixed(2) + "M";

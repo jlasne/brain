@@ -191,26 +191,24 @@ async function loadChats(){
 const conceptsOf = b => S.concepts.filter(c => c.brain === b).sort((x,y)=>(x.n||0)-(y.n||0));
 const sourcesOf  = b => S.sources.filter(s => (s.brains||[]).includes(b));
 
-function render(){ renderSide(); renderAssets(); renderProjects(); renderScope(); renderComposer(); renderZero(); renderView(); }
+function render(){ renderSide(); renderAssets(); renderScope(); renderComposer(); renderZero(); renderView(); }
 
 /**
- * One screen at a time in the main area: the chat, a folder open, or Drop.
+ * One screen at a time in the main area: the chat, a folder open, an asset open, or Drop.
  * Each keeps what it showed, so going back finds it as it was.
  */
 function renderView(){
   if (S.folder && !S.brains.some(b => b.slug === S.folder)) S.folder = null;
-  if (S.project && !S.projects.some(p => p.slug === S.project)){ S.project = null; if (!S.pj?.asset) S.pj = null; }
-  if (S.asset && !(S.assets || []).some(a => a.id === S.asset)){ S.asset = null; if (S.pj?.asset) S.pj = null; }
-  /* A project and an asset open in the same place. */
-  const drop = S.mode === "drop", folder = !drop && !!S.folder, project = !drop && !folder && (!!S.project || !!S.asset);
+  if (S.asset && !(S.assets || []).some(a => a.id === S.asset)){ S.asset = null; S.pj = null; }
+  const drop = S.mode === "drop", folder = !drop && !!S.folder, asset = !drop && !folder && !!S.asset;
   $("dropHead").hidden = !drop; $("dropThread").hidden = !drop;
   $("folderView").hidden = !folder;
-  $("projectView").hidden = !project;
-  $("thread").hidden = drop || folder || project;
+  $("assetView").hidden = !asset;
+  $("thread").hidden = drop || folder || asset;
   $("dropBtn").classList.toggle("on", drop);
-  document.querySelector("main").dataset.view = drop ? "drop" : folder ? "folder" : project ? "project" : "chat";
-  /* A mic stays in the bar it was tapped in: when that screen goes, it stops. */
-  if (rec && (project ? rec.bar === mainBar : rec.bar !== mainBar)) endVoice();
+  document.querySelector("main").dataset.view = drop ? "drop" : folder ? "folder" : asset ? "asset" : "chat";
+  /* An asset open hides the chat bar: a mic listening in it stops. */
+  if (rec && asset) endVoice();
   markSeen();
 }
 /** Drop, on the folders ticked. A personal folder takes no drop. */

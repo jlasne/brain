@@ -21,7 +21,7 @@ import { internal } from "./_generated/api";
 import { sameTitle, idOf, fileText, FILE_SECTIONS, conceptSlug } from "./words";
 import { SHORT_STYLE, NO_DASH } from "./style";
 
-export type Note = { title: string; claim: string; position: string; summaryLine: string; update: string; orig?: string; sections?: number[]; folder?: string };
+export type Note = { title: string; claim: string; position: string; summaryLine: string; update: string; orig?: string };
 /* What the personal folder keeps: English whatever was written ("en"), or the language written in ("same"). */
 export type Lang = "en" | "same";
 /* A contact: one card per person, the whole of what was said about them. */
@@ -34,19 +34,15 @@ export type Person = { name: string; update: string; also: string[]; claim: stri
 export type Filed = { new: number; updated: number; titles: string[]; people?: string[]; kept?: string };
 /* "people" reads notes already held, for the people in them alone. */
 /* "files" builds the files of people already held from their cards and mentions. */
-/* "resource" is a document, a link's text or a pasted text the owner dropped into a project. */
-export type Kind = "chat" | "import" | "interview" | "people" | "files" | "file" | "instructions" | "resource";
+export type Kind = "chat" | "import" | "interview" | "people" | "files";
 
 /* A chat message files a few notes at most; an interview answer, a long
    story told aloud, files more; an import more again per piece. */
-const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 20, people: 0, files: 0, file: 9, instructions: 8, resource: 10 };
+const MAX_NOTES: Record<Kind, number> = { chat: 3, interview: 6, import: 20, people: 0, files: 0 };
 /* People are filed apart from notes, each on their own card. */
-const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, people: 12, files: 6, file: 0, instructions: 0, resource: 0 };
+const MAX_PEOPLE: Record<Kind, number> = { chat: 6, interview: 6, import: 12, people: 12, files: 6 };
 /* What one call reads: the message, the answer, and a piece of an import. */
-export const MAX_CHARS: Record<Kind, number> = { chat: 4000, interview: 8000, import: 8000, people: 12000, files: 20000, file: 4000, instructions: 30000, resource: 20000 };
-
-/** The tag a project's note carries when the owner's instructions wrote it. */
-export const INSTRUCTIONS = "instructions";
+export const MAX_CHARS: Record<Kind, number> = { chat: 4000, interview: 8000, import: 8000, people: 12000, files: 20000 };
 
 /** The tag a contact card carries. */
 export const CONTACT = "contact";
@@ -198,9 +194,6 @@ export function readNotes(raw: string, kind: Kind): Note[] {
     orig: clean(x?.orig, 600),
     position: clean(x?.position, 1400),
     summaryLine: clean(x?.summaryLine, 200),
-    /* In a project: the sections of its file the note rests on, and the folder of its memory the note goes in. */
-    ...(Array.isArray(x?.sections) ? { sections: [...new Set<number>(x.sections.map(Number).filter((n: number) => Number.isInteger(n) && n > 0))].slice(0, 8) } : {}),
-    ...(clean(x?.folder, 60) ? { folder: clean(x?.folder, 60) } : {}),
   })).filter((x: Note) => x.title.length >= 2 && x.claim.length >= 2)
     .map((x: Note) => ({ ...x, position: x.position || x.claim, summaryLine: x.summaryLine || x.claim.slice(0, 120) }))
     .slice(0, MAX_NOTES[kind]);
@@ -279,12 +272,11 @@ function contactFor(held: any[], p: Person) {
 const inTheirWords = (x: { claim: string; orig?: string }) => x.orig && x.orig.toLowerCase() !== x.claim.toLowerCase() ? { orig: x.orig } : {};
 
 export async function fileNotes(ctx: any, space: string, brain: string, held: any[], notes: Note[], kind: Kind, date: string, people: Person[] = [],
-  missed: any[] = [], said = "", asked = "", from = ""): Promise<Filed> {
+  missed: any[] = [], said = "", asked = ""): Promise<Filed> {
   const out: Filed = { new: 0, updated: 0, titles: [], people: [] };
   if (!notes.length && !people.length && !missed.length) return out;
-  /* Each resource is its own source: two dropped on one day keep their own names. */
-  const sid = `${brain}-${kind}-${date}${kind === "resource" && from ? `-${conceptSlug(from).slice(0, 40)}` : ""}`;
-  const author = kind === "import" ? "You (imported)" : kind === "file" ? "The file" : kind === "instructions" ? "Instructions" : kind === "resource" ? "Resource" : "You";
+  const sid = `${brain}-${kind}-${date}`;
+  const author = kind === "import" ? "You (imported)" : "You";
   /* Building files from what is held adds no mention and no source. */
   const quiet = kind === "files";
   /* What was said about a person goes to their raw notes word for word: a
@@ -300,8 +292,7 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
   };
   if (!quiet) await ctx.runMutation(internal.store.writeSource, { space, doc: {
     sid, link: "", linkKey: sid,
-    title: kind === "chat" ? `Chat, ${date}` : kind === "interview" ? `Interview, ${date}` : kind === "people" ? `People in your notes, ${date}` : kind === "file" ? `File, ${date}`
-      : kind === "instructions" ? `Instructions${from ? `: ${from}` : ""}, ${date}` : kind === "resource" ? `Resource${from ? `: ${from}` : ""}, ${date}` : `Imported memory, ${date}`,
+    title: kind === "chat" ? `Chat, ${date}` : kind === "interview" ? `Interview, ${date}` : kind === "people" ? `People in your notes, ${date}` : `Imported memory, ${date}`,
     author, date, location: "", brains: [brain],
   } });
   for (const p of people) {
@@ -341,13 +332,7 @@ export async function fileNotes(ctx: any, space: string, brain: string, held: an
     await ctx.runMutation(internal.store.upsertConcept, {
       brain, title: seen?.title ?? n.title, ...(seen?.slug ? { slug: seen.slug } : {}),
       doc: { position: n.position, summaryLine: n.summaryLine, sources: [sid],
-             evidence: [{ date, author, claim: n.claim, source: sid, ...inTheirWords(n) }],
-             /* A note that rests on a file says where, and is up to date as it is written. */
-             ...(n.sections ? { sections: n.sections, stale: false } : {}),
-             /* A project's note keeps the folder it was sorted into; a note filed again with none keeps the one it had. */
-             ...(n.folder ? { folder: n.folder } : {}),
-             /* An instruction note says so: the chat reads it at every message. */
-             ...(kind === "instructions" ? { tag: INSTRUCTIONS } : {}) },
+             evidence: [{ date, author, claim: n.claim, source: sid, ...inTheirWords(n) }] },
     });
     if (seen) out.updated++; else out.new++;
     out.titles.push(seen?.title ?? n.title);
