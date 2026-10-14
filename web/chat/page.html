@@ -62,18 +62,12 @@
       <button class="navtoggle" id="navToggle" aria-label="Hide the side panel" title="Hide the side panel">&#171;</button>
     </div>
     <div class="side-scroll">
-      <!-- What to do, above the three lists: New chat, then Drop and One-pager side by side. -->
-      <div class="side-acts">
-        <button class="sa go" id="startBtn" type="button" title="Start a new chat">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
-        <button class="sa" id="dropBtn" type="button" title="Feed a folder: a link, a PDF, a Word file, a video or a transcript">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>Drop</button>
-        <button class="sa" id="pagerBtn" type="button" title="A folder, a group, or a question, as bullets on one page">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>One-pager</button>
-      </div>
       <section class="panel" id="chatsPanel">
         <div class="panel-h" id="chatsH" title="Unpinned chats go 30 days after their last question, or past the newest 20. Up to 5 pinned chats stay.">
           <button class="fold-t" id="chatsFold" aria-expanded="true" aria-controls="chatsBox">Chats <b id="ccount"></b><span class="chev"></span></button>
+          <!-- The one way to start a chat: the loudest button of the side panel. -->
+          <button class="side-new" id="startBtn" type="button" title="Start a new chat">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
         </div>
         <div class="panel-b" id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="chats"></div></div>
       </section>
@@ -94,6 +88,8 @@
     </div>
     <div class="side-foot">
       <button class="side-go" id="sideGo" type="button" hidden></button>
+      <button class="sf-btn sf-drop" id="dropBtn" type="button" title="Feed a folder: a link, a PDF, a Word file, a video or a transcript">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>Drop</button>
       <button class="sf-btn" id="keyBtn" type="button" title="The model, the look, the export, the audit and its decisions, the MCP address and the transcript service">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>Settings</button>
       <button class="foot-link" id="lockBtn" type="button" title="Sign out and forget your key">Sign out</button>

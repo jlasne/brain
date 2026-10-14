@@ -381,10 +381,6 @@
 
   /* The side panel: three things to do, then Chats and Folders,
      each a card of its own that folds. */
-  .side-acts .sa{
-    width:100%; text-align:left;
-  }
-  .side-acts svg{ width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 
   /* Drop has a screen of its own: the chat only asks. */
   .drop-head[hidden]{ display:none; }
@@ -1574,7 +1570,7 @@
     /* The sidebar, with 44 pixel rows. */
     .brain-row .ed{ font-size:12px; }
     .brain-row .ed{ padding:8px 9px; }
-    .foot-btn, .side-acts .sa{ min-height:44px; }
+    .foot-btn{ min-height:44px; }
     .group-h, .foot-btn .lbl{ font-size:12px; }
     .foot-btn .val{ font-size:12.5px; }
 
@@ -1671,22 +1667,14 @@
   .navtoggle:hover{ color:var(--ink); background:var(--side-hover); }
   .side-scroll{ padding:4px 10px 16px; }
 
-  .side-acts{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:0 0 20px; }
-  .side-acts .sa{ display:flex; align-items:center; gap:8px; min-height:36px; padding:0 11px; border:1px solid var(--line-2); border-radius:9px;
-    background:var(--surface); box-shadow:0 1px 1px rgba(0,0,0,.025); font:500 13.5px/1 var(--sans); color:var(--ink-2);
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;
-    transition:border-color .15s ease, color .15s ease, background .15s ease; }
-  .side-acts .sa:hover{ border-color:var(--ink-4); color:var(--ink); background:var(--surface); }
-  .side-acts .sa svg{ color:var(--ink-3); }
-  .side-acts .sa:hover svg{ color:var(--ink); }
-  .side-acts .sa.go{ grid-column:1 / -1; justify-content:center; min-height:40px; border-color:transparent; border-radius:10px;
-    background:var(--accent-solid); color:var(--accent-on); font-size:14px;
-    box-shadow:0 1px 2px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.10); }
-  .side-acts .sa.go svg{ color:currentColor; }
-  .side-acts .sa.go:hover{ background:var(--accent-solid); color:var(--accent-on); border-color:transparent; filter:brightness(1.1); }
-  .side-acts .sa.on{ border-color:var(--accent-line); background:var(--accent-soft); color:var(--accent); }
-  .side-acts .sa.on svg{ color:var(--accent); }
-  .side-acts .sa.go.on{ box-shadow:0 0 0 2px var(--side), 0 0 0 4px var(--accent-line); }
+  /* New chat sits on the Chats line, filled in the workspace's accent: louder than the + of Projects and Folders. */
+  .side-new{ flex:none; display:inline-flex; align-items:center; gap:5px; min-height:28px; margin:0 2px 0 6px; padding:0 11px 0 8px; border-radius:999px;
+    background:var(--accent-solid); color:var(--accent-on); font:600 12.5px/1 var(--sans); letter-spacing:0; text-transform:none; white-space:nowrap;
+    box-shadow:0 1px 2px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.14); transition:filter .15s ease, transform .15s ease; }
+  .side-new svg{ width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; }
+  .side-new:hover{ filter:brightness(1.1); }
+  .side-new:active{ transform:scale(.97); }
+  .side-new:focus-visible{ outline:2px solid var(--accent-line); outline-offset:2px; }
 
   .panel{ background:transparent; border:0; border-radius:0; box-shadow:none; }
   .panel + .panel{ margin-top:14px; }
@@ -1731,6 +1719,8 @@
   /* The foot: Settings, then Sign out, on one line. */
   .side-foot{ display:flex; flex-wrap:wrap; align-items:center; gap:4px; border-top:1px solid var(--line); padding:8px 10px 10px; }
   .side-foot .side-go{ flex:1 0 100%; }
+  /* Drop sits just above Settings, the width of the foot. Lit while its screen is open. */
+  .side-foot .sf-drop{ flex:1 0 100%; }
   .sf-btn{ flex:1; min-width:0; display:flex; align-items:center; gap:9px; min-height:36px; padding:0 10px; border-radius:8px;
     font:500 13.5px/1 var(--sans); color:var(--ink-2); transition:background .15s ease, color .15s ease; }
   .sf-btn svg{ width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; color:var(--ink-3); }
@@ -1742,8 +1732,7 @@
 
   /* On a phone the side panel is a drawer, and every control in it reaches 44 pixels. Last, so nothing above undoes it. */
   @media (max-width:860px){
-    .side-acts .sa{ min-height:44px; font-size:14.5px; }
-    .side-acts .sa.go{ min-height:46px; }
+    .side-new{ min-height:44px; padding:0 14px 0 11px; font-size:13.5px; }
     .panel-h{ min-height:40px; }
     .panel .fold-t{ font-size:12px; padding:12px 0; }
     .panel .chev{ opacity:1; }
@@ -2333,10 +2322,11 @@
     .panel-h{ min-height:44px; }
     .panel .fold-t{ min-height:44px; }
     .panel .side-plus{ width:40px; height:40px; }
+    .side-new{ min-height:40px; }
     .chat-row, .brain-row, .side-more{ min-height:44px; }
     .chat-row .more, .brain-row .hring{ min-width:40px; min-height:40px; }
     .brain-row .ed{ display:inline-grid; place-items:center; min-height:40px; }
-    .side-acts .sa, .sf-btn, .foot-link{ min-height:44px; }
+    .sf-btn, .foot-link{ min-height:44px; }
     .box .tbar .pick-btn, .box .tbar .seg button, .box .tbar .fresh, .box .tbar .mic, .box .tbar .send{ min-height:40px; min-width:40px; }
     .inbox-btn{ width:44px; height:44px; }
     #spaceName{ display:inline-flex; align-items:center; min-height:40px; }
@@ -2372,18 +2362,12 @@
       <button class="navtoggle" id="navToggle" aria-label="Hide the side panel" title="Hide the side panel">&#171;</button>
     </div>
     <div class="side-scroll">
-      <!-- What to do, above the three lists: New chat, then Drop and One-pager side by side. -->
-      <div class="side-acts">
-        <button class="sa go" id="startBtn" type="button" title="Start a new chat">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
-        <button class="sa" id="dropBtn" type="button" title="Feed a folder: a link, a PDF, a Word file, a video or a transcript">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>Drop</button>
-        <button class="sa" id="pagerBtn" type="button" title="A folder, a group, or a question, as bullets on one page">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/></svg>One-pager</button>
-      </div>
       <section class="panel" id="chatsPanel">
         <div class="panel-h" id="chatsH" title="Unpinned chats go 30 days after their last question, or past the newest 20. Up to 5 pinned chats stay.">
           <button class="fold-t" id="chatsFold" aria-expanded="true" aria-controls="chatsBox">Chats <b id="ccount"></b><span class="chev"></span></button>
+          <!-- The one way to start a chat: the loudest button of the side panel. -->
+          <button class="side-new" id="startBtn" type="button" title="Start a new chat">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat</button>
         </div>
         <div class="panel-b" id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="chats"></div></div>
       </section>
@@ -2404,6 +2388,8 @@
     </div>
     <div class="side-foot">
       <button class="side-go" id="sideGo" type="button" hidden></button>
+      <button class="sf-btn sf-drop" id="dropBtn" type="button" title="Feed a folder: a link, a PDF, a Word file, a video or a transcript">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 16v4h14v-4"/></svg>Drop</button>
       <button class="sf-btn" id="keyBtn" type="button" title="The model, the look, the export, the audit and its decisions, the MCP address and the transcript service">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg>Settings</button>
       <button class="foot-link" id="lockBtn" type="button" title="Sign out and forget your key">Sign out</button>
@@ -5098,7 +5084,6 @@ $("freshBtn").onclick = () => { newChat(); $("input").focus(); };
 $("startBtn").onclick = () => { closeSide(); newChat(); $("input").focus(); };
 
 $("keyBtn").onclick = openSetupSheet;
-$("pagerBtn").onclick = () => { closeSide(); openPagerSheet(); };
 /* Drop is a screen of its own, with its own log, on the folders ticked. The
    chat stays as it was, and Back to the chat returns to it. A personal folder
    takes no drop, so Drop leaves it first. */
@@ -5528,6 +5513,7 @@ async function openSetupSheet(opts = {}){
   let draft = null;
   const shut = () => { if (draft) applyLook(S.brand); veil.remove(); };
   veil.querySelector("#kDone").onclick = shut;
+  veil.querySelector("#pagerBtn").onclick = () => { shut(); openPagerSheet(); };
   veil.onclick = e => { if(e.target===veil) shut(); };
 
   setupSpend({ veil });
@@ -5733,6 +5719,8 @@ function setupMarkup(){
         : `The model that answers, the export of every ${esc(S.spaceName)} folder, the audit with the clashes and the decisions it leaves${ownerWs() ? ", and the MCP address for Claude" : ""}.`}</p></header>
 
       <div class="f set-row">
+        <button class="foot-btn" id="pagerBtn" title="A folder, a group, or a question, as bullets on one page">
+          <span class="lbl">One-pager</span><span class="val">a folder or a question, on one page</span></button>
         <button class="foot-btn${modelLabel().picked ? " pick" : ""}" id="setModel" title="${esc(modelLabel().title)}">
           <span class="lbl">Model</span><span class="val">${esc(modelLabel().val)}</span></button>
         <button class="foot-btn" id="setExport" title="Every folder of this workspace, as one markdown file">

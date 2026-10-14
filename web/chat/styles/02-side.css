@@ -225,10 +225,6 @@
 
   /* The side panel: three things to do, then Chats and Folders,
      each a card of its own that folds. */
-  .side-acts .sa{
-    width:100%; text-align:left;
-  }
-  .side-acts svg{ width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
 
   /* Drop has a screen of its own: the chat only asks. */
   .drop-head[hidden]{ display:none; }

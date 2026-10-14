@@ -397,7 +397,6 @@ $("freshBtn").onclick = () => { newChat(); $("input").focus(); };
 $("startBtn").onclick = () => { closeSide(); newChat(); $("input").focus(); };
 
 $("keyBtn").onclick = openSetupSheet;
-$("pagerBtn").onclick = () => { closeSide(); openPagerSheet(); };
 /* Drop is a screen of its own, with its own log, on the folders ticked. The
    chat stays as it was, and Back to the chat returns to it. A personal folder
    takes no drop, so Drop leaves it first. */

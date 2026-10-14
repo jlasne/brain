@@ -78,7 +78,7 @@
     /* The sidebar, with 44 pixel rows. */
     .brain-row .ed{ font-size:12px; }
     .brain-row .ed{ padding:8px 9px; }
-    .foot-btn, .side-acts .sa{ min-height:44px; }
+    .foot-btn{ min-height:44px; }
     .group-h, .foot-btn .lbl{ font-size:12px; }
     .foot-btn .val{ font-size:12.5px; }
 

@@ -19,22 +19,14 @@
   .navtoggle:hover{ color:var(--ink); background:var(--side-hover); }
   .side-scroll{ padding:4px 10px 16px; }
 
-  .side-acts{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:0 0 20px; }
-  .side-acts .sa{ display:flex; align-items:center; gap:8px; min-height:36px; padding:0 11px; border:1px solid var(--line-2); border-radius:9px;
-    background:var(--surface); box-shadow:0 1px 1px rgba(0,0,0,.025); font:500 13.5px/1 var(--sans); color:var(--ink-2);
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;
-    transition:border-color .15s ease, color .15s ease, background .15s ease; }
-  .side-acts .sa:hover{ border-color:var(--ink-4); color:var(--ink); background:var(--surface); }
-  .side-acts .sa svg{ color:var(--ink-3); }
-  .side-acts .sa:hover svg{ color:var(--ink); }
-  .side-acts .sa.go{ grid-column:1 / -1; justify-content:center; min-height:40px; border-color:transparent; border-radius:10px;
-    background:var(--accent-solid); color:var(--accent-on); font-size:14px;
-    box-shadow:0 1px 2px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.10); }
-  .side-acts .sa.go svg{ color:currentColor; }
-  .side-acts .sa.go:hover{ background:var(--accent-solid); color:var(--accent-on); border-color:transparent; filter:brightness(1.1); }
-  .side-acts .sa.on{ border-color:var(--accent-line); background:var(--accent-soft); color:var(--accent); }
-  .side-acts .sa.on svg{ color:var(--accent); }
-  .side-acts .sa.go.on{ box-shadow:0 0 0 2px var(--side), 0 0 0 4px var(--accent-line); }
+  /* New chat sits on the Chats line, filled in the workspace's accent: louder than the + of Projects and Folders. */
+  .side-new{ flex:none; display:inline-flex; align-items:center; gap:5px; min-height:28px; margin:0 2px 0 6px; padding:0 11px 0 8px; border-radius:999px;
+    background:var(--accent-solid); color:var(--accent-on); font:600 12.5px/1 var(--sans); letter-spacing:0; text-transform:none; white-space:nowrap;
+    box-shadow:0 1px 2px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.14); transition:filter .15s ease, transform .15s ease; }
+  .side-new svg{ width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; }
+  .side-new:hover{ filter:brightness(1.1); }
+  .side-new:active{ transform:scale(.97); }
+  .side-new:focus-visible{ outline:2px solid var(--accent-line); outline-offset:2px; }
 
   .panel{ background:transparent; border:0; border-radius:0; box-shadow:none; }
   .panel + .panel{ margin-top:14px; }
@@ -79,6 +71,8 @@
   /* The foot: Settings, then Sign out, on one line. */
   .side-foot{ display:flex; flex-wrap:wrap; align-items:center; gap:4px; border-top:1px solid var(--line); padding:8px 10px 10px; }
   .side-foot .side-go{ flex:1 0 100%; }
+  /* Drop sits just above Settings, the width of the foot. Lit while its screen is open. */
+  .side-foot .sf-drop{ flex:1 0 100%; }
   .sf-btn{ flex:1; min-width:0; display:flex; align-items:center; gap:9px; min-height:36px; padding:0 10px; border-radius:8px;
     font:500 13.5px/1 var(--sans); color:var(--ink-2); transition:background .15s ease, color .15s ease; }
   .sf-btn svg{ width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; color:var(--ink-3); }
@@ -90,8 +84,7 @@
 
   /* On a phone the side panel is a drawer, and every control in it reaches 44 pixels. Last, so nothing above undoes it. */
   @media (max-width:860px){
-    .side-acts .sa{ min-height:44px; font-size:14.5px; }
-    .side-acts .sa.go{ min-height:46px; }
+    .side-new{ min-height:44px; padding:0 14px 0 11px; font-size:13.5px; }
     .panel-h{ min-height:40px; }
     .panel .fold-t{ font-size:12px; padding:12px 0; }
     .panel .chev{ opacity:1; }

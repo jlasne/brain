@@ -112,6 +112,12 @@ async function boot(path, init, arg) {
   return { page, bad };
 }
 
+/** One-pager sits at the top of Settings: open Settings, then it. */
+async function openPager(page) {
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(80);
+  await page.click("#pagerBtn");
+}
+
 /* ---- the app, signed in ---- */
 {
   const { page, bad } = await boot("/chat.html", state => {
@@ -237,13 +243,18 @@ async function boot(path, init, arg) {
   check("Escape closes the menu", !(await page.$(".pick-menu")));
   await page.focus("#input"); await page.click("#scopeBtn"); await page.click(".pick-menu .pk-row >> nth=0");
   const top = await page.evaluate(() => {
-    const acts = [...document.querySelectorAll("aside .side-acts button")].map(b => b.id + ":" + b.textContent.trim()).join(",");
+    const chatsH = [...document.querySelectorAll("#chatsH button")].map(b => b.id + ":" + b.textContent.replace(/\s+/g, " ").trim()).join(",");
+    const foot = [...document.querySelectorAll("aside .side-foot button:not([hidden])")].map(b => b.id + ":" + b.textContent.trim()).join(",");
+    const acts = chatsH + "|" + foot;
     const panels = [...document.querySelectorAll("aside .panel")].map(p => p.id + ":" + p.querySelector(".fold-t").textContent.replace(/\s+/g, " ").trim().split(" ")[0]).join(",");
     return { acts, panels, plus: [...document.querySelectorAll("aside .panel .side-plus")].map(b => b.id).join(","),
       gone: !document.getElementById("gapsBtn") && !document.getElementById("mapBtn") };
   });
-  check("the side panel opens on New chat, then Drop and One-pager side by side", top.acts === "startBtn:New chat,dropBtn:Drop,pagerBtn:One-pager"
-    && await page.evaluate(() => document.getElementById("startBtn").classList.contains("go") && !document.getElementById("dropBtn").classList.contains("go")), top.acts);
+  check("New chat sits on the Chats line, and Drop just above Settings in the foot, with no One-pager in the side panel", top.acts === "chatsFold:Chats,startBtn:New chat|dropBtn:Drop,keyBtn:Settings,lockBtn:Sign out"
+    && !(await page.evaluate(() => document.querySelector("aside #pagerBtn"))), top.acts);
+  const loud = await page.evaluate(() => { const css = id => getComputedStyle(document.getElementById(id)); const n = css("startBtn"), p = css("newProject");
+    return { newBg: n.backgroundColor, plusBg: p.backgroundColor, newH: parseFloat(n.height), drop: document.getElementById("dropBtn").getBoundingClientRect().bottom <= document.getElementById("keyBtn").getBoundingClientRect().top + 1 }; });
+  check("New chat is filled in the accent, louder than the + of Projects and Folders, and Drop sits above Settings", loud.newBg !== "rgba(0, 0, 0, 0)" && loud.plusBg === "rgba(0, 0, 0, 0)" && loud.newH >= 28 && loud.drop, JSON.stringify(loud));
   check("then Chats, Projects and Folders, each a list of its own", top.panels === "chatsPanel:Chats,projectsPanel:Projects,brainsPanel:Folders" && top.gone, top.panels);
   check("New chat on top is the one way to start a chat; Projects and Folders keep their +", top.plus === "newProject,newBrain", top.plus);
   await page.click("#chatsFold");
@@ -270,7 +281,7 @@ async function boot(path, init, arg) {
   await page.click("#bCancel");
 
   /* ---- the one-pager ---- */
-  await page.click("#pagerBtn");
+  await openPager(page);
   await page.waitForTimeout(120);
   const sheet = await page.evaluate(() => ({
     picks: [...document.querySelectorAll("#pPick .pm-chip")].map(o => o.dataset.v),
@@ -314,7 +325,7 @@ async function boot(path, init, arg) {
                  to: c.querySelector(".acts input")?.value } : null;
   });
 
-  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await openPager(page); await page.waitForTimeout(100);
   check("the dialog has an address field", await page.$("#pTo") !== null);
   await page.fill("#pTo", "not an address");
   check("typing an address turns the button into build and send",
@@ -331,7 +342,7 @@ async function boot(path, init, arg) {
   check("the card says it was sent, and where to look if it is not there", sent && /^Sent to me@example\.com\. .*spam/.test(sent.said) && !sent.err, sent && sent.said);
   check("and does not offer to send it again", sent && sent.btn === "Sent", sent && sent.btn);
 
-  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await openPager(page); await page.waitForTimeout(100);
   check("the next dialog remembers the address", (await page.inputValue("#pTo")) === "me@example.com",
     await page.inputValue("#pTo"));
   await page.fill("#pTo", "refused@example.com");
@@ -342,7 +353,7 @@ async function boot(path, init, arg) {
   check("and leaves the button to try again", refused && refused.btn === "Mail it", refused && refused.btn);
 
   /* ---- a summary in bullets, or a document of the type picked ---- */
-  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await openPager(page); await page.waitForTimeout(100);
   await page.fill("#pTo", "");
   const kinds = await page.evaluate(() => [...document.querySelectorAll("#pKind button")].map(b => b.dataset.k + (b.classList.contains("on") ? "*" : "")));
   check("the page offers summary and custom, summary first", kinds.join(",") === "summary*,custom", kinds.join(","));
@@ -362,7 +373,7 @@ async function boot(path, init, arg) {
   check("the description travels with its type", customBody.kind === "custom" && customBody.doc === "other"
     && customBody.note === "A checklist for a client meeting", JSON.stringify(customBody));
 
-  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await openPager(page); await page.waitForTimeout(100);
   await page.fill("#pTo", "");
   await page.click('#pKind button[data-k="custom"]');
   await page.click("#pGo"); await page.waitForTimeout(300);
@@ -377,7 +388,7 @@ async function boot(path, init, arg) {
   check("with its answers folded", quiz.folded, JSON.stringify(quiz));
   check("and bold kept as bold", quiz.bold === "named face", JSON.stringify(quiz));
 
-  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await openPager(page); await page.waitForTimeout(100);
   check("the page is in English unless another language is picked", await page.inputValue("#pLang") === "English");
   await page.selectOption("#pLang", "French");
   await page.fill("#pTo", "");
@@ -401,7 +412,7 @@ async function boot(path, init, arg) {
   check("a page that came back in the language asked shows no warning", await langFlag() === "", await langFlag());
 
   /* A translation that failed twice, and a server that knows no language menu, both say so. */
-  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await openPager(page); await page.waitForTimeout(100);
   check("the next page opens on the language last picked", await page.inputValue("#pLang") === "French");
   await page.fill("#pTo", "");
   await page.click('#pKind button[data-k="custom"]');
@@ -409,12 +420,12 @@ async function boot(path, init, arg) {
   await page.fill("#pNote", "slow");
   await page.click("#pGo"); await page.waitForTimeout(300);
   check("a translation that failed says the page is in English, above the page", /^Not in French.*did not come back after two tries/.test(await langFlag()), await langFlag());
-  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await openPager(page); await page.waitForTimeout(100);
   await page.fill("#pTo", "");
   await page.click('#pKind button[data-k="summary"]');
   await page.click("#pGo"); await page.waitForTimeout(300);
   check("a server that answers in English with no word is caught too", /^Not in French.*npx convex deploy/.test(await langFlag()), await langFlag());
-  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await openPager(page); await page.waitForTimeout(100);
   await page.selectOption("#pLang", "English");
   await page.fill("#pTo", "");
   await page.click("#pGo"); await page.waitForTimeout(300);
@@ -446,13 +457,13 @@ async function boot(path, init, arg) {
   /* ---- the export reads whole concepts only when asked ---- */
   const side = await page.evaluate(() => ({ gone: !document.getElementById("exportBtn") && !document.getElementById("stat"),
     foot: [...document.querySelectorAll(".side-foot button:not([hidden])")].map(b => b.textContent.trim()).join(",") }));
-  check("the foot of the side panel holds Settings and Sign out", side.gone && side.foot === "Settings,Sign out", side.foot);
+  check("the foot of the side panel holds Drop, Settings and Sign out", side.gone && side.foot === "Drop,Settings,Sign out", side.foot);
   await page.click("#burger").catch(() => {});
   await page.evaluate(() => document.getElementById("keyBtn").click());
   await page.waitForTimeout(150);
   const setup = await page.evaluate(() => ({ model: document.querySelector("#setModel .val")?.textContent,
     exp: !!document.getElementById("setExport"), order: [...document.querySelectorAll(".sheet .set-row button")].map(b => b.id).join(",") }));
-  check("Settings holds the model, the export, Restore and App; Audit has its own section", setup.order === "setModel,setExport,setRestore,setInstall" && setup.model === "model"
+  check("Settings opens on One-pager, then the model, the export, Restore and App; Audit has its own section", setup.order === "pagerBtn,setModel,setExport,setRestore,setInstall" && setup.model === "model"
     && await page.evaluate(() => !!document.getElementById("auditBlock") && !document.getElementById("setTidy")), JSON.stringify(setup));
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#setExport")]);
   const { readFileSync } = await import("node:fs");
@@ -1161,7 +1172,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("each row shows how many concepts it holds", counts.length === 3 && counts[1] >= counts[2], sized);
 
   /* The one-pager is built from several folders at once. */
-  await page.evaluate(() => document.getElementById("pagerBtn").click()); await page.waitForTimeout(100);
+  await openPager(page); await page.waitForTimeout(100);
   await page.click('#pPick .pm-chip[data-v="content"]'); await page.click('#pPick .pm-chip[data-v="health"]');
   const multi = await page.evaluate(() => ({ on: [...document.querySelectorAll("#pPick .pm-chip.on")].map(o => o.dataset.v).join(","),
     hint: document.getElementById("pPickHint").textContent }));
@@ -1502,7 +1513,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("the demo keeps Tasu's greys: no logo or colours to set", await page.evaluate(() => document.getElementById("lookBlock").hidden)
     && await page.evaluate(() => document.documentElement.dataset.space === "demo" && getComputedStyle(document.body).backgroundColor === "rgb(255, 255, 255)"));
   await page.click("#kDone");
-  await page.click("#pagerBtn"); await page.waitForTimeout(100);
+  await openPager(page); await page.waitForTimeout(100);
   check("a one-pager in the demo is copied or printed, never mailed", !(await page.isVisible("#pTo")));
   await page.click("#pCancel");
   await page.evaluate(() => localStorage.setItem("octopus.model", "openai/gpt-5"));
@@ -2132,9 +2143,9 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const seen = await page.evaluate(() => ({
     panels: [...document.querySelectorAll("aside .panel")].filter(p => !p.hidden).map(p => p.id).join(","),
     folders: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent).join(","),
-    acts: [...document.querySelectorAll("aside .side-acts button")].map(b => b.textContent.trim()).join(",") }));
+    acts: [...document.querySelectorAll("#chatsH #startBtn, aside .side-foot #dropBtn")].map(b => b.textContent.trim()).join(",") }));
   check("every workspace shows Chats, Projects and Folders", seen.panels === "chatsPanel,projectsPanel,brainsPanel", seen.panels);
-  check("with New chat, Drop and One-pager on top", seen.acts === "New chat,Drop,One-pager", seen.acts);
+  check("with New chat on the Chats line and Drop above Settings", seen.acts === "New chat,Drop", seen.acts);
   check("and every folder listed, the personal one first", seen.folders === "Me,Content,Health", seen.folders);
   await page.click('#brains .brain-row:has(.nm:text-is("Me"))'); await page.waitForTimeout(80);
   check("which opens its chat", await page.evaluate(() => /Tell it anything/.test(document.getElementById("input").placeholder)));
@@ -5333,9 +5344,9 @@ for (const space of ["octopus", "squidgy"]) {
 
   const { page, bad } = await mk();
   await page.waitForTimeout(500);
-  const sp = await page.evaluate(() => ({ foot: !!document.querySelector(".side-foot #keyBtn"), acts: [...document.querySelectorAll(".side-acts button")].map(b => b.id).join(","),
-    cols: getComputedStyle(document.querySelector(".side-acts")).gridTemplateColumns.split(" ").length, nested: document.querySelectorAll("button button").length }));
-  check("the side panel: New chat across, Drop and One-pager side by side under it, Settings at the foot", sp.foot && sp.acts === "startBtn,dropBtn,pagerBtn" && sp.cols === 2, JSON.stringify(sp));
+  const sp = await page.evaluate(() => ({ foot: !!document.querySelector(".side-foot #keyBtn"), acts: [...document.querySelectorAll("#chatsH #startBtn, .side-foot #dropBtn")].map(b => b.id).join(","),
+    nested: document.querySelectorAll("button button").length }));
+  check("the side panel: New chat on the Chats line, Drop and Settings at the foot", sp.foot && sp.acts === "startBtn,dropBtn", JSON.stringify(sp));
   check("no button sits inside another button anywhere on the page", sp.nested === 0, String(sp.nested));
 
   /* light by default, dark from Settings, and back */

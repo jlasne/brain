@@ -30,10 +30,11 @@
     .panel-h{ min-height:44px; }
     .panel .fold-t{ min-height:44px; }
     .panel .side-plus{ width:40px; height:40px; }
+    .side-new{ min-height:40px; }
     .chat-row, .brain-row, .side-more{ min-height:44px; }
     .chat-row .more, .brain-row .hring{ min-width:40px; min-height:40px; }
     .brain-row .ed{ display:inline-grid; place-items:center; min-height:40px; }
-    .side-acts .sa, .sf-btn, .foot-link{ min-height:44px; }
+    .sf-btn, .foot-link{ min-height:44px; }
     .box .tbar .pick-btn, .box .tbar .seg button, .box .tbar .fresh, .box .tbar .mic, .box .tbar .send{ min-height:40px; min-width:40px; }
     .inbox-btn{ width:44px; height:44px; }
     #spaceName{ display:inline-flex; align-items:center; min-height:40px; }
