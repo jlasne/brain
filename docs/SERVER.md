@@ -357,6 +357,12 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/project/resource` | A resource the owner dropped into the project, typed, pasted or read from a file in the browser: one model call writes up to 10 notes in the project's memory, in the folder format, each resting on the resource as its source (`Resource: name, date`, one source for each, `Resource, date` when typed). When the memory has folders, the call is shown them and puts each note in one; a folder the project lacks is left out. The page sends a long text in pieces of at most 20,000 characters, up to 10. A note on a topic already held is updated, never doubled; a note never takes the title of an instruction or of the note on the file. The notes are read like any note: by the question | Owner. Runs a model |
 | `/api/project/forget` | Forgets one note of the project's memory, an instruction too. Notes are filed by the chat itself | Owner |
 | `/api/project/edit` | Applies, undoes or turns down a change the chat proposed, whole or not at all. `brain` is the key of the file the change was made for. The last 10 of each file are kept to undo | Owner |
+| `/api/assets/list` | The workspace's assets, newest first: name, kind, size, its line, its web address when it is a page, and whether a version before it is kept for Undo. `base` names the key every asset's file routes take (`assets-<space>~n`) | Yes |
+| `/api/assets/new` | A new asset: a blank document, table or page, or (`made: false`) the place a file read in the browser goes, then `begin`, `part` and `finish` on its key. `prev` makes it that asset's new version; `url` keeps the web address it was read from. 100 at most | Owner |
+| `/api/assets/file` | One asset, by `action`: `rename`, `remove` (with the version kept for its Undo), or `undo` (a new version taken back, the one before returns) | Owner |
+| `/api/assets/make` | A new asset a chat proposed, by `action`: `apply` makes and fills it, `undo` takes it away, `dismiss` turns it down | Owner |
+| `/api/assets/state` | Where the changes and new assets of a chat opened again stand now | Yes |
+| `/api/assets/adopt` | A project turned into assets, once: its files move with all they hold (a name an asset holds gets the project's name after it), its Brief, State of play and memory become one document, "Notes of" the project, and the project goes | Owner |
 | `/mcp`, and any path under `/mcp/` | The public MCP server, read only. `/mcp/v0` reaches the same handler | No, by design |
 
 ## Why the key has to be server side
@@ -529,6 +535,20 @@ Settings, Export writes every folder of the workspace as one markdown file: a MA
 ## Install as an app
 
 Tasu installs from the browser, with no app store. `app/manifest.webmanifest` names it, opens it on `/chat` in a window of its own, and gives the icons: 192 and 512 pixels, a 512 one with room to be cut round, and the SVG, all drawn from the brand mark on white. Settings, App does the rest. Where the browser offers its own install prompt (Chrome and Edge on a computer, Chrome on Android), App opens it and says what was chosen. Where it offers none, App says where to tap: on an iPhone or an iPad, Share then Add to Home Screen; on a Mac in Safari, File then Add to Dock. Installed, it says so, and the app opens on the workspace used last. Nothing is sent to the server: the page check reads the manifest, its icons and their sizes.
+
+## Assets
+
+The documents, tables and pages a workspace keeps for its chats. They are the files of one hidden project per workspace, `assets-<space>`, made the first time an asset is added and never listed as a project, so they are read in, cut in sections, searched, changed, undone and downloaded exactly as a project's files are; nothing else about a project applies to it (no thread, no Brief, no memory). Each asset is `assets-<space>~n`, n from 2 and never used twice. A workspace holds 100. The demo keeps none.
+
+**A chat calls one with @.** The app lists the assets beside the folders when @ is typed, and sends the numbers of those a message names as `assets` beside its folder `tags`, 4 in all. A message with an asset goes to the asset chat, on the workspace's key and counted under Assets: a table of up to 120,000 characters is read whole, every row; a bigger one gives its columns and first rows, and the router names a filter and totals the server runs over every row. A document of up to 60,000 characters, and any page, is read whole; a longer document opens the 8 sections that share the most words with the message, with the contents line of every other. A web page kept as an asset is said to be that page, as read on its date. The folders tagged beside it are read as the folders' chat reads them. The answer is JSON: the reply, the changes it proposes to each asset, and a new asset it proposes.
+
+**Nothing changes without the owner.** A change is checked against the asset as it stands and kept as a proposal on that file (`projectEdits`), with the words before and after; Apply writes it and Undo puts it back, as for a project's file. A new asset is kept as a proposal on the assets themselves, with what it will hold; Apply makes it (a blank file of its kind, then its changes, applied), Undo takes it away. The chat turn keeps its proposals, and a chat opened again asks where they stand.
+
+**Versions.** A file read in as an asset's new version takes a new number and keeps the number of the one it replaces through its read; when its last piece is in, the old one is hidden and kept, and a version older than that goes. Undo brings the hidden one back and takes the new one apart. One version back is kept.
+
+**Web pages.** A link is read by the same fetch as a drop (`/api/fetch`: https, public hosts only, 60,000 characters), and kept as a document with its address. Read it again makes a new version.
+
+**Projects from before** are turned into assets once, from a line in Assets that lists what each becomes before anything moves (`/api/assets/adopt`). The files move in batches of 400 rows, their sections, contents, meaning and changes with them.
 
 ## Projects
 

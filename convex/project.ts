@@ -479,10 +479,10 @@ ${o.table ? `- "query": for a table. A filter and totals that run over EVERY row
 }
 
 /** Sections as the answer reads them. */
-const sectionText = (list: any[]) => list.map(s => `--- SECTION ${s.sid}: ${s.title}${s.cut ? " (passages)" : ""}\n${s.text}`).join("\n\n");
+export const sectionText = (list: any[]) => list.map(s => `--- SECTION ${s.sid}: ${s.title}${s.cut ? " (passages)" : ""}\n${s.text}`).join("\n\n");
 
 /** Words of the question against a section's title and summary: the pick when the model could not route. */
-function pickByWords(cards: any[], q: string, n = 6): number[] {
+export function pickByWords(cards: any[], q: string, n = 6): number[] {
   const words = keywords(q).map(stem);
   const score = (c: any) => {
     const t = new Set(keywords(`${c.title} ${c.summary}`).map(stem));
@@ -646,7 +646,7 @@ export function guessKind(q: string): string {
   return "doc";
 }
 
-async function route(o: { q: string; earlier: string[]; file: any; cards: any[]; tiny: boolean; firstRows: string[][][]; folders: any[]; memory: string; state?: string; open?: string; fresh?: boolean; empty?: boolean; short?: { sids: number[]; memory: Set<number> } | null; meter?: (u: any) => void; key?: string; model?: string }): Promise<Route> {
+export async function route(o: { q: string; earlier: string[]; file: any; cards: any[]; tiny: boolean; firstRows: string[][][]; folders: any[]; memory: string; state?: string; open?: string; fresh?: boolean; empty?: boolean; short?: { sids: number[]; memory: Set<number> } | null; meter?: (u: any) => void; key?: string; model?: string }): Promise<Route> {
   const doc = o.file.kind !== "table";
   const fileBlock = o.fresh
     ? `THERE IS NO FILE YET. The owner describes what to make, and the chat makes it. Decide its "kind", the intent, the folders and the terms.`
@@ -696,13 +696,13 @@ async function route(o: { q: string; earlier: string[]; file: any; cards: any[];
 
 /* ---------- the answer ---------- */
 
-const docEdits = (noun: string) => `Changes to a ${noun}, by section id:
+export const docEdits = (noun: string) => `Changes to a ${noun}, by section id:
   {"op":"replace","sid":12,"find":"words exactly as in the section, standing once","with":"the new words"}
   {"op":"rewrite","sid":12,"text":"the whole new section"}
   {"op":"insert","after":12,"title":"short title","text":"the new section"}   (after 0 puts it first. On an empty file, write the whole file with insert, up to 30,000 characters a section.)
   {"op":"remove","sid":12}
   Use replace for a small change and rewrite for a large one. At most ${MAX_OPS} changes.`;
-const TABLE_EDITS = `Changes to a table, by the row numbers shown in the result:
+export const TABLE_EDITS = `Changes to a table, by the row numbers shown in the result:
   {"op":"set","sheet":1,"row":4,"col":"Price","value":"1290"}
   {"op":"add","sheet":1,"after":10,"values":{"Program":"New","Price":"1290"}}   (leave "after" out to add at the end)
   {"op":"delete","sheet":1,"rows":[7,8]}
@@ -710,7 +710,7 @@ const TABLE_EDITS = `Changes to a table, by the row numbers shown in the result:
   {"op":"append","sheet":1,"rows":[["Indie Sprint","690"],["Game Jam","1200"]]}   (adds many rows at the end, values in the order of the columns: one change for a whole log or list)
   Only rows shown in the result can change. At most ${MAX_OPS} changes.
   A log, a list or rows the owner wrote go in whole: every line a row, the values as written, nothing summed, merged or left out. "table" on an empty table, "append" on one that has rows.`;
-const HTML_PAGE = `THE PAGE
+export const HTML_PAGE = `THE PAGE
 - One self-contained HTML file: <!doctype html>, a <style> in the head, a <script> only when the page needs one. No other files. Images by https address only.
 - It reads well from 360 px wide. Real words from what the owner said, never placeholder text.
 - Change a page with "replace" and exact words from THE FILE. Use "rewrite" for a large change.`;
@@ -834,7 +834,7 @@ export function memoryForRouter(rows: any[], q: string): string {
 }
 
 /** A whole table as the answer reads it: every row with its number, up to the limit. */
-function tableWhole(sheets: Sheet[], blocksBySheet: string[][]): string {
+export function tableWhole(sheets: Sheet[], blocksBySheet: string[][]): string {
   return sheets.map((s, i) => {
     let n = 0;
     const rows = blocksBySheet[i].flatMap(b => parseCsv(b)).map(r => `${++n} | ${r.join(" | ")}`);

@@ -444,6 +444,14 @@ export default defineSchema({
     at: v.number(),
     /* What the file is, in one line, for the project's map of its files. */
     line: v.optional(v.string()),
+    /* An asset's earlier version: the file number it replaced, kept hidden so Undo can bring it back. */
+    prev: v.optional(v.number()),
+    /* A version replaced by a newer one: kept for Undo, never listed. */
+    hidden: v.optional(v.boolean()),
+    /* An asset read from a web page: its address, to read it again. */
+    url: v.optional(v.string()),
+    /* A project's file moving into the assets: the key its rows still stand under, until they have all moved. */
+    from: v.optional(v.string()),
     /* What the project has learned about where things are: the words of a question (stems), the sections that answered it, how often, and when. A new file takes them away. */
     routes: v.optional(v.array(v.object({ t: v.array(v.string()), s: v.array(v.number()), n: v.number(), at: v.number(), q: v.optional(v.string()) }))),
   }).index("by_brain", ["brain"]),
@@ -591,6 +599,8 @@ export default defineSchema({
     preview: v.array(v.any()),
     /* What applying replaced, to put back. */
     before: v.optional(v.array(v.any())),
+    /* A new asset a chat proposed: the file number it was made as, once made. */
+    made: v.optional(v.union(v.number(), v.null())),
   }).index("by_brain_at", ["brain", "at"]),
 
   candidates: defineTable({

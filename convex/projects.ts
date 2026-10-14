@@ -17,7 +17,7 @@ import { v } from "convex/values";
 import { readSpace, slug, today, SPEND_KINDS } from "./lib";
 import { syncCard } from "./store";
 import { keysOf } from "./find";
-import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, FILE_KINDS, ROUTES_KEEP, BRIEF_MAX, STATE_MAX, ASKS_MAX, ASK_CHARS, MAX_FILES, KEY_RE, FILE_SPAN, fileKey, splitKey, pointerOf, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
+import { MAX_SECTIONS, TABLE_BYTES, PAGE_BYTES, MAX_OPS, FILE_KINDS, ROUTES_KEEP, BRIEF_MAX, STATE_MAX, ASKS_MAX, ASK_CHARS, MAX_FILES, ASSETS_MAX, assetsSlug, isAssets, KEY_RE, FILE_SPAN, fileKey, splitKey, pointerOf, replaceOnce, parseCsv, csvOf, rowFrom, fnv, colIndex, utf8, blocksOf, columnsOf, colNames } from "./sheet";
 import type { Col } from "./sheet";
 
 /** Rows one change may build a sheet from. */
@@ -60,8 +60,8 @@ const childFiles = async (ctx: any, base: string): Promise<any[]> =>
 /** Every file of a project, the first file leading: what the page lists and what the chat is told. */
 async function filesOf(ctx: any, base: string) {
   const all = [await fileOf(ctx, base), ...(await childFiles(ctx, base))].filter(Boolean);
-  return all.map((f: any) => ({ id: splitKey(f.brain).fid, name: f.name, kind: f.kind, made: !!f.made, chars: f.chars, sections: f.parts, status: f.status,
-    ...(f.line ? { line: f.line } : {}), ...(f.kind === "table" ? { sheets: (f.sheets ?? []).map((s: any) => ({ name: s.name, rows: s.rows ?? 0, cols: (s.cols ?? []).map((c: any) => ({ name: c.name })), header: s.header ?? [] })) } : {}) }));
+  return all.map((f: any) => ({ id: splitKey(f.brain).fid, name: f.name, kind: f.kind, made: !!f.made, chars: f.chars, sections: f.parts, status: f.status, at: f.at,
+    ...(f.line ? { line: f.line } : {}), ...(f.prev ? { prev: f.prev } : {}), ...(f.hidden ? { hidden: true } : {}), ...(f.url ? { url: f.url } : {}), ...(f.kind === "table" ? { sheets: (f.sheets ?? []).map((s: any) => ({ name: s.name, rows: s.rows ?? 0, cols: (s.cols ?? []).map((c: any) => ({ name: c.name })), header: s.header ?? [] })) } : {}) }));
 }
 const cardsOf = async (ctx: any, brain: string): Promise<any[]> =>
   (await ctx.db.query("projectCards").withIndex("by_brain_ord", (q: any) => q.eq("brain", brain)).collect())
@@ -74,7 +74,8 @@ export const projectsOf = internalQuery({
   args: { space: v.string() },
   handler: async (ctx, a) => {
     const space = readSpace(a.space);
-    const brains = (await ctx.db.query("brains").collect()).filter((b: any) => b.type === "project" && readSpace(b.space) === space);
+    /* The workspace's assets live in a project of their own, never listed as one. */
+    const brains = (await ctx.db.query("brains").collect()).filter((b: any) => b.type === "project" && readSpace(b.space) === space && !isAssets(b.slug));
     const out: any[] = [];
     for (const b of brains) {
       const f = await fileOf(ctx, b.slug);
@@ -488,7 +489,7 @@ export const projectWipe = internalMutation({
  * fails halfway leaves a project with no file, never a mixed one.
  */
 export const fileBegin = internalMutation({
-  args: { space: v.string(), brain: v.string(), name: v.string(), kind: v.string(), sheets: v.array(v.any()) },
+  args: { space: v.string(), brain: v.string(), name: v.string(), kind: v.string(), sheets: v.array(v.any()), prev: v.optional(v.number()), url: v.optional(v.string()) },
   handler: async (ctx, a) => {
     await need(ctx, a.space, a.brain);
     if (!FILE_KINDS.includes(a.kind)) throw new Error("a file is a document, a page or a table");
@@ -496,7 +497,9 @@ export const fileBegin = internalMutation({
     const sheets = a.sheets.slice(0, 40).map((s: any) => ({ name: String(s?.name ?? "").slice(0, 60) || "Sheet",
       header: (Array.isArray(s?.header) ? s.header : []).slice(0, 60).map((x: any) => String(x ?? "").slice(0, 60)), cols: [], rows: 0 }));
     const doc = { space: readSpace(a.space), brain: a.brain, name: a.name.slice(0, 200), kind: a.kind, sheets: sheets.length ? sheets : [{ name: a.name.slice(0, 60), header: [], cols: [], rows: 0 }],
-      chars: 0, parts: 0, next: 1, status: "reading", ver: (old?.ver ?? 0) + 1, at: Date.now() };
+      chars: 0, parts: 0, next: 1, status: "reading", ver: (old?.ver ?? 0) + 1, at: Date.now(),
+      /* An asset's new version keeps the number of the one it replaces, for its Undo. */
+      ...(a.prev ?? old?.prev ? { prev: a.prev ?? old?.prev } : {}), ...(a.url ?? old?.url ? { url: a.url ?? old?.url } : {}) };
     if (old) await ctx.db.replace(old._id, doc); else await ctx.db.insert("projectFiles", doc);
     return { ver: doc.ver };
   },
@@ -526,18 +529,20 @@ export const fileMake = internalMutation({
  * read in the browser goes. It takes the next number, from 2 and never used twice, and is kept under `name~n`. A project holds 30 files.
  */
 export const fileNew = internalMutation({
-  args: { space: v.string(), brain: v.string(), kind: v.string(), name: v.string(), made: v.optional(v.boolean()) },
+  args: { space: v.string(), brain: v.string(), kind: v.string(), name: v.string(), made: v.optional(v.boolean()), prev: v.optional(v.number()), url: v.optional(v.string()) },
   handler: async (ctx, a) => {
     await need(ctx, a.space, a.brain);
     const base = splitKey(a.brain).base;
     if (!FILE_KINDS.includes(a.kind)) throw new Error("a file is a document, a page or a table");
-    const have = (await childFiles(ctx, base)).length + ((await fileOf(ctx, base)) ? 1 : 0);
-    if (have >= MAX_FILES) throw new Error(`a project holds ${MAX_FILES} files at most`);
+    /* A version kept for Undo takes no room: only what is listed counts. */
+    const have = (await childFiles(ctx, base)).filter((f: any) => !f.hidden).length + ((await fileOf(ctx, base)) ? 1 : 0);
+    const cap = isAssets(base) ? ASSETS_MAX : MAX_FILES;
+    if (have >= cap) throw new Error(isAssets(base) ? `you hold ${ASSETS_MAX} assets: delete one first` : `a project holds ${MAX_FILES} files at most`);
     let fid = Math.max(2, (await frameOf(ctx, base))?.nextFid ?? 2);
     while (await fileOf(ctx, fileKey(base, fid))) fid++;
     await frameWrite(ctx, base, { nextFid: fid + 1 });
     const key = fileKey(base, fid), name = flat(a.name, 200) || "Untitled", made = a.made !== false;
-    await ctx.db.insert("projectFiles", { space: readSpace(a.space), brain: key, name, kind: a.kind, ...(made ? { made: true } : {}),
+    await ctx.db.insert("projectFiles", { space: readSpace(a.space), brain: key, name, kind: a.kind, ...(made ? { made: true } : {}), ...(a.prev ? { prev: a.prev } : {}), ...(a.url ? { url: a.url } : {}),
       sheets: [{ name: a.kind === "table" ? "Sheet 1" : name.slice(0, 60), header: [], cols: [], rows: 0 }], chars: 0, parts: 0, next: 1, status: made ? "ready" : "reading", ver: 1, at: Date.now() });
     return { fid, key };
   },
@@ -1308,6 +1313,166 @@ export const fileMeta = internalQuery({
   handler: async (ctx, a) => {
     await need(ctx, a.space, a.brain);
     const f = await fileOf(ctx, a.brain);
-    return f ? { name: f.name, kind: f.kind, made: !!f.made, sheets: f.sheets.map((s: any) => ({ name: s.name, header: s.header ?? [] })) } : null;
+    return f ? { name: f.name, kind: f.kind, made: !!f.made, ...(f.prev ? { prev: f.prev } : {}), ...(f.url ? { url: f.url } : {}), sheets: f.sheets.map((s: any) => ({ name: s.name, header: s.header ?? [] })) } : null;
+  },
+});
+
+/* ---------------- assets ---------------- */
+
+/**
+ * The workspace's assets: the files of one hidden project, made the first time an asset is added. Nothing else about a project applies
+ * to it: no thread, no Brief, no memory. Its files are listed newest first; a version kept for Undo is not listed.
+ */
+export const assetsEnsure = internalMutation({
+  args: { space: v.string() },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space), slug = assetsSlug(space);
+    const had = await ctx.db.query("brains").withIndex("by_slug", (q: any) => q.eq("slug", slug)).unique();
+    if (had && (had.type !== "project" || readSpace(had.space) !== space)) throw new Error("the assets of this workspace cannot be kept: a folder holds their name");
+    if (!had) await ctx.db.insert("brains", { slug, name: "Assets", type: "project", created: today(), visibility: "private", space,
+      scope: "The documents, tables and pages the chats read and change." });
+    return slug;
+  },
+});
+
+export const assetsOf = internalQuery({
+  args: { space: v.string() },
+  handler: async (ctx, a) => {
+    const slug = assetsSlug(readSpace(a.space));
+    if (!(await projectIn(ctx, a.space, slug))) return [];
+    const all = await filesOf(ctx, slug);
+    const listed = all.filter((f: any) => !f.hidden && f.id > 1);
+    /* A version's Undo is offered while the version it replaced is kept. */
+    const kept = new Set(all.filter((f: any) => f.hidden).map((f: any) => f.id));
+    return listed.map((f: any) => ({ ...f, ...(f.prev && kept.has(f.prev) ? { undo: true } : {}), rows: f.kind === "table" ? (f.sheets ?? []).reduce((n: number, s: any) => n + (s.rows ?? 0), 0) : undefined }))
+      .sort((x: any, y: any) => (y.at ?? 0) - (x.at ?? 0));
+  },
+});
+
+/**
+ * A new version of an asset is in: the one it replaces is hidden and kept for Undo, and a version older than that is no longer kept.
+ * Returns the file number of that older version, for the caller to take apart.
+ */
+export const assetSwap = internalMutation({
+  args: { space: v.string(), brain: v.string() },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    const { base } = splitKey(a.brain);
+    const f = await fileOf(ctx, a.brain);
+    if (!f?.prev) return { drop: null };
+    const old = await fileOf(ctx, fileKey(base, f.prev));
+    if (!old) { await ctx.db.patch(f._id, { prev: undefined }); return { drop: null }; }
+    await ctx.db.patch(old._id, { hidden: true });
+    return { drop: old.prev ?? null };
+  },
+});
+
+/** A version undone: the one it replaced comes back, and the caller takes this one apart. */
+export const assetUnswap = internalMutation({
+  args: { space: v.string(), brain: v.string() },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    const { base } = splitKey(a.brain);
+    const f = await fileOf(ctx, a.brain);
+    if (!f) throw new Error("that asset is gone");
+    const old = f.prev ? await fileOf(ctx, fileKey(base, f.prev)) : null;
+    if (!old?.hidden) throw new Error("the version before this one is no longer kept");
+    await ctx.db.patch(old._id, { hidden: false, at: Date.now() });
+    return { back: f.prev };
+  },
+});
+
+/**
+ * A new asset a chat proposed: kept as a change to the assets themselves, with what it would hold, until the owner makes it or turns it
+ * down. The last 10 stay, as for every file's changes.
+ */
+export const createPropose = internalMutation({
+  args: { space: v.string(), kind: v.string(), name: v.string(), ops: v.array(v.any()), preview: v.array(v.any()) },
+  handler: async (ctx, a) => {
+    const slug = assetsSlug(readSpace(a.space));
+    await need(ctx, a.space, slug);
+    if (!FILE_KINDS.includes(a.kind)) throw new Error("an asset is a document, a page or a table");
+    const id = await ctx.db.insert("projectEdits", { brain: slug, at: Date.now(), status: "open", ops: [{ op: "create", kind: a.kind, name: flat(a.name, 200) || "Untitled", ops: a.ops }], preview: a.preview });
+    const all = (await ctx.db.query("projectEdits").withIndex("by_brain_at", (q: any) => q.eq("brain", slug)).collect()).sort((x: any, y: any) => y.at - x.at);
+    for (const old of all.slice(EDITS_KEEP)) await ctx.db.delete(old._id);
+    return { id: String(id) };
+  },
+});
+
+/** A proposed asset, to make or to undo. */
+export const createGet = internalQuery({
+  args: { space: v.string(), id: v.string() },
+  handler: async (ctx, a) => {
+    const slug = assetsSlug(readSpace(a.space));
+    await need(ctx, a.space, slug);
+    const e = await editOf(ctx, slug, a.id);
+    return e ? { id: String(e._id), status: e.status, op: e.ops?.[0] ?? null, made: e.made ?? null, preview: e.preview } : null;
+  },
+});
+
+export const createMark = internalMutation({
+  args: { space: v.string(), id: v.string(), status: v.string(), made: v.optional(v.union(v.number(), v.null())) },
+  handler: async (ctx, a) => {
+    const slug = assetsSlug(readSpace(a.space));
+    await need(ctx, a.space, slug);
+    const e = await editOf(ctx, slug, a.id);
+    if (!e) throw new Error("that proposal is no longer kept");
+    await ctx.db.patch(e._id, { status: a.status, ...(a.made !== undefined ? { made: a.made } : {}) });
+    return { ok: true };
+  },
+});
+
+/** Where some changes stand now, for the cards of a chat opened again: by the file each was made for. */
+export const editStates = internalQuery({
+  args: { space: v.string(), list: v.array(v.object({ brain: v.string(), id: v.string() })) },
+  handler: async (ctx, a) => {
+    const out: Record<string, string> = {};
+    for (const x of a.list.slice(0, 60)) {
+      if (!(await projectIn(ctx, a.space, x.brain))) { out[x.id] = "gone"; continue; }
+      const e = await editOf(ctx, x.brain, x.id);
+      out[x.id] = e ? e.status : "gone";
+    }
+    return out;
+  },
+});
+
+/**
+ * A project's files moved into the assets, a batch at a time. Each file takes the next asset number (a name an asset already holds gets
+ * the project's name after it), then its sections, contents list, meaning and changes follow under the new key, up to 400 rows a call.
+ * Says whether more is left; the caller asks again until it says no. The project itself is left for the caller to take apart.
+ */
+export const adoptFiles = internalMutation({
+  args: { space: v.string(), project: v.string() },
+  handler: async (ctx, a) => {
+    const b = await need(ctx, a.space, a.project);
+    if (isAssets(b.slug)) throw new Error("those are the assets already");
+    const slug = assetsSlug(readSpace(a.space));
+    if (!(await projectIn(ctx, a.space, slug))) throw new Error("the assets are not made yet");
+    let left = 400;
+    const moved: string[] = [];
+    /* Files of this project not moved yet: each takes an asset number now, and keeps the key its rows stand under. */
+    for (const f of [await fileOf(ctx, b.slug), ...(await childFiles(ctx, b.slug))].filter(Boolean)) {
+      const assets = await childFiles(ctx, slug);
+      if (assets.filter((x: any) => !x.hidden).length >= ASSETS_MAX) throw new Error(`you hold ${ASSETS_MAX} assets: delete some first`);
+      let fid = Math.max(2, (await frameOf(ctx, slug))?.nextFid ?? 2);
+      while (await fileOf(ctx, fileKey(slug, fid))) fid++;
+      await frameWrite(ctx, slug, { nextFid: fid + 1 });
+      const taken = new Set(assets.filter((x: any) => !x.hidden).map((x: any) => String(x.name).toLowerCase()));
+      const name = taken.has(String(f.name).toLowerCase()) ? flat(`${f.name} (${b.name})`, 200) : f.name;
+      await ctx.db.patch(f._id, { brain: fileKey(slug, fid), name, from: f.brain, at: Date.now(), routes: undefined });
+      moved.push(name);
+      left--;
+    }
+    /* Their rows follow, a batch at a time. */
+    for (const f of (await childFiles(ctx, slug)).filter((x: any) => x.from)) {
+      for (const [t, i] of [["projectSections", "by_brain_sid"], ["projectCards", "by_brain_sid"], ["projectVectors", "by_brain_sid"], ["projectEdits", "by_brain_at"]]) {
+        const rows = await ctx.db.query(t as any).withIndex(i as any, (q: any) => q.eq("brain", f.from)).take(left);
+        for (const r of rows) await ctx.db.patch(r._id, { brain: f.brain, ...(t === "projectVectors" ? { base: slug } : {}) });
+        left -= rows.length;
+        if (left <= 0) return { more: true, moved };
+      }
+      await ctx.db.patch(f._id, { from: undefined });
+    }
+    return { more: false, moved };
   },
 });

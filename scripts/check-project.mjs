@@ -243,6 +243,7 @@ globalThis.fetch = async (_u, opt) => {
   else if (/You route a project's questions/.test(sys)) out = JSON.stringify(typeof reply.route === "function" ? reply.route(user) : reply.route ?? { intent: "ask", sections: [], query: null, folders: [], terms: [] });
   else if (/You route questions to the right entries/.test(sys)) { if (reply.routerFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.folders ?? { picks: [], terms: [] }); }
   else if (/You are the chat of a project/.test(sys)) out = typeof reply.answer === "function" ? reply.answer(user) : JSON.stringify(reply.answer ?? { reply: "ok", proposal: false, quotes: [], edits: [] });
+  else if (/You work on the owner's assets/.test(sys)) out = typeof reply.asset === "function" ? reply.asset(user) : JSON.stringify(reply.asset ?? { answer: "Read.", edits: [], create: null });
   else if (/You write the memory notes of a file/.test(sys)) { if (reply.aboutFails) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.about ?? { notes: [] }); }
   else if (/You sort a project's memory into folders/.test(sys)) { if (reply.foldersFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.folders ?? { folders: [] }); }
   else if (/You write the memory notes of a resource/.test(sys)) { if (reply.resourceFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.resource ?? { notes: [] }); }
@@ -1996,7 +1997,7 @@ const docProject = async (w, name, text, kind = "doc") => {
   const sh = await build("sheet");
   check("a file is kept under the project's name, or under name~n from 2", sh.fileKey("plan", 1) === "plan" && sh.fileKey("plan", 2) === "plan~2" && sh.fileKey("plan", 0) === "plan" && sh.splitKey("plan~12").fid === 12 && sh.splitKey("plan").fid === 1 && sh.splitKey("plan~12").base === "plan");
   check("a note names a section of the first file by its own number, and of file n by n times 100,000 plus it", sh.pointerOf(1, 7) === 7 && sh.pointerOf(3, 7) === 300007 && same(sh.localSids([7, 300007, 400002], 1), [7]) && same(sh.localSids([7, 300007, 400002], 3), [7]) && same(sh.localSids([7, 300007, 400002], 4), [2]));
-  check("a key that is not a project's name and an optional number is refused", ["a", "a~2", "a-b~12", "a1"].every(k => sh.KEY_RE.test(k)) && ["~2", "a~", "a~x", "A", "a~2~3", "a/b", "a~1234"].every(k => !sh.KEY_RE.test(k)));
+  check("a key that is not a project's name and an optional number up to 5 digits is refused", ["a", "a~2", "a-b~12", "a1"].every(k => sh.KEY_RE.test(k)) && ["~2", "a~", "a~x", "A", "a~2~3", "a/b", "a~123456"].every(k => !sh.KEY_RE.test(k)) && sh.KEY_RE.test("assets-octopus~1234"));
 }
 
 {
@@ -2885,6 +2886,149 @@ const docProject = async (w, name, text, kind = "doc") => {
   check("the demo cannot restore", !!(await call("/api/restore", { text: md }, "demo-token")).error);
 }
 
+
+/* ================= assets: kept files a chat calls with @ ================= */
+
+{
+  const router = http.default;
+  const w = makeCtx();
+  const FAR = Date.now() + 1e7;
+  w.T.sessions = [{ _id: "s1", token: "owner-token", expires: FAR, kind: "owner", space: "octopus" }, { _id: "s2", token: "squidgy-token", expires: FAR, kind: "owner", space: "squidgy" },
+    { _id: "s3", token: "demo-token", expires: FAR, kind: "demo", space: "demo", visitor: "v1" }];
+  w.T.workspaces = [{ _id: "w1", slug: "demo", name: "Demo", kind: "demo", created: "2026-01-01" }];
+  w.T.brains = [{ _id: "b1", slug: "wealth", name: "Wealth", type: "subject", scope: "wealth", space: "octopus" }];
+  w.T.concepts = [{ _id: "c1", brain: "wealth", slug: "gold", n: 1, title: "Gold", position: "Gold holds its value over centuries.", summaryLine: "Gold keeps value", evidence: [{ date: "2026-01-01", author: "A", claim: "gold kept value", source: "s-a" }],
+    data: [], conflicts: [], sources: ["s-a"], related: [], updated: "2026-01-01" }];
+  const call = async (path, body = {}, token = "owner-token") => {
+    const hit = router.lookup(path, "POST");
+    if (!hit) throw new Error("no route " + path);
+    const res = await hit[0](w.ctx, new Request("https://x" + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(token ? { token } : {}), ...body }) }));
+    return { status: res.status, ...(await res.json()) };
+  };
+  const listed = async (token) => (await call("/api/assets/list", {}, token)).assets;
+  check("a workspace starts with no asset, and no hidden project shows in its projects", (await listed()).length === 0 && (await call("/api/project/list")).projects.length === 0);
+
+  /* a table read in, as a file is */
+  const t = await call("/api/assets/new", { kind: "table", name: "invest-assets.csv", made: false });
+  check("a new asset is the file of the workspace's hidden assets project, numbered from 2", t.fid === 2 && t.key === "assets-octopus~2" && t.base === "assets-octopus" && w.T.brains.some(b => b.slug === "assets-octopus" && b.type === "project"), JSON.stringify(t));
+  check("and the projects list still holds none", (await call("/api/project/list")).projects.length === 0 && (await call("/api/state")).projects.length === 0);
+  const tb = await call("/api/project/begin", { brain: t.key, name: "invest-assets.csv", kind: "table", sheets: [{ name: "Assets", header: ["Asset", "Fit", "Return"] }] });
+  const rows = Array.from({ length: 102 }, (_, i) => [`Asset ${i + 1}`, i % 3 ? "fit" : "misfit", String(i % 20)]);
+  await call("/api/project/part", { brain: t.key, ver: tb.ver, sheet: 0, rows });
+  await call("/api/project/finish", { brain: t.key, ver: tb.ver });
+  const st = await call("/api/state");
+  check("the state lists the asset with its rows, ready", st.assets.length === 1 && st.assets[0].name === "invest-assets.csv" && st.assets[0].rows === 102 && st.assets[0].status === "ready" && st.assets[0].kind === "table", JSON.stringify(st.assets));
+  /* a document made blank */
+  const d = await call("/api/assets/new", { kind: "doc", name: "Rules.md" });
+  check("a blank document is made ready, empty, and listed first, as the newest", d.fid === 3 && (await listed())[0].name === "Rules.md" && (await listed())[0].made === true);
+
+  /* a chat that tags the table reads every row */
+  reply = { asset: { answer: "Asset 2, Asset 5, Asset 8 and Asset 11 fit best.", edits: [], create: null } };
+  const a1 = await call("/api/ask", { q: "what is the best combination if I needed only 4 lines?", brain: "all", assets: [2], chat: null });
+  let sent1 = last(/You work on the owner's assets/);
+  check("a message that tags an asset reads it: a table of 102 rows whole, every row, under its name and id", /=== ASSET "invest-assets\.csv" \(table\), id 2: every row/.test(sent1.user) && /\n102 \| Asset 102 \| fit \| 1/.test(sent1.user) && /MESSAGE: what is the best combination/.test(sent1.user), sent1.user.slice(0, 300));
+  check("the answer comes back as the chat's answer, naming the asset, and the turn joins a chat", a1.answer === "Asset 2, Asset 5, Asset 8 and Asset 11 fit best." && JSON.stringify(a1.assets) === '["invest-assets.csv"]' && !!a1.chat && !a1.edits && !a1.create, JSON.stringify(a1));
+  check("the rules say a change is only proposed, never made, and name the table changes", /The owner applies them with a click, so never say a change is made/.test(sent1.sys) && /"op":"append"/.test(sent1.sys) && /Reply with only JSON: \{"answer":"","edits":\[\],"create":null\}/.test(sent1.sys));
+  const chats = w.T.chats ?? [];
+  check("the turn is kept in the chat with the assets it read", chats.some(c => c.turns.some(x => x.assets?.[0] === "invest-assets.csv")));
+
+  /* a tagged folder is read beside it */
+  reply = { asset: { answer: "Gold fits.", edits: [], create: null }, folders: { picks: ["wealth/gold"], terms: ["gold"] } };
+  await call("/api/ask", { q: "does gold fit the table?", brain: "all", assets: [2], tags: ["wealth"], chat: null });
+  sent1 = last(/You work on the owner's assets/);
+  check("a folder tagged in the same message is read beside the asset", /THEIR FOLDERS\n/.test(sent1.user) && /Gold holds its value/.test(sent1.user) && /THEIR FOLDERS: notes from the folders the message tagged/.test(sent1.sys), sent1.user.slice(sent1.user.indexOf("THEIR FOLDERS")).slice(0, 200));
+
+  /* a change proposed, applied, undone */
+  reply = { asset: { answer: "This adds the two rows of your log.", edits: [{ asset: 2, ops: [{ op: "append", sheet: 1, rows: [["Asset 103", "fit", "7"], ["Asset 104", "fit", "9"]] }] }], create: null } };
+  const a2 = await call("/api/ask", { q: "add these two lines to @invest-assets.csv", brain: "all", assets: [2], chat: null });
+  check("a change is kept as a proposal on that asset, with what it would do, and nothing changes yet", a2.edits?.length === 1 && a2.edits[0].fid === 2 && a2.edits[0].status === "open" && /2 new rows at the end/.test(a2.edits[0].preview[0].label) && (await listed()).find(x => x.id === 2).rows === 102, JSON.stringify(a2.edits));
+  const ap = await call("/api/project/edit", { brain: "assets-octopus~2", id: a2.edits[0].id, action: "apply" });
+  check("Apply writes it: 104 rows", ap.ok && (await listed()).find(x => x.id === 2).rows === 104);
+  const stt = await call("/api/assets/state", { list: [{ fid: 2, id: a2.edits[0].id }] });
+  check("a chat opened again learns where its change stands", stt.state[a2.edits[0].id] === "applied", JSON.stringify(stt));
+  await call("/api/project/edit", { brain: "assets-octopus~2", id: a2.edits[0].id, action: "undo" });
+  check("Undo takes it back: 102 rows", (await listed()).find(x => x.id === 2).rows === 102);
+
+  /* a new asset proposed, made, undone */
+  reply = { asset: { answer: "This page shows the 4 lines.", edits: [], create: { kind: "html", name: "Portfolio", ops: [{ op: "insert", after: 0, title: "Page", text: "<!doctype html><html><body><h1>Portfolio</h1></body></html>" }] } } };
+  const a3 = await call("/api/ask", { q: "make an html page of the best portfolio", brain: "all", assets: [2], chat: null });
+  check("a new asset is proposed, named with its kind's ending, and made only when asked", a3.create?.status === "open" && a3.create.name === "Portfolio.html" && a3.create.kind === "html" && /Portfolio/.test(a3.create.preview[0].after) && (await listed()).length === 2, JSON.stringify(a3.create));
+  const mk = await call("/api/assets/make", { id: a3.create.id, action: "apply" });
+  const after = await listed();
+  check("Create makes it, filled", mk.status === "applied" && mk.fid > 3 && after.some(x => x.id === mk.fid && x.name === "Portfolio.html" && x.kind === "html" && x.chars > 20), JSON.stringify(mk));
+  const dl = await call("/api/project/download", { brain: `assets-octopus~${mk.fid}` });
+  check("and it downloads as the page it holds", /<h1>Portfolio<\/h1>/.test(dl.text) && dl.name === "Portfolio.html");
+  check("made twice, it is refused", /settled already/.test((await call("/api/assets/make", { id: a3.create.id, action: "apply" })).error ?? ""));
+  await call("/api/assets/make", { id: a3.create.id, action: "undo" });
+  check("Undo takes the new asset away", !(await listed()).some(x => x.id === mk.fid));
+
+  /* a new version, and its Undo */
+  const v = await call("/api/assets/new", { kind: "table", name: "invest-assets.csv", made: false, prev: 2 });
+  const vb = await call("/api/project/begin", { brain: v.key, name: "invest-assets.csv", kind: "table", sheets: [{ name: "Assets", header: ["Asset", "Fit", "Return"] }] });
+  await call("/api/project/part", { brain: v.key, ver: vb.ver, sheet: 0, rows: rows.slice(0, 50) });
+  await call("/api/project/finish", { brain: v.key, ver: vb.ver });
+  let vs = await listed();
+  check("a new version takes the asset's place: the old one is kept hidden, and Undo is offered", vs.filter(x => x.name === "invest-assets.csv").length === 1 && vs.find(x => x.name === "invest-assets.csv").rows === 50 && vs.find(x => x.name === "invest-assets.csv").undo === true && vs.length === 2, JSON.stringify(vs.map(x => [x.id, x.name, x.rows, x.undo])));
+  const un = await call("/api/assets/file", { action: "undo", file: v.fid });
+  vs = await listed();
+  check("Undo brings the old version back, whole, and the new one goes", un.ok && un.back === 2 && vs.find(x => x.name === "invest-assets.csv").rows === 102 && !vs.some(x => x.id === v.fid), JSON.stringify(vs.map(x => [x.id, x.rows])));
+
+  /* a web page kept as an asset: its address stays through its read and its next version */
+  const lk = await call("/api/assets/new", { kind: "doc", name: "jeremylasne.com/invest", made: false, url: "https://jeremylasne.com/invest" });
+  const lb = await call("/api/project/begin", { brain: lk.key, name: "jeremylasne.com/invest", kind: "doc" });
+  reply = {};
+  await call("/api/project/part", { brain: lk.key, ver: lb.ver, text: "# Invest\n\nGold 25%. Copper 25%." });
+  await call("/api/project/finish", { brain: lk.key, ver: lb.ver });
+  let la = (await listed()).find(x => x.id === lk.fid);
+  check("a web page kept as an asset keeps its address through its read", la?.url === "https://jeremylasne.com/invest" && la.status === "ready" && la.chars > 10, JSON.stringify(la));
+  reply = { asset: { answer: "Gold is 25%.", edits: [], create: null } };
+  await call("/api/ask", { q: "what weight has gold?", brain: "all", assets: [lk.fid], chat: null });
+  check("a chat reading it is told it is that web page, and when it was read", new RegExp(`=== ASSET "jeremylasne\\.com/invest" \\(document, the web page https://jeremylasne\\.com/invest as read on \\d{4}-\\d{2}-\\d{2}\\), id ${lk.fid}: all of it`).test(last(/You work on the owner's assets/).user), last(/You work on the owner's assets/).user.slice(0, 200));
+  const lv = await call("/api/assets/new", { kind: "doc", name: "jeremylasne.com/invest", made: false, url: "https://jeremylasne.com/invest", prev: lk.fid });
+  const lvb = await call("/api/project/begin", { brain: lv.key, name: "jeremylasne.com/invest", kind: "doc" });
+  await call("/api/project/part", { brain: lv.key, ver: lvb.ver, text: "# Invest\n\nGold 30%." });
+  await call("/api/project/finish", { brain: lv.key, ver: lvb.ver });
+  la = (await listed()).filter(x => x.name === "jeremylasne.com/invest");
+  check("read again, it is a new version with the same address, and Undo is offered", la.length === 1 && la[0].id === lv.fid && la[0].url === "https://jeremylasne.com/invest" && la[0].undo === true, JSON.stringify(la));
+  check("an address that is not https is not kept", !(await call("/api/assets/new", { kind: "doc", name: "x", url: "javascript:alert(1)" })).error && !(await listed()).find(x => x.name === "x")?.url);
+
+  /* a project turned into assets: its files move with what they hold, its notes become one document, and it goes */
+  const pr = (await call("/api/project/new", { name: "Cap Spartan" })).slug;
+  const pb = await call("/api/project/begin", { brain: pr, name: "Rules.md", kind: "doc" });
+  reply = {};
+  await call("/api/project/part", { brain: pr, ver: pb.ver, text: "# Rules\n\nNo line above 25%." });
+  await call("/api/project/finish", { brain: pr, ver: pb.ver });
+  const pf = await call("/api/project/file", { brain: pr, action: "new", kind: "table", name: "log.csv", made: false });
+  const pfb = await call("/api/project/begin", { brain: pf.key, name: "log.csv", kind: "table", sheets: [{ name: "log", header: ["Day", "Reps"] }] });
+  await call("/api/project/part", { brain: pf.key, ver: pfb.ver, sheet: 0, rows: [["Mon", "10"], ["Tue", "12"]] });
+  await call("/api/project/finish", { brain: pf.key, ver: pfb.ver });
+  await call("/api/project/brief", { brain: pr, text: "Goal: 100 push-ups a day." });
+  const before = (await listed()).length;
+  const ad = await call("/api/assets/adopt", { project: pr });
+  const after2 = await listed();
+  const rulesA = after2.find(x => x.name.startsWith("Rules.md")), logA = after2.find(x => x.name === "log.csv"), notesA = after2.find(x => x.name === "Notes of Cap Spartan.md");
+  check("a project turned into assets: both its files and a notes document, the name an asset held already given the project's name", ad.ok && after2.length === before + 3 && rulesA?.name === "Rules.md (Cap Spartan)" && logA?.rows === 2 && !!notesA && ad.notes === "Notes of Cap Spartan.md", JSON.stringify({ ad, names: after2.map(x => x.name) }));
+  const rr = await call("/api/project/rows", { brain: `assets-octopus~${logA.id}`, sheet: 0, from: 1, n: 5 });
+  const nd = await call("/api/project/download", { brain: `assets-octopus~${notesA.id}` });
+  check("its rows moved with it, and the notes hold its Brief", rr.rows?.length === 2 && rr.rows[1].cells[1] === "12" && /## Brief\s+Goal: 100 push-ups a day\./.test(nd.text), JSON.stringify({ rr, nd: nd.text }));
+  check("and the project is gone", (await call("/api/project/list")).projects.length === 0 && !w.T.brains.some(x => x.slug === pr) && !w.T.projectCards.some(c => c.brain === pr || c.brain.startsWith(pr + "~")));
+
+  /* rename, remove, the other workspace, the demo */
+  await call("/api/assets/file", { action: "rename", file: 3, name: "Portfolio rules.md" });
+  check("an asset is renamed", (await listed()).some(x => x.id === 3 && x.name === "Portfolio rules.md"));
+  check("another workspace sees none of them, and cannot reach one", (await listed("squidgy-token")).length === 0 && /not in this workspace/.test((await call("/api/project/rows", { brain: "assets-octopus~2", sheet: 0, from: 1, n: 5 }, "squidgy-token")).error ?? ""));
+  check("the demo keeps no asset and adds none", (await listed("demo-token")).length === 0 && !!(await call("/api/assets/new", { kind: "doc", name: "x" }, "demo-token")).error);
+  reply = { asset: { answer: "x", edits: [], create: null } };
+  const gone = await call("/api/ask", { q: "and this?", brain: "all", assets: [999], chat: null });
+  check("a tag of an asset no longer here says so, with no model call", /no longer here/.test(gone.answer));
+  await call("/api/assets/file", { action: "remove", file: 3 });
+  check("an asset is removed", !(await listed()).some(x => x.id === 3));
+  check("the chat about assets is counted under Assets in Cost", (w.T.chatSpend ?? []).some(r => r.kind === "assets"), JSON.stringify((w.T.chatSpend ?? []).map(r => r.kind)));
+  const as = await build("assets");
+  check("a proposed asset is named with its kind's ending, and one with nothing to fill it is no proposal", as.readCreate({ kind: "table", name: "Shortlist", ops: [{ op: "table", columns: ["A"], rows: [["x"]] }] })?.name === "Shortlist.csv"
+    && as.readCreate({ kind: "doc", name: "Notes", ops: [] }) === null && as.readCreate({ kind: "video", name: "x", ops: [{ op: "insert" }] }) === null && as.readCreate({ kind: "doc", name: "a/b:c", ops: [{ op: "insert", after: 0, text: "x" }] }).name === "a b c.md");
+  check("its card says what it will hold: a table's columns and first rows", JSON.stringify(as.createPreview("table", [{ op: "table", columns: ["Asset", "Weight"], rows: [["Gold", "25"], ["Copper", "25"]] }]).map(x => x.label)) === '["2 columns, 2 rows","Row 1","Row 2"]');
+}
 
 console.log(failures ? `\n${failures} failed` : "\nall project checks passed");
 process.exit(failures ? 1 : 0);

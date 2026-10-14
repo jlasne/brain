@@ -25,7 +25,8 @@ import { loadSpace, withoutPersonal, cardsFor } from "./space";
 import { projectChat, addDocPiece, addRowPiece, finishFile, fileInstructions, fileResource, planFolders, writeBrief, readBlocks } from "./project";
 import { withSpend, withChatSpend, guardBudget } from "./spend";
 import { parseExport, RESTORE_CHARS } from "./restore";
-import { colNames, downloadText, csvOf, parseCsv, madeName, splitKey, fileKey } from "./sheet";
+import { colNames, downloadText, csvOf, parseCsv, madeName, splitKey, fileKey, assetsSlug, isAssets } from "./sheet";
+import { readAsset, ASSET_RULES, readCreate, createPreview, kindNoun, ASSETS_A_MESSAGE } from "./assets";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
@@ -443,13 +444,15 @@ route("/api/state", async (ctx, _req, b) => {
   const brand = await ctx.runQuery(internal.store.brandOf, { space: who.space });
   /* The projects: their own list, so no folder list, picker or count ever holds one. */
   const projects = who.demo ? [] : await ctx.runQuery(internal.projects.projectsOf, { space: who.space });
+  /* The assets: the files the chats call with @. The demo keeps none. */
+  const assets = who.demo ? [] : await ctx.runQuery(internal.projects.assetsOf, { space: who.space });
   /* The model in use, and the default Settings offers to go back to. */
   const models = { chat: who.models.chat || MODEL, chatDefault: MODEL,
     reply: who.models.reply === "en" ? "en" : "same", voice: who.models.voice ?? null, depth: who.models.depth === "short" ? "short" : "long",
     /* What writes the voice: the demo keeps the browser's own; every other workspace Whisper unless it picked the browser. */
     mic: who.demo || who.models.mic === "browser" ? "browser" : "whisper",
     ...(who.models.favs?.length ? { favs: who.models.favs, favAt: who.models.favAt ?? null, favPrices: who.models.favPrices ?? [] } : {}) };
-  return { ...s, projects, model: models.chat, models, chunk: CHUNK,
+  return { ...s, projects, assets, model: models.chat, models, chunk: CHUNK,
            space: who.space, spaceName: who.wsName, demo: who.demo, byok: who.byok, brand };
 });
 
@@ -806,6 +809,8 @@ route("/api/ask", async (ctx, _req, b) => {
   const mine = only ? every.brains.find((x: any) => x.slug === only && x.type === "personal") : null;
   /* What each message costs is added up from the usage the model host reports, and recorded once, whether it finished or not. */
   if (mine) return await withChatSpend(ctx, { space: who.space, kind: "personal", skip: who.demo }, tally => personalChat(ctx, who, b, mine, every, tally));
+  /* A message that tags an asset reads it, and may propose a change to it or a new one. */
+  if (Array.isArray(b.assets) && b.assets.length && !who.demo) return await withChatSpend(ctx, { space: who.space, kind: "assets" }, tally => assetChat(ctx, who, b, every, tally));
   return await withChatSpend(ctx, { space: who.space, kind: "folders", skip: who.demo }, tally => folderChat(ctx, who, b, every, only, tally));
 });
 
@@ -840,6 +845,83 @@ const heldNothing = (route: { routed: boolean; picked: string[] }, open: string[
   route.routed && !route.picked.length && !open.length && !plan.titled;
 /** The concepts a chat may read, by id: what the last answer opened is carried to the next message only when it is one of them. */
 const readable = (pool: any[], cards: any[]) => { const at = new Set(pool.map((x: any) => x.slug)); return new Set<string>(cards.filter((c: any) => at.has(c.brain)).map(idOf)); };
+
+/**
+ * A message that tags assets: those assets are read (a table whole up to 120,000 characters, a document up to 60,000, the rest by what
+ * bears on the message), and the folders it tags, as the folders' chat reads them. The answer may propose changes to the assets and a
+ * new asset: each is kept as a proposal, shown with what it would do, and applied only when the owner says so.
+ */
+async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: any) => void) {
+  const q = String(b.q ?? "").trim().slice(0, 40000);
+  if (!q) return { error: "write something first" };
+  const mKey = keyFor(who), mName = modelFor(who, b);
+  const english = who.models?.reply === "en";
+  const base = assetsSlug(who.space);
+  const listed: any[] = await ctx.runQuery(internal.projects.assetsOf, { space: who.space });
+  const wanted = [...new Set((b.assets as any[]).map(x => Math.floor(Number(x))).filter(n => n > 1))];
+  const assets = wanted.map(fid => listed.find(a => a.id === fid)).filter(Boolean).slice(0, ASSETS_A_MESSAGE);
+  if (!assets.length) return { answer: "Those assets are no longer here. Pick one with @, or add it again from Assets." };
+  const { brains, cards: concepts, sources } = withoutPersonal(every);
+  const tags = tagsOf(b.tags, brains).slice(0, Math.max(0, ASSETS_A_MESSAGE - assets.length));
+  const pool = brains.filter((x: any) => tags.includes(x.slug));
+
+  /* The assets, read for this message. */
+  const read: string[] = [];
+  for (const a of assets) read.push((await readAsset(ctx, { space: who.space, base, fid: a.id, q, key: mKey, model: mName, meter: tally })).text);
+
+  /* The folders it tags, read as the folders' chat reads them. */
+  let dossier = "", nSources = 0;
+  if (pool.length) {
+    try {
+      const nearHits = await nearTo(ctx, who, q, pool);
+      const short = shortList(nearHits.map(x => x.id));
+      const rt = await routeQuestion(pool, concepts, q, b.history, mKey, mName, { ...short, meter: tally });
+      const open = nearOpen(nearHits, rt);
+      const plan = planDossier(pool, concepts, q, b.history, { ...rt, routed: judged(rt, short), ran: rt.routed, near: open });
+      const whole = await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
+      const pick = writeDossier(pool, plan, new Map(whole.map((c: any) => [idOf(c), c])), SHORT_READ);
+      dossier = pick.dossier;
+      nSources = new Set(sources.filter((s: any) => s.brains.some((x: string) => pool.some((c: any) => c.slug === x))).map((s: any) => s.sid)).size;
+    } catch (e: any) { dossier = `(the folders ${pool.map((x: any) => x.name).join(", ")} could not be read just now: say so in one sentence)`; }
+  }
+  const earlier = threadOf(b.history).map(h => `Q: ${h.q}\nA: ${h.a}`).join("\n\n");
+  const { text, finish, usage } = await ask([
+    { role: "system", content: ASSET_RULES(english, { folders: pool.length > 0 }) },
+    { role: "user", content: `${read.join("\n\n")}\n\n${pool.length ? `THEIR FOLDERS\n${dossier}\n\n` : ""}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}TODAY: ${today()}\nMESSAGE: ${q}` },
+  ], { json: true, maxTokens: q.length > 6000 ? 16000 : 8000, temperature: 0.2, key: mKey, model: mName, timeout: 170000 });
+  tally(usage);
+  let d: any;
+  try { d = parseJson(String(text), finish); } catch { d = { answer: String(text).replace(/^```(?:json)?|```$/g, "").trim() }; }
+  let answer = String(d?.answer ?? d?.reply ?? "").replace(/\s*—\s*/g, ", ").trim();
+
+  /* Changes, kept as proposals on each asset they are for. */
+  const edits: any[] = [], left: string[] = [];
+  for (const e of Array.isArray(d?.edits) ? d.edits.slice(0, ASSETS_A_MESSAGE) : []) {
+    const a = assets.find(x => x.id === Math.floor(Number(e?.asset)) || x.name === String(e?.asset ?? ""));
+    const ops = Array.isArray(e?.ops) ? e.ops : [];
+    if (!a || !ops.length) continue;
+    const r = await ctx.runMutation(internal.projects.editPropose, { space: who.space, brain: fileKey(base, a.id), ops });
+    if (r.id) edits.push({ id: r.id, fid: a.id, name: a.name, status: "open", preview: r.preview });
+    if (r.bad?.length) left.push(...r.bad.slice(0, 3));
+  }
+  /* A new asset, kept as a proposal until the owner makes it. */
+  let create: any = null;
+  const made = readCreate(d?.create);
+  if (made) {
+    try {
+      const r = await ctx.runMutation(internal.projects.createPropose, { space: who.space, kind: made.kind, name: made.name, ops: made.ops, preview: createPreview(made.kind, made.ops) });
+      create = { id: r.id, kind: made.kind, name: made.name, status: "open", preview: createPreview(made.kind, made.ops) };
+    } catch (e: any) { left.push(String(e?.message ?? e)); }
+  }
+  if (left.length) answer += `\n\nI left out ${left.length === 1 ? "one change" : `${left.length} changes`}: ${left.join("; ")}.`;
+  if (!answer) answer = edits.length || create ? "Here is the proposal." : "I could not write an answer to that. Ask it another way.";
+  const named = assets.map(a => a.name);
+  const turn = { q: q.slice(0, 2000), a: answer, level: "normal", sources: nSources, assets: named,
+    ...(pool.length ? { tagged: pool.map((x: any) => x.name) } : {}), ...(edits.length ? { edits } : {}), ...(create ? { create } : {}) };
+  const chat = await saveTurn(ctx, who, b, { brain: "all" }, turn);
+  return { answer, sources: nSources, level: "normal", assets: named, ...(pool.length ? { tagged: pool.map((x: any) => x.name) } : {}),
+    ...(edits.length ? { edits } : {}), ...(create ? { create } : {}), ...(chat ? { chat } : {}) };
+}
 
 /**
  * A message in the folders' chat: the main chat, or one folder, or the folders ticked. What it reads is found first, and it is answered from
@@ -1783,10 +1865,13 @@ route("/api/project/begin", async (ctx, _req, b) => {
   if (!sheets.length) return { error: "the table has no sheet to read" };
   /* A file read in asks a model for every section: a cap already reached stops it before the old file goes. */
   await guardBudget(ctx, who.space);
+  /* An asset's new version keeps the number of the one it replaces through the clearing, for its Undo. */
+  const kept = isAssets(splitKey(brain).base) ? await ctx.runQuery(internal.projects.fileMeta, { space: who.space, brain }) : null;
+  const prev = kept?.prev, url = kept?.url;
   if (!(await wipeProject(ctx, who.space, brain, true))) return { error: "the old file is large: ask again to clear it" };
   /* What the old file alone wrote goes with it (its note and its topics); what the chat kept stays. Another file of the project wrote no note of its own. */
   if (splitKey(brain).fid === 1) await ctx.runMutation(internal.projects.memoryForgetFile, { space: who.space, brain, only: true });
-  return await ctx.runMutation(internal.projects.fileBegin, { space: who.space, brain, name: String(b.name ?? "file").slice(0, 200), kind, sheets });
+  return await ctx.runMutation(internal.projects.fileBegin, { space: who.space, brain, name: String(b.name ?? "file").slice(0, 200), kind, sheets, ...(prev ? { prev } : {}), ...(url ? { url } : {}) });
 });
 
 /** One piece of the file: words of a document, or rows of a sheet. A document's piece costs a model call a section. */
@@ -1806,7 +1891,13 @@ route("/api/project/finish", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   const brain = String(b.brain ?? "");
   /* The first file writes the project's note on its file; each file is given a line and its sections a meaning, for the project's map and its search. */
-  return await withSpend(ctx, { space: who.space, brain }, meter => finishFile(ctx, { space: who.space, brain, ver: Number(b.ver), about: splitKey(brain).fid === 1, embeds: !who.byok && !who.demo, key: keyFor(who), model: modelFor(who, b), meter }));
+  const done = await withSpend(ctx, { space: who.space, brain }, meter => finishFile(ctx, { space: who.space, brain, ver: Number(b.ver), about: splitKey(brain).fid === 1 && !isAssets(splitKey(brain).base), embeds: !who.byok && !who.demo, key: keyFor(who), model: modelFor(who, b), meter }));
+  /* A new version of an asset is in: the one it replaces is kept for Undo, and the one before that goes. */
+  if (isAssets(splitKey(brain).base)) {
+    const sw = await ctx.runMutation(internal.projects.assetSwap, { space: who.space, brain });
+    if (sw.drop) await wipeProject(ctx, who.space, fileKey(splitKey(brain).base, sw.drop), true);
+  }
+  return done;
 });
 
 /**
@@ -1965,6 +2056,157 @@ route("/api/project/download", async (ctx, _req, b) => {
   const si = Math.max(0, Math.min(meta.sheets.length - 1, Number(b.sheet) || 0));
   const rows = (await readBlocks(ctx, { space: who.space, brain, sheet: si })).flatMap((t: string) => parseCsv(t));
   return { name: meta.name, kind: "table", sheet: meta.sheets[si].name, text: csvOf([meta.sheets[si].header, ...rows]) + "\n" };
+});
+
+/* ---------- assets ---------- */
+
+/**
+ * Assets: the documents, tables and pages a chat calls with @. They are files of one hidden project per workspace, so every call about
+ * one asset's words, rows, changes and download goes through the file routes above, with `brain` set to the asset's key
+ * (`assets-<space>~n`). These add what is only an asset's: the list, a new one, a new version, renaming, removing, and making a new
+ * asset a chat proposed.
+ */
+route("/api/assets/list", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  return { base: assetsSlug(who.space), assets: who.demo ? [] : await ctx.runQuery(internal.projects.assetsOf, { space: who.space }) };
+});
+
+/**
+ * A new asset: a blank document, table or page (`made`), or the place a file read in the browser goes (`made: false`, then begin, part
+ * and finish on its key). With `prev`, it is a new version of that asset: the old one is kept for Undo once the new one is in.
+ */
+route("/api/assets/new", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const base = await ctx.runMutation(internal.projects.assetsEnsure, { space: who.space });
+  const kind = b.kind === "table" ? "table" : b.kind === "html" ? "html" : "doc";
+  const prev = Math.floor(Number(b.prev));
+  if (prev > 1) {
+    const listed: any[] = await ctx.runQuery(internal.projects.assetsOf, { space: who.space });
+    if (!listed.some(a => a.id === prev)) return { error: "that asset is no longer here" };
+  }
+  /* A web page kept as an asset keeps its address, to be read again. */
+  const url = /^https:\/\/\S{3,1990}$/.test(String(b.url ?? "")) ? String(b.url) : "";
+  const r = await ctx.runMutation(internal.projects.fileNew, { space: who.space, brain: base, kind, name: String(b.name ?? ""), ...(b.made === false ? { made: false } : {}), ...(prev > 1 ? { prev } : {}), ...(url ? { url } : {}) });
+  return { ...r, base };
+});
+
+/**
+ * One asset, by action:
+ *   rename   its name.
+ *   remove   it goes, with its words, rows and changes, and the version kept for its Undo.
+ *   undo     a new version taken back: the one it replaced returns.
+ */
+route("/api/assets/file", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const base = assetsSlug(who.space), fid = Math.floor(Number(b.file));
+  const listed: any[] = await ctx.runQuery(internal.projects.assetsOf, { space: who.space });
+  const a = listed.find(x => x.id === fid);
+  if (!a) return { error: "that asset is no longer here" };
+  const key = fileKey(base, fid);
+  switch (String(b.action ?? "")) {
+    case "rename": return await ctx.runMutation(internal.projects.fileRename, { space: who.space, brain: key, name: String(b.name ?? "") });
+    case "remove": {
+      if (a.prev) await wipeProject(ctx, who.space, fileKey(base, a.prev), true);
+      return (await wipeProject(ctx, who.space, key, true)) ? { ok: true } : { error: "that asset is large: ask again to finish removing it" };
+    }
+    case "undo": {
+      const r = await ctx.runMutation(internal.projects.assetUnswap, { space: who.space, brain: key });
+      await wipeProject(ctx, who.space, key, true);
+      return { ok: true, back: r.back };
+    }
+    default: return { error: "rename, remove or undo" };
+  }
+});
+
+/**
+ * A new asset a chat proposed, by action: `apply` makes it and fills it with what was proposed, `undo` takes it away again, `dismiss`
+ * turns it down. Returns the asset's number once made.
+ */
+route("/api/assets/make", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const base = assetsSlug(who.space), id = String(b.id ?? "");
+  const e = await ctx.runQuery(internal.projects.createGet, { space: who.space, id });
+  if (!e?.op) return { error: "that proposal is no longer kept" };
+  const action = String(b.action ?? "");
+  if (action === "dismiss") {
+    if (e.status !== "open") return { error: "that proposal was settled already" };
+    await ctx.runMutation(internal.projects.createMark, { space: who.space, id, status: "dismissed" });
+    return { status: "dismissed" };
+  }
+  if (action === "undo") {
+    if (e.status !== "applied" || !e.made) return { error: "that asset was not made" };
+    await wipeProject(ctx, who.space, fileKey(base, e.made), true);
+    await ctx.runMutation(internal.projects.createMark, { space: who.space, id, status: "undone" });
+    return { status: "undone" };
+  }
+  if (action !== "apply") return { error: "apply, undo or dismiss" };
+  if (e.status !== "open") return { error: "that proposal was settled already" };
+  const made = await ctx.runMutation(internal.projects.fileNew, { space: who.space, brain: base, kind: e.op.kind, name: e.op.name });
+  try {
+    const p = await ctx.runMutation(internal.projects.editPropose, { space: who.space, brain: made.key, ops: e.op.ops });
+    if (!p.id) throw new Error(p.bad?.[0] ?? "it held nothing to write");
+    await ctx.runMutation(internal.projects.editApply, { space: who.space, brain: made.key, id: p.id });
+  } catch (err: any) {
+    await wipeProject(ctx, who.space, made.key, true);
+    return { error: `the asset could not be made: ${String(err?.message ?? err)}` };
+  }
+  await ctx.runMutation(internal.projects.createMark, { space: who.space, id, status: "applied", made: made.fid });
+  return { status: "applied", fid: made.fid };
+});
+
+/**
+ * A project turned into assets, once: its files move into the assets with what they hold, its Brief, State of play and memory are
+ * written into one document, "Notes of <project>", and the project goes. Nothing is lost that the owner wrote or the chat kept, but the
+ * project's thread, which held its last 4 exchanges.
+ */
+route("/api/assets/adopt", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const project = String(b.project ?? "");
+  const got = await ctx.runQuery(internal.projects.projectGet, { space: who.space, brain: project });
+  if (isAssets(project)) return { error: "those are the assets already" };
+  await ctx.runMutation(internal.projects.assetsEnsure, { space: who.space });
+  /* The notes first, while the project still holds them. */
+  const lines: string[] = [];
+  if (got.brief?.text) lines.push("## Brief", "", got.brief.text.trim(), "");
+  if (got.state?.text) lines.push("## Where it stood", "", got.state.text.trim(), "");
+  if (got.asks?.length) lines.push("## Still open", "", ...got.asks.map((x: any) => `- ${x.q}`), "");
+  const memo = (got.memory ?? []) as any[];
+  if (memo.length) {
+    lines.push("## What the project kept", "");
+    for (const m of memo) lines.push(`### ${m.title}${m.updated ? ` (${m.updated})` : ""}`, "", String(m.position || m.summaryLine || "").trim(), "");
+  }
+  let notes: string | null = null;
+  const name = `Notes of ${got.project.name}.md`;
+  /* Asked again after a large project stopped part way: its notes were written the first time. */
+  const had = ((await ctx.runQuery(internal.projects.assetsOf, { space: who.space })) as any[]).some(a => a.name === name);
+  if (had) notes = name;
+  else if (lines.length) {
+    const text = `# Notes of ${got.project.name}\n\n${lines.join("\n").trim()}\n`;
+    const made = await ctx.runMutation(internal.projects.fileNew, { space: who.space, brain: assetsSlug(who.space), kind: "doc", name, made: false });
+    const v = await ctx.runMutation(internal.projects.fileBegin, { space: who.space, brain: made.key, name, kind: "doc", sheets: [{ name: name.slice(0, 60), header: [] }] });
+    await withSpend(ctx, { space: who.space, brain: made.key }, async meter => {
+      await addDocPiece(ctx, { space: who.space, brain: made.key, ver: v.ver, text, page: 0, key: keyFor(who), model: modelFor(who, b), meter });
+      return await finishFile(ctx, { space: who.space, brain: made.key, ver: v.ver, about: false, embeds: !who.byok && !who.demo, key: keyFor(who), model: modelFor(who, b), meter });
+    });
+    notes = name;
+  }
+  /* Then its files, a batch at a time, and last the project itself. */
+  let moved: string[] = [];
+  for (let i = 0; i < 500; i++) {
+    const r = await ctx.runMutation(internal.projects.adoptFiles, { space: who.space, project });
+    moved = moved.concat(r.moved);
+    if (!r.more) break;
+  }
+  if (!(await wipeProject(ctx, who.space, project, false))) return { error: "that project is large: ask again to finish turning it into assets", files: moved, notes };
+  return { ok: true, files: moved, notes };
+});
+
+/** Where the changes and new assets of a chat opened again stand now, so its cards offer only what is still possible. */
+route("/api/assets/state", async (ctx, _req, b) => {
+  const who = await gate(ctx, b);
+  const base = assetsSlug(who.space);
+  const list = (Array.isArray(b.list) ? b.list : []).slice(0, 60).map((x: any) => ({ brain: Math.floor(Number(x?.fid)) > 1 ? fileKey(base, Math.floor(Number(x.fid))) : base, id: String(x?.id ?? "") }));
+  return { state: await ctx.runQuery(internal.projects.editStates, { space: who.space, list }) };
 });
 
 /* ---------- error reports ---------- */

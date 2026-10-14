@@ -153,6 +153,7 @@ async function refresh(){
   S.brains = d.brains || []; S.concepts = d.concepts || []; S.sources = d.sources || [];
   S.model = d.model || ""; S.chunk = d.chunk || 18000;
   S.projects = d.projects || [];
+  S.assets = d.assets || [];
   /* The model in use, and its default. */
   S.models = d.models || { chat: S.model, chatDefault: S.model };
   if (d.space){ S.space = d.space; S.spaceName = d.spaceName || d.space; paintSpace(); }
@@ -190,7 +191,7 @@ async function loadChats(){
 const conceptsOf = b => S.concepts.filter(c => c.brain === b).sort((x,y)=>(x.n||0)-(y.n||0));
 const sourcesOf  = b => S.sources.filter(s => (s.brains||[]).includes(b));
 
-function render(){ renderSide(); renderProjects(); renderScope(); renderComposer(); renderZero(); renderView(); }
+function render(){ renderSide(); renderAssets(); renderProjects(); renderScope(); renderComposer(); renderZero(); renderView(); }
 
 /**
  * One screen at a time in the main area: the chat, a folder open, or Drop.
@@ -198,8 +199,10 @@ function render(){ renderSide(); renderProjects(); renderScope(); renderComposer
  */
 function renderView(){
   if (S.folder && !S.brains.some(b => b.slug === S.folder)) S.folder = null;
-  if (S.project && !S.projects.some(p => p.slug === S.project)){ S.project = null; S.pj = null; }
-  const drop = S.mode === "drop", folder = !drop && !!S.folder, project = !drop && !folder && !!S.project;
+  if (S.project && !S.projects.some(p => p.slug === S.project)){ S.project = null; if (!S.pj?.asset) S.pj = null; }
+  if (S.asset && !(S.assets || []).some(a => a.id === S.asset)){ S.asset = null; if (S.pj?.asset) S.pj = null; }
+  /* A project and an asset open in the same place. */
+  const drop = S.mode === "drop", folder = !drop && !!S.folder, project = !drop && !folder && (!!S.project || !!S.asset);
   $("dropHead").hidden = !drop; $("dropThread").hidden = !drop;
   $("folderView").hidden = !folder;
   $("projectView").hidden = !project;

@@ -396,3 +396,34 @@
   .pj-wait::before{ content:""; width:7px; height:7px; border-radius:50%; background:var(--accent-fill); animation:pjPulse 1s ease-in-out infinite alternate; }
   @keyframes pjPulse{ from{ opacity:.3; } to{ opacity:1; } }
 
+
+  /* ---- assets: one file open across the main area, and the cards of what a chat proposes ---- */
+  .pj.asset{ grid-template-columns:minmax(0,1fr); }
+  .pj.asset .pj-doc{ border-right:0; }
+  .pj-t .as-sub{ display:block; margin-top:3px; font:400 12px/1.4 var(--sans); color:var(--ink-4); overflow-wrap:anywhere; }
+  .pj-b.go{ background:var(--accent-solid); border-color:transparent; color:var(--accent-on); }
+  .pj-b.go:hover{ filter:brightness(1.08); color:var(--accent-on); }
+  .as-ver{ flex:none; display:flex; align-items:center; gap:10px; padding:8px 20px; border-bottom:1px solid var(--line); background:var(--accent-soft); font:400 12.5px/1.4 var(--sans); color:var(--ink-2); }
+  .as-ver span{ flex:1; min-width:0; }
+  .as-to{ font:inherit; color:var(--accent); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere; text-align:left; }
+  .as-to:hover{ color:var(--ink); }
+  .as-row .cnt{ font-size:11.5px; white-space:nowrap; }
+  #assetsPanel.over{ outline:2px dashed var(--accent-fill); outline-offset:2px; border-radius:10px; }
+  .as-none{ margin:2px 10px 4px; font:400 12.5px/1.45 var(--sans); color:var(--ink-4); }
+  .msg .pj-edit{ margin-top:12px; }
+  .as-hint{ border-style:dashed; }
+
+  /* Projects from before, turned into assets: a line in Assets, and a sheet that lists what each becomes. */
+  .as-convert{ display:block; width:calc(100% - 4px); margin:2px 2px 6px; padding:9px 11px; border:1px dashed var(--accent-line); border-radius:9px; background:var(--accent-soft);
+    font:500 13px/1.35 var(--sans); color:var(--accent); text-align:left; }
+  .as-convert:hover{ border-style:solid; }
+  .ac-list{ display:flex; flex-direction:column; gap:8px; }
+  .ac-row{ display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface); }
+  .ac-t{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+  .ac-t b{ font:500 14px/1.3 var(--sans); color:var(--ink); overflow-wrap:anywhere; }
+  .ac-t span{ font:400 12.5px/1.4 var(--sans); color:var(--ink-3); }
+  .ac-st{ flex:none; font:500 12px/1 var(--mono); color:var(--ink-4); }
+  .ac-row.run .ac-st{ color:var(--accent); animation:pjPulse .7s ease-in-out infinite alternate; }
+  .ac-row.done{ border-color:color-mix(in srgb, var(--good) 40%, var(--line-2)); }
+  .ac-row.done .ac-st{ color:var(--good); }
+  .ac-row.fail .ac-st{ color:var(--bad); }

@@ -255,8 +255,8 @@ async function openPager(page) {
   const loud = await page.evaluate(() => { const css = id => getComputedStyle(document.getElementById(id)); const n = css("startBtn"), p = css("newProject");
     return { newBg: n.backgroundColor, plusBg: p.backgroundColor, newH: parseFloat(n.height), drop: document.getElementById("dropBtn").getBoundingClientRect().bottom <= document.getElementById("keyBtn").getBoundingClientRect().top + 1 }; });
   check("New chat is filled in the accent, louder than the + of Projects and Folders, and Drop sits above Settings", loud.newBg !== "rgba(0, 0, 0, 0)" && loud.plusBg === "rgba(0, 0, 0, 0)" && loud.newH >= 28 && loud.drop, JSON.stringify(loud));
-  check("then Chats, Projects and Folders, each a list of its own", top.panels === "chatsPanel:Chats,projectsPanel:Projects,brainsPanel:Folders" && top.gone, top.panels);
-  check("New chat on top is the one way to start a chat; Projects and Folders keep their +", top.plus === "newProject,newBrain", top.plus);
+  check("then Chats, Assets, Projects and Folders, each a list of its own", top.panels === "chatsPanel:Chats,assetsPanel:Assets,projectsPanel:Projects,brainsPanel:Folders" && top.gone, top.panels);
+  check("New chat on the Chats line is the one way to start a chat; Assets, Projects and Folders keep their +", top.plus === "newAsset,newProject,newBrain", top.plus);
   await page.click("#chatsFold");
   check("a list folds", await page.evaluate(() => document.getElementById("chatsBox").hidden));
   await page.click("#chatsFold");
@@ -2144,7 +2144,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     panels: [...document.querySelectorAll("aside .panel")].filter(p => !p.hidden).map(p => p.id).join(","),
     folders: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent).join(","),
     acts: [...document.querySelectorAll("#chatsH #startBtn, aside .side-foot #dropBtn")].map(b => b.textContent.trim()).join(",") }));
-  check("every workspace shows Chats, Projects and Folders", seen.panels === "chatsPanel,projectsPanel,brainsPanel", seen.panels);
+  check("every workspace shows Chats, Assets, Projects and Folders", seen.panels === "chatsPanel,assetsPanel,projectsPanel,brainsPanel", seen.panels);
   check("with New chat on the Chats line and Drop above Settings", seen.acts === "New chat,Drop", seen.acts);
   check("and every folder listed, the personal one first", seen.folders === "Me,Content,Health", seen.folders);
   await page.click('#brains .brain-row:has(.nm:text-is("Me"))'); await page.waitForTimeout(80);
@@ -3692,7 +3692,7 @@ for (const space of ["octopus", "squidgy"]) {
     plus: !!document.getElementById("newProject"), before: [...document.querySelectorAll(".panel")].map(x => x.id).join(","),
     folders: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent).join(",") }));
   check("a Projects panel sits between Chats and Folders, with its own plus and a row for each project", side.head === "Projects 3" && side.plus
-    && side.before === "chatsPanel,projectsPanel,brainsPanel" && side.rows.join() === "Launch plan:doc,Pricing review:table,Newsletter plan:doc", JSON.stringify(side));
+    && side.before === "chatsPanel,assetsPanel,projectsPanel,brainsPanel" && side.rows.join() === "Launch plan:doc,Pricing review:table,Newsletter plan:doc", JSON.stringify(side));
   check("no project is listed among the folders", !/Launch plan|Pricing review|Newsletter/.test(side.folders) && side.folders === "Me,Pricing", side.folders);
 
   /* a chat is open, a project goes over it, and the chat's row brings the chat back: also when it is the chat already current */
@@ -5218,6 +5218,171 @@ for (const space of ["octopus", "squidgy"]) {
   check("a project with one file shows its tab and the plus, and the bar speaks of the file as before", JSON.stringify(one.tabs) === '["solo.md"]' && one.plus && /^Ask about the document, or ask for a change\. Your folders/.test(one.ph) && !/other files/.test(one.ph) && /^solo\.md\n/.test(one.row), JSON.stringify(one));
   check("no page error with one file", bad.length === 0, bad.join(" | "));
   await page.close();
+}
+
+/* ---- assets: kept files a chat calls with @, and the changes it proposes ---- */
+{
+  const A = [
+    { id: 2, name: "invest-assets.csv", kind: "table", made: false, chars: 9000, sections: 1, status: "ready", at: 3, rows: 4, line: "Assets: 4 rows, columns Asset, Fit, Return",
+      sheets: [{ name: "Assets", rows: 4, cols: [{ name: "Asset" }, { name: "Fit" }, { name: "Return" }], header: ["Asset", "Fit", "Return"] }] },
+    { id: 3, name: "Rules.md", kind: "doc", made: true, chars: 0, sections: 0, status: "ready", at: 2 }];
+  const init = arg => {
+    if (window.top !== window) return;
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = []; window.__assets = JSON.parse(JSON.stringify(arg.assets));
+    const COLS = [{ name: "Asset", kind: "text", filled: 4 }, { name: "Fit", kind: "text", filled: 4, values: ["fit", "misfit"] }, { name: "Return", kind: "num", filled: 4, sum: 30, min: 3, max: 12, avg: 7.5 }];
+    const ROWS = [["Copper", "fit", "9"], ["Gold", "fit", "12"], ["Oil", "misfit", "3"], ["Silver", "fit", "6"]];
+    window.fetch = async (u, opt) => {
+      const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}"), J = x => Response.json(x);
+      window.__calls.push({ s: path, body });
+      if (path === "/api/state") return J({ ...arg.state, assets: window.__assets });
+      if (path === "/api/assets/list") return J({ base: "assets-octopus", assets: window.__assets });
+      if (path === "/api/project/get") {
+        const a = window.__assets.find(x => x.id === body.file);
+        if (!a) return J({ error: "that file is not in this project" });
+        return J({ project: { slug: "assets-octopus", name: "Assets" }, file: { id: a.id, name: a.name, kind: a.kind, made: a.made, chars: a.chars, sections: a.sections, status: a.status, ver: 1, at: 1,
+          sheets: a.kind === "table" ? [{ name: "Assets", header: ["Asset", "Fit", "Return"], cols: COLS, rows: 4 }] : [{ name: a.name, header: [], cols: [], rows: 0 }] },
+          cards: a.kind === "table" ? [{ sid: 1, ord: 1, sheet: 0, title: "Rows", summary: "", chars: 60, rows: 4 }] : a.chars ? [{ sid: 1, ord: 1, sheet: 0, title: "Page", summary: "", chars: 80 }] : [],
+          turns: [], edits: [], memory: [], files: window.__assets });
+      }
+      if (path === "/api/project/rows") return J({ rows: ROWS.map((cells, i) => ({ n: i + 1, cells })), total: 4 });
+      if (path === "/api/project/doc") return J({ sections: body.from >= 1 ? [] : [{ sid: 1, ord: 1, sheet: 0, title: "Page", text: "<h1>Portfolio</h1>" }] });
+      if (path === "/api/project/download") return J({ name: "Portfolio.html", kind: "html", text: "<!doctype html><h1>Portfolio</h1>" });
+      if (path === "/api/ask") {
+        if (!body.assets?.length) return J({ answer: "Copper and gold.", sources: 0, level: "normal" });
+        return J({ answer: "Copper, Gold and Silver fit, with returns of 9, 12 and 6.", sources: 0, level: "normal", assets: ["invest-assets.csv"],
+          edits: [{ id: "e1", fid: 2, name: "invest-assets.csv", status: "open", preview: [{ label: "Row 3, Fit", before: "misfit", after: "fit" }] }],
+          create: { id: "c1", kind: "html", name: "Portfolio.html", status: "open", preview: [{ label: "The page", before: "", after: "<h1>Portfolio</h1>" }] } });
+      }
+      if (path === "/api/project/edit") return J({ ok: true });
+      if (path === "/api/assets/make") { if (body.action === "apply") window.__assets.unshift({ id: 9, name: "Portfolio.html", kind: "html", made: true, chars: 80, sections: 1, status: "ready", at: 9 }); return J({ status: body.action === "apply" ? "applied" : body.action === "undo" ? "undone" : "dismissed", ...(body.action === "apply" ? { fid: 9 } : {}) }); }
+      if (path === "/api/assets/state") return J({ state: {} });
+      if (path === "/api/assets/new") { const fid = 10 + window.__assets.length; window.__assets.unshift({ id: fid, name: body.name, kind: body.kind, made: body.made !== false, chars: 0, sections: 0, status: body.made === false ? "reading" : "ready", at: 20, ...(body.url ? { url: body.url } : {}) }); return J({ fid, key: "assets-octopus~" + fid, base: "assets-octopus" }); }
+      if (path === "/api/fetch") return J({ url: body.url, chars: 900, cut: false, text: "# Invest\n\nGold 25%. Copper 25%. " + "words ".repeat(100) });
+      if (path === "/api/project/begin") return J({ ver: 1 });
+      if (path === "/api/project/part") return J({ sections: 1, chars: 10 });
+      if (path === "/api/project/finish") { const a = window.__assets.find(x => "assets-octopus~" + x.id === body.brain); if (a) { a.status = "ready"; a.chars = 50; if (a.kind === "table") a.rows = 2; } return J({}); }
+      if (path === "/api/assets/file") { if (body.action === "remove") window.__assets = window.__assets.filter(x => x.id !== body.file); return J({ ok: true }); }
+      return J({ chats: [], conflicted: [], health: [] });
+    };
+  };
+  const { page, bad } = await boot("/chat.html", init, { state: { ...STATE, brains: [{ slug: "wealth", name: "Wealth", type: "subject", scope: "w", owner: null }], projects: [] }, assets: A });
+  const side = await page.evaluate(() => ({ panels: [...document.querySelectorAll("aside .panel")].filter(p => !p.hidden).map(p => p.id).join(","),
+    rows: [...document.querySelectorAll("#assets .as-row")].map(r => r.querySelector(".nm").textContent + ":" + r.querySelector(".cnt").textContent), count: document.getElementById("acount").textContent }));
+  check("the side panel lists Assets under Chats, newest first, each with its size", side.panels === "chatsPanel,assetsPanel,projectsPanel,brainsPanel" && JSON.stringify(side.rows) === '["invest-assets.csv:4 rows","Rules.md:empty"]' && side.count === "2", JSON.stringify(side));
+  /* the viewer */
+  await page.click("#assets .as-row >> nth=0"); await page.waitForTimeout(500);
+  const view = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, title: document.querySelector(".pj.asset .pj-t h2")?.textContent, sub: document.querySelector(".pj.asset .as-sub")?.textContent,
+    acts: [...document.querySelectorAll(".pj.asset .pj-acts > button")].map(b => b.textContent).join("/"), rows: document.querySelectorAll(".pj.asset .pj-grid tbody tr[data-n]").length, chat: !!document.querySelector(".pj.asset .pj-chat"),
+    on: document.querySelector("#assets .as-row.on .nm")?.textContent }));
+  check("an asset opens across the main area: its name, what it is, Ask about it, Download, New version and Delete, and its rows, with no chat beside it", view.view === "project" && view.title === "invest-assets.csv" && /^Table · 4 rows · call it in a chat with @$/.test(view.sub)
+    && view.acts === "Ask about it/Download/New version/Delete" && view.rows === 4 && !view.chat && view.on === "invest-assets.csv", JSON.stringify(view));
+  await page.click(".pj-acts button >> text=Ask about it"); await page.waitForTimeout(200);
+  check("Ask about it opens a new chat with the asset called", await page.evaluate(() => document.querySelector("main").dataset.view === "chat" && document.getElementById("input").value === "@invest-assets.csv "));
+  /* @ lists the assets beside the folders */
+  await page.fill("#input", ""); await page.focus("#input"); await page.keyboard.type("best 4 lines from @inv"); await page.waitForTimeout(150);
+  const at = await page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-row")].map(b => b.textContent));
+  check("@ lists the assets beside the folders, each with its kind", JSON.stringify(at) === '["invest-assets.csvtable"]', JSON.stringify(at));
+  await page.keyboard.press("Enter"); await page.waitForTimeout(80);
+  await page.keyboard.press("Enter"); await page.waitForTimeout(500);
+  const asked = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/ask").pop()?.body);
+  check("the message carries the asset by its number, apart from the folders", JSON.stringify(asked?.assets) === "[2]" && !asked?.tags, JSON.stringify(asked));
+  const ans = await page.evaluate(() => { const m = [...document.querySelectorAll(".msg.ai")].pop(); return { read: [...m.querySelectorAll(".filed.called")].map(x => x.textContent),
+    cards: [...m.querySelectorAll(".pj-edit")].map(c => [c.querySelector(".pj-ek").textContent, c.querySelector(".pj-ef").textContent, [...c.querySelectorAll(".pj-tact button")].map(b => b.textContent).join("/")]),
+    del: m.querySelector(".as-edit del")?.textContent, ins: m.querySelector(".as-edit ins")?.textContent }; });
+  check("the answer says what it read, and shows the change it proposes and the page it would make, nothing done yet", JSON.stringify(ans.read) === '["Read @invest-assets.csv"]'
+    && JSON.stringify(ans.cards) === '[["Proposed change","In invest-assets.csv","Apply/Turn down"],["New page","Portfolio.html","Create it/Turn down"]]' && ans.del === "misfit" && ans.ins === "fit"
+    && !(await page.evaluate(() => window.__calls.some(x => x.s === "/api/project/edit" || x.s === "/api/assets/make"))), JSON.stringify(ans));
+  await page.click(".as-edit .go"); await page.waitForTimeout(250);
+  const applied = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/project/edit").pop()?.body, kind: document.querySelector(".as-edit .pj-ek").textContent, btn: [...document.querySelectorAll(".as-edit .pj-tact button")].map(b => b.textContent).join("/") }));
+  check("Apply writes the change to that asset, then offers Undo", applied.call?.brain === "assets-octopus~2" && applied.call.id === "e1" && applied.call.action === "apply" && applied.kind === "Applied" && applied.btn === "Undo", JSON.stringify(applied));
+  await page.click(".as-make .go"); await page.waitForTimeout(300);
+  const made = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/assets/make").pop()?.body, kind: document.querySelector(".as-make .pj-ek").textContent, btn: [...document.querySelectorAll(".as-make .pj-tact button")].map(b => b.textContent).join("/"),
+    listed: [...document.querySelectorAll("#assets .as-row .nm")].map(x => x.textContent) }));
+  check("Create it makes the asset, lists it, and offers Open it and Undo", made.call?.id === "c1" && made.call.action === "apply" && made.kind === "Made" && made.btn === "Open it/Undo" && made.listed[0] === "Portfolio.html", JSON.stringify(made));
+  await page.click(".as-make .go"); await page.waitForTimeout(500);
+  check("Open it shows the page it made", await page.evaluate(() => document.querySelector(".pj.asset .pj-t h2")?.textContent === "Portfolio.html" && !!document.querySelector(".pj.asset .pj-frame")));
+  /* a question that names an asset without @ */
+  await page.click("#startBtn"); await page.waitForTimeout(150);
+  await page.fill("#input", "what is in invest-assets?"); await page.keyboard.press("Enter"); await page.waitForTimeout(400);
+  const hint = await page.evaluate(() => [...document.querySelectorAll(".msg.ai .as-hint")].map(b => b.textContent));
+  check("a question that names an asset without @ offers to ask again with it called", JSON.stringify(hint) === '["Ask again with @invest-assets.csv"]', JSON.stringify(hint));
+  await page.click(".as-hint"); await page.waitForTimeout(80);
+  check("and one tap puts it in the bar", (await page.inputValue("#input")) === "what is in invest-assets? @invest-assets.csv");
+  /* the + : files, or a blank */
+  await page.click("#newAsset"); await page.waitForTimeout(100);
+  const menu = await page.evaluate(() => [...document.querySelectorAll(".pj-menu button b")].map(b => b.textContent));
+  check("the + adds files, a link, or a blank document, table or page", JSON.stringify(menu) === '["Add files","Add a link","New document","New table","New page"]', JSON.stringify(menu));
+  await page.click('.pj-menu button[data-add="link"]'); await page.waitForTimeout(100);
+  await page.fill("#alUrl", "jeremylasne.com/invest"); await page.click("#alGo"); await page.waitForTimeout(1200);
+  const link = await page.evaluate(() => ({ fetched: window.__calls.filter(x => x.s === "/api/fetch").pop()?.body?.url, made: window.__calls.filter(x => x.s === "/api/assets/new").pop()?.body,
+    title: document.querySelector(".pj.asset .pj-t h2")?.textContent, sub: document.querySelector(".pj.asset .as-sub")?.textContent, acts: [...document.querySelectorAll(".pj.asset .pj-acts > button")].map(b => b.textContent).join("/") }));
+  check("Add a link reads the page on the server and keeps it as a document under its address, with Read it again", link.fetched === "https://jeremylasne.com/invest" && link.made?.url === "https://jeremylasne.com/invest" && link.made.kind === "doc"
+    && link.title === "jeremylasne.com/invest" && /^Web page · read \d{4}-\d{2}-\d{2} from https:\/\/jeremylasne\.com\/invest · call it in a chat with @$/.test(link.sub || "") && link.acts === "Ask about it/Download/Read it again/Delete", JSON.stringify(link));
+  await page.click("#newAsset"); await page.waitForTimeout(80);
+  await page.click('.pj-menu button[data-add="table"]'); await page.waitForTimeout(500);
+  const blank = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/assets/new").pop()?.body, title: document.querySelector(".pj.asset .pj-t h2")?.textContent, empty: document.querySelector(".pj.asset .pj-empty h3")?.textContent }));
+  check("New table makes a blank one and opens it, saying it is filled from a chat", blank.call?.kind === "table" && blank.call.name === "New table" && blank.title === "New table" && blank.empty === "This table is empty", JSON.stringify(blank));
+  /* a file named as an asset held asks: a new version, or both */
+  await page.click("#newAsset"); await page.waitForTimeout(80);
+  const [fc] = await Promise.all([page.waitForEvent("filechooser"), page.click('.pj-menu button[data-add="add"]')]);
+  await fc.setFiles({ name: "invest-assets.csv", mimeType: "text/csv", buffer: Buffer.from("Asset,Fit\nTin,fit\nZinc,misfit\n") });
+  await page.waitForTimeout(250);
+  const ver = await page.evaluate(() => ({ h: document.querySelector(".veil h3")?.textContent, btns: [...document.querySelectorAll(".veil footer button")].map(b => b.textContent).join("/") }));
+  check("a file named as an asset held asks: a new version, or keep both", ver.h === "invest-assets.csv is an asset already" && ver.btns === "Cancel/Keep both/New version", JSON.stringify(ver));
+  await page.click(".veil footer .go"); await page.waitForTimeout(900);
+  const v = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/assets/new").pop()?.body);
+  check("New version reads it in as that asset's next version", v?.prev === 2 && v.made === false && v.kind === "table" && v.name === "invest-assets.csv", JSON.stringify(v));
+  /* delete */
+  await page.click("#assets .as-row >> nth=0"); await page.waitForTimeout(400);
+  const delFid = await page.evaluate(() => Number(document.querySelector(".pj.asset .pj-doc")?.dataset.fid));
+  await page.click(".pj-acts button >> text=Delete"); await page.waitForTimeout(100);
+  const asks = await page.evaluate(() => document.querySelector(".veil h3")?.textContent);
+  await page.click(".veil footer .go"); await page.waitForTimeout(400);
+  const gone = await page.evaluate(f => ({ view: document.querySelector("main").dataset.view, still: !!document.querySelector(`#assets .as-row[data-fid="${f}"]`), call: window.__calls.filter(x => x.s === "/api/assets/file").pop()?.body }), delFid);
+  check("Delete asks first, removes it, and goes back to the chat", asks === "Delete invest-assets.csv?" && gone.view === "chat" && !gone.still && gone.call?.action === "remove" && gone.call.file === delFid, JSON.stringify({ asks, ...gone }));
+  check("no page error with assets", bad.length === 0, bad.join(" | "));
+  await page.close();
+  /* projects from before: a line in Assets turns them into assets, after a list of what each becomes */
+  {
+    const P = [{ slug: "cap-spartan", name: "cap-spartan", kind: "table", file: "log.csv", status: "ready", chars: 300, sections: 1, memory: 3, at: 2, files: 2 },
+      { slug: "old-idea", name: "Old idea", kind: null, file: "", status: "empty", chars: 0, sections: 0, memory: 0, at: 1 }];
+    const cv = await boot("/chat.html", arg => {
+      if (window.top !== window) return;
+      sessionStorage.setItem("octopus.token.v1", "test");
+      window.__calls = []; window.__projects = arg.projects; window.__assets = [];
+      window.fetch = async (u, opt) => {
+        const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}"), J = x => Response.json(x);
+        window.__calls.push({ s: path, body });
+        if (path === "/api/state") return J({ ...arg.state, projects: window.__projects, assets: window.__assets });
+        if (path === "/api/project/list") return J({ projects: window.__projects });
+        if (path === "/api/assets/list") return J({ base: "assets-octopus", assets: window.__assets });
+        if (path === "/api/assets/adopt") {
+          window.__projects = window.__projects.filter(x => x.slug !== body.project);
+          if (body.project === "cap-spartan") { window.__assets.push({ id: 2, name: "log.csv", kind: "table", status: "ready", chars: 50, rows: 2, at: 2 }, { id: 3, name: "rules.md", kind: "doc", status: "ready", chars: 50, sections: 1, at: 2 }, { id: 4, name: "Notes of cap-spartan.md", kind: "doc", status: "ready", chars: 80, sections: 1, at: 3 }); return J({ ok: true, files: ["log.csv", "rules.md"], notes: "Notes of cap-spartan.md" }); }
+          return J({ ok: true, files: [], notes: null });
+        }
+        return J({ chats: [], conflicted: [], health: [] });
+      };
+    }, { state: { ...STATE, projects: [] }, projects: P });
+    const banner = await cv.page.evaluate(() => document.getElementById("assetsConvert")?.textContent);
+    check("projects from before show a line in Assets to turn them into assets", banner === "Turn 2 projects into assets", String(banner));
+    await cv.page.click("#assetsConvert"); await cv.page.waitForTimeout(120);
+    const sheet = await cv.page.evaluate(() => ({ rows: [...document.querySelectorAll(".ac-row")].map(r => r.querySelector("b").textContent + ": " + r.querySelector(".ac-t span").textContent), go: document.getElementById("acGo").textContent,
+      warn: /Its chat thread, the last 4 exchanges, is not kept/.test(document.querySelector(".veil header p").textContent), moved: window.__calls.some(x => x.s === "/api/assets/adopt") }));
+    check("the sheet lists what each becomes before anything moves, and says the threads are not kept", JSON.stringify(sheet.rows) === '["cap-spartan: 2 files and notes of 3 things it kept become assets","Old idea: nothing to keep: it goes"]' && sheet.go === "Turn all 2 into assets" && sheet.warn && !sheet.moved, JSON.stringify(sheet));
+    await cv.page.click("#acGo"); await cv.page.waitForTimeout(500);
+    const done = await cv.page.evaluate(() => ({ calls: window.__calls.filter(x => x.s === "/api/assets/adopt").map(x => x.body.project), st: [...document.querySelectorAll(".ac-row .ac-st")].map(x => x.textContent), go: document.getElementById("acGo").textContent,
+      assets: [...document.querySelectorAll("#assets .as-row .nm")].map(x => x.textContent), banner: !!document.getElementById("assetsConvert") }));
+    check("Turn them moves each in turn, says what moved, lists the new assets, and the line goes", JSON.stringify(done.calls) === '["cap-spartan","old-idea"]' && JSON.stringify(done.st) === '["2 files and its notes","done"]' && done.go === "Done"
+      && done.assets.length === 3 && !done.banner, JSON.stringify(done));
+    check("no page error turning projects into assets", cv.bad.length === 0, cv.bad.join(" | "));
+    await cv.page.close();
+  }
+  /* the demo keeps none */
+  const demo = await boot("/chat.html", init, { state: { ...STATE, demo: true, projects: [] }, assets: [] });
+  check("the demo shows no Assets", await demo.page.evaluate(() => document.getElementById("assetsPanel").hidden));
+  await demo.page.close();
 }
 
 /* ---- Settings: what the projects cost, and a cap ---- */

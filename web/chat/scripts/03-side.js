@@ -230,13 +230,13 @@ function folds(){
   return folds.v;
 }
 function paintFolds(){
-  for (const k of ["chats","projects","brains"]){
+  for (const k of ["chats","assets","projects","brains"]){
     const shut = !!folds()[k];
     $(k + "Fold").setAttribute("aria-expanded", String(!shut));
     $(k + "Box").hidden = shut;
   }
 }
-for (const k of ["chats","projects","brains"]) $(k + "Fold").onclick = () => {
+for (const k of ["chats","assets","projects","brains"]) $(k + "Fold").onclick = () => {
   folds()[k] = !$(k + "Box").hidden;
   try { localStorage.setItem("octopus.fold", JSON.stringify(folds())); } catch {}
   paintFolds();

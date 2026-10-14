@@ -33,6 +33,8 @@ const S = {
   folder: null,
   /* The projects, the slug of the one open in the main space, and what it holds on screen. */
   projects: [], project: null, pj: null,
+  /* The assets a chat calls with @, and the one open in the main area. */
+  assets: [], asset: null, assetsBase: "",
   /* The last few turns of the current thread. It travels with each question so
      a follow-up means something, and it is never written down: closing the tab
      ends it. */
@@ -54,7 +56,7 @@ const S = {
 };
 
 /* One screen at a time: opening a folder, or going back to the chat, leaves the open project. */
-{ let folder = S.folder; Object.defineProperty(S, "folder", { enumerable: true, get: () => folder, set(v){ folder = v; S.project = null; } }); }
+{ let folder = S.folder; Object.defineProperty(S, "folder", { enumerable: true, get: () => folder, set(v){ folder = v; S.project = null; S.asset = null; } }); }
 
 /* The level is a per-browser convenience, so a blocked or cleared store just
    falls back to normal. */

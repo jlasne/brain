@@ -42,12 +42,14 @@ async function doAsk(q, again){
   try {
     /* "chat" files the turn in the chat on screen, or starts one. A chat
        about one concept sends that concept alone. */
-    const tags = about || S.iv[scope]?.on ? [] : tagsIn(q, tagChoices(isPersonal(scope)));
+    const named = about || S.iv[scope]?.on ? [] : tagsIn(q, tagChoices(isPersonal(scope)));
+    /* An asset tagged travels apart from the folders: the message reads it, and may propose a change to it. */
+    const tags = named.filter(t => !t.startsWith("asset:")), assets = named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6)));
     const r = await api("/api/ask", about
       ? { q, concept: about.id, history: S.thread.slice(-4), chat: S.chatId }
-      : { q, brain: scope, ...(picks.length > 1 ? { brains: picks } : {}), ...(tags.length ? { tags } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });
+      : { q, brain: scope, ...(picks.length > 1 ? { brains: picks } : {}), ...(tags.length ? { tags } : {}), ...(assets.length ? { assets } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });
     const here = landed(job, r);
-    if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, q, asked); }
+    if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, q, asked, true); }
     if (r.interview && isPersonal(scope)) S.iv[scope] = r.interview;
     if ((r.filed && (r.filed.new || r.filed.updated)) || r.changed) refresh().catch(() => {});
     /* Six turns is what a thread of follow-ups runs to before the subject has
@@ -71,12 +73,17 @@ async function doAsk(q, again){
  * An answer on screen, live or from a saved chat: the small-brain note, the
  * answer and its one action.
  */
-function showAnswer(body, r, q, asked){
+function showAnswer(body, r, q, asked, fresh){
   if (r.sources > 0 && r.sources < 10)
     body.append(el("div","smallbrain",`Small folder: ${r.sources} source${r.sources===1?"":"s"} behind this`));
   const out = el("div"); out.innerHTML = splitAnswer(r.answer ?? r.a ?? ""); body.append(out);
   /* The folders the message tagged were read. A personal reply says it in its own line, below. */
   if (!r.personal && Array.isArray(r.tagged) && r.tagged.length) body.append(el("div","filed called",`Read ${r.tagged.map(n => "@" + n).join(", ")}`));
+  /* The assets it read, and what it proposes to change or to make: nothing happens before Apply. */
+  if (Array.isArray(r.assets) && r.assets.length){
+    body.append(el("div","filed called",`Read ${r.assets.map(n => "@" + n).join(", ")}`));
+    assetCards(body, r, !!fresh);
+  }
   /* One small action: the same question as a one-pager. */
   const acts = el("div","ans-acts");
   const pg = el("button","mini","One-pager from this");
@@ -119,6 +126,9 @@ function showAnswer(body, r, q, asked){
     return;
   }
   acts.append(pg);
+  /* A question that names an asset without @: one tap asks it again with the asset called. */
+  const hint = !r.assets?.length ? assetHint(q) : null;
+  if (hint) acts.append(hint);
   body.append(acts);
 }
 

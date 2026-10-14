@@ -53,7 +53,15 @@ export const NEXT_CHARS = 140;
  * slug never holds a tilde, so a key is never taken for another project's.
  */
 export const MAX_FILES = 30;
-export const KEY_RE = /^[a-z0-9][a-z0-9-]*(~\d{1,3})?$/;
+export const KEY_RE = /^[a-z0-9][a-z0-9-]*(~\d{1,5})?$/;
+/**
+ * Assets: the documents, tables and pages a workspace keeps for its chats to read and change. They live as the files of one hidden
+ * container per workspace, so they are read, cut, searched, changed and downloaded exactly as a project's files are. A chat calls one
+ * with @. The first file number is never used: each asset is `assets-<space>~n`, n from 2.
+ */
+export const ASSETS_MAX = 100;
+export const assetsSlug = (space: string) => `assets-${String(space || "").toLowerCase()}`;
+export const isAssets = (base: string) => /^assets-[a-z0-9-]+$/.test(String(base));
 export const fileKey = (base: string, fid: number) => fid > 1 ? `${base}~${fid}` : base;
 export const splitKey = (key: string): { base: string; fid: number } => {
   const [base, n] = String(key).split("~");

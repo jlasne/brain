@@ -398,7 +398,7 @@ function setupSpend({ veil }){
     const sum = veil.querySelector("#spendSum"), body = veil.querySelector("#spendBody"), note = veil.querySelector("#spendMsg");
     const capIn = veil.querySelector("#spendCap"), save = veil.querySelector("#spendSave"), off = veil.querySelector("#spendOff");
     /* Everything outside the projects that asks a model, by kind, in this order. */
-    const KINDS = { folders: "Folder chat", personal: "Personal chat", drops: "Drops", upkeep: "Upkeep", pager: "One-pagers", voice: "Voice" };
+    const KINDS = { folders: "Folder chat", personal: "Personal chat", drops: "Drops", upkeep: "Upkeep", pager: "One-pagers", voice: "Voice", assets: "Assets" };
     const paint = r => {
       /* The projects and the chats, added: what the month cost in all. The cap is about the projects alone. */
       const chats = (r.chats || []).filter(c => KINDS[c.kind]).sort((a, b) => Object.keys(KINDS).indexOf(a.kind) - Object.keys(KINDS).indexOf(b.kind));

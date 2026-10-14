@@ -41,7 +41,9 @@ document.addEventListener("pointerdown", e => { if (atMenu && !atMenu.contains(e
 /** What a chat may be told to read: the folders, and in the personal chat the projects as well. */
 function tagChoices(personal){
   const folders = S.brains.filter(b => b.type !== "personal").map(b => ({ slug: b.slug, name: b.name, tag: "" }));
-  return personal ? [...folders, ...(S.projects || []).map(p => ({ slug: p.slug, name: p.name, tag: "project" }))] : folders;
+  /* The assets, beside the folders: a tag reads one, and a chat may propose a change to it. */
+  const assets = S.demo ? [] : (S.assets || []).filter(a => a.status === "ready").map(a => ({ slug: "asset:" + a.id, name: a.name, tag: pjNoun(a.kind) }));
+  return personal ? [...folders, ...(S.projects || []).map(p => ({ slug: p.slug, name: p.name, tag: "project" }))] : [...folders, ...assets];
 }
 /** The slugs a message names with @, each once. The longest names are read first, so "@Pricing review" is not taken for "@Pricing". */
 function tagsIn(text, choices){
@@ -376,6 +378,7 @@ $("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
 $("newProject").onclick = () => openProjectSheet();
+$("newAsset").onclick = e => { e.stopPropagation(); openAssetAdd(e.currentTarget); };
 
 {
   const wrap = document.querySelector(".composer-wrap");
