@@ -683,13 +683,18 @@ function renderScope(){
   if (isPersonal(S.scope) && S.mode === "drop") S.mode = "ask";
   const drop = S.mode === "drop";
   const nameOf = x => S.brains.find(b => b.slug === x)?.name || x;
+  /* Assets ticked stay ticked while they are here, ready, and the chat is not the personal one. */
+  S.assetPicks = isPersonal(S.scope) || drop ? [] : S.assetPicks.filter(id => (S.assets || []).some(a => a.id === id && a.status === "ready"));
+  const folders = S.picks.length > 1 ? `${nameOf(S.picks[0])} +${S.picks.length - 1}` : S.scope === "all" ? "All folders" : nameOf(S.scope);
+  const picked = S.assetPicks.length === 1 ? (S.assets.find(a => a.id === S.assetPicks[0])?.name || "1 asset") : `${S.assetPicks.length} assets`;
   /* Asking across every brain needs no label: the name says it. */
   $("scopeLabel").textContent = drop ? "Into" : isPersonal(S.scope) ? "Chat with" : "";
   /* A drop can feed several brains: the first by name, then how many more. */
   $("scopeVal").textContent = drop
     ? (!S.into.length ? "Suggest for me" : S.into.length === 1 ? nameOf(S.into[0]) : `${nameOf(S.into[0])} +${S.into.length - 1}`)
-    : S.picks.length > 1 ? `${nameOf(S.picks[0])} +${S.picks.length - 1}`
-    : S.scope === "all" ? "All folders" : nameOf(S.scope);
+    : !S.assetPicks.length ? folders
+    /* With every folder in scope, an asset ticked is what the chat reads: the folders join only when named with @. */
+    : S.scope === "all" && S.picks.length < 2 ? picked : `${folders} + ${picked}`;
   const mark = $("spaceMark")?.getAttribute("src");
   if (mark && $("scopeMark").getAttribute("src") !== mark) $("scopeMark").src = mark;
   if (pickMenu) fillPick();
@@ -725,7 +730,7 @@ function fillPick(){
       e.stopPropagation();
       if (!drop){
         crossing(slug);
-        if (isPersonal(slug)){ S.picks = []; S.scope = slug; S.into = []; } else setPicks(slug === "all" ? [] : [slug]);
+        if (isPersonal(slug)){ S.picks = []; S.scope = slug; S.into = []; S.assetPicks = []; } else setPicks(slug === "all" ? [] : [slug]);
         closePick(); render(); $("input").focus(); return;
       }
       if (slug === "all") S.into = [];
@@ -742,6 +747,26 @@ function fillPick(){
   if (drop) m.append(el("div","pk-h","Or tick the folders to feed"));
   if (!drop) m.append(el("div","pk-h","Or one folder"));
   for (const b of ordered()) if (!drop || (b.type !== "personal" && !readOnly(b))) m.append(row(b.slug, b.name, b.type === "personal" ? "your chat" : "", String(conceptsOf(b.slug).length), b));
+  /* Assets beside the folders, ticked as many as 4: each is read with every message, as if named with @. The menu stays open. */
+  const ready = drop || S.demo || !S.assetsOn ? [] : (S.assets || []).filter(a => a.status === "ready");
+  if (ready.length){
+    m.append(el("div","pk-h","And assets to read"));
+    for (const a of ready){
+      const on = S.assetPicks.includes(a.id);
+      const r = el("button","pk-row pk-asset" + (on ? " on" : "")); r.dataset.fid = String(a.id);
+      r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
+      const box = el("span","pk-box"); box.innerHTML = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.6l4.5-5"/></svg>`;
+      const ic = el("span","pk-ic"); ic.innerHTML = pjIcon(a.kind);
+      r.append(box, ic, el("span","pk-nm", a.name), el("span","pk-ct", assetMeta(a)));
+      r.onclick = e => {
+        e.stopPropagation();
+        S.assetPicks = on ? S.assetPicks.filter(x => x !== a.id) : [...S.assetPicks, a.id].slice(-4);
+        if (isPersonal(S.scope)) S.scope = "all";
+        render();
+      };
+      m.append(r);
+    }
+  }
   if (drop){
     const done = el("button","pk-done", S.into.length > 1 ? `Feed ${S.into.length} folders` : "Done");
     done.onclick = e => { e.stopPropagation(); closePick(); $("input").focus(); };
@@ -810,6 +835,7 @@ function renderComposer(){
     : about ? (about.personal ? `Tell or ask anything about ${about.title}. What you say changes it.` : `Ask about ${about.title}.`)
     : asking ? "Your answer, in your own words"
     : mine ? (phone() ? "Tell it anything. @ calls a folder." : "Tell it anything: a plan, a decision, an idea. Or ask what you said. Type @ to call a folder.")
+    : S.assetPicks.length ? `Ask about ${S.assetPicks.map(id => S.assets.find(a => a.id === id)?.name).filter(Boolean).join(", ")}.`
     : S.picks.length > 1 ? `Ask ${picksName()}.`
     : S.scope==="all" ? (phone() ? "Ask your folders. @ names one." : "Ask anything your folders have read. Type @ to name one.")
                       : "Ask " + (S.brains.find(b=>b.slug===S.scope)?.name || "this folder") + ".";

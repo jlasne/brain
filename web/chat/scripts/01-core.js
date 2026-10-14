@@ -34,6 +34,8 @@ const S = {
   /* The assets a chat calls with @, the number of the one open in the main area, and what it holds on screen.
      `assetsOn` is false while the server is older than this page and has no asset routes yet. */
   assets: [], asset: null, pj: null, assetsOn: true,
+  /* The assets ticked in the chat bar's picker: every message reads them, as if it named them with @. */
+  assetPicks: [],
   /* The projects made before the assets, still to be turned into assets. */
   projects: [],
   /* The last few turns of the current thread. It travels with each question so

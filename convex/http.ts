@@ -869,7 +869,10 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
   const assets = wanted.map(fid => listed.find(a => a.id === fid)).filter(Boolean).slice(0, ASSETS_A_MESSAGE);
   if (!assets.length) return { answer: "Those assets are no longer here. Pick one with @, or add it again from Assets." };
   const { brains, cards: concepts, sources } = withoutPersonal(every);
-  const tags = tagsOf(b.tags, brains).slice(0, Math.max(0, ASSETS_A_MESSAGE - assets.length));
+  /* The folders read beside them: the ones the message tags, else the ones the chat is set to (one folder, or the folders ticked). */
+  const tagged = tagsOf(b.tags, brains);
+  const scoped = Array.isArray(b.brains) && b.brains.length > 1 ? b.brains.map(String) : b.brain && b.brain !== "all" ? [String(b.brain)] : [];
+  const tags = (tagged.length ? tagged : scoped.filter(x => brains.some((y: any) => y.slug === x))).slice(0, Math.max(0, ASSETS_A_MESSAGE - assets.length));
   const pool = brains.filter((x: any) => tags.includes(x.slug));
 
   /* The assets, read for this message. */

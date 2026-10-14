@@ -44,7 +44,9 @@ async function doAsk(q, again){
        about one concept sends that concept alone. */
     const named = about || S.iv[scope]?.on ? [] : tagsIn(q, tagChoices(isPersonal(scope)));
     /* An asset tagged travels apart from the folders: the message reads it, and may propose a change to it. */
-    const tags = named.filter(t => !t.startsWith("asset:")), assets = named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6)));
+    const tags = named.filter(t => !t.startsWith("asset:"));
+    /* The assets it names, then the ones ticked in the picker: four at most. */
+    const assets = about || isPersonal(scope) ? [] : [...new Set([...named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6))), ...S.assetPicks])].slice(0, 4);
     const r = await api("/api/ask", about
       ? { q, concept: about.id, history: S.thread.slice(-4), chat: S.chatId }
       : { q, brain: scope, ...(picks.length > 1 ? { brains: picks } : {}), ...(tags.length ? { tags } : {}), ...(assets.length ? { assets } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });

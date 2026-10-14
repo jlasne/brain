@@ -566,6 +566,8 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   reply = { asset: { answer: "Gold fits.", edits: [], create: null }, folders: { picks: ["wealth/gold"], terms: ["gold"] } };
   await call("/api/ask", { q: "does gold fit the table?", brain: "all", assets: [2], tags: ["wealth"], chat: null });
   sent1 = last(/You work on the owner's assets/);
+  await call("/api/ask", { q: "does gold fit the table?", brain: "wealth", assets: [2], chat: null });
+  check("the folder the chat is set to is read beside the asset when the message tags none", /THEIR FOLDERS\n/.test(last(/You work on the owner's assets/).user) && /Gold holds its value/.test(last(/You work on the owner's assets/).user));
   check("a folder tagged in the same message is read beside the asset", /THEIR FOLDERS\n/.test(sent1.user) && /Gold holds its value/.test(sent1.user) && /THEIR FOLDERS: notes from the folders the message tagged/.test(sent1.sys), sent1.user.slice(sent1.user.indexOf("THEIR FOLDERS")).slice(0, 200));
 
   /* a change proposed, applied, undone */

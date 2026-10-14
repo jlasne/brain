@@ -150,6 +150,7 @@ A third kind of folder, next to subjects and experts. You talk to it, and it kee
 Documents, tables, pages and web pages you keep. Any chat calls one with @, as it calls a folder.
 
 - **Add** Word, PDF, text, Markdown, HTML, Excel or CSV files of up to 30MB, read in your browser. Or a link: the page is read and kept, up to 60,000 characters, and read again in one tap. Or a blank Doc, HTML page or Table.
+- **Or tick it in the chat bar.** The picker lists your assets under the folders. Tick up to 4 and every message reads them, beside the folder the chat is set to.
 - **Call it with @.** "@invest-assets.csv what are the best 4 lines?" A table of up to 120,000 characters (about 300 rows of 30 columns) is read whole; a bigger one, up to 40,000 rows, by a filter and totals run over every row. A document of up to 60,000 characters (about 20 pages) is read whole; a longer one, up to 4,000 pages, by the 8 sections that bear on the question. Up to 4 assets and folders in one message.
 - **Nothing changes without you.** A chat proposes a change with the words before and after, or a new asset with what it will hold. Apply, Turn down, then Undo.
 - **Versions.** A file dropped under a name an asset holds becomes its new version. The one before is kept: Undo brings it back.
@@ -243,7 +244,7 @@ The app's source sits in `web/chat/`, one file a screen. `npm run build` joins i
 
 ```bash
 npm run build     # web/chat into app/chat.html
-npm run check     # the build first, then 1885 checks
+npm run check     # the build first, then 1890 checks
 npm run deploy    # the server, to Convex
 ```
 
@@ -257,7 +258,7 @@ skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a folder
 ```
 
-`npm run check` runs 1885 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
+`npm run check` runs 1890 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 

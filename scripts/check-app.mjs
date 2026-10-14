@@ -3781,6 +3781,21 @@ for (const space of ["octopus", "squidgy"]) {
   check("Create it makes the asset, lists it, and offers Open it and Undo", made.call?.id === "c1" && made.call.action === "apply" && made.kind === "Made" && made.btn === "Open it/Undo" && made.listed[0] === "Portfolio.html", JSON.stringify(made));
   await page.click(".as-make .go"); await page.waitForTimeout(500);
   check("Open it shows the page it made", await page.evaluate(() => document.querySelector(".pj .pj-t h2")?.textContent === "Portfolio.html" && !!document.querySelector(".pj .pj-frame")));
+  /* assets ticked in the chat bar's picker, read with every message */
+  await page.click("#startBtn"); await page.waitForTimeout(150);
+  await page.click("#scopeBtn"); await page.waitForTimeout(120);
+  const pk = await page.evaluate(() => ({ h: [...document.querySelectorAll(".pick-menu .pk-h")].map(x => x.textContent), rows: [...document.querySelectorAll(".pick-menu .pk-asset .pk-nm")].map(x => x.textContent) }));
+  check("the chat bar's picker lists the assets beside the folders", pk.h.includes("And assets to read") && pk.rows.includes("invest-assets.csv"), JSON.stringify(pk));
+  await page.click('.pick-menu .pk-asset[data-fid="2"]'); await page.waitForTimeout(120);
+  const ticked = await page.evaluate(() => ({ open: !!document.querySelector(".pick-menu"), on: !!document.querySelector('.pick-menu .pk-asset.on[data-fid="2"]'), label: document.getElementById("scopeVal").textContent, ph: document.getElementById("input").placeholder }));
+  check("ticking one keeps the menu open, and the bar says what it will read", ticked.open && ticked.on && ticked.label === "invest-assets.csv" && /Ask about invest-assets\.csv\./.test(ticked.ph), JSON.stringify(ticked));
+  await page.keyboard.press("Escape"); await page.click("body", { position: { x: 900, y: 60 } }); await page.waitForTimeout(100);
+  await page.fill("#input", "which line returns the most?"); await page.keyboard.press("Enter"); await page.waitForTimeout(400);
+  check("a message then reads the ticked asset, with no @ in it", JSON.stringify(await page.evaluate(() => window.__calls.filter(x => x.s === "/api/ask").pop()?.body?.assets)) === "[2]");
+  await page.click("#scopeBtn"); await page.waitForTimeout(120);
+  await page.click('.pick-menu .pk-asset[data-fid="2"]'); await page.waitForTimeout(100);
+  check("ticked again, it is read no more", await page.evaluate(() => document.getElementById("scopeVal").textContent) === "All folders");
+  await page.click("body", { position: { x: 900, y: 60 } }); await page.waitForTimeout(100);
   /* a question that names an asset without @ */
   await page.click("#startBtn"); await page.waitForTimeout(150);
   await page.fill("#input", "what is in invest-assets?"); await page.keyboard.press("Enter"); await page.waitForTimeout(400);
