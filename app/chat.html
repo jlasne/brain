@@ -8867,7 +8867,7 @@ function renderAssets(){
   const old = S.demo ? [] : (S.projects || []);
   if (old.length){
     const conv = el("button","as-convert"); conv.type = "button"; conv.id = "assetsConvert";
-    conv.textContent = `Turn ${old.length} project${old.length === 1 ? "" : "s"} into assets`;
+    conv.textContent = `${old.length} old project${old.length === 1 ? "" : "s"}: delete or keep as assets`;
     conv.onclick = openConvert;
     box.append(conv);
   }
@@ -8901,7 +8901,7 @@ async function syncAssets(){
 function openAssetAdd(anchor){
   if (assetsOld()) return;
   popMenu(anchor, "Add an asset", menu => {
-    for (const [k, label, hint] of [["add","Add files","Word, PDF, Excel, CSV, HTML"], ["link","Add a link","a web page, read and kept"], ["doc","New document","blank"], ["table","New table","blank"], ["html","New page","blank"]]){
+    for (const [k, label, hint] of [["add","Add files","Word, PDF, Excel, CSV, HTML"], ["link","Add a link","a web page, read and kept"], ["doc","Doc","blank"], ["html","HTML","blank"], ["table","Table","blank"]]){
       const b = el("button"); b.type = "button"; b.dataset.add = k; b.setAttribute("role","menuitem");
       b.append(el("b",null,label), el("span",null,hint));
       b.onclick = () => { closeDownload(); if (k === "add") pickFiles(PJ_FILES, files => addAssets(files)); else if (k === "link") askLink(); else newAsset(k); };
@@ -9212,19 +9212,19 @@ function convertLine(p){
   return parts.length ? `${parts.join(" and ")} become${parts.length === 1 && files === 1 && !p.memory ? "s" : ""} assets` : "nothing to keep: it goes";
 }
 /**
- * The projects listed with what each becomes, then turned into assets one after the other: files with all they hold, the Brief and the
- * memory into one document, Notes of the project. Its chat thread, its last 4 exchanges, is not kept. Nothing moves before Turn them.
+ * The projects listed with what each would become, then deleted, or turned into assets one after the other: files with all they hold,
+ * the Brief and the memory into one document, Notes of the project. Delete asks a second click. Nothing moves before then.
  */
 function openConvert(){
   const list = (S.projects || []).slice();
   if (!list.length) return;
   const veil = el("div","veil");
-  veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="acTitle"><header><h3 id="acTitle">Turn projects into assets</h3>
-    <p>Each project's files become assets, with everything they hold. Its Brief and what it kept become one document, "Notes of" the project. Its chat thread, the last 4 exchanges, is not kept. Then the project goes.</p></header>
+  veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="acTitle"><header><h3 id="acTitle">Old projects</h3>
+    <p>Delete them, files and notes with them. Or keep them as assets: each project's files become assets, and its Brief and what it kept become one document, "Notes of" the project. Its chat thread is not kept either way.</p></header>
     <div class="f"><div class="ac-list" id="acList"></div><div class="bad" id="acBad"></div></div>
-    <footer><button class="ghost" id="acCancel" type="button">Cancel</button><button class="go" id="acGo" type="button"></button></footer></div>`;
+    <footer><button class="ghost" id="acCancel" type="button">Cancel</button><button class="ghost bad" id="acDel" type="button"></button><button class="go" id="acGo" type="button"></button></footer></div>`;
   document.body.append(veil);
-  const box = veil.querySelector("#acList"), go = veil.querySelector("#acGo"), cancel = veil.querySelector("#acCancel"), bad = veil.querySelector("#acBad");
+  const box = veil.querySelector("#acList"), go = veil.querySelector("#acGo"), del = veil.querySelector("#acDel"), cancel = veil.querySelector("#acCancel"), bad = veil.querySelector("#acBad");
   const rows = list.map(p => {
     const r = el("div","ac-row"); r.dataset.slug = p.slug;
     const t = el("div","ac-t"); t.append(el("b",null,p.name), el("span",null,convertLine(p)));
@@ -9232,21 +9232,21 @@ function openConvert(){
     r.append(t, st); box.append(r);
     return { p, r, st };
   });
-  go.textContent = `Turn ${list.length === 1 ? "it" : `all ${list.length}`} into assets`;
+  const all = list.length === 1 ? "it" : `all ${list.length}`;
+  go.textContent = "Keep as assets"; del.textContent = `Delete ${all}`;
   let busy = false;
   const shut = () => { if (!busy) veil.remove(); };
   cancel.onclick = shut; veil.onclick = e => { if (e.target === veil) shut(); };
-  go.onclick = async () => {
-    if (go.dataset.done){ veil.remove(); return; }
-    busy = true; go.disabled = true; cancel.disabled = true; bad.textContent = "";
+  /* Each project in turn, deleted with `drop`, or turned into assets. What is done leaves the list; what failed can be asked again. */
+  const run = async drop => {
+    busy = true; go.disabled = del.disabled = cancel.disabled = true; bad.textContent = "";
     let failed = 0;
-    for (const x of rows){
-      x.r.classList.add("run"); x.st.textContent = "moving";
+    for (const x of rows.filter(x => !x.r.classList.contains("done"))){
+      x.r.classList.remove("fail"); x.r.classList.add("run"); x.st.textContent = drop ? "deleting" : "moving";
       try {
-        const r = await api("/api/assets/adopt", { project: x.p.slug });
-        if (r.error) throw new Error(r.error);
+        const r = await api("/api/assets/adopt", { project: x.p.slug, ...(drop ? { drop: true } : {}) });
         const n = (r.files || []).length;
-        x.st.textContent = [n ? `${n} file${n === 1 ? "" : "s"}` : "", r.notes ? "its notes" : ""].filter(Boolean).join(" and ") || "done";
+        x.st.textContent = drop ? "deleted" : [n ? `${n} file${n === 1 ? "" : "s"}` : "", r.notes ? "its notes" : ""].filter(Boolean).join(" and ") || "done";
         x.r.classList.remove("run"); x.r.classList.add("done");
         S.projects = (S.projects || []).filter(p => p.slug !== x.p.slug);
       } catch (e){
@@ -9256,9 +9256,15 @@ function openConvert(){
     }
     busy = false; cancel.disabled = false;
     await syncAssets(); render();
-    go.disabled = false;
-    if (!failed){ go.dataset.done = "1"; go.textContent = "Done"; cancel.hidden = true; }
-    else go.textContent = "Try the rest again";
+    go.disabled = del.disabled = false;
+    if (!failed){ go.dataset.done = "1"; go.textContent = "Done"; del.hidden = cancel.hidden = true; }
+    else { go.textContent = "Keep the rest as assets"; del.textContent = "Delete the rest"; delete del.dataset.sure; }
+  };
+  go.onclick = () => go.dataset.done ? veil.remove() : run(false);
+  /* Deleting asks a second click: the button says what goes for good. */
+  del.onclick = () => {
+    if (!del.dataset.sure){ del.dataset.sure = "1"; del.textContent = "Delete for good?"; return; }
+    run(true);
   };
 }
 

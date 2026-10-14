@@ -357,7 +357,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/assets/file` | One asset, by `action`: `rename`, `remove` (with the version kept for its Undo), or `undo` (a new version taken back, the one before returns) | Owner |
 | `/api/assets/make` | A new asset a chat proposed, by `action`: `apply` makes and fills it, `undo` takes it away, `dismiss` turns it down | Owner |
 | `/api/assets/state` | Where the changes and new assets of a chat opened again stand now | Yes |
-| `/api/assets/adopt` | A project made before the assets, turned into assets, once: its files move with all they hold (a name an asset holds gets the project's name after it), its Brief, State of play, open questions and memory become one document, "Notes of" the project, and the project goes with its thread | Owner. Runs a model for the notes |
+| `/api/assets/adopt` | A project made before the assets, deleted whole with `drop: true`, or turned into assets, once: its files move with all they hold (a name an asset holds gets the project's name after it), its Brief, State of play, open questions and memory become one document, "Notes of" the project, and the project goes with its thread | Owner. Runs a model for the notes |
 | `/api/spend` | What the workspace cost this month, kind by kind (folder chat, personal chat, assets, drops, upkeep, one-pagers, voice): the dollars the model host reported, the calls it gave a price for and all the calls, the tokens in, out and reused, and the answers given again for free; and the month before in all | Owner |
 | `/mcp`, and any path under `/mcp/` | The public MCP server, read only. `/mcp/v0` reaches the same handler | No, by design |
 

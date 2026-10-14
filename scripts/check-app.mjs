@@ -3789,7 +3789,7 @@ for (const space of ["octopus", "squidgy"]) {
   /* the + : files, or a blank */
   await page.click("#newAsset"); await page.waitForTimeout(100);
   const menu = await page.evaluate(() => [...document.querySelectorAll(".pj-menu button b")].map(b => b.textContent));
-  check("the + adds files, a link, or a blank document, table or page", JSON.stringify(menu) === '["Add files","Add a link","New document","New table","New page"]', JSON.stringify(menu));
+  check("the + adds files, a link, or a blank document, table or page", JSON.stringify(menu) === '["Add files","Add a link","Doc","HTML","Table"]', JSON.stringify(menu));
   await page.click('.pj-menu button[data-add="link"]'); await page.waitForTimeout(100);
   await page.fill("#alUrl", "jeremylasne.com/invest"); await page.click("#alGo"); await page.waitForTimeout(1200);
   const link = await page.evaluate(() => ({ fetched: window.__calls.filter(x => x.s === "/api/fetch").pop()?.body?.url, made: window.__calls.filter(x => x.s === "/api/assets/new").pop()?.body,
@@ -3823,7 +3823,7 @@ for (const space of ["octopus", "squidgy"]) {
   /* projects from before: a line in Assets turns them into assets, after a list of what each becomes */
   {
     const P = [{ slug: "cap-spartan", name: "cap-spartan", files: 2, memory: 3 }, { slug: "old-idea", name: "Old idea", files: 0, memory: 0 }];
-    const cv = await boot("/chat.html", arg => {
+    const cvInit = arg => {
       if (window.top !== window) return;
       sessionStorage.setItem("octopus.token.v1", "test");
       window.__calls = []; window.__projects = arg.projects; window.__assets = [];
@@ -3834,18 +3834,20 @@ for (const space of ["octopus", "squidgy"]) {
         if (path === "/api/assets/list") return J({ assets: window.__assets });
         if (path === "/api/assets/adopt") {
           window.__projects = window.__projects.filter(x => x.slug !== body.project);
+          if (body.drop) return J({ ok: true, files: [], notes: null });
           if (body.project === "cap-spartan") { window.__assets.push({ id: 2, name: "log.csv", kind: "table", status: "ready", chars: 50, rows: 2, at: 2 }, { id: 3, name: "rules.md", kind: "doc", status: "ready", chars: 50, sections: 1, at: 2 }, { id: 4, name: "Notes of cap-spartan.md", kind: "doc", status: "ready", chars: 80, sections: 1, at: 3 }); return J({ ok: true, files: ["log.csv", "rules.md"], notes: "Notes of cap-spartan.md" }); }
           return J({ ok: true, files: [], notes: null });
         }
         return J({ chats: [], conflicted: [], health: [] });
       };
-    }, { state: STATE, projects: P });
+    };
+    const cv = await boot("/chat.html", cvInit, { state: STATE, projects: P });
     const banner = await cv.page.evaluate(() => document.getElementById("assetsConvert")?.textContent);
-    check("projects from before show a line in Assets to turn them into assets", banner === "Turn 2 projects into assets", String(banner));
+    check("projects from before show a line in Assets to delete them or keep them as assets", banner === "2 old projects: delete or keep as assets", String(banner));
     await cv.page.click("#assetsConvert"); await cv.page.waitForTimeout(120);
-    const sheet = await cv.page.evaluate(() => ({ rows: [...document.querySelectorAll(".ac-row")].map(r => r.querySelector("b").textContent + ": " + r.querySelector(".ac-t span").textContent), go: document.getElementById("acGo").textContent,
-      warn: /Its chat thread, the last 4 exchanges, is not kept/.test(document.querySelector(".veil header p").textContent), moved: window.__calls.some(x => x.s === "/api/assets/adopt") }));
-    check("the sheet lists what each becomes before anything moves, and says the threads are not kept", JSON.stringify(sheet.rows) === '["cap-spartan: 2 files and notes of 3 things it kept become assets","Old idea: nothing to keep: it goes"]' && sheet.go === "Turn all 2 into assets" && sheet.warn && !sheet.moved, JSON.stringify(sheet));
+    const sheet = await cv.page.evaluate(() => ({ rows: [...document.querySelectorAll(".ac-row")].map(r => r.querySelector("b").textContent + ": " + r.querySelector(".ac-t span").textContent), go: document.getElementById("acGo").textContent, del: document.getElementById("acDel").textContent,
+      warn: /Its chat thread is not kept either way/.test(document.querySelector(".veil header p").textContent), moved: window.__calls.some(x => x.s === "/api/assets/adopt") }));
+    check("the sheet lists what each would become before anything moves, offers Delete or Keep as assets, and says the threads are not kept", JSON.stringify(sheet.rows) === '["cap-spartan: 2 files and notes of 3 things it kept become assets","Old idea: nothing to keep: it goes"]' && sheet.go === "Keep as assets" && sheet.del === "Delete all 2" && sheet.warn && !sheet.moved, JSON.stringify(sheet));
     await cv.page.click("#acGo"); await cv.page.waitForTimeout(500);
     const done = await cv.page.evaluate(() => ({ calls: window.__calls.filter(x => x.s === "/api/assets/adopt").map(x => x.body.project), st: [...document.querySelectorAll(".ac-row .ac-st")].map(x => x.textContent), go: document.getElementById("acGo").textContent,
       assets: [...document.querySelectorAll("#assets .as-row .nm")].map(x => x.textContent), banner: !!document.getElementById("assetsConvert") }));
@@ -3853,6 +3855,18 @@ for (const space of ["octopus", "squidgy"]) {
       && done.assets.length === 3 && !done.banner, JSON.stringify(done));
     check("no page error turning projects into assets", cv.bad.length === 0, cv.bad.join(" | "));
     await cv.page.close();
+    /* or deleted, after a second click */
+    const dv = await boot("/chat.html", cvInit, { state: STATE, projects: P });
+    await dv.page.click("#assetsConvert"); await dv.page.waitForTimeout(120);
+    await dv.page.click("#acDel"); await dv.page.waitForTimeout(150);
+    const ask = await dv.page.evaluate(() => ({ del: document.getElementById("acDel").textContent, calls: window.__calls.filter(x => x.s === "/api/assets/adopt").length }));
+    check("Delete asks a second click before anything goes", ask.del === "Delete for good?" && ask.calls === 0, JSON.stringify(ask));
+    await dv.page.click("#acDel"); await dv.page.waitForTimeout(500);
+    const gone = await dv.page.evaluate(() => ({ calls: window.__calls.filter(x => x.s === "/api/assets/adopt").map(x => [x.body.project, x.body.drop]), st: [...document.querySelectorAll(".ac-row .ac-st")].map(x => x.textContent),
+      assets: document.querySelectorAll("#assets .as-row").length, banner: !!document.getElementById("assetsConvert") }));
+    check("then each project is deleted, nothing becomes an asset, and the line goes", JSON.stringify(gone.calls) === '[["cap-spartan",true],["old-idea",true]]' && JSON.stringify(gone.st) === '["deleted","deleted"]' && gone.assets === 0 && !gone.banner, JSON.stringify(gone));
+    check("no page error deleting projects", dv.bad.length === 0, dv.bad.join(" | "));
+    await dv.page.close();
   }
   /* a server older than this page: it has no asset route, and the page says what to run instead of failing */
   {

@@ -885,7 +885,7 @@ export const projectNotes = internalQuery({
 });
 
 /**
- * A project taken apart once its files are assets, a batch at a time: what is left of its files, its own row, its memory with the
+ * A project taken apart, once its files are assets or when its owner deletes it, a batch at a time: what is left of its files, its own row, its memory with the
  * cards and meaning of each note, the sources it alone rested on, then the folder. Says whether more is left.
  */
 export const projectWipe = internalMutation({

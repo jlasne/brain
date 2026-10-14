@@ -634,6 +634,13 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
     && /## Brief\s+Goal: 100 push-ups a day\./.test(nd) && /## Where it stood\s+Day 12 of 30\./.test(nd) && /## Still open\s+- Which days are rest days\?/.test(nd) && /### Pace \(2026-10-01\)\s+Ten more reps each week\./.test(nd), JSON.stringify({ lr, nd }));
   check("and the project is gone, with its memory and its own row", (await call("/api/state")).projects.length === 0 && !w.T.brains.some(x => x.slug === pr) && !w.T.concepts.some(c => c.brain === pr)
     && !w.T.projectCards.some(c => c.brain === pr || c.brain.startsWith(pr + "~")) && !w.T.projectBriefs.some(x => x.brain === pr));
+  w.T.brains.push({ _id: "bq", slug: "old-idea", name: "Old idea", type: "project", scope: "", visibility: "private", space: "octopus", created: "2026-01-01" });
+  const oq = await w.ctx.runMutation("files.fileBegin", { space: SPACE, brain: "old-idea", name: "idea.md", kind: "doc", sheets: [{ name: "idea.md" }] });
+  await reader.addDocPiece(w.ctx, { space: SPACE, brain: "old-idea", ver: oq.ver, text: "# Idea\n\nA shop.", page: 0 });
+  await reader.finishFile(w.ctx, { space: SPACE, brain: "old-idea", ver: oq.ver });
+  const n0 = (await listed()).length;
+  const dr = await call("/api/assets/adopt", { project: "old-idea", drop: true });
+  check("a project deleted instead goes whole, its file with it, and adds no asset", dr.ok && (await listed()).length === n0 && !w.T.brains.some(x => x.slug === "old-idea") && !w.T.projectFiles.some(f => f.brain === "old-idea") && !w.T.projectCards.some(c => c.brain === "old-idea"));
   check("turning the assets themselves into assets is refused", /assets already/.test((await call("/api/assets/adopt", { project: BASE })).error ?? ""));
 
   /* rename, remove, the other workspace, the demo */

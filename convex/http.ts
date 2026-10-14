@@ -2005,6 +2005,11 @@ route("/api/assets/adopt", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   const project = String(b.project ?? "");
   const got = await ctx.runQuery(internal.files.projectNotes, { space: who.space, brain: project });
+  /* `drop`: the project goes as it is, its files and notes with it, and nothing becomes an asset. */
+  if (b.drop === true) {
+    for (let i = 0; i < 500; i++) if (!(await ctx.runMutation(internal.files.projectWipe, { space: who.space, brain: project })).more) return { ok: true, files: [], notes: null };
+    return { error: "that project is large: ask again to finish deleting it" };
+  }
   await ctx.runMutation(internal.files.assetsEnsure, { space: who.space });
   /* The notes first, while the project still holds them. */
   const lines: string[] = [];
