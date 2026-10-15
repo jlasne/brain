@@ -67,6 +67,22 @@
   .chat-row .nm, .brain-row .nm{ font:400 13.5px/1.35 var(--sans); color:var(--ink-2); }
   .chat-row.on .nm, .brain-row.on .nm{ font-weight:500; color:var(--ink); }
   .brain-row.on .b-ic, .brain-row .b-ic{ color:var(--ink-4); }
+  /* Under the personal folder, linked to it by a short branch: its interview and its daily log. */
+  .brain-sub{ position:relative; display:flex; align-items:center; gap:8px; width:100%; min-height:30px; margin-top:1px; padding:4px 10px 4px 36px;
+    border:0; border-radius:8px; background:none; text-align:left; cursor:pointer; }
+  .brain-sub[hidden]{ display:none; }
+  .brain-sub::before{ content:""; position:absolute; left:17px; top:-3px; height:calc(50% + 3px); width:10px;
+    border-left:1px solid var(--line-2); border-bottom:1px solid var(--line-2); border-bottom-left-radius:6px; }
+  .brain-sub svg{ width:14px; height:14px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; color:var(--ink-4); }
+  .brain-sub .nm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:400 13px/1.35 var(--sans); color:var(--ink-3); }
+  .brain-sub .st{ flex:none; font:500 12px/1 var(--mono); color:var(--ink-4); }
+  .brain-sub .st:empty{ display:none; }
+  .brain-sub:hover{ background:var(--side-hover); }
+  .brain-sub:hover .nm{ color:var(--ink); }
+  .brain-sub.live .st{ color:var(--good); }
+  .brain-sub.on{ background:var(--side-on); }
+  .brain-sub.on .nm{ font-weight:500; color:var(--ink); }
+  .brain-sub.on svg{ color:var(--accent); }
 
   /* The foot: Settings, then Sign out, on one line. */
   .side-foot{ display:flex; flex-wrap:wrap; align-items:center; gap:4px; border-top:1px solid var(--line); padding:8px 10px 10px; }
@@ -89,8 +105,9 @@
     .panel .fold-t{ font-size:12px; padding:12px 0; }
     .panel .chev{ opacity:1; }
     .panel .side-plus{ width:40px; height:40px; }
-    .chat-row, .brain-row{ min-height:44px; }
+    .chat-row, .brain-row, .brain-sub{ min-height:44px; }
     .chat-row .nm, .brain-row .nm{ font-size:15px; }
+    .brain-sub .nm{ font-size:14px; }
     .sf-btn, .foot-link{ min-height:44px; font-size:14.5px; }
     .brand{ min-height:60px; }
   }
@@ -126,6 +143,7 @@
   /* The interview strip, above the chat bar: a way in, or where it stands. */
   .iv-bar{ display:flex; justify-content:center; margin:0 auto 8px; }
   .iv-bar[hidden]{ display:none; }
+  .iv-bar:not(.on){ gap:8px; flex-wrap:wrap; }
   .iv-go{ display:inline-flex; align-items:center; gap:7px; min-height:32px; padding:0 13px 0 10px; border:1px solid var(--line-2); border-radius:99px;
     background:var(--surface); box-shadow:0 4px 14px -6px rgba(0,0,0,.12); font:500 13px/1 var(--sans); color:var(--ink-2); cursor:pointer;
     transition:border-color .15s ease, transform .2s cubic-bezier(.2,.85,.25,1); animation:barOpen .34s cubic-bezier(.2,.85,.25,1) both; }

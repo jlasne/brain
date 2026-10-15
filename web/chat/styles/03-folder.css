@@ -257,6 +257,15 @@
   .ct-form input:focus, .ct-form textarea:focus{ outline:none; border-color:var(--ink-4); }
   /* The twin: how well a personal folder knows you, its test and its profile. */
   .tw-acts{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:16px; }
+  /* The daily log, in the twin pane: its way in and the series line. */
+  .dl-sec{ margin-top:26px; }
+  .dl-sec .mini{ margin-top:8px; }
+  /* Under a script: the comment it is written again from. */
+  .sc-form{ display:flex; flex-direction:column; gap:8px; margin-top:12px; max-width:560px; }
+  .sc-form textarea{ width:100%; min-height:58px; padding:9px 11px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface);
+    font:400 14px/1.45 var(--sans); color:var(--ink); resize:vertical; }
+  .sc-form textarea:focus{ outline:none; border-color:var(--accent-fill); }
+  .sc-row{ display:flex; gap:8px; }
   .tw-score{ margin-top:16px; padding:12px 14px; border-radius:12px; background:var(--side); font:500 14px/1.45 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
   .tw-chs{ display:grid; gap:2px; }
   .tw-ch{ display:grid; grid-template-columns:minmax(0,150px) minmax(0,1fr) 56px; align-items:center; gap:12px; padding:7px 10px; border-radius:9px; animation:tdIn .35s ease both; }

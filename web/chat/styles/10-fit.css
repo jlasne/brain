@@ -31,7 +31,7 @@
     .panel .fold-t{ min-height:44px; }
     .panel .side-plus{ width:40px; height:40px; }
     .side-new{ min-height:40px; }
-    .chat-row, .brain-row, .side-more{ min-height:44px; }
+    .chat-row, .brain-row, .brain-sub, .side-more{ min-height:44px; }
     .chat-row .more, .brain-row .hring{ min-width:40px; min-height:40px; }
     .brain-row .ed{ display:inline-grid; place-items:center; min-height:40px; }
     .sf-btn, .foot-link{ min-height:44px; }
