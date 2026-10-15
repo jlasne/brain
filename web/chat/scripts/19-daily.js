@@ -24,7 +24,7 @@ async function loadDaily(slug){
 }
 
 /** A call that lands in the chat on screen: the start of today's log, or its script. */
-async function dailyCall(slug, action, label){
+async function dailyCall(slug, action, label, extra = {}){
   if (chatBusy() || !isPersonal(slug)) return;
   if (S.scope !== slug){ crossing(slug); S.picks = []; S.scope = slug; S.into = []; }
   S.mode = "ask"; S.folder = null; S.concept = null;
@@ -33,7 +33,7 @@ async function dailyCall(slug, action, label){
   job.body = thinking(job.label);
   renderComposer();
   try {
-    const r = await api("/api/daily", { action, brain: slug, chat: S.chatId, history: S.thread.slice(-4) });
+    const r = await api("/api/daily", { action, brain: slug, chat: S.chatId, history: S.thread.slice(-4), ...extra });
     const here = landed(job, r);
     if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, "", slug); }
     if (r.daily) S.daily[slug] = r.daily;
@@ -57,6 +57,12 @@ async function dailyCall(slug, action, label){
 function startDaily(slug){ return dailyCall(slug, "start", "Picking today's first question"); }
 /** Today's 60-second video script, from today's answers and a light read of the notes. */
 function writeScript(slug){ return dailyCall(slug, "script", "Writing the script"); }
+/** Today's script written again, following their comment on the last one. */
+function redoScript(slug, note){
+  if (chatBusy()) return;
+  if (note) says(note);
+  return dailyCall(slug, "script", "Writing the script again", { redo: true, note });
+}
 
 /** Paused where it stands, with no model call. */
 async function stopDaily(slug){
@@ -158,14 +164,37 @@ function openSeriesSheet(slug, series, done){
   };
 }
 
-/** A script on screen: one tap copies it whole. */
-function scriptActs(body, text){
+/** A script on screen: one tap copies it whole, and today's can be written again with a comment. */
+function scriptActs(body, r, slug){
+  const text = String(r.answer ?? r.a ?? "");
   const acts = el("div","ans-acts");
   const cp = el("button","mini","Copy the script"); cp.type = "button";
   cp.onclick = async () => {
-    try { await navigator.clipboard.writeText(String(text || "")); cp.textContent = "Copied"; }
+    try { await navigator.clipboard.writeText(text); cp.textContent = "Copied"; }
     catch { cp.textContent = "Select it to copy"; }
   };
   acts.append(cp);
+  /* Only today's script: the answers it is written from are today's. */
+  const today = new Date().toISOString().slice(0, 10);
+  if (r.day === today && isPersonal(slug) && !S.demo){
+    const rd = el("button","mini","Redo with a comment"); rd.type = "button"; rd.className = "mini sc-redo";
+    rd.onclick = () => {
+      acts.hidden = true;
+      const form = el("div","sc-form");
+      const ta = el("textarea"); ta.rows = 2; ta.placeholder = "What to change: a stronger hook, a number in the Desire line, shorter...";
+      ta.setAttribute("aria-label", "Your comment on the script");
+      const row = el("div","sc-row");
+      const go = el("button","go","Redo"); go.type = "button";
+      const no = el("button","ghost","Cancel"); no.type = "button";
+      no.onclick = () => { form.remove(); acts.hidden = false; };
+      go.onclick = () => { const note = ta.value.trim(); form.remove(); acts.hidden = false; redoScript(slug, note); };
+      ta.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); go.click(); } };
+      row.append(go, no);
+      form.append(ta, row);
+      acts.after(form);
+      ta.focus();
+    };
+    acts.append(rd);
+  }
   body.append(acts);
 }

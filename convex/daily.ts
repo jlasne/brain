@@ -308,46 +308,67 @@ export async function dailyStep(ctx: any, o: {
 
 /* ---------- the script ---------- */
 
+/** The copy rules every script follows, word for word in each prompt that writes or fixes one. */
+export const COPY_RULES =
+`COPY RULES (each sentence passes all 8, or it is rewritten)
+1. No em-dashes and no en-dashes.
+2. Every sentence under 30 words. One sentence per line.
+3. Replace adjectives with data: a number, a name, a time, a place. "big creators" becomes "creators with 100k followers". "a good day" becomes what happened in it.
+4. No weasel words: very, really, a lot, quite, some, just, pretty, kind of, cool, nice, great, perfect, amazing, huge, lazy, happy.
+5. The "so what" test: each sentence moves the story, the goal, the obstacle, the decision or the result. A sentence that moves none of them is cut.
+6. The simplest spoken words in the language of the answers. Short words, active voice, present or past tense.
+7. Say what happened and what they do. No negations: "we haven't signed yet" becomes "our first contract sits with a lawyer", "0 deals today" becomes "1 deal waits on a signature".
+8. No sentence without a goal. Weather, mood and routine stay out unless they change the story: "Sunny outside, so happiness goes with it" is cut.`;
+
 export const SCRIPT_RULES =
-`You write a 60-second talking-to-camera video script about one person's day, from their own answers. They speak it in the first person.
+`You write a 60-second talking-to-camera video script about one person's day, from their own answers. They speak it in the first person. It is for YouTube and X: a stranger decides in 3 seconds whether to keep watching.
 
 THE STORY IN 5 LINES
-1. Situation: where they are today and what they are trying to do.
-2. Desire: what they want, personal and concrete.
+1. Situation: the hook. The goal and today's stake in 1 or 2 sentences, with a number.
+2. Desire: what they want today, with a number.
 3. Conflict: what blocks it, with a number.
-4. Change: the decision or the turning point.
-5. Result: the new reality, with numbers.
-Each line is 1 to 3 spoken sentences. 120 to 160 words spoken in all.
+4. Change: the decision they took today, and why in one sentence.
+5. Result: what is true tonight, with numbers, and what comes next.
+Each line is 1 to 3 spoken sentences. 110 to 150 words spoken in all.
 
 THE EDIT
-- 0 to 4s: 8 fast cuts of 0.5s, moments of the day they named (places, people, moving around). Ends on them looking at camera.
+- Intro, 0 to 4s: 8 fast cuts of 0.5s. Each cut is one shot they can film, 2 to 5 words, named from today's answers: the place, the person, the screen, the number. Ends on them looking at camera.
 - 4 to 56s: talking to camera, jump cuts only.
-- 56 to 60s: 4 cuts of 1s from the day. Ends on them at camera.
+- Outro, 56 to 60s: 4 cuts of 1s from the day. Ends on them at camera.
 - Music low under the voice. It drops out on the Change line, then returns.
 - One sound effect on each key number.
 
-RULES
-- The story is today's answers. Their notes give background: who they are and their goal, for one line at most.
+${COPY_RULES}
+
+FACTS
+- The story is today's answers. Their notes give background, who they are and their goal, for one line at most.
 - Every fact comes from today's answers or their notes. A missing number is written [X] and named under Missing.
-- ${SHORT_STYLE} One sentence per line. Numbers in place of adjectives. No vague words: very, really, a lot, quite, some. Simple spoken words. Say what happened and what they do.
 - Write in the language of today's answers.
 
 OPENING
-- When an OPENING LINE is given, the server puts it first under Situation. Give in "trying" how that sentence ends for today, as "trying to ..." in under 12 words, from today's answers. Then Situation goes on with 0 to 2 sentences that never repeat the opening.
-- With no OPENING LINE, "trying" is "" and Situation is yours to write.
+- When an OPENING LINE is given, the server puts it first under Situation. Give in "trying" how that sentence ends for today, as "trying to ..." in under 12 words, from today's answers. Then Situation goes on with 0 or 1 sentence that never repeats the opening.
+- With no OPENING LINE, "trying" is "" and the first sentence of Situation is the hook.
 
-THE SCRIPT, in this order, each label in bold on its own line
+THE SCRIPT, in this order, each label in bold on its own line, its lines under it
 tl;dr: one sentence on the story.
 **Intro (0 to 4s)**: the 8 cuts, one per line.
-**Situation**, **Desire**, **Conflict**, **Change**, **Result**: the spoken lines.
+**Situation**, **Desire**, **Conflict**, **Change**, **Result**: the spoken lines, one sentence per line.
 **Outro (56 to 60s)**: the 4 cuts, one per line.
 **Sound**: the sound design in 2 to 4 lines.
 **Missing**: each [X] and the question that fills it, or "Nothing".
 
 Reply with only JSON: {"trying":"","script":""}`;
 
-/** The script's prompt: today's answers, the notes nearest to them, the newest notes, and the opening. */
-export function scriptPrompt(o: { said: Said[]; near: any[]; notes: { title: string; line: string }[]; opening: string; date: string }) {
+/** The script's prompt: today's answers, the notes nearest to them, the newest notes, the opening, and a redo's comment. */
+export function scriptPrompt(o: { said: Said[]; near: any[]; notes: { title: string; line: string }[]; opening: string; date: string;
+  last?: string; note?: string }) {
+  const redo = o.last ? `
+
+THE LAST SCRIPT
+${o.last.slice(0, 6000)}
+
+THEIR COMMENT ON IT (write it again: follow the comment first, then every rule above)
+${o.note || "(no comment: write it again, better)"}` : "";
   return [
     { role: "system" as const, content: SCRIPT_RULES },
     { role: "user" as const, content:
@@ -363,20 +384,81 @@ THEIR NOTES NEAREST TO TODAY
 ${o.near.length ? o.near.map((c: any) => `- ${c.title}: ${String(c.position || c.summaryLine || "").slice(0, 500)}`).join("\n") : "(none)"}
 
 WHO THEY ARE (their newest notes)
-${o.notes.length ? o.notes.map(n => `- ${n.title}: ${n.line}`).join("\n") : "(nothing yet)"}` },
+${o.notes.length ? o.notes.map(n => `- ${n.title}: ${n.line}`).join("\n") : "(nothing yet)"}${redo}` },
   ];
 }
 
-/** The model's script, with the opening put first under Situation. */
-export function readScript(raw: string, opening: string): string {
+/** The model's reply read: the script, and how the opening sentence ends today. */
+export function scriptParts(raw: string): { trying: string; script: string } {
   let d: any = null;
   try { const s = String(raw ?? ""), a = s.indexOf("{"), b = s.lastIndexOf("}"); d = JSON.parse(a >= 0 && b > a ? s.slice(a, b + 1) : s); } catch { d = null; }
-  const script = String(d && typeof d === "object" ? d.script ?? "" : raw ?? "").replace(/\s*—\s*/g, ", ").replace(/\r/g, "").trim();
-  if (!script) return "";
-  if (!opening) return script;
-  let trying = String(d?.trying ?? "").replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().replace(/[.!\s]+$/, "");
+  const script = String(d && typeof d === "object" ? d.script ?? "" : raw ?? "").replace(/\s*[—–]\s*/g, ", ").replace(/\r/g, "").trim();
+  let trying = String(d?.trying ?? "").replace(/\s*[—–]\s*/g, ", ").replace(/\s+/g, " ").trim().replace(/[.!\s]+$/, "");
   if (trying && !/^trying\b/i.test(trying)) trying = `trying to ${trying.replace(/^to\s+/i, "")}`;
-  return withOpening(script, `${opening}${trying ? `, ${trying}` : ""}.`);
+  return { trying, script };
+}
+
+/** The opening sentence of today's script: the series line, ended with what they tried today. */
+export const openingLine = (opening: string, trying: string) => opening ? `${opening}${trying ? `, ${trying}` : ""}.` : "";
+
+/** The model's script, with the opening put first under Situation. */
+export function readScript(raw: string, opening: string): string {
+  const p = scriptParts(raw);
+  if (!p.script) return "";
+  return opening ? withOpening(p.script, openingLine(opening, p.trying)) : p.script;
+}
+
+/* Words a script never says: vague, or an adjective where a number belongs. */
+const WEASEL = ["very", "really", "a lot", "lots of", "quite", "some", "just", "pretty", "kind of", "sort of", "basically", "actually",
+  "cool", "nice", "great", "perfect", "amazing", "awesome", "incredible", "huge", "lazy", "happy", "happiness", "good", "bad", "big", "super", "stuff", "things"];
+const NEGATION = /\b(no|not|never|nothing|none|nobody|zero|without|haven't|hasn't|hadn't|don't|doesn't|didn't|won't|can't|cannot|isn't|aren't|wasn't|weren't|couldn't|shouldn't|wouldn't)\b|(?<![\d.,$])\b0\b(?![.,]\d)/i;
+
+/**
+ * The lines of a script that break the copy rules a check can see: a dash, a
+ * sentence of 30 words or more, a weasel word or a negation. The labels, the
+ * shot timings, Sound and Missing are left alone, and so is the series line,
+ * which is theirs.
+ */
+export function lintScript(script: string, keep = ""): { line: string; why: string }[] {
+  const out: { line: string; why: string }[] = [];
+  let section = "";
+  for (const raw of String(script ?? "").split("\n")) {
+    const label = raw.match(/^[\s*#>_-]*(tl;dr|intro|situation|desire|conflict|change|result|outro|sound|missing)\b[^:\n]*?:?[\s*_]*:?\s*(.*)$/i);
+    if (label) section = label[1].toLowerCase();
+    const text = (label ? label[2] : raw).replace(/\*\*/g, "").trim();
+    if (!text || section === "sound" || section === "missing" || (keep && text === keep)) continue;
+    for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+      const t = sentence.trim();
+      if (!t) continue;
+      const why: string[] = [];
+      if (/[—–]/.test(t)) why.push("a dash");
+      const n = (t.match(/\S+/g) || []).length;
+      if (n >= 30) why.push(`${n} words`);
+      const low = ` ${t.toLowerCase().replace(/[^a-z0-9' ]+/g, " ")} `;
+      const weasel = WEASEL.filter(w => low.includes(` ${w} `));
+      if (weasel.length) why.push(`vague: ${weasel.join(", ")}`);
+      if (section !== "intro" && section !== "outro" && NEGATION.test(t)) why.push("a negation");
+      if (why.length) out.push({ line: t, why: why.join("; ") });
+    }
+  }
+  return out;
+}
+
+/** One rewrite of the lines that break the rules, the rest kept as it is. */
+export function fixPrompt(script: string, issues: { line: string; why: string }[], keep: string) {
+  return [
+    { role: "system" as const, content: `You edit a 60-second video script so every sentence follows the copy rules. You reply with JSON only.\n\n${COPY_RULES}` },
+    { role: "user" as const, content:
+`Rewrite each line below so it follows the rules: put the data in place of the adjective, say what happened in place of the negation, split a long sentence, and cut a sentence that moves nothing. Keep every fact and number. Keep every other line, the labels and the order as they are.${keep ? `\nKeep this line word for word: ${keep}` : ""}
+
+LINES THAT BREAK THE RULES
+${issues.slice(0, 20).map(x => `- "${x.line}" (${x.why})`).join("\n")}
+
+THE SCRIPT
+${script}
+
+Reply with only JSON: {"script":""}` },
+  ];
 }
 
 /**

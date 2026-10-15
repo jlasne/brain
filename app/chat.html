@@ -654,6 +654,12 @@
   /* The daily log, in the twin pane: its way in and the series line. */
   .dl-sec{ margin-top:26px; }
   .dl-sec .mini{ margin-top:8px; }
+  /* Under a script: the comment it is written again from. */
+  .sc-form{ display:flex; flex-direction:column; gap:8px; margin-top:12px; max-width:560px; }
+  .sc-form textarea{ width:100%; min-height:58px; padding:9px 11px; border:1px solid var(--line-2); border-radius:10px; background:var(--surface);
+    font:400 14px/1.45 var(--sans); color:var(--ink); resize:vertical; }
+  .sc-form textarea:focus{ outline:none; border-color:var(--accent-fill); }
+  .sc-row{ display:flex; gap:8px; }
   .tw-score{ margin-top:16px; padding:12px 14px; border-radius:12px; background:var(--side); font:500 14px/1.45 var(--sans); color:var(--ink-2); font-variant-numeric:tabular-nums; }
   .tw-chs{ display:grid; gap:2px; }
   .tw-ch{ display:grid; grid-template-columns:minmax(0,150px) minmax(0,1fr) 56px; align-items:center; gap:12px; padding:7px 10px; border-radius:9px; animation:tdIn .35s ease both; }
@@ -10203,7 +10209,7 @@ function showAnswer(body, r, q, asked, fresh){
   }
   if (r.concept) return;
   /* A video script: one tap copies it. */
-  if (r.script){ scriptActs(body, r.answer ?? r.a ?? ""); return; }
+  if (r.script){ scriptActs(body, r, asked); return; }
   if (r.filed){
     const line = filedLine(r.filed);
     if (line){
@@ -11344,7 +11350,7 @@ async function loadDaily(slug){
 }
 
 /** A call that lands in the chat on screen: the start of today's log, or its script. */
-async function dailyCall(slug, action, label){
+async function dailyCall(slug, action, label, extra = {}){
   if (chatBusy() || !isPersonal(slug)) return;
   if (S.scope !== slug){ crossing(slug); S.picks = []; S.scope = slug; S.into = []; }
   S.mode = "ask"; S.folder = null; S.concept = null;
@@ -11353,7 +11359,7 @@ async function dailyCall(slug, action, label){
   job.body = thinking(job.label);
   renderComposer();
   try {
-    const r = await api("/api/daily", { action, brain: slug, chat: S.chatId, history: S.thread.slice(-4) });
+    const r = await api("/api/daily", { action, brain: slug, chat: S.chatId, history: S.thread.slice(-4), ...extra });
     const here = landed(job, r);
     if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, "", slug); }
     if (r.daily) S.daily[slug] = r.daily;
@@ -11377,6 +11383,12 @@ async function dailyCall(slug, action, label){
 function startDaily(slug){ return dailyCall(slug, "start", "Picking today's first question"); }
 /** Today's 60-second video script, from today's answers and a light read of the notes. */
 function writeScript(slug){ return dailyCall(slug, "script", "Writing the script"); }
+/** Today's script written again, following their comment on the last one. */
+function redoScript(slug, note){
+  if (chatBusy()) return;
+  if (note) says(note);
+  return dailyCall(slug, "script", "Writing the script again", { redo: true, note });
+}
 
 /** Paused where it stands, with no model call. */
 async function stopDaily(slug){
@@ -11478,15 +11490,38 @@ function openSeriesSheet(slug, series, done){
   };
 }
 
-/** A script on screen: one tap copies it whole. */
-function scriptActs(body, text){
+/** A script on screen: one tap copies it whole, and today's can be written again with a comment. */
+function scriptActs(body, r, slug){
+  const text = String(r.answer ?? r.a ?? "");
   const acts = el("div","ans-acts");
   const cp = el("button","mini","Copy the script"); cp.type = "button";
   cp.onclick = async () => {
-    try { await navigator.clipboard.writeText(String(text || "")); cp.textContent = "Copied"; }
+    try { await navigator.clipboard.writeText(text); cp.textContent = "Copied"; }
     catch { cp.textContent = "Select it to copy"; }
   };
   acts.append(cp);
+  /* Only today's script: the answers it is written from are today's. */
+  const today = new Date().toISOString().slice(0, 10);
+  if (r.day === today && isPersonal(slug) && !S.demo){
+    const rd = el("button","mini","Redo with a comment"); rd.type = "button"; rd.className = "mini sc-redo";
+    rd.onclick = () => {
+      acts.hidden = true;
+      const form = el("div","sc-form");
+      const ta = el("textarea"); ta.rows = 2; ta.placeholder = "What to change: a stronger hook, a number in the Desire line, shorter...";
+      ta.setAttribute("aria-label", "Your comment on the script");
+      const row = el("div","sc-row");
+      const go = el("button","go","Redo"); go.type = "button";
+      const no = el("button","ghost","Cancel"); no.type = "button";
+      no.onclick = () => { form.remove(); acts.hidden = false; };
+      go.onclick = () => { const note = ta.value.trim(); form.remove(); acts.hidden = false; redoScript(slug, note); };
+      ta.onkeydown = e => { if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); go.click(); } };
+      row.append(go, no);
+      form.append(ta, row);
+      acts.after(form);
+      ta.focus();
+    };
+    acts.append(rd);
+  }
   body.append(acts);
 }
 

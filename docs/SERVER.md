@@ -177,7 +177,14 @@ words. From 5 answers, or once every beat is seen, Write the script makes a
 full, and the 30 newest as one line each. A series line set once
 ("Day {n} working towards my first $10k a month", {n} counted from its Day 1)
 leads the Situation line, which the model ends with what they tried to do that
-day. A new day starts over and keeps the series line. It lives under `daily`
+day. Every script prompt carries the 8 copy rules (no dashes, under 30
+words, data over adjectives, no weasel words, the "so what" test, simple
+words, no negations, no sentence without a goal). A check reads the spoken
+lines and the shots, never the series line, Sound or Missing, and flags a
+dash, a sentence of 30 words or more, a vague word from a fixed list or a
+negation; any flag sends the flagged lines back for one rewrite, kept only
+when it flags fewer. `redo: true` with a `note` writes today's script again
+from the last one and the comment. A new day starts over and keeps the series line. It lives under `daily`
 in the `interviews` row, and the script stays in its chat.
 
 Projects (the first kind and the later one: their chat threads, section meanings, costs and caps), saved one-pagers, the
@@ -366,7 +373,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/personal/page` | One page of a person: the moments of a `year`, or the raw notes of a `month` | Owner |
 | `/api/personal/people` | The people in a personal brain's older notes, filed as contacts, 20 notes a call; the app calls again with `at` until `next` is null | Owner |
 | `/api/interview` | A personal brain's interview, by `action`: `state`, `start` (on, and its next question), `stop`, `restart`, `test` (the open round of 5 messages to reply to, built from the notes, or `fresh: true` for another), `check` (your replies, and the twin replies the same from the notes alone, with its reasons), `score` (a model compares the two, 0 to 2 a question, and the round goes into the history), `learn` (your answers filed as notes) and `profile` (the notes as 7 parts, offered until the interview reaches 100%). While on, `/api/ask` in that brain's chat takes each message as an answer | Owner |
-| `/api/daily` | A personal brain's daily log, by `action`: `state`, `start` (on, in the chat sent, and the question waiting or today's first), `stop`, `script` (today's 60-second video script, saved in the chat) and `series` (`{line, start}`: the line that opens every script, `{n}` its day count from `start`). While on, `/api/ask` in that brain's chat takes each message as today's answer | Owner |
+| `/api/daily` | A personal brain's daily log, by `action`: `state`, `start` (on, in the chat sent, and the question waiting or today's first), `stop`, `script` (today's 60-second video script, saved in the chat; `redo: true` and a `note` write it again from the last one and the comment) and `series` (`{line, start}`: the line that opens every script, `{n}` its day count from `start`). While on, `/api/ask` in that brain's chat takes each message as today's answer | Owner |
 | `/api/feedback` | Send feedback: mails one error, where it happened, the workspace and the message to `FEEDBACK_TO`, else `DIGEST_TO`. Another workspace's personal message keeps its words out. 5 an hour per sender, 20 per workspace | Yes |
 | `/api/assets/list` | The workspace's assets, newest first: name, kind, size, its web address when it is a page, and whether a version before it is kept for Undo | Yes |
 | `/api/assets/new` | A new asset: a blank document, table or page, or (`made: false`) the place a file read in the browser goes, then `begin`, `part` and `finish` on its number. `prev` makes it that asset's new version; `url` keeps the web address it was read from. 100 at most. Returns `fid`, the number every other asset route takes as `file` | Owner |

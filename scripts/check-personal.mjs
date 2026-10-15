@@ -427,6 +427,29 @@ const TODAY = "2026-09-30";
   const sp = daily.scriptPrompt({ said: [{ beat: "situation", q: "Where?", a: "Cork" }], near: [{ title: "Goal", position: "You want $10k a month." }], notes: [], opening, date: "2026-10-14" });
   check("the script reads today's answers and the notes nearest them", /TODAY'S ANSWERS\nSituation\. Asked: Where\?\nThey said: Cork/.test(sp[1].content)
     && /NOTES NEAREST TO TODAY\n- Goal: You want \$10k a month\./.test(sp[1].content) && /OPENING LINE\nDay 15 working/.test(sp[1].content));
+  /* The copy rules a check can see, on lines from a real first script. */
+  const line = "Day 16 working towards my first $10k a month. I'm Jeremy, I'm 25, currently in Ireland, trying to sign my first creator.";
+  const bad = ["**Intro (0 to 4s)**: Gym weights clanking. Walking outside in sun.", "**Situation**", line,
+    "Sunny and good temperature outside, so happiness goes with it.", "**Conflict**: Today we sent 75 outreach messages with Maxime. Yesterday we got 3, which is cool.",
+    "But we haven't signed any deals yet.", "**Change**: We think the deal is simple and clear, but people are lazy.",
+    "**Result**: We converted 0 replies into deals today. Tonight 1 contract sits with a lawyer.",
+    "**Sound**: Sound effect on '75', '1', '3', '0'. Music drops out on the Change line, then returns.", "**Missing**: Nothing"].join("\n");
+  const flagged = daily.lintScript(bad, line);
+  const said = flagged.map(x => x.line);
+  check("the rule check flags vague words, adjectives and negations, line by line", said.includes("Sunny and good temperature outside, so happiness goes with it.")
+    && said.includes("Yesterday we got 3, which is cool.") && said.includes("But we haven't signed any deals yet.")
+    && said.includes("We think the deal is simple and clear, but people are lazy.") && said.includes("We converted 0 replies into deals today."), JSON.stringify(flagged));
+  check("and leaves alone a clean line, the series line, the shots, Sound and Missing", !said.includes("Today we sent 75 outreach messages with Maxime.")
+    && !said.includes("Tonight 1 contract sits with a lawyer.") && !said.some(x => /Day 16|Gym weights|Sound effect|Nothing/.test(x)), JSON.stringify(said));
+  check("a dash and a sentence of 30 words or more are flagged too", daily.lintScript("**Desire**\nI want one thing — a deal.").some(x => /dash/.test(x.why))
+    && daily.lintScript(`**Desire**\n${Array.from({ length: 31 }, (_, i) => "w" + i).join(" ")}.`).some(x => /31 words/.test(x.why)));
+  const fp = daily.fixPrompt(bad, flagged, line);
+  check("the fix pass sends the 8 rules, each flagged line with why, and keeps the series line", /COPY RULES/.test(fp[0].content) && /8\. No sentence without a goal/.test(fp[0].content)
+    && /- "Yesterday we got 3, which is cool\." \(vague: cool\)/.test(fp[1].content) && fp[1].content.includes(`Keep this line word for word: ${line}`), fp[1].content.slice(0, 400));
+  check("every script prompt carries the 8 copy rules", /COPY RULES[\s\S]*7\. Say what happened and what they do\. No negations/.test(daily.SCRIPT_RULES) && !/—/.test(daily.SCRIPT_RULES));
+  const redo = daily.scriptPrompt({ said: [{ beat: "situation", q: "Where?", a: "Cork" }], near: [], notes: [], opening, date: "2026-10-14", last: "**Situation**\nOld.", note: "a stronger hook" });
+  check("a redo reads the last script and their comment, the comment first", /THE LAST SCRIPT\n\*\*Situation\*\*\nOld\./.test(redo[1].content) && /THEIR COMMENT ON IT[^\n]*\na stronger hook/.test(redo[1].content));
+  check("the opening keeps its sentence whole: the series line ended with what they tried today", daily.openingLine(opening, "trying to sign a creator") === opening + ", trying to sign a creator." && daily.openingLine("", "x") === "");
   const m = personal.filerPrompt("daily", "3 replies out of 10", "The brain asked: What is true tonight?", [], [], TODAY);
   check("a daily answer is filed with its question as context", /about their day, in their daily log/.test(m[1].content) && /THE QUESTION IT ANSWERS/.test(m[1].content) && /THE ANSWER\n3 replies/.test(m[1].content));
   const { T, ctx } = makeCtx();

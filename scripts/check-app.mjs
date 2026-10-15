@@ -2432,7 +2432,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
         if (a === "start") { on = true; return Response.json({ answer: "A few quick questions about today.\n\nWhere were you today?", daily: view(), chat: "d1", personal: true, filed: { new: 0, updated: 0, titles: [] }, called: [] }); }
         if (a === "stop") { on = false; return Response.json({ daily: view(), answer: "Paused at Desire, 1 of 8 answered today. Tap Daily log to pick up where you left off." }); }
         if (a === "series") { series = body.series; return Response.json({ daily: view() }); }
-        if (a === "script") { script = true; on = false; return Response.json({ answer: "tl;dr: a day of outreach.\n**Situation**\nDay 15 working towards my first $10k a month, trying to sign a creator.", daily: view(), chat: "d1", personal: true, script: true, sources: 0, level: "normal" }); }
+        if (a === "script") { script = true; on = false; return Response.json({ answer: body.note ? "tl;dr: a day of outreach.\n**Situation**\nDay 15 working towards my first $10k a month. 75 messages, 3 replies." : "tl;dr: a day of outreach.\n**Situation**\nDay 15 working towards my first $10k a month, trying to sign a creator.", daily: view(), chat: "d1", personal: true, script: true, day, sources: 0, level: "normal" }); }
         return Response.json({ daily: view() });
       }
       if (s.includes("/api/ask")) { if (body.q !== "skip") n++; else n++; if (n >= 5) on = true;
@@ -2488,6 +2488,15 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     stop: !!document.getElementById("dlStop") }));
   check("Script writes today's script into the same chat, with a copy button", sc.sent?.chat === "d1" && /Day 15 working towards my first \$10k a month, trying to sign a creator\./.test(sc.ai)
     && sc.copy === "Copy the script" && !sc.stop, JSON.stringify(sc));
+  const acts = await page.evaluate(() => [...[...document.querySelectorAll("#thread .msg.ai")].pop().querySelectorAll(".ans-acts .mini")].map(b => b.textContent));
+  check("today's script offers Redo with a comment beside Copy", JSON.stringify(acts) === '["Copy the script","Redo with a comment"]', JSON.stringify(acts));
+  await page.click(".sc-redo"); await page.waitForTimeout(100);
+  await page.fill(".sc-form textarea", "a stronger hook, numbers in the first line");
+  await page.click(".sc-form .go"); await page.waitForTimeout(300);
+  const rd = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/daily") && x.body.action === "script").pop()?.body,
+    me: [...document.querySelectorAll("#thread .msg.me")].pop()?.textContent, ai: [...document.querySelectorAll("#thread .msg.ai")].pop()?.textContent || "", form: !!document.querySelector(".sc-form") }));
+  check("Redo sends the comment, shows it as yours, and the new script lands under it", rd.sent?.note === "a stronger hook, numbers in the first line" && rd.sent?.redo === true
+    && rd.sent?.chat === "d1" && rd.me === "a stronger hook, numbers in the first line" && /75 messages, 3 replies\./.test(rd.ai) && !rd.form, JSON.stringify(rd));
   check("nothing threw around the daily log", !bad.length, bad.join(" | "));
   await page.close();
 }
