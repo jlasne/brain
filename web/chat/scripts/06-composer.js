@@ -41,9 +41,11 @@ document.addEventListener("pointerdown", e => { if (atMenu && !atMenu.contains(e
 /** What a chat may be told to read: the folders, and outside the personal chat the assets as well. */
 function tagChoices(personal){
   const folders = S.brains.filter(b => b.type !== "personal").map(b => ({ slug: b.slug, name: b.name, tag: "" }));
+  /* A category asks all its folders: "@All Wealth". */
+  const groups = groupNames().map(g => ({ slug: "group:" + g, name: "All " + g, tag: "category" }));
   /* The assets, beside the folders: a tag reads one, and a chat may propose a change to it. */
   const assets = S.demo || personal ? [] : (S.assets || []).filter(a => a.status === "ready").map(a => ({ slug: "asset:" + a.id, name: a.name, tag: pjNoun(a.kind) }));
-  return [...folders, ...assets];
+  return [...folders, ...groups, ...assets];
 }
 /** The slugs a message names with @, each once. The longest names are read first, so "@Pricing review" is not taken for "@Pricing". */
 function tagsIn(text, choices){
@@ -56,6 +58,63 @@ function tagsIn(text, choices){
     }
   }
   return out.slice(0, MAX_TAGS);
+}
+/** Where each tag sits in a text, as [from, to, kind]: "folder", "group" or "asset". The longest names win, as in tagsIn. */
+function tagSpans(text, choices){
+  const t = String(text ?? ""), out = [];
+  if (!t.includes("@")) return out;
+  const esc = w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const c of [...choices].sort((a, b) => b.name.length - a.name.length)){
+    const kind = c.slug.startsWith("group:") ? "group" : c.slug.startsWith("asset:") ? "asset" : "folder";
+    for (const word of new Set(kind === "folder" ? [c.name, c.slug] : [c.name])){
+      const re = new RegExp(`(^|[\\s(\\[{"'])(@${esc(word)})(?=$|[\\s.,;:!?)\\]}"'])`, "giu");
+      let m;
+      while ((m = re.exec(t))){
+        const from = m.index + m[1].length, to = from + m[2].length;
+        if (!out.some(x => from < x[1] && to > x[0])) out.push([from, to, kind]);
+      }
+    }
+  }
+  return out.sort((a, b) => a[0] - b[0]);
+}
+/** A text into an element, each tag in it shaded by what it names. */
+function paintTags(box, text, choices){
+  box.textContent = "";
+  let at = 0;
+  for (const [from, to, kind] of tagSpans(text, choices)){
+    if (from > at) box.append(text.slice(at, from));
+    box.append(el("mark", "tag-hl hl-" + kind, text.slice(from, to)));
+    at = to;
+  }
+  box.append(text.slice(at));
+}
+/**
+ * The tags in a message bar shaded as they are typed: a layer under the bar,
+ * set in the same type and padding, holds the text with each tag marked, and
+ * the bar's own text sits on top of it. It follows the bar's scroll and size.
+ */
+function attachTagShade(ta, choices){
+  const layer = el("div","tag-layer"); layer.setAttribute("aria-hidden","true");
+  ta.before(layer);
+  ta.classList.add("tag-shaded");
+  const copy = ["fontFamily","fontSize","fontWeight","fontStyle","lineHeight","letterSpacing","paddingTop","paddingRight","paddingBottom","paddingLeft",
+    "borderTopWidth","borderRightWidth","borderBottomWidth","borderLeftWidth","textIndent","wordSpacing","tabSize"];
+  const paint = () => {
+    const list = choices(), text = ta.value;
+    const any = !!list.length && tagSpans(text, list).length > 0;
+    layer.hidden = !any;
+    if (!any) return;
+    const cs = window.getComputedStyle(ta);
+    for (const k of copy) layer.style[k] = cs[k];
+    layer.style.left = ta.offsetLeft + "px"; layer.style.top = ta.offsetTop + "px";
+    layer.style.width = ta.offsetWidth + "px"; layer.style.height = ta.offsetHeight + "px";
+    paintTags(layer, text + "\n", list);
+    layer.scrollTop = ta.scrollTop;
+  };
+  for (const ev of ["input","scroll","focus","blur","keyup"]) ta.addEventListener(ev, paint);
+  new ResizeObserver(paint).observe(ta);
+  ta.shadeTags = paint;
+  return paint;
 }
 /**
  * A message bar that lists folders when @ is typed. `choices` is read at each keystroke, and returns nothing where this bar
@@ -118,6 +177,7 @@ function attachMentions(ta, choices){
 }
 /* The main bar: asking, in a folder's chat, in all of them or in the personal one. Not a drop, a chat about one concept or an interview. */
 attachMentions($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices(isPersonal(S.scope)) : []);
+attachTagShade($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices(isPersonal(S.scope)) : []);
 
 /* ============ input ============ */
 function sizeBox(){ const t=$("input"); t.style.height="auto"; t.style.height=Math.min(t.scrollHeight,210)+"px"; }
@@ -377,6 +437,7 @@ $("burger").onclick = () => $("side").classList.toggle("open");
 $("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
+$("groupsBtn").onclick = () => openGroupsSheet();
 $("newAsset").onclick = e => { e.stopPropagation(); openAssetAdd(e.currentTarget); };
 
 {

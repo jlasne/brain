@@ -22,6 +22,7 @@ import type { DocType } from "./onepager";
 import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine, isCloser, threadOf, priorOf, checkSources, askKey, poolPrint, SHORT_READ, INDEX_SHORT, NEAR_SHORT, NEAR_NEEDED, NEAR_FLOOR, PRIOR_MAX } from "./words";
 import { routeQuestion } from "./route";
 import { loadSpace, withoutPersonal } from "./space";
+import { cleanGroup } from "./store";
 import { addDocPiece, addRowPiece, finishFile, readBlocks } from "./reader";
 import { withChatSpend } from "./spend";
 import { parseExport, RESTORE_CHARS } from "./restore";
@@ -686,6 +687,41 @@ route("/api/concept/rederive", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   await demoCount(ctx, who, "step");
   return await metered(ctx, who, "upkeep", meter => rederive(ctx, who, (Array.isArray(b.ids) ? b.ids : []).map(String), keyFor(who), modelFor(who, b), meter));
+});
+
+/**
+ * The categories of the folders, by action:
+ *   set      [{slug, group}]: each folder to a category, or to none with ""
+ *   suggest  a category for each folder of this workspace, from its name and scope line. One model call, nothing saved.
+ */
+route("/api/brain/groups", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  if (b.action === "suggest") {
+    const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
+    const all = withoutPersonal(head).brains.filter((x: any) => readSpace(x.space) === readSpace(who.space) && x.type !== "project");
+    if (!all.length) return { suggest: {} };
+    const have = [...new Set(all.map((x: any) => x.group).filter(Boolean))];
+    return await metered(ctx, who, "upkeep", async meter => {
+      const { text, finish } = await ask([
+        { role: "system", content: "You sort knowledge folders into a few categories. You reply with JSON only." },
+        { role: "user", content: `Put each folder below in one category, so the side panel reads as a few clear sections.
+- Use 3 to 5 categories in all, each one or two words, in English.
+${have.length ? `- Keep these categories where they fit: ${have.join(", ")}.` : "- Good categories name an area of life: Wealth, Business, Life."}
+- A person's folder goes where their ideas are used.
+Reply as {"groups": {"<slug>": "<category>"}} with every slug below.
+
+FOLDERS
+${all.map((x: any) => `- ${x.slug}: ${x.name}. ${String(x.scope ?? "").slice(0, 200)}`).join("\n")}` },
+      ], { json: true, maxTokens: 1500, key: keyFor(who), model: modelFor(who, b), meter, timeout: 60000, temperature: 0.2 });
+      const d = parseJson(String(text), finish);
+      const out: Record<string, string> = {};
+      for (const x of all) { const g = cleanGroup(d?.groups?.[x.slug]); if (g) out[x.slug] = g; }
+      return { suggest: out };
+    });
+  }
+  const set = (Array.isArray(b.set) ? b.set : []).map((x: any) => ({ slug: String(x?.slug ?? ""), group: cleanGroup(x?.group) })).filter((x: any) => x.slug);
+  if (!set.length) return { error: "name at least one folder" };
+  return await ctx.runMutation(internal.store.groupsSet, { space: who.space, set });
 });
 
 route("/api/brain/rename", async (ctx, _req, b) => {

@@ -257,7 +257,7 @@ async function openPager(page) {
     return { newBg: n.backgroundColor, plusBg: p.backgroundColor, newH: parseFloat(n.height), drop: document.getElementById("dropBtn").getBoundingClientRect().bottom <= document.getElementById("keyBtn").getBoundingClientRect().top + 1 }; });
   check("New chat is filled in the accent, louder than the + of Assets and Folders, and Drop sits above Settings", loud.newBg !== "rgba(0, 0, 0, 0)" && loud.plusBg === "rgba(0, 0, 0, 0)" && loud.newH >= 28 && loud.drop, JSON.stringify(loud));
   check("then Chats, Assets and Folders, each a list of its own", top.panels === "chatsPanel:Chats,assetsPanel:Assets,brainsPanel:Folders" && top.gone, top.panels);
-  check("New chat on the Chats line is the one way to start a chat; Assets and Folders keep their +", top.plus === "newAsset,newBrain", top.plus);
+  check("New chat on the Chats line is the one way to start a chat; Assets and Folders keep their +", top.plus === "newAsset,groupsBtn,newBrain", top.plus);
   await page.click("#chatsFold");
   check("a list folds", await page.evaluate(() => document.getElementById("chatsBox").hidden));
   await page.click("#chatsFold");
@@ -2940,6 +2940,80 @@ for (const space of ["octopus", "squidgy"]) {
     r.plans.some(x => x > 10) && r.card && /filed into (\d+) concepts/.test(r.note)
     && /(\d+) topics, filed into \1 concepts/.test(r.note), JSON.stringify(r.plans) + " " + r.note);
   check("nothing threw splitting", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- categories: folders under a few names, a category ticked or tagged at once ---- */
+{
+  const cats = { ...STATE, brains: [
+    { slug: "me", name: "Me", type: "personal", scope: "", owner: null },
+    { slug: "wealth", name: "Wealth", type: "subject", scope: "money", group: "Wealth" },
+    { slug: "crypto", name: "Crypto", type: "subject", scope: "coins", group: "Wealth" },
+    { slug: "gave", name: "Charles Gave", type: "person", scope: "Gave", group: "Wealth" },
+    { slug: "content", name: "Content", type: "subject", scope: "brand", group: "Business" },
+    { slug: "hormozi", name: "Alex Hormozi", type: "person", scope: "offers", group: "Business" },
+    { slug: "social", name: "Social", type: "subject", scope: "talk" }],
+    concepts: [["wealth", 5], ["crypto", 2], ["gave", 3], ["content", 2], ["hormozi", 1], ["social", 1]].flatMap(([b, n]) => Array.from({ length: n }, (_, i) => ({ brain: b, slug: b + i, n: i + 1, title: b + " " + i, summaryLine: "x" }))) };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/brain/groups")) return Response.json(body.action === "suggest" ? { suggest: { social: "Life", wealth: "Money" } } : { changed: body.set.length });
+      if (s.includes("/api/brain/rename")) return Response.json({ slug: body.slug, name: body.name, scope: body.scope, moved: {} });
+      if (s.includes("/api/ask")) return Response.json({ answer: "ok", sources: 0, level: "normal" });
+      return Response.json({ chats: [] });
+    };
+  }, cats);
+  await page.waitForTimeout(250);
+  const side = await page.evaluate(() => [...document.querySelectorAll("#brains .group-h, #brains .brain-row")].map(x =>
+    x.classList.contains("group-h") ? "#" + x.firstChild.textContent : x.classList.contains("group-row") ? "[" + x.querySelector(".nm").textContent + "]"
+    : (x.classList.contains("in-group") ? "  " : "") + x.querySelector(".nm").textContent).join("|"));
+  check("the side panel shows each category, the fullest first, with its folders under it; a folder in none keeps its group",
+    side === "#Personal|Me|#Categories|[Wealth]|  Wealth|  Charles Gave|  Crypto|[Business]|  Content|  Alex Hormozi|#Subjects|Social", side);
+  check("a category says what its folders hold", await page.evaluate(() => document.querySelector('#brains .group-row[data-group="Wealth"] .cnt').textContent) === "10");
+  await page.click('#brains .group-row[data-group="Wealth"]'); await page.waitForTimeout(100);
+  const ticked = await page.evaluate(() => ({ on: [...document.querySelectorAll("#brains .brain-row.on .nm")].map(x => x.textContent).join(","), val: document.getElementById("scopeVal").textContent }));
+  check("one click on a category ticks all its folders", ticked.on === "Wealth,Wealth,Charles Gave,Crypto" && /^Wealth \+2$/.test(ticked.val), JSON.stringify(ticked));
+  await page.click('#brains .group-row[data-group="Wealth"]'); await page.waitForTimeout(100);
+  check("a second click unticks them all", await page.evaluate(() => !document.querySelector("#brains .brain-row.on")));
+
+  await page.focus("#input"); await page.click("#scopeBtn"); await page.waitForTimeout(80);
+  const pk = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-row")].map(r => (r.classList.contains("pk-group") ? "[" : r.classList.contains("pk-in") ? "  " : "") + r.querySelector(".pk-nm").firstChild.textContent).join("|"));
+  check("the picker lists each category with its folders under it", pk === "All folders|Me|[Wealth|  Wealth|  Charles Gave|  Crypto|[Business|  Content|  Alex Hormozi|Social", pk);
+  await page.click('.pick-menu .pk-group[data-group="Business"]'); await page.waitForTimeout(80);
+  const pk2 = await page.evaluate(() => ({ open: !!document.querySelector(".pick-menu"), val: document.getElementById("scopeVal").textContent, done: document.querySelector(".pick-menu .pk-done")?.textContent }));
+  check("ticking a category in the picker ticks its folders and keeps the menu open", pk2.open && /^(Content|Alex Hormozi) \+1$/.test(pk2.val) && pk2.done === "Ask 2 folders", JSON.stringify(pk2));
+  await page.click('.pick-menu .pk-group[data-group="Business"]'); await page.keyboard.press("Escape");
+
+  await page.fill("#input", "@All Wea"); await page.waitForTimeout(80);
+  const at = await page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-row")].map(r => r.textContent));
+  check("@ offers a whole category", at.some(t => /^All Wealthcategory$/.test(t)), JSON.stringify(at));
+  await page.fill("#input", "What does @All Wealth say, and @Content?"); await page.waitForTimeout(80);
+  const shade = await page.evaluate(() => { const l = document.querySelector(".box .tag-layer"); const ta = document.getElementById("input");
+    return { shown: !!l && !l.hidden, marks: [...(l?.querySelectorAll("mark") || [])].map(m => m.className + ":" + m.textContent),
+      font: l && getComputedStyle(l).fontSize === getComputedStyle(ta).fontSize, bg: l && getComputedStyle(l.querySelector("mark.hl-group")).backgroundColor }; });
+  check("a tag typed in the bar is shaded by what it names: a category, a folder", shade.shown && shade.font
+    && JSON.stringify(shade.marks) === '["tag-hl hl-group:@All Wealth","tag-hl hl-folder:@Content"]' && shade.bg !== "rgba(0, 0, 0, 0)", JSON.stringify(shade));
+  await page.fill("#input", "What does @All Wealth say about gold?"); await page.click("#send"); await page.waitForTimeout(300);
+  const bubble = await page.evaluate(() => ({ marks: [...[...document.querySelectorAll("#thread .msg.me")].pop().querySelectorAll("mark")].map(m => m.className + ":" + m.textContent),
+    layer: document.querySelector(".box .tag-layer").hidden }));
+  check("the message sent keeps the shade, and the empty bar drops it", JSON.stringify(bubble.marks) === '["tag-hl hl-group:@All Wealth"]' && bubble.layer, JSON.stringify(bubble));
+  const sent = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/ask")).pop()?.body);
+  check("@All Wealth asks every folder of the category", JSON.stringify((sent?.brains || []).slice().sort()) === '["crypto","gave","wealth"]' && !sent?.tags, JSON.stringify(sent));
+
+  await page.click("#groupsBtn"); await page.waitForTimeout(100);
+  const sheet = await page.evaluate(() => [...document.querySelectorAll("#gList input")].map(i => i.dataset.slug + "=" + i.value).join(","));
+  check("the categories sheet lists every folder of the workspace with its category, never the personal one",
+    sheet === "wealth=Wealth,gave=Wealth,content=Business,crypto=Wealth,hormozi=Business,social=", sheet);
+  await page.click("#gSuggest"); await page.waitForTimeout(150);
+  check("Suggest fills only the folders with no category", await page.evaluate(() => document.querySelector('#gList input[data-slug="social"]').value === "Life" && document.querySelector('#gList input[data-slug="wealth"]').value === "Wealth"));
+  await page.fill('#gList input[data-slug="crypto"]', "");
+  await page.click("#gSave"); await page.waitForTimeout(200);
+  const saved = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/brain/groups") && x.body.set).pop()?.body.set);
+  check("Save sends only the folders that changed", JSON.stringify(saved) === '[{"slug":"crypto","group":""},{"slug":"social","group":"Life"}]', JSON.stringify(saved));
+  check("nothing threw around categories", !bad.length, bad.join(" | "));
   await page.close();
 }
 

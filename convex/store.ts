@@ -1173,6 +1173,30 @@ export const findingsDrop = internalMutation({
   },
 });
 
+/** A category's name as kept: one line, at most 40 characters, "" for none. */
+export const cleanGroup = (x: unknown) => String(x ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
+
+/**
+ * Categories set on this workspace's own folders, each to a name or to none.
+ * Never on a personal folder, nor on one shared in from elsewhere.
+ */
+export const groupsSet = internalMutation({
+  args: { space: v.string(), set: v.array(v.object({ slug: v.string(), group: v.string() })) },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    let changed = 0;
+    for (const x of a.set.slice(0, 200)) {
+      const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", x.slug)).unique();
+      if (!b || readSpace(b.space) !== space || b.type === "personal" || b.type === "project") continue;
+      const group = cleanGroup(x.group);
+      if ((b.group ?? "") === group) continue;
+      await ctx.db.patch(b._id, { group: group || undefined });
+      changed++;
+    }
+    return { changed };
+  },
+});
+
 /** What an audit of a folder found, kept on the folder for the inbox. */
 export const findingsSet = internalMutation({
   args: { space: v.string(), brain: v.string(), findings: v.any() },
@@ -1378,7 +1402,8 @@ export const restoreBatch = internalMutation({
       if (b) { if (inSpace(b, space)) done.brains.kept++; else done.brains.skipped++; continue; }
       if (type === "personal" && personal) { done.brains.kept++; continue; }
       const row = { slug: s0, name: String(r.name ?? "").trim().slice(0, 80) || s0, type,
-        scope: String(r.scope ?? "").trim().slice(0, 300) || "Restored from an export.", created: today(), visibility: "ask", space };
+        scope: String(r.scope ?? "").trim().slice(0, 300) || "Restored from an export.", created: today(), visibility: "ask", space,
+        ...(type !== "personal" && cleanGroup(r.group) ? { group: cleanGroup(r.group) } : {}) };
       await ctx.db.insert("brains", row); all.push(row as any); done.brains.added++;
     }
     for (const r of a.sources ?? []) {

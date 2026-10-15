@@ -23,7 +23,8 @@ function push(kind, build, where = $("thread")){
   return body;
 }
 function says(text, attach, where){
-  push("me", b => { b.textContent = text; if (attach) b.append(el("span","attach",attach)); }, where);
+  /* A tag in a message keeps its shade: a folder, a category, an asset. */
+  push("me", b => { if (String(text ?? "").includes("@")) paintTags(b, String(text), tagChoices(false)); else b.textContent = text; if (attach) b.append(el("span","attach",attach)); }, where);
 }
 /* The same three, on the Drop screen. */
 const dpush = (kind, build) => push(kind, build, $("dropThread"));

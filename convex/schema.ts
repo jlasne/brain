@@ -108,6 +108,9 @@ export default defineSchema({
     /* What the last audit found, for the inbox to offer: concepts filed twice,
        titles not in English, concepts with no position. */
     findings: v.optional(v.any()),
+    /* The category it sits under in the side panel and the picker: Wealth,
+       Business, Life. Absent: no category. Never on a personal brain. */
+    group: v.optional(v.string()),
   }).index("by_slug", ["slug"]),
 
   concepts: defineTable({

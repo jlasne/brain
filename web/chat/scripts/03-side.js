@@ -275,6 +275,7 @@ let keyAsked = false;
 function paintWorkspace(){
   document.documentElement.dataset.demo = S.demo ? "1" : "";
   $("newBrain").hidden = S.demo;
+  $("groupsBtn").hidden = S.demo;
   $("demoBar").hidden = !S.demo;
   if (S.byok && !myKey() && !keyAsked){ keyAsked = true; setTimeout(openSetupSheet, 300); }
 }
@@ -569,16 +570,25 @@ function renderSide(){
        subjects. A folder shared in, or one only asked, says so on its row. */
     const kind = b => b.type === "personal" ? "personal" : b.type === "person" ? "person" : "subject";
     const bySize = (x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length || x.name.localeCompare(y.name);
-    const groups = [["personal","Personal"], ["person","People"], ["subject","Subjects"]]
-      .map(([k, head]) => ({ head, rows: S.brains.filter(b => kind(b) === k).sort(bySize) }))
-      .filter(g => g.rows.length);
-    for (const g of groups){
-      const h = el("div","group-h",g.head); h.dataset.n = g.rows.length;
-      box.append(h);
-      for (const b of g.rows){
-        box.append(brainRow(b));
-        if (b.type === "personal" && !S.demo) box.append(...personalSubs(b));
+    /* The categories come after the personal folders, each with its folders
+       under it on a short branch; folders in none keep their type's group. */
+    const cats = inGroups(S.brains.filter(b => b.type !== "personal"));
+    const head = (text, n) => { const h = el("div","group-h",text); h.dataset.n = n; box.append(h); };
+    const mine = S.brains.filter(b => kind(b) === "personal").sort(bySize);
+    if (mine.length){
+      head("Personal", mine.length);
+      for (const b of mine){ box.append(brainRow(b)); if (!S.demo) box.append(...personalSubs(b)); }
+    }
+    if (cats.groups.length){
+      head("Categories", cats.groups.length);
+      for (const g of cats.groups){
+        box.append(groupRow(g));
+        for (const b of g.rows){ const r = brainRow(b); r.classList.add("in-group"); box.append(r); }
       }
+    }
+    for (const [k, h] of [["person","People"], ["subject","Subjects"]]){
+      const rows = cats.rest.filter(b => kind(b) === k);
+      if (rows.length){ head(h, rows.length); for (const b of rows) box.append(brainRow(b)); }
     }
   }
   paintSubs();
@@ -617,6 +627,8 @@ function openBrainSheet(b){
         against the new line.</p></header>
       <div class="f"><label for="rName">Name</label><input id="rName" autocomplete="off"></div>
       <div class="f"><label for="rScope">Scope, in one line</label><textarea id="rScope"></textarea></div>
+      <div class="f" id="rGroupF"><label for="rGroup">Category</label><input id="rGroup" list="rGroups" maxlength="40" autocomplete="off" placeholder="No category">
+        <datalist id="rGroups"></datalist></div>
       <div class="f" id="rMergeF" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px">
         <label for="rInto">Merge into another folder</label>
         <div class="hint" style="margin:0 0 8px">Every concept, source and link moves there, and this folder goes. A concept with the same title joins its twin.</div>
@@ -632,6 +644,11 @@ function openBrainSheet(b){
   const nameI = veil.querySelector("#rName"), scopeI = veil.querySelector("#rScope"),
         msg = veil.querySelector("#rMsg"), save = veil.querySelector("#rSave");
   nameI.value = b.name || ""; scopeI.value = b.scope || "";
+  /* A category for this workspace's own folders: a name typed, or one in use picked. */
+  const groupI = veil.querySelector("#rGroup");
+  groupI.value = groupOf(b);
+  veil.querySelector("#rGroups").innerHTML = groupNames().map(n => `<option value="${esc(n)}"></option>`).join("");
+  veil.querySelector("#rGroupF").hidden = b.type === "personal" || (b.space || S.space) !== S.space || readOnly(b);
   const shut = () => veil.remove();
   veil.querySelector("#rCancel").onclick = shut;
 
@@ -673,6 +690,8 @@ function openBrainSheet(b){
     try {
       const r = await api("/api/brain/rename", { slug: b.slug, name: nm, scope: sc });
       if (r.error) throw new Error(r.error);
+      const grp = groupI.value.replace(/\s+/g, " ").trim();
+      if (!veil.querySelector("#rGroupF").hidden && grp !== groupOf(b)) await api("/api/brain/groups", { set: [{ slug: r.slug || b.slug, group: grp }] });
       shut(); await refresh();
       if (S.scope === b.slug) S.scope = r.slug;
       S.into = S.into.map(x => x === b.slug ? r.slug : x);
@@ -813,7 +832,32 @@ function fillPick(){
     drop ? "The AI picks where it belongs" : `${S.brains.length} folder${S.brains.length===1?"":"s"}, ${ideas} concept${ideas===1?"":"s"}`));
   if (drop) m.append(el("div","pk-h","Or tick the folders to feed"));
   if (!drop) m.append(el("div","pk-h","Or tick folders"));
-  for (const b of ordered()) if (!drop || (b.type !== "personal" && !readOnly(b))) m.append(row(b.slug, b.name, b.type === "personal" ? "your chat" : "", String(conceptsOf(b.slug).length), b));
+  const shown = ordered().filter(b => !drop || (b.type !== "personal" && !readOnly(b)));
+  const folderRow = b => row(b.slug, b.name, b.type === "personal" ? "your chat" : "", String(conceptsOf(b.slug).length), b);
+  for (const b of shown.filter(b => b.type === "personal")) m.append(folderRow(b));
+  /* Each category ticks all its folders at once; its folders sit under it. */
+  const cats = inGroups(shown.filter(b => b.type !== "personal"));
+  for (const g of cats.groups){
+    const slugs = g.rows.map(b => b.slug), list = drop ? S.into : S.picks;
+    const on = slugs.every(x => list.includes(x));
+    const r = el("button","pk-row pk-group" + (on ? " on" : "")); r.dataset.group = g.name;
+    r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
+    const box = el("span","pk-box"); box.innerHTML = TICK_SVG;
+    const ic = el("span","pk-ic"); ic.innerHTML = GROUP_ICON;
+    const nm = el("span","pk-nm", g.name); nm.append(el("span","pk-sub", `${g.rows.length} folder${g.rows.length === 1 ? "" : "s"}`));
+    r.append(box, ic, nm, el("span","pk-ct", String(g.size)));
+    r.onclick = e => {
+      e.stopPropagation();
+      if (drop){
+        S.into = on ? S.into.filter(x => !slugs.includes(x)) : [...new Set([...S.into, ...slugs])];
+        S.scope = S.into.length === 1 ? S.into[0] : "all"; S.picks = S.into.slice();
+      } else { crossing("all"); tickGroup(slugs); }
+      render();
+    };
+    m.append(r);
+    for (const b of g.rows){ const x = folderRow(b); x.classList.add("pk-in"); m.append(x); }
+  }
+  for (const b of cats.rest) m.append(folderRow(b));
   /* Assets beside the folders, ticked as many as 4: each is read with every message, as if named with @. The menu stays open. */
   const ready = drop || S.demo || !S.assetsOn ? [] : (S.assets || []).filter(a => a.status === "ready");
   if (ready.length){

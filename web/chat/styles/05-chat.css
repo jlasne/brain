@@ -281,6 +281,17 @@
     max-height:210px; overflow-y:auto;
   }
   .box textarea::placeholder{ color:var(--ink-3); }
+  /* Tags shaded under the bar's text, and in a message sent. */
+  .box{ position:relative; }
+  .box textarea.tag-shaded{ position:relative; z-index:1; background:transparent; }
+  .tag-layer{ position:absolute; z-index:0; margin:0; overflow:hidden; white-space:pre-wrap; overflow-wrap:break-word; word-break:normal;
+    color:transparent; border-style:solid; border-color:transparent; pointer-events:none; box-sizing:border-box; }
+  .tag-layer[hidden]{ display:none; }
+  mark.tag-hl{ color:inherit; border-radius:5px; padding:0; box-shadow:0 0 0 2px var(--hl, transparent); background:var(--hl, transparent); }
+  .tag-layer mark.tag-hl{ color:transparent; }
+  mark.hl-folder{ --hl:var(--hl-folder); }
+  mark.hl-group{ --hl:var(--hl-group); }
+  mark.hl-asset{ --hl:var(--hl-asset); }
   /* The box shows the focus for both fields. Without this the global focus ring
      draws a second rounded rectangle inside the first, cutting the source line
      off from the content it belongs to. */

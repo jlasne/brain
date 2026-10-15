@@ -75,6 +75,8 @@
     --accent:#18181b; --accent-fill:#3f3f46; --accent-solid:#18181b; --accent-on:#ffffff;
     --accent-soft:rgba(24,24,27,.05); --accent-line:rgba(24,24,27,.16);
     --good:#3f7d5c; --warn:#94650f; --bad:#b3372a;
+    /* A tag in a message, shaded by what it names: a folder, a category, an asset. */
+    --hl-folder:rgba(217,119,87,.18); --hl-group:rgba(82,120,214,.17); --hl-asset:rgba(63,125,92,.17);
     --shadow:0 1px 2px rgba(0,0,0,.04), 0 1px 6px rgba(0,0,0,.03);
     --shadow-lift:0 8px 30px -4px rgba(0,0,0,.09), 0 4px 10px rgba(0,0,0,.03);
     --sans:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
@@ -113,6 +115,7 @@
     --accent:#f4f4f5; --accent-fill:#d4d4d8; --accent-solid:#f4f4f5; --accent-on:#18181b;
     --accent-soft:rgba(244,244,245,.07); --accent-line:rgba(244,244,245,.24);
     --good:#6fbf8f; --warn:#d9a441; --bad:#f07466;
+    --hl-folder:rgba(217,119,87,.28); --hl-group:rgba(120,155,240,.26); --hl-asset:rgba(111,191,143,.24);
     --shadow:0 1px 2px rgba(0,0,0,.5), 0 1px 6px rgba(0,0,0,.3);
     --shadow-lift:0 8px 30px -4px rgba(0,0,0,.65), 0 4px 10px rgba(0,0,0,.35);
     --side-hover:rgba(255,255,255,.055); --side-on:rgba(255,255,255,.085);
@@ -855,6 +858,8 @@
   .pick-menu .pk-row.on .pk-box{ background:var(--accent-solid); border-color:var(--accent-solid); }
   .pick-menu .pk-row.on .pk-box svg{ opacity:1; }
   .pick-menu .pk-ic{ display:flex; flex:none; color:var(--ink-3); }
+  .pick-menu .pk-group .pk-nm{ font-weight:500; }
+  .pick-menu .pk-row.pk-in{ padding-left:30px; }
   .pick-menu .pk-ic .b-ic{ width:15px; height:15px; }
   .pick-menu.multi .pk-row.on{ background:transparent; color:var(--ink); font-weight:500; }
   .pick-menu.multi .pk-row.on:first-child{ background:var(--accent-soft); color:var(--accent); }
@@ -1309,6 +1314,17 @@
     max-height:210px; overflow-y:auto;
   }
   .box textarea::placeholder{ color:var(--ink-3); }
+  /* Tags shaded under the bar's text, and in a message sent. */
+  .box{ position:relative; }
+  .box textarea.tag-shaded{ position:relative; z-index:1; background:transparent; }
+  .tag-layer{ position:absolute; z-index:0; margin:0; overflow:hidden; white-space:pre-wrap; overflow-wrap:break-word; word-break:normal;
+    color:transparent; border-style:solid; border-color:transparent; pointer-events:none; box-sizing:border-box; }
+  .tag-layer[hidden]{ display:none; }
+  mark.tag-hl{ color:inherit; border-radius:5px; padding:0; box-shadow:0 0 0 2px var(--hl, transparent); background:var(--hl, transparent); }
+  .tag-layer mark.tag-hl{ color:transparent; }
+  mark.hl-folder{ --hl:var(--hl-folder); }
+  mark.hl-group{ --hl:var(--hl-group); }
+  mark.hl-asset{ --hl:var(--hl-asset); }
   /* The box shows the focus for both fields. Without this the global focus ring
      draws a second rounded rectangle inside the first, cutting the source line
      off from the content it belongs to. */
@@ -1498,6 +1514,13 @@
   }
   label.check input{ width:auto; margin-top:2px; accent-color:var(--accent-fill); flex-shrink:0; }
 
+
+  /* The categories sheet: one line per folder, its name and its category. */
+  .g-list{ display:flex; flex-direction:column; gap:6px; max-height:min(52vh, 460px); overflow-y:auto; }
+  .sheet .g-row{ display:flex; align-items:center; gap:10px; margin:0; font-weight:400; }
+  .g-row .g-nm{ flex:1; min-width:0; display:flex; align-items:center; gap:8px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--ink-2); }
+  .g-row .g-nm .b-ic{ width:15px; height:15px; color:var(--ink-4); }
+  .sheet .g-row input{ flex:0 1 50%; width:auto; min-width:0; }
   /* ============ responsive ============ */
   @media (max-width:860px){
     .app{ grid-template-columns:1fr; }
@@ -1725,6 +1748,13 @@
   .brain-sub{ position:relative; display:flex; align-items:center; gap:8px; width:100%; min-height:30px; margin-top:1px; padding:4px 10px 4px 36px;
     border:0; border-radius:8px; background:none; text-align:left; cursor:pointer; }
   .brain-sub[hidden]{ display:none; }
+  /* A category leads its folders, which hang under it on the same short branch. */
+  .brain-row.group-row .nm{ font-weight:500; color:var(--ink); }
+  .brain-row.group-row.some .b-ic{ color:var(--accent); }
+  .brain-row.in-group{ position:relative; padding-left:36px; }
+  .brain-row.in-group::before{ content:""; position:absolute; left:17px; top:-3px; height:calc(50% + 3px); width:10px;
+    border-left:1px solid var(--line-2); border-bottom:1px solid var(--line-2); border-bottom-left-radius:6px; }
+  .brain-row.in-group + .brain-row.in-group::after{ content:""; position:absolute; left:17px; top:-50%; height:50%; border-left:1px solid var(--line-2); }
   .brain-sub::before{ content:""; position:absolute; left:17px; top:-3px; height:calc(50% + 3px); width:10px;
     border-left:1px solid var(--line-2); border-bottom:1px solid var(--line-2); border-bottom-left-radius:6px; }
   .brain-sub svg{ width:14px; height:14px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; color:var(--ink-4); }
@@ -2271,6 +2301,7 @@
       <section class="panel" id="brainsPanel">
         <div class="panel-h" id="brainsH">
           <button class="fold-t" id="brainsFold" aria-expanded="true" aria-controls="brainsBox">Folders <b id="bcount"></b><span class="chev"></span></button>
+          <button class="side-plus" id="groupsBtn" type="button" title="Categories" aria-label="Categories"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h4v4h-4zM9.5 3.5h4v4h-4zM2.5 10.5h4v2h-4zM9.5 10.5h4v2h-4z"/></svg></button>
           <button class="side-plus" id="newBrain" type="button" title="New folder" aria-label="New folder"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
         </div>
         <div class="panel-b" id="brainsBox"><div id="brains"></div></div>
@@ -3088,6 +3119,7 @@ let keyAsked = false;
 function paintWorkspace(){
   document.documentElement.dataset.demo = S.demo ? "1" : "";
   $("newBrain").hidden = S.demo;
+  $("groupsBtn").hidden = S.demo;
   $("demoBar").hidden = !S.demo;
   if (S.byok && !myKey() && !keyAsked){ keyAsked = true; setTimeout(openSetupSheet, 300); }
 }
@@ -3382,16 +3414,25 @@ function renderSide(){
        subjects. A folder shared in, or one only asked, says so on its row. */
     const kind = b => b.type === "personal" ? "personal" : b.type === "person" ? "person" : "subject";
     const bySize = (x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length || x.name.localeCompare(y.name);
-    const groups = [["personal","Personal"], ["person","People"], ["subject","Subjects"]]
-      .map(([k, head]) => ({ head, rows: S.brains.filter(b => kind(b) === k).sort(bySize) }))
-      .filter(g => g.rows.length);
-    for (const g of groups){
-      const h = el("div","group-h",g.head); h.dataset.n = g.rows.length;
-      box.append(h);
-      for (const b of g.rows){
-        box.append(brainRow(b));
-        if (b.type === "personal" && !S.demo) box.append(...personalSubs(b));
+    /* The categories come after the personal folders, each with its folders
+       under it on a short branch; folders in none keep their type's group. */
+    const cats = inGroups(S.brains.filter(b => b.type !== "personal"));
+    const head = (text, n) => { const h = el("div","group-h",text); h.dataset.n = n; box.append(h); };
+    const mine = S.brains.filter(b => kind(b) === "personal").sort(bySize);
+    if (mine.length){
+      head("Personal", mine.length);
+      for (const b of mine){ box.append(brainRow(b)); if (!S.demo) box.append(...personalSubs(b)); }
+    }
+    if (cats.groups.length){
+      head("Categories", cats.groups.length);
+      for (const g of cats.groups){
+        box.append(groupRow(g));
+        for (const b of g.rows){ const r = brainRow(b); r.classList.add("in-group"); box.append(r); }
       }
+    }
+    for (const [k, h] of [["person","People"], ["subject","Subjects"]]){
+      const rows = cats.rest.filter(b => kind(b) === k);
+      if (rows.length){ head(h, rows.length); for (const b of rows) box.append(brainRow(b)); }
     }
   }
   paintSubs();
@@ -3430,6 +3471,8 @@ function openBrainSheet(b){
         against the new line.</p></header>
       <div class="f"><label for="rName">Name</label><input id="rName" autocomplete="off"></div>
       <div class="f"><label for="rScope">Scope, in one line</label><textarea id="rScope"></textarea></div>
+      <div class="f" id="rGroupF"><label for="rGroup">Category</label><input id="rGroup" list="rGroups" maxlength="40" autocomplete="off" placeholder="No category">
+        <datalist id="rGroups"></datalist></div>
       <div class="f" id="rMergeF" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px">
         <label for="rInto">Merge into another folder</label>
         <div class="hint" style="margin:0 0 8px">Every concept, source and link moves there, and this folder goes. A concept with the same title joins its twin.</div>
@@ -3445,6 +3488,11 @@ function openBrainSheet(b){
   const nameI = veil.querySelector("#rName"), scopeI = veil.querySelector("#rScope"),
         msg = veil.querySelector("#rMsg"), save = veil.querySelector("#rSave");
   nameI.value = b.name || ""; scopeI.value = b.scope || "";
+  /* A category for this workspace's own folders: a name typed, or one in use picked. */
+  const groupI = veil.querySelector("#rGroup");
+  groupI.value = groupOf(b);
+  veil.querySelector("#rGroups").innerHTML = groupNames().map(n => `<option value="${esc(n)}"></option>`).join("");
+  veil.querySelector("#rGroupF").hidden = b.type === "personal" || (b.space || S.space) !== S.space || readOnly(b);
   const shut = () => veil.remove();
   veil.querySelector("#rCancel").onclick = shut;
 
@@ -3486,6 +3534,8 @@ function openBrainSheet(b){
     try {
       const r = await api("/api/brain/rename", { slug: b.slug, name: nm, scope: sc });
       if (r.error) throw new Error(r.error);
+      const grp = groupI.value.replace(/\s+/g, " ").trim();
+      if (!veil.querySelector("#rGroupF").hidden && grp !== groupOf(b)) await api("/api/brain/groups", { set: [{ slug: r.slug || b.slug, group: grp }] });
       shut(); await refresh();
       if (S.scope === b.slug) S.scope = r.slug;
       S.into = S.into.map(x => x === b.slug ? r.slug : x);
@@ -3626,7 +3676,32 @@ function fillPick(){
     drop ? "The AI picks where it belongs" : `${S.brains.length} folder${S.brains.length===1?"":"s"}, ${ideas} concept${ideas===1?"":"s"}`));
   if (drop) m.append(el("div","pk-h","Or tick the folders to feed"));
   if (!drop) m.append(el("div","pk-h","Or tick folders"));
-  for (const b of ordered()) if (!drop || (b.type !== "personal" && !readOnly(b))) m.append(row(b.slug, b.name, b.type === "personal" ? "your chat" : "", String(conceptsOf(b.slug).length), b));
+  const shown = ordered().filter(b => !drop || (b.type !== "personal" && !readOnly(b)));
+  const folderRow = b => row(b.slug, b.name, b.type === "personal" ? "your chat" : "", String(conceptsOf(b.slug).length), b);
+  for (const b of shown.filter(b => b.type === "personal")) m.append(folderRow(b));
+  /* Each category ticks all its folders at once; its folders sit under it. */
+  const cats = inGroups(shown.filter(b => b.type !== "personal"));
+  for (const g of cats.groups){
+    const slugs = g.rows.map(b => b.slug), list = drop ? S.into : S.picks;
+    const on = slugs.every(x => list.includes(x));
+    const r = el("button","pk-row pk-group" + (on ? " on" : "")); r.dataset.group = g.name;
+    r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
+    const box = el("span","pk-box"); box.innerHTML = TICK_SVG;
+    const ic = el("span","pk-ic"); ic.innerHTML = GROUP_ICON;
+    const nm = el("span","pk-nm", g.name); nm.append(el("span","pk-sub", `${g.rows.length} folder${g.rows.length === 1 ? "" : "s"}`));
+    r.append(box, ic, nm, el("span","pk-ct", String(g.size)));
+    r.onclick = e => {
+      e.stopPropagation();
+      if (drop){
+        S.into = on ? S.into.filter(x => !slugs.includes(x)) : [...new Set([...S.into, ...slugs])];
+        S.scope = S.into.length === 1 ? S.into[0] : "all"; S.picks = S.into.slice();
+      } else { crossing("all"); tickGroup(slugs); }
+      render();
+    };
+    m.append(r);
+    for (const b of g.rows){ const x = folderRow(b); x.classList.add("pk-in"); m.append(x); }
+  }
+  for (const b of cats.rest) m.append(folderRow(b));
   /* Assets beside the folders, ticked as many as 4: each is read with every message, as if named with @. The menu stays open. */
   const ready = drop || S.demo || !S.assetsOn ? [] : (S.assets || []).filter(a => a.status === "ready");
   if (ready.length){
@@ -3860,7 +3935,8 @@ function push(kind, build, where = $("thread")){
   return body;
 }
 function says(text, attach, where){
-  push("me", b => { b.textContent = text; if (attach) b.append(el("span","attach",attach)); }, where);
+  /* A tag in a message keeps its shade: a folder, a category, an asset. */
+  push("me", b => { if (String(text ?? "").includes("@")) paintTags(b, String(text), tagChoices(false)); else b.textContent = text; if (attach) b.append(el("span","attach",attach)); }, where);
 }
 /* The same three, on the Drop screen. */
 const dpush = (kind, build) => push(kind, build, $("dropThread"));
@@ -4722,9 +4798,11 @@ document.addEventListener("pointerdown", e => { if (atMenu && !atMenu.contains(e
 /** What a chat may be told to read: the folders, and outside the personal chat the assets as well. */
 function tagChoices(personal){
   const folders = S.brains.filter(b => b.type !== "personal").map(b => ({ slug: b.slug, name: b.name, tag: "" }));
+  /* A category asks all its folders: "@All Wealth". */
+  const groups = groupNames().map(g => ({ slug: "group:" + g, name: "All " + g, tag: "category" }));
   /* The assets, beside the folders: a tag reads one, and a chat may propose a change to it. */
   const assets = S.demo || personal ? [] : (S.assets || []).filter(a => a.status === "ready").map(a => ({ slug: "asset:" + a.id, name: a.name, tag: pjNoun(a.kind) }));
-  return [...folders, ...assets];
+  return [...folders, ...groups, ...assets];
 }
 /** The slugs a message names with @, each once. The longest names are read first, so "@Pricing review" is not taken for "@Pricing". */
 function tagsIn(text, choices){
@@ -4737,6 +4815,63 @@ function tagsIn(text, choices){
     }
   }
   return out.slice(0, MAX_TAGS);
+}
+/** Where each tag sits in a text, as [from, to, kind]: "folder", "group" or "asset". The longest names win, as in tagsIn. */
+function tagSpans(text, choices){
+  const t = String(text ?? ""), out = [];
+  if (!t.includes("@")) return out;
+  const esc = w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const c of [...choices].sort((a, b) => b.name.length - a.name.length)){
+    const kind = c.slug.startsWith("group:") ? "group" : c.slug.startsWith("asset:") ? "asset" : "folder";
+    for (const word of new Set(kind === "folder" ? [c.name, c.slug] : [c.name])){
+      const re = new RegExp(`(^|[\\s(\\[{"'])(@${esc(word)})(?=$|[\\s.,;:!?)\\]}"'])`, "giu");
+      let m;
+      while ((m = re.exec(t))){
+        const from = m.index + m[1].length, to = from + m[2].length;
+        if (!out.some(x => from < x[1] && to > x[0])) out.push([from, to, kind]);
+      }
+    }
+  }
+  return out.sort((a, b) => a[0] - b[0]);
+}
+/** A text into an element, each tag in it shaded by what it names. */
+function paintTags(box, text, choices){
+  box.textContent = "";
+  let at = 0;
+  for (const [from, to, kind] of tagSpans(text, choices)){
+    if (from > at) box.append(text.slice(at, from));
+    box.append(el("mark", "tag-hl hl-" + kind, text.slice(from, to)));
+    at = to;
+  }
+  box.append(text.slice(at));
+}
+/**
+ * The tags in a message bar shaded as they are typed: a layer under the bar,
+ * set in the same type and padding, holds the text with each tag marked, and
+ * the bar's own text sits on top of it. It follows the bar's scroll and size.
+ */
+function attachTagShade(ta, choices){
+  const layer = el("div","tag-layer"); layer.setAttribute("aria-hidden","true");
+  ta.before(layer);
+  ta.classList.add("tag-shaded");
+  const copy = ["fontFamily","fontSize","fontWeight","fontStyle","lineHeight","letterSpacing","paddingTop","paddingRight","paddingBottom","paddingLeft",
+    "borderTopWidth","borderRightWidth","borderBottomWidth","borderLeftWidth","textIndent","wordSpacing","tabSize"];
+  const paint = () => {
+    const list = choices(), text = ta.value;
+    const any = !!list.length && tagSpans(text, list).length > 0;
+    layer.hidden = !any;
+    if (!any) return;
+    const cs = window.getComputedStyle(ta);
+    for (const k of copy) layer.style[k] = cs[k];
+    layer.style.left = ta.offsetLeft + "px"; layer.style.top = ta.offsetTop + "px";
+    layer.style.width = ta.offsetWidth + "px"; layer.style.height = ta.offsetHeight + "px";
+    paintTags(layer, text + "\n", list);
+    layer.scrollTop = ta.scrollTop;
+  };
+  for (const ev of ["input","scroll","focus","blur","keyup"]) ta.addEventListener(ev, paint);
+  new ResizeObserver(paint).observe(ta);
+  ta.shadeTags = paint;
+  return paint;
 }
 /**
  * A message bar that lists folders when @ is typed. `choices` is read at each keystroke, and returns nothing where this bar
@@ -4799,6 +4934,7 @@ function attachMentions(ta, choices){
 }
 /* The main bar: asking, in a folder's chat, in all of them or in the personal one. Not a drop, a chat about one concept or an interview. */
 attachMentions($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices(isPersonal(S.scope)) : []);
+attachTagShade($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices(isPersonal(S.scope)) : []);
 
 /* ============ input ============ */
 function sizeBox(){ const t=$("input"); t.style.height="auto"; t.style.height=Math.min(t.scrollHeight,210)+"px"; }
@@ -5058,6 +5194,7 @@ $("burger").onclick = () => $("side").classList.toggle("open");
 $("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");
 $("newBrain").onclick = () => openSheet("","","subject");
+$("groupsBtn").onclick = () => openGroupsSheet();
 $("newAsset").onclick = e => { e.stopPropagation(); openAssetAdd(e.currentTarget); };
 
 {
@@ -10119,7 +10256,7 @@ async function go(){
   const text = $("input").value.trim();
   const src = $("srcInput").value.trim();
   if (S.mode === "drop" ? !hasContent(src, text) : !text) return;
-  $("input").value = ""; sizeBox();
+  $("input").value = ""; sizeBox(); $("input").shadeTags?.();
   if (S.mode === "drop") $("srcInput").value = "";
   /* A question asked from an open folder starts a chat on that folder. */
   if (S.mode !== "drop" && S.folder){ S.folder = null; if (S.chatId) newChat(); else renderView(); }
@@ -10146,7 +10283,8 @@ async function doAsk(q, again){
   }
   /* It runs on if another chat, a folder or Drop opens: the answer lands in
      its own chat, and the inbox says it is there. */
-  const about = S.concept, scope = S.scope, picks = S.picks.slice();
+  const about = S.concept, scope = S.scope;
+  let picks = S.picks.slice();
   const asked = about ? about.brain : picks.length > 1 ? picks.join(",") : scope;
   const job = addJob(q, about);
   if (again){ again.innerHTML = ""; thinkInto(again); job.body = again; } else job.body = thinking();
@@ -10155,12 +10293,15 @@ async function doAsk(q, again){
        about one concept sends that concept alone. */
     const named = about || S.iv[scope]?.on || dailyToday(scope)?.on ? [] : tagsIn(q, tagChoices(isPersonal(scope)));
     /* An asset tagged travels apart from the folders: the message reads it, and may propose a change to it. */
-    const tags = named.filter(t => !t.startsWith("asset:"));
+    const tags = named.filter(t => !t.startsWith("asset:") && !t.startsWith("group:"));
+    /* A category named asks its folders, beside the ones ticked. */
+    const fromGroups = named.filter(t => t.startsWith("group:")).flatMap(t => groupSlugs(t.slice(6)));
+    if (fromGroups.length) picks = [...new Set([...(picks.length ? picks : scope !== "all" && !isPersonal(scope) ? [scope] : []), ...fromGroups])];
     /* The assets it names, then the ones ticked in the picker: four at most. */
     const assets = about || isPersonal(scope) ? [] : [...new Set([...named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6))), ...S.assetPicks])].slice(0, 4);
     const r = await api("/api/ask", about
       ? { q, concept: about.id, history: S.thread.slice(-4), chat: S.chatId }
-      : { q, brain: scope, ...(picks.length > 1 ? { brains: picks } : {}), ...(tags.length ? { tags } : {}), ...(assets.length ? { assets } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });
+      : { q, brain: fromGroups.length && picks.length === 1 ? picks[0] : scope, ...(picks.length > 1 ? { brains: picks } : {}), ...(tags.length ? { tags } : {}), ...(assets.length ? { assets } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });
     const here = landed(job, r);
     if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, q, asked, true); }
     if (r.interview && isPersonal(scope)) S.iv[scope] = r.interview;
@@ -11557,6 +11698,126 @@ function scriptActs(body, r, slug){
     acts.append(rd);
   }
   body.append(acts);
+}
+/* ============ categories ============
+   A folder sits in one category, or in none: Wealth, Business, Life. The side
+   panel and the chat bar picker show each category with its folders under it,
+   and one click on a category ticks all of them. "@All Wealth" in a message
+   asks them all too. A personal folder stays apart, in no category. */
+
+/** A folder's category, "" for none. */
+function groupOf(b){ return b && b.type !== "personal" ? String(b.group || "").trim() : ""; }
+
+/** The categories of some folders, the fullest first, each with its folders the fullest first; then the folders in none. */
+function inGroups(list){
+  const size = b => conceptsOf(b.slug).length;
+  const bySize = (x, y) => size(y) - size(x) || x.name.localeCompare(y.name);
+  const m = new Map();
+  for (const b of list){ const g = groupOf(b); if (g){ if (!m.has(g)) m.set(g, []); m.get(g).push(b); } }
+  const groups = [...m].map(([name, rows]) => ({ name, rows: rows.sort(bySize), size: rows.reduce((n, b) => n + size(b), 0) }))
+    .sort((x, y) => y.size - x.size || x.name.localeCompare(y.name));
+  return { groups, rest: list.filter(b => !groupOf(b)).sort(bySize) };
+}
+
+/** Every category in use, A to Z. */
+function groupNames(){ return [...new Set(S.brains.map(groupOf).filter(Boolean))].sort((a, b) => a.localeCompare(b)); }
+
+/** The folders of one category. */
+function groupSlugs(name){ return S.brains.filter(b => groupOf(b) === name).map(b => b.slug); }
+
+const GROUP_ICON = `<svg class="b-ic" viewBox="0 0 24 24" role="img" aria-label="Category"><title>Category</title><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.2l2 2h8.8A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>`;
+
+/** Ticks all the folders of a category, or unticks them all once all are ticked. */
+function tickGroup(slugs){
+  const on = slugs.length && slugs.every(x => S.picks.includes(x));
+  setPicks(on ? S.picks.filter(x => !slugs.includes(x)) : [...S.picks, ...slugs]);
+}
+
+/** A category in the side panel, its folders under it: what they hold, and one click asks them all. */
+function groupRow(g){
+  const slugs = g.rows.map(b => b.slug);
+  const on = slugs.every(x => S.picks.includes(x)), some = !on && slugs.some(x => S.picks.includes(x));
+  const row = el("div","brain-row group-row" + (on ? " on" : "") + (some ? " some" : ""));
+  row.setAttribute("role","button"); row.tabIndex = 0; row.setAttribute("aria-pressed", String(on));
+  row.dataset.group = g.name;
+  row.onkeydown = e => { if (e.target === row && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); row.click(); } };
+  const tick = el("span","tick"); tick.innerHTML = GROUP_ICON;
+  const box = el("span","tbox"); box.innerHTML = TICK_SVG; tick.append(box);
+  row.append(tick, el("span","nm", g.name), el("span","cnt", String(g.size)));
+  row.title = `${g.rows.map(b => b.name).join(", ")}\nClick to ask all ${g.rows.length} folders.`;
+  row.onclick = () => {
+    if (S.concept) newChat();
+    crossing("all");
+    tickGroup(slugs);
+    S.folder = null;
+    render();
+  };
+  return row;
+}
+
+/**
+ * The categories sheet: each folder of this workspace with its category, a
+ * name typed or picked from the ones in use. Suggest asks the model for a
+ * category per folder; nothing is saved until Save.
+ */
+function openGroupsSheet(){
+  closeSide();
+  const mine = S.brains.filter(b => b.type !== "personal" && (b.space || S.space) === S.space && !readOnly(b))
+    .sort((x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length || x.name.localeCompare(y.name));
+  const veil = el("div","veil");
+  veil.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="gTitle">
+      <header><h3 id="gTitle">Categories</h3>
+      <p>Each folder sits under one category in the side panel and the picker. One click on a category asks all its folders. Leave it empty for none.</p></header>
+      <div class="f"><div class="g-list" id="gList"></div><datalist id="gNames"></datalist></div>
+      <div class="f"><button class="ghost" id="gSuggest" type="button">Suggest categories</button><div id="gMsg" class="hint" role="status"></div></div>
+      <footer><button class="ghost" id="gCancel" type="button">Cancel</button><button class="go" id="gSave" type="button">Save</button></footer>
+    </div>`;
+  document.body.append(veil);
+  const list = veil.querySelector("#gList"), names = veil.querySelector("#gNames"), msg = veil.querySelector("#gMsg"),
+        save = veil.querySelector("#gSave"), sug = veil.querySelector("#gSuggest");
+  const inputs = new Map();
+  const paintNames = () => {
+    const all = [...new Set([...groupNames(), ...[...inputs.values()].map(i => i.value.trim()).filter(Boolean)])].sort();
+    names.innerHTML = all.map(n => `<option value="${esc(n)}"></option>`).join("");
+  };
+  for (const b of mine){
+    const r = el("label","g-row");
+    const i = el("input"); i.setAttribute("list","gNames"); i.maxLength = 40; i.placeholder = "No category"; i.value = groupOf(b);
+    i.dataset.slug = b.slug; i.setAttribute("aria-label", `Category of ${b.name}`);
+    i.onchange = paintNames;
+    const nm = el("span","g-nm"); nm.append(brainIcon(b), el("span",null,b.name));
+    r.append(nm, i);
+    list.append(r); inputs.set(b.slug, i);
+  }
+  if (!mine.length) list.append(el("div","hint","No folder of this workspace to sort yet."));
+  paintNames();
+  const shut = () => veil.remove();
+  veil.querySelector("#gCancel").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  sug.hidden = S.demo || !mine.length;
+  sug.onclick = async () => {
+    sug.disabled = true; msg.className = "spin"; msg.textContent = "Reading the folders";
+    try {
+      const r = await api("/api/brain/groups", { action: "suggest" });
+      let n = 0;
+      for (const [slug, g] of Object.entries(r.suggest || {})){ const i = inputs.get(slug); if (i && !i.value.trim()){ i.value = g; n++; } }
+      paintNames();
+      msg.className = "hint"; msg.textContent = n ? `${n} folder${n === 1 ? "" : "s"} filled in. Change any, then Save.` : "Every folder already has a category.";
+    } catch (e) { msg.className = "bad"; msg.textContent = e.message; }
+    sug.disabled = false;
+  };
+  save.onclick = async () => {
+    const set = mine.map(b => ({ slug: b.slug, group: inputs.get(b.slug).value.replace(/\s+/g, " ").trim() })).filter(x => x.group !== groupOf(S.brains.find(b => b.slug === x.slug)));
+    if (!set.length){ shut(); return; }
+    save.disabled = true; msg.className = "spin"; msg.textContent = "Saving";
+    try { await api("/api/brain/groups", { set }); }
+    catch (e) { save.disabled = false; msg.className = "bad"; msg.textContent = e.message; return; }
+    shut();
+    await refresh();
+    render();
+  };
+  setTimeout(() => list.querySelector("input")?.focus(), 30);
 }
 
 })();

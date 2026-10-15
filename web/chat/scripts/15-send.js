@@ -8,7 +8,7 @@ async function go(){
   const text = $("input").value.trim();
   const src = $("srcInput").value.trim();
   if (S.mode === "drop" ? !hasContent(src, text) : !text) return;
-  $("input").value = ""; sizeBox();
+  $("input").value = ""; sizeBox(); $("input").shadeTags?.();
   if (S.mode === "drop") $("srcInput").value = "";
   /* A question asked from an open folder starts a chat on that folder. */
   if (S.mode !== "drop" && S.folder){ S.folder = null; if (S.chatId) newChat(); else renderView(); }
@@ -35,7 +35,8 @@ async function doAsk(q, again){
   }
   /* It runs on if another chat, a folder or Drop opens: the answer lands in
      its own chat, and the inbox says it is there. */
-  const about = S.concept, scope = S.scope, picks = S.picks.slice();
+  const about = S.concept, scope = S.scope;
+  let picks = S.picks.slice();
   const asked = about ? about.brain : picks.length > 1 ? picks.join(",") : scope;
   const job = addJob(q, about);
   if (again){ again.innerHTML = ""; thinkInto(again); job.body = again; } else job.body = thinking();
@@ -44,12 +45,15 @@ async function doAsk(q, again){
        about one concept sends that concept alone. */
     const named = about || S.iv[scope]?.on || dailyToday(scope)?.on ? [] : tagsIn(q, tagChoices(isPersonal(scope)));
     /* An asset tagged travels apart from the folders: the message reads it, and may propose a change to it. */
-    const tags = named.filter(t => !t.startsWith("asset:"));
+    const tags = named.filter(t => !t.startsWith("asset:") && !t.startsWith("group:"));
+    /* A category named asks its folders, beside the ones ticked. */
+    const fromGroups = named.filter(t => t.startsWith("group:")).flatMap(t => groupSlugs(t.slice(6)));
+    if (fromGroups.length) picks = [...new Set([...(picks.length ? picks : scope !== "all" && !isPersonal(scope) ? [scope] : []), ...fromGroups])];
     /* The assets it names, then the ones ticked in the picker: four at most. */
     const assets = about || isPersonal(scope) ? [] : [...new Set([...named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6))), ...S.assetPicks])].slice(0, 4);
     const r = await api("/api/ask", about
       ? { q, concept: about.id, history: S.thread.slice(-4), chat: S.chatId }
-      : { q, brain: scope, ...(picks.length > 1 ? { brains: picks } : {}), ...(tags.length ? { tags } : {}), ...(assets.length ? { assets } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });
+      : { q, brain: fromGroups.length && picks.length === 1 ? picks[0] : scope, ...(picks.length > 1 ? { brains: picks } : {}), ...(tags.length ? { tags } : {}), ...(assets.length ? { assets } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });
     const here = landed(job, r);
     if (job.body.isConnected){ job.body.innerHTML = ""; showAnswer(job.body, r, q, asked, true); }
     if (r.interview && isPersonal(scope)) S.iv[scope] = r.interview;

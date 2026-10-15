@@ -71,6 +71,13 @@
   .brain-sub{ position:relative; display:flex; align-items:center; gap:8px; width:100%; min-height:30px; margin-top:1px; padding:4px 10px 4px 36px;
     border:0; border-radius:8px; background:none; text-align:left; cursor:pointer; }
   .brain-sub[hidden]{ display:none; }
+  /* A category leads its folders, which hang under it on the same short branch. */
+  .brain-row.group-row .nm{ font-weight:500; color:var(--ink); }
+  .brain-row.group-row.some .b-ic{ color:var(--accent); }
+  .brain-row.in-group{ position:relative; padding-left:36px; }
+  .brain-row.in-group::before{ content:""; position:absolute; left:17px; top:-3px; height:calc(50% + 3px); width:10px;
+    border-left:1px solid var(--line-2); border-bottom:1px solid var(--line-2); border-bottom-left-radius:6px; }
+  .brain-row.in-group + .brain-row.in-group::after{ content:""; position:absolute; left:17px; top:-50%; height:50%; border-left:1px solid var(--line-2); }
   .brain-sub::before{ content:""; position:absolute; left:17px; top:-3px; height:calc(50% + 3px); width:10px;
     border-left:1px solid var(--line-2); border-bottom:1px solid var(--line-2); border-bottom-left-radius:6px; }
   .brain-sub svg{ width:14px; height:14px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; color:var(--ink-4); }
