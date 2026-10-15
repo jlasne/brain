@@ -25,6 +25,7 @@ function paintIv(){
   if (!bar.dataset.held){ bar.dataset.held = "1"; bar.addEventListener("mousedown", e => { if (e.target.closest("button")) e.preventDefault(); }); }
   const slug = S.scope;
   const show = S.mode === "ask" && isPersonal(slug) && !S.demo && !S.folder && !S.concept;
+  paintSubs();
   bar.hidden = !show;
   if (!show) return;
   if (!(slug in S.iv)){ S.iv[slug] = null; loadIv(slug); }

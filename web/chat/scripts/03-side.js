@@ -203,6 +203,61 @@ function brainRow(b){
   return row;
 }
 
+/* ---- under the personal folder: the interview and the daily log ---- */
+
+/* Drawn here, not taken from the folder screen's icons: the side panel can paint before that part of the script has run. */
+function subIcon(k){
+  return k === "iv"
+    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M10 9.3a2 2 0 1 1 2.7 1.9c-.4.2-.7.5-.7 1v.3M12 14.3v.1"/></svg>`
+    : `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4"/></svg>`;
+}
+
+/**
+ * Two lines under a personal folder, each linked to it: the interview and the
+ * daily log. A click starts that one in a new chat. Where each stands is
+ * painted by paintSubs, so a turn in the chat updates it without redrawing
+ * the list.
+ */
+function personalSubs(b){
+  const line = (k, label, title, start) => {
+    const x = el("button","brain-sub"); x.type = "button"; x.dataset.sub = k; x.dataset.slug = b.slug;
+    x.id = k === "iv" ? "subIv" : "subDaily";
+    x.title = title;
+    x.innerHTML = subIcon(k);
+    x.append(el("span","nm",label), el("span","st",""));
+    x.onclick = () => { closeSide(); S.folder = null; S.concept = null; newChat(); start(b.slug); };
+    return x;
+  };
+  /* Where each stands is read once, for the line to say it. */
+  if (!(b.slug in S.iv)){ S.iv[b.slug] = null; loadIv(b.slug); }
+  if (!(b.slug in S.daily)){ S.daily[b.slug] = null; loadDaily(b.slug); }
+  return [
+    line("iv", "Interview", "Questions to know you better, one at a time, in a new chat. Each answer goes into your notes.", startInterview),
+    line("daily", "Daily log", "Today's questions, one at a time, in a new chat. Each answer goes into your notes, and the day becomes a 60-second video script.", startDaily),
+  ];
+}
+
+/** What each line under a personal folder says: running, how complete, or today's count. */
+function paintSubs(){
+  for (const x of document.querySelectorAll(".brain-sub")){
+    const slug = x.dataset.slug, here = S.scope === slug && S.mode === "ask" && !S.folder;
+    let on = false, st = "", gone = false;
+    if (x.dataset.sub === "iv"){
+      const iv = S.iv[slug];
+      on = !!iv?.on; gone = ivDone(iv);
+      st = !iv ? "" : on ? "on" : `${iv.pct}%`;
+    } else {
+      const dl = dailyToday(slug);
+      on = !!dl?.on;
+      st = !dl ? "" : on ? "on" : dl.script ? "script" : dl.seen ? `${dl.answered}/${dl.total}` : "";
+    }
+    x.hidden = gone;
+    x.classList.toggle("on", on && here);
+    x.classList.toggle("live", on);
+    x.querySelector(".st").textContent = st;
+  }
+}
+
 /* ---- which workspace this is ---- */
 
 /** The owner's two workspaces: the only ones with mail, the connector and transcripts to spare. */
@@ -519,9 +574,13 @@ function renderSide(){
     for (const g of groups){
       const h = el("div","group-h",g.head); h.dataset.n = g.rows.length;
       box.append(h);
-      for (const b of g.rows) box.append(brainRow(b));
+      for (const b of g.rows){
+        box.append(brainRow(b));
+        if (b.type === "personal" && !S.demo) box.append(...personalSubs(b));
+      }
     }
   }
+  paintSubs();
   /* On a phone, one button closes the drawer on the ticked folders. */
   const go = $("sideGo");
   go.hidden = !S.picks.length;

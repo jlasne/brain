@@ -2441,6 +2441,22 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       return Response.json({ chats: [] });
     };
   }, mine);
+  await page.waitForTimeout(250);
+  const subs = await page.evaluate(() => { const me = [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent));
+    const a = me?.nextElementSibling, b = a?.nextElementSibling;
+    return { a: a?.className, an: a?.querySelector(".nm")?.textContent, ast: a?.querySelector(".st")?.textContent, b: b?.className, bn: b?.querySelector(".nm")?.textContent,
+      next: b?.nextElementSibling?.className || "" }; });
+  check("under the personal folder, two lines linked to it: Interview with how complete the twin is, then Daily log", subs.a === "brain-sub" && subs.an === "Interview" && subs.ast === "4%"
+    && subs.b === "brain-sub" && subs.bn === "Daily log" && !/brain-sub/.test(subs.next), JSON.stringify(subs));
+  await page.click("#subDaily"); await page.waitForTimeout(300);
+  const fromSide = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/daily") && x.body.action === "start").pop()?.body,
+    ai: [...document.querySelectorAll("#thread .msg.ai")].pop()?.textContent || "", line: document.getElementById("subDaily")?.className, st: document.querySelector("#subDaily .st")?.textContent }));
+  check("Daily log in the side panel starts today's log in a new chat, and its line says it is on", fromSide.sent?.brain === "me" && fromSide.sent?.chat === null && /Where were you today\?/.test(fromSide.ai)
+    && /\bon\b/.test(fromSide.line || "") && fromSide.st === "on", JSON.stringify(fromSide));
+  await page.click("#dlStop"); await page.waitForTimeout(250);
+  await page.click("#subIv"); await page.waitForTimeout(250);
+  const ivSide = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/interview") && x.body.action === "start").pop()?.body);
+  check("Interview in the side panel starts the interview in a new chat", ivSide?.brain === "me" && ivSide?.chat === null, JSON.stringify(ivSide));
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Me/.test(r.textContent))?.querySelector(".ed.op")?.click());
   await page.waitForTimeout(350);
   const fv = await page.evaluate(() => ({ acts: [...document.querySelectorAll(".fv-acts .fv-b")].map(b => b.id), sec: document.querySelector("#twinPane #dlSec")?.textContent || "" }));

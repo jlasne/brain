@@ -1715,6 +1715,22 @@
   .chat-row .nm, .brain-row .nm{ font:400 13.5px/1.35 var(--sans); color:var(--ink-2); }
   .chat-row.on .nm, .brain-row.on .nm{ font-weight:500; color:var(--ink); }
   .brain-row.on .b-ic, .brain-row .b-ic{ color:var(--ink-4); }
+  /* Under the personal folder, linked to it by a short branch: its interview and its daily log. */
+  .brain-sub{ position:relative; display:flex; align-items:center; gap:8px; width:100%; min-height:30px; margin-top:1px; padding:4px 10px 4px 36px;
+    border:0; border-radius:8px; background:none; text-align:left; cursor:pointer; }
+  .brain-sub[hidden]{ display:none; }
+  .brain-sub::before{ content:""; position:absolute; left:17px; top:-3px; height:calc(50% + 3px); width:10px;
+    border-left:1px solid var(--line-2); border-bottom:1px solid var(--line-2); border-bottom-left-radius:6px; }
+  .brain-sub svg{ width:14px; height:14px; flex:none; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; color:var(--ink-4); }
+  .brain-sub .nm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:400 13px/1.35 var(--sans); color:var(--ink-3); }
+  .brain-sub .st{ flex:none; font:500 12px/1 var(--mono); color:var(--ink-4); }
+  .brain-sub .st:empty{ display:none; }
+  .brain-sub:hover{ background:var(--side-hover); }
+  .brain-sub:hover .nm{ color:var(--ink); }
+  .brain-sub.live .st{ color:var(--good); }
+  .brain-sub.on{ background:var(--side-on); }
+  .brain-sub.on .nm{ font-weight:500; color:var(--ink); }
+  .brain-sub.on svg{ color:var(--accent); }
 
   /* The foot: Settings, then Sign out, on one line. */
   .side-foot{ display:flex; flex-wrap:wrap; align-items:center; gap:4px; border-top:1px solid var(--line); padding:8px 10px 10px; }
@@ -1737,8 +1753,9 @@
     .panel .fold-t{ font-size:12px; padding:12px 0; }
     .panel .chev{ opacity:1; }
     .panel .side-plus{ width:40px; height:40px; }
-    .chat-row, .brain-row{ min-height:44px; }
+    .chat-row, .brain-row, .brain-sub{ min-height:44px; }
     .chat-row .nm, .brain-row .nm{ font-size:15px; }
+    .brain-sub .nm{ font-size:14px; }
     .sf-btn, .foot-link{ min-height:44px; font-size:14.5px; }
     .brand{ min-height:60px; }
   }
@@ -2190,7 +2207,7 @@
     .panel .fold-t{ min-height:44px; }
     .panel .side-plus{ width:40px; height:40px; }
     .side-new{ min-height:40px; }
-    .chat-row, .brain-row, .side-more{ min-height:44px; }
+    .chat-row, .brain-row, .brain-sub, .side-more{ min-height:44px; }
     .chat-row .more, .brain-row .hring{ min-width:40px; min-height:40px; }
     .brain-row .ed{ display:inline-grid; place-items:center; min-height:40px; }
     .sf-btn, .foot-link{ min-height:44px; }
@@ -2993,6 +3010,61 @@ function brainRow(b){
   return row;
 }
 
+/* ---- under the personal folder: the interview and the daily log ---- */
+
+/* Drawn here, not taken from the folder screen's icons: the side panel can paint before that part of the script has run. */
+function subIcon(k){
+  return k === "iv"
+    ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M10 9.3a2 2 0 1 1 2.7 1.9c-.4.2-.7.5-.7 1v.3M12 14.3v.1"/></svg>`
+    : `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4"/></svg>`;
+}
+
+/**
+ * Two lines under a personal folder, each linked to it: the interview and the
+ * daily log. A click starts that one in a new chat. Where each stands is
+ * painted by paintSubs, so a turn in the chat updates it without redrawing
+ * the list.
+ */
+function personalSubs(b){
+  const line = (k, label, title, start) => {
+    const x = el("button","brain-sub"); x.type = "button"; x.dataset.sub = k; x.dataset.slug = b.slug;
+    x.id = k === "iv" ? "subIv" : "subDaily";
+    x.title = title;
+    x.innerHTML = subIcon(k);
+    x.append(el("span","nm",label), el("span","st",""));
+    x.onclick = () => { closeSide(); S.folder = null; S.concept = null; newChat(); start(b.slug); };
+    return x;
+  };
+  /* Where each stands is read once, for the line to say it. */
+  if (!(b.slug in S.iv)){ S.iv[b.slug] = null; loadIv(b.slug); }
+  if (!(b.slug in S.daily)){ S.daily[b.slug] = null; loadDaily(b.slug); }
+  return [
+    line("iv", "Interview", "Questions to know you better, one at a time, in a new chat. Each answer goes into your notes.", startInterview),
+    line("daily", "Daily log", "Today's questions, one at a time, in a new chat. Each answer goes into your notes, and the day becomes a 60-second video script.", startDaily),
+  ];
+}
+
+/** What each line under a personal folder says: running, how complete, or today's count. */
+function paintSubs(){
+  for (const x of document.querySelectorAll(".brain-sub")){
+    const slug = x.dataset.slug, here = S.scope === slug && S.mode === "ask" && !S.folder;
+    let on = false, st = "", gone = false;
+    if (x.dataset.sub === "iv"){
+      const iv = S.iv[slug];
+      on = !!iv?.on; gone = ivDone(iv);
+      st = !iv ? "" : on ? "on" : `${iv.pct}%`;
+    } else {
+      const dl = dailyToday(slug);
+      on = !!dl?.on;
+      st = !dl ? "" : on ? "on" : dl.script ? "script" : dl.seen ? `${dl.answered}/${dl.total}` : "";
+    }
+    x.hidden = gone;
+    x.classList.toggle("on", on && here);
+    x.classList.toggle("live", on);
+    x.querySelector(".st").textContent = st;
+  }
+}
+
 /* ---- which workspace this is ---- */
 
 /** The owner's two workspaces: the only ones with mail, the connector and transcripts to spare. */
@@ -3309,9 +3381,13 @@ function renderSide(){
     for (const g of groups){
       const h = el("div","group-h",g.head); h.dataset.n = g.rows.length;
       box.append(h);
-      for (const b of g.rows) box.append(brainRow(b));
+      for (const b of g.rows){
+        box.append(brainRow(b));
+        if (b.type === "personal" && !S.demo) box.append(...personalSubs(b));
+      }
     }
   }
+  paintSubs();
   /* On a phone, one button closes the drawer on the ticked folders. */
   const go = $("sideGo");
   go.hidden = !S.picks.length;
@@ -10212,6 +10288,7 @@ function paintIv(){
   if (!bar.dataset.held){ bar.dataset.held = "1"; bar.addEventListener("mousedown", e => { if (e.target.closest("button")) e.preventDefault(); }); }
   const slug = S.scope;
   const show = S.mode === "ask" && isPersonal(slug) && !S.demo && !S.folder && !S.concept;
+  paintSubs();
   bar.hidden = !show;
   if (!show) return;
   if (!(slug in S.iv)){ S.iv[slug] = null; loadIv(slug); }
