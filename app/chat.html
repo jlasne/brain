@@ -3494,20 +3494,21 @@ function fillPick(){
   const scroll = m.scrollTop;
   m.innerHTML = "";
   m.classList.toggle("multi", drop);
-  m.setAttribute("aria-multiselectable", drop ? "true" : "false");
-  /* Asking reads one folder, the ones ticked in the side panel, or all of
-     them. Dropping ticks as many as the source belongs in, and the menu stays
-     open while they are ticked. */
+  m.setAttribute("aria-multiselectable", "true");
+  /* Asking reads all the folders, the personal chat, or the folders ticked
+     here or in the side panel. Dropping ticks as many as the source belongs
+     in. Either way the menu stays open while folders are ticked. */
   const isOn = slug => drop ? (slug === "all" ? !S.into.length : S.into.includes(slug))
     : S.picks.length > 1 ? S.picks.includes(slug) : S.scope === slug;
+  const ticks = (slug, b) => drop ? slug !== "all" : slug !== "all" && b?.type !== "personal";
   const row = (slug, name, sub, count, b) => {
     const on = isOn(slug);
     const r = el("button","pk-row" + (on ? " on" : ""));
     r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
     const nm = el("span","pk-nm", name);
     if (sub) nm.append(el("span","pk-sub", sub));
-    const mark = el("span", drop && slug !== "all" ? "pk-box" : "pk-dot");
-    if (drop && slug !== "all") mark.innerHTML = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.6l4.5-5"/></svg>`;
+    const mark = el("span", ticks(slug, b) ? "pk-box" : "pk-dot");
+    if (ticks(slug, b)) mark.innerHTML = TICK_SVG;
     r.append(mark);
     if (b) r.append(brainIcon(b));
     r.append(nm);
@@ -3516,7 +3517,13 @@ function fillPick(){
       e.stopPropagation();
       if (!drop){
         crossing(slug);
-        if (isPersonal(slug)){ S.picks = []; S.scope = slug; S.into = []; S.assetPicks = []; } else setPicks(slug === "all" ? [] : [slug]);
+        if (ticks(slug, b)){
+          /* A folder row ticks or unticks it, beside the ones already ticked. */
+          const now = S.picks.length ? S.picks : isPersonal(S.scope) || S.scope === "all" ? [] : [S.scope];
+          setPicks(now.includes(slug) ? now.filter(x => x !== slug) : [...now, slug]);
+          render(); return;
+        }
+        if (isPersonal(slug)){ S.picks = []; S.scope = slug; S.into = []; S.assetPicks = []; } else setPicks([]);
         closePick(); render(); $("input").focus(); return;
       }
       if (slug === "all") S.into = [];
@@ -3531,7 +3538,7 @@ function fillPick(){
   m.append(row("all", drop ? "Suggest for me" : "All folders",
     drop ? "The AI picks where it belongs" : `${S.brains.length} folder${S.brains.length===1?"":"s"}, ${ideas} concept${ideas===1?"":"s"}`));
   if (drop) m.append(el("div","pk-h","Or tick the folders to feed"));
-  if (!drop) m.append(el("div","pk-h","Or one folder"));
+  if (!drop) m.append(el("div","pk-h","Or tick folders"));
   for (const b of ordered()) if (!drop || (b.type !== "personal" && !readOnly(b))) m.append(row(b.slug, b.name, b.type === "personal" ? "your chat" : "", String(conceptsOf(b.slug).length), b));
   /* Assets beside the folders, ticked as many as 4: each is read with every message, as if named with @. The menu stays open. */
   const ready = drop || S.demo || !S.assetsOn ? [] : (S.assets || []).filter(a => a.status === "ready");
@@ -3541,7 +3548,7 @@ function fillPick(){
       const on = S.assetPicks.includes(a.id);
       const r = el("button","pk-row pk-asset" + (on ? " on" : "")); r.dataset.fid = String(a.id);
       r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
-      const box = el("span","pk-box"); box.innerHTML = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.2 5 8.6l4.5-5"/></svg>`;
+      const box = el("span","pk-box"); box.innerHTML = TICK_SVG;
       const ic = el("span","pk-ic"); ic.innerHTML = pjIcon(a.kind);
       r.append(box, ic, el("span","pk-nm", a.name), el("span","pk-ct", assetMeta(a)));
       r.onclick = e => {
@@ -3553,8 +3560,9 @@ function fillPick(){
       m.append(r);
     }
   }
-  if (drop){
-    const done = el("button","pk-done", S.into.length > 1 ? `Feed ${S.into.length} folders` : "Done");
+  if (drop || S.picks.length || S.assetPicks.length){
+    const n = S.picks.length;
+    const done = el("button","pk-done", drop ? (S.into.length > 1 ? `Feed ${S.into.length} folders` : "Done") : n > 1 ? `Ask ${n} folders` : "Done");
     done.onclick = e => { e.stopPropagation(); closePick(); $("input").focus(); };
     m.append(done);
   }

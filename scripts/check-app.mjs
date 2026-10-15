@@ -232,13 +232,14 @@ async function openPager(page) {
     rows: [...document.querySelectorAll(".pick-menu .pk-row .pk-nm")].map(x => x.firstChild.textContent),
     heads: [...document.querySelectorAll(".pick-menu .pk-h")].map(x => x.textContent),
   }));
-  check("its menu offers every folder in one list", menu.rows.join(",") === "All folders,Content" && menu.heads.join(",") === "Or one folder",
+  check("its menu offers every folder in one list", menu.rows.join(",") === "All folders,Content" && menu.heads.join(",") === "Or tick folders",
     JSON.stringify(menu));
   check("each with its person or subject mark", await page.evaluate(() =>
     document.querySelector(".pick-menu .pk-row:nth-of-type(2) .b-ic")?.getAttribute("aria-label")) === "Subject");
   await page.click(".pick-menu .pk-row >> nth=1");
   const picked = await page.evaluate(() => ({ val: document.getElementById("scopeVal").textContent, open: !!document.querySelector(".pick-menu") }));
-  check("picking a brain names it and closes the menu", picked.val === "Content" && !picked.open, JSON.stringify(picked));
+  check("ticking a brain names it and keeps the menu open", picked.val === "Content" && picked.open, JSON.stringify(picked));
+  await page.keyboard.press("Escape");
   await page.focus("#input"); await page.click("#scopeBtn"); await page.keyboard.press("Escape");
   check("Escape closes the menu", !(await page.$(".pick-menu")));
   await page.focus("#input"); await page.click("#scopeBtn"); await page.click(".pick-menu .pk-row >> nth=0");
@@ -2884,6 +2885,23 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#dropClose");
   const askFace = await page.evaluate(() => document.getElementById("scopeVal").textContent);
   check("asking after the drop keeps the two folders ticked", /^(Wealth|Charles Gave) \+1$/.test(askFace), askFace);
+
+  /* Asking, the chat bar ticks folders too: one more, one off, the menu open. */
+  await page.focus("#input"); await page.click("#scopeBtn");
+  const ask = await page.evaluate(() => ({ boxes: document.querySelectorAll(".pick-menu .pk-box").length, done: document.querySelector(".pick-menu .pk-done")?.textContent }));
+  check("asking, each folder has a tick box and the button says how many are asked", ask.boxes === 3 && ask.done === "Ask 2 folders", JSON.stringify(ask));
+  await page.click('.pick-menu .pk-row:has-text("Content")');
+  await page.click('.pick-menu .pk-row:has-text("Charles Gave")');
+  const three2 = await page.evaluate(() => ({ val: document.getElementById("scopeVal").textContent, open: !!document.querySelector(".pick-menu"),
+    on: [...document.querySelectorAll(".pick-menu .pk-row.on .pk-nm")].map(x => x.firstChild.textContent).sort().join(",") }));
+  check("ticking one more and unticking another keeps the menu open", three2.open && three2.on === "Content,Wealth" && /^(Wealth|Content) \+1$/.test(three2.val), JSON.stringify(three2));
+  await page.click(".pick-menu .pk-done");
+  check("its button closes the menu", !(await page.$(".pick-menu")));
+  await page.evaluate(() => { window.__ask = null; const f = window.fetch; window.fetch = async (u, opt) => {
+    if (String(u).includes("/api/ask")) { window.__ask = JSON.parse(opt?.body || "{}"); return Response.json({ answer: "ok", sources: [] }); } return f(u, opt); }; });
+  await page.fill("#input", "What do they say about gold?"); await page.click("#send"); await page.waitForTimeout(400);
+  const asked = await page.evaluate(() => window.__ask);
+  check("the question goes to the two folders ticked", JSON.stringify((asked?.brains || []).slice().sort()) === '["content","wealth"]', JSON.stringify(asked && { brain: asked.brain, brains: asked.brains }));
   check("nothing threw ticking brains", !bad.length, bad.join(" | "));
   await page.close();
 }
