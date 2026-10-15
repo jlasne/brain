@@ -55,6 +55,31 @@ async function dailyCall(slug, action, label, extra = {}){
 
 /** On, in the chat on screen, and the question waiting or today's first. */
 function startDaily(slug){ return dailyCall(slug, "start", "Picking today's first question"); }
+
+/** Today's chat of the log, or of its script, when one is saved. */
+function dailyChat(slug){
+  const day = new Date().toISOString().slice(0, 10);
+  return (S.chats || []).find(c => c.brain === slug && (c.title === `Daily log, ${day}` || c.title === `Video script, ${day}`)) || null;
+}
+
+/**
+ * The way into today's log, from the side panel or the twin pane. Today's chat
+ * opens again when there is one: a question waiting is already in it, and a
+ * paused log asks its next one there. With no chat yet, a new one starts.
+ */
+async function openDaily(slug){
+  if (chatBusy()) return;
+  S.folder = null; S.concept = null;
+  const c = dailyChat(slug), dl = dailyToday(slug);
+  if (c){
+    if (S.chatId !== c.id) await openChat(c.id);
+    else { closeSide(); render(); }
+    if (!dl?.on && dl?.beat) await startDaily(slug);
+    return;
+  }
+  newChat();
+  return startDaily(slug);
+}
 /** Today's 60-second video script, from today's answers and a light read of the notes. */
 function writeScript(slug){ return dailyCall(slug, "script", "Writing the script"); }
 /** Today's script written again, following their comment on the last one. */
@@ -119,7 +144,7 @@ function dailySection(b){
     now.innerHTML = "";
     const row = el("div","tw-acts");
     const goB = el("button","go", dl?.on || dl?.seen ? "Resume today's log" : "Start today's log"); goB.type = "button"; goB.id = "dlGo";
-    goB.onclick = () => { S.folder = null; newChat(); startDaily(b.slug); };
+    goB.onclick = () => openDaily(b.slug);
     const where = !dl ? "" : `Today: ${dl.answered} of ${dl.total} answered${dl.script ? " · script written" : dl.ready ? " · ready for its script" : ""}.`;
     row.append(goB, el("span","ts-say", where));
     const series = el("p","tw-key", dl?.series

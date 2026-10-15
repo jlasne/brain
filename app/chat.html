@@ -3027,7 +3027,8 @@ function subIcon(k){
 
 /**
  * Two lines under a personal folder, each linked to it: the interview and the
- * daily log. A click starts that one in a new chat. Where each stands is
+ * daily log. A click starts the interview in a new chat, and opens today's
+ * chat of the log when there is one. Where each stands is
  * painted by paintSubs, so a turn in the chat updates it without redrawing
  * the list.
  */
@@ -3038,7 +3039,7 @@ function personalSubs(b){
     x.title = title;
     x.innerHTML = subIcon(k);
     x.append(el("span","nm",label), el("span","st",""));
-    x.onclick = () => { closeSide(); S.folder = null; S.concept = null; newChat(); start(b.slug); };
+    x.onclick = () => { closeSide(); S.folder = null; S.concept = null; if (k === "daily") return openDaily(b.slug); newChat(); start(b.slug); };
     return x;
   };
   /* Where each stands is read once, for the line to say it. */
@@ -6792,7 +6793,7 @@ function folderHead({ b, self, live, reads, clashes, h, ro, panes }){
       "It asks you questions, one at a time, to know you better. Stop any time.");
     btn("fvTest", "Twin test", IC_TEST, () => panes.testPane(), "5 messages to reply to, built from your notes: your twin replies first, from your notes alone, then the two replies are compared, and yours go into your notes");
     /* The daily log, an add-on: today's questions in a chat of its own, filed here, and the day's video script. */
-    btn("fvDaily", "Daily log", IC_DAY, () => { S.folder = null; newChat(); startDaily(b.slug); },
+    btn("fvDaily", "Daily log", IC_DAY, () => openDaily(b.slug),
       "Today's questions, one at a time, in a chat of its own. Each answer goes into your notes, and the day becomes a 60-second video script");
     /* At 100% the notes and the contacts hold all of it: the profile would only repeat them. */
     if (!ivFull(S.iv[b.slug])) btn("fvProfile", "Twin profile", IC_PROFILE, () => panes.profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");
@@ -11389,6 +11390,31 @@ async function dailyCall(slug, action, label, extra = {}){
 
 /** On, in the chat on screen, and the question waiting or today's first. */
 function startDaily(slug){ return dailyCall(slug, "start", "Picking today's first question"); }
+
+/** Today's chat of the log, or of its script, when one is saved. */
+function dailyChat(slug){
+  const day = new Date().toISOString().slice(0, 10);
+  return (S.chats || []).find(c => c.brain === slug && (c.title === `Daily log, ${day}` || c.title === `Video script, ${day}`)) || null;
+}
+
+/**
+ * The way into today's log, from the side panel or the twin pane. Today's chat
+ * opens again when there is one: a question waiting is already in it, and a
+ * paused log asks its next one there. With no chat yet, a new one starts.
+ */
+async function openDaily(slug){
+  if (chatBusy()) return;
+  S.folder = null; S.concept = null;
+  const c = dailyChat(slug), dl = dailyToday(slug);
+  if (c){
+    if (S.chatId !== c.id) await openChat(c.id);
+    else { closeSide(); render(); }
+    if (!dl?.on && dl?.beat) await startDaily(slug);
+    return;
+  }
+  newChat();
+  return startDaily(slug);
+}
 /** Today's 60-second video script, from today's answers and a light read of the notes. */
 function writeScript(slug){ return dailyCall(slug, "script", "Writing the script"); }
 /** Today's script written again, following their comment on the last one. */
@@ -11453,7 +11479,7 @@ function dailySection(b){
     now.innerHTML = "";
     const row = el("div","tw-acts");
     const goB = el("button","go", dl?.on || dl?.seen ? "Resume today's log" : "Start today's log"); goB.type = "button"; goB.id = "dlGo";
-    goB.onclick = () => { S.folder = null; newChat(); startDaily(b.slug); };
+    goB.onclick = () => openDaily(b.slug);
     const where = !dl ? "" : `Today: ${dl.answered} of ${dl.total} answered${dl.script ? " · script written" : dl.ready ? " · ready for its script" : ""}.`;
     row.append(goB, el("span","ts-say", where));
     const series = el("p","tw-key", dl?.series

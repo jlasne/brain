@@ -2439,7 +2439,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
       if (s.includes("/api/ask")) { if (body.q !== "skip") n++; else n++; if (n >= 5) on = true;
         return Response.json({ answer: n >= 8 ? "That's the day." : "Next question?", sources: 0, level: "normal", personal: true,
           filed: body.q === "skip" ? { new: 0, updated: 0, titles: [] } : { new: 1, updated: 0, titles: ["Day"] }, called: [], daily: view(), chat: "d1" }); }
-      return Response.json({ chats: [] });
+      if (s.includes("/api/chats/get")) return Response.json({ chat: { id: "d1", brain: "me", title: `Daily log, ${day}`, turns: [{ q: "", a: "Where were you today?" }] } });
+      return Response.json({ chats: window.__dayChat ? [{ id: "d1", brain: "me", title: `Daily log, ${day}`, turns: 7 }] : [] });
     };
   }, mine);
   await page.waitForTimeout(250);
@@ -2493,11 +2494,19 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("today's script offers Redo with a comment beside Copy", JSON.stringify(acts) === '["Copy the script","Redo with a comment"]', JSON.stringify(acts));
   await page.click(".sc-redo"); await page.waitForTimeout(100);
   await page.fill(".sc-form textarea", "a stronger hook, numbers in the first line");
+  await page.evaluate(() => { window.__dayChat = true; });
   await page.click(".sc-form .go"); await page.waitForTimeout(300);
   const rd = await page.evaluate(() => ({ sent: window.__calls.filter(x => x.s.includes("/api/daily") && x.body.action === "script").pop()?.body,
     me: [...document.querySelectorAll("#thread .msg.me")].pop()?.textContent, ai: [...document.querySelectorAll("#thread .msg.ai")].pop()?.textContent || "", form: !!document.querySelector(".sc-form") }));
   check("Redo sends the comment, shows it as yours, and the new script lands under it", rd.sent?.note === "a stronger hook, numbers in the first line" && rd.sent?.redo === true
     && rd.sent?.chat === "d1" && rd.me === "a stronger hook, numbers in the first line" && /75 messages, 3 replies\./.test(rd.ai) && !rd.form, JSON.stringify(rd));
+  /* Today's chat saved: Daily log opens it again, and asks the next question there. */
+  await page.click("#startBtn"); await page.waitForTimeout(150);
+  const n0 = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/daily") && x.body.action === "start").length);
+  await page.click("#subDaily"); await page.waitForTimeout(400);
+  const back = await page.evaluate(() => ({ got: window.__calls.filter(x => x.s.includes("/api/chats/get")).pop()?.body, starts: window.__calls.filter(x => x.s.includes("/api/daily") && x.body.action === "start").slice(-1),
+    n: window.__calls.filter(x => x.s.includes("/api/daily") && x.body.action === "start").length }));
+  check("Daily log opens today's chat again, and asks on in it, with no new chat", back.got?.id === "d1" && back.n === n0 + 1 && back.starts[0]?.body?.chat === "d1", JSON.stringify(back));
   check("nothing threw around the daily log", !bad.length, bad.join(" | "));
   await page.close();
 }

@@ -306,7 +306,7 @@ function folderHead({ b, self, live, reads, clashes, h, ro, panes }){
       "It asks you questions, one at a time, to know you better. Stop any time.");
     btn("fvTest", "Twin test", IC_TEST, () => panes.testPane(), "5 messages to reply to, built from your notes: your twin replies first, from your notes alone, then the two replies are compared, and yours go into your notes");
     /* The daily log, an add-on: today's questions in a chat of its own, filed here, and the day's video script. */
-    btn("fvDaily", "Daily log", IC_DAY, () => { S.folder = null; newChat(); startDaily(b.slug); },
+    btn("fvDaily", "Daily log", IC_DAY, () => openDaily(b.slug),
       "Today's questions, one at a time, in a chat of its own. Each answer goes into your notes, and the day becomes a 60-second video script");
     /* At 100% the notes and the contacts hold all of it: the profile would only repeat them. */
     if (!ivFull(S.iv[b.slug])) btn("fvProfile", "Twin profile", IC_PROFILE, () => panes.profilePane(), "Your notes written as 7 parts: how you think, decide, speak and act");

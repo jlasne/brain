@@ -214,7 +214,8 @@ function subIcon(k){
 
 /**
  * Two lines under a personal folder, each linked to it: the interview and the
- * daily log. A click starts that one in a new chat. Where each stands is
+ * daily log. A click starts the interview in a new chat, and opens today's
+ * chat of the log when there is one. Where each stands is
  * painted by paintSubs, so a turn in the chat updates it without redrawing
  * the list.
  */
@@ -225,7 +226,7 @@ function personalSubs(b){
     x.title = title;
     x.innerHTML = subIcon(k);
     x.append(el("span","nm",label), el("span","st",""));
-    x.onclick = () => { closeSide(); S.folder = null; S.concept = null; newChat(); start(b.slug); };
+    x.onclick = () => { closeSide(); S.folder = null; S.concept = null; if (k === "daily") return openDaily(b.slug); newChat(); start(b.slug); };
     return x;
   };
   /* Where each stands is read once, for the line to say it. */

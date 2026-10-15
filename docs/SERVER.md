@@ -184,7 +184,9 @@ lines and the shots, never the series line, Sound or Missing, and flags a
 dash, a sentence of 30 words or more, a vague word from a fixed list or a
 negation; any flag sends the flagged lines back for one rewrite, kept only
 when it flags fewer. `redo: true` with a `note` writes today's script again
-from the last one and the comment. A new day starts over and keeps the series line. It lives under `daily`
+from the last one and the comment. Once today is ready, a chat message that
+asks for it ("rewrite with the series line", "write the script") does the same,
+the message as the comment. A new day starts over and keeps the series line. It lives under `daily`
 in the `interviews` row, and the script stays in its chat.
 
 Projects (the first kind and the later one: their chat threads, section meanings, costs and caps), saved one-pagers, the

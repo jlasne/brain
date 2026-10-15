@@ -39,7 +39,7 @@ import {
 } from "./twin";
 import type { RoundQ } from "./twin";
 import type { Marks } from "./twin";
-import { dailyStep, dailyView, dayOf, pausedLine as dailyPaused, cleanSeries, openingOf, scriptPrompt, scriptParts, openingLine, withOpening, lintScript, fixPrompt,
+import { dailyStep, dailyView, dayOf, pausedLine as dailyPaused, cleanSeries, openingOf, scriptPrompt, scriptParts, openingLine, withOpening, lintScript, fixPrompt, scriptAsk,
   READY_AT, answered, left as beatsLeft } from "./daily";
 import { nearest as nearestNotes, isContact } from "./personal";
 import { transcribe } from "./voice";
@@ -1180,6 +1180,10 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   /* An interview under way takes the message as its answer. */
   const row = who.demo ? null : await ctx.runQuery(internal.store.interviewGet, { space: who.space, brain: mine.slug });
   if (row?.on) return await interviewTurn(ctx, who, b, mine, every.cards, row, false, tally);
+  /* A message asking for today's script, or to write it again, gets the script: the message is the comment on the last one. */
+  const told = !who.demo && row?.daily?.day === today() ? dailyView(row.daily, today()) : null;
+  const wants = told?.ready ? scriptAsk(String(b.q ?? ""), !!told.script) : null;
+  if (wants) return await dailyScript(ctx, who, { ...b, redo: wants === "redo", note: wants === "redo" ? String(b.q ?? "") : "" }, mine, every.cards, row, tally);
   /* Today's log under way takes the message as its answer. */
   if (row?.daily?.on && row.daily.day === today()) return await dailyTurn(ctx, who, b, mine, every.cards, row, false, tally);
   const q = String(b.q ?? "").slice(0, MAX_CHARS.chat).trim();
@@ -1587,6 +1591,49 @@ async function dailyTurn(ctx: any, who: Caller, b: any, mine: any, cards: any[],
 }
 
 /**
+ * Today's 60-second video script, from today's answers and a light read of
+ * the notes. One model call, and one more when a check finds a rule broken.
+ * A redo, or a comment on the last one, writes it again from that one.
+ */
+async function dailyScript(ctx: any, who: Caller, b: any, mine: any, cards: any[], row: any, meter?: (u: any) => void) {
+  const date = today();
+  const day = dayOf(row?.daily, date);
+  const save = (daily: any) => ctx.runMutation(internal.store.interviewSet, { space: who.space, brain: mine.slug, patch: { daily } });
+  if (!day.said.length) return { error: "answer a few of today's questions first" };
+  if (answered(day.marks) < READY_AT && beatsLeft(day.marks).length) return { error: `answer at least ${READY_AT} of today's questions first, or skip the rest` };
+  /* Write it again: today's last script and their comment on it lead the rewrite. */
+  const note = String(b.note ?? "").replace(/\s+/g, " ").trim().slice(0, 600);
+  const redo = b.redo === true || !!note;
+  const last = redo ? String(day.script?.text ?? "") : "";
+  const held = cards.filter((c: any) => c.brain === mine.slug && !isContact(c));
+  const told = day.said.map(s => s.a).join("\n");
+  const ids = nearestNotes(held, told, 6).map(idOf);
+  const near = ids.length ? await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids }) : [];
+  const opening = openingOf(day.series, date);
+  const call = (m: any) => ask(m, { json: true, maxTokens: 4000, key: keyFor(who), model: modelFor(who, b), meter, timeout: 120000, temperature: 0.5 });
+  const { text, finish } = await call(scriptPrompt({ said: day.said, near, notes: notesOf(held, 30), opening, date, ...(last ? { last, note } : {}) }));
+  const parts = scriptParts(text);
+  const line = openingLine(opening, parts.trying);
+  let script = !parts.script ? "" : line ? withOpening(parts.script, line) : parts.script;
+  if (!script) return { error: finish === "length" ? "the script ran out of room. Try again." : "the script could not be written this time. Try again." };
+  /* The rules a check can see: a dash, a long sentence, a vague word, a negation. Any of them, and the lines are rewritten once. */
+  const issues = lintScript(script, line);
+  if (issues.length) {
+    try {
+      const fixed = scriptParts((await call(fixPrompt(script, issues, line))).text).script;
+      const again = fixed ? (line ? withOpening(fixed, line) : fixed) : "";
+      if (again && lintScript(again, line).length < issues.length) script = again;
+    } catch { /* the first script stands */ }
+  }
+  const saved = { ...day, on: false, script: { at: date, text: script.slice(0, 8000) } };
+  await save(saved);
+  const asked = note || (redo ? "Write the script again" : "Write the script");
+  const chat = await saveTurn(ctx, who, { ...b, q: asked }, { brain: mine.slug, title: `Video script, ${date}` },
+    { q: asked, a: script, level: "normal", sources: 0, called: [], script: true, day: date });
+  return { answer: script, sources: 0, level: "normal", personal: true, script: true, day: date, daily: dailyView(saved, date), ...(chat ? { chat } : {}) };
+}
+
+/**
  * The daily log of a personal brain, by action:
  *   state    where today stands, and the series line
  *   start    on, in the chat on screen, and the question waiting or the first beat
@@ -1623,40 +1670,7 @@ route("/api/daily", async (ctx, _req, b) => {
         await save({ ...day, series });
         return { daily: dailyView({ ...day, series }, date) };
       }
-      case "script": {
-        if (!day.said.length) return { error: "answer a few of today's questions first" };
-        if (answered(day.marks) < READY_AT && beatsLeft(day.marks).length) return { error: `answer at least ${READY_AT} of today's questions first, or skip the rest` };
-        /* Write it again: today's last script and their comment on it lead the rewrite. */
-        const note = String(b.note ?? "").replace(/\s+/g, " ").trim().slice(0, 600);
-        const redo = b.redo === true || !!note;
-        const last = redo ? String(day.script?.text ?? "") : "";
-        const held = cards.filter((c: any) => c.brain === mine.slug && !isContact(c));
-        const told = day.said.map(s => s.a).join("\n");
-        const ids = nearestNotes(held, told, 6).map(idOf);
-        const near = ids.length ? await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids }) : [];
-        const opening = openingOf(day.series, date);
-        const call = (m: any) => ask(m, { json: true, maxTokens: 4000, key: keyFor(who), model: modelFor(who, b), meter, timeout: 120000, temperature: 0.5 });
-        const { text, finish } = await call(scriptPrompt({ said: day.said, near, notes: notesOf(held, 30), opening, date, ...(last ? { last, note } : {}) }));
-        const parts = scriptParts(text);
-        const line = openingLine(opening, parts.trying);
-        let script = !parts.script ? "" : line ? withOpening(parts.script, line) : parts.script;
-        if (!script) return { error: finish === "length" ? "the script ran out of room. Try again." : "the script could not be written this time. Try again." };
-        /* The rules a check can see: a dash, a long sentence, a vague word, a negation. Any of them, and the lines are rewritten once. */
-        const issues = lintScript(script, line);
-        if (issues.length) {
-          try {
-            const fixed = scriptParts((await call(fixPrompt(script, issues, line))).text).script;
-            const again = fixed ? (line ? withOpening(fixed, line) : fixed) : "";
-            if (again && lintScript(again, line).length < issues.length) script = again;
-          } catch { /* the first script stands */ }
-        }
-        const saved = { ...day, on: false, script: { at: date, text: script.slice(0, 8000) } };
-        await save(saved);
-        const asked = note || (redo ? "Write the script again" : "Write the script");
-        const chat = await saveTurn(ctx, who, { ...b, q: asked }, { brain: mine.slug, title: `Video script, ${date}` },
-          { q: asked, a: script, level: "normal", sources: 0, called: [], script: true, day: date });
-        return { answer: script, sources: 0, level: "normal", personal: true, script: true, day: date, daily: dailyView(saved, date), ...(chat ? { chat } : {}) };
-      }
+      case "script": return await dailyScript(ctx, who, b, mine, cards, row, meter);
       default: return { error: "that is not something the daily log does" };
     }
   });

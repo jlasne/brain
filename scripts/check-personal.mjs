@@ -449,6 +449,11 @@ const TODAY = "2026-09-30";
   check("every script prompt carries the 8 copy rules", /COPY RULES[\s\S]*7\. Say what happened and what they do\. No negations/.test(daily.SCRIPT_RULES) && !/—/.test(daily.SCRIPT_RULES));
   const redo = daily.scriptPrompt({ said: [{ beat: "situation", q: "Where?", a: "Cork" }], near: [], notes: [], opening, date: "2026-10-14", last: "**Situation**\nOld.", note: "a stronger hook" });
   check("a redo reads the last script and their comment, the comment first", /THE LAST SCRIPT\n\*\*Situation\*\*\nOld\./.test(redo[1].content) && /THEIR COMMENT ON IT[^\n]*\na stronger hook/.test(redo[1].content));
+  check("a message asking to write the script again gets the script, with the message as its comment",
+    daily.scriptAsk("rewrite with the series line", true) === "redo" && daily.scriptAsk("Redo it shorter", true) === "redo"
+    && daily.scriptAsk("change the script: a stronger hook", true) === "redo" && daily.scriptAsk("write the script", false) === "write");
+  check("a message about the day stays a message", daily.scriptAsk("I went to the gym again", true) === null && daily.scriptAsk("rewrite it", false) === null
+    && daily.scriptAsk("I signed a creator today", true) === null);
   check("the opening keeps its sentence whole: the series line ended with what they tried today", daily.openingLine(opening, "trying to sign a creator") === opening + ", trying to sign a creator." && daily.openingLine("", "x") === "");
   const m = personal.filerPrompt("daily", "3 replies out of 10", "The brain asked: What is true tonight?", [], [], TODAY);
   check("a daily answer is filed with its question as context", /about their day, in their daily log/.test(m[1].content) && /THE QUESTION IT ANSWERS/.test(m[1].content) && /THE ANSWER\n3 replies/.test(m[1].content));

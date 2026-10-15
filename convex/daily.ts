@@ -359,6 +359,22 @@ tl;dr: one sentence on the story.
 
 Reply with only JSON: {"trying":"","script":""}`;
 
+/**
+ * A chat message that asks for today's script: "redo" writes it again with the
+ * message as the comment, "write" writes the first one, null is a message like
+ * any other. A rewrite word is enough once a script is written; otherwise the
+ * message names the script.
+ */
+export function scriptAsk(q: string, written: boolean): "redo" | "write" | null {
+  const t = String(q ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+  if (!t || t.length > 600) return null;
+  const script = /\b(script|scripts|scénario|video)\b/.test(t);
+  const again = /(^|\s)(re-?write|rewrite|re-?do|redo|rework|réécri\w*|refai\w*|write it again|write the script again)(\s|$|[.,!?:])/.test(t);
+  if (written && (again || (script && /\b(again|change|edit|fix|shorter|longer|update|another|new version|encore)\b/.test(t)))) return "redo";
+  if (script && /\b(write|make|draft|give|écri\w*|fais)\b/.test(t)) return written ? "redo" : "write";
+  return null;
+}
+
 /** The script's prompt: today's answers, the notes nearest to them, the newest notes, the opening, and a redo's comment. */
 export function scriptPrompt(o: { said: Said[]; near: any[]; notes: { title: string; line: string }[]; opening: string; date: string;
   last?: string; note?: string }) {
