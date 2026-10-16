@@ -45,6 +45,26 @@
     .pager-sheet > footer button{ flex:1; min-height:46px; }
   }
   .pk-multi .pm-g{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; width:100%; }
+  /* The one-pager: each part its own block, a small title over it. */
+  .pager-sheet .pg-sec{ padding-top:14px; }
+  .pager-sheet .pg-sec + .pg-sec{ border-top:1px solid var(--line); margin-top:14px; }
+  .pager-sheet .pg-sec > label, .pager-sheet .pg-two label{ display:block; margin-bottom:8px; font:500 12px/1.3 var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); }
+  .pager-sheet .pg-opt{ margin-left:6px; font-weight:400; letter-spacing:0; text-transform:none; color:var(--ink-4); }
+  .pager-sheet .hint{ margin-top:8px; }
+  .pager-sheet textarea{ min-height:0; background:var(--surface); resize:vertical; }
+  .pager-sheet .pg-two{ display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.4fr); gap:12px; }
+  .pager-sheet .pg-two > [hidden]{ display:none; }
+  .pager-sheet .pg-two select, .pager-sheet .pg-two input{ width:100%; }
+  .pager-sheet .pg-seg{ display:flex; flex-wrap:wrap; }
+  .pager-sheet .pg-seg button{ flex:1 1 auto; }
+  .pk-multi .pm-head i, .pk-multi .pm-ah i{ font-style:normal; font:500 11px/1 var(--mono); color:var(--ink-4); margin-left:4px; letter-spacing:0; text-transform:none; }
+  .pk-multi .pm-head.on{ color:var(--accent); }
+  .pk-multi .pm-ah{ cursor:default; }
+  .pm-chip.pm-asset{ display:inline-flex; align-items:center; gap:6px; }
+  .pm-chip.pm-asset .pk-ic{ display:flex; }
+  .pm-chip.pm-asset .pk-ic svg{ width:14px; height:14px; }
+  .pm-chip:disabled{ opacity:.45; cursor:not-allowed; }
+  @media (max-width:520px){ .pager-sheet .pg-two{ grid-template-columns:1fr; } }
   .pk-multi .pm-head{ width:100%; padding:6px 2px 0; border:0; background:none; text-align:left; cursor:pointer;
     font:600 12px/1 var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-4); }
   .pk-multi .pm-head:hover{ color:var(--ink); }

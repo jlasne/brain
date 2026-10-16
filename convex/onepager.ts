@@ -404,12 +404,13 @@ export type PageKind = "summary" | "custom";
  */
 export async function fromModel(
   space: Space, brains: any[], concepts: any[], sources: any[],
-  opts: { q?: string; kind: PageKind; doc?: DocType; note?: string; pick?: string; lang?: string },
+  opts: { q?: string; kind: PageKind; doc?: DocType; note?: string; pick?: string; lang?: string; assets?: { name: string; text: string }[] },
   key?: string, model?: string, load?: (ids: string[]) => Promise<any[]>, meter?: (usage: any) => void,
 ): Promise<Pager> {
   const lang = langOf(opts.lang);
   const q = String(opts.q ?? "").trim(), kind = opts.kind, note = String(opts.note ?? "").trim();
   const doc: DocType = DOC_TYPES.includes(opts.doc as DocType) ? opts.doc as DocType : "other";
+  const assets = (opts.assets ?? []).slice(0, 4);
   const slugs = brains.map(b => b.slug);
   const read = new Set(sources.filter((s: any) => (s.brains ?? []).some((x: string) => slugs.includes(x)))
                               .map((s: any) => s.sid)).size;
@@ -420,7 +421,7 @@ export async function fromModel(
      fullest positions lead, the way a summary page ranks them. */
   const t0 = Date.now();
   let plan: any;
-  if (q) {
+  if (q && brains.length) {
     const route = await routeQuestion(brains, concepts, q, undefined, key, model, { meter });
     plan = planDossier(brains, concepts, q, undefined, route);
   } else {
@@ -436,8 +437,8 @@ export async function fromModel(
     { role: "system", content: `You are the user's own knowledge base, answering from what it holds. You always answer in ${lang}.` },
     { role: "user", content: `${rules}
 
-STORED KNOWLEDGE
-${found.dossier}
+${assets.length ? `THE ASSETS PICKED, read for this page: build on them first, and cite them by name.\n${assets.map(a => a.text.slice(0, 60000)).join("\n\n")}\n\n` : ""}STORED KNOWLEDGE
+${brains.length ? found.dossier : "(no folder picked: the page is built from the assets alone)"}
 ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
   ], { maxTokens: kind === "summary" ? 2000 : doc === "quiz" ? 2600 : 3200, key, model, meter,
        /* Router, answer and mail stay inside the browser's 3 minutes. */
@@ -458,8 +459,10 @@ ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
   }
 
   const one = brains.length === 1;
-  const scope = one ? brains[0].name : pickName(space, brains, opts.pick);
-  const where = one ? brains[0].name : `${brains.length} brains`;
+  const named = assets.map(a => a.name);
+  const both = (x: string) => named.length ? (brains.length ? `${x} and ${named.length === 1 ? named[0] : `${named.length} assets`}` : named.length === 1 ? named[0] : `${named.length} assets`) : x;
+  const scope = !brains.length ? both("") : both(one ? brains[0].name : pickName(space, brains, opts.pick));
+  const where = !brains.length ? both("") : both(one ? brains[0].name : `${brains.length} brains`);
   const cap = (t: string) => t.length > 78 ? t.slice(0, 75).trimEnd() + "..." : t;
   const subject = cap(q || scope);
   const title = kind === "custom" && DOC_TITLE[doc] ? `${DOC_TITLE[doc]}: ${subject}` : subject;
@@ -475,8 +478,8 @@ ${q ? `\n${kind === "summary" ? "QUESTION" : "SUBJECT"}: ${q}` : ""}` },
   const page: Pager = {
     title, line, sections,
     foot: [
-      `${found.opened.length} of ${inPool.length} position${inPool.length === 1 ? "" : "s"}`,
-      `${read} source${read === 1 ? "" : "s"} read`,
+      ...(brains.length ? [`${found.opened.length} of ${inPool.length} position${inPool.length === 1 ? "" : "s"}`, `${read} source${read === 1 ? "" : "s"} read`] : []),
+      ...(assets.length ? [`${assets.length} asset${assets.length === 1 ? "" : "s"} read`] : []),
       today(),
     ].join(" · "),
   };

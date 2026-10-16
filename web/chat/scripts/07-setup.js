@@ -26,7 +26,6 @@ async function openSetupSheet(opts = {}){
   let draft = null;
   const shut = () => { if (draft) applyLook(S.brand); veil.remove(); };
   veil.querySelector("#kDone").onclick = shut;
-  veil.querySelector("#pagerBtn").onclick = () => { shut(); openPagerSheet(); };
   veil.onclick = e => { if(e.target===veil) shut(); };
 
   setupSpend({ veil });
@@ -232,8 +231,6 @@ function setupMarkup(){
         : `The model that answers, the export of every ${esc(S.spaceName)} folder, the audit with the clashes and the decisions it leaves${ownerWs() ? ", and the MCP address for Claude" : ""}.`}</p></header>
 
       <div class="f set-row">
-        <button class="foot-btn" id="pagerBtn" title="A folder, a group, or a question, as bullets on one page">
-          <span class="lbl">One-pager</span><span class="val">a folder or a question, on one page</span></button>
         <button class="foot-btn${modelLabel().picked ? " pick" : ""}" id="setModel" title="${esc(modelLabel().title)}">
           <span class="lbl">Model</span><span class="val">${esc(modelLabel().val)}</span></button>
         <button class="foot-btn" id="setExport" title="Every folder of this workspace, as one markdown file">

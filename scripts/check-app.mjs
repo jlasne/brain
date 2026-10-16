@@ -112,10 +112,9 @@ async function boot(path, init, arg) {
   return { page, bad };
 }
 
-/** One-pager sits at the top of Settings: open Settings, then it. */
+/** One-pager sits in the side panel's foot, just above Drop. */
 async function openPager(page) {
-  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(80);
-  await page.click("#pagerBtn");
+  await page.evaluate(() => document.getElementById("pagerSide").click()); await page.waitForTimeout(80);
 }
 
 /* ---- the app, signed in ---- */
@@ -251,8 +250,7 @@ async function openPager(page) {
     return { acts, panels, plus: [...document.querySelectorAll("aside .panel .side-plus")].map(b => b.id).join(","),
       gone: !document.getElementById("gapsBtn") && !document.getElementById("mapBtn") };
   });
-  check("New chat sits on the Chats line, and Drop just above Settings in the foot, with no One-pager in the side panel", top.acts === "chatsFold:Chats,startBtn:New chat|dropBtn:Drop,keyBtn:Settings,lockBtn:Sign out"
-    && !(await page.evaluate(() => document.querySelector("aside #pagerBtn"))), top.acts);
+  check("New chat sits on the Chats line, and One-pager then Drop just above Settings in the foot", top.acts === "chatsFold:Chats,startBtn:New chat|pagerSide:One-pager,dropBtn:Drop,keyBtn:Settings,lockBtn:Sign out", top.acts);
   const loud = await page.evaluate(() => { const css = id => getComputedStyle(document.getElementById(id)); const n = css("startBtn"), p = css("newAsset");
     return { newBg: n.backgroundColor, plusBg: p.backgroundColor, newH: parseFloat(n.height), drop: document.getElementById("dropBtn").getBoundingClientRect().bottom <= document.getElementById("keyBtn").getBoundingClientRect().top + 1 }; });
   check("New chat is filled in the accent, louder than the + of Assets and Folders, and Drop sits above Settings", loud.newBg !== "rgba(0, 0, 0, 0)" && loud.plusBg === "rgba(0, 0, 0, 0)" && loud.newH >= 28 && loud.drop, JSON.stringify(loud));
@@ -286,7 +284,7 @@ async function openPager(page) {
   await page.waitForTimeout(120);
   const sheet = await page.evaluate(() => ({
     picks: [...document.querySelectorAll("#pPick .pm-chip")].map(o => o.dataset.v),
-    heads: [...document.querySelectorAll("#pPick .pm-head")].map(o => o.textContent),
+    heads: [...document.querySelectorAll("#pPick .pm-head")].map(o => o.firstChild.textContent.trim()),
     on: [...document.querySelectorAll("#pPick .pm-chip.on")].map(o => o.dataset.v).join(","),
   }));
   check("the sheet offers everything and each folder by name, as chips under their group",
@@ -356,15 +354,13 @@ async function openPager(page) {
   /* ---- a summary in bullets, or a document of the type picked ---- */
   await openPager(page); await page.waitForTimeout(100);
   await page.fill("#pTo", "");
-  const kinds = await page.evaluate(() => [...document.querySelectorAll("#pKind button")].map(b => b.dataset.k + (b.classList.contains("on") ? "*" : "")));
-  check("the page offers summary and custom, summary first", kinds.join(",") === "summary*,custom", kinds.join(","));
-  check("a summary shows no document types", !(await page.isVisible("#pDoc")) && !(await page.isVisible("#pNote")));
-  await page.click('#pKind button[data-k="custom"]');
-  const docs = await page.evaluate(() => [...document.querySelectorAll("#pDoc button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")));
-  check("custom offers quiz, deep dive, use case and other, quiz first", docs.join(",") === "Quiz*,Deep dive,Use case,Other", docs.join(","));
+  const kinds = await page.evaluate(() => [...document.querySelectorAll("#pKind button")].map(b => b.textContent + (b.classList.contains("on") ? "*" : "")));
+  check("one Format row: summary first, then quiz, deep dive, use cases and other", kinds.join(",") === "Summary*,Quiz,Deep dive,Use cases,Other", kinds.join(","));
+  check("a summary asks for no instructions", !(await page.isVisible("#pNote")));
+  await page.click('#pKind button[data-d="quiz"]');
   check("with room for special instructions", await page.isVisible("#pNote"));
-  check("the quiz says what it gives", /8 questions/.test(await page.textContent("#pDocHint")));
-  await page.click('#pDoc button[data-d="other"]');
+  check("the quiz says what it gives", /8 questions/.test(await page.textContent("#pKindHint")));
+  await page.click('#pKind button[data-d="other"]');
   check("other asks to describe the document", /Describe the document/.test(await page.textContent("#pNoteL")));
   await page.click("#pGo"); await page.waitForTimeout(80);
   check("other with no description asks for one", /Describe the document/.test(await page.textContent("#pSlot")));
@@ -376,7 +372,7 @@ async function openPager(page) {
 
   await openPager(page); await page.waitForTimeout(100);
   await page.fill("#pTo", "");
-  await page.click('#pKind button[data-k="custom"]');
+  await page.click('#pKind button[data-d="quiz"]');
   await page.click("#pGo"); await page.waitForTimeout(300);
   const quiz = await page.evaluate(() => {
     const c = [...document.querySelectorAll(".pager")].pop();
@@ -393,8 +389,7 @@ async function openPager(page) {
   check("the page is in English unless another language is picked", await page.inputValue("#pLang") === "English");
   await page.selectOption("#pLang", "French");
   await page.fill("#pTo", "");
-  await page.click('#pKind button[data-k="custom"]');
-  await page.click('#pDoc button[data-d="deepdive"]');
+  await page.click('#pKind button[data-d="deepdive"]');
   await page.fill("#pNote", "For a new client");
   await page.click("#pGo"); await page.waitForTimeout(300);
   const deep = await page.evaluate(() => {
@@ -416,8 +411,7 @@ async function openPager(page) {
   await openPager(page); await page.waitForTimeout(100);
   check("the next page opens on the language last picked", await page.inputValue("#pLang") === "French");
   await page.fill("#pTo", "");
-  await page.click('#pKind button[data-k="custom"]');
-  await page.click('#pDoc button[data-d="deepdive"]');
+  await page.click('#pKind button[data-d="deepdive"]');
   await page.fill("#pNote", "slow");
   await page.click("#pGo"); await page.waitForTimeout(300);
   check("a translation that failed says the page is in English, above the page", /^Not in French.*did not come back after two tries/.test(await langFlag()), await langFlag());
@@ -458,13 +452,13 @@ async function openPager(page) {
   /* ---- the export reads whole concepts only when asked ---- */
   const side = await page.evaluate(() => ({ gone: !document.getElementById("exportBtn") && !document.getElementById("stat"),
     foot: [...document.querySelectorAll(".side-foot button:not([hidden])")].map(b => b.textContent.trim()).join(",") }));
-  check("the foot of the side panel holds Drop, Settings and Sign out", side.gone && side.foot === "Drop,Settings,Sign out", side.foot);
+  check("the foot of the side panel holds One-pager, Drop, Settings and Sign out", side.gone && side.foot === "One-pager,Drop,Settings,Sign out", side.foot);
   await page.click("#burger").catch(() => {});
   await page.evaluate(() => document.getElementById("keyBtn").click());
   await page.waitForTimeout(150);
   const setup = await page.evaluate(() => ({ model: document.querySelector("#setModel .val")?.textContent,
     exp: !!document.getElementById("setExport"), order: [...document.querySelectorAll(".sheet .set-row button")].map(b => b.id).join(",") }));
-  check("Settings opens on One-pager, then the model, the export, Restore and App; Audit has its own section", setup.order === "pagerBtn,setModel,setExport,setRestore,setInstall" && setup.model === "model"
+  check("Settings opens on the model, then the export, Restore and App; Audit has its own section", setup.order === "setModel,setExport,setRestore,setInstall" && setup.model === "model"
     && await page.evaluate(() => !!document.getElementById("auditBlock") && !document.getElementById("setTidy")), JSON.stringify(setup));
   const [dl] = await Promise.all([page.waitForEvent("download"), page.click("#setExport")]);
   const { readFileSync } = await import("node:fs");
@@ -3014,6 +3008,51 @@ for (const space of ["octopus", "squidgy"]) {
   const saved = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/brain/groups") && x.body.set).pop()?.body.set);
   check("Save sends only the folders that changed", JSON.stringify(saved) === '[{"slug":"crypto","group":""},{"slug":"social","group":"Life"}]', JSON.stringify(saved));
   check("nothing threw around categories", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- the one-pager: by category, with assets read beside the folders ---- */
+{
+  const st = { ...STATE, brains: [
+    { slug: "wealth", name: "Wealth", type: "subject", scope: "money", group: "Wealth" },
+    { slug: "gave", name: "Charles Gave", type: "person", scope: "Gave", group: "Wealth" },
+    { slug: "social", name: "Social", type: "subject", scope: "talk" }],
+    assets: [1, 2, 3, 4, 5].map(i => ({ id: i + 1, name: `Asset ${i}.md`, kind: "doc", made: true, chars: 100, sections: 1, status: "ready", at: i }))
+      .concat([{ id: 9, name: "Busy.pdf", kind: "doc", status: "reading", at: 9 }]) };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__pager = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/onepager")) { window.__pager.push(body); return Response.json({ page: { title: "Asset 1.md", line: "", sections: [{ head: "", bullets: [{ k: "One", v: "point" }] }], foot: "1 asset read" }, text: "x", lang: "English" }); }
+      return Response.json({ chats: [] });
+    };
+  }, st);
+  await page.waitForTimeout(250);
+  await page.click("#pagerSide"); await page.waitForTimeout(120);
+  const sh = await page.evaluate(() => ({ heads: [...document.querySelectorAll("#pPick .pm-head")].map(h => h.firstChild.textContent.trim()).join(","),
+    assets: [...document.querySelectorAll("#pPick .pm-asset")].map(a => a.textContent).join(",") }));
+  check("Built from shows the categories, the folders in none, then the ready assets", sh.heads === "Wealth,Other subjects,Assets"
+    && sh.assets === "Asset 1.md,Asset 2.md,Asset 3.md,Asset 4.md,Asset 5.md", JSON.stringify(sh));
+  await page.click('#pPick .pm-head[data-cat="Wealth"]');
+  const cat = await page.evaluate(() => [...document.querySelectorAll("#pPick .pm-chip.on")].map(o => o.dataset.v).sort().join(","));
+  check("a category's name ticks all its folders", cat === "gave,wealth", cat);
+  await page.click('#pPick .pm-head[data-cat="Wealth"]');
+  for (const id of [2, 3, 4, 5]) await page.click(`#pPick .pm-asset[data-a="${id}"]`);
+  const cap = await page.evaluate(() => ({ off: document.querySelector('#pPick .pm-asset[data-a="6"]').disabled, all: document.querySelector('#pPick .pm-chip[data-v="all"]').classList.contains("on"),
+    hint: document.getElementById("pPickHint").textContent, sum: document.getElementById("pSum").textContent }));
+  check("four assets at most, then the rest wait", cap.off, JSON.stringify(cap));
+  check("assets ticked alone are read alone, and the sheet says so", !cap.all && /^These 4 assets alone/.test(cap.hint) && /^4 assets · Summary/.test(cap.sum), JSON.stringify(cap));
+  await page.click("#pGo"); await page.waitForTimeout(250);
+  const sent = await page.evaluate(() => window.__pager.at(-1));
+  check("the page asks for the assets alone", sent?.pick === "none" && JSON.stringify(sent?.assets) === "[2,3,4,5]", JSON.stringify(sent));
+  await page.click("#pagerSide"); await page.waitForTimeout(120);
+  await page.click('#pPick .pm-asset[data-a="2"]'); await page.click('#pPick .pm-chip[data-v="all"]');
+  await page.click("#pGo"); await page.waitForTimeout(250);
+  const both = await page.evaluate(() => window.__pager.at(-1));
+  check("Everything with an asset reads every folder and the asset", both?.pick === "all" && JSON.stringify(both?.assets) === "[2]", JSON.stringify(both));
+  check("nothing threw around the one-pager's assets", !bad.length, bad.join(" | "));
   await page.close();
 }
 

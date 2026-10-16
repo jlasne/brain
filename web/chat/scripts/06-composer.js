@@ -464,6 +464,7 @@ $("keyBtn").onclick = openSetupSheet;
    chat stays as it was, and Back to the chat returns to it. A personal folder
    takes no drop, so Drop leaves it first. */
 $("dropBtn").onclick = () => { closeSide(); openDrop(); };
+$("pagerSide").onclick = () => openPagerSheet();
 $("dropClose").onclick = () => { S.mode = "ask"; render(); $("input").focus(); };
 $("sideGo").onclick = () => { closeSide(); $("input").focus(); };
 /* The bar floats over the thread, so the thread keeps room under its last line. */

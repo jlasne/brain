@@ -2358,9 +2358,15 @@ route("/api/onepager", async (ctx, _req, b) => {
      joined by commas: one folder, several, or a whole group. */
   const pick = String(b.pick ?? "all").trim() || "all";
   const parts = pick.split(",").map(x => x.trim()).filter(Boolean).slice(0, 200);
+  /* Assets read beside the folders, four at most. "none" builds from them alone. */
+  const listed: any[] = !who.demo && Array.isArray(b.assets) && b.assets.length ? await ctx.runQuery(internal.files.assetsOf, { space: who.space }) : [];
+  const picked = [...new Set((Array.isArray(b.assets) ? b.assets : []).map((x: any) => Math.floor(Number(x))))]
+    .map(fid => listed.find(a => a.id === fid && a.status === "ready")).filter(Boolean).slice(0, ASSETS_A_MESSAGE);
+  if (Array.isArray(b.assets) && b.assets.length && !picked.length) return { error: "those assets are no longer here. Pick them again." };
   const brains = parts.includes("all") ? all
+    : parts.includes("none") ? []
     : all.filter((x: any) => parts.includes(x.slug) || parts.includes(x.type === "person" ? "person" : "subject"));
-  if (!brains.length) {
+  if (!brains.length && !picked.length) {
     return { error: pick === "person" || pick === "subject"
       ? `no ${pick} brain exists yet`
       : `no brain called "${pick.slice(0, 40)}"` };
@@ -2385,16 +2391,18 @@ route("/api/onepager", async (ctx, _req, b) => {
   /* English by default. A page the model writes is written in the language
      picked; a summary laid out from the stored positions is translated. */
   const lang = langOf(b.lang);
-  if (q || kind !== "summary" || lang !== "English") await demoCount(ctx, who, "ask");
-  /* Counted as a one-pager, for Settings. */
-  const page = await metered(ctx, who, "pager", async meter => q || kind !== "summary"
-    ? await fromModel(who.space, brains, concepts, sources, { q, kind, doc, note, pick, lang },
+  if (q || kind !== "summary" || lang !== "English" || picked.length) await demoCount(ctx, who, "ask");
+  /* Counted as a one-pager, for Settings. An asset is read by the model, so a page with one is written. */
+  const page = await metered(ctx, who, "pager", async meter => q || kind !== "summary" || picked.length
+    ? await fromModel(who.space, brains, concepts, sources, { q, kind, doc, note, pick, lang,
+                      assets: await Promise.all(picked.map(async (a: any) => ({ name: a.name, text: (await readAsset(ctx, { space: who.space, base: assetsSlug(who.space), fid: a.id,
+                        q: q || note || "the main points", key: keyFor(who), model: modelFor(who, b), meter })).text }))) },
                       keyFor(who), modelFor(who, b), load, meter)
     : await translatePage(assemble(who.space, brains, concepts, sources, pick,
                new Map((await load(pageIds(brains, concepts))).map((c: any) => [idOf(c), c]))), lang, undefined, lang === "English" ? undefined : keyFor(who), modelFor(who, b), undefined, meter));
 
   if (!hasBody(page)) {
-    return { error: "those brains hold no positions yet, so the page would be empty" };
+    return { error: picked.length ? "the page came back empty. Build it again." : "those brains hold no positions yet, so the page would be empty" };
   }
   /* The language the page came back in, and why it is English when another
      one was asked for, so the app never shows the wrong one without saying so. */

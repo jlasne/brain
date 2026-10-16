@@ -103,20 +103,8 @@ function paintSpace(){
   probe.src = want;
 }
 
-/**
- * The brains, grouped and ranked.
- *
- * A person and a subject are different questions, so they sit apart. Inside a
- * group the fullest brain leads, counted by positions first and sources second,
- * because that is the one worth opening. Creation order said nothing about
- * which brain you want.
- */
+/* The fullest brain leads, counted by positions first and sources second. */
 const weight = b => conceptsOf(b.slug).length * 1000 + sourcesOf(b.slug).length;
-function grouped(){
-  const of = t => ordered().filter(b => b.type !== "personal" && (b.type === "person" ? "person" : "subject") === t);
-  return [{ head: "People", rows: of("person") }, { head: "Subjects", rows: of("subject") }]
-    .filter(g => g.rows.length);
-}
 /** Every brain in one list, the fullest first. An icon tells a person from a subject. */
 /* Personal brains lead: they are yours, and the list's first stop. */
 const ordered = () => [...S.brains].sort((x, y) => (y.type === "personal") - (x.type === "personal") || weight(y) - weight(x) || x.name.localeCompare(y.name));

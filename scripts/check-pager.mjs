@@ -232,6 +232,24 @@ const sources = [
   globalThis.fetch = real;
 }
 
+/* ---- assets read beside the folders, or alone ---- */
+{
+  const real = globalThis.fetch;
+  let prompt = "";
+  globalThis.fetch = async (_u, opt) => {
+    prompt = JSON.parse(opt.body).messages[1].content;
+    return new Response(JSON.stringify({ choices: [{ message: { content: "- Plan: ship in May.\n- Risk: one supplier." } }] }), { status: 200 });
+  };
+  const alone = await fromModel("octopus", [], concepts, sources,
+    { kind: "summary", pick: "none", assets: [{ name: "Plan.md", text: '=== ASSET "Plan.md" (a document), id 2\nShip in May. One supplier.' }] }, "k");
+  check("a page of assets alone reads them first and names no folder", /THE ASSETS PICKED[\s\S]*Ship in May/.test(prompt) && /no folder picked/.test(prompt)
+    && alone.title === "Plan.md" && alone.foot.startsWith("1 asset read"), `${alone.title} | ${alone.foot}`);
+  const mixed = await fromModel("octopus", [brains[0]], concepts, sources,
+    { kind: "summary", pick: "content", assets: [{ name: "Plan.md", text: "Plan." }, { name: "Deck.md", text: "Deck." }] }, "k");
+  check("beside a folder, the page says both, and the foot counts the assets", mixed.title === "Content and 2 assets" && /2 assets read/.test(mixed.foot), `${mixed.title} | ${mixed.foot}`);
+  globalThis.fetch = real;
+}
+
 /* ---- a page in the language picked, English by default ---- */
 {
   const real = globalThis.fetch;

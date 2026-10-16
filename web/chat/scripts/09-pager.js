@@ -14,16 +14,25 @@ const lastMail = () => { try { return localStorage.getItem(MAIL_KEY) || ""; } ca
  * question. The first three assemble from stored positions and cost nothing.
  */
 /**
- * Every folder the page can be built from, as chips grouped the way the side
- * panel groups them. Several can be picked; none picked is everything.
+ * Every folder the page can be built from, as chips: by category when the
+ * folders have some, then by type. Several can be picked; none is everything.
+ * The assets follow, four at most, read whole for the page.
  */
 function pickChips(){
   const n = shared().length;
   let out = `<button type="button" class="pm-chip pm-all" data-v="all" aria-pressed="false">Everything <i>${n}</i></button>`;
-  for (const g of grouped()){
-    out += `<div class="pm-g"><button type="button" class="pm-head" data-g="${g.head === "People" ? "person" : "subject"}">${esc(g.head)}</button>` +
-      g.rows.map(b => `<button type="button" class="pm-chip" data-v="${esc(b.slug)}" aria-pressed="false">${esc(b.name)}</button>`).join("") + `</div>`;
+  const chip = b => `<button type="button" class="pm-chip" data-v="${esc(b.slug)}" aria-pressed="false">${esc(b.name)}</button>`;
+  const cats = inGroups(shared());
+  for (const g of cats.groups)
+    out += `<div class="pm-g"><button type="button" class="pm-head" data-cat="${esc(g.name)}">${esc(g.name)} <i>${g.rows.length}</i></button>${g.rows.map(chip).join("")}</div>`;
+  for (const [k, head] of [["person", "People"], ["subject", "Subjects"]]){
+    const rows = cats.rest.filter(b => (b.type === "person" ? "person" : "subject") === k);
+    if (rows.length) out += `<div class="pm-g"><button type="button" class="pm-head" data-g="${k}">${cats.groups.length ? (k === "person" ? "Other people" : "Other subjects") : head} <i>${rows.length}</i></button>${rows.map(chip).join("")}</div>`;
   }
+  const ready = S.demo || !S.assetsOn ? [] : (S.assets || []).filter(a => a.status === "ready");
+  if (ready.length)
+    out += `<div class="pm-g pm-assets"><span class="pm-head pm-ah">Assets <i>up to 4</i></span>` +
+      ready.map(a => `<button type="button" class="pm-chip pm-asset" data-a="${a.id}" aria-pressed="false" title="${esc(assetMeta(a))}"><span class="pk-ic">${pjIcon(a.kind)}</span>${esc(a.name)}</button>`).join("") + `</div>`;
   return out;
 }
 
@@ -31,126 +40,135 @@ function openPagerSheet(pre = {}){
   closeSide();
   /* A one-pager is built from shared brains: a personal one is read by its own chat only. */
   const here = S.brains.find(b => b.slug === S.scope && b.type !== "personal");
-  const people = S.brains.some(b => b.type === "person");
-  const subjects = S.brains.some(b => b.type !== "person" && b.type !== "personal");
   const veil = el("div","veil pager-veil");
   veil.innerHTML = `
     <div class="sheet pager-sheet" role="dialog" aria-modal="true">
       <header><h3>One-pager</h3>
-      <p>A summary in bullets, or a document of the type you pick.</p></header>
-      <div class="f"><label id="pPickL">Built from</label>
+      <p>Pick what it reads and the format. It lands in the chat, ready to copy or send.</p></header>
+      <div class="f pg-sec"><label id="pPickL">Built from</label>
         <div class="pk-multi" id="pPick" role="group" aria-labelledby="pPickL">${pickChips()}</div>
         <div class="hint" id="pPickHint"></div></div>
-      <div class="f"><label>Kind</label><div class="seg" id="pKind">
-        <button data-k="summary">Summary</button><button data-k="custom">Custom</button></div>
+      <div class="f pg-sec"><label id="pKindL">Format</label><div class="seg pg-seg" id="pKind" role="group" aria-labelledby="pKindL">
+        <button type="button" data-k="summary">Summary</button><button type="button" data-k="custom" data-d="quiz">Quiz</button><button type="button" data-k="custom" data-d="deepdive">Deep dive</button><button type="button" data-k="custom" data-d="usecase">Use cases</button><button type="button" data-k="custom" data-d="other">Other</button></div>
         <div class="hint" id="pKindHint"></div></div>
-      <div class="f" id="pDocF" hidden><label>Type of document</label><div class="seg" id="pDoc">
-        <button data-d="quiz">Quiz</button><button data-d="deepdive">Deep dive</button><button data-d="usecase">Use case</button><button data-d="other">Other</button></div>
-        <div class="hint" id="pDocHint"></div></div>
-      <div class="f" id="pNoteF" hidden><label for="pNote" id="pNoteL">Special instructions</label>
-        <textarea id="pNote"></textarea></div>
-      <div class="f"><label for="pLang">Language</label>
-        <select id="pLang" class="pick">${["English","French","Spanish","German","Italian","Portuguese","Dutch","Japanese","Chinese"]
-          .map(l => `<option value="${l}">${l}</option>`).join("")}</select></div>
-      <div class="f"><label for="pQ">Focus on a question</label>
-        <textarea id="pQ"></textarea>
-        <div class="hint" id="pQHint"></div></div>
-      <div class="f" ${ownerWs() ? "" : "hidden"}><label for="pTo">Send it to</label>
-        <input id="pTo" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com">
-        <div class="hint">It lands in the thread as well. Leave this empty to read it there first.</div></div>
+      <div class="f pg-sec"><label for="pQ">Question or subject <span class="pg-opt">optional</span></label>
+        <textarea id="pQ" rows="2"></textarea>
+        </div>
+      <div class="f pg-sec" id="pNoteF" hidden><label for="pNote" id="pNoteL">Special instructions</label>
+        <textarea id="pNote" rows="2"></textarea></div>
+      <div class="f pg-sec pg-two">
+        <div><label for="pLang">Language</label>
+          <select id="pLang" class="pick">${["English","French","Spanish","German","Italian","Portuguese","Dutch","Japanese","Chinese"]
+            .map(l => `<option value="${l}">${l}</option>`).join("")}</select></div>
+        <div ${ownerWs() ? "" : "hidden"}><label for="pTo">Send it to <span class="pg-opt">optional</span></label>
+          <input id="pTo" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com"></div>
+      </div>
       <div id="pSlot"></div>
       <footer><span class="pg-sum" id="pSum"></span><button class="ghost" id="pCancel">Cancel</button><button class="go" id="pGo">Build it</button></footer>
     </div>`;
   document.body.append(veil);
 
-  /* The folders ticked: one, several, a whole group, or none for everything.
-     A page asked again arrives with its own list, or a group by its name. */
+  /* The folders ticked: one, several, a whole category or type, or none for
+     everything. A page asked again arrives with its own list, or a type by its name. */
   const kindOf = b => b.type === "person" ? "person" : "subject";
-  const picked = new Set();
+  const picked = new Set(), assets = new Set();
   for (const x of String(pre.pick || (here ? here.slug : "all")).split(",")){
     if (x === "person" || x === "subject") shared().filter(b => kindOf(b) === x).forEach(b => picked.add(b.slug));
     else if (shared().some(b => b.slug === x)) picked.add(x);
   }
+  for (const id of pre.assets || S.assetPicks || []) if (veil.querySelector(`.pm-asset[data-a="${id}"]`)) assets.add(Number(id));
+  /* With assets ticked and no folder, the page reads the assets alone; Everything adds every folder back. */
+  let every = !picked.size && !assets.size, chose = false;
   /* Summary lays out the positions in bullets, free, or answers the question
-     in 9 bullets. Custom writes a document of the type picked, in its own
-     format, with one model call. */
+     in 9 bullets. Every other format writes a document in its own shape, with one model call. */
   let kind = "summary", doc = "quiz";
-  const KIND = {
-    summary: "Bullets: each concept, then what it adds. Free from the stored positions. With a question, one model call.",
-    custom:  "A document in its own format: sections, paragraphs and lists. One model call.",
+  const HINT = {
+    summary:  "Bullets: each concept, then what it adds. Free from the stored positions. A question or an asset makes it one model call.",
+    quiz:     "8 questions from the basics to the hardest. The answers stay folded until you open them.",
+    deepdive: "500 to 800 words: the short answer, how it works, the evidence, where sources disagree, what it means.",
+    usecase:  "3 to 5 real situations: what to do step by step, the expected result, the risk.",
+    other:    "Your description sets the type, the format, the length and the tone.",
   };
-  const DOC = {
-    quiz:     ["8 questions from the basics to the hardest. The answers stay folded until you open them.",
-               "Special instructions", "Optional: the angle, the audience or the tone. Only the risks. For a new client."],
-    deepdive: ["500 to 800 words: the short answer, how it works, the evidence, where sources disagree, what it means.",
-               "Special instructions", "Optional: the angle, the audience or the tone. Only the risks. For a new client."],
-    usecase:  ["3 to 5 real situations: what to do step by step, the expected result, the risk.",
-               "Special instructions", "Optional: the angle, the audience or the tone. Only the risks. For a new client."],
-    other:    ["Your description sets the type, the format, the length and the tone.",
-               "Describe the document", "A checklist for a client meeting. A 5 step action plan. A glossary of the terms."],
-  };
+  const NOTE = { other: ["Describe the document", "A checklist for a client meeting. A 5 step action plan. A glossary of the terms."] };
+  const NOTE_ANY = ["Special instructions", "Optional: the angle, the audience or the tone. Only the risks. For a new client."];
   const paintKind = () => {
-    for (const x of veil.querySelector("#pKind").children) x.classList.toggle("on", x.dataset.k === kind);
-    for (const x of veil.querySelector("#pDoc").children) x.classList.toggle("on", x.dataset.d === doc);
+    const at = kind === "summary" ? "summary" : doc;
+    for (const x of veil.querySelector("#pKind").children) x.classList.toggle("on", (x.dataset.d || x.dataset.k) === at);
     const custom = kind === "custom";
-    veil.querySelector("#pKindHint").textContent = KIND[kind];
-    veil.querySelector("#pDocF").hidden = !custom;
+    veil.querySelector("#pKindHint").textContent = HINT[at];
     veil.querySelector("#pNoteF").hidden = !custom;
-    veil.querySelector("#pDocHint").textContent = DOC[doc][0];
-    veil.querySelector("#pNoteL").textContent = DOC[doc][1];
-    veil.querySelector("#pNote").placeholder = DOC[doc][2];
-    veil.querySelector("#pQHint").textContent = custom
-      ? "Optional: keeps the document to one subject."
-      : "Leave it empty to lay out the positions as they stand.";
+    const [lbl, ph] = NOTE[doc] || NOTE_ANY;
+    veil.querySelector("#pNoteL").textContent = lbl;
+    veil.querySelector("#pNote").placeholder = ph;
+    veil.querySelector("#pQ").placeholder = custom ? "Keeps the document to one subject. How do I price an offer?" : "Leave it empty to lay out the positions as they stand.";
     sumLater();
   };
   /* The Build bar says what will be built, in one line, as the choices change.
      A beat later, so every field it reads exists by then. */
   const DOC_NAME = { quiz: "Quiz", deepdive: "Deep dive", usecase: "Use cases", other: "Custom document" };
+  const fromName = () => {
+    const names = [...picked].map(x => S.brains.find(b => b.slug === x)?.name || x);
+    const folders = every ? "Everything" : !names.length ? "" : names.length > 2 ? `${names.length} folders` : names.join(" and ");
+    const n = assets.size, an = n === 1 ? (S.assets.find(a => a.id === [...assets][0])?.name || "1 asset") : `${n} assets`;
+    return [folders, n ? an : ""].filter(Boolean).join(" + ");
+  };
   const sumLater = () => queueMicrotask(() => {
     const sum = veil.querySelector("#pSum"); if (!sum) return;
-    const names = [...picked].map(x => S.brains.find(b => b.slug === x)?.name || x);
-    const from = !names.length ? "Everything" : names.length > 2 ? `${names.length} folders` : names.join(" and ");
     const q = veil.querySelector("#pQ").value.trim();
-    sum.textContent = [from, kind === "custom" ? DOC_NAME[doc] : "Summary", veil.querySelector("#pLang").value, q ? "on a question" : ""].filter(Boolean).join(" \u00b7 ");
+    sum.textContent = [fromName(), kind === "custom" ? DOC_NAME[doc] : "Summary", veil.querySelector("#pLang").value, q ? "on a question" : ""].filter(Boolean).join(" · ");
   });
   paintKind();
   veil.querySelector("#pKind").onclick = e => {
     const x = e.target.closest("button[data-k]"); if (!x) return;
-    kind = x.dataset.k; paintKind();
-  };
-  veil.querySelector("#pDoc").onclick = e => {
-    const x = e.target.closest("button[data-d]"); if (!x) return;
-    doc = x.dataset.d; paintKind();
-    if (doc === "other") veil.querySelector("#pNote").focus();
+    kind = x.dataset.k; if (x.dataset.d) doc = x.dataset.d;
+    paintKind();
+    if (doc === "other" && kind === "custom") veil.querySelector("#pNote").focus();
   };
   const picker = veil.querySelector("#pPick");
   const paintPick = () => {
     for (const c of picker.querySelectorAll(".pm-chip")){
-      const on = c.dataset.v === "all" ? !picked.size : picked.has(c.dataset.v);
+      const on = c.dataset.a ? assets.has(Number(c.dataset.a)) : c.dataset.v === "all" ? every : picked.has(c.dataset.v);
       c.setAttribute("aria-pressed", String(on)); c.classList.toggle("on", on);
+      /* Four assets at most: the rest wait until one is unticked. */
+      if (c.dataset.a) c.disabled = !on && assets.size >= 4;
+    }
+    for (const h of picker.querySelectorAll(".pm-head[data-cat], .pm-head[data-g]")){
+      const rows = rowsOf(h);
+      h.classList.toggle("on", rows.length && rows.every(x => picked.has(x)));
     }
     const names = [...picked].map(x => S.brains.find(b => b.slug === x)?.name || x);
-    veil.querySelector("#pPickHint").textContent = !names.length ? "Every folder. Tick one or several to narrow it."
-      : names.length > 3 ? `${names.length} folders.` : names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}.` : `${names[0]} only.`;
+    const n = assets.size;
+    veil.querySelector("#pPickHint").textContent = every ? (n ? `Every folder, and ${n} asset${n === 1 ? "" : "s"} read whole.` : "Every folder. Tick one, a category or an asset to narrow it.")
+      : !names.length ? `${n === 1 ? "This asset" : `These ${n} assets`} alone. Tick Everything or a folder to add the folders.`
+      : (names.length > 3 ? `${names.length} folders` : names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : `${names[0]} only`)
+        + (n ? `, and ${n} asset${n === 1 ? "" : "s"}.` : ".");
     sumLater();
   };
+  const rowsOf = h => h.dataset.cat ? groupSlugs(h.dataset.cat).filter(x => shared().some(b => b.slug === x))
+    : inGroups(shared()).rest.filter(b => kindOf(b) === h.dataset.g).map(b => b.slug);
   picker.onclick = e => {
-    const head = e.target.closest(".pm-head"), chip = e.target.closest(".pm-chip");
+    const head = e.target.closest(".pm-head[data-cat], .pm-head[data-g]"), chip = e.target.closest(".pm-chip");
     if (head){
-      /* A group's name ticks all of it, or clears it when all are ticked. */
-      const rows = shared().filter(b => kindOf(b) === head.dataset.g).map(b => b.slug);
+      /* A category's name ticks all of it, or clears it when all are ticked. */
+      const rows = rowsOf(head);
       const all = rows.every(x => picked.has(x));
       rows.forEach(x => all ? picked.delete(x) : picked.add(x));
+    } else if (chip?.dataset.a){
+      const id = Number(chip.dataset.a);
+      if (assets.has(id)) assets.delete(id); else if (assets.size < 4) assets.add(id);
     } else if (chip){
       const v = chip.dataset.v;
-      if (v === "all") picked.clear();
-      else if (picked.has(v)) picked.delete(v); else picked.add(v);
+      if (v === "all"){ picked.clear(); chose = true; }
+      else { chose = false; if (picked.has(v)) picked.delete(v); else picked.add(v); }
     } else return;
+    if (head) chose = false;
+    /* A folder ticked narrows to it. Nothing ticked is everything. Assets alone are read alone, unless Everything was ticked with them. */
+    every = picked.size ? false : !assets.size ? true : chose;
+    if (!assets.size && !picked.size) chose = false;
     paintPick();
   };
   paintPick();
-  const pickVal = () => picked.size ? [...picked].join(",") : "all";
+  const pickVal = () => every ? "all" : picked.size ? [...picked].join(",") : "none";
   const shut = () => veil.remove();
   veil.querySelector("#pCancel").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
@@ -188,11 +206,11 @@ function openPagerSheet(pre = {}){
     shut();
 
     /* A page the model writes waits on it, so the mascot keeps it company. */
-    const viaModel = !!q || kind !== "summary" || lang !== "English";
+    const viaModel = !!q || kind !== "summary" || lang !== "English" || assets.size > 0;
     const body = thinking(to ? `${viaModel ? "Writing" : "Building"} the page, then sending it to ${to}`
                              : viaModel ? undefined : "Building the page");
     let r;
-    const ask = { pick: pickVal(), q, kind, ...(kind === "custom" ? { doc } : {}), ...(note ? { note } : {}), ...(lang !== "English" ? { lang } : {}) };
+    const ask = { pick: pickVal(), q, kind, ...(kind === "custom" ? { doc } : {}), ...(note ? { note } : {}), ...(lang !== "English" ? { lang } : {}), ...(assets.size ? { assets: [...assets] } : {}) };
     try { r = await api("/api/onepager", { ...ask, ...(to ? { mail: to } : {}) }); }
     catch (e) {
       body.innerHTML = rich("**The page did not build.** " + esc(e.message));
