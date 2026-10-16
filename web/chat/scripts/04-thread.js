@@ -24,7 +24,7 @@ function push(kind, build, where = $("thread")){
 }
 function says(text, attach, where){
   /* A tag in a message keeps its shade: a folder, a category, an asset. */
-  push("me", b => { if (String(text ?? "").includes("@")) paintTags(b, String(text), tagChoices(false)); else b.textContent = text; if (attach) b.append(el("span","attach",attach)); }, where);
+  push("me", b => { if (String(text ?? "").includes("@")) paintTags(b, String(text), tagChoices()); else b.textContent = text; if (attach) b.append(el("span","attach",attach)); }, where);
 }
 /* The same three, on the Drop screen. */
 const dpush = (kind, build) => push(kind, build, $("dropThread"));

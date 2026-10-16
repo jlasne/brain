@@ -959,7 +959,7 @@ function renderComposer(){
     : asking
     ? "Interview: one question at a time, each answer filed as dated notes. Say skip to pass, or Stop any time."
     : mine
-    ? "Personal, alpha: your words are filed as dated notes. It calls your other folders when they help, and only this chat reads it."
+    ? "Personal, alpha: your words are filed as dated notes. It calls your other folders when they help, reads an asset you name with @, and only this chat reads it."
     : drop
     ? "The source gets read once, then you reply to one card."
     : S.level==="educational" ? "Educational: terms defined, mechanism built, one worked example."

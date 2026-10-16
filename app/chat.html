@@ -2678,9 +2678,9 @@ async function openCall(path, body = {}){
  * The passphrase, on top of the workspace.
  *
  * The page paints the workspace the address names, in its own colours and
- * mark, blurred, with one card over it: the passphrase, or the name and the
- * passphrase for a workspace made on the landing. The demo needs neither and
- * opens straight away.
+ * mark, blurred, with one card over it: the passphrase. With no workspace in
+ * the address, the passphrase alone finds the one it opens. The demo needs
+ * none and opens straight away.
  */
 function gateScreen(w, st = {}){
   if (w) { S.space = w; S.spaceName = KNOWN_NAMES[w] || titleCase(w); paintSpace(); renderZero(); }
@@ -2694,11 +2694,10 @@ function gateScreen(w, st = {}){
       <header>
         <img class="gmk" id="gateMark" src="${esc(markOf())}" alt="">
         <h3 id="gateH">${w ? esc(S.spaceName) : "Open your workspace"}</h3>
-        <p>${w ? "Enter the passphrase to open this workspace." : "The name and the passphrase you chose when you made it."}</p>
+        <p>${w ? "Enter the passphrase to open this workspace." : "Your passphrase opens your workspace."}</p>
       </header>
       <div class="f">
-        ${w ? `<input type="text" name="username" autocomplete="username" value="${esc(w)}" hidden>`
-            : `<label for="gName">Workspace name</label><input id="gName" autocomplete="username" maxlength="60" spellcheck="false"><div style="height:14px"></div>`}
+        <input type="text" name="username" autocomplete="username" value="${esc(w || "workspace")}" hidden>
         <label for="gPass">Passphrase</label>
         <input id="gPass" type="password" autocomplete="current-password" spellcheck="false">
         <p class="hint gmsg" id="gMsg" role="alert">${shut ? "Shut until its owner sets a passphrase." : ""}</p>
@@ -2710,16 +2709,18 @@ function gateScreen(w, st = {}){
     if (r.name) { S.spaceName = r.name; veil.querySelector("#gateH").textContent = r.name; }
     applyLook(r.brand || null);
   }).catch(() => {});
-  const pass = veil.querySelector("#gPass"), name = veil.querySelector("#gName");
+  const pass = veil.querySelector("#gPass");
   const msg = veil.querySelector("#gMsg"), go = veil.querySelector("#gGo");
-  setTimeout(() => (name || pass).focus(), 60);
+  setTimeout(() => pass.focus(), 60);
   veil.querySelector("form").addEventListener("submit", async ev => {
     ev.preventDefault();
-    if (name && name.value.trim().length < 2) { msg.textContent = "Type the workspace's name."; name.focus(); return; }
     if (pass.value.length < 8) { msg.textContent = "A passphrase runs 8 characters or more."; pass.focus(); return; }
     go.disabled = true; msg.textContent = "Checking";
     let d;
-    try { d = await openCall("/api/unlock", name ? { name: name.value.trim(), pass: pass.value } : { space: w, pass: pass.value }); }
+    try {
+      d = await openCall(w ? "/api/unlock" : "/api/enter", w ? { space: w, pass: pass.value } : { pass: pass.value });
+      if (!d.token) throw new Error("No workspace opens with that passphrase.");
+    }
     catch (e) { go.disabled = false; pass.value = ""; pass.focus(); msg.textContent = e.message; return; }
     sessionStorage.setItem(TOKEN_KEY, d.token);
     S.token = d.token;
@@ -3825,7 +3826,7 @@ function renderComposer(){
     : asking
     ? "Interview: one question at a time, each answer filed as dated notes. Say skip to pass, or Stop any time."
     : mine
-    ? "Personal, alpha: your words are filed as dated notes. It calls your other folders when they help, and only this chat reads it."
+    ? "Personal, alpha: your words are filed as dated notes. It calls your other folders when they help, reads an asset you name with @, and only this chat reads it."
     : drop
     ? "The source gets read once, then you reply to one card."
     : S.level==="educational" ? "Educational: terms defined, mechanism built, one worked example."
@@ -3946,7 +3947,7 @@ function push(kind, build, where = $("thread")){
 }
 function says(text, attach, where){
   /* A tag in a message keeps its shade: a folder, a category, an asset. */
-  push("me", b => { if (String(text ?? "").includes("@")) paintTags(b, String(text), tagChoices(false)); else b.textContent = text; if (attach) b.append(el("span","attach",attach)); }, where);
+  push("me", b => { if (String(text ?? "").includes("@")) paintTags(b, String(text), tagChoices()); else b.textContent = text; if (attach) b.append(el("span","attach",attach)); }, where);
 }
 /* The same three, on the Drop screen. */
 const dpush = (kind, build) => push(kind, build, $("dropThread"));
@@ -4805,13 +4806,13 @@ let atMenu = null, atList = [], atAt = 0, atBox = null;
 function closeAt(){ atMenu?.remove(); atMenu = null; atList = []; atAt = 0; atBox = null; }
 document.addEventListener("pointerdown", e => { if (atMenu && !atMenu.contains(e.target) && e.target !== atBox) closeAt(); }, true);
 
-/** What a chat may be told to read: the folders, and outside the personal chat the assets as well. */
-function tagChoices(personal){
+/** What a chat may be told to read: the folders, the categories and the assets. The personal chat reads an asset and never changes it. */
+function tagChoices(){
   const folders = S.brains.filter(b => b.type !== "personal").map(b => ({ slug: b.slug, name: b.name, tag: "" }));
   /* A category asks all its folders: "@All Wealth". */
   const groups = groupNames().map(g => ({ slug: "group:" + g, name: "All " + g, tag: "category" }));
   /* The assets, beside the folders: a tag reads one, and a chat may propose a change to it. */
-  const assets = S.demo || personal ? [] : (S.assets || []).filter(a => a.status === "ready").map(a => ({ slug: "asset:" + a.id, name: a.name, tag: pjNoun(a.kind) }));
+  const assets = S.demo ? [] : (S.assets || []).filter(a => a.status === "ready").map(a => ({ slug: "asset:" + a.id, name: a.name, tag: pjNoun(a.kind) }));
   return [...folders, ...groups, ...assets];
 }
 /** The slugs a message names with @, each once. The longest names are read first, so "@Pricing review" is not taken for "@Pricing". */
@@ -4943,8 +4944,8 @@ function attachMentions(ta, choices){
   });
 }
 /* The main bar: asking, in a folder's chat, in all of them or in the personal one. Not a drop, a chat about one concept or an interview. */
-attachMentions($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices(isPersonal(S.scope)) : []);
-attachTagShade($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices(isPersonal(S.scope)) : []);
+attachMentions($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices() : []);
+attachTagShade($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices() : []);
 
 /* ============ input ============ */
 function sizeBox(){ const t=$("input"); t.style.height="auto"; t.style.height=Math.min(t.scrollHeight,210)+"px"; }
@@ -10317,14 +10318,15 @@ async function doAsk(q, again){
   try {
     /* "chat" files the turn in the chat on screen, or starts one. A chat
        about one concept sends that concept alone. */
-    const named = about || S.iv[scope]?.on || dailyToday(scope)?.on ? [] : tagsIn(q, tagChoices(isPersonal(scope)));
+    const named = about || S.iv[scope]?.on || dailyToday(scope)?.on ? [] : tagsIn(q, tagChoices());
     /* An asset tagged travels apart from the folders: the message reads it, and may propose a change to it. */
-    const tags = named.filter(t => !t.startsWith("asset:") && !t.startsWith("group:"));
-    /* A category named asks its folders, beside the ones ticked. */
-    const fromGroups = named.filter(t => t.startsWith("group:")).flatMap(t => groupSlugs(t.slice(6)));
+    let tags = named.filter(t => !t.startsWith("asset:") && !t.startsWith("group:"));
+    /* A category named asks its folders, beside the ones ticked. The personal chat calls them as tags. */
+    let fromGroups = named.filter(t => t.startsWith("group:")).flatMap(t => groupSlugs(t.slice(6)));
+    if (fromGroups.length && isPersonal(scope)){ tags = [...new Set([...tags, ...fromGroups])].slice(0, MAX_TAGS); fromGroups = []; }
     if (fromGroups.length) picks = [...new Set([...(picks.length ? picks : scope !== "all" && !isPersonal(scope) ? [scope] : []), ...fromGroups])];
-    /* The assets it names, then the ones ticked in the picker: four at most. */
-    const assets = about || isPersonal(scope) ? [] : [...new Set([...named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6))), ...S.assetPicks])].slice(0, 4);
+    /* The assets it names, then the ones ticked in the picker: four at most. The personal chat reads only the ones it names. */
+    const assets = about ? [] : [...new Set([...named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6))), ...(isPersonal(scope) ? [] : S.assetPicks)])].slice(0, 4);
     const r = await api("/api/ask", about
       ? { q, concept: about.id, history: S.thread.slice(-4), chat: S.chatId }
       : { q, brain: fromGroups.length && picks.length === 1 ? picks[0] : scope, ...(picks.length > 1 ? { brains: picks } : {}), ...(tags.length ? { tags } : {}), ...(assets.length ? { assets } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });

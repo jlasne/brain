@@ -40,9 +40,9 @@ async function openCall(path, body = {}){
  * The passphrase, on top of the workspace.
  *
  * The page paints the workspace the address names, in its own colours and
- * mark, blurred, with one card over it: the passphrase, or the name and the
- * passphrase for a workspace made on the landing. The demo needs neither and
- * opens straight away.
+ * mark, blurred, with one card over it: the passphrase. With no workspace in
+ * the address, the passphrase alone finds the one it opens. The demo needs
+ * none and opens straight away.
  */
 function gateScreen(w, st = {}){
   if (w) { S.space = w; S.spaceName = KNOWN_NAMES[w] || titleCase(w); paintSpace(); renderZero(); }
@@ -56,11 +56,10 @@ function gateScreen(w, st = {}){
       <header>
         <img class="gmk" id="gateMark" src="${esc(markOf())}" alt="">
         <h3 id="gateH">${w ? esc(S.spaceName) : "Open your workspace"}</h3>
-        <p>${w ? "Enter the passphrase to open this workspace." : "The name and the passphrase you chose when you made it."}</p>
+        <p>${w ? "Enter the passphrase to open this workspace." : "Your passphrase opens your workspace."}</p>
       </header>
       <div class="f">
-        ${w ? `<input type="text" name="username" autocomplete="username" value="${esc(w)}" hidden>`
-            : `<label for="gName">Workspace name</label><input id="gName" autocomplete="username" maxlength="60" spellcheck="false"><div style="height:14px"></div>`}
+        <input type="text" name="username" autocomplete="username" value="${esc(w || "workspace")}" hidden>
         <label for="gPass">Passphrase</label>
         <input id="gPass" type="password" autocomplete="current-password" spellcheck="false">
         <p class="hint gmsg" id="gMsg" role="alert">${shut ? "Shut until its owner sets a passphrase." : ""}</p>
@@ -72,16 +71,18 @@ function gateScreen(w, st = {}){
     if (r.name) { S.spaceName = r.name; veil.querySelector("#gateH").textContent = r.name; }
     applyLook(r.brand || null);
   }).catch(() => {});
-  const pass = veil.querySelector("#gPass"), name = veil.querySelector("#gName");
+  const pass = veil.querySelector("#gPass");
   const msg = veil.querySelector("#gMsg"), go = veil.querySelector("#gGo");
-  setTimeout(() => (name || pass).focus(), 60);
+  setTimeout(() => pass.focus(), 60);
   veil.querySelector("form").addEventListener("submit", async ev => {
     ev.preventDefault();
-    if (name && name.value.trim().length < 2) { msg.textContent = "Type the workspace's name."; name.focus(); return; }
     if (pass.value.length < 8) { msg.textContent = "A passphrase runs 8 characters or more."; pass.focus(); return; }
     go.disabled = true; msg.textContent = "Checking";
     let d;
-    try { d = await openCall("/api/unlock", name ? { name: name.value.trim(), pass: pass.value } : { space: w, pass: pass.value }); }
+    try {
+      d = await openCall(w ? "/api/unlock" : "/api/enter", w ? { space: w, pass: pass.value } : { pass: pass.value });
+      if (!d.token) throw new Error("No workspace opens with that passphrase.");
+    }
     catch (e) { go.disabled = false; pass.value = ""; pass.focus(); msg.textContent = e.message; return; }
     sessionStorage.setItem(TOKEN_KEY, d.token);
     S.token = d.token;

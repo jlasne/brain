@@ -3195,7 +3195,7 @@ for (const space of ["octopus", "squidgy"]) {
   const { page, bad } = await boot("/chat?w=", () => {
     window.fetch = async (u, opt) => {
       const s = String(u);
-      if (s.includes("/api/unlock")) { sessionStorage.setItem("test.unlock", opt.body); return Response.json({ token: "tOpen", space: "acme-research" }); }
+      if (s.includes("/api/enter")) { sessionStorage.setItem("test.unlock", opt.body); return Response.json(JSON.parse(opt.body).pass === "a long passphrase" ? { token: "tOpen", space: "acme-research" } : { demo: true }); }
       if (s.includes("/api/state")) return Response.json({ brains: [], concepts: [], sources: [], space: "acme-research", spaceName: "Acme Research", byok: false });
       if (s.includes("/api/status")) return Response.json({ gates: { octopus: true, squidgy: true }, demo: true });
       return Response.json({});
@@ -3204,15 +3204,17 @@ for (const space of ["octopus", "squidgy"]) {
   const g = await page.evaluate(() => ({ gate: !!document.getElementById("wsGate"), name: !!document.getElementById("gName"),
     h: document.getElementById("gateH")?.textContent, locked: document.getElementById("app").classList.contains("locked"),
     theme: document.documentElement.dataset.space || "", bg: getComputedStyle(document.body).backgroundColor }));
-  check("a tab with no session asks for the workspace's name and passphrase, over the app", g.gate && g.name && g.locked && g.h === "Open your workspace", JSON.stringify(g));
+  check("a tab with no session asks for the passphrase alone, over the app", g.gate && !g.name && g.locked && g.h === "Open your workspace", JSON.stringify(g));
   check("and it wears Tasu's greys, not Octopus's", g.theme === "" && g.bg === "rgb(255, 255, 255)", JSON.stringify(g));
-  await page.fill("#gName", "Acme Research"); await page.fill("#gPass", "short");
+  await page.fill("#gPass", "short");
   await page.click("#gGo"); await page.waitForTimeout(100);
   check("a short passphrase is caught before anything is sent", /8 characters/.test(await page.textContent("#gMsg")) && !(await page.evaluate(() => sessionStorage.getItem("test.unlock"))));
+  await page.fill("#gPass", "a wrong passphrase"); await page.click("#gGo"); await page.waitForTimeout(200);
+  check("a passphrase that opens nothing says so, and stays on the card", /No workspace opens with that passphrase/.test(await page.textContent("#gMsg")) && !(await page.evaluate(() => sessionStorage.getItem("octopus.token.v1"))));
   await page.fill("#gPass", "a long passphrase"); await page.click("#gGo"); await page.waitForTimeout(400);
   const o = await page.evaluate(() => ({ body: sessionStorage.getItem("test.unlock"), token: sessionStorage.getItem("octopus.token.v1"),
     gate: !!document.getElementById("wsGate"), locked: document.getElementById("app").classList.contains("locked"), name: document.getElementById("spaceName").textContent }));
-  check("a workspace opens by its name and passphrase, in place", o.body === '{"name":"Acme Research","pass":"a long passphrase"}' && o.token === "tOpen"
+  check("the passphrase alone finds its workspace and opens it, in place", o.body === '{"pass":"a long passphrase"}' && o.token === "tOpen"
     && !o.gate && !o.locked && o.name === "Acme Research", JSON.stringify(o));
   check("and nothing threw on the way", !bad.length, bad.join("\n       "));
   await page.close();

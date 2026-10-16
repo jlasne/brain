@@ -38,13 +38,13 @@ let atMenu = null, atList = [], atAt = 0, atBox = null;
 function closeAt(){ atMenu?.remove(); atMenu = null; atList = []; atAt = 0; atBox = null; }
 document.addEventListener("pointerdown", e => { if (atMenu && !atMenu.contains(e.target) && e.target !== atBox) closeAt(); }, true);
 
-/** What a chat may be told to read: the folders, and outside the personal chat the assets as well. */
-function tagChoices(personal){
+/** What a chat may be told to read: the folders, the categories and the assets. The personal chat reads an asset and never changes it. */
+function tagChoices(){
   const folders = S.brains.filter(b => b.type !== "personal").map(b => ({ slug: b.slug, name: b.name, tag: "" }));
   /* A category asks all its folders: "@All Wealth". */
   const groups = groupNames().map(g => ({ slug: "group:" + g, name: "All " + g, tag: "category" }));
   /* The assets, beside the folders: a tag reads one, and a chat may propose a change to it. */
-  const assets = S.demo || personal ? [] : (S.assets || []).filter(a => a.status === "ready").map(a => ({ slug: "asset:" + a.id, name: a.name, tag: pjNoun(a.kind) }));
+  const assets = S.demo ? [] : (S.assets || []).filter(a => a.status === "ready").map(a => ({ slug: "asset:" + a.id, name: a.name, tag: pjNoun(a.kind) }));
   return [...folders, ...groups, ...assets];
 }
 /** The slugs a message names with @, each once. The longest names are read first, so "@Pricing review" is not taken for "@Pricing". */
@@ -176,8 +176,8 @@ function attachMentions(ta, choices){
   });
 }
 /* The main bar: asking, in a folder's chat, in all of them or in the personal one. Not a drop, a chat about one concept or an interview. */
-attachMentions($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices(isPersonal(S.scope)) : []);
-attachTagShade($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices(isPersonal(S.scope)) : []);
+attachMentions($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices() : []);
+attachTagShade($("input"), () => S.mode === "ask" && !S.concept && !S.iv[S.scope]?.on && !dailyToday(S.scope)?.on ? tagChoices() : []);
 
 /* ============ input ============ */
 function sizeBox(){ const t=$("input"); t.style.height="auto"; t.style.height=Math.min(t.scrollHeight,210)+"px"; }

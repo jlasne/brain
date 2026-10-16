@@ -43,14 +43,15 @@ async function doAsk(q, again){
   try {
     /* "chat" files the turn in the chat on screen, or starts one. A chat
        about one concept sends that concept alone. */
-    const named = about || S.iv[scope]?.on || dailyToday(scope)?.on ? [] : tagsIn(q, tagChoices(isPersonal(scope)));
+    const named = about || S.iv[scope]?.on || dailyToday(scope)?.on ? [] : tagsIn(q, tagChoices());
     /* An asset tagged travels apart from the folders: the message reads it, and may propose a change to it. */
-    const tags = named.filter(t => !t.startsWith("asset:") && !t.startsWith("group:"));
-    /* A category named asks its folders, beside the ones ticked. */
-    const fromGroups = named.filter(t => t.startsWith("group:")).flatMap(t => groupSlugs(t.slice(6)));
+    let tags = named.filter(t => !t.startsWith("asset:") && !t.startsWith("group:"));
+    /* A category named asks its folders, beside the ones ticked. The personal chat calls them as tags. */
+    let fromGroups = named.filter(t => t.startsWith("group:")).flatMap(t => groupSlugs(t.slice(6)));
+    if (fromGroups.length && isPersonal(scope)){ tags = [...new Set([...tags, ...fromGroups])].slice(0, MAX_TAGS); fromGroups = []; }
     if (fromGroups.length) picks = [...new Set([...(picks.length ? picks : scope !== "all" && !isPersonal(scope) ? [scope] : []), ...fromGroups])];
-    /* The assets it names, then the ones ticked in the picker: four at most. */
-    const assets = about || isPersonal(scope) ? [] : [...new Set([...named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6))), ...S.assetPicks])].slice(0, 4);
+    /* The assets it names, then the ones ticked in the picker: four at most. The personal chat reads only the ones it names. */
+    const assets = about ? [] : [...new Set([...named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6))), ...(isPersonal(scope) ? [] : S.assetPicks)])].slice(0, 4);
     const r = await api("/api/ask", about
       ? { q, concept: about.id, history: S.thread.slice(-4), chat: S.chatId }
       : { q, brain: fromGroups.length && picks.length === 1 ? picks[0] : scope, ...(picks.length > 1 ? { brains: picks } : {}), ...(tags.length ? { tags } : {}), ...(assets.length ? { assets } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });
