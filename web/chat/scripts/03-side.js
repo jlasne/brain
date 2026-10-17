@@ -218,7 +218,7 @@ function personalSubs(b){
   if (!(b.slug in S.daily)){ S.daily[b.slug] = null; loadDaily(b.slug); }
   return [
     line("iv", "Interview", "Questions to know you better, one at a time, in a new chat. Each answer goes into your notes.", startInterview),
-    line("daily", "Daily log", "Today's questions, one at a time, in a new chat. Each answer goes into your notes, and the day becomes a 60-second video script.", startDaily),
+    line("daily", "Daily log", "Today's questions, one at a time, in a new chat. Each answer goes into your notes.", startDaily),
   ];
 }
 
@@ -234,7 +234,7 @@ function paintSubs(){
     } else {
       const dl = dailyToday(slug);
       on = !!dl?.on;
-      st = !dl ? "" : on ? "on" : dl.script ? "script" : dl.seen ? `${dl.answered}/${dl.total}` : "";
+      st = !dl ? "" : on ? "on" : dl.seen ? `${dl.answered}/${dl.total}` : "";
     }
     x.hidden = gone;
     x.classList.toggle("on", on && here);

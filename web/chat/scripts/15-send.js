@@ -112,8 +112,6 @@ function showAnswer(body, r, q, asked, fresh){
     body.append(f);
   }
   if (r.concept) return;
-  /* A video script: one tap copies it. */
-  if (r.script){ scriptActs(body, r, asked); return; }
   if (r.filed){
     const line = filedLine(r.filed);
     if (line){

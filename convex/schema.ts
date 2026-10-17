@@ -414,7 +414,7 @@ export default defineSchema({
     opens: v.optional(v.number()),
     test: v.optional(v.any()),
     profile: v.optional(v.any()),
-    /* The daily log: today's beats, the question waiting, today's answers and script, and the series line. */
+    /* The daily log: today's beats, the question waiting and today's answers. */
     daily: v.optional(v.any()),
     updated: v.number(),
   }).index("by_brain", ["space", "brain"]),

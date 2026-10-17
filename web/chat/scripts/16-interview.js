@@ -31,14 +31,12 @@ function paintIv(){
   if (!(slug in S.iv)){ S.iv[slug] = null; loadIv(slug); }
   if (!(slug in S.daily)){ S.daily[slug] = null; loadDaily(slug); }
   const iv = S.iv[slug], dl = dailyToday(slug);
-  /* Today told and its script not yet written: Write the script sits beside the interview's way in. */
-  const script = !!dl && !dl.on && dl.ready && !dl.script;
-  /* At 100% the interview has nothing left to ask, so the strip goes, unless today's log needs it. */
-  if (ivDone(iv) && !dl?.on && !script){ bar.hidden = true; bar.innerHTML = ""; bar.dataset.key = ""; return; }
+  /* At 100% the interview has nothing left to ask, so the strip goes, unless today's log runs. */
+  if (ivDone(iv) && !dl?.on){ bar.hidden = true; bar.innerHTML = ""; bar.dataset.key = ""; return; }
   /* The bar repaints on every focus change: a strip rebuilt under a click
      would lose it, so it is drawn again only when what it says changes. */
   const busy = chatBusy();
-  const key = JSON.stringify([slug, !!iv?.on, iv?.pct, iv?.seen, iv?.chapter?.at, busy, !!dl?.on, dl?.seen, dl?.ready, script]);
+  const key = JSON.stringify([slug, !!iv?.on, iv?.pct, iv?.seen, iv?.chapter?.at, busy, !!dl?.on, dl?.seen]);
   if (bar.dataset.key === key && bar.children.length) return;
   bar.dataset.key = key;
   bar.innerHTML = "";
@@ -67,7 +65,6 @@ function paintIv(){
     if (iv) goB.append(el("small",null,`twin ${iv.pct}%`));
     goB.onclick = () => startInterview(slug);
     if (!ivDone(iv)) bar.append(goB);
-    if (script) bar.append(scriptButton(slug, busy));
   }
 }
 
