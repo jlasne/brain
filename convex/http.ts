@@ -934,7 +934,10 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
     try {
       const nearHits = await nearTo(ctx, who, q, pool);
       const short = shortList(nearHits.map(x => x.id));
-      const rt = await routeQuestion(pool, concepts, q, b.history, mKey, mName, { ...short, meter: tally });
+      /* From the personal chat, the people they know and their newest notes always reach the router: a list or a CRM is filled from them. */
+      const own = mine ? concepts.filter((c: any) => c.brain === mine.slug) : [];
+      const keep = [...new Set([...own.filter((c: any) => c.tag === "contact"), ...own.slice().sort((x: any, y: any) => String(y.updated ?? "").localeCompare(String(x.updated ?? "")))].slice(0, 150).map(idOf))];
+      const rt = await routeQuestion(pool, concepts, q, b.history, mKey, mName, { ...short, ...(keep.length ? { keep } : {}), meter: tally });
       const open = nearOpen(nearHits, rt);
       const plan = planDossier(pool, concepts, q, b.history, { ...rt, routed: judged(rt, short), ran: rt.routed, near: open });
       const whole = await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
@@ -945,7 +948,7 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
   }
   const earlier = threadOf(b.history).map(h => `Q: ${h.q}\nA: ${h.a}`).join("\n\n");
   const { text, finish, usage } = await ask([
-    { role: "system", content: ASSET_RULES(english, { folders: pool.length > 0 }) },
+    { role: "system", content: ASSET_RULES(english, { folders: pool.some((x: any) => !mine || x.slug !== mine.slug), ...(mine ? { mine: mine.name } : {}) }) },
     { role: "user", content: `${read.join("\n\n")}\n\n${pool.length ? `THEIR FOLDERS\n${dossier}\n\n` : ""}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}TODAY: ${today()}\nMESSAGE: ${q}` },
   ], { json: true, maxTokens: q.length > 6000 ? 24000 : 16000, temperature: 0.2, key: mKey, model: mName, timeout: 170000 });
   tally(usage);
@@ -961,7 +964,7 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
       /* Nothing of the answer came through: asked again for the answer alone, in words, with no change. */
       if (!d.answer) {
         const again = await ask([
-          { role: "system", content: ASSET_RULES(english, { folders: pool.length > 0 }).replace(/Reply with only JSON:[^\n]*$/, "Reply in Markdown only: the answer, under 700 words. No JSON, no change.") },
+          { role: "system", content: ASSET_RULES(english, { folders: pool.some((x: any) => !mine || x.slug !== mine.slug), ...(mine ? { mine: mine.name } : {}) }).replace(/Reply with only JSON:[^\n]*$/, "Reply in Markdown only: the answer, under 700 words. No JSON, no change.") },
           { role: "user", content: `${read.join("\n\n")}\n\n${pool.length ? `THEIR FOLDERS\n${dossier}\n\n` : ""}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}TODAY: ${today()}\nMESSAGE: ${q}` },
         ], { maxTokens: 6000, temperature: 0.2, key: mKey, model: mName, timeout: 170000 });
         tally(again.usage);
@@ -1000,7 +1003,7 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
   const filed = filing ? (await filing) ?? { new: 0, updated: 0, titles: [], failed: true } : null;
   const read2 = pool.filter((x: any) => !mine || x.slug !== mine.slug).map((x: any) => x.name);
   const said = { ...(read2.length ? { tagged: read2 } : {}), ...(edits.length ? { edits } : {}), ...(create ? { create } : {}),
-    ...(mine ? { personal: true, filed, called: [...read2, ...named] } : {}) };
+    ...(mine ? { personal: true, filed, called: read2 } : {}) };
   const turn = { q: q.slice(0, 2000), a: answer, level: "normal", sources: nSources, assets: named, ...said };
   const chat = await saveTurn(ctx, who, b, { brain: mine ? mine.slug : "all" }, turn);
   return { answer, sources: nSources, level: "normal", assets: named, ...said, ...(chat ? { chat } : {}) };

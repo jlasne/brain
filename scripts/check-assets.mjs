@@ -830,7 +830,8 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
     const ap = last(/You work on the owner's assets/);
     check("a personal chat that names an asset goes through the assets' chat: it reads the asset and their own notes, and proposes the change to apply",
       /=== ASSET "plan\.md"/.test(ap.user) && /in Me/.test(ap.user) && pr.edits?.length === 1 && pr.edits[0].status === "open" && pr.personal === true, JSON.stringify(pr).slice(0, 300));
-    check("and the message is filed as their notes too, in the personal chat", callsSince(n1, /You file notes into a person's own knowledge base/) === 1 && !!pr.filed && pr.called.includes("plan.md"), JSON.stringify(pr.filed));
+    check("and the message is filed as their notes too, in the personal chat; the asset is said as read, never as a folder called", callsSince(n1, /You file notes into a person's own knowledge base/) === 1 && !!pr.filed && !pr.called.includes("plan.md") && JSON.stringify(pr.assets) === '["plan.md"]', JSON.stringify(pr.filed));
+    check("its rules say their own notes fill the asset, and every question asked is in the answer", /THEIR OWN NOTES, the entries "in Me"/.test(ap.sys) && /propose the change now, whole/.test(ap.sys) && /Never point to questions/.test(ap.sys));
     await call("/api/assets/file", { action: "remove", file: pa.fid });
   }
   check("its reply reads the thread after the notes and the message last, the last turn whole", twin.indexOf("WHAT THEIR NOTES AND BRAINS HOLD") < twin.indexOf("EARLIER IN THIS CHAT") && twin.indexOf("EARLIER IN THIS CHAT") < twin.indexOf("THEIR MESSAGE") && /Answer 4 third line\./.test(twin) && !/Answer 3 second line\./.test(twin));
