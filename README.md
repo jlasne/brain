@@ -10,14 +10,14 @@ Folders learn from each talk, PDF or link, with its author and date. Assets keep
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="2690 checks passing" src="https://img.shields.io/badge/checks-2690%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1991 checks passing" src="https://img.shields.io/badge/checks-1991%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="Installs on phone and desktop" src="https://img.shields.io/badge/app-phone%20and%20desktop-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
 
 <br><br>
 
-<img src="docs/img/landing.jpg" alt="The Tasu landing page: one passphrase field over a pencil landscape" width="100%">
+<img src="docs/img/landing.jpg" alt="The Tasu landing page: knowledge, assets and personal, one passphrase field over a pencil landscape" width="100%">
 
 </div>
 
@@ -32,6 +32,8 @@ Folders learn from each talk, PDF or link, with its author and date. Assets keep
 **Drop.** A link, a PDF, a Word file, a video or a transcript. Each idea is filed under a concept with its numbers, signed with author and date. A claim that clashes with what you hold waits for your call.
 
 **Ask.** Ask anything, at 3 levels: the answer, a lesson from zero, or guided steps. It answers from your sources only, and the last line names who said it and when.
+
+**Use.** Assets keep your docs, tables and pages. A chat reads them, and proposes changes you apply in one click.
 
 Drop compiles each source once. Ask reads what was compiled. The [white paper](https://tasu.ai/about) walks through both, step by step.
 
@@ -81,7 +83,9 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 
 ### Chat
 
-- **Pick the folders.** Tick as many as you like in the side panel, or type @ to tag up to 4 in any chat. The answer says what it read: "Read @Pricing".
+- **One list.** The side panel lists everything a chat can use: your personal folder, then your categories with their folders and assets, then the rest. Names only; counts and health sit on each folder's page.
+- **Pick what it reads.** Tick folders and assets in the side panel or the chat bar, a whole category in one click, or your personal folder beside them. Or type @: "@Pricing", "@cm-deal", "@All Wealth" for a whole category. The answer says what it read: "Read @Pricing".
+- **Tags, shaded.** A tag shows a light highlight as you type and in the message sent: orange a folder, blue a category, green an asset.
 - **Talk as long as you want.** Whisper large-v3 turbo writes what you say, through OpenRouter on the same key: punctuation and names included, in 27 languages or any with Detect, about $0.04 an hour of talking. The words arrive a piece at a time, about every 20 seconds, cut at a pause; a pause costs nothing. One strip over the bar shows who writes it, "Whisper · French", and for how long. Done keeps all of it, Cancel keeps nothing. The browser's free voice input stays one tap away in Settings.
 - **Follow-ups that hold.** An answer remembers the concepts it read, so "and the second one?" finds what it named.
 - **Ask twice, pay once.** The same question on unchanged folders returns the saved answer for 14 days, with no model call.
@@ -92,10 +96,12 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 ### Folders
 
 - **A drop keeps everything.** Every number, date and name of the source is checked against what was filed, and anything missing goes in word for word. The card says it: "All of it kept: 7,020 words, 145 numbers, dates and names, 23 topics, filed into 18 concepts".
+- **Categories.** Wealth, Business, Life: each folder and each asset sits in one, or in none. Set them in one sheet, the grid next to +, with a suggestion from the model. A new version of an asset keeps its category.
+- **One +.** It asks first: Knowledge, a new folder, or Asset: files, a link, a blank doc, page or table. A file dropped on the list becomes an asset.
 - **A folder, open.** Its scope, counts, health and next move, then every concept, newest first. Chat in it, drop into it, rename it, merge it into another, or delete it with its Delete button. Delete first counts what goes: "Content holds 42 concepts and 12 sources, 9 of them only here".
 - **Every drop grows the graph.** Each new idea links to its 6 nearest in meaning, in any language: needs, causes, supports, contradicts or example. Folders sort themselves into topics.
 - **What follows.** Two linked ideas from different folders can add up to a third. A drop writes up to 5, marked as Tasu's own conclusion.
-- **One page, any shape.** A folder or a question becomes a summary, a quiz, a deep dive or use cases, in 9 languages.
+- **One-pager, above Drop.** Folders, a category, up to 4 assets, or a question become a summary, a quiz, a deep dive or use cases, in 9 languages. Assets alone are read alone.
 - **Decisions, with a call ready.** Clashes, concepts filed twice, titles not in English, empty positions and the same person on two cards sit in one list, grouped by folder. Each has a suggested call and its reason: "B holds. The later claim: September 2026 over February 2026". Accept one, or all in one tap.
 - **Audit.** After 50 new sources, a folder is audited on its own the next time you open Tasu. The personal folder asks every 7 days.
 
@@ -107,8 +113,7 @@ A bubble at the top right counts what waits for you: answers ready, questions on
 
 | | |
 |---|---|
-| **One-pager** | A folder, a group or a question as bullets on one page. First in Settings. |
-| **Model** | GLM 5.3 Flash by default, for the whole workspace. Or a list of favourites: each morning the cheapest runs, when it is at least 10% cheaper. |
+| **Model** | GLM 5.3 Flash by default, for the whole workspace. Or a list of favourites: each morning the cheapest runs, when it is at least 10% cheaper. `admin:addFavourite` adds one more to the list. |
 | **Answers** | Short reads the 12 best concepts, for about a third less a question. Long reads up to 30. Educational and Learning answers read in full either way. |
 | **App** | Installs Tasu on the home screen or the dock. See [Install as an app](#install-as-an-app). |
 | **Appearance** | System, Light or Dark, kept in this browser. |
@@ -137,13 +142,14 @@ A third kind of folder, next to subjects and experts. You talk to it, and it kee
 - **It files your words.** Each message becomes up to 3 notes, each dated and signed "You". A change of mind rewrites the note and keeps the old view with its date.
 - **Add memory.** Paste what another assistant knows about you, or add a PDF, Word, text or JSON file. It is checked like a drop, and the result says "All of it kept".
 - **It answers as your twin.** "I want Porto in 2027." It decides with your own rules and names them: "I'd pass. I never trade learning for 20% more salary."
-- **It calls your other folders.** When one bears on what you said, it brings it up: "your Health folder says 3 to 5 g a day".
+- **It calls your other folders.** When one bears on what you said, it brings it up: "your Health folder says 3 to 5 g a day". Tick folders beside it, and it calls those.
+- **It fills your assets.** Name one with @: "add what you know on @cm-deal". It reads the asset with your notes and your people's cards, and proposes the change to apply. The message is filed as notes too.
 - **A person is a folder.** Overview, Facts, History a year at a time, Their people, and Raw notes word for word. A changed fact keeps the old one with the day it ended.
 - **Still open, in the inbox.** The 3 oldest promises and follow-ups from your people, each with a tick. Comment under a line, and one send updates every line you commented.
 - **It interviews you.** 335 quick questions in 17 chapters, life story first, each under 30 seconds. It skips what your notes already answer, and ends at 100%.
 - **Two lines under it in the side panel.** Interview, with how complete your twin is, and Daily log, with today's count. A click starts that one in a new chat.
 - **A daily log.** Daily log, in the side panel or next to Twin test, opens a chat of its own and asks about today, one question at a time: where you were, what you wanted, what blocked it, what changed, the result, the day around the work, the lesson and the why. A vague answer gets one follow-up for the number or the name. Each answer goes into your notes.
-- **A video script from your day.** From 5 answers, Write the script turns the day into a 60-second script: Situation, Desire, Conflict, Change and Result, with its cuts and sound. It reads the 6 notes nearest the day for who you are.
+- **A video script from your day.** From 5 answers, Write the script turns the day into a 60-second script: Situation, Desire, Conflict, Change and Result, with its cuts and sound. It reads the 6 notes nearest the day for who you are. "Rewrite with the series line" in the chat writes it again, the message as the comment. Daily log reopens today's chat when there is one.
 - **Copy rules, checked.** Every script follows 8 rules: no dashes, sentences under 30 words, data in place of adjectives, no weasel words, the "so what" test, simple words, no negations, no sentence without a goal. A line that breaks one the check can see (a dash, 30 words, a vague word, a negation) is rewritten once before you see it. Redo with a comment writes today's script again, your comment first. A series line opens every script: "Day {n} working towards my first $10k a month", {n} counted from your Day 1.
 - **Your twin, tested.** 5 situations built from your notes. Your twin replies first, then you do, and the two are compared on the decision, the facts and the voice. Your replies go into your notes.
 - **Any language in, English kept.** Write or talk in any language. Notes are kept in English, your own words beside each line.
@@ -154,13 +160,13 @@ A third kind of folder, next to subjects and experts. You talk to it, and it kee
 Documents, tables, pages and web pages you keep. Any chat calls one with @, as it calls a folder.
 
 - **Add** Word, PDF, text, Markdown, HTML, Excel or CSV files of up to 30MB, read in your browser. Or a link: the page is read and kept, up to 60,000 characters, and read again in one tap. Or a blank Doc, HTML page or Table.
-- **Or tick it in the chat bar.** The picker lists your assets under the folders. Tick up to 4 and every message reads them, beside the folder the chat is set to.
+- **In the same list as the folders.** A click ticks an asset for the chat, open shows it. Tick up to 4, here or in the chat bar, and every message reads them beside the folders ticked.
 - **Call it with @.** "@invest-assets.csv what are the best 4 lines?" A table of up to 120,000 characters (about 300 rows of 30 columns) is read whole; a bigger one, up to 40,000 rows, by a filter and totals run over every row. A document of up to 60,000 characters (about 20 pages) is read whole; a longer one, up to 4,000 pages, by the 8 sections that bear on the question. Up to 4 assets and folders in one message.
-- **Nothing changes without you.** A chat proposes a change with the words before and after, or a new asset with what it will hold. Apply, Turn down, then Undo.
+- **Nothing changes without you.** A chat proposes a change with the words before and after, or a new asset with what it will hold. Apply, Turn down, then Undo. The personal chat proposes them too, from your notes.
 - **Versions.** A file dropped under a name an asset holds becomes its new version. The one before is kept: Undo brings it back.
 - **Cost, on the default model (GLM 5.3 Flash, $0.035 a million tokens read, $0.90 written).** A question on a 300-row table reads about 40,000 tokens: $0.0014, plus about $0.0005 for the answer. A proposed page or table of 3,000 tokens adds $0.003. Reading a 100-page PDF in costs about $0.005; a table or a link, nothing. Counted under Assets in Cost.
 - **See it.** A document's pages, a table's grid, a page as it renders or as code. Download a document as Markdown, PDF or a web page, a table as Excel, CSV or Markdown.
-- **Projects from before.** A line in Assets deletes them, or keeps them as assets, after a list of what each would become: every file with all it holds, and the Brief, where it stood and what it kept as one document, Notes of the project. Its last 4 chat exchanges go. Nothing moves before you confirm.
+- **Projects from before.** A line at the top of the list deletes them, or keeps them as assets, after a list of what each would become: every file with all it holds, and the Brief, where it stood and what it kept as one document, Notes of the project. Its last 4 chat exchanges go. Nothing moves before you confirm.
 
 ## Workspaces
 
@@ -169,7 +175,7 @@ A workspace holds its own folders and chats, apart from every other.
 | | Octopus, Squidgy | The demo | Your own |
 |---|---|---|---|
 | Whose | The builder's, and someone's | Anyone's | Yours |
-| Enter | Its own page, passphrase on top | One click | Made on the landing |
+| Enter | Its own page, or the passphrase alone on the landing | One click | Made on the landing, then the passphrase alone |
 | Model calls paid by | The deployment's key | A separate demo key | **Your OpenRouter key** |
 | Limits | None | 30 drops and 300 questions a month, shared | Your key's own |
 | New folders, personal folders | Yes | No | Yes |
@@ -248,13 +254,13 @@ The app's source sits in `web/chat/`, one file a screen. `npm run build` joins i
 
 ```bash
 npm run build     # web/chat into app/chat.html
-npm run check     # the build first, then 1941 checks
+npm run check     # the build first, then 1991 checks
 npm run deploy    # the server, to Convex
 ```
 
 ```
 app/            the landing, the built app, the white paper, the install manifest and icons
-web/chat/       the app's source: page.html, 10 stylesheets and 20 scripts, one a screen
+web/chat/       the app's source: page.html, 10 stylesheets and 21 scripts, one a screen
 convex/         the server: routes, store, drop, one-pager, health, conflicts, personal, assets
 scripts/        the build and the checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
@@ -262,7 +268,7 @@ skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a folder
 ```
 
-`npm run check` runs 1941 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
+`npm run check` runs 1991 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 
