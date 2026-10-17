@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Tasu: files what you read, and answers from it</title>
-<meta name="description" content="Drop a talk, a PDF or a link. Each idea lands in a folder with its author and date. Ask, and every answer cites them.">
+<title>Tasu: your knowledge and your files, in one chat</title>
+<meta name="description" content="Folders learn from each talk, PDF or link, with its author and date. Assets keep your docs and tables. Call any of them with @, and every answer cites it.">
 <meta name="theme-color" content="#fafafa">
-<meta property="og:title" content="Tasu: files what you read, and answers from it">
-<meta property="og:description" content="Drop a talk, a PDF or a link. Each idea lands in a folder with its author and date. Ask, and every answer cites them.">
-<meta property="og:image" content="https://tasu.ai/og.jpg">
+<meta property="og:title" content="Tasu: your knowledge and your files, in one chat">
+<meta property="og:description" content="Folders learn from each talk, PDF or link, with its author and date. Assets keep your docs and tables. Call any of them with @, and every answer cites it.">
+<meta property="og:image" content="https://tasu.ai/og.jpg?v=2">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
 <meta property="og:url" content="https://tasu.ai/">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://tasu.ai/og.jpg">
+<meta name="twitter:image" content="https://tasu.ai/og.jpg?v=2">
 <link rel="icon" href="/brand/tasu.svg" type="image/svg+xml">
 <link rel="icon" href="/brand/tasu-64.png" type="image/png" sizes="64x64">
 <link rel="apple-touch-icon" href="/brand/tasu-180.png">
@@ -80,7 +80,12 @@
   .sub{ margin-top:22px; max-width:620px; font:400 clamp(16px, 1.6vw, 19px)/1.55 var(--sans); color:var(--sub); text-wrap:pretty; }
 
   /* ---- the one field ---- */
-  .card{ margin-top:40px; width:100%; max-width:620px; background:var(--card); border:1px solid var(--line); border-radius:16px; text-align:left;
+  /* What a chat can use, in three: the folders, the assets, the personal folder. */
+  .points{ list-style:none; margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:8px; max-width:680px; }
+  .points li{ display:flex; align-items:baseline; gap:7px; padding:6px 12px; border:1px solid var(--line); border-radius:999px; background:rgba(255,255,255,.72);
+    font:400 13.5px/1.35 var(--sans); color:var(--sub); }
+  .points b{ font-weight:600; color:var(--ink); }
+  .card{ margin-top:32px; width:100%; max-width:620px; background:var(--card); border:1px solid var(--line); border-radius:16px; text-align:left;
     box-shadow:0 4px 16px -2px rgba(0,0,0,.05), 0 2px 6px rgba(0,0,0,.025); transition:box-shadow .2s var(--ease), border-color .2s var(--ease); }
   .card:focus-within{ border-color:#d4d4d8; box-shadow:0 8px 30px -4px rgba(0,0,0,.07), 0 4px 10px rgba(0,0,0,.03); }
   .row{ display:flex; align-items:center; gap:12px; padding:14px 14px 14px 18px; }
@@ -149,8 +154,13 @@
 <main class="hero">
   <div class="bg" aria-hidden="true"></div>
   <div class="in-hero">
-    <h1 class="rise">Files what you read, and answers from it.</h1>
-    <p class="sub rise" style="--d:80">Drop a talk, a PDF or a link. Each idea lands in a folder with its author and date. Ask, and every answer cites them.</p>
+    <h1 class="rise">Your knowledge and your files, in one chat.</h1>
+    <p class="sub rise" style="--d:80">Folders learn from each talk, PDF or link, with its author and date. Assets keep your docs and tables. Call any of them with @, and every answer cites it.</p>
+    <ul class="points rise" style="--d:120" aria-label="What a chat can use">
+      <li><b>Knowledge</b>folders that learn from each drop</li>
+      <li><b>Assets</b>docs and tables a chat updates</li>
+      <li><b>Personal</b>your notes, a daily log, your twin</li>
+    </ul>
     <form class="card rise" style="--d:160" id="enter" autocomplete="on">
       <div class="row">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>

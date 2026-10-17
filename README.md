@@ -4,9 +4,9 @@
 
 # Tasu
 
-**Files what you read, and answers from it.**
+**Your knowledge and your files, in one chat.**
 
-Drop a talk, a PDF or a link. Each idea lands in a folder with its author and date. Ask, and every answer cites them.
+Folders learn from each talk, PDF or link, with its author and date. Assets keep your docs and tables. Call any of them with @, and every answer cites it.
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 

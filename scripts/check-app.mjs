@@ -3347,8 +3347,8 @@ for (const space of ["octopus", "squidgy"]) {
     sections: document.querySelectorAll("main section").length, font: getComputedStyle(document.body).fontFamily,
     page: getComputedStyle(document.body).backgroundColor, logo: document.querySelector(".logo").textContent.trim(),
     mark: document.querySelector(".logo img").getAttribute("src"), title: document.title, text: document.body.textContent }));
-  check("the landing is one hero: a serif line, a sub line, one field", l.h1 === "Files what you read, and answers from it." && l.sections === 0
-    && /^Drop a talk, a PDF or a link\./.test(l.sub), JSON.stringify(l.h1));
+  check("the landing is one hero: a serif line, a sub line, what a chat can use, one field", l.h1 === "Your knowledge and your files, in one chat." && l.sections === 0
+    && /^Folders learn from each talk, PDF or link/.test(l.sub) && await page.evaluate(() => [...document.querySelectorAll(".points b")].map(b => b.textContent).join()) === "Knowledge,Assets,Personal", JSON.stringify(l.h1));
   check("the workspaces sit along the top, the demo first", l.spaces === "Demo|Octopus|Squidgy" && JSON.stringify(l.doors) === '["/chat?w=octopus","/chat?w=squidgy"]', l.spaces);
   check("the field takes a passphrase, hidden as it is typed", l.field === "password" && l.ph === "Enter your passphrase" && /opens the demo/.test(l.help), l.ph);
   check("the pencil landscape sits behind it", /\/brand\/landing\.webp/.test(l.bg), l.bg);
