@@ -428,6 +428,7 @@ read from OpenRouter while no workspace has a list.
 ```bash
 npx convex run admin:setFavourites "{models:['deepseek/deepseek-v4-flash-0731','z-ai/glm-5.3-flash'],dry:true}" --prod   # prices, nothing written
 npx convex run admin:setFavourites "{models:['deepseek/deepseek-v4-flash-0731','z-ai/glm-5.3-flash']}" --prod
+npx convex run admin:addFavourite "{model:'deepseek/deepseek-v4.1-flash-1017'}" --prod                                                # one more on each list, priced with the rest
 npx convex run admin:pickCheapest --prod                                                                                    # look now, as the daily check does
 npx convex run admin:setFavourites "{models:null}" --prod                                                                   # end it, the model running stays
 ```

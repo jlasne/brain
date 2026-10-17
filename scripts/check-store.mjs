@@ -1094,6 +1094,19 @@ I run a marathon in May.
     check("the workspace reads its favourites back, and a workspace without any reads none",
       JSON.stringify((await run(store.modelsOf, W.ctx, { space: "squidgy" })).favs) === JSON.stringify([DS, GLM]) && !("favs" in (await run(store.modelsOf, W.ctx, { space: "demo" }))));
 
+    /* one model added to the list the workspaces compare */
+    const NEW = "deepseek/deepseek-v4.1-flash-1017";
+    lists[NEW] = [ep(0.24)];
+    const add = await admin.addFavourite.handler(W.actx, { model: NEW });
+    check("addFavourite puts one model on each list, prices it with the rest, and the cheapest still runs",
+      add.added === NEW && JSON.stringify(W.row("octopus").favs) === JSON.stringify([DS, GLM, NEW]) && JSON.stringify(W.on()) === JSON.stringify({ octopus: DS, squidgy: DS, pandaaahh: DS, demo: null, acme: null })
+      && W.row("squidgy").favPrices.some(p => p.id === NEW && p.price === 0.24), JSON.stringify(add));
+    await admin.addFavourite.handler(W.actx, { model: NEW });
+    check("added twice, it is on the list once", W.row("octopus").favs.filter(x => x === NEW).length === 1);
+    let refused = ""; try { await admin.addFavourite.handler(W.actx, { model: "no/such" }); } catch (e) { refused = e.message; }
+    check("a model OpenRouter does not know is refused, and nothing changes", /has no model called no\/such/.test(refused) && W.row("octopus").favs.length === 3, refused);
+    await W.cmd({ models: [DS, GLM] });
+
     /* the daily check, as prices move */
     let fetched = seen.length;
     set(0.115, 0.12);

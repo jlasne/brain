@@ -278,6 +278,34 @@ export const setFavourites = internalAction({
 });
 
 /**
+ * One model added to the favourites the workspaces already compare, priced at
+ * once with them: the cheapest still runs. A workspace with no favourites yet
+ * is left as it is; setFavourites gives it a list.
+ *
+ *     npx convex run admin:addFavourite "{model:'deepseek/deepseek-v4.1-flash-1017'}" --prod
+ *
+ * `dry: true` prices it and writes nothing; `spaces` names a few workspaces.
+ */
+export const addFavourite = internalAction({
+  args: { model: v.string(), spaces: v.optional(v.array(v.string())), dry: v.optional(v.boolean()) },
+  handler: async (ctx, a): Promise<any> => {
+    const id = a.model.trim();
+    if (id.length > 80 || !MODEL_ID.test(id)) throw new Error(`"${id.slice(0, 40)}" is not a model id. They read vendor/model, like ${MODEL}.`);
+    const rows = target(await ctx.runQuery(internal.admin.keyed, {}), a.spaces).filter(r => r.favs);
+    if (!rows.length) throw new Error("no workspace compares favourites yet. Give them a list with admin:setFavourites.");
+    const full = rows.find(r => !(r.favs as string[]).includes(id) && (r.favs as string[]).length >= MAX_FAVS);
+    if (full) throw new Error(`${full.space} already compares ${MAX_FAVS} models, the most it takes. Give it a new list with admin:setFavourites.`);
+    const reads = await readPrices([...new Set<string>([id, ...rows.flatMap(r => r.favs as string[])])]);
+    const mine = reads.find(x => x.id === id);
+    if (mine?.missing) throw new Error(`OpenRouter has no model called ${id}. Nothing was changed.`);
+    if (!mine || mine.error) throw new Error(`could not price ${id}${mine?.error ? ` (${mine.error})` : ""}. Nothing was changed.`);
+    const spaces = await settle(ctx, rows.map(r => ({ ...r, favs: [...new Set([...(r.favs as string[]), id])] })), reads, !!a.dry);
+    console.log(`favourite ${a.dry ? "priced" : "added"}: ${id} $${cents(mine.price)}. ${spaces.map(x => `${x.space} ${x.switched ? "now " : "stays "}${x.now ?? MODEL}`).join("; ")}`);
+    return { dry: !!a.dry, added: id, models: shown(reads), spaces };
+  },
+});
+
+/**
  * The daily check, run by crons.ts: each workspace with favourites is priced
  * again and set to the cheapest, as setFavourites does. Nothing is read from
  * OpenRouter when no workspace has favourites. Run by hand to look now:
