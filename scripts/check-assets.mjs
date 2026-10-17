@@ -614,8 +614,13 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   await call("/api/assets/make", { id: a3.create.id, action: "undo" });
   check("Undo takes the new asset away", !(await listed()).some(x => x.id === mk.fid));
 
+  /* a category, kept by a new version */
+  const gs = await call("/api/assets/groups", { set: [{ file: 2, group: "  Wealth  " }, { file: 99, group: "x" }] });
+  check("an asset is put in a category, and one no longer here is passed over", gs.changed === 1 && (await listed()).find(x => x.id === 2)?.group === "Wealth", JSON.stringify(gs));
+  check("a category for no asset that is here is refused", /name at least one asset/.test((await call("/api/assets/groups", { set: [{ file: 99, group: "x" }] })).error ?? ""));
   /* a new version, and its Undo */
   const v = await call("/api/assets/new", { kind: "table", name: "invest-assets.csv", made: false, prev: 2 });
+  check("a new version stays in the category of the one it replaces", w.T.projectFiles.find(f => f.brain === `${BASE}~${v.fid}`)?.group === "Wealth");
   const vb = await call("/api/assets/begin", { file: v.fid, name: "invest-assets.csv", kind: "table", sheets: [{ name: "Assets", header: ["Asset", "Fit", "Return"] }] });
   await call("/api/assets/part", { file: v.fid, ver: vb.ver, sheet: 0, rows: rows.slice(0, 50) });
   await call("/api/assets/finish", { file: v.fid, ver: vb.ver });

@@ -275,13 +275,13 @@ function folds(){
   return folds.v;
 }
 function paintFolds(){
-  for (const k of ["chats","assets","brains"]){
+  for (const k of ["chats","brains"]){
     const shut = !!folds()[k];
     $(k + "Fold").setAttribute("aria-expanded", String(!shut));
     $(k + "Box").hidden = shut;
   }
 }
-for (const k of ["chats","assets","brains"]) $(k + "Fold").onclick = () => {
+for (const k of ["chats","brains"]) $(k + "Fold").onclick = () => {
   folds()[k] = !$(k + "Box").hidden;
   try { localStorage.setItem("octopus.fold", JSON.stringify(folds())); } catch {}
   paintFolds();
@@ -550,9 +550,12 @@ async function settleFrom(id, brain){
 function renderSide(){
   paintFolds();
   const box = $("brains"); box.innerHTML = "";
-  $("bcount").textContent = S.brains.length || "";
-  if (!S.brains.length){
-    box.append(el("div","empty-side","None yet. A folder holds one subject or one person's view, with a one line scope."));
+  /* The assets sit in the same list: everything a chat can use and call with @. */
+  const files = S.demo || !S.assetsOn ? [] : (S.assets || []);
+  $("bcount").textContent = (S.brains.length + files.length) || "";
+  assetNotes(box);
+  if (!S.brains.length && !files.length){
+    box.append(el("div","empty-side","None yet. + adds knowledge, a folder that learns from each drop, or an asset: a file, a link, a table."));
   } else {
     /* By type, then the fullest first: what you said, the people, the
        subjects. A folder shared in, or one only asked, says so on its row. */
@@ -560,24 +563,29 @@ function renderSide(){
     const bySize = (x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length || x.name.localeCompare(y.name);
     /* The categories come after the personal folders, each with its folders
        under it on a short branch; folders in none keep their type's group. */
-    const cats = inGroups(S.brains.filter(b => b.type !== "personal"));
+    const cats = inGroups(S.brains.filter(b => b.type !== "personal")), acats = assetsInGroups(files);
     const head = (text, n) => { const h = el("div","group-h",text); h.dataset.n = n; box.append(h); };
     const mine = S.brains.filter(b => kind(b) === "personal").sort(bySize);
     if (mine.length){
       head("Personal", mine.length);
       for (const b of mine){ box.append(brainRow(b)); if (!S.demo) box.append(...personalSubs(b)); }
     }
-    if (cats.groups.length){
-      head("Categories", cats.groups.length);
-      for (const g of cats.groups){
+    /* A category holds folders and assets alike: the folders first, then its assets. */
+    const both = [...cats.groups.map(g => ({ ...g, files: acats.groups.find(x => x.name === g.name)?.rows || [] })),
+      ...acats.groups.filter(x => !cats.groups.some(g => g.name === x.name)).map(x => ({ name: x.name, rows: [], size: 0, files: x.rows }))];
+    if (both.length){
+      head("Categories", both.length);
+      for (const g of both){
         box.append(groupRow(g));
         for (const b of g.rows){ const r = brainRow(b); r.classList.add("in-group"); box.append(r); }
+        for (const a of g.files){ const r = assetRow(a); r.classList.add("in-group"); box.append(r); }
       }
     }
     for (const [k, h] of [["person","People"], ["subject","Subjects"]]){
       const rows = cats.rest.filter(b => kind(b) === k);
       if (rows.length){ head(h, rows.length); for (const b of rows) box.append(brainRow(b)); }
     }
+    if (acats.rest.length){ head("Assets", acats.rest.length); for (const a of acats.rest) box.append(assetRow(a)); }
   }
   paintSubs();
   /* On a phone, one button closes the drawer on the ticked folders. */
@@ -840,8 +848,8 @@ function fillPick(){
   /* Each category ticks all its folders at once; its folders sit under it. */
   const cats = inGroups(shown.filter(b => b.type !== "personal"));
   for (const g of cats.groups){
-    const slugs = g.rows.map(b => b.slug), list = drop ? S.into : S.picks;
-    const on = slugs.every(x => list.includes(x));
+    const slugs = g.rows.map(b => b.slug), list = drop ? S.into : S.picks, ids = drop ? [] : groupAssets(g.name);
+    const on = drop ? slugs.every(x => list.includes(x)) : groupOn(slugs, ids);
     const r = el("button","pk-row pk-group" + (on ? " on" : "")); r.dataset.group = g.name;
     r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
     const box = el("span","pk-box"); box.innerHTML = TICK_SVG;
@@ -853,8 +861,8 @@ function fillPick(){
       if (drop){
         S.into = on ? S.into.filter(x => !slugs.includes(x)) : [...new Set([...S.into, ...slugs])];
         S.scope = S.into.length === 1 ? S.into[0] : "all"; S.picks = S.into.slice();
-      } else if (mine){ const me = S.scope; tickGroup(slugs); S.scope = me; }
-      else { crossing("all"); tickGroup(slugs); }
+      } else if (mine){ const me = S.scope; tickGroup(slugs, ids); S.scope = me; }
+      else { crossing("all"); tickGroup(slugs, ids); }
       render();
     };
     m.append(r);
@@ -865,9 +873,29 @@ function fillPick(){
   const ready = drop || S.demo || !S.assetsOn ? [] : (S.assets || []).filter(a => a.status === "ready");
   if (ready.length){
     m.append(el("div","pk-h","And assets to read"));
-    for (const a of ready){
+    /* By category: a category ticks its assets, four at most, and its assets sit under it. */
+    const acats = assetsInGroups(ready);
+    const order = [...acats.groups.flatMap(g => [{ g }, ...g.rows.map(a => ({ a, inGroup: true }))]), ...acats.rest.map(a => ({ a }))];
+    for (const it of order){
+      if (it.g){
+        const ids = it.g.rows.map(a => a.id), on = ids.slice(0, 4).every(id => S.assetPicks.includes(id));
+        const r = el("button","pk-row pk-group pk-agroup" + (on ? " on" : "")); r.dataset.group = it.g.name;
+        r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
+        const box = el("span","pk-box"); box.innerHTML = TICK_SVG;
+        const ic = el("span","pk-ic"); ic.innerHTML = GROUP_ICON;
+        const nm = el("span","pk-nm", it.g.name); nm.append(el("span","pk-sub", `${ids.length} asset${ids.length === 1 ? "" : "s"}${ids.length > 4 ? ", the first 4 read" : ""}`));
+        r.append(box, ic, nm);
+        r.onclick = e => {
+          e.stopPropagation();
+          S.assetPicks = on ? S.assetPicks.filter(x => !ids.includes(x)) : [...new Set([...ids.slice(0, 4), ...S.assetPicks])].slice(0, 4);
+          render();
+        };
+        m.append(r);
+        continue;
+      }
+      const a = it.a;
       const on = S.assetPicks.includes(a.id);
-      const r = el("button","pk-row pk-asset" + (on ? " on" : "")); r.dataset.fid = String(a.id);
+      const r = el("button","pk-row pk-asset" + (it.inGroup ? " pk-in" : "") + (on ? " on" : "")); r.dataset.fid = String(a.id);
       r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
       const box = el("span","pk-box"); box.innerHTML = TICK_SVG;
       const ic = el("span","pk-ic"); ic.innerHTML = pjIcon(a.kind);

@@ -14,57 +14,78 @@ function assetMeta(a){
 }
 
 /* ---- the side panel ---- */
-function renderAssets(){
-  const panel = $("assetsPanel");
-  panel.hidden = S.demo;
-  const box = $("assets"); box.innerHTML = "";
-  const list = S.assets || [];
-  $("acount").textContent = list.length || "";
-  if (!S.demo && !S.assetsOn){ box.append(el("div","side-note as-none as-old", ASSETS_OLD)); return; }
-  /* Projects held from before become assets, once, when the owner says so. */
-  const old = S.demo ? [] : (S.projects || []);
+/**
+ * An asset in the side list, beside the folders: a click ticks it for the chat
+ * (four at most), open shows it. The assets' own notes sit at the top of the
+ * list: a server older than this page, and the projects still to turn into assets.
+ */
+function assetRow(a){
+  const on = S.assetPicks.includes(a.id);
+  const row = el("div","brain-row as-row" + (on ? " on" : "") + (S.asset === a.id ? " seen" : "") + (a.status !== "ready" ? " run" : ""));
+  row.dataset.fid = String(a.id);
+  row.setAttribute("role","button"); row.tabIndex = 0; row.setAttribute("aria-pressed", String(on));
+  row.onkeydown = e => { if (e.target === row && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); row.click(); } };
+  const tick = el("span","tick"), ic = el("span","a-ic"); ic.innerHTML = pjIcon(a.kind);
+  const box = el("span","tbox"); box.innerHTML = TICK_SVG; tick.append(ic, box);
+  row.append(tick, el("span","nm",a.name), el("span","cnt", assetMeta(a)));
+  row.title = `${a.name}\n${kindTitle(a)}. Click to read it in the chat, or call it with @.`;
+  row.onclick = () => {
+    if (a.status !== "ready"){ openAsset(a.id); return; }
+    if (S.concept) newChat();
+    S.assetPicks = on ? S.assetPicks.filter(x => x !== a.id) : [...S.assetPicks, a.id].slice(-4);
+    S.folder = null;
+    render();
+  };
+  const op = el("button","ed op","open"); op.type = "button"; op.title = "See what this asset holds"; op.setAttribute("aria-label", `Open ${a.name}`);
+  op.onclick = e => { e.stopPropagation(); openAsset(a.id); };
+  row.append(op);
+  return row;
+}
+/** What the side list says about the assets before any row: an older server, or projects to turn into assets. */
+function assetNotes(box){
+  if (S.demo) return;
+  if (!S.assetsOn){ box.append(el("div","side-note as-none as-old", ASSETS_OLD)); return; }
+  const old = S.projects || [];
   if (old.length){
     const conv = el("button","as-convert"); conv.type = "button"; conv.id = "assetsConvert";
     conv.textContent = `${old.length} old project${old.length === 1 ? "" : "s"}: delete or keep as assets`;
     conv.onclick = openConvert;
     box.append(conv);
   }
-  /* With no asset the list says where to start, and takes a file dropped on it. */
-  if (!list.length){ box.append(el("div","side-note as-none","Drop a document, a table or a page here. Call it in a chat with @.")); return; }
-  for (const a of list){
-    const row = el("button","brain-row self pj-row as-row" + (S.asset === a.id ? " on" : "") + (a.status !== "ready" ? " run" : ""));
-    row.dataset.fid = String(a.id);
-    const tick = el("span","tick"); tick.innerHTML = pjIcon(a.kind);
-    row.append(tick, el("span","nm",a.name), el("span","cnt", assetMeta(a)));
-    row.title = `${a.name}\n${kindTitle(a)}. In a chat, call it with @.`;
-    row.onclick = () => openAsset(a.id);
-    box.append(row);
-  }
 }
 /** The list read again after a change. */
 async function syncAssets(){
   try { S.assets = (await api("/api/assets/list")).assets || []; } catch { /* the list catches up at the next refresh */ }
-  renderAssets();
+  renderSide(); renderScope();
 }
-/* A file dropped on the panel is added. */
+/* A file dropped on the list is added as an asset. */
 {
-  const panel = $("assetsPanel");
+  const panel = $("brainsPanel");
   const carries = e => [...(e.dataTransfer?.types || [])].includes("Files");
   panel.addEventListener("dragover", e => { if (!carries(e) || S.demo || !S.assetsOn) return; e.preventDefault(); panel.classList.add("over"); });
   panel.addEventListener("dragleave", e => { if (!panel.contains(e.relatedTarget)) panel.classList.remove("over"); });
   panel.addEventListener("drop", e => { if (!carries(e) || S.demo || !S.assetsOn) return; e.preventDefault(); panel.classList.remove("over"); const files = [...(e.dataTransfer?.files || [])]; if (files.length) addAssets(files); });
 }
 
-/** The +: files you have, or a blank document, table or page to fill from a chat. */
-function openAssetAdd(anchor){
-  if (assetsOld()) return;
-  popMenu(anchor, "Add an asset", menu => {
-    for (const [k, label, hint] of [["add","Add files","Word, PDF, Excel, CSV, HTML"], ["link","Add a link","a web page, read and kept"], ["doc","Doc","blank"], ["html","HTML","blank"], ["table","Table","blank"]]){
+/**
+ * The + of the list: knowledge, a folder that learns from each drop, or an
+ * asset, a file kept as it is: files you have, a link, or a blank document,
+ * table or page to fill from a chat.
+ */
+function openAdd(anchor){
+  popMenu(anchor, "Add knowledge or an asset", menu => {
+    const item = (k, label, hint, go) => {
       const b = el("button"); b.type = "button"; b.dataset.add = k; b.setAttribute("role","menuitem");
       b.append(el("b",null,label), el("span",null,hint));
-      b.onclick = () => { closeDownload(); if (k === "add") pickFiles(PJ_FILES, files => addAssets(files)); else if (k === "link") askLink(); else newAsset(k); };
+      b.onclick = () => { closeDownload(); go(); };
       menu.append(b);
-    }
+    };
+    menu.append(el("div","pj-mh","Knowledge"));
+    item("folder", "New folder", "a subject or a person: it learns from each drop", () => openSheet("", "", "subject"));
+    if (S.demo) return;
+    menu.append(el("div","pj-mh","Asset"));
+    for (const [k, label, hint] of [["add","Add files","Word, PDF, Excel, CSV, HTML"], ["link","Add a link","a web page, read and kept"], ["doc","Doc","blank"], ["html","HTML","blank"], ["table","Table","blank"]])
+      item(k, label, hint, () => { if (assetsOld()) return; if (k === "add") pickFiles(PJ_FILES, files => addAssets(files)); else if (k === "link") askLink(); else newAsset(k); });
   });
 }
 

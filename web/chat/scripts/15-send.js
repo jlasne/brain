@@ -50,8 +50,9 @@ async function doAsk(q, again){
     let fromGroups = named.filter(t => t.startsWith("group:")).flatMap(t => groupSlugs(t.slice(6)));
     if (fromGroups.length && isPersonal(scope)){ picks = [...new Set([...picks, ...fromGroups])]; fromGroups = []; }
     if (fromGroups.length) picks = [...new Set([...(picks.length ? picks : scope !== "all" && !isPersonal(scope) ? [scope] : []), ...fromGroups])];
-    /* The assets it names, then the ones ticked in the picker: four at most. The personal chat reads only the ones it names. */
-    const assets = about ? [] : [...new Set([...named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6))), ...S.assetPicks])].slice(0, 4);
+    /* The assets it names, a category's assets, then the ones ticked in the picker: four at most. */
+    const groupFiles = named.filter(t => t.startsWith("group:")).flatMap(t => groupAssets(t.slice(6)));
+    const assets = about ? [] : [...new Set([...named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6))), ...groupFiles, ...S.assetPicks])].slice(0, 4);
     const r = await api("/api/ask", about
       ? { q, concept: about.id, history: S.thread.slice(-4), chat: S.chatId }
       : { q, brain: fromGroups.length && picks.length === 1 ? picks[0] : scope, ...(picks.length > (isPersonal(scope) ? 0 : 1) ? { brains: picks } : {}), ...(tags.length ? { tags } : {}), ...(assets.length ? { assets } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });

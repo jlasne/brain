@@ -456,6 +456,8 @@ export default defineSchema({
     hidden: v.optional(v.boolean()),
     /* An asset read from a web page: its address, to read it again. */
     url: v.optional(v.string()),
+    /* The category an asset sits under in the side panel and the picker. Absent: none. */
+    group: v.optional(v.string()),
     /* A project's file moving into the assets: the key its rows still stand under, until they have all moved. */
     from: v.optional(v.string()),
     routes: v.optional(v.array(v.object({ t: v.array(v.string()), s: v.array(v.number()), n: v.number(), at: v.number(), q: v.optional(v.string()) }))),

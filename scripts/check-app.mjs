@@ -179,8 +179,8 @@ async function openPager(page) {
   check("the app boots with nothing thrown", !bad.length, bad.join("\n       "));
   const rules = await page.evaluate(() => { const fill = getComputedStyle(document.documentElement).getPropertyValue("--accent-fill").trim(), probe = document.createElement("i");
     probe.style.color = fill; document.body.append(probe); const want = getComputedStyle(probe).color; probe.remove();
-    return ["chatsPanel", "assetsPanel", "brainsPanel"].map(id => { const a = getComputedStyle(document.getElementById(id), "::after"); return { id, h: a.height, same: a.backgroundColor === want }; }); });
-  check("a thin line in the workspace's accent closes Chats, Assets and Folders", rules.every(r => r.h === "2px" && r.same), JSON.stringify(rules));
+    return ["chatsPanel", "brainsPanel"].map(id => { const a = getComputedStyle(document.getElementById(id), "::after"); return { id, h: a.height, same: a.backgroundColor === want }; }); });
+  check("a thin line in the workspace's accent closes Chats and Folders", rules.every(r => r.h === "2px" && r.same), JSON.stringify(rules));
 
   /* ---- simpler: one tool for the drop, one box for the text, no key to set ---- */
   const simple = await page.evaluate(() => ({
@@ -251,11 +251,11 @@ async function openPager(page) {
       gone: !document.getElementById("gapsBtn") && !document.getElementById("mapBtn") };
   });
   check("New chat sits on the Chats line, and One-pager then Drop just above Settings in the foot", top.acts === "chatsFold:Chats,startBtn:New chat|pagerSide:One-pager,dropBtn:Drop,keyBtn:Settings,lockBtn:Sign out", top.acts);
-  const loud = await page.evaluate(() => { const css = id => getComputedStyle(document.getElementById(id)); const n = css("startBtn"), p = css("newAsset");
+  const loud = await page.evaluate(() => { const css = id => getComputedStyle(document.getElementById(id)); const n = css("startBtn"), p = css("newBrain");
     return { newBg: n.backgroundColor, plusBg: p.backgroundColor, newH: parseFloat(n.height), drop: document.getElementById("dropBtn").getBoundingClientRect().bottom <= document.getElementById("keyBtn").getBoundingClientRect().top + 1 }; });
-  check("New chat is filled in the accent, louder than the + of Assets and Folders, and Drop sits above Settings", loud.newBg !== "rgba(0, 0, 0, 0)" && loud.plusBg === "rgba(0, 0, 0, 0)" && loud.newH >= 28 && loud.drop, JSON.stringify(loud));
-  check("then Chats, Assets and Folders, each a list of its own", top.panels === "chatsPanel:Chats,assetsPanel:Assets,brainsPanel:Folders" && top.gone, top.panels);
-  check("New chat on the Chats line is the one way to start a chat; Assets and Folders keep their +", top.plus === "newAsset,groupsBtn,newBrain", top.plus);
+  check("New chat is filled in the accent, louder than the + of Folders, and Drop sits above Settings", loud.newBg !== "rgba(0, 0, 0, 0)" && loud.plusBg === "rgba(0, 0, 0, 0)" && loud.newH >= 28 && loud.drop, JSON.stringify(loud));
+  check("then Chats and Folders, the assets listed with the folders", top.panels === "chatsPanel:Chats,brainsPanel:Folders" && top.gone, top.panels);
+  check("New chat on the Chats line is the one way to start a chat; Folders keeps its categories and its +", top.plus === "groupsBtn,newBrain", top.plus);
   await page.click("#chatsFold");
   check("a list folds", await page.evaluate(() => document.getElementById("chatsBox").hidden));
   await page.click("#chatsFold");
@@ -269,7 +269,7 @@ async function openPager(page) {
   await page.click("#dropClose");
 
   /* ---- a new folder: a folder or a personal one, and one switch for a person ---- */
-  await page.click("#newBrain"); await page.waitForTimeout(80);
+  await page.click("#newBrain"); await page.click('.pj-menu [data-add="folder"]'); await page.waitForTimeout(80);
   const sheet0 = await page.evaluate(() => ({ text: document.querySelector(".sheet")?.textContent || "",
     kinds: [...document.querySelectorAll("#bType button")].map(b => `${b.dataset.t}:${b.getAttribute("aria-checked")}`).join(","),
     scope: !document.getElementById("bScopeF").hidden, person: !document.getElementById("bPersonF").hidden && !document.getElementById("bPerson").checked,
@@ -2139,7 +2139,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     panels: [...document.querySelectorAll("aside .panel")].filter(p => !p.hidden).map(p => p.id).join(","),
     folders: [...document.querySelectorAll("#brains .brain-row .nm")].map(x => x.textContent).join(","),
     acts: [...document.querySelectorAll("#chatsH #startBtn, aside .side-foot #dropBtn")].map(b => b.textContent.trim()).join(",") }));
-  check("every workspace shows Chats, Assets and Folders", seen.panels === "chatsPanel,assetsPanel,brainsPanel", seen.panels);
+  check("every workspace shows Chats and Folders", seen.panels === "chatsPanel,brainsPanel", seen.panels);
   check("with New chat on the Chats line and Drop above Settings", seen.acts === "New chat,Drop", seen.acts);
   check("and every folder listed, the personal one first", seen.folders === "Me,Content,Health", seen.folders);
   await page.click('#brains .brain-row:has(.nm:text-is("Me"))'); await page.waitForTimeout(80);
@@ -2244,7 +2244,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.keyboard.press("Escape"); await page.evaluate(() => document.body.click());
 
   /* Making one: New folder, then Personal, with no scope line to write. */
-  await page.click("#newBrain"); await page.waitForTimeout(100);
+  await page.click("#newBrain"); await page.click('.pj-menu [data-add="folder"]'); await page.waitForTimeout(100);
   await page.click('#bType [data-t="personal"]');
   const sheet = await page.evaluate(() => ({ scope: document.getElementById("bScopeF").hidden, person: document.getElementById("bPersonF").hidden,
     name: document.getElementById("bName").value, note: document.getElementById("bMineF").textContent, go: document.getElementById("bMake").textContent }));
@@ -2257,7 +2257,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("what you paste is filed into it at once", made.mem?.brain === "me-2" && made.mem?.text === "I plan my week on Sundays.", JSON.stringify(made.mem));
 
   /* A folder with the person switch on is made as one person's view. */
-  await page.click("#newBrain"); await page.waitForTimeout(100);
+  await page.click("#newBrain"); await page.click('.pj-menu [data-add="folder"]'); await page.waitForTimeout(100);
   await page.fill("#bName", "Ray Dalio"); await page.fill("#bScope", "Ray Dalio's views on debt cycles and the changing world order");
   await page.click("#bPersonF"); await page.waitForTimeout(40);
   check("the switch turns on, and its row shows it", await page.evaluate(() => document.getElementById("bPerson").checked && document.getElementById("bPersonF").classList.contains("on")));
@@ -3020,6 +3020,48 @@ for (const space of ["octopus", "squidgy"]) {
   const saved = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/brain/groups") && x.body.set).pop()?.body.set);
   check("Save sends only the folders that changed", JSON.stringify(saved) === '[{"slug":"crypto","group":""},{"slug":"social","group":"Life"}]', JSON.stringify(saved));
   check("nothing threw around categories", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- one list: folders and assets under the same categories ---- */
+{
+  const st = { ...STATE, brains: [
+    { slug: "wealth", name: "Wealth", type: "subject", scope: "money", group: "Wealth" },
+    { slug: "social", name: "Social", type: "subject", scope: "talk" }],
+    assets: [{ id: 2, name: "cm-deal", kind: "table", made: true, chars: 10, status: "ready", at: 3, rows: 0, group: "Wealth" },
+      { id: 3, name: "Pitch.md", kind: "doc", made: true, chars: 10, sections: 1, status: "ready", at: 2, group: "Sales" },
+      { id: 4, name: "Notes.md", kind: "doc", made: true, chars: 10, sections: 1, status: "ready", at: 1 }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/assets/groups") || s.includes("/api/brain/groups")) return Response.json({ changed: (body.set || []).length });
+      if (s.includes("/api/ask")) return Response.json({ answer: "ok", sources: 0, level: "normal" });
+      return Response.json({ chats: [] });
+    };
+  }, st);
+  await page.waitForTimeout(250);
+  const side = await page.evaluate(() => [...document.querySelectorAll("#brains .group-h, #brains .brain-row")].map(x =>
+    x.classList.contains("group-h") ? "#" + x.firstChild.textContent : x.classList.contains("group-row") ? "[" + x.querySelector(".nm").textContent + "]"
+    : (x.classList.contains("in-group") ? "  " : "") + (x.classList.contains("as-row") ? "~" : "") + x.querySelector(".nm").textContent).join("|"));
+  check("a category lists its folders, then its assets; a category of assets alone shows too; the rest keep their headings",
+    side === "#Categories|[Wealth]|  Wealth|  ~cm-deal|[Sales]|  ~Pitch.md|#Subjects|Social|#Assets|~Notes.md", side);
+  await page.click('#brains .group-row[data-group="Wealth"]'); await page.waitForTimeout(100);
+  const on = await page.evaluate(() => ({ folders: [...document.querySelectorAll("#brains .brain-row.on:not(.group-row):not(.as-row) .nm")].map(x => x.textContent).join(","),
+    assets: [...document.querySelectorAll("#brains .as-row.on .nm")].map(x => x.textContent).join(","), val: document.getElementById("scopeVal").textContent }));
+  check("one click on a category ticks its folders and its assets", on.folders === "Wealth" && on.assets === "cm-deal" && on.val === "Wealth + cm-deal", JSON.stringify(on));
+  await page.fill("#input", "what is the state of the deals?"); await page.click("#send"); await page.waitForTimeout(300);
+  const sent = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/ask")).pop()?.body);
+  check("and the message reads both", sent?.brain === "wealth" && JSON.stringify(sent?.assets) === "[2]", JSON.stringify(sent));
+  await page.click("#groupsBtn"); await page.waitForTimeout(100);
+  const sh = await page.evaluate(() => ({ heads: [...document.querySelectorAll("#gList .g-h")].map(h => h.textContent).join(","), files: [...document.querySelectorAll("#gList input[data-fid]")].map(i => i.dataset.fid + "=" + i.value).join(",") }));
+  check("the categories sheet sets the assets too", sh.heads === "Folders,Assets" && sh.files === "2=Wealth,3=Sales,4=", JSON.stringify(sh));
+  await page.fill('#gList input[data-fid="4"]', "Sales"); await page.click("#gSave"); await page.waitForTimeout(200);
+  const saved = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/assets/groups")).pop()?.body.set);
+  check("Save sends the assets that changed", JSON.stringify(saved) === '[{"file":4,"group":"Sales"}]', JSON.stringify(saved));
+  check("nothing threw around one list", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -3984,13 +4026,20 @@ for (const space of ["octopus", "squidgy"]) {
   };
   const { page, bad } = await boot("/chat.html", init, { state: { ...STATE, brains: [{ slug: "wealth", name: "Wealth", type: "subject", scope: "w", owner: null }] }, assets: A });
   const side = await page.evaluate(() => ({ panels: [...document.querySelectorAll("aside .panel")].filter(p => !p.hidden).map(p => p.id).join(","),
-    rows: [...document.querySelectorAll("#assets .as-row")].map(r => r.querySelector(".nm").textContent + ":" + r.querySelector(".cnt").textContent), count: document.getElementById("acount").textContent }));
-  check("the side panel lists Assets under Chats, newest first, each with its size", side.panels === "chatsPanel,assetsPanel,brainsPanel" && JSON.stringify(side.rows) === '["invest-assets.csv:4 rows","Rules.md:empty"]' && side.count === "2", JSON.stringify(side));
+    rows: [...document.querySelectorAll("#brains .as-row")].map(r => r.querySelector(".nm").textContent + ":" + r.querySelector(".cnt").textContent), count: document.getElementById("bcount").textContent,
+    heads: [...document.querySelectorAll("#brains .group-h")].map(h => h.textContent).join(",") }));
+  check("the assets sit in the folders' list, under their own heading, newest first, each with its size", side.panels === "chatsPanel,brainsPanel" && JSON.stringify(side.rows) === '["invest-assets.csv:4 rows","Rules.md:empty"]'
+    && side.count === "3" && side.heads === "Subjects,Assets", JSON.stringify(side));
+  /* a click ticks it for the chat, as a folder's does */
+  await page.click("#brains .as-row >> nth=0"); await page.waitForTimeout(150);
+  const tk = await page.evaluate(() => ({ on: !!document.querySelector('#brains .as-row.on[data-fid="2"]'), label: document.getElementById("scopeVal").textContent }));
+  check("a click on an asset ticks it for the chat", tk.on && tk.label === "invest-assets.csv", JSON.stringify(tk));
+  await page.click("#brains .as-row >> nth=0"); await page.waitForTimeout(100);
   /* the viewer */
-  await page.click("#assets .as-row >> nth=0"); await page.waitForTimeout(500);
+  await page.hover("#brains .as-row >> nth=0"); await page.click("#brains .as-row .op >> nth=0"); await page.waitForTimeout(500);
   const view = await page.evaluate(() => ({ view: document.querySelector("main").dataset.view, title: document.querySelector(".pj .pj-t h2")?.textContent, sub: document.querySelector(".pj .as-sub")?.textContent,
     acts: [...document.querySelectorAll(".pj .pj-acts > button")].map(b => b.textContent).join("/"), rows: document.querySelectorAll(".pj .pj-grid tbody tr[data-n]").length,
-    on: document.querySelector("#assets .as-row.on .nm")?.textContent }));
+    on: document.querySelector("#brains .as-row.seen .nm")?.textContent }));
   check("an asset opens across the main area: its name, what it is, Ask about it, Download, New version and Delete, and its rows", view.view === "asset" && view.title === "invest-assets.csv" && /^Table · 4 rows · call it in a chat with @$/.test(view.sub)
     && view.acts === "Ask about it/Download/New version/Delete" && view.rows === 4 && view.on === "invest-assets.csv", JSON.stringify(view));
   /* on a phone: the name on one line, the buttons on the next, nothing wider than the screen */
@@ -4022,7 +4071,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("Apply writes the change to that asset, then offers Undo", applied.call?.file === 2 && applied.call.id === "e1" && applied.call.action === "apply" && applied.kind === "Applied" && applied.btn === "Undo", JSON.stringify(applied));
   await page.click(".as-make .go"); await page.waitForTimeout(300);
   const made = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/assets/make").pop()?.body, kind: document.querySelector(".as-make .pj-ek").textContent, btn: [...document.querySelectorAll(".as-make .pj-tact button")].map(b => b.textContent).join("/"),
-    listed: [...document.querySelectorAll("#assets .as-row .nm")].map(x => x.textContent) }));
+    listed: [...document.querySelectorAll("#brains .as-row .nm")].map(x => x.textContent) }));
   check("Create it makes the asset, lists it, and offers Open it and Undo", made.call?.id === "c1" && made.call.action === "apply" && made.kind === "Made" && made.btn === "Open it/Undo" && made.listed[0] === "Portfolio.html", JSON.stringify(made));
   await page.click(".as-make .go"); await page.waitForTimeout(500);
   check("Open it shows the page it made", await page.evaluate(() => document.querySelector(".pj .pj-t h2")?.textContent === "Portfolio.html" && !!document.querySelector(".pj .pj-frame")));
@@ -4048,22 +4097,22 @@ for (const space of ["octopus", "squidgy"]) {
   check("a question that names an asset without @ offers to ask again with it called", JSON.stringify(hint) === '["Ask again with @invest-assets.csv"]', JSON.stringify(hint));
   await page.click(".as-hint"); await page.waitForTimeout(80);
   check("and one tap puts it in the bar", (await page.inputValue("#input")) === "what is in invest-assets? @invest-assets.csv");
-  /* the + : files, or a blank */
-  await page.click("#newAsset"); await page.waitForTimeout(100);
-  const menu = await page.evaluate(() => [...document.querySelectorAll(".pj-menu button b")].map(b => b.textContent));
-  check("the + adds files, a link, or a blank document, table or page", JSON.stringify(menu) === '["Add files","Add a link","Doc","HTML","Table"]', JSON.stringify(menu));
+  /* the + : knowledge, or an asset: files, a link, or a blank */
+  await page.click("#newBrain"); await page.waitForTimeout(100);
+  const menu = await page.evaluate(() => ({ heads: [...document.querySelectorAll(".pj-menu .pj-mh")].map(h => h.textContent), items: [...document.querySelectorAll(".pj-menu button b")].map(b => b.textContent) }));
+  check("the + asks knowledge or an asset: a new folder, or files, a link, a blank document, table or page", JSON.stringify(menu) === '{"heads":["Knowledge","Asset"],"items":["New folder","Add files","Add a link","Doc","HTML","Table"]}', JSON.stringify(menu));
   await page.click('.pj-menu button[data-add="link"]'); await page.waitForTimeout(100);
   await page.fill("#alUrl", "jeremylasne.com/invest"); await page.click("#alGo"); await page.waitForTimeout(1200);
   const link = await page.evaluate(() => ({ fetched: window.__calls.filter(x => x.s === "/api/fetch").pop()?.body?.url, made: window.__calls.filter(x => x.s === "/api/assets/new").pop()?.body,
     title: document.querySelector(".pj .pj-t h2")?.textContent, sub: document.querySelector(".pj .as-sub")?.textContent, acts: [...document.querySelectorAll(".pj .pj-acts > button")].map(b => b.textContent).join("/") }));
   check("Add a link reads the page on the server and keeps it as a document under its address, with Read it again", link.fetched === "https://jeremylasne.com/invest" && link.made?.url === "https://jeremylasne.com/invest" && link.made.kind === "doc"
     && link.title === "jeremylasne.com/invest" && /^Web page · read \d{4}-\d{2}-\d{2} from https:\/\/jeremylasne\.com\/invest · call it in a chat with @$/.test(link.sub || "") && link.acts === "Ask about it/Download/Read it again/Delete", JSON.stringify(link));
-  await page.click("#newAsset"); await page.waitForTimeout(80);
+  await page.click("#newBrain"); await page.waitForTimeout(80);
   await page.click('.pj-menu button[data-add="table"]'); await page.waitForTimeout(500);
   const blank = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/assets/new").pop()?.body, title: document.querySelector(".pj .pj-t h2")?.textContent, empty: document.querySelector(".pj .pj-empty h3")?.textContent }));
   check("New table makes a blank one and opens it, saying it is filled from a chat", blank.call?.kind === "table" && blank.call.name === "New table" && blank.title === "New table" && blank.empty === "This table is empty", JSON.stringify(blank));
   /* a file named as an asset held asks: a new version, or both */
-  await page.click("#newAsset"); await page.waitForTimeout(80);
+  await page.click("#newBrain"); await page.waitForTimeout(80);
   const [fc] = await Promise.all([page.waitForEvent("filechooser"), page.click('.pj-menu button[data-add="add"]')]);
   await fc.setFiles({ name: "invest-assets.csv", mimeType: "text/csv", buffer: Buffer.from("Asset,Fit\nTin,fit\nZinc,misfit\n") });
   await page.waitForTimeout(250);
@@ -4073,12 +4122,12 @@ for (const space of ["octopus", "squidgy"]) {
   const v = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/assets/new").pop()?.body);
   check("New version reads it in as that asset's next version", v?.prev === 2 && v.made === false && v.kind === "table" && v.name === "invest-assets.csv", JSON.stringify(v));
   /* delete */
-  await page.click("#assets .as-row >> nth=0"); await page.waitForTimeout(400);
+  await page.hover("#brains .as-row >> nth=0"); await page.click("#brains .as-row .op >> nth=0"); await page.waitForTimeout(400);
   const delFid = await page.evaluate(() => Number(document.querySelector(".pj .pj-doc")?.dataset.fid));
   await page.click(".pj-acts button >> text=Delete"); await page.waitForTimeout(100);
   const asks = await page.evaluate(() => document.querySelector(".veil h3")?.textContent);
   await page.click(".veil footer .go"); await page.waitForTimeout(400);
-  const gone = await page.evaluate(f => ({ view: document.querySelector("main").dataset.view, still: !!document.querySelector(`#assets .as-row[data-fid="${f}"]`), call: window.__calls.filter(x => x.s === "/api/assets/file").pop()?.body }), delFid);
+  const gone = await page.evaluate(f => ({ view: document.querySelector("main").dataset.view, still: !!document.querySelector(`#brains .as-row[data-fid="${f}"]`), call: window.__calls.filter(x => x.s === "/api/assets/file").pop()?.body }), delFid);
   check("Delete asks first, removes it, and goes back to the chat", asks === "Delete invest-assets.csv?" && gone.view === "chat" && !gone.still && gone.call?.action === "remove" && gone.call.file === delFid, JSON.stringify({ asks, ...gone }));
   check("no page error with assets", bad.length === 0, bad.join(" | "));
   await page.close();
@@ -4112,7 +4161,7 @@ for (const space of ["octopus", "squidgy"]) {
     check("the sheet lists what each would become before anything moves, offers Delete or Keep as assets, and says the threads are not kept", JSON.stringify(sheet.rows) === '["cap-spartan: 2 files and notes of 3 things it kept become assets","Old idea: nothing to keep: it goes"]' && sheet.go === "Keep as assets" && sheet.del === "Delete all 2" && sheet.warn && !sheet.moved, JSON.stringify(sheet));
     await cv.page.click("#acGo"); await cv.page.waitForTimeout(500);
     const done = await cv.page.evaluate(() => ({ calls: window.__calls.filter(x => x.s === "/api/assets/adopt").map(x => x.body.project), st: [...document.querySelectorAll(".ac-row .ac-st")].map(x => x.textContent), go: document.getElementById("acGo").textContent,
-      assets: [...document.querySelectorAll("#assets .as-row .nm")].map(x => x.textContent), banner: !!document.getElementById("assetsConvert") }));
+      assets: [...document.querySelectorAll("#brains .as-row .nm")].map(x => x.textContent), banner: !!document.getElementById("assetsConvert") }));
     check("Turn them moves each in turn, says what moved, lists the new assets, and the line goes", JSON.stringify(done.calls) === '["cap-spartan","old-idea"]' && JSON.stringify(done.st) === '["2 files and its notes","done"]' && done.go === "Done"
       && done.assets.length === 3 && !done.banner, JSON.stringify(done));
     check("no page error turning projects into assets", cv.bad.length === 0, cv.bad.join(" | "));
@@ -4125,7 +4174,7 @@ for (const space of ["octopus", "squidgy"]) {
     check("Delete asks a second click before anything goes", ask.del === "Delete for good?" && ask.calls === 0, JSON.stringify(ask));
     await dv.page.click("#acDel"); await dv.page.waitForTimeout(500);
     const gone = await dv.page.evaluate(() => ({ calls: window.__calls.filter(x => x.s === "/api/assets/adopt").map(x => [x.body.project, x.body.drop]), st: [...document.querySelectorAll(".ac-row .ac-st")].map(x => x.textContent),
-      assets: document.querySelectorAll("#assets .as-row").length, banner: !!document.getElementById("assetsConvert") }));
+      assets: document.querySelectorAll("#brains .as-row").length, banner: !!document.getElementById("assetsConvert") }));
     check("then each project is deleted, nothing becomes an asset, and the line goes", JSON.stringify(gone.calls) === '[["cap-spartan",true],["old-idea",true]]' && JSON.stringify(gone.st) === '["deleted","deleted"]' && gone.assets === 0 && !gone.banner, JSON.stringify(gone));
     check("no page error deleting projects", dv.bad.length === 0, dv.bad.join(" | "));
     await dv.page.close();
@@ -4144,17 +4193,19 @@ for (const space of ["octopus", "squidgy"]) {
         return Response.json({ chats: [], conflicted: [], health: [] });
       };
     }, { state: { ...STATE, assets: undefined, projects: [{ slug: "cap-spartan", name: "cap-spartan", files: 2, memory: 3 }] } });
-    const o = await old.page.evaluate(() => ({ note: document.querySelector("#assets .as-old")?.textContent, conv: !!document.getElementById("assetsConvert") }));
+    const o = await old.page.evaluate(() => ({ note: document.querySelector("#brains .as-old")?.textContent, conv: !!document.getElementById("assetsConvert") }));
     check("a server older than this page: Assets says to pull and deploy, and offers no conversion that would fail", o.note === "The server is older than this page and has no Assets yet. Run git pull, then npx convex deploy." && !o.conv, JSON.stringify(o));
-    await old.page.click("#newAsset"); await old.page.waitForTimeout(100);
-    const p = await old.page.evaluate(() => ({ menu: !!document.querySelector(".pj-menu"), msg: document.getElementById("chatMsg").textContent, calls: window.__calls.filter(x => x.s.startsWith("/api/assets/")).length }));
-    check("and its + says the same, with no call sent", !p.menu && /Run git pull, then npx convex deploy\./.test(p.msg) && p.calls === 0, JSON.stringify(p));
+    await old.page.click("#newBrain"); await old.page.waitForTimeout(100);
+    await old.page.click('.pj-menu [data-add="doc"]'); await old.page.waitForTimeout(100);
+    const p = await old.page.evaluate(() => ({ msg: document.getElementById("chatMsg").textContent, calls: window.__calls.filter(x => x.s.startsWith("/api/assets/")).length }));
+    check("and an asset from its + says the same, with no call sent", /Run git pull, then npx convex deploy\./.test(p.msg) && p.calls === 0, JSON.stringify(p));
     check("no page error with an older server", old.bad.length === 0, old.bad.join(" | "));
     await old.page.close();
   }
   /* the demo keeps none */
   const demo = await boot("/chat.html", init, { state: { ...STATE, demo: true }, assets: [] });
-  check("the demo shows no Assets", await demo.page.evaluate(() => document.getElementById("assetsPanel").hidden));
+  await demo.page.waitForTimeout(150);
+  check("the demo lists no asset", await demo.page.evaluate(() => !document.querySelector("#brains .as-row")));
   await demo.page.close();
 }
 

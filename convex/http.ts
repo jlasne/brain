@@ -2136,6 +2136,17 @@ route("/api/assets/download", async (ctx, _req, b) => {
  *   remove   it goes, with its words, rows and changes, and the version kept for its Undo.
  *   undo     a new version taken back: the one it replaced returns.
  */
+/** The categories of the assets: `set: [{file, group}]` puts each in a category, or in none with "". */
+route("/api/assets/groups", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  const base = assetsSlug(who.space);
+  const listed: any[] = await ctx.runQuery(internal.files.assetsOf, { space: who.space });
+  const set = (Array.isArray(b.set) ? b.set : []).map((x: any) => ({ fid: Math.floor(Number(x?.file)), group: cleanGroup(x?.group) }))
+    .filter((x: any) => listed.some(a => a.id === x.fid)).map((x: any) => ({ brain: fileKey(base, x.fid), group: x.group }));
+  if (!set.length) return { error: "name at least one asset that is here" };
+  return await ctx.runMutation(internal.files.fileGroups, { space: who.space, set });
+});
+
 route("/api/assets/file", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   const base = assetsSlug(who.space), key = assetKeyOf(who, b), fid = splitKey(key).fid;

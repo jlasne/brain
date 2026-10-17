@@ -436,9 +436,8 @@ $("level").onclick = e => {
 $("burger").onclick = () => $("side").classList.toggle("open");
 $("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");
-$("newBrain").onclick = () => openSheet("","","subject");
+$("newBrain").onclick = e => { e.stopPropagation(); openAdd(e.currentTarget); };
 $("groupsBtn").onclick = () => openGroupsSheet();
-$("newAsset").onclick = e => { e.stopPropagation(); openAssetAdd(e.currentTarget); };
 
 {
   const wrap = document.querySelector(".composer-wrap");

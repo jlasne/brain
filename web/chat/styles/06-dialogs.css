@@ -177,3 +177,7 @@
   .g-row .g-nm{ flex:1; min-width:0; display:flex; align-items:center; gap:8px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--ink-2); }
   .g-row .g-nm .b-ic{ width:15px; height:15px; color:var(--ink-4); }
   .sheet .g-row input{ flex:0 1 50%; width:auto; min-width:0; }
+  .g-list .g-h{ margin:6px 0 2px; font:500 12px/1.3 var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); }
+  .g-list .g-h:first-child{ margin-top:0; }
+  .g-row .g-ic{ display:flex; flex:none; color:var(--ink-4); }
+  .g-row .g-ic svg{ width:15px; height:15px; }

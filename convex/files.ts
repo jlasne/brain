@@ -60,7 +60,7 @@ const childFiles = async (ctx: any, base: string): Promise<any[]> =>
     .sort((a: any, b: any) => splitKey(a.brain).fid - splitKey(b.brain).fid);
 /** One file as a list shows it: its number, name, kind, size and, for a table, its sheets. */
 const fileRow = (f: any) => ({ id: splitKey(f.brain).fid, name: f.name, kind: f.kind, made: !!f.made, chars: f.chars, sections: f.parts, status: f.status, at: f.at,
-  ...(f.prev ? { prev: f.prev } : {}), ...(f.hidden ? { hidden: true } : {}), ...(f.url ? { url: f.url } : {}),
+  ...(f.prev ? { prev: f.prev } : {}), ...(f.hidden ? { hidden: true } : {}), ...(f.url ? { url: f.url } : {}), ...(f.group ? { group: f.group } : {}),
   ...(f.kind === "table" ? { sheets: (f.sheets ?? []).map((s: any) => ({ name: s.name, rows: s.rows ?? 0, cols: (s.cols ?? []).map((c: any) => ({ name: c.name })), header: s.header ?? [] })) } : {}) });
 const cardsOf = async (ctx: any, brain: string): Promise<any[]> =>
   (await ctx.db.query("projectCards").withIndex("by_brain_ord", (q: any) => q.eq("brain", brain)).collect())
@@ -228,7 +228,7 @@ export const fileBegin = internalMutation({
     const doc = { space: readSpace(a.space), brain: a.brain, name: a.name.slice(0, 200), kind: a.kind, sheets: sheets.length ? sheets : [{ name: a.name.slice(0, 60), header: [], cols: [], rows: 0 }],
       chars: 0, parts: 0, next: 1, status: "reading", ver: (old?.ver ?? 0) + 1, at: Date.now(),
       /* A new version keeps the number of the one it replaces, for its Undo, and a web page its address. */
-      ...(a.prev ?? old?.prev ? { prev: a.prev ?? old?.prev } : {}), ...(a.url ?? old?.url ? { url: a.url ?? old?.url } : {}) };
+      ...(a.prev ?? old?.prev ? { prev: a.prev ?? old?.prev } : {}), ...(a.url ?? old?.url ? { url: a.url ?? old?.url } : {}), ...(old?.group ? { group: old.group } : {}) };
     if (old) await ctx.db.replace(old._id, doc); else await ctx.db.insert("projectFiles", doc);
     return { ver: doc.ver };
   },
@@ -247,7 +247,9 @@ export const fileNew = internalMutation({
     if ((await childFiles(ctx, base)).filter((f: any) => !f.hidden).length >= ASSETS_MAX) throw new Error(`you hold ${ASSETS_MAX} assets: delete one first`);
     const fid = await nextFid(ctx, base);
     const key = fileKey(base, fid), name = flat(a.name, 200) || "Untitled", made = a.made !== false;
-    await ctx.db.insert("projectFiles", { space: readSpace(a.space), brain: key, name, kind: a.kind, ...(made ? { made: true } : {}), ...(a.prev ? { prev: a.prev } : {}), ...(a.url ? { url: a.url } : {}),
+    /* A new version stays in the category of the one it replaces. */
+    const group = a.prev ? (await fileOf(ctx, fileKey(base, a.prev)))?.group : undefined;
+    await ctx.db.insert("projectFiles", { space: readSpace(a.space), brain: key, name, kind: a.kind, ...(made ? { made: true } : {}), ...(a.prev ? { prev: a.prev } : {}), ...(a.url ? { url: a.url } : {}), ...(group ? { group } : {}),
       sheets: [{ name: a.kind === "table" ? "Sheet 1" : name.slice(0, 60), header: [], cols: [], rows: 0 }], chars: 0, parts: 0, next: 1, status: made ? "ready" : "reading", ver: 1, at: Date.now() });
     return { fid, key };
   },
@@ -271,6 +273,24 @@ export const fileRename = internalMutation({
     if (!name) throw new Error("an asset needs a name");
     await ctx.db.patch(f._id, { name });
     return { name };
+  },
+});
+
+/** Assets each set to a category, or to none with "". */
+export const fileGroups = internalMutation({
+  args: { space: v.string(), set: v.array(v.object({ brain: v.string(), group: v.string() })) },
+  handler: async (ctx, a) => {
+    let changed = 0;
+    for (const x of a.set.slice(0, 200)) {
+      await need(ctx, a.space, x.brain);
+      const f = await fileOf(ctx, x.brain);
+      if (!f) continue;
+      const group = flat(x.group, 40);
+      if ((f.group ?? "") === group) continue;
+      await ctx.db.patch(f._id, { group: group || undefined });
+      changed++;
+    }
+    return { changed };
   },
 });
 

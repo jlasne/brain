@@ -1541,6 +1541,10 @@
   .g-row .g-nm{ flex:1; min-width:0; display:flex; align-items:center; gap:8px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--ink-2); }
   .g-row .g-nm .b-ic{ width:15px; height:15px; color:var(--ink-4); }
   .sheet .g-row input{ flex:0 1 50%; width:auto; min-width:0; }
+  .g-list .g-h{ margin:6px 0 2px; font:500 12px/1.3 var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); }
+  .g-list .g-h:first-child{ margin-top:0; }
+  .g-row .g-ic{ display:flex; flex:none; color:var(--ink-4); }
+  .g-row .g-ic svg{ width:15px; height:15px; }
   /* ============ responsive ============ */
   @media (max-width:860px){
     .app{ grid-template-columns:1fr; }
@@ -1977,9 +1981,17 @@
      what can be done with it, then what it holds. Every "pj-" class belongs
      to this pane. Last in the sheet, so it settles what came before it.
      ====================================================================== */
-  .pj-row .cnt{ margin-left:auto; font:400 12px/1 var(--mono); color:var(--ink-4); white-space:nowrap; }
+  .pj-row .cnt, .as-row .cnt{ margin-left:auto; font:400 12px/1 var(--mono); color:var(--ink-4); white-space:nowrap; }
   .pj-row .cnt:empty{ display:none; }
-  .pj-row.run .cnt{ color:var(--warn); }
+  .pj-row.run .cnt, .as-row.run .cnt{ color:var(--warn); }
+  /* An asset in the folders' list: its kind's mark, which turns into the box like a folder's. */
+  .as-row .tick .a-ic{ display:flex; color:var(--ink-4); }
+  .as-row .tick .a-ic svg{ width:15px; height:15px; }
+  .as-row:hover .tick .a-ic, .as-row.on .tick .a-ic{ display:none; }
+  .as-row.seen .nm{ font-weight:500; color:var(--ink); }
+  @media (hover:none){ .as-row .tick .a-ic{ display:none; } }
+  .pj-menu .pj-mh{ margin:6px 12px 2px; font:500 11.5px/1.3 var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-4); }
+  .pj-menu .pj-mh:first-child{ margin-top:2px; }
   .asset-view{ flex:1; min-height:0; display:flex; flex-direction:column; }
   .asset-view[hidden]{ display:none; }
   main[data-view="asset"] .composer-wrap, main[data-view="asset"] .foot-note, main[data-view="asset"] .demo-bar{ display:none; }
@@ -2204,7 +2216,7 @@
   .as-to{ font:inherit; color:var(--accent); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere; text-align:left; }
   .as-to:hover{ color:var(--ink); }
   .as-row .cnt{ font-size:11.5px; white-space:nowrap; }
-  #assetsPanel.over{ outline:2px dashed var(--accent-fill); outline-offset:2px; border-radius:10px; }
+  #brainsPanel.over{ outline:2px dashed var(--accent-fill); outline-offset:2px; border-radius:10px; }
   .as-none{ margin:2px 10px 4px; font:400 12.5px/1.45 var(--sans); color:var(--ink-4); }
   .as-none.as-old{ color:var(--ink-2); }
   .msg .pj-edit{ margin-top:12px; }
@@ -2311,18 +2323,11 @@
         </div>
         <div class="panel-b" id="chatsBox"><div class="side-note" id="chatMsg" hidden></div><div id="chats"></div></div>
       </section>
-      <section class="panel" id="assetsPanel">
-        <div class="panel-h" id="assetsH" title="Documents, tables and pages you keep. Call one in a chat with @: it reads it, and proposes changes you apply.">
-          <button class="fold-t" id="assetsFold" aria-expanded="true" aria-controls="assetsBox">Assets <b id="acount"></b><span class="chev"></span></button>
-          <button class="side-plus" id="newAsset" type="button" title="Add an asset" aria-label="Add an asset" aria-haspopup="menu"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
-        </div>
-        <div class="panel-b" id="assetsBox"><div id="assets"></div></div>
-      </section>
       <section class="panel" id="brainsPanel">
         <div class="panel-h" id="brainsH">
           <button class="fold-t" id="brainsFold" aria-expanded="true" aria-controls="brainsBox">Folders <b id="bcount"></b><span class="chev"></span></button>
           <button class="side-plus" id="groupsBtn" type="button" title="Categories" aria-label="Categories"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h4v4h-4zM9.5 3.5h4v4h-4zM2.5 10.5h4v2h-4zM9.5 10.5h4v2h-4z"/></svg></button>
-          <button class="side-plus" id="newBrain" type="button" title="New folder" aria-label="New folder"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
+          <button class="side-plus" id="newBrain" type="button" title="Add knowledge or an asset" aria-label="Add knowledge or an asset" aria-haspopup="menu"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg></button>
         </div>
         <div class="panel-b" id="brainsBox"><div id="brains"></div></div>
       </section>
@@ -2832,7 +2837,7 @@ async function loadChats(){
 const conceptsOf = b => S.concepts.filter(c => c.brain === b).sort((x,y)=>(x.n||0)-(y.n||0));
 const sourcesOf  = b => S.sources.filter(s => (s.brains||[]).includes(b));
 
-function render(){ renderSide(); renderAssets(); renderScope(); renderComposer(); renderZero(); renderView(); }
+function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); renderView(); }
 
 /**
  * One screen at a time in the main area: the chat, a folder open, an asset open, or Drop.
@@ -3142,13 +3147,13 @@ function folds(){
   return folds.v;
 }
 function paintFolds(){
-  for (const k of ["chats","assets","brains"]){
+  for (const k of ["chats","brains"]){
     const shut = !!folds()[k];
     $(k + "Fold").setAttribute("aria-expanded", String(!shut));
     $(k + "Box").hidden = shut;
   }
 }
-for (const k of ["chats","assets","brains"]) $(k + "Fold").onclick = () => {
+for (const k of ["chats","brains"]) $(k + "Fold").onclick = () => {
   folds()[k] = !$(k + "Box").hidden;
   try { localStorage.setItem("octopus.fold", JSON.stringify(folds())); } catch {}
   paintFolds();
@@ -3417,9 +3422,12 @@ async function settleFrom(id, brain){
 function renderSide(){
   paintFolds();
   const box = $("brains"); box.innerHTML = "";
-  $("bcount").textContent = S.brains.length || "";
-  if (!S.brains.length){
-    box.append(el("div","empty-side","None yet. A folder holds one subject or one person's view, with a one line scope."));
+  /* The assets sit in the same list: everything a chat can use and call with @. */
+  const files = S.demo || !S.assetsOn ? [] : (S.assets || []);
+  $("bcount").textContent = (S.brains.length + files.length) || "";
+  assetNotes(box);
+  if (!S.brains.length && !files.length){
+    box.append(el("div","empty-side","None yet. + adds knowledge, a folder that learns from each drop, or an asset: a file, a link, a table."));
   } else {
     /* By type, then the fullest first: what you said, the people, the
        subjects. A folder shared in, or one only asked, says so on its row. */
@@ -3427,24 +3435,29 @@ function renderSide(){
     const bySize = (x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length || x.name.localeCompare(y.name);
     /* The categories come after the personal folders, each with its folders
        under it on a short branch; folders in none keep their type's group. */
-    const cats = inGroups(S.brains.filter(b => b.type !== "personal"));
+    const cats = inGroups(S.brains.filter(b => b.type !== "personal")), acats = assetsInGroups(files);
     const head = (text, n) => { const h = el("div","group-h",text); h.dataset.n = n; box.append(h); };
     const mine = S.brains.filter(b => kind(b) === "personal").sort(bySize);
     if (mine.length){
       head("Personal", mine.length);
       for (const b of mine){ box.append(brainRow(b)); if (!S.demo) box.append(...personalSubs(b)); }
     }
-    if (cats.groups.length){
-      head("Categories", cats.groups.length);
-      for (const g of cats.groups){
+    /* A category holds folders and assets alike: the folders first, then its assets. */
+    const both = [...cats.groups.map(g => ({ ...g, files: acats.groups.find(x => x.name === g.name)?.rows || [] })),
+      ...acats.groups.filter(x => !cats.groups.some(g => g.name === x.name)).map(x => ({ name: x.name, rows: [], size: 0, files: x.rows }))];
+    if (both.length){
+      head("Categories", both.length);
+      for (const g of both){
         box.append(groupRow(g));
         for (const b of g.rows){ const r = brainRow(b); r.classList.add("in-group"); box.append(r); }
+        for (const a of g.files){ const r = assetRow(a); r.classList.add("in-group"); box.append(r); }
       }
     }
     for (const [k, h] of [["person","People"], ["subject","Subjects"]]){
       const rows = cats.rest.filter(b => kind(b) === k);
       if (rows.length){ head(h, rows.length); for (const b of rows) box.append(brainRow(b)); }
     }
+    if (acats.rest.length){ head("Assets", acats.rest.length); for (const a of acats.rest) box.append(assetRow(a)); }
   }
   paintSubs();
   /* On a phone, one button closes the drawer on the ticked folders. */
@@ -3707,8 +3720,8 @@ function fillPick(){
   /* Each category ticks all its folders at once; its folders sit under it. */
   const cats = inGroups(shown.filter(b => b.type !== "personal"));
   for (const g of cats.groups){
-    const slugs = g.rows.map(b => b.slug), list = drop ? S.into : S.picks;
-    const on = slugs.every(x => list.includes(x));
+    const slugs = g.rows.map(b => b.slug), list = drop ? S.into : S.picks, ids = drop ? [] : groupAssets(g.name);
+    const on = drop ? slugs.every(x => list.includes(x)) : groupOn(slugs, ids);
     const r = el("button","pk-row pk-group" + (on ? " on" : "")); r.dataset.group = g.name;
     r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
     const box = el("span","pk-box"); box.innerHTML = TICK_SVG;
@@ -3720,8 +3733,8 @@ function fillPick(){
       if (drop){
         S.into = on ? S.into.filter(x => !slugs.includes(x)) : [...new Set([...S.into, ...slugs])];
         S.scope = S.into.length === 1 ? S.into[0] : "all"; S.picks = S.into.slice();
-      } else if (mine){ const me = S.scope; tickGroup(slugs); S.scope = me; }
-      else { crossing("all"); tickGroup(slugs); }
+      } else if (mine){ const me = S.scope; tickGroup(slugs, ids); S.scope = me; }
+      else { crossing("all"); tickGroup(slugs, ids); }
       render();
     };
     m.append(r);
@@ -3732,9 +3745,29 @@ function fillPick(){
   const ready = drop || S.demo || !S.assetsOn ? [] : (S.assets || []).filter(a => a.status === "ready");
   if (ready.length){
     m.append(el("div","pk-h","And assets to read"));
-    for (const a of ready){
+    /* By category: a category ticks its assets, four at most, and its assets sit under it. */
+    const acats = assetsInGroups(ready);
+    const order = [...acats.groups.flatMap(g => [{ g }, ...g.rows.map(a => ({ a, inGroup: true }))]), ...acats.rest.map(a => ({ a }))];
+    for (const it of order){
+      if (it.g){
+        const ids = it.g.rows.map(a => a.id), on = ids.slice(0, 4).every(id => S.assetPicks.includes(id));
+        const r = el("button","pk-row pk-group pk-agroup" + (on ? " on" : "")); r.dataset.group = it.g.name;
+        r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
+        const box = el("span","pk-box"); box.innerHTML = TICK_SVG;
+        const ic = el("span","pk-ic"); ic.innerHTML = GROUP_ICON;
+        const nm = el("span","pk-nm", it.g.name); nm.append(el("span","pk-sub", `${ids.length} asset${ids.length === 1 ? "" : "s"}${ids.length > 4 ? ", the first 4 read" : ""}`));
+        r.append(box, ic, nm);
+        r.onclick = e => {
+          e.stopPropagation();
+          S.assetPicks = on ? S.assetPicks.filter(x => !ids.includes(x)) : [...new Set([...ids.slice(0, 4), ...S.assetPicks])].slice(0, 4);
+          render();
+        };
+        m.append(r);
+        continue;
+      }
+      const a = it.a;
       const on = S.assetPicks.includes(a.id);
-      const r = el("button","pk-row pk-asset" + (on ? " on" : "")); r.dataset.fid = String(a.id);
+      const r = el("button","pk-row pk-asset" + (it.inGroup ? " pk-in" : "") + (on ? " on" : "")); r.dataset.fid = String(a.id);
       r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
       const box = el("span","pk-box"); box.innerHTML = TICK_SVG;
       const ic = el("span","pk-ic"); ic.innerHTML = pjIcon(a.kind);
@@ -5218,9 +5251,8 @@ $("level").onclick = e => {
 $("burger").onclick = () => $("side").classList.toggle("open");
 $("scrim").onclick = () => closeSide();
 const closeSide = () => $("side").classList.remove("open");
-$("newBrain").onclick = () => openSheet("","","subject");
+$("newBrain").onclick = e => { e.stopPropagation(); openAdd(e.currentTarget); };
 $("groupsBtn").onclick = () => openGroupsSheet();
-$("newAsset").onclick = e => { e.stopPropagation(); openAssetAdd(e.currentTarget); };
 
 {
   const wrap = document.querySelector(".composer-wrap");
@@ -9175,57 +9207,78 @@ function assetMeta(a){
 }
 
 /* ---- the side panel ---- */
-function renderAssets(){
-  const panel = $("assetsPanel");
-  panel.hidden = S.demo;
-  const box = $("assets"); box.innerHTML = "";
-  const list = S.assets || [];
-  $("acount").textContent = list.length || "";
-  if (!S.demo && !S.assetsOn){ box.append(el("div","side-note as-none as-old", ASSETS_OLD)); return; }
-  /* Projects held from before become assets, once, when the owner says so. */
-  const old = S.demo ? [] : (S.projects || []);
+/**
+ * An asset in the side list, beside the folders: a click ticks it for the chat
+ * (four at most), open shows it. The assets' own notes sit at the top of the
+ * list: a server older than this page, and the projects still to turn into assets.
+ */
+function assetRow(a){
+  const on = S.assetPicks.includes(a.id);
+  const row = el("div","brain-row as-row" + (on ? " on" : "") + (S.asset === a.id ? " seen" : "") + (a.status !== "ready" ? " run" : ""));
+  row.dataset.fid = String(a.id);
+  row.setAttribute("role","button"); row.tabIndex = 0; row.setAttribute("aria-pressed", String(on));
+  row.onkeydown = e => { if (e.target === row && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); row.click(); } };
+  const tick = el("span","tick"), ic = el("span","a-ic"); ic.innerHTML = pjIcon(a.kind);
+  const box = el("span","tbox"); box.innerHTML = TICK_SVG; tick.append(ic, box);
+  row.append(tick, el("span","nm",a.name), el("span","cnt", assetMeta(a)));
+  row.title = `${a.name}\n${kindTitle(a)}. Click to read it in the chat, or call it with @.`;
+  row.onclick = () => {
+    if (a.status !== "ready"){ openAsset(a.id); return; }
+    if (S.concept) newChat();
+    S.assetPicks = on ? S.assetPicks.filter(x => x !== a.id) : [...S.assetPicks, a.id].slice(-4);
+    S.folder = null;
+    render();
+  };
+  const op = el("button","ed op","open"); op.type = "button"; op.title = "See what this asset holds"; op.setAttribute("aria-label", `Open ${a.name}`);
+  op.onclick = e => { e.stopPropagation(); openAsset(a.id); };
+  row.append(op);
+  return row;
+}
+/** What the side list says about the assets before any row: an older server, or projects to turn into assets. */
+function assetNotes(box){
+  if (S.demo) return;
+  if (!S.assetsOn){ box.append(el("div","side-note as-none as-old", ASSETS_OLD)); return; }
+  const old = S.projects || [];
   if (old.length){
     const conv = el("button","as-convert"); conv.type = "button"; conv.id = "assetsConvert";
     conv.textContent = `${old.length} old project${old.length === 1 ? "" : "s"}: delete or keep as assets`;
     conv.onclick = openConvert;
     box.append(conv);
   }
-  /* With no asset the list says where to start, and takes a file dropped on it. */
-  if (!list.length){ box.append(el("div","side-note as-none","Drop a document, a table or a page here. Call it in a chat with @.")); return; }
-  for (const a of list){
-    const row = el("button","brain-row self pj-row as-row" + (S.asset === a.id ? " on" : "") + (a.status !== "ready" ? " run" : ""));
-    row.dataset.fid = String(a.id);
-    const tick = el("span","tick"); tick.innerHTML = pjIcon(a.kind);
-    row.append(tick, el("span","nm",a.name), el("span","cnt", assetMeta(a)));
-    row.title = `${a.name}\n${kindTitle(a)}. In a chat, call it with @.`;
-    row.onclick = () => openAsset(a.id);
-    box.append(row);
-  }
 }
 /** The list read again after a change. */
 async function syncAssets(){
   try { S.assets = (await api("/api/assets/list")).assets || []; } catch { /* the list catches up at the next refresh */ }
-  renderAssets();
+  renderSide(); renderScope();
 }
-/* A file dropped on the panel is added. */
+/* A file dropped on the list is added as an asset. */
 {
-  const panel = $("assetsPanel");
+  const panel = $("brainsPanel");
   const carries = e => [...(e.dataTransfer?.types || [])].includes("Files");
   panel.addEventListener("dragover", e => { if (!carries(e) || S.demo || !S.assetsOn) return; e.preventDefault(); panel.classList.add("over"); });
   panel.addEventListener("dragleave", e => { if (!panel.contains(e.relatedTarget)) panel.classList.remove("over"); });
   panel.addEventListener("drop", e => { if (!carries(e) || S.demo || !S.assetsOn) return; e.preventDefault(); panel.classList.remove("over"); const files = [...(e.dataTransfer?.files || [])]; if (files.length) addAssets(files); });
 }
 
-/** The +: files you have, or a blank document, table or page to fill from a chat. */
-function openAssetAdd(anchor){
-  if (assetsOld()) return;
-  popMenu(anchor, "Add an asset", menu => {
-    for (const [k, label, hint] of [["add","Add files","Word, PDF, Excel, CSV, HTML"], ["link","Add a link","a web page, read and kept"], ["doc","Doc","blank"], ["html","HTML","blank"], ["table","Table","blank"]]){
+/**
+ * The + of the list: knowledge, a folder that learns from each drop, or an
+ * asset, a file kept as it is: files you have, a link, or a blank document,
+ * table or page to fill from a chat.
+ */
+function openAdd(anchor){
+  popMenu(anchor, "Add knowledge or an asset", menu => {
+    const item = (k, label, hint, go) => {
       const b = el("button"); b.type = "button"; b.dataset.add = k; b.setAttribute("role","menuitem");
       b.append(el("b",null,label), el("span",null,hint));
-      b.onclick = () => { closeDownload(); if (k === "add") pickFiles(PJ_FILES, files => addAssets(files)); else if (k === "link") askLink(); else newAsset(k); };
+      b.onclick = () => { closeDownload(); go(); };
       menu.append(b);
-    }
+    };
+    menu.append(el("div","pj-mh","Knowledge"));
+    item("folder", "New folder", "a subject or a person: it learns from each drop", () => openSheet("", "", "subject"));
+    if (S.demo) return;
+    menu.append(el("div","pj-mh","Asset"));
+    for (const [k, label, hint] of [["add","Add files","Word, PDF, Excel, CSV, HTML"], ["link","Add a link","a web page, read and kept"], ["doc","Doc","blank"], ["html","HTML","blank"], ["table","Table","blank"]])
+      item(k, label, hint, () => { if (assetsOld()) return; if (k === "add") pickFiles(PJ_FILES, files => addAssets(files)); else if (k === "link") askLink(); else newAsset(k); });
   });
 }
 
@@ -10339,8 +10392,9 @@ async function doAsk(q, again){
     let fromGroups = named.filter(t => t.startsWith("group:")).flatMap(t => groupSlugs(t.slice(6)));
     if (fromGroups.length && isPersonal(scope)){ picks = [...new Set([...picks, ...fromGroups])]; fromGroups = []; }
     if (fromGroups.length) picks = [...new Set([...(picks.length ? picks : scope !== "all" && !isPersonal(scope) ? [scope] : []), ...fromGroups])];
-    /* The assets it names, then the ones ticked in the picker: four at most. The personal chat reads only the ones it names. */
-    const assets = about ? [] : [...new Set([...named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6))), ...S.assetPicks])].slice(0, 4);
+    /* The assets it names, a category's assets, then the ones ticked in the picker: four at most. */
+    const groupFiles = named.filter(t => t.startsWith("group:")).flatMap(t => groupAssets(t.slice(6)));
+    const assets = about ? [] : [...new Set([...named.filter(t => t.startsWith("asset:")).map(t => Number(t.slice(6))), ...groupFiles, ...S.assetPicks])].slice(0, 4);
     const r = await api("/api/ask", about
       ? { q, concept: about.id, history: S.thread.slice(-4), chat: S.chatId }
       : { q, brain: fromGroups.length && picks.length === 1 ? picks[0] : scope, ...(picks.length > (isPersonal(scope) ? 0 : 1) ? { brains: picks } : {}), ...(tags.length ? { tags } : {}), ...(assets.length ? { assets } : {}), level: S.level, history: S.thread.slice(-4), chat: S.chatId });
@@ -11745,7 +11799,9 @@ function scriptActs(body, r, slug){
    A folder sits in one category, or in none: Wealth, Business, Life. The side
    panel and the chat bar picker show each category with its folders under it,
    and one click on a category ticks all of them. "@All Wealth" in a message
-   asks them all too. A personal folder stays apart, in no category. */
+   asks them all too. A personal folder stays apart, in no category. The
+   assets take the same names: "@All Wealth" reads the Wealth assets too, four
+   at most. */
 
 /** A folder's category, "" for none. */
 function groupOf(b){ return b && b.type !== "personal" ? String(b.group || "").trim() : ""; }
@@ -11761,36 +11817,53 @@ function inGroups(list){
   return { groups, rest: list.filter(b => !groupOf(b)).sort(bySize) };
 }
 
-/** Every category in use, A to Z. */
-function groupNames(){ return [...new Set(S.brains.map(groupOf).filter(Boolean))].sort((a, b) => a.localeCompare(b)); }
+/** Every category in use, by the folders or the assets, A to Z. */
+function groupNames(){ return [...new Set([...S.brains.map(groupOf), ...(S.assets || []).map(assetGroupOf)].filter(Boolean))].sort((a, b) => a.localeCompare(b)); }
 
 /** The folders of one category. */
 function groupSlugs(name){ return S.brains.filter(b => groupOf(b) === name).map(b => b.slug); }
 
+/** An asset's category, "" for none. */
+function assetGroupOf(a){ return String(a?.group || "").trim(); }
+/** The categories of some assets, A to Z, each with its assets the newest first; then the assets in none. */
+function assetsInGroups(list){
+  const m = new Map();
+  for (const a of list){ const g = assetGroupOf(a); if (g){ if (!m.has(g)) m.set(g, []); m.get(g).push(a); } }
+  return { groups: [...m].map(([name, rows]) => ({ name, rows })).sort((x, y) => x.name.localeCompare(y.name)), rest: list.filter(a => !assetGroupOf(a)) };
+}
+/** The ready assets of one category. */
+function groupAssets(name){ return (S.assets || []).filter(a => a.status === "ready" && assetGroupOf(a) === name).map(a => a.id); }
+
 const GROUP_ICON = `<svg class="b-ic" viewBox="0 0 24 24" role="img" aria-label="Category"><title>Category</title><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.2l2 2h8.8A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z"/></svg>`;
 
-/** Ticks all the folders of a category, or unticks them all once all are ticked. */
-function tickGroup(slugs){
-  const on = slugs.length && slugs.every(x => S.picks.includes(x));
+/** Ticks all the folders and assets of a category, four assets at most, or unticks them all once all are ticked. */
+function tickGroup(slugs, ids = []){
+  const on = groupOn(slugs, ids);
   setPicks(on ? S.picks.filter(x => !slugs.includes(x)) : [...S.picks, ...slugs]);
+  S.assetPicks = on ? S.assetPicks.filter(x => !ids.includes(x)) : [...new Set([...ids.slice(0, 4), ...S.assetPicks])].slice(0, 4);
+}
+/** A category is ticked when its folders are, and its first four assets. */
+function groupOn(slugs, ids = []){
+  return (slugs.length || ids.length) > 0 && slugs.every(x => S.picks.includes(x)) && ids.slice(0, 4).every(x => S.assetPicks.includes(x));
 }
 
-/** A category in the side panel, its folders under it: what they hold, and one click asks them all. */
+/** A category in the side panel, its folders and assets under it: what they hold, and one click asks them all. */
 function groupRow(g){
-  const slugs = g.rows.map(b => b.slug);
-  const on = slugs.every(x => S.picks.includes(x)), some = !on && slugs.some(x => S.picks.includes(x));
+  const slugs = g.rows.map(b => b.slug), ids = (g.files || []).filter(a => a.status === "ready").map(a => a.id);
+  const on = groupOn(slugs, ids), some = !on && (slugs.some(x => S.picks.includes(x)) || ids.some(x => S.assetPicks.includes(x)));
   const row = el("div","brain-row group-row" + (on ? " on" : "") + (some ? " some" : ""));
   row.setAttribute("role","button"); row.tabIndex = 0; row.setAttribute("aria-pressed", String(on));
   row.dataset.group = g.name;
   row.onkeydown = e => { if (e.target === row && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); row.click(); } };
   const tick = el("span","tick"); tick.innerHTML = GROUP_ICON;
   const box = el("span","tbox"); box.innerHTML = TICK_SVG; tick.append(box);
-  row.append(tick, el("span","nm", g.name), el("span","cnt", String(g.size)));
-  row.title = `${g.rows.map(b => b.name).join(", ")}\nClick to ask all ${g.rows.length} folders.`;
+  const n = (g.files || []).length;
+  row.append(tick, el("span","nm", g.name), el("span","cnt", g.rows.length ? String(g.size) : `${n} asset${n === 1 ? "" : "s"}`));
+  row.title = `${[...g.rows.map(b => b.name), ...(g.files || []).map(a => a.name)].join(", ")}\nClick to ask ${g.rows.length ? `all ${g.rows.length} folders` : "them"}${ids.length ? `${g.rows.length ? " and " : " "}${Math.min(4, ids.length)} asset${ids.length === 1 ? "" : "s"}` : ""}.`;
   row.onclick = () => {
     if (S.concept) newChat();
-    crossing("all");
-    tickGroup(slugs);
+    if (isPersonal(S.scope)){ const me = S.scope; tickGroup(slugs, ids); S.scope = me; }
+    else { crossing("all"); tickGroup(slugs, ids); }
     S.folder = null;
     render();
   };
@@ -11806,11 +11879,12 @@ function openGroupsSheet(){
   closeSide();
   const mine = S.brains.filter(b => b.type !== "personal" && (b.space || S.space) === S.space && !readOnly(b))
     .sort((x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length || x.name.localeCompare(y.name));
+  const files = S.demo || !S.assetsOn ? [] : (S.assets || []);
   const veil = el("div","veil");
   veil.innerHTML = `
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="gTitle">
       <header><h3 id="gTitle">Categories</h3>
-      <p>Each folder sits under one category in the side panel and the picker. One click on a category asks all its folders. Leave it empty for none.</p></header>
+      <p>Each folder and each asset sits under one category in the side panel and the picker. One click on a category asks all its folders. Leave it empty for none.</p></header>
       <div class="f"><div class="g-list" id="gList"></div><datalist id="gNames"></datalist></div>
       <div class="f"><button class="ghost" id="gSuggest" type="button">Suggest categories</button><div id="gMsg" class="hint" role="status"></div></div>
       <footer><button class="ghost" id="gCancel" type="button">Cancel</button><button class="go" id="gSave" type="button">Save</button></footer>
@@ -11818,11 +11892,12 @@ function openGroupsSheet(){
   document.body.append(veil);
   const list = veil.querySelector("#gList"), names = veil.querySelector("#gNames"), msg = veil.querySelector("#gMsg"),
         save = veil.querySelector("#gSave"), sug = veil.querySelector("#gSuggest");
-  const inputs = new Map();
+  const inputs = new Map(), fileIn = new Map();
   const paintNames = () => {
-    const all = [...new Set([...groupNames(), ...[...inputs.values()].map(i => i.value.trim()).filter(Boolean)])].sort();
+    const all = [...new Set([...groupNames(), ...[...inputs.values(), ...fileIn.values()].map(i => i.value.trim()).filter(Boolean)])].sort();
     names.innerHTML = all.map(n => `<option value="${esc(n)}"></option>`).join("");
   };
+  if (files.length) list.append(el("div","g-h","Folders"));
   for (const b of mine){
     const r = el("label","g-row");
     const i = el("input"); i.setAttribute("list","gNames"); i.maxLength = 40; i.placeholder = "No category"; i.value = groupOf(b);
@@ -11833,6 +11908,18 @@ function openGroupsSheet(){
     list.append(r); inputs.set(b.slug, i);
   }
   if (!mine.length) list.append(el("div","hint","No folder of this workspace to sort yet."));
+  if (files.length){
+    list.append(el("div","g-h","Assets"));
+    for (const a of files){
+      const r = el("label","g-row");
+      const i = el("input"); i.setAttribute("list","gNames"); i.maxLength = 40; i.placeholder = "No category"; i.value = assetGroupOf(a);
+      i.dataset.fid = String(a.id); i.setAttribute("aria-label", `Category of ${a.name}`);
+      i.onchange = paintNames;
+      const nm = el("span","g-nm"), ic = el("span","g-ic"); ic.innerHTML = pjIcon(a.kind); nm.append(ic, el("span",null,a.name));
+      r.append(nm, i);
+      list.append(r); fileIn.set(a.id, i);
+    }
+  }
   paintNames();
   const shut = () => veil.remove();
   veil.querySelector("#gCancel").onclick = shut;
@@ -11850,10 +11937,15 @@ function openGroupsSheet(){
     sug.disabled = false;
   };
   save.onclick = async () => {
-    const set = mine.map(b => ({ slug: b.slug, group: inputs.get(b.slug).value.replace(/\s+/g, " ").trim() })).filter(x => x.group !== groupOf(S.brains.find(b => b.slug === x.slug)));
-    if (!set.length){ shut(); return; }
+    const clean = i => i.value.replace(/\s+/g, " ").trim();
+    const set = mine.map(b => ({ slug: b.slug, group: clean(inputs.get(b.slug)) })).filter(x => x.group !== groupOf(S.brains.find(b => b.slug === x.slug)));
+    const fset = files.map(a => ({ file: a.id, group: clean(fileIn.get(a.id)) })).filter(x => x.group !== assetGroupOf(files.find(a => a.id === x.file)));
+    if (!set.length && !fset.length){ shut(); return; }
     save.disabled = true; msg.className = "spin"; msg.textContent = "Saving";
-    try { await api("/api/brain/groups", { set }); }
+    try {
+      if (set.length) await api("/api/brain/groups", { set });
+      if (fset.length) await api("/api/assets/groups", { set: fset });
+    }
     catch (e) { save.disabled = false; msg.className = "bad"; msg.textContent = e.message; return; }
     shut();
     await refresh();

@@ -194,7 +194,7 @@ async function loadChats(){
 const conceptsOf = b => S.concepts.filter(c => c.brain === b).sort((x,y)=>(x.n||0)-(y.n||0));
 const sourcesOf  = b => S.sources.filter(s => (s.brains||[]).includes(b));
 
-function render(){ renderSide(); renderAssets(); renderScope(); renderComposer(); renderZero(); renderView(); }
+function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); renderView(); }
 
 /**
  * One screen at a time in the main area: the chat, a folder open, an asset open, or Drop.
