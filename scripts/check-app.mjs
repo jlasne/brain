@@ -3348,7 +3348,7 @@ for (const space of ["octopus", "squidgy"]) {
     page: getComputedStyle(document.body).backgroundColor, logo: document.querySelector(".logo").textContent.trim(),
     mark: document.querySelector(".logo img").getAttribute("src"), title: document.title, text: document.body.textContent }));
   check("the landing is one hero: a serif line, a sub line, what a chat can use, one field", l.h1 === "Your knowledge and your files, in one chat." && l.sections === 0
-    && /^Folders learn from each talk, PDF or link/.test(l.sub) && await page.evaluate(() => [...document.querySelectorAll(".points b")].map(b => b.textContent).join()) === "Knowledge,Assets,Personal", JSON.stringify(l.h1));
+    && /^Folders learn from what you drop\./.test(l.sub) && await page.evaluate(() => [...document.querySelectorAll(".points b")].map(b => b.textContent).join()) === "Knowledge,Assets,Personal", JSON.stringify(l.h1));
   check("the workspaces sit along the top, the demo first", l.spaces === "Demo|Octopus|Squidgy" && JSON.stringify(l.doors) === '["/chat?w=octopus","/chat?w=squidgy"]', l.spaces);
   check("the field takes a passphrase, hidden as it is typed", l.field === "password" && l.ph === "Enter your passphrase" && /opens the demo/.test(l.help), l.ph);
   check("the pencil landscape sits behind it", /\/brand\/landing\.webp/.test(l.bg), l.bg);
@@ -3467,8 +3467,8 @@ for (const space of ["octopus", "squidgy"]) {
     return { title: document.title, sections: [...document.querySelectorAll("main section")].map(x => x.id), toc,
       dash: /—/.test(text), wide: document.documentElement.scrollWidth };
   });
-  check("the white paper opens on its own address with eleven sections, each in the contents",
-    paper.title === "Tasu: the white paper" && paper.sections.length === 11 && JSON.stringify(paper.sections) === JSON.stringify(paper.toc), JSON.stringify(paper.sections));
+  check("the white paper opens on its own address with thirteen sections, assets and the personal folder among them, each in the contents",
+    paper.title === "Tasu: the white paper" && paper.sections.length === 13 && paper.sections.includes("assets") && paper.sections.includes("personal") && JSON.stringify(paper.sections) === JSON.stringify(paper.toc), JSON.stringify(paper.sections));
   check("it keeps the house rules: no em-dash", !paper.dash);
   check("and it fits a phone, its tables scrolling in their own frame", paper.wide <= 390, String(paper.wide));
   await ctx.close();

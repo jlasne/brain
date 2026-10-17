@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tasu: your knowledge and your files, in one chat</title>
-<meta name="description" content="Folders learn from each talk, PDF or link, with its author and date. Assets keep your docs and tables. Call any of them with @, and every answer cites it.">
+<meta name="description" content="Folders learn from what you drop. Assets keep your docs and tables. Call any with @, and every answer cites it.">
 <meta name="theme-color" content="#fafafa">
 <meta property="og:title" content="Tasu: your knowledge and your files, in one chat">
-<meta property="og:description" content="Folders learn from each talk, PDF or link, with its author and date. Assets keep your docs and tables. Call any of them with @, and every answer cites it.">
+<meta property="og:description" content="Folders learn from what you drop. Assets keep your docs and tables. Call any with @, and every answer cites it.">
 <meta property="og:image" content="https://tasu.ai/og.jpg?v=2">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
@@ -82,8 +82,9 @@
   /* ---- the one field ---- */
   /* What a chat can use, in three: the folders, the assets, the personal folder. */
   .points{ list-style:none; margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:8px; max-width:680px; }
-  .points li{ display:flex; align-items:baseline; gap:7px; padding:6px 12px; border:1px solid var(--line); border-radius:999px; background:rgba(255,255,255,.72);
-    font:400 13.5px/1.35 var(--sans); color:var(--sub); }
+  .points a{ display:flex; align-items:baseline; gap:7px; padding:6px 12px; border:1px solid var(--line); border-radius:999px; background:rgba(255,255,255,.72);
+    font:400 13.5px/1.35 var(--sans); color:var(--sub); transition:border-color .15s var(--ease), background .15s var(--ease); }
+  .points a:hover{ border-color:var(--hint); background:#fff; }
   .points b{ font-weight:600; color:var(--ink); }
   .card{ margin-top:32px; width:100%; max-width:620px; background:var(--card); border:1px solid var(--line); border-radius:16px; text-align:left;
     box-shadow:0 4px 16px -2px rgba(0,0,0,.05), 0 2px 6px rgba(0,0,0,.025); transition:box-shadow .2s var(--ease), border-color .2s var(--ease); }
@@ -155,11 +156,11 @@
   <div class="bg" aria-hidden="true"></div>
   <div class="in-hero">
     <h1 class="rise">Your knowledge and your files, in one chat.</h1>
-    <p class="sub rise" style="--d:80">Folders learn from each talk, PDF or link, with its author and date. Assets keep your docs and tables. Call any of them with @, and every answer cites it.</p>
+    <p class="sub rise" style="--d:80">Folders learn from what you drop. Assets keep your docs and tables. Call any with @, and every answer cites it.</p>
     <ul class="points rise" style="--d:120" aria-label="What a chat can use">
-      <li><b>Knowledge</b>folders that learn from each drop</li>
-      <li><b>Assets</b>docs and tables a chat updates</li>
-      <li><b>Personal</b>your notes, a daily log, your twin</li>
+      <li><a href="/about#drop"><b>Knowledge</b>folders that learn from each drop</a></li>
+      <li><a href="/about#assets"><b>Assets</b>docs and tables a chat updates</a></li>
+      <li><a href="/about#personal"><b>Personal</b>your notes, a daily log, your twin</a></li>
     </ul>
     <form class="card rise" style="--d:160" id="enter" autocomplete="on">
       <div class="row">
@@ -172,7 +173,7 @@
     <p class="say" id="say" role="status"></p>
     <p class="more rise" style="--d:240">
       <button type="button" id="makeOpen">Make your own workspace</button>
-      <a href="/about">White paper</a>
+      <a href="/about">How it works</a>
       <a href="https://github.com/jlasne/brain">Open source</a>
     </p>
   </div>
