@@ -897,7 +897,12 @@ function answerIn(raw: string): string {
  * bears on the message), and the folders it tags, as the folders' chat reads them. The answer may propose changes to the assets and a
  * new asset: each is kept as a proposal, shown with what it would do, and applied only when the owner says so.
  */
-async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: any) => void) {
+/**
+ * A message that names assets: they are read, and a change to one, or a new
+ * one, comes back as a proposal to apply. From the personal chat (`mine`),
+ * the owner's notes are read beside them and the message is filed as notes too.
+ */
+async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: any) => void, mine: any = null) {
   const q = String(b.q ?? "").trim().slice(0, 40000);
   if (!q) return { error: "write something first" };
   const mKey = keyFor(who), mName = modelFor(who, b);
@@ -907,12 +912,17 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
   const wanted = [...new Set((b.assets as any[]).map(x => Math.floor(Number(x))).filter(n => n > 1))];
   const assets = wanted.map(fid => listed.find(a => a.id === fid)).filter(Boolean).slice(0, ASSETS_A_MESSAGE);
   if (!assets.length) return { answer: "Those assets are no longer here. Pick one with @, or add it again from Assets." };
-  const { brains, cards: concepts, sources } = withoutPersonal(every);
+  const shared = withoutPersonal(every), { brains, sources } = shared;
+  const concepts = mine ? [...shared.cards, ...every.cards.filter((c: any) => c.brain === mine.slug)] : shared.cards;
   /* The folders read beside them: the ones the message tags, else the ones the chat is set to (one folder, or the folders ticked). */
   const tagged = tagsOf(b.tags, brains);
-  const scoped = Array.isArray(b.brains) && b.brains.length > 1 ? b.brains.map(String) : b.brain && b.brain !== "all" ? [String(b.brain)] : [];
+  const scoped = Array.isArray(b.brains) && b.brains.length > (mine ? 0 : 1) ? b.brains.map(String) : b.brain && b.brain !== "all" ? [String(b.brain)] : [];
   const tags = (tagged.length ? tagged : scoped.filter(x => brains.some((y: any) => y.slug === x))).slice(0, Math.max(0, ASSETS_A_MESSAGE - assets.length));
-  const pool = brains.filter((x: any) => tags.includes(x.slug));
+  /* The personal chat reads its own notes too: what they told it is what fills the asset. */
+  const pool = [...(mine ? [mine] : []), ...brains.filter((x: any) => tags.includes(x.slug))];
+  const date = today();
+  const filing = mine ? fileTwice(t => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text: q, kind: "chat", date, lang: storeLang(who),
+    model: async m => { const r = await ask(m, { json: true, maxTokens: 4000, key: mKey, model: mName, timeout: t }); tally(r.usage); return r.text; } })).catch(() => null) : null;
 
   /* The assets, read for this message. */
   const read: string[] = [];
@@ -987,11 +997,13 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
   if (left.length) answer += `\n\nI left out ${left.length === 1 ? "one change" : `${left.length} changes`}: ${left.join("; ")}.`;
   if (!answer) answer = edits.length || create ? "Here is the proposal." : "I could not write an answer to that. Ask it another way.";
   const named = assets.map(a => a.name);
-  const turn = { q: q.slice(0, 2000), a: answer, level: "normal", sources: nSources, assets: named,
-    ...(pool.length ? { tagged: pool.map((x: any) => x.name) } : {}), ...(edits.length ? { edits } : {}), ...(create ? { create } : {}) };
-  const chat = await saveTurn(ctx, who, b, { brain: "all" }, turn);
-  return { answer, sources: nSources, level: "normal", assets: named, ...(pool.length ? { tagged: pool.map((x: any) => x.name) } : {}),
-    ...(edits.length ? { edits } : {}), ...(create ? { create } : {}), ...(chat ? { chat } : {}) };
+  const filed = filing ? (await filing) ?? { new: 0, updated: 0, titles: [], failed: true } : null;
+  const read2 = pool.filter((x: any) => !mine || x.slug !== mine.slug).map((x: any) => x.name);
+  const said = { ...(read2.length ? { tagged: read2 } : {}), ...(edits.length ? { edits } : {}), ...(create ? { create } : {}),
+    ...(mine ? { personal: true, filed, called: [...read2, ...named] } : {}) };
+  const turn = { q: q.slice(0, 2000), a: answer, level: "normal", sources: nSources, assets: named, ...said };
+  const chat = await saveTurn(ctx, who, b, { brain: mine ? mine.slug : "all" }, turn);
+  return { answer, sources: nSources, level: "normal", assets: named, ...said, ...(chat ? { chat } : {}) };
 }
 
 /**
@@ -1222,6 +1234,8 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   if (wants) return await dailyScript(ctx, who, { ...b, redo: wants === "redo", note: wants === "redo" ? String(b.q ?? "") : "" }, mine, every.cards, row, tally);
   /* Today's log under way takes the message as its answer. */
   if (row?.daily?.on && row.daily.day === today()) return await dailyTurn(ctx, who, b, mine, every.cards, row, false, tally);
+  /* An asset named with @ is read with their notes, and a change to it comes back as a proposal to apply, as in any chat. */
+  if (Array.isArray(b.assets) && b.assets.length && !who.demo) return await assetChat(ctx, who, b, every, tally, mine);
   const q = String(b.q ?? "").slice(0, MAX_CHARS.chat).trim();
   await demoCount(ctx, who, "ask");
   const date = today();
@@ -1249,16 +1263,13 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   /* This personal brain and every brain that is not personal: the reply may
      call on any of them without being asked. */
   const reach = every.brains.filter((x: any) => x.type !== "personal" || x.slug === mine.slug);
-  /* A folder tagged with @ is called on purpose: the reply reads its notes and the folders tagged, and no other. */
-  const tags = tagsOf(b.tags, reach.filter((x: any) => x.slug !== mine.slug));
+  /* A folder tagged with @, or ticked beside the personal chat, is called on purpose: the reply reads its notes and those folders, and no other. */
+  const ticked = (Array.isArray(b.brains) ? b.brains : []).map(String).filter((x: string) => reach.some((y: any) => y.slug === x && y.slug !== mine.slug)).slice(0, 60);
+  const tags = [...new Set([...tagsOf(b.tags, reach.filter((x: any) => x.slug !== mine.slug)), ...ticked])];
   const pool = tags.length ? reach.filter((x: any) => x.slug === mine.slug || tags.includes(x.slug)) : reach;
   const others = pool.filter((x: any) => x.slug !== mine.slug);
   const tagged = tags.length ? others.map((x: any) => ({ slug: x.slug, name: x.name })) : [];
   const cards = every.cards.filter((c: any) => pool.some((x: any) => x.slug === c.brain));
-  /* An asset named with @ is read for this message, as the assets' chat reads it. Read only: a change to it goes through that chat. */
-  const fids = [...new Set((Array.isArray(b.assets) ? b.assets : []).map((x: any) => Math.floor(Number(x))).filter((n: number) => n > 1))];
-  const listed: any[] = fids.length && !who.demo ? await ctx.runQuery(internal.files.assetsOf, { space: who.space }) : [];
-  const assets = fids.map(fid => listed.find(a => a.id === fid)).filter(Boolean).slice(0, ASSETS_A_MESSAGE);
   const t0 = Date.now();
 
   const filing = fileTwice(t => remember(ctx, { space: who.space, brain: mine.slug, cards: every.cards, text: q, context: last, kind: "chat", date, lang: storeLang(who),
@@ -1280,8 +1291,6 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
     const whole = await ctx.runQuery(internal.store.conceptsByIds, { space: who.space, ids: plan.lead.slice(0, OPEN_READ).map(idOf) });
     const pick = writeDossier(pool, plan, new Map(whole.map((c: any) => [idOf(c), c])));
     const earlier = threadOf(b.history).map(h => `They said: ${h.q}\nYou replied: ${h.a}`).join("\n\n");
-    const read: string[] = [];
-    for (const a of assets) read.push((await readAsset(ctx, { space: who.space, base: assetsSlug(who.space), fid: a.id, q, key: mKey, model: mName, meter: tally })).text);
     /* What stays the same comes first (the rules, the date, who they are, their other brains), what changes with the message last. */
     const { text, usage } = await ask([
       { role: "system", content: REPLY_RULES + (who.models?.reply === "en" ? "\n- Reply in English, whatever language they write in." : "") },
@@ -1289,7 +1298,6 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
         `THEIR OTHER BRAINS, yours to call on: ${others.map((x: any) => `${x.name} (${x.type})`).join(", ") || "none yet"}\n\n` +
         `WHAT THEIR NOTES AND BRAINS HOLD (entries "in ${mine.name}" are their own notes; every other entry comes from the brain it names)\n${pick.dossier}\n\n` +
         `${tagged.length ? taggedLine(tagged, pick.opened, "THEY") + "\n\n" : ""}` +
-        `${read.length ? `THE ASSETS THEY NAMED with @, read for this message: answer from them first, and name each one you use.\n${read.join("\n\n")}\n\n` : ""}` +
         `${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}` +
         `${notHeld ? "NOTHING HELD: their notes and brains hold nothing that answers this directly; what is above only sits near it. Say so in a few words, then what comes closest.\n\n" : ""}` +
         `${offer.length ? gapBlock(offer) + "\n\n" : ""}THEIR MESSAGE\n${q}` },
@@ -1301,7 +1309,7 @@ async function personalChat(ctx: any, who: Caller, b: any, mine: any, every: any
   const { text: gapless, asked } = readGap(said, offer);
   const answer = plainReply(gapless);
   /* A brain they tagged was called, whatever the reply says; the others are the ones the reply names. */
-  const called = [...new Set([...tagged.map((x: any) => String(x.name)), ...assets.map((a: any) => String(a.name)), ...calledBrains(answer, others)])];
+  const called = [...new Set([...tagged.map((x: any) => String(x.name)), ...calledBrains(answer, others)])];
 
   /* A question asked in passing counts as answered once the next message
      files something; one ignored is left to be asked again some day. */

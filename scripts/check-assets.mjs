@@ -811,18 +811,21 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   check("the router is always shown their own notes, all fifteen, on top of the 120 titles nearest in meaning of the other brains: their meaning is not kept as they are filed", [...Array(15).keys()].every(i => lines(routerPrompt()).some(l => new RegExp(`\\|My note ${i} \\[Me\\]$`).test(l))) && lines(routerPrompt()).slice(0, 15).every(l => /\[Me\]$/.test(l)), lines(routerPrompt()).slice(0, 3).join(" / "));
   const twin = last(/You are their AI twin/).user;
 
-  /* the personal chat reads an asset named with @, and never changes it */
+  /* the personal chat names an asset: it is read with their notes, a change comes back as a proposal, and the message is filed */
   {
     reply = { usage: price };
     const pa = await call("/api/assets/new", { kind: "doc", name: "plan.md", made: false });
     const pb = await call("/api/assets/begin", { file: pa.fid, name: "plan.md", kind: "doc" });
     await call("/api/assets/part", { file: pa.fid, ver: pb.ver, text: "# Plan\n\nLaunch the outreach in May with 40 messages a day.", page: 0 });
     await call("/api/assets/finish", { file: pa.fid, ver: pb.ver });
-    reply = { usage: price, twin: "In May, at 40 messages a day.", folders: { picks: [1], terms: ["plan"] } };
-    const pr = await call("/api/ask", { q: "when do I launch the outreach in @plan.md?", brain: "me", assets: [pa.fid] });
-    const tw = last(/You are their AI twin/).user;
-    check("the personal chat reads an asset named with @, and says it was called", /THE ASSETS THEY NAMED with @[\s\S]*=== ASSET "plan\.md"[\s\S]*40 messages a day/.test(tw)
-      && pr.called.includes("plan.md") && !pr.edits && pr.personal === true, JSON.stringify(pr).slice(0, 300));
+    reply = { usage: price, folders: { picks: [1], terms: ["plan"] },
+      asset: { answer: "Here is the deal list to add.", edits: [{ asset: pa.fid, ops: [{ op: "insert", after: 0, title: "Deals", text: "Dr. Dana: lawyer review since the 12th." }] }], create: null } };
+    const n1 = sent.length;
+    const pr = await call("/api/ask", { q: "add what you know on @plan.md", brain: "me", assets: [pa.fid] });
+    const ap = last(/You work on the owner's assets/);
+    check("a personal chat that names an asset goes through the assets' chat: it reads the asset and their own notes, and proposes the change to apply",
+      /=== ASSET "plan\.md"/.test(ap.user) && /in Me/.test(ap.user) && pr.edits?.length === 1 && pr.edits[0].status === "open" && pr.personal === true, JSON.stringify(pr).slice(0, 300));
+    check("and the message is filed as their notes too, in the personal chat", callsSince(n1, /You file notes into a person's own knowledge base/) === 1 && !!pr.filed && pr.called.includes("plan.md"), JSON.stringify(pr.filed));
     await call("/api/assets/file", { action: "remove", file: pa.fid });
   }
   check("its reply reads the thread after the notes and the message last, the last turn whole", twin.indexOf("WHAT THEIR NOTES AND BRAINS HOLD") < twin.indexOf("EARLIER IN THIS CHAT") && twin.indexOf("EARLIER IN THIS CHAT") < twin.indexOf("THEIR MESSAGE") && /Answer 4 third line\./.test(twin) && !/Answer 3 second line\./.test(twin));

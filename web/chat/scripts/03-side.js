@@ -743,16 +743,18 @@ function renderScope(){
   /* The ticks follow a folder picked anywhere else: a reopened chat, a new
      folder, Ask about it. Two or more ticked ask with the scope at "all". */
   S.picks = S.picks.filter(x => S.brains.some(b => b.slug === x && b.type !== "personal"));
-  if (isPersonal(S.scope)) S.picks = [];
+  /* The personal chat keeps the folders ticked beside it: it calls those. */
+  if (isPersonal(S.scope)) {}
   else if (S.scope !== "all") S.picks = [S.scope];
   else if (S.picks.length === 1) S.picks = [];
   S.into = S.into.filter(x => S.brains.some(b => b.slug === x) && !isPersonal(x) && !readOnly(S.brains.find(b => b.slug === x)));
   if (isPersonal(S.scope) && S.mode === "drop") S.mode = "ask";
   const drop = S.mode === "drop";
   const nameOf = x => S.brains.find(b => b.slug === x)?.name || x;
-  /* Assets ticked stay ticked while they are here, ready, and the chat is not the personal one. */
-  S.assetPicks = isPersonal(S.scope) || drop ? [] : S.assetPicks.filter(id => (S.assets || []).some(a => a.id === id && a.status === "ready"));
-  const folders = S.picks.length > 1 ? `${nameOf(S.picks[0])} +${S.picks.length - 1}` : S.scope === "all" ? "All folders" : nameOf(S.scope);
+  /* Assets ticked stay ticked while they are here and ready, outside a drop. */
+  S.assetPicks = drop ? [] : S.assetPicks.filter(id => (S.assets || []).some(a => a.id === id && a.status === "ready"));
+  const folders = isPersonal(S.scope) ? nameOf(S.scope) + (S.picks.length ? ` + ${S.picks.length === 1 ? nameOf(S.picks[0]) : `${S.picks.length} folders`}` : "")
+    : S.picks.length > 1 ? `${nameOf(S.picks[0])} +${S.picks.length - 1}` : S.scope === "all" ? "All folders" : nameOf(S.scope);
   const picked = S.assetPicks.length === 1 ? (S.assets.find(a => a.id === S.assetPicks[0])?.name || "1 asset") : `${S.assetPicks.length} assets`;
   /* Asking across every brain needs no label: the name says it. */
   $("scopeLabel").textContent = drop ? "Into" : isPersonal(S.scope) ? "Chat with" : "";
@@ -779,17 +781,20 @@ function fillPick(){
   /* Asking reads all the folders, the personal chat, or the folders ticked
      here or in the side panel. Dropping ticks as many as the source belongs
      in. Either way the menu stays open while folders are ticked. */
+  /* The personal chat is ticked beside the folders: it calls the ones ticked with it. */
+  const mine = isPersonal(S.scope);
   const isOn = slug => drop ? (slug === "all" ? !S.into.length : S.into.includes(slug))
-    : S.picks.length > 1 ? S.picks.includes(slug) : S.scope === slug;
-  const ticks = (slug, b) => drop ? slug !== "all" : slug !== "all" && b?.type !== "personal";
+    : isPersonal(slug) ? S.scope === slug
+    : mine || S.picks.length > 1 ? S.picks.includes(slug) : S.scope === slug;
+  const ticks = (slug) => slug !== "all";
   const row = (slug, name, sub, count, b) => {
     const on = isOn(slug);
     const r = el("button","pk-row" + (on ? " on" : ""));
     r.setAttribute("role","option"); r.setAttribute("aria-selected", on ? "true" : "false");
     const nm = el("span","pk-nm", name);
     if (sub) nm.append(el("span","pk-sub", sub));
-    const mark = el("span", ticks(slug, b) ? "pk-box" : "pk-dot");
-    if (ticks(slug, b)) mark.innerHTML = TICK_SVG;
+    const mark = el("span", ticks(slug) ? "pk-box" : "pk-dot");
+    if (ticks(slug)) mark.innerHTML = TICK_SVG;
     r.append(mark);
     if (b) r.append(brainIcon(b));
     r.append(nm);
@@ -797,14 +802,23 @@ function fillPick(){
     r.onclick = e => {
       e.stopPropagation();
       if (!drop){
-        crossing(slug);
-        if (ticks(slug, b)){
-          /* A folder row ticks or unticks it, beside the ones already ticked. */
-          const now = S.picks.length ? S.picks : isPersonal(S.scope) || S.scope === "all" ? [] : [S.scope];
-          setPicks(now.includes(slug) ? now.filter(x => x !== slug) : [...now, slug]);
+        if (isPersonal(slug)){
+          /* The personal chat on or off, the folders ticked kept: a chat of its own, so the thread starts fresh. */
+          const keep = S.picks.length ? S.picks : S.scope === "all" ? [] : [S.scope];
+          crossing(S.scope === slug ? "all" : slug);
+          if (S.scope === slug) setPicks(keep); else { S.picks = keep; S.scope = slug; S.into = []; }
           render(); return;
         }
-        if (isPersonal(slug)){ S.picks = []; S.scope = slug; S.into = []; S.assetPicks = []; } else setPicks([]);
+        if (ticks(slug)){
+          /* A folder row ticks or unticks it, beside the ones already ticked, the personal chat kept when it is on. */
+          const now = S.picks.length || mine ? S.picks : S.scope === "all" ? [] : [S.scope];
+          const me = mine ? S.scope : null;
+          if (!me) crossing(slug);
+          setPicks(now.includes(slug) ? now.filter(x => x !== slug) : [...now, slug]);
+          if (me) S.scope = me;
+          render(); return;
+        }
+        setPicks([]);
         closePick(); render(); $("input").focus(); return;
       }
       if (slug === "all") S.into = [];
@@ -839,7 +853,8 @@ function fillPick(){
       if (drop){
         S.into = on ? S.into.filter(x => !slugs.includes(x)) : [...new Set([...S.into, ...slugs])];
         S.scope = S.into.length === 1 ? S.into[0] : "all"; S.picks = S.into.slice();
-      } else { crossing("all"); tickGroup(slugs); }
+      } else if (mine){ const me = S.scope; tickGroup(slugs); S.scope = me; }
+      else { crossing("all"); tickGroup(slugs); }
       render();
     };
     m.append(r);
@@ -860,7 +875,6 @@ function fillPick(){
       r.onclick = e => {
         e.stopPropagation();
         S.assetPicks = on ? S.assetPicks.filter(x => x !== a.id) : [...S.assetPicks, a.id].slice(-4);
-        if (isPersonal(S.scope)) S.scope = "all";
         render();
       };
       m.append(r);

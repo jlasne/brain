@@ -2997,6 +2997,18 @@ for (const space of ["octopus", "squidgy"]) {
   const sent = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/ask")).pop()?.body);
   check("@All Wealth asks every folder of the category", JSON.stringify((sent?.brains || []).slice().sort()) === '["crypto","gave","wealth"]' && !sent?.tags, JSON.stringify(sent));
 
+  /* The personal chat ticked beside folders: it calls the ones ticked with it. */
+  await page.focus("#input"); await page.click("#scopeBtn"); await page.waitForTimeout(80);
+  check("the personal folder has a tick box too", await page.evaluate(() => !![...document.querySelectorAll(".pick-menu .pk-row")].find(r => /^Me/.test(r.querySelector(".pk-nm").textContent))?.querySelector(".pk-box")));
+  await page.click('.pick-menu .pk-row:has-text("Me")'); await page.click('.pick-menu .pk-row:has-text("Content")'); await page.waitForTimeout(80);
+  const mixed = await page.evaluate(() => ({ open: !!document.querySelector(".pick-menu"), val: document.getElementById("scopeVal").textContent, lbl: document.getElementById("scopeLabel").textContent,
+    on: [...document.querySelectorAll(".pick-menu .pk-row.on .pk-nm")].map(x => x.firstChild.textContent).join(",") }));
+  check("ticking the personal folder and a folder keeps both, the menu open", mixed.open && mixed.val === "Me + Content" && mixed.lbl === "Chat with" && mixed.on === "Me,Content", JSON.stringify(mixed));
+  await page.keyboard.press("Escape");
+  await page.fill("#input", "What did I plan for the brand?"); await page.click("#send"); await page.waitForTimeout(300);
+  const mine = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/ask")).pop()?.body);
+  check("the message goes to the personal chat, calling the folder ticked", mine?.brain === "me" && JSON.stringify(mine?.brains) === '["content"]', JSON.stringify(mine));
+
   await page.click("#groupsBtn"); await page.waitForTimeout(100);
   const sheet = await page.evaluate(() => [...document.querySelectorAll("#gList input")].map(i => i.dataset.slug + "=" + i.value).join(","));
   check("the categories sheet lists every folder of the workspace with its category, never the personal one",
