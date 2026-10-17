@@ -599,6 +599,21 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   const n1 = sent.length;
   const wordsA = await call("/api/ask", { q: "run an analysis of the contract", brain: "all", assets: [2], chat: null });
   check("a reply with no answer in it is asked again for the answer alone, in words, and that answer is shown", wordsA.answer === "## The analysis\n\nThe offer pays 30% of revenue." && sent.slice(n1).length === 2 && /Reply in Markdown only/.test(sent.at(-1).sys), JSON.stringify(wordsA.answer));
+  /* a reply that only announces the text asked for is asked again for the text */
+  let t2 = 0;
+  const PITCH = "## The pitch\n\nI am Jeremy Lasne. Each week I share one thing I learned building apps.";
+  reply = { asset: () => ++t2 === 1 ? JSON.stringify({ answer: "Here is the personal pitch, focused on your learnings and journey.", edits: [], create: null }) : PITCH };
+  const n2 = sent.length;
+  const pitch = await call("/api/ask", { q: "give me the pitch", brain: "all", assets: [2], chat: null });
+  check("a reply that only announces the text asked for is asked again, and the text itself is shown", pitch.answer === PITCH && sent.slice(n2).length === 2 && /written out whole/.test(sent.at(-1).sys), JSON.stringify(pitch.answer));
+  reply = { asset: { answer: "Here is the pitch.", pitch: "I am Jeremy Lasne. ".repeat(15).trim(), edits: [], create: null } };
+  const n3 = sent.length;
+  const field = await call("/api/ask", { q: "give me the pitch", brain: "all", assets: [2], chat: null });
+  check("a text the reply put in a field of its own joins the answer, with no second call", /^Here is the pitch\.\n\nI am Jeremy Lasne\./.test(field.answer) && sent.slice(n3).length === 1, JSON.stringify(field.answer.slice(0, 60)));
+  check("the rules ask for the text written out whole, never announced", /written out whole in "answer"/.test(last(/You work on the owner's assets/).sys));
+  const { announcesOnly } = await build("assets");
+  check("an announcement alone is told from an answer", announcesOnly("Here is the reworked pitch for The Influencer OS.") && announcesOnly("Voici le plan.")
+    && !announcesOnly("Here is the pitch:\n- One\n- Two") && !announcesOnly("Dr. Dana is the closest to signing."));
   check("the rules offer removing columns, and forbid rebuilding a table for it", /"op":"dropcols"/.test(last(/You work on the owner's assets/).sys) && /Never rebuild a table with "table" to remove columns/.test(last(/You work on the owner's assets/).sys));
 
   /* a new asset proposed, made, undone */

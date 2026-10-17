@@ -27,7 +27,7 @@ import { addDocPiece, addRowPiece, finishFile, readBlocks } from "./reader";
 import { withChatSpend } from "./spend";
 import { parseExport, RESTORE_CHARS } from "./restore";
 import { colNames, downloadText, csvOf, parseCsv, splitKey, fileKey, assetsSlug } from "./sheet";
-import { readAsset, ASSET_RULES, readCreate, createPreview, ASSETS_A_MESSAGE } from "./assets";
+import { readAsset, ASSET_RULES, readCreate, createPreview, ASSETS_A_MESSAGE, announcesOnly } from "./assets";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
@@ -953,6 +953,16 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
   ], { json: true, maxTokens: q.length > 6000 ? 24000 : 16000, temperature: 0.2, key: mKey, model: mName, timeout: 170000 });
   tally(usage);
   let d: any, lost = false;
+  /* Asked again for the answer alone, in words, with no change. */
+  const wordsAgain = async () => {
+    const again = await ask([
+      { role: "system", content: ASSET_RULES(english, { folders: pool.some((x: any) => !mine || x.slug !== mine.slug), ...(mine ? { mine: mine.name } : {}) }).replace(/Reply with only JSON:[^\n]*$/, "Reply in Markdown only: the answer, under 700 words, the text asked for written out whole. No JSON, no change.") },
+      { role: "user", content: `${read.join("\n\n")}\n\n${pool.length ? `THEIR FOLDERS\n${dossier}\n\n` : ""}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}TODAY: ${today()}\nMESSAGE: ${q}` },
+    ], { maxTokens: 6000, temperature: 0.2, key: mKey, model: mName, timeout: 170000 });
+    tally(again.usage);
+    const words = String(again.text ?? "").replace(/^```(?:markdown)?|```$/g, "").trim();
+    return words.startsWith("{") ? answerIn(words) : words;
+  };
   try { d = parseJson(String(text), finish); }
   catch {
     /* A reply cut off or broken: its answer is kept as far as it got, a change it was writing goes, and no code is ever shown. */
@@ -961,16 +971,18 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
     else {
       lost = /"ops"\s*:\s*\[\s*\{|"create"\s*:\s*\{/.test(raw);
       d = { answer: answerIn(raw) };
-      /* Nothing of the answer came through: asked again for the answer alone, in words, with no change. */
-      if (!d.answer) {
-        const again = await ask([
-          { role: "system", content: ASSET_RULES(english, { folders: pool.some((x: any) => !mine || x.slug !== mine.slug), ...(mine ? { mine: mine.name } : {}) }).replace(/Reply with only JSON:[^\n]*$/, "Reply in Markdown only: the answer, under 700 words. No JSON, no change.") },
-          { role: "user", content: `${read.join("\n\n")}\n\n${pool.length ? `THEIR FOLDERS\n${dossier}\n\n` : ""}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}TODAY: ${today()}\nMESSAGE: ${q}` },
-        ], { maxTokens: 6000, temperature: 0.2, key: mKey, model: mName, timeout: 170000 });
-        tally(again.usage);
-        const words = String(again.text ?? "").replace(/^```(?:markdown)?|```$/g, "").trim();
-        d = { answer: words.startsWith("{") ? answerIn(words) : words };
-      }
+      if (!d.answer) d = { answer: await wordsAgain() };
+    }
+  }
+  /* A text asked for (a pitch, an email, a plan) is the answer itself. One the reply put in a field of its own joins the answer;
+     a reply that only announces it, with no change proposed, is asked again for the text. */
+  if (d && typeof d === "object" && !lost) {
+    const extra = Object.entries(d).filter(([k, v]) => !["answer", "reply", "edits", "create"].includes(k) && typeof v === "string" && v.trim().length > 200).map(([, v]) => String(v).trim());
+    if (extra.length) d.answer = [String(d.answer ?? "").trim(), ...extra].filter(Boolean).join("\n\n");
+    const proposes = (Array.isArray(d.edits) && d.edits.length > 0) || !!readCreate(d.create);
+    if (!proposes && !extra.length && announcesOnly(String(d.answer ?? d.reply ?? ""))) {
+      const words = await wordsAgain();
+      if (words.length > String(d.answer ?? "").length) d = { ...d, answer: words };
     }
   }
   let answer = String(d?.answer ?? d?.reply ?? "").replace(/\s*—\s*/g, ", ").trim();

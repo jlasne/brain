@@ -57,7 +57,7 @@
   .pick-menu .pk-nm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pick-menu .pk-sub{ display:block; margin-top:3px; font-size:12px; font-weight:400; color:var(--ink-3); white-space:normal; }
   .pick-menu .pk-ct{ flex:none; font:400 12px/1 var(--mono); color:var(--ink-4); }
-  .pick-menu.at-menu{ max-height:min(40vh, 320px); }
+  .pick-menu.at-menu{ max-height:min(46vh, 360px); overflow-y:auto; }
 
   /* Share brain: a row per brain, a chip per workspace it can go to. */
   .sh-row{ display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; padding:9px 0; border-top:1px solid var(--line); }

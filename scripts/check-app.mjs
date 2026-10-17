@@ -2981,8 +2981,8 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click('.pick-menu .pk-group[data-group="Business"]'); await page.keyboard.press("Escape");
 
   await page.fill("#input", "@All Wea"); await page.waitForTimeout(80);
-  const at = await page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-row")].map(r => r.textContent));
-  check("@ offers a whole category", at.some(t => /^All Wealthcategory$/.test(t)), JSON.stringify(at));
+  const at = await page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-row")].map(r => r.querySelector(".pk-nm").textContent + ":" + r.querySelector(".pk-ct").textContent));
+  check("@ offers a whole category", at.includes("All Wealth:category"), JSON.stringify(at));
   await page.fill("#input", "What does @All Wealth say, and @Content?"); await page.waitForTimeout(80);
   const shade = await page.evaluate(() => { const l = document.querySelector(".box .tag-layer"); const ta = document.getElementById("input");
     return { shown: !!l && !l.hidden, marks: [...(l?.querySelectorAll("mark") || [])].map(m => m.className + ":" + m.textContent),
@@ -3927,7 +3927,7 @@ for (const space of ["octopus", "squidgy"]) {
     };
   }, st);
   await page.waitForTimeout(300);
-  const rows = () => page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-row")].map(r => r.textContent));
+  const rows = () => page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-row")].map(r => r.querySelector(".pk-nm").textContent));
   const asks = () => page.evaluate(() => window.__calls.filter(c => c.s === "/api/ask").map(c => c.body));
   await page.click("#input");
   await page.keyboard.type("Compare @Pri");
@@ -3949,7 +3949,8 @@ for (const space of ["octopus", "squidgy"]) {
   await page.keyboard.press("Enter"); await page.waitForTimeout(300);
   check("and the message goes with no tag", !("tags" in (await asks()).pop()));
   await page.keyboard.type("@");
-  check("a bare @ lists every folder, and Escape closes the list and keeps the words", JSON.stringify(await rows()) === '["Pricing","Pricing review","Health"]');
+  check("a bare @ lists every folder, under its heading, each with its kind, and Escape closes the list and keeps the words", JSON.stringify(await rows()) === '["Pricing","Pricing review","Health"]'
+    && JSON.stringify(await page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-h, .at-menu .pk-ct")].map(x => x.textContent))) === '["Folders","folder","folder","folder"]');
   await page.keyboard.press("Escape");
   check("Escape closes the list and sends nothing", (await rows()).length === 0 && await page.evaluate(() => document.getElementById("input").value) === "@" && (await asks()).length === 2);
   await page.fill("#input", "");
@@ -3961,7 +3962,7 @@ for (const space of ["octopus", "squidgy"]) {
   /* the personal chat takes the folders */
   await page.click('#brains .brain-row:has(.nm:text-is("Me"))'); await page.waitForTimeout(150);
   await page.click("#input"); await page.keyboard.type("What did I decide @");
-  check("in the personal chat the list holds the folders", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-row")].map(r => r.textContent))) === '["Pricing","Pricing review","Health"]');
+  check("in the personal chat the list holds the folders", JSON.stringify(await page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-row")].map(r => r.querySelector(".pk-nm").textContent))) === '["Pricing","Pricing review","Health"]');
   await page.click('.at-menu .pk-row >> text="Pricing"');
   await page.keyboard.type("for Team"); await page.keyboard.press("Enter"); await page.waitForTimeout(400);
   const mine = (await asks()).pop();
@@ -4051,7 +4052,7 @@ for (const space of ["octopus", "squidgy"]) {
   check("Ask about it opens a new chat with the asset called", await page.evaluate(() => document.querySelector("main").dataset.view === "chat" && document.getElementById("input").value === "@invest-assets.csv "));
   /* @ lists the assets beside the folders */
   await page.fill("#input", ""); await page.focus("#input"); await page.keyboard.type("best 4 lines from @inv"); await page.waitForTimeout(150);
-  const at = await page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-row")].map(b => b.textContent));
+  const at = await page.evaluate(() => [...document.querySelectorAll(".at-menu .pk-row")].map(b => b.querySelector(".pk-nm").textContent + b.querySelector(".pk-ct").textContent));
   check("@ lists the assets beside the folders, each with its kind", JSON.stringify(at) === '["invest-assets.csvtable"]', JSON.stringify(at));
   await page.keyboard.press("Enter"); await page.waitForTimeout(80);
   await page.keyboard.press("Enter"); await page.waitForTimeout(500);

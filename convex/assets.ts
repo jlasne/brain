@@ -181,6 +181,7 @@ HOW TO ANSWER
   - Close with "### Next" and 1 to 3 bullets when there is something to do or decide.
   - Every sentence under 20 words. Never a paragraph of more than 2 sentences. A blank line between blocks: "\n\n" in the JSON string.
   - A short question gets a short answer: one or two lines, no heading.
+- A text the message asks for (a pitch, an email, a post, a plan) is written out whole in "answer", in its own shape, ready to copy. Never a line that only announces it.
 - A question you ask the owner is written in "answer" itself, as a numbered list. Never point to questions or to anything that is not in your answer.${o.mine ? `
 - When their own notes hold what the message needs, propose the change now, whole, from them. Ask only for what is missing, after the change.` : ""}
 - Name where each point comes from: the asset by its name, the rows ("rows 4, 5") or the section title${o.folders ? ", or the folder" : ""}.
@@ -206,6 +207,17 @@ A NEW ASSET
 ${HTML_PAGE}
 
 Reply with only JSON: {"answer":"","edits":[],"create":null}`;
+
+/**
+ * A reply that only announces a text ("Here is the pitch", "Voici le plan")
+ * without writing it: short, one paragraph, opening on the announcement.
+ */
+export function announcesOnly(answer: string): boolean {
+  const t = String(answer ?? "").trim();
+  if (!t) return false;
+  if (t.length > 360 || /\n\s*(?:[-*\d]|#)/.test(t)) return false;
+  return /^(?:here(?:'s| is| are)|below is|this is (?:the|your)|voici|voilà|ci-dessous)\b/i.test(t);
+}
 
 /* ---------- a new asset ---------- */
 

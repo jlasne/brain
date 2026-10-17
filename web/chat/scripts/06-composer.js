@@ -40,12 +40,12 @@ document.addEventListener("pointerdown", e => { if (atMenu && !atMenu.contains(e
 
 /** What a chat may be told to read: the folders, the categories and the assets. The personal chat reads an asset and never changes it. */
 function tagChoices(){
-  const folders = S.brains.filter(b => b.type !== "personal").map(b => ({ slug: b.slug, name: b.name, tag: "" }));
+  const folders = S.brains.filter(b => b.type !== "personal").map(b => ({ slug: b.slug, name: b.name, tag: b.type === "person" ? "person" : "folder", kind: "folder", b }));
   /* A category asks all its folders: "@All Wealth". */
-  const groups = groupNames().map(g => ({ slug: "group:" + g, name: "All " + g, tag: "category" }));
+  const groups = groupNames().map(g => ({ slug: "group:" + g, name: "All " + g, tag: "category", kind: "group" }));
   /* The assets, beside the folders: a tag reads one, and a chat may propose a change to it. */
-  const assets = S.demo ? [] : (S.assets || []).filter(a => a.status === "ready").map(a => ({ slug: "asset:" + a.id, name: a.name, tag: pjNoun(a.kind) }));
-  return [...folders, ...groups, ...assets];
+  const assets = S.demo ? [] : (S.assets || []).filter(a => a.status === "ready").map(a => ({ slug: "asset:" + a.id, name: a.name, tag: pjNoun(a.kind), kind: "asset", a }));
+  return [...groups, ...folders, ...assets];
 }
 /** The slugs a message names with @, each once. The longest names are read first, so "@Pricing review" is not taken for "@Pricing". */
 function tagsIn(text, choices){
@@ -139,22 +139,32 @@ function attachMentions(ta, choices){
     if (!w || !all.length){ if (atBox === ta) closeAt(); return; }
     const named = tagsIn(ta.value, all);
     if (named.length >= MAX_TAGS){ closeAt(); return; }
+    /* Everything a chat can use: the categories, the folders, the assets. Typed letters narrow it, the names that start with them first. */
     const left = all.filter(c => !named.includes(c.slug));
     const first = left.filter(c => plain(c.name).startsWith(w.q));
-    const list = [...first, ...left.filter(c => !first.includes(c) && plain(c.name).includes(w.q))].slice(0, 8);
+    const list = w.q ? [...first, ...left.filter(c => !first.includes(c) && plain(c.name).includes(w.q))] : left;
     if (!list.length){ closeAt(); return; }
     if (atBox !== ta) atAt = 0;
     atBox = ta; atList = list; atAt = Math.min(atAt, list.length - 1);
     if (!atMenu){ atMenu = el("div","pick-menu at-menu"); atMenu.setAttribute("role","listbox"); document.body.append(atMenu); }
+    const scroll = atMenu.scrollTop;
     atMenu.innerHTML = "";
+    const HEAD = { group: "Categories", folder: "Folders", asset: "Assets" };
+    let was = "";
     list.forEach((c, i) => {
+      /* With nothing typed, a heading over each kind. */
+      if (!w.q && c.kind && c.kind !== was){ atMenu.append(el("div","pk-h", HEAD[c.kind])); was = c.kind; }
       const b = el("button","pk-row" + (i === atAt ? " on" : "")); b.type = "button"; b.setAttribute("role","option");
-      b.append(el("span","pk-nm",c.name)); if (c.tag) b.append(el("span","pk-ct",c.tag));
+      const ic = el("span","pk-ic");
+      if (c.kind === "group") ic.innerHTML = GROUP_ICON; else if (c.a) ic.innerHTML = pjIcon(c.a.kind); else if (c.b) ic.append(brainIcon(c.b));
+      b.append(ic, el("span","pk-nm",c.name)); if (c.tag) b.append(el("span","pk-ct",c.tag));
       /* A press keeps the focus in the field, so the caret stays where the word is. */
       b.onmousedown = e => e.preventDefault();
       b.onclick = () => choose(c);
       atMenu.append(b);
     });
+    atMenu.scrollTop = scroll;
+    atMenu.querySelector(".pk-row.on")?.scrollIntoView({ block: "nearest" });
     const r = ta.getBoundingClientRect();
     atMenu.style.left = Math.max(8, Math.min(r.left, innerWidth - 328)) + "px";
     atMenu.style.width = Math.min(320, innerWidth - 16) + "px";
