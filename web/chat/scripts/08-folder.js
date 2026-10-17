@@ -271,7 +271,7 @@ function folderHead({ b, self, live, reads, clashes, h, ro, panes }){
   head.append(t);
   if (h && !self){
     const hl = el("button","fv-hl"); hl.type = "button"; hl.id = "fvHealth";
-    const ring = healthRing(h, b, false); ring.removeAttribute("aria-label");
+    const ring = healthRing(h, b); ring.removeAttribute("aria-label");
     const txt = el("div"); txt.append(el("b",null,`Health ${fmtScore(h.score)} / 10`), el("span","say",`Next: ${h.best}`));
     hl.append(ring, txt);
     hl.onclick = () => openHealthSheet(b);

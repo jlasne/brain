@@ -154,16 +154,12 @@ function brainRow(b){
   if (!self) row.setAttribute("aria-pressed", String(on));
   row.onkeydown = e => { if (e.target === row && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); row.click(); } };
   const ideas = conceptsOf(b.slug).length, read = sourcesOf(b.slug).length;
-  /* The score stands for what the brain holds, so the row shows the ring and
-     leaves the counts to its title. */
+  /* A row is its name: the counts sit in its title, the health on the folder's page. */
   const tick = el("span","tick");
   tick.append(brainIcon(b));
   if (!self){ const box = el("span","tbox"); box.innerHTML = TICK_SVG; tick.append(box); }
   row.append(tick, el("span","nm",b.name));
   if (readOnly(b)) row.append(el("span","ro-tag","Ask only"));
-  row.append(el("span","cnt", self ? "" : String(ideas)));
-  const h = S.health[b.slug];
-  if (h) row.append(healthRing(h, b));
   row.title = b.type === "personal" ? `Personal, alpha: it files what you say in its chat, dated. Only that chat reads it.\n${ideas} notes`
     : `${b.scope || "no scope line"}\n${ideas} concepts, ${read} sources` +
       (from ? `\nShared with this workspace from ${from}${readOnly(b) ? ". Read only here" : ""}` : out.length ? `\nShared with ${out.join(", ")}` : "");
@@ -471,17 +467,15 @@ function renameChat(c){
 /* ---- health ---- */
 function healthTone(x){ return x >= 7 ? "h-hi" : x >= 4 ? "h-mid" : "h-lo"; }
 function fmtScore(x){ return Number.isInteger(x) ? String(x) : x.toFixed(1); }
-/** The ring on a brain row: it fills with the score, and opens the breakdown. */
-/** The ring, as a button of its own; `alone` false gives the ring alone, for a button that already holds it. */
-function healthRing(h, b, alone = true){
-  const r = el(alone ? "button" : "span","hring"); if (alone) r.type = "button";
+/** The ring on a folder's page: it fills with the score. The button that holds it opens the breakdown. */
+function healthRing(h, b){
+  const r = el("span","hring");
   const C = 2 * Math.PI * 9, fill = Math.max(0, Math.min(1, h.score / 10)) * C;
   r.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="tr" cx="12" cy="12" r="9"/>
     <circle class="ar ${healthTone(h.score)}" cx="12" cy="12" r="9" stroke-dasharray="${fill.toFixed(2)} ${C.toFixed(2)}"/>
     <text x="12" y="12.4">${fmtScore(h.score)}</text></svg>`;
   r.title = `Health ${fmtScore(h.score)}/10 against the best folder. ${h.best}`;
   r.setAttribute("aria-label", `Health of ${b.name}: ${fmtScore(h.score)} out of 10`);
-  if (alone) r.onclick = e => { e.stopPropagation(); openHealthSheet(b); };
   return r;
 }
 

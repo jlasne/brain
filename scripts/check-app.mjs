@@ -1162,9 +1162,8 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     heads: [...document.querySelectorAll("#brains .group-h")].map(h => h.textContent).join(",") }));
   check("the folders group by type, People then Subjects, the fullest first in each",
     side.rows.join(",") === "Richard Detente:Person,Content:Subject,Health:Subject" && side.heads === "People,Subjects", JSON.stringify(side));
-  const sized = await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row .cnt")].map(x => x.textContent).join(","));
-  const counts = sized.split(",").map(Number);
-  check("each row shows how many concepts it holds", counts.length === 3 && counts[1] >= counts[2], sized);
+  const bare = await page.evaluate(() => ({ cnt: document.querySelectorAll("#brains .brain-row .cnt, #brains .brain-row .hring").length, title: [...document.querySelectorAll("#brains .brain-row")].find(r => /Content/.test(r.textContent))?.title }));
+  check("a row is its name alone: no count and no ring, the counts in its title", bare.cnt === 0 && /\d+ concepts, \d+ sources/.test(bare.title || ""), JSON.stringify(bare));
 
   /* The one-pager is built from several folders at once. */
   await openPager(page); await page.waitForTimeout(100);
@@ -1458,22 +1457,22 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     };
   }, two);
   await page.waitForTimeout(250);
-  const ring = await page.evaluate(() => { const r = document.querySelector('#brains .brain-row .hring');
-    const rows = [...document.querySelectorAll("#brains .brain-row")].map(x => x.querySelector(".nm").textContent + ":" + x.querySelector(".hring text")?.textContent);
-    return r ? { rows, tone: document.querySelector('#brains .brain-row .hring .ar').getAttribute("class") } : null; });
-  check("each brain carries its score ring, the best one at 10", ring && ring.rows.includes("Content:6.5") && ring.rows.includes("Charles Gave:10"), JSON.stringify(ring));
-  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => r.querySelector(".nm").textContent === "Content").querySelector(".hring").click());
-  await page.waitForTimeout(150);
+  const openOf = name => page.evaluate(n => [...document.querySelectorAll("#brains .brain-row")].find(r => r.querySelector(".nm").textContent === n).querySelector(".ed.op").click(), name);
+  check("the side list carries no ring", await page.evaluate(() => !document.querySelector("#brains .hring")));
+  await openOf("Content"); await page.waitForTimeout(250);
+  check("a folder's page carries its score ring", await page.evaluate(() => document.querySelector("#fvHealth .hring text")?.textContent) === "6.5");
+  await page.click("#fvHealth"); await page.waitForTimeout(150);
   const sheet = await page.evaluate(() => ({ h: document.querySelector(".sheet h3")?.textContent, p: document.querySelector(".sheet header p")?.textContent,
     parts: [...document.querySelectorAll(".hb-row")].map(r => r.querySelector(".hb-top").textContent + " | " + r.querySelector(".hb-say").textContent),
     bar: document.querySelectorAll(".hb-row")[1]?.querySelector(".hb-bar i")?.style.width,
     best: document.querySelector(".hb-best")?.textContent, settle: !!document.getElementById("hbSettle"), scope: !!document.querySelector(".brain-row.on") }));
   check("tapping the ring shows each part as a share of the best, and the move", sheet.h === "Content: 6.5/10" && /best folder, Charles Gave, which reads 10/.test(sheet.p)
     && sheet.parts.length === 4 && /^Depth30% of the best \| 30% of 40 concepts/.test(sheet.parts[1]) && sheet.bar === "30%"
-    && /Best moveBack more concepts with a second source/.test(sheet.best) && sheet.settle && !sheet.scope, JSON.stringify(sheet));
+    && /Best moveBack more concepts with a second source/.test(sheet.best) && sheet.settle, JSON.stringify(sheet));
   await page.click("#hbDone");
-  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => r.querySelector(".nm").textContent === "Charles Gave").querySelector(".hring").click());
-  await page.waitForTimeout(150);
+  await openOf("Charles Gave"); await page.waitForTimeout(250);
+  check("the best one reads 10", await page.evaluate(() => document.querySelector("#fvHealth .hring text")?.textContent) === "10");
+  await page.click("#fvHealth"); await page.waitForTimeout(150);
   const person = await page.evaluate(() => ({ p: document.querySelector(".sheet header p")?.textContent,
     v: document.querySelector(".hb-row")?.textContent }));
   check("the best brain says it sets the bar, and a person skips variety", /The best folder here/.test(person.p) && /Variety\s*not counted/.test(person.v)
@@ -2966,7 +2965,7 @@ for (const space of ["octopus", "squidgy"]) {
     : (x.classList.contains("in-group") ? "  " : "") + x.querySelector(".nm").textContent).join("|"));
   check("the side panel shows each category, the fullest first, with its folders under it; a folder in none keeps its group",
     side === "#Personal|Me|#Categories|[Wealth]|  Wealth|  Charles Gave|  Crypto|[Business]|  Content|  Alex Hormozi|#Subjects|Social", side);
-  check("a category says what its folders hold", await page.evaluate(() => document.querySelector('#brains .group-row[data-group="Wealth"] .cnt').textContent) === "10");
+  check("a category is its name alone, its folders in its title", await page.evaluate(() => { const g = document.querySelector('#brains .group-row[data-group="Wealth"]'); return !g.querySelector(".cnt") && /Wealth, Charles Gave, Crypto/.test(g.title); }));
   await page.click('#brains .group-row[data-group="Wealth"]'); await page.waitForTimeout(100);
   const ticked = await page.evaluate(() => ({ on: [...document.querySelectorAll("#brains .brain-row.on .nm")].map(x => x.textContent).join(","), val: document.getElementById("scopeVal").textContent }));
   check("one click on a category ticks all its folders", ticked.on === "Wealth,Wealth,Charles Gave,Crypto" && /^Wealth \+2$/.test(ticked.val), JSON.stringify(ticked));
@@ -4026,9 +4025,9 @@ for (const space of ["octopus", "squidgy"]) {
   };
   const { page, bad } = await boot("/chat.html", init, { state: { ...STATE, brains: [{ slug: "wealth", name: "Wealth", type: "subject", scope: "w", owner: null }] }, assets: A });
   const side = await page.evaluate(() => ({ panels: [...document.querySelectorAll("aside .panel")].filter(p => !p.hidden).map(p => p.id).join(","),
-    rows: [...document.querySelectorAll("#brains .as-row")].map(r => r.querySelector(".nm").textContent + ":" + r.querySelector(".cnt").textContent), count: document.getElementById("bcount").textContent,
+    rows: [...document.querySelectorAll("#brains .as-row")].map(r => r.querySelector(".nm").textContent + ":" + (/4 rows|empty/.exec(r.title) || [""])[0]), count: document.getElementById("bcount").textContent,
     heads: [...document.querySelectorAll("#brains .group-h")].map(h => h.textContent).join(",") }));
-  check("the assets sit in the folders' list, under their own heading, newest first, each with its size", side.panels === "chatsPanel,brainsPanel" && JSON.stringify(side.rows) === '["invest-assets.csv:4 rows","Rules.md:empty"]'
+  check("the assets sit in the folders' list, under their own heading, newest first, each with its size in its title", side.panels === "chatsPanel,brainsPanel" && JSON.stringify(side.rows) === '["invest-assets.csv:4 rows","Rules.md:empty"]'
     && side.count === "3" && side.heads === "Subjects,Assets", JSON.stringify(side));
   /* a click ticks it for the chat, as a folder's does */
   await page.click("#brains .as-row >> nth=0"); await page.waitForTimeout(150);
@@ -4333,17 +4332,13 @@ for (const space of ["octopus", "squidgy"]) {
   await page.keyboard.press("Escape"); await page.waitForTimeout(150);
   check("Escape closes Settings and the focus goes back to the button that opened it", await page.evaluate(() => !document.querySelector(".veil") && document.activeElement?.id === "keyBtn"));
 
-  /* a folder row is reached with the keyboard: Enter ticks it, and its ring and open are buttons of their own */
+  /* a folder row is reached with the keyboard: Enter ticks it, and its open is a button of its own */
   const row = await page.evaluate(() => { const r = [...document.querySelectorAll("#brains .brain-row")].find(x => /Wealth/.test(x.textContent));
-    return { role: r.getAttribute("role"), tab: r.tabIndex, op: r.querySelector(".ed.op")?.tagName, ring: r.querySelector(".hring")?.tagName, label: r.querySelector(".ed.op")?.getAttribute("aria-label") }; });
-  check("a folder row is a button to the keyboard, its open and its health ring are buttons of their own", row.role === "button" && row.tab === 0 && row.op === "BUTTON" && row.ring === "BUTTON" && row.label === "Open Wealth", JSON.stringify(row));
+    return { role: r.getAttribute("role"), tab: r.tabIndex, op: r.querySelector(".ed.op")?.tagName, label: r.querySelector(".ed.op")?.getAttribute("aria-label") }; });
+  check("a folder row is a button to the keyboard, its open a button of its own", row.role === "button" && row.tab === 0 && row.op === "BUTTON" && row.label === "Open Wealth", JSON.stringify(row));
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(x => /Wealth/.test(x.textContent)).focus());
   await page.keyboard.press("Enter"); await page.waitForTimeout(150);
   check("Enter on a folder row ticks it", await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(x => /Wealth/.test(x.textContent)).getAttribute("aria-pressed") === "true"));
-  await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(x => /Health/.test(x.textContent)).querySelector(".hring").focus());
-  await page.keyboard.press("Enter"); await page.waitForTimeout(200);
-  check("Enter on its ring opens the health sheet, and leaves the row as it was", await page.evaluate(() => !!document.querySelector(".veil") && [...document.querySelectorAll("#brains .brain-row")].find(x => /Health/.test(x.textContent)).getAttribute("aria-pressed") === "false"));
-  await page.keyboard.press("Escape"); await page.waitForTimeout(150);
 
   /* a phone: every control in the drawer reaches a thumb */
   await page.setViewportSize({ width: 390, height: 800 }); await page.waitForTimeout(250);

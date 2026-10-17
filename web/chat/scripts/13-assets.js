@@ -27,8 +27,8 @@ function assetRow(a){
   row.onkeydown = e => { if (e.target === row && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); row.click(); } };
   const tick = el("span","tick"), ic = el("span","a-ic"); ic.innerHTML = pjIcon(a.kind);
   const box = el("span","tbox"); box.innerHTML = TICK_SVG; tick.append(ic, box);
-  row.append(tick, el("span","nm",a.name), el("span","cnt", assetMeta(a)));
-  row.title = `${a.name}\n${kindTitle(a)}. Click to read it in the chat, or call it with @.`;
+  row.append(tick, el("span","nm",a.name));
+  row.title = `${a.name}\n${kindTitle(a)}, ${assetMeta(a)}. Click to read it in the chat, or call it with @.`;
   row.onclick = () => {
     if (a.status !== "ready"){ openAsset(a.id); return; }
     if (S.concept) newChat();

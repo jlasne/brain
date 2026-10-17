@@ -62,8 +62,7 @@ function groupRow(g){
   row.onkeydown = e => { if (e.target === row && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); row.click(); } };
   const tick = el("span","tick"); tick.innerHTML = GROUP_ICON;
   const box = el("span","tbox"); box.innerHTML = TICK_SVG; tick.append(box);
-  const n = (g.files || []).length;
-  row.append(tick, el("span","nm", g.name), el("span","cnt", g.rows.length ? String(g.size) : `${n} asset${n === 1 ? "" : "s"}`));
+  row.append(tick, el("span","nm", g.name));
   row.title = `${[...g.rows.map(b => b.name), ...(g.files || []).map(a => a.name)].join(", ")}\nClick to ask ${g.rows.length ? `all ${g.rows.length} folders` : "them"}${ids.length ? `${g.rows.length ? " and " : " "}${Math.min(4, ids.length)} asset${ids.length === 1 ? "" : "s"}` : ""}.`;
   row.onclick = () => {
     if (S.concept) newChat();
