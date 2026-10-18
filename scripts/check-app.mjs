@@ -231,7 +231,7 @@ async function openPager(page) {
     rows: [...document.querySelectorAll(".pick-menu .pk-row .pk-nm")].map(x => x.firstChild.textContent),
     heads: [...document.querySelectorAll(".pick-menu .pk-h")].map(x => x.textContent),
   }));
-  check("its menu offers every folder in one list", menu.rows.join(",") === "All folders,Content" && menu.heads.join(",") === "Or tick folders",
+  check("its menu offers every folder in one list", menu.rows.join(",") === "All folders,Content" && menu.heads.join(",") === "Or tick what it reads",
     JSON.stringify(menu));
   check("each with its person or subject mark", await page.evaluate(() =>
     document.querySelector(".pick-menu .pk-row:nth-of-type(2) .b-ic")?.getAttribute("aria-label")) === "Subject");
@@ -3029,6 +3029,13 @@ for (const space of ["octopus", "squidgy"]) {
   const on = await page.evaluate(() => ({ folders: [...document.querySelectorAll("#brains .brain-row.on:not(.group-row):not(.as-row) .nm")].map(x => x.textContent).join(","),
     assets: [...document.querySelectorAll("#brains .as-row.on .nm")].map(x => x.textContent).join(","), val: document.getElementById("scopeVal").textContent }));
   check("one click on a category ticks its folders and its assets", on.folders === "Wealth" && on.assets === "cm-deal" && on.val === "Wealth + cm-deal", JSON.stringify(on));
+  await page.focus("#input"); await page.click("#scopeBtn"); await page.waitForTimeout(100);
+  const pk = await page.evaluate(() => [...document.querySelectorAll(".pick-menu .pk-h, .pick-menu .pk-row")].map(x =>
+    x.classList.contains("pk-h") ? "#" + x.textContent : x.classList.contains("pk-group") ? "[" + x.querySelector(".pk-nm").textContent + "]"
+    : (x.classList.contains("pk-in") ? "  " : "") + (x.classList.contains("pk-asset") ? "~" : "") + x.querySelector(".pk-nm").firstChild.textContent).join("|"));
+  check("the chat bar's picker groups like the side panel: each category with its folders then its assets, then the rest",
+    pk === "All folders|#Or tick what it reads|[Wealth]|  Wealth|  ~cm-deal|[Sales]|  ~Pitch.md|Social|#Assets|~Notes.md", pk);
+  await page.keyboard.press("Escape");
   await page.fill("#input", "what is the state of the deals?"); await page.click("#send"); await page.waitForTimeout(300);
   const sent = await page.evaluate(() => window.__calls.filter(x => x.s.includes("/api/ask")).pop()?.body);
   check("and the message reads both", sent?.brain === "wealth" && JSON.stringify(sent?.assets) === "[2]", JSON.stringify(sent));
@@ -4057,7 +4064,8 @@ for (const space of ["octopus", "squidgy"]) {
   await page.click("#startBtn"); await page.waitForTimeout(150);
   await page.click("#scopeBtn"); await page.waitForTimeout(120);
   const pk = await page.evaluate(() => ({ h: [...document.querySelectorAll(".pick-menu .pk-h")].map(x => x.textContent), rows: [...document.querySelectorAll(".pick-menu .pk-asset .pk-nm")].map(x => x.textContent) }));
-  check("the chat bar's picker lists the assets beside the folders", pk.h.includes("And assets to read") && pk.rows.includes("invest-assets.csv"), JSON.stringify(pk));
+  check("the chat bar's picker lists the assets beside the folders, under Assets, names only", pk.h.includes("Assets") && pk.rows.includes("invest-assets.csv")
+    && await page.evaluate(() => !document.querySelector(".pick-menu .pk-ct")), JSON.stringify(pk));
   await page.click('.pick-menu .pk-asset[data-fid="2"]'); await page.waitForTimeout(120);
   const ticked = await page.evaluate(() => ({ open: !!document.querySelector(".pick-menu"), on: !!document.querySelector('.pick-menu .pk-asset.on[data-fid="2"]'), label: document.getElementById("scopeVal").textContent, ph: document.getElementById("input").placeholder }));
   check("ticking one keeps the menu open, and the bar says what it will read", ticked.open && ticked.on && ticked.label === "invest-assets.csv" && /Ask about invest-assets\.csv\./.test(ticked.ph), JSON.stringify(ticked));
