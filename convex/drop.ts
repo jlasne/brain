@@ -208,6 +208,43 @@ export function publicHost(host: string): boolean {
   return true;
 }
 
+/*
+ * A public name can still point inside: 127.0.0.1.nip.io is one. So the name is looked up first, at a public DNS service, and
+ * one that answers with a private, loopback, link-local or multicast address is refused. A lookup that fails lets the fetch
+ * go, so a slow DNS service never stops a drop; the check on the name above still holds then.
+ */
+const PRIVATE_IP = /^(0\.|10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|22[4-9]\.|2[3-5]\d\.|::1?$|::ffff:|f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i;
+export async function pointsInside(host: string): Promise<boolean> {
+  const ask = async (type: "A" | "AAAA") => {
+    try {
+      const r = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=${type}`,
+        { headers: { accept: "application/dns-json" }, signal: AbortSignal.timeout(4000) });
+      if (!r.ok) return false;
+      const d: any = await r.json();
+      return (d?.Answer ?? []).some((x: any) => (x.type === 1 || x.type === 28) && PRIVATE_IP.test(String(x.data ?? "")));
+    } catch { return false; }
+  };
+  return (await Promise.all([ask("A"), ask("AAAA")])).some(Boolean);
+}
+
+/** A page's text, read up to 2 MB: a larger body is cut there, so no page can fill the action's memory. */
+const PAGE_BYTES = 2_000_000;
+async function readCapped(r: Response): Promise<string> {
+  if (!r.body) return (await r.text()).slice(0, PAGE_BYTES);
+  const reader = r.body.getReader(), parts: Uint8Array[] = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done || !value) break;
+    parts.push(value); n += value.length;
+    if (n >= PAGE_BYTES) { await reader.cancel().catch(() => {}); break; }
+  }
+  const all = new Uint8Array(n);
+  let at = 0;
+  for (const p of parts) { all.set(p.subarray(0, n - at), at); at += Math.min(p.length, n - at); }
+  return new TextDecoder().decode(all);
+}
+
 const VIDEO_HOST = /(^|\.)(youtube\.com|youtu\.be|vimeo\.com|tiktok\.com|dailymotion\.com)$/i;
 
 const CAP = 60000;
@@ -343,6 +380,7 @@ export async function fetchPage(ctx: any, raw: string): Promise<any> {
     const deadline = AbortSignal.timeout(25000);
     let at = u;
     for (let hop = 0; ; hop++) {
+      if (await pointsInside(at.hostname.toLowerCase())) return { error: `${at.hostname} points to a private address.` };
       r = await fetch(at.toString(), {
         redirect: "manual",
         signal: deadline,
@@ -378,7 +416,7 @@ export async function fetchPage(ctx: any, raw: string): Promise<any> {
       `This reads web pages. A file is read directly instead, so attach it.` };
   }
 
-  const body = await r.text();
+  const body = await readCapped(r);
   const clean = body
     .replace(/<!--[\s\S]*?-->/g, " ")
     .replace(/<(script|style|svg|noscript|nav|footer|header|form|aside)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")

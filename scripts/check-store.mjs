@@ -62,13 +62,13 @@ function makeDb() {
     let conds = [];
     const api = {
       withIndex(_name, fn) {
-        const q = { eq(f, v) { conds.push([f, v]); return q; }, gte(f, v) { conds.push([f, v, "gte"]); return q; } };
+        const q = { eq(f, v) { conds.push([f, v]); return q; }, gte(f, v) { conds.push([f, v, "gte"]); return q; }, lt(f, v) { conds.push([f, v, "lt"]); return q; } };
         if (fn) fn(q);
         return api;
       },
       order(dir) { api._desc = dir === "desc"; return api; },
       async collect() {
-        const all = rows(t).filter(r => conds.every(([f, v, op]) => op === "gte" ? r[f] >= v : r[f] === v));
+        const all = rows(t).filter(r => conds.every(([f, v, op]) => op === "gte" ? r[f] >= v : op === "lt" ? r[f] < v : r[f] === v));
         return api._desc ? all.slice().reverse() : all;
       },
       async first() { return (await api.collect())[0] ?? null; },
@@ -357,7 +357,8 @@ I run a marathon in May.
   }
   check("upkeep points every vector at its concept's folder again, and drops the ones whose concept is gone", T.vectors.every(v => v.brain === "money") && !T.vectors.some(v => v._id === "v-gone"), JSON.stringify(T.vectors.map(v => v._id + ":" + v.brain)));
   check("then empties the tables of removed features, more than one call's worth included", (T.pages ?? []).length === 0 && (T.heat ?? []).length === 0, runs.join(","));
-  check("and once both are done it reads its two flags and does nothing more", runs.at(-1) === "none" && T.config.filter(c => /^upkeep:/.test(c.key)).length === 2, runs.join(","));
+  check("then writes every card again, so each carries its count of open conflicts", runs.includes("cards") && T.cards.length > 0 && T.cards.every(c => typeof c.clash === "number"), runs.join(","));
+  check("and once all three are done it reads its three flags and does nothing more", runs.at(-1) === "none" && T.config.filter(c => /^upkeep:/.test(c.key)).length === 3, runs.join(","));
   const again = await run(admin.upkeep, ctx, {});
   check("a later night finds nothing to do", again.job === "none" && later.length === 0);
 }
@@ -431,14 +432,9 @@ I run a marathon in May.
     String(T.concepts.find(c => c.title === "Platinum")?.n));
 }
 
-/* ---- everything reads one space ---- */
+/* ---- a space reads only its own ---- */
 {
   const { ctx } = seed();
-  const oc = await run(store.everything, ctx, { space: "octopus" });
-  const sq = await run(store.everything, ctx, { space: "squidgy" });
-  check("each space reads only its brains, concepts and sources",
-    oc.brains.length === 1 && oc.concepts.length === 2 && oc.sources.length === 1 &&
-    sq.brains.length === 1 && sq.concepts.length === 0 && sq.sources.length === 1);
   const head = await run(store.spaceHead, ctx, { space: "squidgy" });
   check("a space's head names only its own brains and sources", head.brains.length === 1 && head.brains[0].slug === "dogs" && head.sources.length === 1);
 }
@@ -802,7 +798,7 @@ I run a marathon in May.
 /* ---- a passphrase guess is counted before it is checked ---- */
 {
   const { T, ctx } = seed();
-  await run(admin.makeWorkspace, ctx, { name: "Lockbox", pass: "ABC12345" });
+  await run(admin.makeWorkspace, ctx, { name: "Lockbox", pass: "ABC12345-long" });
   const takes = [];
   for (let i = 0; i < 9; i++) takes.push(await run(store.takeAttempt, ctx, { space: "lockbox" }));
   check("a door hands out 8 guesses an hour, counted as they are taken", takes.slice(0, 8).every(t => !t.locked && t.salt) && takes[8].locked && !takes[8].salt,
@@ -906,19 +902,24 @@ I run a marathon in May.
 /* ---- a workspace for someone, on the deployment's own key ---- */
 {
   const { T, ctx } = seed();
-  const made = await run(admin.makeWorkspace, ctx, { name: "PandAAAHH", pass: "ABC12345" });
+  const made = await run(admin.makeWorkspace, ctx, { name: "PandAAAHH", pass: "ABC12345-long" });
   check("a workspace is made by its name, and opens from the landing by that name", made.slug === "pandaaahh" && made.name === "PandAAAHH" && made.opens === "/chat?w=pandaaahh", JSON.stringify(made));
   check("it is hosted: not a visitor's own key, not the demo, so the deployment's key pays", T.workspaces.some(w => w.slug === "pandaaahh" && w.kind === "hosted"));
   const g = await run(store.gateState, ctx, { space: "pandaaahh" });
-  check("its door holds the passphrase, hashed with its own salt, and nothing readable", g.set && g.hash === await lib.sha256(g.salt, "ABC12345") && !JSON.stringify(T.config).includes("ABC12345"));
+  check("its door holds the passphrase, hashed slowly with its own salt, and nothing readable",
+    g.set && g.hash.startsWith("p2$600000$") && await lib.passMatches(g.salt, "ABC12345-long", g.hash) && !(await lib.passMatches(g.salt, "ABC12345-lonG", g.hash)) && !JSON.stringify(T.config).includes("ABC12345"));
+  check("its door carries the mark that lets the landing skip it for other passphrases",
+    T.config.find(r => r.key === "gate:pandaaahh")?.mark === await lib.passMark("ABC12345-long"));
+  const old = await lib.sha256("s", "an older passphrase");
+  check("a hash of the old kind still opens its door, and is known to be old", await lib.passMatches("s", "an older passphrase", old) && !(await lib.passMatches("s", "another one", old)) && lib.passIsOld(old) && !lib.passIsOld(g.hash));
   check("it starts empty", (await run(store.spaceHead, ctx, { space: "pandaaahh" })).brains.length === 0);
   await run(store.createWorkspace, ctx, { slug: "visitor-co", name: "Visitor Co", kind: "byok" });
   const listedHosted = await run(store.hostedList, ctx, {});
   check("the landing lists it by name, and never a workspace a visitor made", JSON.stringify(listedHosted) === '[{"slug":"pandaaahh","name":"PandAAAHH"}]', JSON.stringify(listedHosted));
-  check("a passphrase under 8 characters is refused", /at least 8/.test(await throws(run(admin.makeWorkspace, ctx, { name: "Short", pass: "ABC123" }))));
-  check("so is a name already taken, or one of the owner's two", /taken/.test(await throws(run(admin.makeWorkspace, ctx, { name: "pandaaahh", pass: "ABC12345" })))
-    && /taken/.test(await throws(run(admin.makeWorkspace, ctx, { name: "Squidgy", pass: "ABC12345" }))));
-  check("and a name with no letters is refused", /2 letters/.test(await throws(run(admin.makeWorkspace, ctx, { name: "!", pass: "ABC12345" }))));
+  check("a passphrase under 12 characters is refused", /at least 12/.test(await throws(run(admin.makeWorkspace, ctx, { name: "Short", pass: "ABC123" }))));
+  check("so is a name already taken, or one of the owner's two", /taken/.test(await throws(run(admin.makeWorkspace, ctx, { name: "pandaaahh", pass: "ABC12345-long" })))
+    && /taken/.test(await throws(run(admin.makeWorkspace, ctx, { name: "Squidgy", pass: "ABC12345-long" }))));
+  check("and a name with no letters is refused", /2 letters/.test(await throws(run(admin.makeWorkspace, ctx, { name: "!", pass: "ABC12345-long" }))));
 
   /* The owner can give it a brain to feed, from Share brain. */
   const targets = (await run(store.shareState, ctx, { space: "octopus" })).targets.map(t => `${t.slug}:${t.mode}:${t.name}`);
@@ -979,7 +980,7 @@ I run a marathon in May.
 /* ---- the model of every workspace on the deployment's key, set at once ---- */
 {
   const { T, ctx } = seed();
-  await run(admin.makeWorkspace, ctx, { name: "PandAAAHH", pass: "ABC12345" });
+  await run(admin.makeWorkspace, ctx, { name: "PandAAAHH", pass: "ABC12345-long" });
   T.workspaces.push({ _id: "wd", slug: "demo", name: "Demo", kind: "demo", created: "2026-01-01" }, { _id: "wb", slug: "acme", name: "Acme", kind: "byok", created: "2026-01-01" });
   await run(store.setModels, ctx, { space: "octopus", chat: "z-ai/glm-5.3", reply: "en", voice: "fr-FR" });
   const pick = () => Object.fromEntries(["octopus", "squidgy", "pandaaahh", "demo", "acme"].map(s => [s, T.models?.find(m => m.space === s)?.chat ?? null]));
@@ -1064,7 +1065,7 @@ I run a marathon in May.
   const set = (ds, glm) => { lists[DS] = [ep(ds), ep(ds)]; lists[GLM] = [ep(glm)]; };
   const world = async () => {
     const w = seed();
-    await run(admin.makeWorkspace, w.ctx, { name: "PandAAAHH", pass: "ABC12345" });
+    await run(admin.makeWorkspace, w.ctx, { name: "PandAAAHH", pass: "ABC12345-long" });
     w.T.workspaces.push({ _id: "wd", slug: "demo", name: "Demo", kind: "demo", created: "2026-01-01" }, { _id: "wb", slug: "acme", name: "Acme", kind: "byok", created: "2026-01-01" });
     await run(store.setModels, w.ctx, { space: "octopus", chat: "deepseek/deepseek-v4.1-flash", reply: "en", voice: "fr-FR" });
     const mods = { admin, store };
@@ -1306,18 +1307,20 @@ I run a marathon in May.
   const sent = [];
   globalThis.fetch = async (_u, opt) => {
     const b = JSON.parse(opt.body); sent.push(b);
-    if (b.model === "z-ai/glm-5.3-flash" && b.reasoning?.effort === "none")
+    if ((b.model === "z-ai/glm-5.3-flash" || b.model === "x-ai/must-think") && b.reasoning?.effort === "none")
       return new Response(JSON.stringify({ error: { message: "Reasoning is mandatory for this endpoint and cannot be disabled." } }), { status: 400 });
     return new Response(JSON.stringify({ choices: [{ message: { content: '{"ok":true}' }, finish_reason: "stop" }] }), { status: 200 });
   };
-  const r = await lib.ask([{ role: "user", content: "x" }], { json: true, maxTokens: 1200, model: "z-ai/glm-5.3-flash" });
+  const r = await lib.ask([{ role: "user", content: "x" }], { json: true, maxTokens: 1200, model: "x-ai/must-think" });
   check("a model that refuses to think none answers on the second ask", r.text === '{"ok":true}' && sent.length === 2, JSON.stringify(sent.map(b => b.reasoning)));
   check("with a little thinking, kept out of the reply, and room for it", sent[1].reasoning.effort === "low" && sent[1].reasoning.exclude === true
     && sent[1].max_tokens === 1200 + lib.THINK_ROOM, JSON.stringify(sent[1]));
-  await lib.ask([{ role: "user", content: "y" }], { model: "z-ai/glm-5.3-flash" });
+  await lib.ask([{ role: "user", content: "y" }], { model: "x-ai/must-think" });
   check("and the next call asks it right the first time", sent.length === 3 && sent[2].reasoning.effort === "low");
   await lib.ask([{ role: "user", content: "z" }], { model: "deepseek/deepseek-v4-flash-0731" });
   check("a model that can skip thinking still skips it", sent[3].reasoning.effort === "none");
+  await lib.ask([{ role: "user", content: "d" }], {});
+  check("the default model, known to need thinking, is asked right from a fresh server's first call", sent.length === 5 && sent[4].model === lib.MODEL && sent[4].reasoning.effort === "low");
   globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: "Provider returned error" } }), { status: 400 });
   check("any other refusal is reported, not retried", /./.test(await throws(lib.ask([{ role: "user", content: "w" }], { model: "openai/gpt-x" }))));
   globalThis.fetch = real; delete process.env.OPENROUTER_API_KEY;

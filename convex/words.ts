@@ -197,19 +197,6 @@ export function checkSources(text: string, opened: any[]): string {
 }
 
 /**
- * The stored knowledge a question reads.
- *
- * Every brain in the pool is searched. The concepts that bear on the question
- * open in full, the next ones are named by title so the answer knows what else
- * is held, and a follow-up borrows the words of the question before it.
- */
-export function dossierFor(pool: any[], concepts: any[], q: string, history?: any,
-                           opts: { picked?: string[]; terms?: string[]; routed?: boolean; ran?: boolean; near?: string[]; prior?: string[] } = {}) {
-  return writeDossier(pool, planDossier(pool, concepts, q, history, opts),
-    new Map(concepts.map((c: any) => [idOf(c), c])));
-}
-
-/**
  * Which concepts a question reads, in order, from cards alone: the slim copy
  * of each concept is enough to rank them. Only the ones this puts first are
  * then read whole, by writeDossier.
@@ -631,6 +618,8 @@ export function cardOf(c: any) {
     ...(Array.isArray(c.aliases) && c.aliases.length ? { aliases: c.aliases.slice(0, 12).map(String) } : {}),
     /* A person's file: the last day you were with them, whether it is built, and how many lines are still open. */
     ...(c.tag === "contact" ? { seen: String(c.file?.seen ?? ""), full: !!c.file, open: (c.file?.open ?? []).filter((x: any) => x && !x.done).length } : {}),
+    /* The open conflicts, not judged unreal: health counts them from the cards, without reading a concept. */
+    clash: (c.conflicts ?? []).filter((x: any) => x?.real !== false).length,
     updated: String(c.updated ?? ""),
     /* A short print of everything an answer reads of it: a change to any of it changes the print, which lets a saved answer go stale. */
     sig: hashOf(JSON.stringify([c.title, c.position, c.summaryLine, c.evidence, c.data, c.conflicts, c.related, c.file ?? null])),

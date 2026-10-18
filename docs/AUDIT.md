@@ -3,6 +3,14 @@
 Scope: the whole repository at commit `f5ac864`. Read only: no code changed.
 State at audit time: `npm run check` passes all 1,974 checks. No critical issue found.
 
+## Status after the fixes
+
+| Area | Done | Kept, and why |
+|---|---|---|
+| Dead code | 3 server functions (1 moved into the tests), 1 admin tool, the probe file (4 functions), 6 unused imports and locals, 1 frontend function, 4 CSS rules, 1 image, 1 index | 7 legacy schema fields and the `candidates` table: production rows may hold them, and Convex refuses a deploy whose schema drops a field a row still has. `promoteAll` and `dropReport`: the only way to promote seeded rows, and a drop diagnostic. `/mcp/v1`: a public address a client may hold |
+| Security | S1 to S8, S10. S9: HSTS, Permissions-Policy, a CSP for objects, base and framing | A strict `script-src`: the app is one inline script, and HTML assets inherit the page's policy |
+| Optimizations | O1 to O7, O9 | O8, the sources index: it needs a migration across about 10 write paths. The font change: Google serves the same 5 files either way, measured |
+
 ## tl;dr
 
 | Area | Count | Fix first |

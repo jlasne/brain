@@ -20,7 +20,10 @@ const dir = mkdtempSync(join(tmpdir(), "octo-ask-"));
 copyFileSync(join(ROOT, "convex", "words.ts"), join(dir, "words.ts"));
 await esbuild.build({ entryPoints: [join(dir, "words.ts")], bundle: true, format: "esm", nodePaths: [join(ROOT, "node_modules")],
   platform: "node", outfile: join(dir, "bundle.mjs"), logLevel: "silent" });
-const { dossierFor, indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, keywords, scoreConcept, mergeEvidence, cardOf, planDossier, writeDossier, idOf, rankConcepts, FULL_CHARS, TITLE_CHARS, TITLE_MAX, MIN_OPEN, INDEX_SHORT, isCloser, threadOf, priorOf, checkSources, PRIOR_MAX } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+const { indexFor, linkId, neighbours, linkCandidates, conceptSlug, legacySlug, findByTitle, keywords, scoreConcept, mergeEvidence, cardOf, planDossier, writeDossier, idOf, rankConcepts, FULL_CHARS, TITLE_CHARS, TITLE_MAX, MIN_OPEN, INDEX_SHORT, isCloser, threadOf, priorOf, checkSources, PRIOR_MAX } = await import(pathToFileURL(join(dir, "bundle.mjs")).href);
+/* The stored knowledge a question reads: the plan from cards, then the concepts it puts first read whole, as the server does. */
+const dossierFor = (pool, concepts, q, history, opts = {}) =>
+  writeDossier(pool, planDossier(pool, concepts, q, history, opts), new Map(concepts.map(c => [idOf(c), c])));
 
 let failures = 0;
 const check = (what, ok, saw) => {
@@ -200,7 +203,7 @@ const tokens = s => Math.round(s.length / 4);
     linkId(b, "acc") === `acc/${conceptSlug(b)}` && linkId(a, "acc") !== linkId(b, "acc"));
 
   /* The app keeps its own copy to merge batches; both must agree. */
-  const html = readFileSync(join(ROOT, "app", "chat.html"), "utf8");
+  const html = (await import("./build-app.mjs")).build();
   const src = html.match(/const conceptSlug = t => \{[\s\S]*?\n\};/);
   const client = src ? new Function(`${src[0]}; return conceptSlug;`)() : null;
   const titles = [...pairs.flat(), "Net present value", "Élan vital: a note on what the café économique argued in 1920"];

@@ -21,7 +21,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const html = readFileSync(join(ROOT, "app", "chat.html"), "utf8");
+/* The page as written: the page the site serves is minified, and its names are short. */
+const html = (await import("./build-app.mjs")).build();
 /* pdfMarkdown and the steps it calls, each lifted out of the page whole. */
 const lift = name => {
   const at = html.indexOf(`function ${name}(`);

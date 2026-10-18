@@ -208,7 +208,7 @@ async function fillGaps(chunk, part, i, total){
     const passages = gapPassages(chunk, left.missing);
     if (passages){
       try {
-        const more = (await apiRetry("/api/drop/read", { chunk: passages, part: i + 1, total, gaps: true })).part || {};
+        const more = (await apiRetry("/api/drop/read", { chunk: passages, part: i + 1, total, gaps: true }, { split: true })).part || {};
         part = { ...part, topics: [...(part.topics || [])], quotes: [...(part.quotes || []), ...(more.quotes || [])], thin: [...(part.thin || []), ...(more.thin || [])] };
         for (const t of more.topics || []){
           const had = part.topics.find(x => String(x.topic).toLowerCase() === String(t.topic).toLowerCase());

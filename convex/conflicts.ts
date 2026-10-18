@@ -16,6 +16,7 @@ import { internal } from "./_generated/api";
 import { ask, parseJson } from "./lib";
 import { plainClaim } from "./drop";
 import { STYLE, NO_DASH } from "./style";
+import { perBrain } from "./space";
 
 const CHECK_RULES = `Each item below is two claims a knowledge base recorded as clashing.
 
@@ -70,19 +71,22 @@ export function ruleHint(c: Clash): Hint {
 export async function listConflicts(ctx: any, space: string, model?: string, key?: string, opts: { hints?: boolean; meter?: (usage: any) => void } = {}): Promise<{ conflicts: Clash[]; others: number }> {
   const head = await ctx.runQuery(internal.store.spaceHead, { space });
   const all: Clash[] = [];
-  for (const br of head.brains) {
+  const pages = await perBrain(head.brains, async (br: any) => {
+    const items: any[] = [];
     let cursor: string | null = null;
     for (;;) {
       const p: any = await ctx.runQuery(internal.store.conflictsPage, { space, brain: br.slug, cursor });
-      for (const c of p.items) for (const x of c.conflicts ?? []) {
-        all.push({ id: c.id, brain: c.brain, title: c.title, a: String(x?.a ?? ""), aDate: String(x?.aDate ?? ""),
-                   b: String(x?.b ?? ""), bDate: String(x?.bDate ?? ""), why: String(x?.why ?? ""),
-                   ...(typeof x?.real === "boolean" ? { real: x.real } : {}),
-                   ...(x?.hint?.pick ? { hint: { pick: String(x.hint.pick), why: String(x.hint.why ?? "") } } : {}) });
-      }
+      items.push(...p.items);
       if (!p.next) break;
       cursor = p.next;
     }
+    return items;
+  });
+  for (const c of pages.flat()) for (const x of c.conflicts ?? []) {
+    all.push({ id: c.id, brain: c.brain, title: c.title, a: String(x?.a ?? ""), aDate: String(x?.aDate ?? ""),
+               b: String(x?.b ?? ""), bDate: String(x?.bDate ?? ""), why: String(x?.why ?? ""),
+               ...(typeof x?.real === "boolean" ? { real: x.real } : {}),
+               ...(x?.hint?.pick ? { hint: { pick: String(x.hint.pick), why: String(x.hint.why ?? "") } } : {}) });
   }
 
   /* The unmarked ones, 40 to a check. A check that fails marks nothing and

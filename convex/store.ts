@@ -3,7 +3,7 @@
 import { internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { linkId, conceptSlug, legacySlug, sameTitle, mergeEvidence, unionCap, cardOf, mergeFile, dedupeOpen, CACHE_DAYS } from "./words";
-import { sha256, randomHex, today, slug, gateKey, readSpace, HOME, SPACE_RE, SPACES,
+import { randomHex, today, slug, gateKey, readSpace, HOME, SPACE_RE, SPACES,
          SESSION_MS, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS, inSpace, isViewer, SPACE_NAME, linkKey, DAY_MS } from "./lib";
 
 /* ---------------- the gate ---------------- */
@@ -44,12 +44,12 @@ export const doorsAll = internalQuery({
   args: {},
   handler: async (ctx) => {
     const rows = (await ctx.db.query("config").collect()).filter(r => r.hash && r.salt && (r.key === "gate" || r.key.startsWith("gate:")));
-    const out: { space: string; salt: string; hash: string }[] = [];
+    const out: { space: string; salt: string; hash: string; mark?: string }[] = [];
     for (const r of rows) {
       const space = r.key === "gate" ? HOME : r.key.slice(5);
       const own = (SPACES as readonly string[]).includes(space);
       if (!own && !(await ctx.db.query("workspaces").withIndex("by_slug", q => q.eq("slug", space)).unique())) continue;
-      out.push({ space, salt: r.salt as string, hash: r.hash as string });
+      out.push({ space, salt: r.salt as string, hash: r.hash as string, ...(r.mark ? { mark: r.mark } : {}) });
     }
     /* The owner's own two first, then the rest by name. */
     return out.sort((x, y) => Number((SPACES as readonly string[]).includes(y.space)) - Number((SPACES as readonly string[]).includes(x.space)) || x.space.localeCompare(y.space));
@@ -67,30 +67,40 @@ export const gatesSet = internalQuery({
 });
 
 export const setGate = internalMutation({
-  args: { salt: v.string(), hash: v.string(), space: v.optional(v.string()), replace: v.optional(v.boolean()) },
+  args: { salt: v.string(), hash: v.string(), mark: v.optional(v.string()), space: v.optional(v.string()), replace: v.optional(v.boolean()) },
   handler: async (ctx, a) => {
     const space = readSpace(a.space);
     const row = await gateRow(ctx, space);
     if (row?.hash && !a.replace) throw new Error("a passphrase is already set");
-    const doc = { key: gateKey(space), salt: a.salt, hash: a.hash, attempts: 0, attemptWindow: Date.now(), setAt: today() };
+    const doc = { key: gateKey(space), salt: a.salt, hash: a.hash, mark: a.mark, attempts: 0, attemptWindow: Date.now(), setAt: today() };
     if (row) await ctx.db.patch(row._id, doc); else await ctx.db.insert("config", doc);
+  },
+});
+
+/** A hash of the old kind, written again as the slow one once its passphrase opened the door. A passphrase changed meanwhile wins. */
+export const rehashGate = internalMutation({
+  args: { space: v.string(), was: v.string(), hash: v.string(), mark: v.string() },
+  handler: async (ctx, a) => {
+    const row = await gateRow(ctx, a.space);
+    if (row && row.hash === a.was) await ctx.db.patch(row._id, { hash: a.hash, mark: a.mark });
   },
 });
 
 /**
  * One guess at a passphrase, counted before it is checked. Guesses sent all at
- * once each take their turn here, so 8 an hour is the most any burst gets.
- * It hands back the salt and hash only while the door is open to guesses.
+ * once each take their turn here, so `max` an hour (8 unless the caller says)
+ * is the most any burst gets. It hands back the salt and hash only while the
+ * door is open to guesses.
  */
 export const takeAttempt = internalMutation({
-  args: { space: v.optional(v.string()) },
+  args: { space: v.optional(v.string()), max: v.optional(v.number()) },
   handler: async (ctx, a) => {
     const row = await gateRow(ctx, a.space);
     if (!row?.hash) return { set: false, locked: false };
     const now = Date.now();
     const fresh = now - (row.attemptWindow ?? 0) > ATTEMPT_WINDOW_MS;
     const attempts = fresh ? 0 : (row.attempts ?? 0);
-    if (attempts >= MAX_ATTEMPTS) return { set: true, locked: true };
+    if (attempts >= (a.max ?? MAX_ATTEMPTS)) return { set: true, locked: true };
     await ctx.db.patch(row._id, { attempts: attempts + 1, attemptWindow: fresh ? now : (row.attemptWindow ?? now) });
     return { set: true, locked: false, salt: row.salt as string, hash: row.hash as string };
   },
@@ -111,14 +121,14 @@ export const noteAttempt = internalMutation({
 });
 
 export const newSession = internalMutation({
-  args: { account: v.optional(v.string()), kind: v.string(), space: v.optional(v.string()) },
+  args: { account: v.optional(v.string()), kind: v.string(), space: v.optional(v.string()), addr: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const token = randomHex(24);
     await ctx.db.insert("sessions", {
       token, expires: Date.now() + SESSION_MS, kind: a.kind, space: readSpace(a.space),
       ...(a.account ? { account: a.account } : {}),
       /* A demo visitor gets a name of their own, for their chats. */
-      ...(a.kind === "demo" ? { visitor: randomHex(8) } : {}),
+      ...(a.kind === "demo" ? { visitor: randomHex(8), ...(a.addr ? { addr: a.addr } : {}) } : {}),
     });
     return token;
   },
@@ -134,7 +144,7 @@ export const checkSession = internalQuery({
     const s = await ctx.db.query("sessions").withIndex("by_token", q => q.eq("token", a.token)).unique();
     if (!s || s.expires <= Date.now()) return null;
     const kind = s.kind === "member" || s.kind === "guest" || s.kind === "demo" ? s.kind : "owner";
-    return { kind, account: s.account ?? null, space: readSpace(s.space), visitor: s.visitor ?? null };
+    return { kind, account: s.account ?? null, space: readSpace(s.space), visitor: s.visitor ?? null, addr: s.addr ?? null };
   },
 });
 
@@ -277,31 +287,6 @@ export const dropSession = internalMutation({
 
 /* ---------------- reading the brains ---------------- */
 
-/**
- * Everything one space holds.
- *
- * The brains of that space, then only the concepts and sources that name one of
- * them. A concept carries its brain's slug and a source carries a list of them,
- * so the brains decide the rest. Slugs are unique across both spaces, which is
- * what lets this filter be a name match.
- */
-export const everything = internalQuery({
-  args: { space: v.optional(v.string()) },
-  handler: async (ctx, a) => {
-    const space = readSpace(a.space);
-    const all = await ctx.db.query("brains").collect();
-    const brains = all.filter(b => inSpace(b, space));
-    const mine = new Set(brains.map(b => b.slug));
-    /* Read brain by brain through the index, so the other space's concepts
-       are never read and never count toward this call's read limit. */
-    const concepts = (await Promise.all(brains.map(b =>
-      ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", b.slug)).collect()))).flat();
-    const sources = (await ctx.db.query("sources").collect())
-      .filter(s => (s.brains ?? []).some((x: string) => mine.has(x)));
-    return { brains, concepts, sources };
-  },
-});
-
 /** The duplicate check. An index lookup, so it stays flat at any size. */
 export const findSource = internalQuery({
   args: { linkKey: v.string(), sid: v.string(), space: v.optional(v.string()) },
@@ -321,12 +306,6 @@ export const findSource = internalQuery({
   },
 });
 
-export const conceptsOf = internalQuery({
-  args: { brain: v.string() },
-  handler: async (ctx, a) =>
-    await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.brain)).collect(),
-});
-
 /* ---------------- writing ---------------- */
 
 export const createBrain = internalMutation({
@@ -338,7 +317,8 @@ export const createBrain = internalMutation({
        gets this workspace's slug added, so it never collides or says the
        other exists. */
     const space = readSpace(a.space);
-    const base = slug(a.name);
+    /* "assets-<workspace>" is the slug each workspace's Assets folder takes, so a folder named "Assets x" never takes it. */
+    const base = slug(a.name).replace(/^assets-/, "f-assets-");
     let s = base;
     for (let n = 1; ; n++) {
       const seen = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", s)).unique();
@@ -756,9 +736,9 @@ export async function deleteBrain(ctx: any, a: { space: string; slug: string; dr
   }
   for (const t of await ctx.db.query("topics").withIndex("by_brain", (q: any) => q.eq("brain", a.slug)).collect()) { await ctx.db.delete(t._id); done.topics++; }
   /* An insight rests on two concepts, from any workspace the folder was shared with: one of them here, and it goes. */
-  for (const x of await ctx.db.query("insights").collect()) {
-    if (inIt(x.a) || inIt(x.b)) { await ctx.db.delete(x._id); done.insights++; }
-  }
+  const ends = (f: string) => (q: any) => q.gte(f, prefix).lt(f, prefix + "\uffff");
+  const hit = [...await ctx.db.query("insights").withIndex("by_a", ends("a")).collect(), ...await ctx.db.query("insights").withIndex("by_b", ends("b")).collect()];
+  for (const id of new Set(hit.map((x: any) => x._id))) { await ctx.db.delete(id); done.insights++; }
   /* A source this folder alone held goes with its note; one another folder holds stays there. */
   for (const s of sources) {
     const rest = s.brains.filter((x: string) => x !== a.slug);
@@ -790,7 +770,7 @@ export const brainDelete = internalMutation({
  * apart; a row stored under the old cut is still found, but only when its
  * full title matches.
  */
-async function byTitle(ctx: any, table: "concepts" | "candidates", brain: string, title: string) {
+async function byTitle(ctx: any, table: "concepts", brain: string, title: string) {
   const id = conceptSlug(title), old = legacySlug(title);
   const hit = await ctx.db.query(table)
     .withIndex("by_brain_slug", (q: any) => q.eq("brain", brain).eq("slug", id)).unique();
@@ -1043,6 +1023,15 @@ export const spaceHead = internalQuery({
       .filter(s => (s.brains ?? []).some((x: string) => mine.has(x)))
       .map(s => ({ ...s, brains: (s.brains ?? []).filter((x: string) => mine.has(x)) }));
     return { brains, sources, ready };
+  },
+});
+
+/** One folder of a space by its slug, read by index, under the same rule as spaceHead: null when the space does not hold it. */
+export const brainHere = internalQuery({
+  args: { space: v.optional(v.string()), brain: v.string() },
+  handler: async (ctx, a) => {
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.brain)).unique();
+    return b && inSpace(b, readSpace(a.space)) && b.type !== "project" ? b : null;
   },
 });
 
@@ -1398,6 +1387,8 @@ export const restoreBatch = internalMutation({
     for (const r of a.brains ?? []) {
       const s0 = slug(String(r.slug ?? "")), type = ["subject", "person", "personal"].includes(r.type) ? r.type : "subject";
       if (!s0) continue;
+      /* An Assets folder's slug is never restored as a folder: it would shut another workspace out of its Assets. */
+      if (s0.startsWith("assets-")) { done.brains.skipped++; continue; }
       const b = all.find(x => x.slug === s0);
       if (b) { if (inSpace(b, space)) done.brains.kept++; else done.brains.skipped++; continue; }
       if (type === "personal" && personal) { done.brains.kept++; continue; }
@@ -1545,7 +1536,7 @@ export const demoWorkspace = internalQuery({
  * workspaces hold, one taken, or one a brain already uses is refused.
  */
 export const createWorkspace = internalMutation({
-  args: { slug: v.string(), name: v.string(), kind: v.string(), salt: v.optional(v.string()), hash: v.optional(v.string()) },
+  args: { slug: v.string(), name: v.string(), kind: v.string(), salt: v.optional(v.string()), hash: v.optional(v.string()), mark: v.optional(v.string()) },
   handler: async (ctx, a) => {
     const slug = a.slug;
     if (!SPACE_RE.test(slug) || (SPACES as readonly string[]).includes(slug)) return { error: "that name is taken. Pick another." };
@@ -1553,7 +1544,7 @@ export const createWorkspace = internalMutation({
     if (await ctx.db.query("config").withIndex("by_key", q => q.eq("key", gateKey(slug))).unique()) return { error: "that name is taken. Pick another." };
     await ctx.db.insert("workspaces", { slug, name: a.name.slice(0, 60), kind: a.kind, created: today() });
     if (a.salt && a.hash) {
-      await ctx.db.insert("config", { key: gateKey(slug), salt: a.salt, hash: a.hash, attempts: 0, attemptWindow: Date.now(), setAt: today() });
+      await ctx.db.insert("config", { key: gateKey(slug), salt: a.salt, hash: a.hash, ...(a.mark ? { mark: a.mark } : {}), attempts: 0, attemptWindow: Date.now(), setAt: today() });
     }
     return { ok: true, slug };
   },

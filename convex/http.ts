@@ -8,10 +8,10 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
-  ask, json, cors, sha256, slug, randomHex, parseJson,
-  readSpace, SPACE_NAME, HOME, spaceName, slugOfName, SPACE_RE, SPACES, today, DAY_MS, OPENROUTER,
+  ask, json, cors, sha256, passHash, passMatches, passIsOld, passMark, randomHex, parseJson, MAX_ATTEMPTS, ATTEMPT_WINDOW_MS,
+  readSpace, HOME, spaceName, slugOfName, SPACE_RE, SPACES, today, DAY_MS, OPENROUTER,
   MODEL, MODEL_ID, CHUNK,
-  canDrop,
+  canDrop, isViewer,
 } from "./lib";
 import type { Who, SpendKind } from "./lib";
 import { handleRpc, versionOk, PROTOCOLS, RATE_MAX, RATE_WINDOW_MS } from "./mcp";
@@ -19,9 +19,10 @@ import { dropCheck, dropRead, dropPlan, dropSettle, dropMerge, fetchPage } from 
 import { DOC_STYLE, DOC_BODY } from "./doc";
 import { assemble, fromModel, asText, mail, looksLikeMail, pageIds, hasBody, translatePage, langOf, DOC_TYPES } from "./onepager";
 import type { DocType } from "./onepager";
-import { planDossier, writeDossier, idOf, OPEN_READ, linkId, kindsOf, dedupeOpen, tagsOf, taggedLine, isCloser, threadOf, priorOf, checkSources, askKey, poolPrint, SHORT_READ, INDEX_SHORT, NEAR_SHORT, NEAR_NEEDED, NEAR_FLOOR, PRIOR_MAX } from "./words";
+import { planDossier, writeDossier, idOf, OPEN_READ, kindsOf, dedupeOpen, tagsOf, taggedLine, isCloser, threadOf, priorOf, checkSources, askKey, poolPrint, SHORT_READ, INDEX_SHORT, NEAR_SHORT, NEAR_NEEDED, NEAR_FLOOR, PRIOR_MAX } from "./words";
 import { routeQuestion } from "./route";
-import { loadSpace, withoutPersonal } from "./space";
+import { readPrice } from "./price";
+import { loadSpace, withoutPersonal, perBrain } from "./space";
 import { cleanGroup } from "./store";
 import { addDocPiece, addRowPiece, finishFile, readBlocks } from "./reader";
 import { withChatSpend } from "./spend";
@@ -59,7 +60,7 @@ const router = httpRouter();
  *           their browser sends with it. It is used for that call and never
  *           written, logged or passed to a query or mutation.
  */
-type Caller = Who & { demo: boolean; byok: boolean; key?: string; visitor: string | null; wsName: string;
+type Caller = Who & { demo: boolean; byok: boolean; hosted: boolean; key?: string; visitor: string | null; addr?: string | null; wsName: string;
   /* The models this workspace picked in Settings, or null for the defaults,
      and its languages: what the personal folder keeps, how answers come back. */
   models: { chat: string | null; reply?: string; voice?: string | null; depth?: string; mic?: string;
@@ -84,7 +85,7 @@ async function gate(ctx: any, body: any, opts: { ownerOnly?: boolean } = {}): Pr
   const k = String(body?.key ?? "").trim();
   /* The demo always runs on the defaults. */
   const models = demo ? { chat: null, reply: "same", voice: null, depth: "long", mic: "browser" } : await ctx.runQuery(internal.store.modelsOf, { space: who.space });
-  return { ...who, kind: "owner", demo, byok, models, visitor: demo ? who.visitor : null, wsName: ws?.name ?? spaceName(who.space),
+  return { ...who, kind: "owner", demo, byok, hosted: ws?.kind === "hosted", models, visitor: demo ? who.visitor : null, wsName: ws?.name ?? spaceName(who.space),
     key: byok ? (KEY_RE.test(k) ? k : undefined) : ws?.kind === "demo" ? (process.env.DEMO_OPENROUTER_API_KEY || undefined) : undefined };
 }
 
@@ -100,13 +101,17 @@ function keyFor(who: Caller): string | undefined {
 /**
  * The model: the default for a demo visitor. Otherwise the one the workspace
  * picked in Settings. A call that still names a model, from an app open since
- * before, keeps it.
+ * before, keeps it, unless the workspace runs on this deployment's key: there
+ * only Settings picks, where the price is checked.
  */
 const modelFor = (who: Caller, b: any) => {
   if (who.demo) return undefined;
   const chat = who.models?.chat;
-  return modelName(b) ?? (chat && chat !== MODEL ? chat : undefined);
+  return (who.hosted ? undefined : modelName(b)) ?? (chat && chat !== MODEL ? chat : undefined);
 };
+
+/* The most a model may cost a workspace on this deployment's key, in dollars a million tokens at 4 read for 1 written. */
+const HOSTED_MAX_PRICE = Number(process.env.HOSTED_MAX_PRICE) > 0 ? Number(process.env.HOSTED_MAX_PRICE) : 1;
 
 /**
  * Runs what asks a model and counts what it cost under its kind, for Settings: a drop, a one-pager, the upkeep, the personal brain's
@@ -136,6 +141,8 @@ async function saveTurn(ctx: any, who: Caller, b: any, where: { brain: string; c
  * drop count.
  */
 const MONTH = 30 * DAY_MS;
+/* The longest question the folders' chat reads: about 5,000 tokens, room for a pasted page. */
+const ASK_MAX = 20000;
 const DEMO_DROPS = Number(process.env.DEMO_MONTHLY_DROPS || 30);
 const DEMO_ASKS = Number(process.env.DEMO_MONTHLY_ASKS || 300);
 /* Pages and transcripts fetched for every workspace but the owner's, together, a day. */
@@ -143,9 +150,17 @@ const OTHERS_FETCH_DAY = Number(process.env.OTHERS_FETCH_DAY || 100);
 /* Each read, plan, merge and settle is a step. A long source takes a dozen or
    so; the month's total stays near 20 a drop. */
 const DEMO_STEPS = Number(process.env.DEMO_MONTHLY_STEPS || DEMO_DROPS * 20);
+/* One address takes a tenth of the month at most, so no single visitor empties the demo for the others. */
+const DEMO_SHARE = 10, DEMO_SESSIONS_EACH = 20;
 async function demoCount(ctx: any, who: Caller, what: "drop" | "ask" | "step") {
   if (!who.demo) return;
   const max = what === "drop" ? DEMO_DROPS : what === "ask" ? DEMO_ASKS : DEMO_STEPS;
+  if (who.addr) {
+    const own = await ctx.runMutation(internal.store.mcpRate, { who: `demo:${what}s:${who.addr}`, max: Math.max(1, Math.ceil(max / DEMO_SHARE)), windowMs: MONTH });
+    if (!own.allowed) throw new Error(what === "ask"
+      ? "you have asked the demo all it answers one visitor this month. Make your own workspace to keep going."
+      : "you have dropped all the demo takes from one visitor this month. Make your own workspace to keep going.");
+  }
   const r = await ctx.runMutation(internal.store.mcpRate, { who: `demo:${what}s`, max, windowMs: MONTH });
   if (r.allowed) return;
   const back = Math.max(1, Math.ceil((r.retryAfter ?? 0) / 86400));
@@ -185,6 +200,41 @@ const route = (path: string, fn: (ctx: any, req: Request, body: any) => Promise<
   });
 };
 
+/* A new passphrase, from the landing or Settings, takes 12 characters. One set before still opens its door with 8. */
+const NEW_PASS = 12;
+
+/**
+ * The address a request came from. The first entry of x-forwarded-for is whatever the caller wrote, so the last one a proxy
+ * added is taken, past any private hop. It is kept hashed: a limit needs to tell callers apart, not to know who they are.
+ */
+const PRIVATE_ADDR = /^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|::1$|f[cd][0-9a-f]{2}:|fe80:)/i;
+async function addressOf(req: Request): Promise<string | null> {
+  const hops = (req.headers.get("x-forwarded-for") ?? "").split(",").map(h => h.trim()).filter(Boolean);
+  let at = hops.length - 1;
+  while (at > 0 && PRIVATE_ADDR.test(hops[at])) at--;
+  return hops[at] ? (await sha256("address", hops[at])).slice(0, 20) : null;
+}
+
+/*
+ * Guesses at a door: 8 an hour from one address, and 60 an hour from everyone together. A stranger's guesses use up their
+ * own 8 and never shut the owner out; the 60 still caps a guesser who rotates addresses. A request that carries no address
+ * gets the door's 8 an hour, as before. The answer is how many the door takes this hour, 0 when this address is done.
+ */
+const DOOR_MAX = 60;
+async function doorMax(ctx: any, req: Request, space: string): Promise<number> {
+  const addr = await addressOf(req);
+  if (!addr) return MAX_ATTEMPTS;
+  const r = await ctx.runMutation(internal.store.mcpRate, { who: `door:${space}:${addr}`, max: MAX_ATTEMPTS, windowMs: ATTEMPT_WINDOW_MS });
+  return r.allowed ? DOOR_MAX : 0;
+}
+/** A right passphrase clears the door's count, and a hash of the old kind is written again as the slow one. */
+async function opened(ctx: any, space: string, t: { salt: string; hash: string }, pass: string) {
+  await ctx.runMutation(internal.store.noteAttempt, { ok: true, space });
+  if (!passIsOld(t.hash)) return;
+  const hash = await passHash(t.salt, pass);
+  if (!passIsOld(hash)) await ctx.runMutation(internal.store.rehashGate, { space, was: t.hash, hash, mark: await passMark(pass) });
+}
+
 /**
  * One door per space. The passphrase decides which brains the session sees.
  *
@@ -192,7 +242,7 @@ const route = (path: string, fn: (ctx: any, req: Request, body: any) => Promise<
  * opened and how Squidgy opens. Run `npx convex run admin:setPass --prod` to
  * set one from a terminal instead, and the door is closed before it is public.
  */
-route("/api/unlock", async (ctx, _req, b) => {
+route("/api/unlock", async (ctx, req, b) => {
   /* A door by its slug, or a workspace by the name typed on the landing. */
   const space = b.name ? slugOfName(String(b.name)) : readSpace(b.space);
   if (!SPACE_RE.test(space)) return { error: "no workspace has that name" };
@@ -210,10 +260,12 @@ route("/api/unlock", async (ctx, _req, b) => {
 
   /* Each guess is counted before it is checked, so a burst sent at once
      still gets 8 an hour. A right one clears the count. */
-  const t = await ctx.runMutation(internal.store.takeAttempt, { space });
+  const max = await doorMax(ctx, req, space);
+  if (!max) return { error: "too many attempts, wait an hour" };
+  const t = await ctx.runMutation(internal.store.takeAttempt, { space, max });
   if (t.locked || !t.salt) return { error: "too many attempts, wait an hour" };
-  const good = await sha256(t.salt, pass) === t.hash;
-  if (good) await ctx.runMutation(internal.store.noteAttempt, { ok: true, space });
+  const good = await passMatches(t.salt, pass, t.hash);
+  if (good) await opened(ctx, space, t, pass);
   if (!good) return { error: b.name ? "no workspace has that name and passphrase" : "that is not it" };
   return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space }), space };
 });
@@ -231,14 +283,17 @@ const ENTER_PER_ADDRESS = 10, ENTER_ALL = 120;
 route("/api/enter", async (ctx, req, b) => {
   const pass = String(b.pass ?? "");
   if (pass.length < 8) return { demo: true };
-  const from = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  const from = (await addressOf(req)) ?? "unknown";
   const hour = 60 * 60 * 1000;
   const mine = await ctx.runMutation(internal.store.mcpRate, { who: `enter:${from}`, max: ENTER_PER_ADDRESS, windowMs: hour });
   const all = mine.allowed ? await ctx.runMutation(internal.store.mcpRate, { who: "enter:all", max: ENTER_ALL, windowMs: hour }) : mine;
   if (!all.allowed) return { error: "too many tries here for now. Open your workspace from the list above, or try again in an hour." };
+  /* A slow hash is run only on the doors whose mark matches: 1 in 256. */
+  const mark = await passMark(pass);
   for (const d of await ctx.runQuery(internal.store.doorsAll, {})) {
-    if (await sha256(d.salt, pass) !== d.hash) continue;
-    await ctx.runMutation(internal.store.noteAttempt, { ok: true, space: d.space });
+    if (d.mark && d.mark !== mark) continue;
+    if (!(await passMatches(d.salt, pass, d.hash))) continue;
+    await opened(ctx, d.space, d, pass);
     return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space: d.space }), space: d.space };
   }
   return { demo: true };
@@ -250,12 +305,14 @@ route("/api/enter", async (ctx, req, b) => {
  * admin:copyBrain. A visitor gets a session of their own, so their chats
  * stay theirs.
  */
-route("/api/demo", async (ctx) => {
+route("/api/demo", async (ctx, req) => {
   const ws = await ctx.runQuery(internal.store.demoWorkspace, {});
   if (!ws) return { error: "the demo is not open yet" };
-  const r = await ctx.runMutation(internal.store.mcpRate, { who: "demo:sessions", max: 2000, windowMs: DAY_MS });
+  const addr = await addressOf(req);
+  const mine = addr ? await ctx.runMutation(internal.store.mcpRate, { who: `demo:sessions:${addr}`, max: DEMO_SESSIONS_EACH, windowMs: DAY_MS }) : { allowed: true };
+  const r = mine.allowed ? await ctx.runMutation(internal.store.mcpRate, { who: "demo:sessions", max: 2000, windowMs: DAY_MS }) : mine;
   if (!r.allowed) return { error: "the demo is full for today. Create your own workspace with your own key." };
-  return { token: await ctx.runMutation(internal.store.newSession, { kind: "demo", space: ws.slug }), space: ws.slug };
+  return { token: await ctx.runMutation(internal.store.newSession, { kind: "demo", space: ws.slug, ...(addr ? { addr } : {}) }), space: ws.slug };
 });
 
 /**
@@ -270,17 +327,17 @@ route("/api/workspace/create", async (ctx, _req, b) => {
   const pass = String(b.pass ?? ""), key = String(b.key ?? "").trim();
   const slugged = slugOfName(name);
   if (!name || slugged.length < 2) return { error: "give the workspace a name of 2 letters or more" };
-  if (pass.length < 8) return { error: "use a passphrase of at least 8 characters" };
+  if (pass.length < NEW_PASS) return { error: `use a passphrase of at least ${NEW_PASS} characters` };
   if (!KEY_RE.test(key)) return { error: "that is not an OpenRouter key. It starts with sk-or-" };
   const r = await ctx.runMutation(internal.store.mcpRate, { who: "ws:create", max: 100, windowMs: DAY_MS });
   if (!r.allowed) return { error: "too many workspaces were made today. Try again tomorrow." };
   try {
-    const ok = await fetch(`${OPENROUTER}/key`, { headers: { Authorization: "Bearer " + key } });
+    const ok = await fetch(`${OPENROUTER}/key`, { headers: { Authorization: "Bearer " + key }, signal: AbortSignal.timeout(15000) });
     if (!ok.ok) return { error: "OpenRouter refused that key. Check it and try again." };
   } catch { return { error: "OpenRouter did not answer. Try again in a minute." }; }
   const salt = randomHex(16);
   const made = await ctx.runMutation(internal.store.createWorkspace,
-    { slug: slugged, name, kind: "byok", salt, hash: await sha256(salt, pass) });
+    { slug: slugged, name, kind: "byok", salt, hash: await passHash(salt, pass), mark: await passMark(pass) });
   if (made.error) return { error: made.error };
   return { token: await ctx.runMutation(internal.store.newSession, { kind: "owner", space: slugged }), space: slugged, name };
 });
@@ -288,23 +345,25 @@ route("/api/workspace/create", async (ctx, _req, b) => {
 /**
  * Change this workspace's passphrase, from Setup.
  *
- * The current one is asked for and counts against the same eight tries an
- * hour as the door does. Everyone else signed in here is signed out; the
+ * The current one is asked for and counts against the same tries an hour as
+ * the door does. Everyone else signed in here is signed out; the
  * session that changed it stays.
  */
-route("/api/passphrase", async (ctx, _req, b) => {
+route("/api/passphrase", async (ctx, req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   const cur = String(b.current ?? ""), next = String(b.next ?? "");
-  if (next.length < 8) return { error: "use a new passphrase of at least 8 characters" };
+  if (next.length < NEW_PASS) return { error: `use a new passphrase of at least ${NEW_PASS} characters` };
   if (next === cur) return { error: "that is the passphrase you have now" };
-  const t = await ctx.runMutation(internal.store.takeAttempt, { space: who.space });
+  const max = await doorMax(ctx, req, who.space);
+  if (!max) return { error: "too many attempts, wait an hour" };
+  const t = await ctx.runMutation(internal.store.takeAttempt, { space: who.space, max });
   if (!t.set) return { error: "this workspace has no passphrase to change" };
   if (t.locked || !t.salt) return { error: "too many attempts, wait an hour" };
-  const good = await sha256(t.salt, cur) === t.hash;
+  const good = await passMatches(t.salt, cur, t.hash);
   if (good) await ctx.runMutation(internal.store.noteAttempt, { ok: true, space: who.space });
   if (!good) return { error: "that is not your current passphrase" };
   const salt = randomHex(16);
-  await ctx.runMutation(internal.store.setGate, { salt, hash: await sha256(salt, next), space: who.space, replace: true });
+  await ctx.runMutation(internal.store.setGate, { salt, hash: await passHash(salt, next), mark: await passMark(next), space: who.space, replace: true });
   const ended = await ctx.runMutation(internal.store.endOtherSessions, { space: who.space, keep: String(b.token) });
   return { ok: true, ended };
 });
@@ -485,6 +544,13 @@ route("/api/models", async (ctx, _req, b) => {
     return m;
   };
   const chat = one("chat");
+  /* A workspace on this deployment's key picks a model under the price ceiling. */
+  if (who.hosted && chat && chat !== MODEL) {
+    const p = await readPrice(chat);
+    if (p.missing) return { error: `OpenRouter has no model "${chat}"` };
+    if (p.price == null) return { error: `the price of ${chat} could not be read, so it was not set. Try again in a minute.` };
+    if (p.price > HOSTED_MAX_PRICE) return { error: `${chat} costs $${p.price.toFixed(2)} a million tokens. This workspace takes models up to $${HOSTED_MAX_PRICE.toFixed(2)}.` };
+  }
   /* The languages: how answers come back, and the one the mic listens in. */
   const reply = "reply" in b ? (b.reply === "en" ? "en" : "same") : undefined;
   const voice = "voice" in b ? (b.voice ? String(b.voice) : null) : undefined;
@@ -553,9 +619,9 @@ route("/api/concept", async (ctx, _req, b) => {
 /** A folder's topics: its concepts that link to each other, named and summed up. */
 route("/api/topics", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const head = await ctx.runQuery(internal.store.spaceHead, { space: who.space });
   const brain = String(b.brain ?? "");
-  if (!head.brains.some((x: any) => x.slug === brain && x.type !== "personal")) return { topics: [] };
+  const held = brain ? await ctx.runQuery(internal.store.brainHere, { space: who.space, brain }) : null;
+  if (!held || held.type === "personal") return { topics: [] };
   const topics: any[] = await ctx.runQuery(internal.graph.topicsOf, { brain });
   return { topics: topics.map(t => ({ title: t.title, summary: t.summary, members: t.members, updated: t.updated })) };
 });
@@ -1050,7 +1116,7 @@ async function folderChat(ctx: any, who: Caller, b: any, every: any, only: strin
   const mKey = keyFor(who), mName = modelFor(who, b);
   await demoCount(ctx, who, "ask");
   const t0 = Date.now();
-  const q = String(b.q ?? "");
+  const q = String(b.q ?? "").slice(0, ASK_MAX);
   const english = who.models?.reply === "en";
   /* Three levels: Normal answers, Educational teaches the answer, Learning
      leads the reader to it without giving it. Each changes the shape and the
@@ -1579,7 +1645,7 @@ route("/api/interview", async (ctx, _req, b) => {
         /* A model compares the two answers to each question: no one scores their own twin. */
         const t = test as any, round = t.round;
         if (!round?.mine || !round?.twin) return { error: "let your twin answer first" };
-        const qs = roundQs(round), ids: string[] = qs.map(x => x.id).filter(id => round.mine[id]);
+        const qs = roundQs(round);
         const pairs = pairsText(qs, round.mine, round.twin);
         if (!pairs) return { error: "let your twin answer first" };
         const { text, finish } = await ask([
@@ -2295,19 +2361,38 @@ route("/api/chats/edit", async (ctx, _req, b) => {
     a clash the check has not read yet counts as open. */
 async function openConflicts(ctx: any, space: string, brains: any[]) {
   const open = new Map<string, number>(), conflicted: string[] = [];
-  for (const br of brains) {
+  const pages = await perBrain(brains, async (br: any) => {
+    const items: any[] = [];
     let cursor: string | null = null;
     for (;;) {
       const p: any = await ctx.runQuery(internal.store.conflictsPage, { space, brain: br.slug, cursor });
-      for (const c of p.items) {
-        const n = (c.conflicts ?? []).filter((x: any) => x?.real !== false).length;
-        if (!n) continue;
-        open.set(c.brain, (open.get(c.brain) ?? 0) + n);
-        conflicted.push(c.id);
-      }
+      items.push(...p.items);
       if (!p.next) break;
       cursor = p.next;
     }
+    return items;
+  });
+  for (const c of pages.flat()) {
+    const n = (c.conflicts ?? []).filter((x: any) => x?.real !== false).length;
+    if (!n) continue;
+    open.set(c.brain, (open.get(c.brain) ?? 0) + n);
+    conflicted.push(c.id);
+  }
+  return { open, conflicted };
+}
+
+/**
+ * The open conflicts as the cards count them, which costs no read past the cards. Null while a card in the space was written
+ * before cards kept the count: then the concepts are read.
+ */
+function cardConflicts(space: string, brains: any[], cards: any[]) {
+  if (cards.some((c: any) => typeof c.clash !== "number")) return null;
+  const seen = new Set(brains.filter((b: any) => !isViewer(b, space)).map((b: any) => b.slug));
+  const open = new Map<string, number>(), conflicted: string[] = [];
+  for (const c of cards) {
+    if (!c.clash || !seen.has(c.brain)) continue;
+    open.set(c.brain, (open.get(c.brain) ?? 0) + c.clash);
+    conflicted.push(`${c.brain}/${c.slug}`);
   }
   return { open, conflicted };
 }
@@ -2316,7 +2401,7 @@ async function openConflicts(ctx: any, space: string, brains: any[]) {
 route("/api/health", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
   const { brains, cards, sources } = await loadSpace(ctx, who.space);
-  const { open, conflicted } = await openConflicts(ctx, who.space, brains);
+  const { open, conflicted } = cardConflicts(who.space, brains, cards) ?? await openConflicts(ctx, who.space, brains);
   return { health: healthOf(brains, cards, sources, open), conflicted };
 });
 
@@ -2438,23 +2523,29 @@ const mcpGet = httpAction(async () => mcpJson({ error: "This endpoint answers PO
 const mcpDelete = httpAction(async () => new Response(null, { status: 405, headers: MCP_CORS }));
 
 const mcpPost = httpAction(async (ctx, req) => {
-    const who = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
-    const gateOk = await ctx.runMutation(internal.store.mcpRate,
-      { who, max: RATE_MAX, windowMs: RATE_WINDOW_MS });
+    /* The token rides in the address, because a connector stores a URL and
+       nothing else; a client that can send a header sends it as a Bearer
+       token instead, which no log keeps. No token is an anonymous reader,
+       which is the default and needs no account. An unknown token is also just
+       a reader: saying which tokens exist would be a way to hunt for one. */
+    const sent = new URL(req.url).searchParams.get("k") || (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+    const caller = sent
+      ? await ctx.runQuery(internal.store.accountByMcpToken, { token: sent })
+      : null;
+
+    /* A holder of a token is counted by it, which nobody can forge. A reader
+       is counted by address, and all readers together get 20 times one, so
+       an address made up for each call still meets a ceiling. */
+    const who = caller ? `mcp:${caller.account}` : (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+    const everyone = caller ? { allowed: true, retryAfter: 0 } : await ctx.runMutation(internal.store.mcpRate,
+      { who: "mcp:readers", max: RATE_MAX * 20, windowMs: RATE_WINDOW_MS });
+    const gateOk = everyone.allowed ? await ctx.runMutation(internal.store.mcpRate,
+      { who, max: RATE_MAX, windowMs: RATE_WINDOW_MS }) : everyone;
     if (!gateOk.allowed) {
       return mcpJson({ jsonrpc: "2.0", id: null,
         error: { code: -32000, message: `Rate limit reached. ${RATE_MAX} calls per 10 minutes. Try again in ${gateOk.retryAfter} seconds.` } },
         429, { "Retry-After": String(gateOk.retryAfter) });
     }
-
-    /* The token rides in the address, because a connector stores a URL and
-       nothing else. No token is an anonymous reader, which is the default and
-       needs no account. An unknown token is also just a reader: saying which
-       tokens exist would be a way to hunt for one. */
-    const sent = new URL(req.url).searchParams.get("k") ?? "";
-    const caller = sent
-      ? await ctx.runQuery(internal.store.accountByMcpToken, { token: sent })
-      : null;
 
     let msg: any;
     try { msg = await req.json(); }

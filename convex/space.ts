@@ -19,10 +19,21 @@ export async function loadSpace(ctx: any, space: string, onHead?: (head: any) =>
   return { brains: kept.brains, cards: await cardsFor(ctx, kept.brains.map((b: any) => b.slug), head.ready), sources: kept.sources, ready: head.ready };
 }
 
-/** The cards of some brains, a brain at a time and a page at a time. */
+/**
+ * One read a brain, 8 brains at a time, the results in the brains' order. A space of 30 brains waits for 4 rounds of reads, not 30.
+ */
+export async function perBrain<B, T>(brains: B[], read: (b: B) => Promise<T>, width = 8): Promise<T[]> {
+  const out: T[] = new Array(brains.length);
+  let next = 0;
+  const lane = async () => { for (let i = next++; i < brains.length; i = next++) out[i] = await read(brains[i]); };
+  await Promise.all(Array.from({ length: Math.min(width, brains.length) }, lane));
+  return out;
+}
+
+/** The cards of some brains, each brain a page at a time. */
 async function cardsFor(ctx: any, slugs: string[], ready: boolean) {
-  const cards: any[] = [];
-  for (const brain of slugs) {
+  const each = await perBrain(slugs, async brain => {
+    const cards: any[] = [];
     let cursor: string | null = null;
     for (;;) {
       const p: any = await ctx.runQuery(internal.store.cardsPage, { brain, cursor, ready });
@@ -30,8 +41,9 @@ async function cardsFor(ctx: any, slugs: string[], ready: boolean) {
       if (p.done) break;
       cursor = p.cursor;
     }
-  }
-  return cards;
+    return cards;
+  });
+  return each.flat();
 }
 
 /**

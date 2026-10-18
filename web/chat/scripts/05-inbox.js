@@ -84,8 +84,8 @@ function paintInbox(){
   if (!$("inbox").hidden) paintInboxPanel();
 }
 
-function paintInboxPanel(){
-  const box = $("inbox"); box.innerHTML = "";
+function paintInboxPanel(box = $("inbox")){
+  box.innerHTML = "";
   box.append(el("h3",null,"Inbox"));
   const group = (title, rows) => { if (!rows.length) return; const g = el("section","ib-g"); g.append(el("h4",null,title), ...rows); box.append(g); };
   const item = (cls, title, sub, go) => {
@@ -163,10 +163,22 @@ function openJob(j){
 }
 
 var inboxTimer = null;
+/**
+ * The open panel, each second: painted aside and put in only when it reads differently, so a second where nothing changed
+ * keeps the rows as they are, with the keyboard's place and the pointer's hover. A change keeps the keyboard on the same row.
+ */
+function tickInbox(box){
+  const fresh = document.createElement("div");
+  paintInboxPanel(fresh);
+  if (fresh.innerHTML === box.innerHTML) return;
+  const at = [...box.querySelectorAll("button")].indexOf(document.activeElement);
+  box.replaceChildren(...fresh.childNodes);
+  if (at >= 0) box.querySelectorAll("button")[at]?.focus();
+}
 function openInbox(){
   const box = $("inbox"); box.hidden = false; $("inboxBtn").setAttribute("aria-expanded","true");
   paintInboxPanel();
-  clearInterval(inboxTimer); inboxTimer = setInterval(() => { if (box.hidden) clearInterval(inboxTimer); else paintInboxPanel(); }, 1000);
+  clearInterval(inboxTimer); inboxTimer = setInterval(() => { if (box.hidden) clearInterval(inboxTimer); else tickInbox(box); }, 1000);
   /* The open clashes and the open lines are read again as it opens. */
   loadHealth().then(paintInbox);
   loadStill();

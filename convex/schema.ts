@@ -7,6 +7,8 @@ export default defineSchema({
     key: v.string(),
     salt: v.optional(v.string()),
     hash: v.optional(v.string()),
+    /* Two hex characters of a keyed hash of the passphrase, so the landing's one field runs the slow hash on few doors. */
+    mark: v.optional(v.string()),
     attempts: v.optional(v.number()),
     attemptWindow: v.optional(v.number()),
     setAt: v.optional(v.string()),
@@ -27,6 +29,8 @@ export default defineSchema({
     space: v.optional(v.string()),
     /* A demo visitor, so each one keeps their own chats. */
     visitor: v.optional(v.string()),
+    /* A demo visitor's address, hashed, so one address takes its share of the demo and no more. */
+    addr: v.optional(v.string()),
   }).index("by_token", ["token"]).index("by_space", ["space"]),
 
   /**
@@ -314,6 +318,8 @@ export default defineSchema({
     full: v.optional(v.boolean()),
     /* A person's lines still open: the app counts them without reading a file. */
     open: v.optional(v.number()),
+    /* Open conflicts, not judged unreal. A card written before it was kept has none, and health then reads the concepts. */
+    clash: v.optional(v.number()),
     updated: v.string(),
     /* A print of what an answer reads of the concept, so a saved answer knows when it is stale. */
     sig: v.optional(v.string()),
@@ -358,8 +364,7 @@ export default defineSchema({
     at: v.string(),
   }).index("by_key", ["key"])
     .index("by_a", ["a"])
-    .index("by_b", ["b"])
-    .index("by_space", ["space"]),
+    .index("by_b", ["b"]),
 
   /* A person's history in a personal brain, one moment a row, so a person
      can grow without a size limit: what happened, its date (YYYY, YYYY-MM or

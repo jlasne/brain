@@ -14,6 +14,7 @@
  */
 
 import { readFileSync, readdirSync, writeFileSync, unlinkSync } from "node:fs";
+import { build } from "./build-app.mjs";
 import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,7 +27,8 @@ let failures = 0;
 const fail = (page, msg) => { failures++; console.log(`  FAIL ${page}: ${msg}`); };
 
 for (const page of pages) {
-  const src = readFileSync(join(APP, page), "utf8");
+  /* The app as written: the served chat.html is minified, and its short names read as calls to nothing. */
+  const src = page === "chat.html" ? build() : readFileSync(join(APP, page), "utf8");
   const scripts = [...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
   const code = scripts.join("\n");
   let ok = true;

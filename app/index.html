@@ -184,7 +184,7 @@
     <h2 id="makeT">Your own workspace</h2>
     <p>Your folders, on your own OpenRouter key.</p>
     <label for="cName">Workspace name</label><input id="cName" autocomplete="off" maxlength="60" placeholder="Acme Research">
-    <label for="cPass">Passphrase, 8 characters or more</label><input id="cPass" type="password" autocomplete="new-password">
+    <label for="cPass">Passphrase, 12 characters or more</label><input id="cPass" type="password" autocomplete="new-password">
     <label for="cKey">OpenRouter key</label><input id="cKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-...">
     <p class="fine">Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>.
       It is checked once, then kept in this browser and sent with each call that needs a model. Our server keeps no copy.</p>
@@ -264,7 +264,7 @@
     ev.preventDefault();
     const name = $("cName").value.trim(), pass = $("cPass").value, key = $("cKey").value.trim(), msg = $("cMsg");
     if (name.length < 2){ msg.textContent = "Give it a name of 2 letters or more."; $("cName").focus(); return; }
-    if (pass.length < 8){ msg.textContent = "Use a passphrase of 8 characters or more."; $("cPass").focus(); return; }
+    if (pass.length < 12){ msg.textContent = "Use a passphrase of 12 characters or more."; $("cPass").focus(); return; }
     if (!/^sk-or-[A-Za-z0-9_-]{20,200}$/.test(key)){ msg.textContent = "That is not an OpenRouter key. It starts with sk-or-"; $("cKey").focus(); return; }
     $("cGo").disabled = true; msg.textContent = "";
     say("Checking the key with OpenRouter");

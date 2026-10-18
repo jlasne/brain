@@ -1629,7 +1629,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("it asks for the current passphrase first", /current passphrase/.test(await page.textContent("#passMsg")) && !(await page.evaluate(() => window.__calls.some(c => c.s.includes("/api/passphrase")))));
   await page.fill("#passCur", "right one"); await page.fill("#passNew", "short");
   await page.click("#passGo"); await page.waitForTimeout(60);
-  check("and refuses a new one under 8 characters before anything is sent", /8 characters/.test(await page.textContent("#passMsg")) && !(await page.evaluate(() => window.__calls.some(c => c.s.includes("/api/passphrase")))));
+  check("and refuses a new one under 12 characters before anything is sent", /12 characters/.test(await page.textContent("#passMsg")) && !(await page.evaluate(() => window.__calls.some(c => c.s.includes("/api/passphrase")))));
   await page.fill("#passCur", "wrong one"); await page.fill("#passNew", "a longer passphrase");
   await page.click("#passGo"); await page.waitForTimeout(120);
   check("a wrong current passphrase says so and keeps what was typed", /not your current passphrase/.test(await page.textContent("#passMsg")) && (await page.inputValue("#passNew")) === "a longer passphrase");
