@@ -192,6 +192,7 @@ ${english ? "- Write in English, whatever language the message is in." : "- Writ
 CHANGING AN ASSET
 - Only when the message asks to change, add to, fix, fill or rewrite one of the assets above. Otherwise "edits" is [].
 - "edits": one item per asset changed: {"asset": its id, "ops": [the changes]}. Use exact words from the asset. Change nothing that was not asked.
+- Inside a JSON string, a double quote is written as ' and a line break as a space: a quote copied raw breaks the reply, and the change is lost.
 - The owner applies them with a click, so never say a change is made. In "answer", say what the changes do, in one sentence.
 - A document or a page, by section id:
   ${DOC_EDITS}

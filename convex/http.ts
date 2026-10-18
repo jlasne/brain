@@ -969,7 +969,24 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
     else {
       lost = /"ops"\s*:\s*\[\s*\{|"create"\s*:\s*\{/.test(raw);
       d = { answer: answerIn(raw) };
-      if (!d.answer) d = { answer: await wordsAgain() };
+      /* A change cut off or broken (a quote copied raw into a cell breaks the JSON) is written once more, compact and escaped. */
+      if (lost) {
+        try {
+          const again = await ask([
+            { role: "system", content: ASSET_RULES(english, { folders: pool.some((x: any) => !mine || x.slug !== mine.slug), ...(mine ? { mine: mine.name } : {}) }) +
+              `\n\nYOUR LAST REPLY COULD NOT BE READ: it ran too long or broke the JSON. Write the same change again:
+- "answer" in one or two sentences.
+- Every cell under 120 characters, the same facts kept.
+- A double quote inside a string is written as ' (a single quote). No line breaks inside a cell.` },
+            { role: "user", content: `${read.join("\n\n")}\n\n${pool.length ? `THEIR FOLDERS\n${dossier}\n\n` : ""}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}TODAY: ${today()}\nMESSAGE: ${q}` },
+          ], { json: true, maxTokens: 24000, temperature: 0, key: mKey, model: mName, timeout: 170000 });
+          tally(again.usage);
+          d = parseJson(String(again.text), again.finish);
+          lost = false;
+        } catch { /* the first answer stands, and says the change was not proposed */ }
+      }
+      if (!d.answer && !lost && !(Array.isArray(d.edits) && d.edits.length) && !d.create) d = { answer: await wordsAgain() };
+      else if (!d.answer && lost) d = { answer: await wordsAgain() };
     }
   }
   /* A text asked for (a pitch, an email, a plan) is the answer itself. One the reply put in a field of its own joins the answer;

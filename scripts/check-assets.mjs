@@ -599,6 +599,16 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   const n1 = sent.length;
   const wordsA = await call("/api/ask", { q: "run an analysis of the contract", brain: "all", assets: [2], chat: null });
   check("a reply with no answer in it is asked again for the answer alone, in words, and that answer is shown", wordsA.answer === "## The analysis\n\nThe offer pays 30% of revenue." && sent.slice(n1).length === 2 && /Reply in Markdown only/.test(sent.at(-1).sys), JSON.stringify(wordsA.answer));
+  /* a change cut off before its end is written once more, compact, and proposed */
+  let t4 = 0;
+  reply = { asset: () => ++t4 === 1 ? '{"answer":"Here is the table.","edits":[{"asset":2,"ops":[{"op":"append","sheet":0,"rows":[["Dr. Dana","posts about Urologist work","fit"],["Lenny","calisth'
+    : JSON.stringify({ answer: "This adds Dr. Dana.", edits: [{ asset: 2, ops: [{ op: "append", sheet: 0, rows: [["Dr. Dana", "posts about 'Urologist' work", "fit"]] }] }], create: null }) };
+  const n4 = sent.length;
+  const fixedJ = await call("/api/ask", { q: "add Dr. Dana, she posts about \"Urologist\" work", brain: "all", assets: [2], chat: null });
+  check("a change cut off before its end is written once more, and proposed", fixedJ.edits?.length === 1 && !/ran too long/.test(fixedJ.answer)
+    && sent.slice(n4).length === 2 && /YOUR LAST REPLY COULD NOT BE READ/.test(sent.at(-1).sys), JSON.stringify({ a: fixedJ.answer, e: fixedJ.edits?.length }));
+  check("the rules ask for quotes inside a string written as single quotes", /a double quote is written as '/.test(last(/You work on the owner's assets/).sys));
+  if (fixedJ.edits?.[0]) await call("/api/assets/edit", { file: 2, id: fixedJ.edits[0].id, action: "dismiss" });
   /* a reply that only announces the text asked for is asked again for the text */
   let t2 = 0;
   const PITCH = "## The pitch\n\nI am Jeremy Lasne. Each week I share one thing I learned building apps.";
