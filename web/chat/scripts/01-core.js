@@ -148,7 +148,6 @@ const conceptSlug = t => {
   return `${full.slice(0, 41).replace(/-+$/,"")}-${h.toString(36).padStart(6,"0").slice(-6)}`;
 };
 const pad2 = n => String(n).padStart(2,"0");
-const today = () => new Date().toISOString().slice(0,10);
 const rich = t => esc(t).split(/\n{2,}/).map(p =>
   "<p>" + p.replace(/\n/g,"<br>").replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>") + "</p>").join("");
 

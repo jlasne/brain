@@ -12,7 +12,7 @@
 import { internalMutation, internalQuery, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { today, sha256, randomHex, gateKey, readSpace, slugOfName, SPACE_RE, SPACES, MODEL, MODEL_ID, ask, parseJson } from "./lib";
+import { today, passHash, passMark, randomHex, gateKey, readSpace, slugOfName, SPACE_RE, SPACES, MODEL, MODEL_ID, ask, parseJson } from "./lib";
 import { choose, readPrices, MAX_FAVS } from "./price";
 import type { Read } from "./price";
 import { linkCandidates, linkId, idOf, conceptSlug, findByTitle, sameTitle, kindsOf } from "./words";
@@ -107,7 +107,7 @@ export const promoteAll = internalMutation({
  * where whoever arrives first chooses. Running this closes the door before it is
  * public. It also resets the attempt counter, so a locked-out door reopens.
  *
- *     npx convex run admin:setPass "{space:'squidgy',pass:'at least 8'}" --prod
+ *     npx convex run admin:setPass "{space:'squidgy',pass:'at least 12'}" --prod
  */
 export const setPass = internalMutation({
   args: { space: v.string(), pass: v.string() },
@@ -116,10 +116,10 @@ export const setPass = internalMutation({
     if (String(a.space).trim().toLowerCase() !== space) {
       throw new Error(`a workspace slug is lower case letters, digits and dashes, like ${SPACES.join(" or ")}`);
     }
-    if (a.pass.length < 8) throw new Error("use at least 8 characters");
+    if (a.pass.length < 12) throw new Error("use at least 12 characters");
     const key = gateKey(space);
     const salt = randomHex(16);
-    const doc = { key, salt, hash: await sha256(salt, a.pass), attempts: 0, attemptWindow: Date.now(), setAt: today() };
+    const doc = { key, salt, hash: await passHash(salt, a.pass), mark: await passMark(a.pass), attempts: 0, attemptWindow: Date.now(), setAt: today() };
     const row = await ctx.db.query("config").withIndex("by_key", q => q.eq("key", key)).unique();
     if (row) { await ctx.db.patch(row._id, doc); return { space, replaced: true }; }
     await ctx.db.insert("config", doc);
@@ -349,16 +349,9 @@ export const forgetOldKeys = internalMutation({
  * What the app no longer keeps: Projects and their pages, saved one-pagers,
  * the side panel's mode, the old blind-spot log, the scouts' feeds and finds, the map's question counts, the lab's calls and turns,
  * and the later projects' chat threads, section meanings, costs and caps. Their code is gone;
- * this empties their tables, 300 rows each a call, until it says "runAgain": false. They are out of schema.ts, which only
+ * the daily upkeep empties their tables, 300 rows each a call, until none is left. They are out of schema.ts, which only
  * checks the tables it lists, so their rows are read here by name.
- *
- *     npx convex run admin:clearRemoved --prod
  */
-export const clearRemoved = internalMutation({
-  args: {},
-  handler: async (ctx) => await clearSome(ctx),
-});
-
 const REMOVED = ["pages", "projects", "onepagers", "modes", "gaps", "heat", "scouts", "finds", "labTurns", "labs", "projectThreads", "projectVectors", "projectSpend", "projectBudget"];
 async function clearSome(ctx: any) {
   const deleted: Record<string, number> = {};
@@ -373,7 +366,7 @@ async function clearSome(ctx: any) {
 }
 
 /* Each job of upkeep runs until it is done once, then marks it here and is never read again. */
-export const VECTORS_FOLLOW = "upkeep:vectors-follow:v1", REMOVED_CLEARED = "upkeep:removed-cleared:v2";
+export const VECTORS_FOLLOW = "upkeep:vectors-follow:v1", REMOVED_CLEARED = "upkeep:removed-cleared:v2", CARDS_CLASH = "upkeep:cards-clash:v1";
 
 /**
  * Work that runs once, on its own, from the nightly cron, a page at a time
@@ -386,6 +379,8 @@ export const VECTORS_FOLLOW = "upkeep:vectors-follow:v1", REMOVED_CLEARED = "upk
  *    as they happen (syncCard).
  * 2. The tables of removed features are emptied, so their definitions can
  *    leave schema.ts.
+ * 3. Every card is written again from its concept, so it carries its count of
+ *    open conflicts, and health reads cards instead of concepts.
  *
  *     npx convex run admin:upkeep --prod      (to run it now, not at 05:40 UTC)
  */
@@ -410,6 +405,13 @@ export const upkeep = internalMutation({
       if (r.runAgain) await ctx.scheduler.runAfter(0, internal.admin.upkeep, {});
       else await ctx.db.insert("config", { key: REMOVED_CLEARED, setAt: today() });
       return { job: "removed", ...r };
+    }
+    if (!(await done(CARDS_CLASH))) {
+      const page = await ctx.db.query("concepts").paginate({ cursor: a.cursor ?? null, numItems: 200 });
+      for (const c of page.page) await syncCard(ctx, c._id);
+      if (page.isDone) await ctx.db.insert("config", { key: CARDS_CLASH, setAt: today() });
+      else await ctx.scheduler.runAfter(0, internal.admin.upkeep, { cursor: page.continueCursor });
+      return { job: "cards", read: page.page.length, done: page.isDone };
     }
     return { job: "none" };
   },
@@ -481,14 +483,14 @@ export const makeWorkspace = internalMutation({
   handler: async (ctx, a) => {
     const name = a.name.replace(/\s+/g, " ").trim().slice(0, 60), slug = slugOfName(name);
     if (!name || slug.length < 2) throw new Error("give the workspace a name of 2 letters or more");
-    if (a.pass.length < 8) throw new Error("use a passphrase of at least 8 characters");
+    if (a.pass.length < 12) throw new Error("use a passphrase of at least 12 characters");
     const taken = !SPACE_RE.test(slug) || (SPACES as readonly string[]).includes(slug)
       || !!(await ctx.db.query("workspaces").withIndex("by_slug", q => q.eq("slug", slug)).unique())
       || !!(await ctx.db.query("config").withIndex("by_key", q => q.eq("key", gateKey(slug))).unique());
     if (taken) throw new Error(`"${name}" is taken. Pick another name.`);
     const salt = randomHex(16);
     await ctx.db.insert("workspaces", { slug, name, kind: "hosted", created: today() });
-    await ctx.db.insert("config", { key: gateKey(slug), salt, hash: await sha256(salt, a.pass), attempts: 0, attemptWindow: Date.now(), setAt: today() });
+    await ctx.db.insert("config", { key: gateKey(slug), salt, hash: await passHash(salt, a.pass), mark: await passMark(a.pass), attempts: 0, attemptWindow: Date.now(), setAt: today() });
     return { slug, name, opens: `/chat?w=${slug}` };
   },
 });

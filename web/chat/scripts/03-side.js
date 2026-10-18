@@ -554,7 +554,8 @@ function renderSide(){
     /* By type, then the fullest first: what you said, the people, the
        subjects. A folder shared in, or one only asked, says so on its row. */
     const kind = b => b.type === "personal" ? "personal" : b.type === "person" ? "person" : "subject";
-    const bySize = (x, y) => conceptsOf(y.slug).length - conceptsOf(x.slug).length || x.name.localeCompare(y.name);
+    const counts = conceptCounts(), size = b => counts.get(b.slug) || 0;
+    const bySize = (x, y) => size(y) - size(x) || x.name.localeCompare(y.name);
     /* The categories come after the personal folders, each with its folders
        under it on a short branch; folders in none keep their type's group. */
     const cats = inGroups(S.brains.filter(b => b.type !== "personal")), acats = assetsInGroups(files);

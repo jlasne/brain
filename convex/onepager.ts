@@ -14,7 +14,7 @@
  */
 
 import { ask, parseJson, spaceName, today } from "./lib";
-import type { Who, Space } from "./lib";
+import type { Space } from "./lib";
 import { planDossier, writeDossier, keywords, idOf, OPEN_READ } from "./words";
 import { routeQuestion } from "./route";
 import { SHORT_STYLE, NO_DASH } from "./style";

@@ -10,7 +10,7 @@ Folders learn from what you drop. Assets keep your docs and tables. Call any wit
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1976 checks passing" src="https://img.shields.io/badge/checks-1976%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1979 checks passing" src="https://img.shields.io/badge/checks-1979%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="Installs on phone and desktop" src="https://img.shields.io/badge/app-phone%20and%20desktop-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -191,7 +191,7 @@ git clone https://github.com/jlasne/brain && cd brain && npm install
 npx convex dev
 npx convex env set OPENROUTER_API_KEY sk-or-... --prod
 npx convex deploy
-npx convex run admin:setPass '{"space":"octopus","pass":"at least 8 characters"}' --prod
+npx convex run admin:setPass '{"space":"octopus","pass":"at least 12 characters"}' --prod
 npx convex run admin:makeDemo '{"copy":["health","content","social"]}' --prod
 ```
 
@@ -207,12 +207,14 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 | `OPENROUTER_API_KEY` | Pays for model calls in the owner's workspaces. Required. |
 | `DEMO_OPENROUTER_API_KEY` | A separate key for the demo, so its spend shows apart. Falls back to the one above. |
 | `DEMO_MONTHLY_DROPS` | Drops the demo takes in 30 days, all visitors together. Default 30. |
-| `DEMO_MONTHLY_ASKS` | Questions the demo answers in 30 days. Default 300. |
+| `DEMO_MONTHLY_ASKS` | Questions the demo answers in 30 days. Default 300. One address takes a tenth of each demo limit at most. |
 | `DEMO_MONTHLY_STEPS` | Reads, plans and stores the demo makes in 30 days. Default 20 a drop. |
 | `SUPADATA_API_KEY` | Fetches YouTube captions from a bare link. Without it, a video link asks for the transcript. |
 | `SUPADATA_MODE` | `auto` transcribes videos that have no captions, at 2 credits a minute. |
 | `OTHERS_FETCH_DAY` | Pages and transcripts fetched for every other workspace together, a day. Default 100, on top of 20 each. |
 | `RESEND_API_KEY`, `MAIL_FROM` | Mail one-pagers from the owner's workspaces. |
+| `HOSTED_MAX_PRICE` | The most a model may cost a workspace made with `admin:makeWorkspace`, in dollars a million tokens. Default 1. |
+| `PASS_PEPPER` | Optional. A secret that keys the mark the landing's one field uses to skip doors. Set it once, before the first passphrase. |
 | `DIGEST_TO` | Where the Monday digest goes: the week's sources, new concepts and open conflicts. |
 | `FEEDBACK_TO` | Where Send feedback mails an error. Unset, it goes to `DIGEST_TO`. |
 
@@ -236,7 +238,9 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 
 <br>
 
-- Passphrases are stored as salted SHA-256 hashes, one per workspace. 8 wrong guesses close that door for an hour, and each guess is counted before it is checked.
+- Passphrases are stored as PBKDF2-SHA256 hashes, 600,000 rounds, salted, one per workspace. An older hash is rewritten at its next sign-in. A new passphrase takes 12 characters.
+- One address gets 8 guesses an hour at a door; all addresses together get 60. Each guess is counted before it is checked.
+- A link is fetched only when its name points to a public address, checked at a public DNS service on every redirect. A page is read up to 2 MB.
 - Every route checks the session before it reads a folder or calls a model.
 - The demo runs on the default model within its monthly limits. Creating, renaming and connecting folders are closed to it.
 - A personal folder is read by its own chat only. Every other reader loads the workspace without it.
@@ -252,7 +256,7 @@ The app's source sits in `web/chat/`, one file a screen. `npm run build` joins i
 
 ```bash
 npm run build     # web/chat into app/chat.html
-npm run check     # the build first, then 1976 checks
+npm run check     # the build first, then 1979 checks
 npm run deploy    # the server, to Convex
 ```
 
@@ -266,7 +270,7 @@ skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a folder
 ```
 
-`npm run check` runs 1976 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
+`npm run check` runs 1979 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 

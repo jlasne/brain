@@ -30,7 +30,7 @@ a source and a candidate name their brain and carry no space of their own.
 
 ```bash
 # close a door before it is public
-npx convex run admin:setPass '{"space":"squidgy","pass":"at least 8 characters"}' --prod
+npx convex run admin:setPass '{"space":"squidgy","pass":"at least 12 characters"}' --prod
 
 # move a brain, with its concepts, sources and candidates
 npx convex run admin:moveBrain '{"slug":"content","space":"squidgy","dry":true}' --prod
@@ -64,10 +64,10 @@ for the personal folder 7 days after it. About $0.003 a folder on GLM 5.3
 Flash, plus $0.001 a merge.
 
 A workspace for someone, on this deployment's key, empty, behind a passphrase
-its owner changes from Settings. The passphrase takes 8 characters at least:
+its owner changes from Settings. The passphrase takes 12 characters at least:
 
 ```bash
-npx convex run admin:makeWorkspace "{name:'PandAAAHH',pass:'ABC12345'}" --prod
+npx convex run admin:makeWorkspace "{name:'PandAAAHH',pass:'ABC12345-long'}" --prod
 ```
 
 It runs on `OPENROUTER_API_KEY` like Octopus and Squidgy, with no monthly cap,
@@ -233,7 +233,7 @@ PowerShell strips the double quotes inside an argument, which leaves
 quoted values survive:
 
 ```powershell
-npx convex run admin:setPass "{space:'squidgy',pass:'at least 8 characters'}" --prod
+npx convex run admin:setPass "{space:'squidgy',pass:'at least 12 characters'}" --prod
 npx convex run admin:moveBrain "{slug:'content',space:'squidgy',dry:true}" --prod
 ```
 
@@ -321,8 +321,8 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | Route | Does | Gated |
 |---|---|---|
 | `/api/status` | Says which spaces have a passphrase | No, it leaks nothing |
-| `/api/unlock` | One door per space. It checks the passphrase; only `admin:setPass` sets one | Rate limited, 8 tries an hour per door |
-| `/api/enter` | The landing's one field: the workspace a passphrase opens, or `demo: true` when it opens none. Counted apart from the doors, so a wrong guess never locks one | Rate limited, 10 tries an hour per address and 120 from everyone |
+| `/api/unlock` | One door per space. It checks the passphrase; only `admin:setPass` sets one | Rate limited, 8 tries an hour per address at a door, 60 from everyone |
+| `/api/enter` | The landing's one field: the workspace a passphrase opens, or `demo: true` when it opens none. Counted apart from the doors, so a wrong guess never locks one | Rate limited, 10 tries an hour per address and 120 from everyone. The slow hash runs only on doors whose 2-character mark matches |
 | `/api/state` | Brains, concept names and summary lines, sources | Yes |
 | `/api/export` | One brain's concepts whole, 100 a page, for the markdown export | Yes |
 | `/api/restore` | Reads an export back (`text`, up to 15 million characters): the folders, concepts and sources the workspace is missing are added, and what it already holds stays as it is. A personal folder in the file joins the workspace's own. A slug another workspace holds is left out. The links between new concepts are rebuilt in the background. Returns the counts added and kept | Owner, never the demo |
@@ -330,7 +330,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/topics` | One folder's topics: a title, a line and its concepts. Never a personal folder | Yes |
 | `/api/conflicts` | The open conflicts that are real contradictions. Each clash is checked once and marked. With `hints`, each gets a suggested ruling and its reason, 20 clashes to a model call, kept on the clash so it is asked once; with no answer, the later date suggests one | Yes |
 | `/api/conflicts/settle` | Settles one: the side that holds rewrites the position, or both hold and it only leaves the list | Yes |
-| `/api/passphrase` | Changes the workspace's passphrase: the current one is checked against the same 8 tries an hour, the others are signed out | Owner |
+| `/api/passphrase` | Changes the workspace's passphrase: the current one is checked against the same tries an hour as the door, the new one takes 12 characters, the others are signed out | Owner |
 | `/api/share` | Share brain: the owner of a brain's workspace puts it in one more workspace, or takes it back, one workspace at a time. The owner's other workspace can feed it; the demo only reads it. A workspace can leave a brain it was given. Never a personal brain | Owner |
 | `/api/brain` | Creates one | Yes |
 | `/api/drop/check` | The duplicate check, an index lookup. No model call, so the test button is free | Yes |
@@ -573,14 +573,14 @@ The documents, tables and pages a workspace keeps for its chats. They are the fi
 | The settle write | Positions must be rewritten in one pass, atomically |
 | The weekly digest | It runs on a schedule, with no browser open. `crons.ts` calls `digest:send` every Monday at 06:00 UTC and mails `DIGEST_TO` |
 | The daily model check | It runs on a schedule too. `crons.ts` calls `admin:pickCheapest` every day at 05:30 UTC: each workspace with favourite models is set to the cheapest of them |
-| Upkeep | `crons.ts` calls `admin:upkeep` every day at 05:40 UTC. It runs each one-time repair it has not finished, a page at a time, then marks it done in `config`: every vector pointed at its concept's folder again (a rename or a merge once left them behind), and the tables of removed features emptied. Once both are done it reads two rows and stops |
+| Upkeep | `crons.ts` calls `admin:upkeep` every day at 05:40 UTC. It runs each one-time repair it has not finished, a page at a time, then marks it done in `config`: every vector pointed at its concept's folder again (a rename or a merge once left them behind), the tables of removed features emptied, and every card written again so it carries its count of open conflicts, which health then reads instead of the concepts. Once all three are done it reads three rows and stops |
 
 Reading brains and rendering the card can stay client side, because that data is already yours.
 
 ## The MCP server
 
 Each project has its own address, made in Settings inside that project. It
-carries a key, `?k=...`, and reads and feeds that project and no other: the
+carries a key, `?k=...` (or the same key as an `Authorization: Bearer` header, which no log keeps), and reads and feeds that project and no other: the
 Octopus address never sees Squidgy, and the reverse. Add both to a client to
 reach both. The key belongs to the project's holder account, `owner` for
 Octopus and `owner-squidgy` for Squidgy, and any other account's key opens
@@ -593,7 +593,7 @@ add. It carries no passphrase. Three properties make that safe:
 |---|---|
 | Spends no credit | No route here calls a model. The reader's own Claude does the thinking |
 | Cannot corrupt a brain | Every tool reads. There is no write, no drop, no settle |
-| Cannot drain the quota | 120 calls per 10 minutes per address, counted in `mcpHits` |
+| Cannot drain the quota | 120 calls per 10 minutes per address, and 2,400 from all readers together, counted in `mcpHits`. A key holder is counted by its key |
 
 That last property matters because the endpoint is open. At 4 to 6 calls per
 question, the Convex free tier covers roughly 50,000 questions a month, and the

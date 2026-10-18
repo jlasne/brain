@@ -66,10 +66,6 @@ const ctx = {
   /* A store schedules linking for what it wrote. Recorded, never run here. */
   scheduler: { runAfter: async (_ms, fn, a) => { DB.scheduled.push({ fn, ...a }); } },
   runQuery: async (fn, a) => {
-    if (fn === "store.everything") {
-      DB.spacesRead.push(a?.space ?? null);
-      return { brains: DB.brains, concepts: DB.concepts, sources: DB.sources };
-    }
     /* The slim copies, made from the concepts the way the store makes them. */
     if (fn === "store.spaceHead") {
       DB.spacesRead.push(a?.space ?? null);

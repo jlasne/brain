@@ -80,7 +80,7 @@ async function openSetupSheet(opts = {}){
   passGo.onclick = async () => {
     passMsg.className = "hint";
     if (!passCur.value) { passMsg.textContent = "Type your current passphrase first."; return passCur.focus(); }
-    if (passNew.value.length < 8) { passMsg.textContent = "The new passphrase needs 8 characters or more."; return passNew.focus(); }
+    if (passNew.value.length < 12) { passMsg.textContent = "The new passphrase needs 12 characters or more."; return passNew.focus(); }
     passGo.disabled = true; passMsg.textContent = "Changing";
     try {
       const r = await api("/api/passphrase", { current: passCur.value, next: passNew.value });
@@ -166,7 +166,7 @@ async function openSetupSheet(opts = {}){
   const paint = (st) => {
     slot.innerHTML = st.has ? `
       <div class="urlbox"><input id="mcpFeed" readonly spellcheck="false" value="${esc(location.origin + "/mcp/v0?k=" + st.token)}"><button id="mcpFeedCopy">Copy</button></div>
-      <div class="hint">Made ${esc(st.made || "earlier")}. Paste it into Claude, ChatGPT or any MCP client.
+      <div class="hint">Made ${esc(st.made || "earlier")}.${st.made && Date.now() - Date.parse(st.made) > 90 * 864e5 ? " It is over 90 days old: replace it." : ""} Paste it into Claude, ChatGPT or any MCP client.
         Keep it private: whoever holds it can read and feed every ${esc(S.spaceName)} brain. The thinking
         runs on that client's own model, so nothing is spent here.</div>
       <div style="margin-top:10px;display:flex;gap:8px">
@@ -294,7 +294,7 @@ function setupMarkup(){
         <summary><span>Passphrase</span></summary>
         <div class="hint" style="margin:8px 0 10px">Change the passphrase that opens ${esc(S.spaceName)}. Anyone else signed in here is signed out.</div>
         <input id="passCur" type="password" autocomplete="current-password" placeholder="Current passphrase" aria-label="Current passphrase" style="margin-bottom:8px">
-        <input id="passNew" type="password" autocomplete="new-password" placeholder="New passphrase, 8 characters or more" aria-label="New passphrase">
+        <input id="passNew" type="password" autocomplete="new-password" placeholder="New passphrase, 12 characters or more" aria-label="New passphrase">
         <div class="look-acts"><button class="go" id="passGo" type="button">Change it</button></div>
         <div class="hint" id="passMsg" role="status"></div>
       </details>
@@ -858,7 +858,7 @@ async function runMemory(j){
       if (left.missing.length){
         const passages = gapPassages(piece, left.missing, 7000);
         if (passages){
-          try { kept += "\n" + add((await apiRetry("/api/personal/remember", { brain: j.brain, text: passages, gaps: true })).filed); left = factsIn(piece, kept); }
+          try { kept += "\n" + add((await apiRetry("/api/personal/remember", { brain: j.brain, text: passages, gaps: true }, { split: true })).filed); left = factsIn(piece, kept); }
           catch { /* kept as written, below */ }
         }
         const rest = left.missing.length ? gapPassages(piece, left.missing, 7000) : "";

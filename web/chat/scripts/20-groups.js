@@ -13,7 +13,7 @@ function groupOf(b){ return b && b.type !== "personal" ? String(b.group || "").t
 
 /** The categories of some folders, the fullest first, each with its folders the fullest first; then the folders in none. */
 function inGroups(list){
-  const size = b => conceptsOf(b.slug).length;
+  const counts = conceptCounts(), size = b => counts.get(b.slug) || 0;
   const bySize = (x, y) => size(y) - size(x) || x.name.localeCompare(y.name);
   const m = new Map();
   for (const b of list){ const g = groupOf(b); if (g){ if (!m.has(g)) m.set(g, []); m.get(g).push(b); } }

@@ -98,7 +98,7 @@ p + p{ margin-top:12px; }
   color:var(--accent); margin-bottom:12px;
 }
 .muted{ color:var(--ink-3); }
-code, .mono{ font:400 13.5px/1.5 var(--mono); }
+code{ font:400 13.5px/1.5 var(--mono); }
 
 /* ============ pieces ============ */
 .row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:28px; }
