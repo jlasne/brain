@@ -119,7 +119,7 @@ function splitAnswer(t){
   const m = String(t).match(/\n\s*(Sources:[^\n]*)\s*$/i);
   const body = m ? String(t).slice(0, m.index) : String(t);
   const fmt = l => esc(l).replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
-  /* Each line on its own, a heading ("#" to "###") as a heading, bullets ("*", "-") as a list. */
+  /* Each line on its own: one after # to ### is a heading, lines after * or - are a list. */
   const html = body.split(/\n{2,}/).map(group => {
     let out = "", items = [];
     const flush = () => { if (items.length) out += `<ul class="md-ul">${items.map(x => `<li>${fmt(x)}</li>`).join("")}</ul>`; items = []; };

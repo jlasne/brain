@@ -22,7 +22,7 @@ function push(kind, build, where = $("thread")){
   build(body); bottom(where);
   return body;
 }
-/** A line that is a heading ("#", "##", "###") or a bullet ("*", "-"): the light Markdown a message and a reply are laid out with. */
+/** A line that is a heading, after #, ## or ###, or a bullet, after * or -: the light Markdown a message and a reply are laid out with. */
 const MD_HEAD = /^\s*(#{1,3})\s+(.+)$/, MD_ITEM = /^\s*[*-]\s+(.+)$/;
 /**
  * A message's light Markdown into an element: headings and bullets, every
