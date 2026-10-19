@@ -470,7 +470,9 @@ export const killDraft = internalMutation({
 
 export const renameBrain = internalMutation({
   args: { slug: v.string(), name: v.string(), scope: v.optional(v.string()),
-          account: v.union(v.string(), v.null()), space: v.optional(v.string()) },
+          account: v.union(v.string(), v.null()), space: v.optional(v.string()),
+          /* True: only the folder is renamed here, and the caller moves what it holds with renameBrainStep, a batch a call. */
+          steps: v.optional(v.boolean()) },
   handler: async (ctx, a) => {
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
     if (!b || readSpace(b.space) !== readSpace(a.space)) throw new Error("no such brain");
@@ -491,34 +493,73 @@ export const renameBrain = internalMutation({
     await ctx.db.patch(b._id, { name, slug: to, ...(a.scope?.trim() ? { scope: a.scope.trim() } : {}) });
 
     const moved = { concepts: 0, sources: 0, candidates: 0 };
-    if (to !== a.slug) {
-      for (const c of await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", a.slug)).collect()) {
-        await ctx.db.patch(c._id, { brain: to }); moved.concepts++;
-        await syncCard(ctx, c._id);
-      }
-      for (const s2 of await ctx.db.query("sources").collect()) {
-        if (!s2.brains.includes(a.slug)) continue;
-        await ctx.db.patch(s2._id, { brains: s2.brains.map(x => x === a.slug ? to : x) }); moved.sources++;
-      }
-      for (const c of await ctx.db.query("candidates").collect()) {
-        if (c.brain !== a.slug) continue;
-        await ctx.db.patch(c._id, { brain: to }); moved.candidates++;
-      }
-      /* Links name a concept as brain/slug, so every link into this brain
-         follows it too, or it would point at nothing and hold a slot. */
-      /* Every workspace that sees this brain holds links into it. */
-      const seenIn = [readSpace(b.space), ...(b.shared ?? []), ...(b.viewers ?? [])];
-      const pool = (await ctx.db.query("brains").collect()).filter(x => seenIn.some((sp: string) => inSpace(x, sp)));
-      for (const br of pool) {
-        const slugNow = br.slug === a.slug ? to : br.slug;
-        for (const c of await ctx.db.query("concepts").withIndex("by_brain", q => q.eq("brain", slugNow)).collect()) {
-          if (!(c.related ?? []).some((r: string) => r.startsWith(a.slug + "/"))) continue;
-          await ctx.db.patch(c._id, { related: c.related.map((r: string) => r.startsWith(a.slug + "/") ? to + r.slice(a.slug.length) : r) });
-          await syncCard(ctx, c._id);
-        }
-      }
+    const out = { from: a.slug, slug: to, name, scope: a.scope?.trim() || b.scope, moved };
+    if (to === a.slug) return out;
+    if (a.steps) return { ...out, move: true };
+    let step: any = { phase: "concepts", cursor: null };
+    while (step.phase !== "done") {
+      step = await moveStep(ctx, { from: a.slug, to, ...step });
+      for (const k of Object.keys(moved) as (keyof typeof moved)[]) moved[k] += step.moved?.[k] || 0;
     }
-    return { from: a.slug, slug: to, name, scope: a.scope?.trim() || b.scope, moved };
+    return out;
+  },
+});
+
+/**
+ * One batch of a folder's move to its new name: its concepts, then the sources
+ * and candidates that name it, then the links into it anywhere. Each batch
+ * reads well under what one call may read, so a folder of any size moves.
+ */
+async function moveStep(ctx: any, a: { from: string; to: string; phase: string; cursor: string | null }) {
+  const moved = { concepts: 0, sources: 0, candidates: 0 };
+  const next = (phase: string, cursor: string | null = null) => ({ phase, cursor, moved });
+  if (a.phase === "concepts") {
+    const rows = await ctx.db.query("concepts").withIndex("by_brain", (q: any) => q.eq("brain", a.from)).take(40);
+    for (const c of rows) { await ctx.db.patch(c._id, { brain: a.to }); await syncCard(ctx, c._id); moved.concepts++; }
+    return rows.length < 40 ? next("sources") : next("concepts");
+  }
+  if (a.phase === "sources") {
+    const p = await ctx.db.query("sources").paginate({ numItems: 400, cursor: a.cursor });
+    for (const s2 of p.page) {
+      if (!s2.brains.includes(a.from)) continue;
+      await ctx.db.patch(s2._id, { brains: s2.brains.map((x: string) => x === a.from ? a.to : x) }); moved.sources++;
+    }
+    return p.isDone ? next("candidates") : next("sources", p.continueCursor);
+  }
+  if (a.phase === "candidates") {
+    const p = await ctx.db.query("candidates").paginate({ numItems: 400, cursor: a.cursor });
+    for (const c of p.page) {
+      if (c.brain !== a.from) continue;
+      await ctx.db.patch(c._id, { brain: a.to }); moved.candidates++;
+    }
+    return p.isDone ? next("links") : next("candidates", p.continueCursor);
+  }
+  if (a.phase === "links") {
+    /* Links name a concept as brain/slug, so every link into this folder
+       follows it too, or it would point at nothing and hold a slot. They are
+       found on the slim cards; a concept is read whole only when it links here. */
+    const pre = a.from + "/", follow = (r: string) => r.startsWith(pre) ? a.to + r.slice(a.from.length) : r;
+    const p = await ctx.db.query("cards").paginate({ numItems: 300, cursor: a.cursor });
+    for (const card of p.page) {
+      if (!(card.related ?? []).some((r: string) => r.startsWith(pre)) && !(card.kinds ?? []).some((k: any) => String(k.to).startsWith(pre))) continue;
+      const c = await ctx.db.get(card.cid);
+      if (!c) continue;
+      await ctx.db.patch(c._id, { related: (c.related ?? []).map(follow),
+        ...(c.kinds ? { kinds: c.kinds.map((k: any) => ({ to: follow(k.to), type: k.type })) } : {}) });
+      await syncCard(ctx, c._id);
+    }
+    return p.isDone ? next("done") : next("links", p.continueCursor);
+  }
+  return next("done");
+}
+
+/** One batch of a rename's move, for a caller that runs them one call at a time. */
+export const renameBrainStep = internalMutation({
+  args: { from: v.string(), to: v.string(), space: v.optional(v.string()), phase: v.string(), cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, a) => {
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.to)).unique();
+    if (!b || readSpace(b.space) !== readSpace(a.space)) throw new Error("no such brain");
+    return await moveStep(ctx, a);
   },
 });
 

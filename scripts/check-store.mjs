@@ -325,6 +325,25 @@ I run a marathon in May.
   check("a folder whose name another workspace holds is left out, with its concepts", other.brains.skipped === 1 && other.concepts.skipped === 1 && !T.concepts.some(c => c.title === "Z"), JSON.stringify(other));
 }
 
+/* ---- a rename in steps: a large folder moves a batch a call ---- */
+{
+  const { T, ctx } = seed();
+  const cardFor = slug => T.cards.find(c => c.slug === slug);
+  for (const c of T.concepts) await store.syncCard(ctx, c._id);
+  for (let i = 0; i < 90; i++) await run(store.upsertConcept, ctx, { brain: "wealth", title: `Idea ${i}`, doc: { position: `Idea ${i} holds.` } });
+  T.brains.push({ _id: "bx", slug: "other", name: "Other", type: "subject", scope: "s", space: undefined });
+  await run(store.upsertConcept, ctx, { brain: "other", title: "Far", doc: { position: "Far holds." } });
+  const far = T.concepts.find(c => c.title === "Far"); far.related = ["wealth/copper"]; far.kinds = [{ to: "wealth/copper", type: "causes" }]; await store.syncCard(ctx, far._id);
+  const head = await run(store.renameBrain, ctx, { slug: "wealth", name: "Cash", account: null, space: "octopus", steps: true });
+  const held = T.concepts.filter(c => c.brain === "wealth").length;
+  let step = { phase: "concepts", cursor: null }, calls = 0, most = 0;
+  while (step.phase !== "done") { step = await run(store.renameBrainStep, ctx, { from: head.from, to: head.slug, space: "octopus", ...step }); calls++; most = Math.max(most, step.moved.concepts); }
+  check("a rename in steps renames the folder first, then moves 40 concepts at most a call, then the links into it", head.move === true && head.slug === "cash" && held === 92 && calls >= 6 && most === 40
+    && T.concepts.every(c => c.brain !== "wealth") && T.cards.every(c => c.brain !== "wealth") && far.related[0] === "cash/copper" && far.kinds[0].to === "cash/copper" && cardFor("far").related.includes("cash/copper"),
+    JSON.stringify({ head, held, calls, most, far: far.related }));
+  check("a step for another workspace's folder is refused", /no such brain/.test(await throws(run(store.renameBrainStep, ctx, { from: "cash", to: "cash", space: "squidgy", phase: "concepts", cursor: null }))));
+}
+
 /* ---- the meaning of a concept follows it ---- */
 {
   const { T, ctx } = seed();
@@ -476,6 +495,7 @@ I run a marathon in May.
   check("a rename moves the cards and their links", T.cards.every(c => c.brain === "money") && cardFor("silver").related.includes("money/copper"),
     JSON.stringify(T.cards.map(c => c.brain + ":" + c.related.join("|"))));
   check("one card per concept, always", T.cards.length === T.concepts.length);
+
 
   /* Whole concepts are read by id, inside the space only. */
   const got = await run(store.conceptsByIds, ctx, { space: "octopus", ids: ["money/gold", "dogs/anything", "nope"] });

@@ -790,9 +790,19 @@ ${all.map((x: any) => `- ${x.slug}: ${x.name}. ${String(x.scope ?? "").slice(0, 
 
 route("/api/brain/rename", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
-  return await ctx.runMutation(internal.store.renameBrain, {
+  const r: any = await ctx.runMutation(internal.store.renameBrain, {
     slug: String(b.slug ?? ""), name: String(b.name ?? ""),
-    scope: String(b.scope ?? ""), account: null, space: who.space });
+    scope: String(b.scope ?? ""), account: null, space: who.space, steps: true });
+  /* What the folder holds follows its new name a batch at a time: a large folder would read past what one call may. */
+  if (r.move) {
+    let step: any = { phase: "concepts", cursor: null };
+    while (step.phase !== "done") {
+      step = await ctx.runMutation(internal.store.renameBrainStep, { from: r.from, to: r.slug, space: who.space, phase: step.phase, cursor: step.cursor });
+      for (const k of ["concepts", "sources", "candidates"]) r.moved[k] += step.moved?.[k] || 0;
+    }
+    delete r.move;
+  }
+  return r;
 });
 
 /* ---------- drop ---------- */
