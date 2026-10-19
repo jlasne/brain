@@ -4071,6 +4071,8 @@ for (const space of ["octopus", "squidgy"]) {
       if (path === "/api/assets/begin") return J({ ver: 1 });
       if (path === "/api/assets/part") return J({ sections: 1, chars: 10 });
       if (path === "/api/assets/finish") { const a = window.__assets.find(x => x.id === body.file); if (a) { a.status = "ready"; a.chars = 50; if (a.kind === "table") a.rows = 2; } return J({}); }
+      if (path === "/api/assets/file" && body.action === "draftGuide") return J({ draft: "Assets I hold. Fit: fit or misfit. Return: a percent a year." });
+      if (path === "/api/assets/file" && body.action === "guide") { const a = window.__assets.find(x => x.id === body.file); if (a) a.guide = body.guide; return J({ guide: body.guide }); }
       if (path === "/api/assets/file") { if (body.action === "remove") window.__assets = window.__assets.filter(x => x.id !== body.file); return J({ ok: true }); }
       return J({ chats: [], conflicted: [], health: [] });
     };
@@ -4093,6 +4095,18 @@ for (const space of ["octopus", "squidgy"]) {
     on: document.querySelector("#brains .as-row.seen .nm")?.textContent }));
   check("an asset opens across the main area: its name, what it is, Ask about it, Download, New version and Delete, and its rows", view.view === "asset" && view.title === "invest-assets.csv" && /^Table · 4 rows · call it in a chat with @$/.test(view.sub)
     && view.acts === "Ask about it/Download/New version/Delete" && view.rows === 4 && view.on === "invest-assets.csv", JSON.stringify(view));
+  /* the guide the AI reads with it: written here, drafted on a click, saved */
+  const g0 = await page.evaluate(() => ({ line: document.querySelector(".pj .as-guide span")?.textContent, btn: document.querySelector(".pj .as-guide button")?.textContent }));
+  check("an open asset offers a guide for the AI, saying what it is for", /^Guide for the AI: tell it what this table is for and what each column holds/.test(g0.line || "") && g0.btn === "Write a guide", JSON.stringify(g0));
+  await page.click(".pj .as-guide button"); await page.waitForTimeout(100);
+  await page.click("#agDraft"); await page.waitForTimeout(250);
+  const g1 = await page.evaluate(() => ({ text: document.getElementById("agText").value, count: document.getElementById("agCount").textContent, saved: window.__calls.some(x => x.s === "/api/assets/file" && x.body.action === "guide") }));
+  check("Draft it for me fills the guide from the table, and nothing is saved yet", g1.text === "Assets I hold. Fit: fit or misfit. Return: a percent a year." && /^60 of 3,000 characters$/.test(g1.count) && !g1.saved, JSON.stringify(g1));
+  await page.click("#agSave"); await page.waitForTimeout(300);
+  const g2 = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/assets/file" && x.body.action === "guide").pop()?.body, line: document.querySelector(".pj .as-guide span")?.textContent,
+    on: document.querySelector(".pj .as-guide")?.classList.contains("on"), btn: document.querySelector(".pj .as-guide button")?.textContent, sheet: !!document.getElementById("agText") }));
+  check("Save keeps the guide, and the asset shows it with Edit", g2.call?.guide === "Assets I hold. Fit: fit or misfit. Return: a percent a year." && g2.call.file === 2 && g2.line === "Guide for the AI: Assets I hold. Fit: fit or misfit. Return: a percent a year."
+    && g2.on && g2.btn === "Edit" && !g2.sheet, JSON.stringify(g2));
   /* on a phone: the name on one line, the buttons on the next, nothing wider than the screen */
   await page.setViewportSize({ width: 390, height: 800 }); await page.waitForTimeout(250);
   const ph = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, vw: innerWidth, btn: Math.min(...[...document.querySelectorAll(".pj-acts > button")].map(b => b.getBoundingClientRect().height)),

@@ -463,6 +463,8 @@ export default defineSchema({
     url: v.optional(v.string()),
     /* The category an asset sits under in the side panel and the picker. Absent: none. */
     group: v.optional(v.string()),
+    /* The owner's guide to the asset, read by the AI each time it reads or changes it: what it is for, what each column holds. */
+    guide: v.optional(v.string()),
     /* A project's file moving into the assets: the key its rows still stand under, until they have all moved. */
     from: v.optional(v.string()),
     routes: v.optional(v.array(v.object({ t: v.array(v.string()), s: v.array(v.number()), n: v.number(), at: v.number(), q: v.optional(v.string()) }))),

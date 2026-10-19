@@ -266,6 +266,13 @@ function assetPane(o = {}){
   else btn("New version", () => pickFile(PJ_FILES, file => addAsset(file, pj.fid))).title = "Read a file in as this asset's new version: the one before is kept for Undo";
   btn("Delete", deleteAsset, "bad");
   h.append(acts); pane.append(h);
+  /* The guide the AI reads with the asset: what it is for, what each column holds. One line here, the whole of it in its sheet. */
+  if (ready && !S.demo){
+    const g = el("div","as-guide" + (f.guide ? " on" : "")), say = el("span");
+    say.append(el("b",null,"Guide for the AI"), f.guide ? ": " + f.guide.replace(/\s+/g, " ") : ": tell it what this " + pjNoun(f.kind) + " is for and what each column holds, so it reads and edits it right.");
+    const e2 = el("button","mini", f.guide ? "Edit" : "Write a guide"); e2.type = "button"; e2.onclick = openGuide;
+    g.title = f.guide || ""; g.append(say, e2); pane.append(g);
+  }
   /* A new version can be taken back while the one before is kept. */
   if (a.undo){
     const v = el("div","as-ver"); v.append(el("span",null,"This is a new version. The one before is kept."));
@@ -352,6 +359,44 @@ function renameAsset(){
   veil.querySelector("#arCancel").onclick = shut;
   veil.onclick = e => { if (e.target === veil) shut(); };
   setTimeout(() => { inp.focus(); inp.select(); }, 30);
+}
+/**
+ * The guide sheet: what the AI is told each time it reads or changes this asset. "Draft it" writes a first one from the columns and
+ * first rows, or from the sections; nothing is kept until Save. An empty guide is no guide.
+ */
+function openGuide(){
+  const pj = S.pj; if (!pj) return;
+  const f = pj.data.file, noun = pjNoun(f.kind);
+  const veil = el("div","veil");
+  veil.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="agTitle">
+    <header><h3 id="agTitle">Guide for the AI</h3><p>Read each time a chat reads or changes ${esc(f.name)}. Say what this ${esc(noun)} is for${f.kind === "table" ? ", what each column holds and its format, and how a new row is filled" : ", its sections and its tone"}.</p></header>
+    <div class="f"><label for="agText">Guide</label><textarea id="agText" rows="9" maxlength="3000" placeholder="${f.kind === "table" ? "Leads I follow up. Status: New, Called, Won or Lost. Next step: a date as 2026-10-19. A new lead starts as New." : "My offer page. Short sentences, prices in euros."}"></textarea><div class="hint" id="agCount"></div></div>
+    <div class="f"><button class="ghost" id="agDraft" type="button">Draft it for me</button><div id="agMsg" class="hint" role="status"></div></div>
+    <footer><button class="ghost" id="agCancel" type="button">Cancel</button><button class="go" id="agSave" type="button">Save</button></footer></div>`;
+  document.body.append(veil);
+  const ta = veil.querySelector("#agText"), msg = veil.querySelector("#agMsg"), save = veil.querySelector("#agSave"), draft = veil.querySelector("#agDraft"), count = veil.querySelector("#agCount");
+  ta.value = f.guide || "";
+  const tally = () => { count.textContent = `${ta.value.length.toLocaleString("en-US")} of 3,000 characters`; };
+  ta.oninput = tally; tally();
+  const shut = () => veil.remove();
+  draft.onclick = async () => {
+    draft.disabled = true; msg.className = "spin"; msg.textContent = `Reading the ${noun}`;
+    try {
+      const r = await api("/api/assets/file", { action: "draftGuide", file: pj.fid });
+      if (r.draft){ ta.value = r.draft; tally(); msg.className = "hint"; msg.textContent = "Drafted. Change anything, then Save."; ta.focus(); }
+      else { msg.className = "bad"; msg.textContent = "Nothing came back. Try again."; }
+    } catch (e){ msg.className = "bad"; msg.textContent = e.message; }
+    draft.disabled = false;
+  };
+  save.onclick = async () => {
+    save.disabled = true; msg.className = "spin"; msg.textContent = "Saving";
+    try { const r = await api("/api/assets/file", { action: "guide", file: pj.fid, guide: ta.value }); f.guide = r.guide || ""; shut(); await syncAssets(); if (S.pj === pj) paintAsset(); }
+    catch (e){ save.disabled = false; msg.className = "bad"; msg.textContent = e.message; }
+  };
+  veil.querySelector("#agCancel").onclick = shut;
+  veil.onclick = e => { if (e.target === veil) shut(); };
+  ta.onkeydown = e => { if (e.key === "Escape") shut(); };
+  setTimeout(() => ta.focus(), 30);
 }
 function deleteAsset(){
   const pj = S.pj; if (!pj) return;

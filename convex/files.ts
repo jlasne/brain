@@ -27,6 +27,8 @@ export const EDIT_SECTIONS = 8;
 export const EDIT_CHARS = 60000;
 /** A section grows no further than this through changes. */
 export const SECTION_MAX = 30000;
+/* The longest guide an asset keeps for the AI. */
+export const GUIDE_MAX = 3000;
 /** A sheet up to this size takes a change to its columns: every block is rewritten, and what it held is kept on the change for Undo. */
 export const COLUMN_CHANGE_CHARS = 400000;
 
@@ -60,7 +62,7 @@ const childFiles = async (ctx: any, base: string): Promise<any[]> =>
     .sort((a: any, b: any) => splitKey(a.brain).fid - splitKey(b.brain).fid);
 /** One file as a list shows it: its number, name, kind, size and, for a table, its sheets. */
 const fileRow = (f: any) => ({ id: splitKey(f.brain).fid, name: f.name, kind: f.kind, made: !!f.made, chars: f.chars, sections: f.parts, status: f.status, at: f.at,
-  ...(f.prev ? { prev: f.prev } : {}), ...(f.hidden ? { hidden: true } : {}), ...(f.url ? { url: f.url } : {}), ...(f.group ? { group: f.group } : {}),
+  ...(f.prev ? { prev: f.prev } : {}), ...(f.hidden ? { hidden: true } : {}), ...(f.url ? { url: f.url } : {}), ...(f.group ? { group: f.group } : {}), ...(f.guide ? { guide: f.guide } : {}),
   ...(f.kind === "table" ? { sheets: (f.sheets ?? []).map((s: any) => ({ name: s.name, rows: s.rows ?? 0, cols: (s.cols ?? []).map((c: any) => ({ name: c.name })), header: s.header ?? [] })) } : {}) });
 const cardsOf = async (ctx: any, brain: string): Promise<any[]> =>
   (await ctx.db.query("projectCards").withIndex("by_brain_ord", (q: any) => q.eq("brain", brain)).collect())
@@ -79,7 +81,7 @@ export const fileGet = internalQuery({
     if (!f) throw new Error("that asset is no longer here");
     return {
       file: { id: splitKey(a.brain).fid, name: f.name, kind: f.kind, made: !!f.made, sheets: f.sheets, chars: f.chars, sections: f.parts, status: f.status, ver: f.ver, at: f.at,
-        ...(f.url ? { url: f.url } : {}) },
+        ...(f.url ? { url: f.url } : {}), ...(f.guide ? { guide: f.guide } : {}) },
       cards: (await cardsOf(ctx, a.brain)).map((c: any) => ({ sid: c.sid, ord: c.ord, sheet: c.sheet, title: c.title, summary: c.summary, chars: c.chars,
         ...(c.rows != null ? { rows: c.rows } : {}), ...(c.keys ? { keys: c.keys } : {}) })),
     };
@@ -228,7 +230,7 @@ export const fileBegin = internalMutation({
     const doc = { space: readSpace(a.space), brain: a.brain, name: a.name.slice(0, 200), kind: a.kind, sheets: sheets.length ? sheets : [{ name: a.name.slice(0, 60), header: [], cols: [], rows: 0 }],
       chars: 0, parts: 0, next: 1, status: "reading", ver: (old?.ver ?? 0) + 1, at: Date.now(),
       /* A new version keeps the number of the one it replaces, for its Undo, and a web page its address. */
-      ...(a.prev ?? old?.prev ? { prev: a.prev ?? old?.prev } : {}), ...(a.url ?? old?.url ? { url: a.url ?? old?.url } : {}), ...(old?.group ? { group: old.group } : {}) };
+      ...(a.prev ?? old?.prev ? { prev: a.prev ?? old?.prev } : {}), ...(a.url ?? old?.url ? { url: a.url ?? old?.url } : {}), ...(old?.group ? { group: old.group } : {}), ...(old?.guide ? { guide: old.guide } : {}) };
     if (old) await ctx.db.replace(old._id, doc); else await ctx.db.insert("projectFiles", doc);
     return { ver: doc.ver };
   },
@@ -276,6 +278,19 @@ export const fileRename = internalMutation({
   },
 });
 
+/** The guide the AI reads with an asset, set or cleared with "". Line breaks are kept. */
+export const fileGuide = internalMutation({
+  args: { space: v.string(), brain: v.string(), guide: v.string() },
+  handler: async (ctx, a) => {
+    await need(ctx, a.space, a.brain);
+    const f = await fileOf(ctx, a.brain);
+    if (!f) throw new Error("that asset is no longer here");
+    const guide = String(a.guide ?? "").replace(/\r/g, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+    if (guide.length > GUIDE_MAX) throw new Error(`a guide holds ${GUIDE_MAX.toLocaleString("en-US")} characters at most`);
+    await ctx.db.patch(f._id, { guide: guide || undefined });
+    return { guide };
+  },
+});
 /** Assets each set to a category, or to none with "". */
 export const fileGroups = internalMutation({
   args: { space: v.string(), set: v.array(v.object({ brain: v.string(), group: v.string() })) },

@@ -28,7 +28,7 @@ import { addDocPiece, addRowPiece, finishFile, readBlocks } from "./reader";
 import { withChatSpend } from "./spend";
 import { parseExport, RESTORE_CHARS } from "./restore";
 import { colNames, downloadText, csvOf, parseCsv, splitKey, fileKey, assetsSlug } from "./sheet";
-import { readAsset, ASSET_RULES, readCreate, createPreview, ASSETS_A_MESSAGE, announcesOnly } from "./assets";
+import { readAsset, assetSketch, ASSET_RULES, readCreate, createPreview, ASSETS_A_MESSAGE, announcesOnly } from "./assets";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { healthOf } from "./health";
@@ -2183,7 +2183,9 @@ route("/api/assets/download", async (ctx, _req, b) => {
 
 /**
  * One asset, by action:
- *   rename   its name.
+ *   rename      its name.
+ *   guide       the owner's guide the AI reads with it, or none with "".
+ *   draftGuide  a first draft of that guide, from what it holds. Nothing is saved.
  *   remove   it goes, with its words, rows and changes, and the version kept for its Undo.
  *   undo     a new version taken back: the one it replaced returns.
  */
@@ -2206,6 +2208,25 @@ route("/api/assets/file", async (ctx, _req, b) => {
   if (!a) return { error: "that asset is no longer here" };
   switch (String(b.action ?? "")) {
     case "rename": return await ctx.runMutation(internal.files.fileRename, { space: who.space, brain: key, name: String(b.name ?? "") });
+    case "guide": return await ctx.runMutation(internal.files.fileGuide, { space: who.space, brain: key, guide: String(b.guide ?? "") });
+    /* A first draft of the guide, from the columns and first rows or the sections: nothing is saved until the owner saves it. */
+    case "draftGuide": {
+      const sketch = await assetSketch(ctx, { space: who.space, base, fid });
+      return await metered(ctx, who, "upkeep", async meter => {
+        const { text } = await ask([
+          { role: "system", content: "You write the guide an AI reads before it reads or changes one of the owner's assets. You reply with the guide only, as plain lines." },
+          { role: "user", content: `Write the guide for the asset below, from what it shows.
+- First line: what the asset is for, in one sentence.
+- For a table: one line per column, "Column: what it holds, its format or the values it takes", as the rows show them. Then how a new row is filled, and which columns must never be left empty.
+- For a document: its sections, its tone, and how a new section is written.
+- Only what the asset shows. No guessing, no advice, no Markdown headings. Under 160 words.
+- In the language of the asset.
+
+${sketch}` },
+        ], { maxTokens: 900, key: keyFor(who), model: modelFor(who, b), meter, timeout: 60000, temperature: 0.2 });
+        return { draft: String(text ?? "").replace(/^```\w*\n?|```$/g, "").trim().slice(0, 3000) };
+      });
+    }
     case "remove": {
       if (a.prev) await wipeFile(ctx, who.space, fileKey(base, a.prev));
       return (await wipeFile(ctx, who.space, key)) ? { ok: true } : { error: "that asset is large: ask again to finish removing it" };
@@ -2215,7 +2236,7 @@ route("/api/assets/file", async (ctx, _req, b) => {
       await wipeFile(ctx, who.space, key);
       return { ok: true, back: r.back };
     }
-    default: return { error: "rename, remove or undo" };
+    default: return { error: "rename, guide, draftGuide, remove or undo" };
   }
 });
 

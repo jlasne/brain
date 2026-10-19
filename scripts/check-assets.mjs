@@ -235,6 +235,7 @@ globalThis.fetch = async (_u, opt) => {
   else if (/You turn questions about a table into a filter/.test(sys)) { if (reply.filterFail) return new Response("busy", { status: 503 }); out = JSON.stringify({ query: reply.filter ?? null }); }
   else if (/You route questions to the right entries/.test(sys)) { if (reply.routerFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.folders ?? { picks: [], terms: [] }); }
   else if (/You work on the owner's assets/.test(sys)) out = typeof reply.asset === "function" ? reply.asset(user) : JSON.stringify(reply.asset ?? { answer: "Read.", edits: [], create: null });
+  else if (/You write the guide an AI reads/.test(sys)) out = "```\nMy portfolio. Asset: its name. Return: a percent a year.\n```";
   else if (/You file notes into a person's own knowledge base/.test(sys)) out = JSON.stringify({ notes: [], people: [] });
   else if (/You are their AI twin/.test(sys)) out = reply.twin ?? "Noted.";
   else if (/You are the user's own knowledge base/.test(sys)) out = typeof reply.kb === "function" ? reply.kb(user) : reply.kb ?? "Answer.";
@@ -306,6 +307,19 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   await reader.finishFile(w.ctx, { space: SPACE, brain: f.key, ver: f.ver });
   check("a short one is read whole", /: all of it\n--- SECTION 1: Offer\n# Offer\n\nTeam costs 1,490 euros\./.test((await assets.readAsset(w.ctx, { space: SPACE, base: BASE, fid: f.fid, q: "x" })).text));
   check("one no longer kept says so in its place", /id 9: it is no longer kept/.test((await assets.readAsset(w.ctx, { space: SPACE, base: BASE, fid: 9, q: "x" })).text));
+  /* the owner's guide, read with the asset each time */
+  const set = await w.ctx.runMutation("files.fileGuide", { space: SPACE, brain: f.key, guide: "  My offer page.\r\n\n\n\nPrices   in euros. " });
+  const withG = (await assets.readAsset(w.ctx, { space: SPACE, base: BASE, fid: f.fid, q: "x" })).text;
+  check("a guide is kept tidy, and stands under the asset's first line, before what it holds", set.guide === "My offer page.\n\nPrices in euros."
+    && /^=== ASSET "short\.md" \(document\), id \d+: all of it\nTHE OWNER'S GUIDE TO THIS ASSET, written by them: follow it when you read or change it\nMy offer page\.\n\nPrices in euros\.\nEND OF THE GUIDE\n--- SECTION 1: Offer/.test(withG), withG.slice(0, 300));
+  check("the chat is told the owner's guide is the one thing inside an asset it follows", /THE OWNER'S GUIDE under an asset[^\n]*follow it/.test(assets.ASSET_RULES(true, { folders: false })) && /The owner's guide is the one exception/.test(assets.ASSET_RULES(true, { folders: false })));
+  check("the list carries the guide", (await w.ctx.runQuery("files.assetsOf", { space: SPACE })).find(x => x.id === f.fid)?.guide === "My offer page.\n\nPrices in euros.");
+  check("a guide past 3,000 characters is refused", /3,000 characters at most/.test(String(await w.ctx.runMutation("files.fileGuide", { space: SPACE, brain: f.key, guide: "x".repeat(3001) }).catch(e => e.message))));
+  await w.ctx.runMutation("files.fileBegin", { space: SPACE, brain: f.key, name: "short.md", kind: "doc", sheets: [{ name: "short.md" }] });
+  check("a new version keeps the guide", (await w.ctx.runQuery("files.fileGet", { space: SPACE, brain: f.key })).file.guide === "My offer page.\n\nPrices in euros.");
+  await w.ctx.runMutation("files.fileGuide", { space: SPACE, brain: f.key, guide: "   " });
+  check("an empty guide is no guide", !(await w.ctx.runQuery("files.fileGet", { space: SPACE, brain: f.key })).file.guide);
+  check("another workspace cannot set one", /not in this workspace/.test(String(await w.ctx.runMutation("files.fileGuide", { space: "squidgy", brain: f.key, guide: "x" }).catch(e => e.message))));
 }
 
 /* ---- a table: every row searched, whatever the size ---- */
@@ -708,6 +722,19 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   const dr = await call("/api/assets/adopt", { project: "old-idea", drop: true });
   check("a project deleted instead goes whole, its file with it, and adds no asset", dr.ok && (await listed()).length === n0 && !w.T.brains.some(x => x.slug === "old-idea") && !w.T.projectFiles.some(f => f.brain === "old-idea") && !w.T.projectCards.some(c => c.brain === "old-idea"));
   check("turning the assets themselves into assets is refused", /assets already/.test((await call("/api/assets/adopt", { project: BASE })).error ?? ""));
+
+  /* the guide: drafted from the columns and first rows, saved by the owner, read with the asset by every message */
+  const drafted = await call("/api/assets/file", { action: "draftGuide", file: 2 });
+  const asked = sent.filter(x => /You write the guide an AI reads/.test(x.sys)).pop()?.user || "";
+  check("Draft it for me reads the table's columns and first rows, and saves nothing", drafted.draft === "My portfolio. Asset: its name. Return: a percent a year." && /SHEET 1 "[^"]+": \d+ rows\. Columns:/.test(asked) && /First rows:\n1 \| /.test(asked)
+    && !(await listed()).find(x => x.id === 2)?.guide, JSON.stringify({ drafted, asked: asked.slice(-300) }));
+  await call("/api/assets/file", { action: "guide", file: 2, guide: drafted.draft });
+  reply = { asset: { answer: "Read.", edits: [], create: null } };
+  await call("/api/ask", { q: "add copper at 9%", brain: "all", assets: [2], chat: null });
+  const told = sent.filter(x => /You work on the owner's assets/.test(x.sys)).pop();
+  check("a saved guide is read with its asset by the next message", (await listed()).find(x => x.id === 2)?.guide === drafted.draft && (told?.sys + told?.user).includes("THE OWNER'S GUIDE TO THIS ASSET, written by them: follow it when you read or change it\nMy portfolio. Asset: its name."),
+    String(told?.user).slice(0, 300));
+  check("the demo cannot set a guide", !!(await call("/api/assets/file", { action: "guide", file: 2, guide: "x" }, "demo-token")).error);
 
   /* rename, remove, the other workspace, the demo */
   await call("/api/assets/file", { action: "rename", file: 3, name: "Portfolio rules.md" });

@@ -10,7 +10,7 @@ Folders learn from what you drop. Assets keep your docs and tables. Call any wit
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1991 checks passing" src="https://img.shields.io/badge/checks-1991%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="2004 checks passing" src="https://img.shields.io/badge/checks-2004%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="Installs on phone and desktop" src="https://img.shields.io/badge/app-phone%20and%20desktop-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -161,6 +161,7 @@ Documents, tables, pages and web pages you keep. Any chat calls one with @, as i
 - **In the same list as the folders.** A click ticks an asset for the chat, open shows it. Tick up to 4, here or in the chat bar, and every message reads them beside the folders ticked.
 - **Call it with @.** "@invest-assets.csv what are the best 4 lines?" A table of up to 120,000 characters (about 300 rows of 30 columns) is read whole; a bigger one, up to 40,000 rows, by a filter and totals run over every row. A document of up to 60,000 characters (about 20 pages) is read whole; a longer one, up to 4,000 pages, by the 8 sections that bear on the question. Up to 4 assets and folders in one message.
 - **Nothing changes without you.** A chat proposes a change with the words before and after, or a new asset with what it will hold. Apply, Turn down, then Undo. The personal chat proposes them too, from your notes.
+- **A guide for the AI.** Up to 3,000 characters on what the asset is for, what each column holds and how a row is filled. Every chat that reads or changes the asset reads it first. Draft it for me writes one from the columns and first 12 rows.
 - **Versions.** A file dropped under a name an asset holds becomes its new version. The one before is kept: Undo brings it back.
 - **Cost, on the default model (GLM 5.3 Flash, $0.035 a million tokens read, $0.90 written).** A question on a 300-row table reads about 40,000 tokens: $0.0014, plus about $0.0005 for the answer. A proposed page or table of 3,000 tokens adds $0.003. Reading a 100-page PDF in costs about $0.005; a table or a link, nothing. Counted under Assets in Cost.
 - **See it.** A document's pages, a table's grid, a page as it renders or as code. Download a document as Markdown, PDF or a web page, a table as Excel, CSV or Markdown.
@@ -256,7 +257,7 @@ The app's source sits in `web/chat/`, one file a screen. `npm run build` joins i
 
 ```bash
 npm run build     # web/chat into app/chat.html
-npm run check     # the build first, then 1991 checks
+npm run check     # the build first, then 2004 checks
 npm run deploy    # the server, to Convex
 ```
 
@@ -270,7 +271,7 @@ skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a folder
 ```
 
-`npm run check` runs 1991 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
+`npm run check` runs 2004 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the health score, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 
