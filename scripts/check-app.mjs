@@ -3000,6 +3000,40 @@ for (const space of ["octopus", "squidgy"]) {
   await page.close();
 }
 
+/* ---- the folders ticked belong to their chat ---- */
+{
+  const two = { ...STATE, brains: [
+    { slug: "content", name: "Content", type: "subject", scope: "brand" },
+    { slug: "wealth", name: "Wealth", type: "subject", scope: "money" }] };
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    const chats = [{ id: "k1", title: "Gold", brain: "content", pinned: false, updated: Date.now(), turns: 1 },
+                   { id: "k2", title: "Oil", brain: "wealth", pinned: false, updated: Date.now() - 1e3, turns: 1 }];
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}");
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/chats/get")) { const c = chats.find(x => x.id === body.id); return Response.json({ chat: { ...c, turns: [{ q: c.title + "?", a: "Yes.", sources: 1, level: "normal" }] } }); }
+      if (s.includes("/api/chats")) return Response.json({ chats });
+      return Response.json({});
+    };
+  }, two);
+  await page.waitForTimeout(200);
+  const face = () => page.evaluate(() => document.getElementById("scopeVal").textContent);
+  await page.click('#chats .chat-row:has-text("Gold") .nm'); await page.waitForTimeout(200);
+  await page.focus("#input"); await page.click("#scopeBtn"); await page.click('.pick-menu .pk-row:has-text("Wealth")'); await page.click(".pick-menu .pk-done");
+  const a = await face();
+  await page.click('#chats .chat-row:has-text("Oil") .nm'); await page.waitForTimeout(200);
+  const b = await face();
+  await page.click('#chats .chat-row:has-text("Gold") .nm'); await page.waitForTimeout(200);
+  const c = await face();
+  check("each chat keeps the folders ticked in it: another chat shows its own, and coming back finds them again", /^(Content|Wealth) \+1$/.test(a) && b === "Wealth" && c === a, JSON.stringify({ a, b, c }));
+  await page.reload(); await page.waitForTimeout(300);
+  await page.click('#chats .chat-row:has-text("Gold") .nm'); await page.waitForTimeout(200);
+  check("and the browser remembers them after a reload", await face() === a);
+  check("nothing threw keeping ticks per chat", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- light Markdown: headings and bullets, typed and replied ---- */
 {
   const { page, bad } = await boot("/chat.html", state => {
@@ -3007,18 +3041,22 @@ for (const space of ["octopus", "squidgy"]) {
     window.fetch = async (u, opt) => {
       const s = String(u);
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/ask")) return Response.json({ answer: "# The plan\n## This week\n### Monday\n- Send 10 previews\n* Call Dana\nA plain line with **bold**.", sources: 0, level: "normal" });
+      if (s.includes("/api/ask")) return Response.json({ answer: "# The plan\n## This week\n### Monday\n- Send 10 previews\n* Call Dana\nA plain line with **bold**, see www.example.org/plan.", sources: 0, level: "normal" });
       return Response.json({ chats: [] });
     };
   }, STATE);
   await page.waitForTimeout(250);
-  await page.fill("#input", "# Leads\n## Hot\n- Dana\n* Lenny\nCall them **today**"); await page.click("#send"); await page.waitForTimeout(400);
+  await page.fill("#input", "# Leads\n## Hot\n- Dana\n* Lenny\nCall them **today**\nThe list: https://tasu.app/leads."); await page.click("#send"); await page.waitForTimeout(400);
   const me = await page.evaluate(() => { const b = [...document.querySelectorAll("#thread .msg.me .body")].pop();
     return { h: [...b.querySelectorAll(".md-h")].map(x => x.className.split(" ").pop() + ":" + x.textContent), li: [...b.querySelectorAll(".md-ul li")].map(x => x.textContent), p: b.querySelector(".md-p")?.textContent }; });
-  check("a message typed with #, ## and bullets of * or - is laid out as headings and a list", JSON.stringify(me.h) === '["md-h1:Leads","md-h2:Hot"]' && JSON.stringify(me.li) === '["Dana","Lenny"]' && me.p === "Call them **today**", JSON.stringify(me));
+  check("a message typed with #, ## and bullets of * or - is laid out as headings and a list", JSON.stringify(me.h) === '["md-h1:Leads","md-h2:Hot"]' && JSON.stringify(me.li) === '["Dana","Lenny"]' && me.p === "Call them **today**The list: https://tasu.app/leads.", JSON.stringify(me));
   const ai = await page.evaluate(() => { const b = [...document.querySelectorAll("#thread .msg.ai .body")].pop();
     return { h: [...b.querySelectorAll(".md-h")].map(x => x.className.split(" ").pop() + ":" + x.textContent), li: [...b.querySelectorAll(".md-ul li")].map(x => x.textContent), bold: b.querySelector("p.ln strong")?.textContent }; });
   check("a reply is laid out the same: three heading sizes, bullets of * or -, bold kept", JSON.stringify(ai.h) === '["md-h1:The plan","md-h2:This week","md-h3:Monday"]' && JSON.stringify(ai.li) === '["Send 10 previews","Call Dana"]' && ai.bold === "bold", JSON.stringify(ai));
+  const links = await page.evaluate(() => { const one = b => { const a = b.querySelector("a"); return a ? [a.textContent, a.href, a.target, window.getComputedStyle(a).color].join(" ") : ""; };
+    const me = [...document.querySelectorAll("#thread .msg.me .body")].pop(), ai = [...document.querySelectorAll("#thread .msg.ai .body")].pop(); return { me: one(me), ai: one(ai) }; });
+  check("a web address in a message and in a reply is a dark blue link that opens in a new tab", links.me === "https://tasu.app/leads https://tasu.app/leads _blank rgb(29, 63, 143)"
+    && links.ai === "www.example.org/plan https://www.example.org/plan _blank rgb(29, 63, 143)", JSON.stringify(links));
   check("nothing threw around light Markdown", !bad.length, bad.join(" | "));
   await page.close();
 }
@@ -3158,17 +3196,22 @@ for (const space of ["octopus", "squidgy"]) {
   check("one idea filed in two brains is two concepts", !/filed into 1 concept\b/.test(note));
   await page.click("#dropClose");
   const askFace = await page.evaluate(() => document.getElementById("scopeVal").textContent);
-  check("asking after the drop keeps the two folders ticked", /^(Wealth|Charles Gave) \+1$/.test(askFace), askFace);
+  check("back in the chat, the chat keeps its own ticks: the drop's stay with the drop", askFace === "All folders", askFace);
+  await page.evaluate(() => document.getElementById("dropBtn").click());
+  const dropAgain = await page.evaluate(() => document.getElementById("scopeVal").textContent);
+  check("Drop opened again finds its two folders ticked", /^(Wealth|Charles Gave) \+1$/.test(dropAgain), dropAgain);
+  await page.click("#dropClose");
 
-  /* Asking, the chat bar ticks folders too: one more, one off, the menu open. */
+  /* Asking, the chat bar ticks folders too: two ticked, the menu open. */
   await page.focus("#input"); await page.click("#scopeBtn");
-  const ask = await page.evaluate(() => ({ boxes: document.querySelectorAll(".pick-menu .pk-box").length, done: document.querySelector(".pick-menu .pk-done")?.textContent }));
-  check("asking, each folder has a tick box and the button says how many are asked", ask.boxes === 3 && ask.done === "Ask 2 folders", JSON.stringify(ask));
+  const ask = await page.evaluate(() => ({ boxes: document.querySelectorAll(".pick-menu .pk-box").length }));
+  check("asking, each folder has a tick box", ask.boxes === 3, JSON.stringify(ask));
   await page.click('.pick-menu .pk-row:has-text("Content")');
-  await page.click('.pick-menu .pk-row:has-text("Charles Gave")');
+  await page.click('.pick-menu .pk-row:has-text("Wealth")');
+  check("the button says how many are asked", await page.evaluate(() => document.querySelector(".pick-menu .pk-done")?.textContent) === "Ask 2 folders");
   const three2 = await page.evaluate(() => ({ val: document.getElementById("scopeVal").textContent, open: !!document.querySelector(".pick-menu"),
     on: [...document.querySelectorAll(".pick-menu .pk-row.on .pk-nm")].map(x => x.firstChild.textContent).sort().join(",") }));
-  check("ticking one more and unticking another keeps the menu open", three2.open && three2.on === "Content,Wealth" && /^(Wealth|Content) \+1$/.test(three2.val), JSON.stringify(three2));
+  check("ticking two keeps the menu open", three2.open && three2.on === "Content,Wealth" && /^(Wealth|Content) \+1$/.test(three2.val), JSON.stringify(three2));
   await page.click(".pick-menu .pk-done");
   check("its button closes the menu", !(await page.$(".pick-menu")));
   await page.evaluate(() => { window.__ask = null; const f = window.fetch; window.fetch = async (u, opt) => {
@@ -3998,7 +4041,7 @@ for (const space of ["octopus", "squidgy"]) {
     sessionStorage.setItem("octopus.token.v1", "test");
     window.__calls = []; window.__assets = JSON.parse(JSON.stringify(arg.assets));
     const COLS = [{ name: "Asset", kind: "text", filled: 4 }, { name: "Fit", kind: "text", filled: 4, values: ["fit", "misfit"] }, { name: "Return", kind: "num", filled: 4, sum: 30, min: 3, max: 12, avg: 7.5 }];
-    const ROWS = [["Copper", "fit", "9"], ["Gold", "fit", "12"], ["Oil", "misfit", "3"], ["Silver", "fit", "6"]];
+    const ROWS = [["Copper", "fit", "9"], ["Gold", "fit", "12"], ["Oil", "misfit", "3"], ["Silver", "fit, read https://example.com/silver-notes for why it holds through the year and beyond, with the full list of " + "reasons ".repeat(12), "6"]];
     window.fetch = async (u, opt) => {
       const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}"), J = x => Response.json(x);
       window.__calls.push({ s: path, body });
@@ -4055,6 +4098,11 @@ for (const space of ["octopus", "squidgy"]) {
   const ph = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, vw: innerWidth, btn: Math.min(...[...document.querySelectorAll(".pj-acts > button")].map(b => b.getBoundingClientRect().height)),
     grid: document.querySelector(".pj-gridwrap").getBoundingClientRect().right }));
   check("on a phone an open asset fits the screen, its grid scrolls inside it, and its buttons are a finger tall", ph.w <= ph.vw && ph.grid <= ph.vw && ph.btn >= 36, JSON.stringify(ph));
+  const wide = await page.evaluate(() => { const w = document.querySelector(".pj-gridwrap"), td = [...w.querySelectorAll("td.long")].pop(), a = td?.querySelector("a");
+    return { scrolls: w.scrollWidth > w.clientWidth, text: td?.textContent.length, h: td?.getBoundingClientRect().height, cut: td ? td.scrollWidth > td.clientWidth + 1 : true,
+      href: a?.href, tab: a?.target, rel: a?.rel, col: a ? window.getComputedStyle(a).color : "" }; });
+  check("a wide table scrolls left and right inside its grid, a long cell wraps in full, and its web address is a dark blue link", wide.scrolls && wide.text > 150 && wide.h > 40 && !wide.cut
+    && wide.href === "https://example.com/silver-notes" && wide.tab === "_blank" && wide.rel === "noopener noreferrer" && wide.col === "rgb(29, 63, 143)", JSON.stringify(wide));
   await page.setViewportSize({ width: 1280, height: 860 }); await page.waitForTimeout(150);
   await page.click(".pj-acts button >> text=Ask about it"); await page.waitForTimeout(200);
   check("Ask about it opens a new chat with the asset called", await page.evaluate(() => document.querySelector("main").dataset.view === "chat" && document.getElementById("input").value === "@invest-assets.csv "));

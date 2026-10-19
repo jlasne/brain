@@ -23,12 +23,12 @@ const kindTitle = f => f?.kind === "table" ? "Table" : f?.kind === "html" ? "Pag
 function mdView(text, top = 2){
   const fmt = t => esc(t).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[\s(])\*([^*\s][^*]*?)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>").replace(/`([^`]+)`/g, "<code>$1</code>");
-  /* A web address is a link only as [words](https://...): its own marks are never read as bold or italic. */
+  /* A web address is a link, as [words](https://...) or written out: its own marks are never read as bold or italic. */
   const inline = s => {
     let html = "", last = 0;
     const re = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
-    for (let m; (m = re.exec(s));){ html += fmt(s.slice(last, m.index)) + `<a href="${esc(m[2])}" target="_blank" rel="noopener noreferrer">${fmt(m[1])}</a>`; last = m.index + m[0].length; }
-    return html + fmt(s.slice(last));
+    for (let m; (m = re.exec(s));){ html += linkHtml(s.slice(last, m.index), fmt) + `<a class="lnk" href="${esc(m[2])}" target="_blank" rel="noopener noreferrer">${fmt(m[1])}</a>`; last = m.index + m[0].length; }
+    return html + linkHtml(s.slice(last), fmt);
   };
   const out = []; let para = [], items = [], table = [], quote = [];
   /* A PDF or a plain text file breaks its lines where the page ended: a long line with no stop is read on into the next. */

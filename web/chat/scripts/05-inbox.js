@@ -22,7 +22,12 @@ function addJob(q, about, label){
 /** The answer names its chat: a draft still on screen becomes that chat. True when it is on screen. */
 function landed(j, r){
   const here = currentKey() === j.key;
-  if (r && r.chat){ if (here && !S.chatId) S.chatId = r.chat; j.key = j.chat = r.chat; loadChats(); }
+  if (r && r.chat){
+    if (here && !S.chatId) S.chatId = r.chat;
+    /* The ticks of the draft go with it to the chat it became. */
+    if (S.sels?.[j.key] && !S.sels[r.chat]) S.sels[r.chat] = S.sels[j.key];
+    j.key = j.chat = r.chat; loadChats();
+  }
   return here;
 }
 function endJob(j, ok){

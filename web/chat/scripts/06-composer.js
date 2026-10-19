@@ -78,15 +78,16 @@ function tagSpans(text, choices){
   return out.sort((a, b) => a[0] - b[0]);
 }
 /** A text into an element, each tag in it shaded by what it names. */
-function paintTags(box, text, choices){
+function paintTags(box, text, choices, links = false){
   box.textContent = "";
+  const put = t => links ? linkText(box, t) : box.append(t);
   let at = 0;
   for (const [from, to, kind] of tagSpans(text, choices)){
-    if (from > at) box.append(text.slice(at, from));
+    if (from > at) put(text.slice(at, from));
     box.append(el("mark", "tag-hl hl-" + kind, text.slice(from, to)));
     at = to;
   }
-  box.append(text.slice(at));
+  put(text.slice(at));
 }
 /**
  * The tags in a message bar shaded as they are typed: a layer under the bar,

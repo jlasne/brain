@@ -438,7 +438,7 @@ export function parseJson(text: string, finish?: string): any {
     let d: any;
     try { d = JSON.parse(fixed.text); } catch { /* fall through */ }
     if (d !== undefined && fixed.cut) {
-      throw new Error("the reply stopped before it ended, so part of it is missing. The part is read again in two halves.");
+      throw new Error("the reply stopped before it ended, so part of it is missing. The part is asked again, in halves when it can be split.");
     }
     if (d !== undefined) return d;
   }

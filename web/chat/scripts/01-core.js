@@ -130,6 +130,28 @@ document.addEventListener("keydown", e => {
   }
 }, true);
 const esc = s => String(s??"").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+/* A web address in a text: from http, https or www to the next space, a closing stop left out. */
+const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"']*[^\s<>"'.,;:!?)\]]/g;
+const urlHref = u => /^www\./i.test(u) ? "https://" + u : u;
+/** A text into a box, each web address in it a link that opens in a new tab. */
+function linkText(box, text){
+  const t = String(text ?? ""); let at = 0;
+  for (const m of t.matchAll(URL_RE)){
+    if (m.index > at) box.append(t.slice(at, m.index));
+    const a = el("a", "lnk", m[0]); a.href = urlHref(m[0]); a.target = "_blank"; a.rel = "noopener noreferrer";
+    box.append(a); at = m.index + m[0].length;
+  }
+  if (at < t.length) box.append(t.slice(at));
+}
+/** The same as HTML: each part around the web addresses through `fmt`, escaped by default. */
+function linkHtml(text, fmt = esc){
+  const t = String(text ?? ""); let html = "", at = 0;
+  for (const m of t.matchAll(URL_RE)){
+    html += fmt(t.slice(at, m.index)) + `<a class="lnk" href="${esc(urlHref(m[0]))}" target="_blank" rel="noopener noreferrer">${esc(m[0])}</a>`;
+    at = m.index + m[0].length;
+  }
+  return html + fmt(t.slice(at));
+}
 const slug = s => String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,48)||"item";
 /** A short fingerprint of a text. */
 const fnv = t => {
@@ -195,10 +217,11 @@ async function apiRetry(path, body = {}, opts = {}){
   for (let n = 1; ; n++){
     try { return await api(path, body); }
     catch (e) {
-      /* A job too big for one call goes back to be split, not sent again. */
+      /* A job too big for one call goes back to be split, not sent again. One
+         that cannot be split any more is asked again, as a slip is. */
       if (opts.split && tooBig(e)) throw e;
-      /* A reply that held no readable JSON is asked again: the next one usually reads. */
-      const passing = /did not answer|unreachable|ran past|timed out|still\s(thinking|writing)|429|rate limit|overloaded|busy|50[0-9]|temporar|unreadable|cut off|held no JSON/i
+      /* A reply that held no readable JSON, or stopped before its end, is asked again: the next one usually reads. */
+      const passing = /did not answer|unreachable|ran past|timed out|still\s(thinking|writing)|429|rate limit|overloaded|busy|50[0-9]|temporar|unreadable|cut off|stopped before it ended|held no JSON/i
         .test(e.message);
       if (!passing || n >= 3 || e.message === "locked") throw e;
       await new Promise(ok => setTimeout(ok, n * 2500));

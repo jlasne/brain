@@ -43,8 +43,8 @@ function lightMd(box, text, inline){
 }
 function says(text, attach, where){
   const t = String(text ?? ""), choices = t.includes("@") ? tagChoices() : null;
-  /* A tag in a message keeps its shade: a folder, a category, an asset. */
-  const inline = (x, line) => { if (choices && line.includes("@")) paintTags(x, line, choices); else x.textContent = line; };
+  /* A tag in a message keeps its shade: a folder, a category, an asset. A web address is a link. */
+  const inline = (x, line) => { if (choices && line.includes("@")) paintTags(x, line, choices, true); else { x.textContent = ""; linkText(x, line); } };
   push("me", b => {
     /* Headings and bullets typed are laid out; a message with none stays as written. */
     if (t.split("\n").some(l => MD_HEAD.test(l) || MD_ITEM.test(l))){ b.classList.add("md"); lightMd(b, t, inline); }

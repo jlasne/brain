@@ -44,6 +44,8 @@
   .msg .body .md-p{ margin:0; }
   .msg .body .md-p + .md-p, .msg .body .md-ul + .md-p, .msg .body .md-p + .md-ul{ margin-top:.55em; }
   .msg.me .body.md{ white-space:normal; }
+  /* A web address in a message or a reply: dark blue, underlined, opens in a new tab. */
+  .msg .body a.lnk{ color:var(--link); text-decoration:underline; text-underline-offset:2px; overflow-wrap:anywhere; }
   .msg.ai .body strong{ color:var(--ink); font-weight:500; }
   .msg.ai .body em{ font-style:normal; color:var(--ink); }
 

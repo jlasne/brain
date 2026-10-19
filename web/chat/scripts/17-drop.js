@@ -70,7 +70,7 @@ async function planAll(ext, held, progress){
       ...(held && held.length ? { exclude: held } : {}),
       ...(merged.candidates.length ? { proposed: merged.candidates.map(c => `${c.brain} | ${c.title}`) } : {}),
       ...(again ? { again: true } : {}),
-    }, { split: true }).then(r => ({ ...(r.plan || {}), _topics: topics }));
+    }, { split: topics.length > 1 }).then(r => ({ ...(r.plan || {}), _topics: topics }));
   /* Where each topic of a batch went: T3 is the batch's third. A plan that
      names none of its topics leaves them untracked, never counted as lost. */
   const mark = p => {
@@ -261,7 +261,7 @@ async function storeAll(pc, progress){
   const send = async part => {
     const whole = !pc.noted;
     try {
-      const r = await apiRetry("/api/drop/settle", body(part, whole), { split: true });
+      const r = await apiRetry("/api/drop/settle", body(part, whole), { split: part.length > 1 });
       results.push(r);
       for (const u of part) pc.done.add(keyOf(u));
       for (const id of r.written || []) pc.written.add(id);

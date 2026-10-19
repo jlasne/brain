@@ -118,7 +118,7 @@ async function stopInterview(slug){
 function splitAnswer(t){
   const m = String(t).match(/\n\s*(Sources:[^\n]*)\s*$/i);
   const body = m ? String(t).slice(0, m.index) : String(t);
-  const fmt = l => esc(l).replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+  const fmt = l => linkHtml(l, x => esc(x).replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>"));
   /* Each line on its own: one after # to ### is a heading, lines after * or - are a list. */
   const html = body.split(/\n{2,}/).map(group => {
     let out = "", items = [];
@@ -346,7 +346,7 @@ async function doDrop(src, content, again){
   /* A pass the model runs out of time on is read again as two halves, cut at a
      paragraph or a sentence, and the halves read as one part. */
   const readText = async (text, i) => {
-    try { return (await apiRetry("/api/drop/read", { chunk: text, part: i+1, total: chunks.length }, { split: true })).part || {}; }
+    try { return (await apiRetry("/api/drop/read", { chunk: text, part: i+1, total: chunks.length }, { split: text.length >= 3000 })).part || {}; }
     catch (e) {
       if (!tooBig(e) || text.length < 3000) throw e;
       const mid = text.length >> 1;

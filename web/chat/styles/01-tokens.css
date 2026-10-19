@@ -28,6 +28,8 @@
     --good:#3f7d5c; --warn:#94650f; --bad:#b3372a;
     /* A tag in a message, shaded by what it names: a folder, a category, an asset. */
     --hl-folder:rgba(217,119,87,.18); --hl-group:rgba(82,120,214,.17); --hl-asset:rgba(63,125,92,.17);
+    /* A web address in a message, a reply or a table. */
+    --link:#1d3f8f;
     --shadow:0 1px 2px rgba(0,0,0,.04), 0 1px 6px rgba(0,0,0,.03);
     --shadow-lift:0 8px 30px -4px rgba(0,0,0,.09), 0 4px 10px rgba(0,0,0,.03);
     --sans:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
@@ -67,6 +69,7 @@
     --accent-soft:rgba(244,244,245,.07); --accent-line:rgba(244,244,245,.24);
     --good:#6fbf8f; --warn:#d9a441; --bad:#f07466;
     --hl-folder:rgba(217,119,87,.28); --hl-group:rgba(120,155,240,.26); --hl-asset:rgba(111,191,143,.24);
+    --link:#8fb0ff;
     --shadow:0 1px 2px rgba(0,0,0,.5), 0 1px 6px rgba(0,0,0,.3);
     --shadow-lift:0 8px 30px -4px rgba(0,0,0,.65), 0 4px 10px rgba(0,0,0,.35);
     --side-hover:rgba(255,255,255,.055); --side-on:rgba(255,255,255,.085);

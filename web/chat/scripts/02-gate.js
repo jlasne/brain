@@ -196,7 +196,7 @@ const sourcesOf  = b => S.sources.filter(s => (s.brains||[]).includes(b));
 /** How many concepts each folder holds, counted in one pass: a sort reads this instead of filtering every concept per comparison. */
 const conceptCounts = () => { const m = new Map(); for (const c of S.concepts) m.set(c.brain, (m.get(c.brain) || 0) + 1); return m; };
 
-function render(){ renderSide(); renderScope(); renderComposer(); renderZero(); renderView(); }
+function render(){ syncSel(); renderSide(); renderScope(); renderComposer(); renderZero(); renderView(); }
 
 /**
  * One screen at a time in the main area: the chat, a folder open, an asset open, or Drop.

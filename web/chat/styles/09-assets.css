@@ -92,10 +92,13 @@
     font:500 12.5px/1 var(--sans); color:var(--ink-3); }
   .pj-sheets button.on{ background:var(--surface); color:var(--ink); border-bottom-color:var(--surface); }
   .pj-gridwrap{ flex:1; min-height:0; overflow:auto; background:var(--surface); }
-  .pj-grid{ width:100%; border-collapse:collapse; font:400 13.5px/1.4 var(--sans); }
+  /* As wide as its columns need, at least the page: wider, it scrolls left and right. */
+  .pj-grid{ width:max-content; min-width:100%; border-collapse:collapse; font:400 13.5px/1.4 var(--sans); }
   .pj-grid th{ position:sticky; top:0; z-index:1; background:var(--surface-2); text-align:left; font:600 12px/1 var(--mono); letter-spacing:.06em; text-transform:uppercase;
     color:var(--ink-4); padding:12px 16px; border-bottom:1px solid var(--line-2); white-space:nowrap; }
-  .pj-grid td{ padding:11px 16px; border-bottom:1px solid var(--line); color:var(--ink-2); white-space:nowrap; font-variant-numeric:tabular-nums; max-width:340px; overflow:hidden; text-overflow:ellipsis; }
+  .pj-grid td{ padding:11px 16px; border-bottom:1px solid var(--line); color:var(--ink-2); white-space:nowrap; font-variant-numeric:tabular-nums; vertical-align:top; }
+  .pj-grid td.long{ white-space:normal; min-width:220px; max-width:360px; overflow-wrap:anywhere; }
+  .pj-grid a, .pj-md a{ color:var(--link); text-decoration:underline; text-underline-offset:2px; }
   .pj-grid .n{ text-align:right; }
   .pj-grid .r{ position:sticky; left:0; width:44px; text-align:right; color:var(--ink-4); font:400 12px/1 var(--mono); border-right:1px solid var(--line); background:var(--surface-2); }
   .pj-foot{ flex:none; padding:10px 20px; border-top:1px solid var(--line); background:var(--bg); font:400 12px/1.5 var(--mono); color:var(--ink-3); }

@@ -165,7 +165,8 @@ async function loadRows(){
       const tr = el("tr"); tr.dataset.n = row.n; tr._cells = row.cells.join("\u0001");
       if (was?.size && !was.has(tr._cells)) tr.classList.add("pj-new");
       tr.append(Object.assign(el("td","r"), { textContent: row.n }));
-      row.cells.forEach((c, i) => tr.append(Object.assign(el("td", g.cols[i]?.kind === "num" ? "n" : ""), { textContent: c, title: c.length > 40 ? c : "" })));
+      /* A long cell wraps at a set width; the grid scrolls left and right. A web address is a link. */
+      row.cells.forEach((c, i) => { const td = el("td", (g.cols[i]?.kind === "num" ? "n" : "") + (c.length > 40 ? " long" : "")); linkText(td, c); tr.append(td); });
       g.tb.append(tr); g.last = row.n;
     }
     g.total = r.total;

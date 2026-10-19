@@ -130,6 +130,32 @@ function setPicks(list){
   S.scope = S.picks.length === 1 ? S.picks[0] : "all";
   S.into = S.picks.filter(x => !readOnly(S.brains.find(b => b.slug === x)));
 }
+/**
+ * What is ticked belongs to the chat it was ticked in, and Drop keeps its own.
+ * Each screen of the main area saves its ticks as it is drawn; coming back to
+ * a chat, or to Drop, puts its ticks back. A chat never seen keeps what is on
+ * screen. Saved chats and Drop are kept in this browser, 300 at most.
+ */
+function SEL_KEY(){ return "octopus.sel.v1." + (S.space || "default"); }
+function selNow(){ return { picks: S.picks.slice(), scope: S.scope, into: S.into.slice(), assets: S.assetPicks.slice() }; }
+function syncSel(){
+  /* Read once per workspace: the page may draw before it knows which one it is in. */
+  if (S.selsOf !== SEL_KEY()){ S.selsOf = SEL_KEY(); S.sels = Object.fromEntries(Object.entries(S.sels || {}).filter(([k]) => /^d\d+$/.test(k))); try { Object.assign(S.sels, JSON.parse(localStorage.getItem(S.selsOf) || "{}")); } catch { /* none kept */ } }
+  const key = S.mode === "drop" ? "drop" : (S.chatId || S.draft), had = S.sels[key];
+  if (key !== S.selAt && had){
+    const here = x => S.brains.some(b => b.slug === x);
+    S.picks = (had.picks || []).filter(here); S.into = (had.into || []).filter(here);
+    S.scope = here(had.scope) ? had.scope : "all";
+    S.assetPicks = (had.assets || []).filter(id => (S.assets || []).some(a => a.id === id));
+  }
+  S.selAt = key;
+  const now = selNow();
+  if (JSON.stringify(had) === JSON.stringify(now)) return;
+  delete S.sels[key]; S.sels[key] = now;
+  /* A chat not named yet is kept in this page only, until its first answer names it. */
+  const kept = Object.entries(S.sels).filter(([k]) => !/^d\d+$/.test(k)).slice(-300);
+  try { localStorage.setItem(SEL_KEY(), JSON.stringify(Object.fromEntries(kept))); } catch { /* kept in this page only */ }
+}
 /** The ticked folders by name: "Wealth and Charles Gave", or "4 folders" past three. */
 function picksName(){
   const n = S.picks.map(x => S.brains.find(b => b.slug === x)?.name || x);
