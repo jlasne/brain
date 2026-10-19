@@ -3000,6 +3000,29 @@ for (const space of ["octopus", "squidgy"]) {
   await page.close();
 }
 
+/* ---- light Markdown: headings and bullets, typed and replied ---- */
+{
+  const { page, bad } = await boot("/chat.html", state => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.fetch = async (u, opt) => {
+      const s = String(u);
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/ask")) return Response.json({ answer: "# The plan\n## This week\n### Monday\n- Send 10 previews\n* Call Dana\nA plain line with **bold**.", sources: 0, level: "normal" });
+      return Response.json({ chats: [] });
+    };
+  }, STATE);
+  await page.waitForTimeout(250);
+  await page.fill("#input", "# Leads\n## Hot\n- Dana\n* Lenny\nCall them **today**"); await page.click("#send"); await page.waitForTimeout(400);
+  const me = await page.evaluate(() => { const b = [...document.querySelectorAll("#thread .msg.me .body")].pop();
+    return { h: [...b.querySelectorAll(".md-h")].map(x => x.className.split(" ").pop() + ":" + x.textContent), li: [...b.querySelectorAll(".md-ul li")].map(x => x.textContent), p: b.querySelector(".md-p")?.textContent }; });
+  check("a message typed with #, ## and bullets of * or - is laid out as headings and a list", JSON.stringify(me.h) === '["md-h1:Leads","md-h2:Hot"]' && JSON.stringify(me.li) === '["Dana","Lenny"]' && me.p === "Call them **today**", JSON.stringify(me));
+  const ai = await page.evaluate(() => { const b = [...document.querySelectorAll("#thread .msg.ai .body")].pop();
+    return { h: [...b.querySelectorAll(".md-h")].map(x => x.className.split(" ").pop() + ":" + x.textContent), li: [...b.querySelectorAll(".md-ul li")].map(x => x.textContent), bold: b.querySelector("p.ln strong")?.textContent }; });
+  check("a reply is laid out the same: three heading sizes, bullets of * or -, bold kept", JSON.stringify(ai.h) === '["md-h1:The plan","md-h2:This week","md-h3:Monday"]' && JSON.stringify(ai.li) === '["Send 10 previews","Call Dana"]' && ai.bold === "bold", JSON.stringify(ai));
+  check("nothing threw around light Markdown", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
 /* ---- one list: folders and assets under the same categories ---- */
 {
   const st = { ...STATE, brains: [

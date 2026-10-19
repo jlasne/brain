@@ -31,6 +31,19 @@
   .msg.ai .body p.ln{ margin:0; }
   .msg.ai .body p.ln + p.ln{ margin-top:.42em; }
   .msg.ai .body .para + .para{ margin-top:1.1em; }
+  /* Light Markdown, in a reply and in a message typed: three heading sizes and bullets. */
+  .msg .body .md-h{ font-weight:600; color:var(--ink); line-height:1.3; text-wrap:balance; }
+  .msg .body .md-h1{ font-size:1.3em; }
+  .msg .body .md-h2{ font-size:1.15em; }
+  .msg .body .md-h3{ font-size:1.02em; }
+  .msg .body .md-h + *, .msg .body * + .md-h{ margin-top:.55em; }
+  .msg .body .para > .md-h:first-child{ margin-top:0; }
+  .msg .body .md-ul{ margin:.35em 0 0; padding-left:1.2em; }
+  .msg .body .md-ul li + li{ margin-top:.25em; }
+  .msg .body .md-ul:first-child{ margin-top:0; }
+  .msg .body .md-p{ margin:0; }
+  .msg .body .md-p + .md-p, .msg .body .md-ul + .md-p, .msg .body .md-p + .md-ul{ margin-top:.55em; }
+  .msg.me .body.md{ white-space:normal; }
   .msg.ai .body strong{ color:var(--ink); font-weight:500; }
   .msg.ai .body em{ font-style:normal; color:var(--ink); }
 

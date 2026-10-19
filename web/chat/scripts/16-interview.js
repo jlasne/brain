@@ -118,11 +118,20 @@ async function stopInterview(slug){
 function splitAnswer(t){
   const m = String(t).match(/\n\s*(Sources:[^\n]*)\s*$/i);
   const body = m ? String(t).slice(0, m.index) : String(t);
-  const html = body.split(/\n{2,}/).map(group =>
-    `<div class="para">` +
-    group.split("\n").map(l => l.trim()).filter(Boolean)
-      .map(l => `<p class="ln">${esc(l).replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>")}</p>`)
-      .join("") + `</div>`).filter(x => x !== `<div class="para"></div>`).join("");
+  const fmt = l => esc(l).replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+  /* Each line on its own, a heading ("#" to "###") as a heading, bullets ("*", "-") as a list. */
+  const html = body.split(/\n{2,}/).map(group => {
+    let out = "", items = [];
+    const flush = () => { if (items.length) out += `<ul class="md-ul">${items.map(x => `<li>${fmt(x)}</li>`).join("")}</ul>`; items = []; };
+    for (const l of group.split("\n").map(l => l.trim()).filter(Boolean)){
+      const h = MD_HEAD.exec(l), b = MD_ITEM.exec(l);
+      if (b){ items.push(b[1]); continue; }
+      flush();
+      out += h ? `<div class="md-h md-h${h[1].length}">${fmt(h[2])}</div>` : `<p class="ln">${fmt(l)}</p>`;
+    }
+    flush();
+    return out ? `<div class="para">${out}</div>` : "";
+  }).filter(Boolean).join("");
   return html + (m ? `<div class="srcline">${esc(m[1])}</div>` : "");
 }
 

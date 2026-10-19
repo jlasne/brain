@@ -22,9 +22,35 @@ function push(kind, build, where = $("thread")){
   build(body); bottom(where);
   return body;
 }
+/** A line that is a heading ("#", "##", "###") or a bullet ("*", "-"): the light Markdown a message and a reply are laid out with. */
+const MD_HEAD = /^\s*(#{1,3})\s+(.+)$/, MD_ITEM = /^\s*[*-]\s+(.+)$/;
+/**
+ * A message's light Markdown into an element: headings and bullets, every
+ * other line as written. `inline` fills one line: plain text, or tags shaded.
+ */
+function lightMd(box, text, inline){
+  box.textContent = "";
+  let list = null, para = null;
+  for (const raw of String(text ?? "").split("\n")){
+    const h = MD_HEAD.exec(raw), b = MD_ITEM.exec(raw);
+    if (h){ list = para = null; const x = el("div", "md-h md-h" + h[1].length); inline(x, h[2]); box.append(x); continue; }
+    if (b){ para = null; if (!list){ list = el("ul","md-ul"); box.append(list); } const li = el("li"); inline(li, b[1]); list.append(li); continue; }
+    list = null;
+    if (!raw.trim()){ para = null; continue; }
+    if (!para){ para = el("p","md-p"); box.append(para); } else para.append(el("br"));
+    const span = el("span"); inline(span, raw); para.append(span);
+  }
+}
 function says(text, attach, where){
+  const t = String(text ?? ""), choices = t.includes("@") ? tagChoices() : null;
   /* A tag in a message keeps its shade: a folder, a category, an asset. */
-  push("me", b => { if (String(text ?? "").includes("@")) paintTags(b, String(text), tagChoices()); else b.textContent = text; if (attach) b.append(el("span","attach",attach)); }, where);
+  const inline = (x, line) => { if (choices && line.includes("@")) paintTags(x, line, choices); else x.textContent = line; };
+  push("me", b => {
+    /* Headings and bullets typed are laid out; a message with none stays as written. */
+    if (t.split("\n").some(l => MD_HEAD.test(l) || MD_ITEM.test(l))){ b.classList.add("md"); lightMd(b, t, inline); }
+    else inline(b, t);
+    if (attach) b.append(el("span","attach",attach));
+  }, where);
 }
 /* The same three, on the Drop screen. */
 const dpush = (kind, build) => push(kind, build, $("dropThread"));
