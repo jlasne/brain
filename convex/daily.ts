@@ -7,7 +7,9 @@
  *
  * Eight beats: situation, desire, conflict, change, result, then the day
  * around the work, the lesson and the why behind it. A vague answer gets one
- * follow-up asking for the figure, the name or the moment. "skip" passes a
+ * follow-up asking for the figure, the name or the moment. The change and the
+ * result, the two the day turns on, always get one question more that digs
+ * into the answer: what led to it, what it cost, what comes of it. "skip" passes a
  * beat; Stop pauses it, and it resumes there. A new day starts over at the
  * first beat.
  *
@@ -36,7 +38,10 @@ export const beatOf = (id: string) => BEAT.get(String(id));
 
 /* Follow-ups on one beat, at most. */
 export const MAX_FOLLOW = 1;
-/* Answers kept for the day: 8 beats and their follow-ups, with room. */
+/* The beats the day turns on: each always gets one question more on its answer, and may still get the one for a vague answer. */
+export const DIG_BEATS = ["change", "result"];
+const followMax = (beat: string) => MAX_FOLLOW + (DIG_BEATS.includes(beat) ? 1 : 0);
+/* Answers kept for the day: 8 beats, their follow-ups and the 2 digs, with room. */
 export const SAID_MAX = 24;
 /* The longest answer kept for the day. */
 export const SAID_CHARS = 2000;
@@ -107,6 +112,11 @@ export const DAILY_INTRO =
 - "ack" is one short sentence: a few quick questions about today, "skip" passes one, and Stop pauses.
 - "question" asks the first beat under BEATS LEFT.`;
 
+export const DAILY_DIG =
+`DIG DEEPER
+- Their message answers one of the two beats the day turns on. Whatever it says, ask ONE more question on that same answer that goes deeper: what led to it, what it cost or changed, or what they will do with it tomorrow.
+- Name a detail from their answer. Set "follow": true and "next": "".`;
+
 export const DAILY_LAST =
 `LAST TURN
 - There is no beat left. "ack": thank them in one sentence. "question": say today is told and kept in their notes. "next": "".`;
@@ -114,9 +124,9 @@ export const DAILY_LAST =
 /** The day's prompt, from what it holds and what was just said. */
 export function dailyPrompt(o: {
   notes: { title: string; line: string }[]; said: Said[]; pending: DayPending | null; answer: string; skipped: boolean;
-  followLeft: number; next: Beat[]; intro: boolean; date: string; english?: boolean;
+  followLeft: number; next: Beat[]; intro: boolean; date: string; english?: boolean; dig?: boolean;
 }) {
-  const extra = [o.intro ? DAILY_INTRO : "", !o.next.length ? DAILY_LAST : ""].filter(Boolean).join("\n\n");
+  const extra = [o.intro ? DAILY_INTRO : "", o.dig ? DAILY_DIG : !o.next.length ? DAILY_LAST : ""].filter(Boolean).join("\n\n");
   const rules = o.english ? DAILY_RULES.replace(/- Write in the language of their message\.[^\n]*/, "- Write in English, whatever language they write in.") : DAILY_RULES;
   const said = o.skipped ? "(they skipped this question)" : o.answer ? o.answer : "(they just opened today's log)";
   return [
@@ -148,7 +158,7 @@ ${o.next.length ? o.next.map(b => `${b.id} | ${b.hint}`).join("\n") : "(none lef
  * while some are left, a next beat only from the ones shown, covered only
  * among those passed before it.
  */
-export function readDayTurn(raw: string, o: { next: Beat[]; followLeft: number }) {
+export function readDayTurn(raw: string, o: { next: Beat[]; followLeft: number; dig?: string }) {
   let d: any = null;
   try {
     const s = String(raw ?? ""), a = s.indexOf("{"), b = s.lastIndexOf("}");
@@ -161,7 +171,9 @@ export function readDayTurn(raw: string, o: { next: Beat[]; followLeft: number }
   if (!question && /\?\s*$/.test(ack)) { question = ack; ack = ""; }
   if (ack.length > 220) ack = (ack.match(/^.{20,220}?[.!?](\s|$)/)?.[0] ?? ack.slice(0, 220)).trim();
   const again = d.again === true;
-  const follow = !again && d.follow === true && o.followLeft > 0 && /\?/.test(question);
+  let follow = !again && d.follow === true && o.followLeft > 0 && /\?/.test(question);
+  /* A beat the day turns on is dug into once, whatever the reply decided: a reply that moved on asks the dig plainly. */
+  if (o.dig && !again && !follow) return { ack, question: digBeat(o.dig), follow: true, again: false, next: "", covered: [] as string[], fallback: true };
   let next = !again && !follow && ids.includes(String(d.next)) ? String(d.next) : "";
   let covered = (Array.isArray(d.covered) ? d.covered.map(String) : []).filter((x: string) => ids.includes(x) && x !== next);
   if (!again && !follow && !next) next = ids.find(x => !covered.includes(x)) ?? "";
@@ -187,6 +199,15 @@ export function askBeat(id: string) {
     why: "Why do you do it that way?",
   };
   return asks[id] ?? "What else happened today?";
+}
+
+/** The question that digs into a beat's answer, when the model gave none. */
+export function digBeat(id: string) {
+  const asks: Record<string, string> = {
+    change: "What made you decide that, and what does it change for tomorrow?",
+    result: "What made the difference there, and what will you do with it tomorrow?",
+  };
+  return asks[id] ?? "What led to that, and what comes of it?";
 }
 
 /**
@@ -232,16 +253,18 @@ export async function dailyStep(ctx: any, o: {
   const skip = !opening && isSkip(q);
   if (pending && skip) marks[pending.beat] = "s";
   const isAnswer = !!pending && !skip && !!q && !opening;
-  const followLeft = isAnswer ? Math.max(0, MAX_FOLLOW - (pending!.follow ?? 0)) : 0;
+  const followLeft = isAnswer ? Math.max(0, followMax(pending!.beat) - (pending!.follow ?? 0)) : 0;
+  /* The first answer to a beat the day turns on is dug into. */
+  const dig = isAnswer && DIG_BEATS.includes(pending!.beat) && !(pending!.follow ?? 0) ? pending!.beat : "";
   const next = left(marks, isAnswer ? pending!.beat : "");
   const held = o.cards.filter((c: any) => c.brain === o.brain);
 
   const filing = isAnswer ? o.file(q, `The brain asked: ${pending!.text}`).catch(() => null) : Promise.resolve(none);
   const asking = o.model(dailyPrompt({ notes: notesOf(held, 60), said: day.said, pending, answer: opening ? "" : q, skipped: skip,
-    followLeft, next, intro: opening && !day.opens, date: o.date, english: o.english })).catch(() => "");
+    followLeft, next, intro: opening && !day.opens, date: o.date, english: o.english, dig: !!dig })).catch(() => "");
   const [raw, got] = await Promise.all([asking, filing]);
   const filed = got ?? { ...none, failed: true };
-  const turn = readDayTurn(raw, { next, followLeft });
+  const turn = readDayTurn(raw, { next, followLeft, dig });
 
   /* Kept for the day: an answer, never a message that answered nothing. */
   const said = isAnswer && !turn.again ? [...day.said, { beat: pending!.beat, q: pending!.text.slice(0, 400), a: q.slice(0, SAID_CHARS) }].slice(-SAID_MAX) : day.said;

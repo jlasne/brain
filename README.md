@@ -10,7 +10,7 @@ Folders learn from what you drop. Assets keep your docs and tables. Call any wit
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="1988 checks passing" src="https://img.shields.io/badge/checks-1988%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="1991 checks passing" src="https://img.shields.io/badge/checks-1991%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="Installs on phone and desktop" src="https://img.shields.io/badge/app-phone%20and%20desktop-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -148,7 +148,7 @@ A third kind of folder, next to subjects and experts. You talk to it, and it kee
 - **Still open, in the inbox.** The 3 oldest promises and follow-ups from your people, each with a tick. Comment under a line, and one send updates every line you commented.
 - **It interviews you.** 335 quick questions in 17 chapters, life story first, each under 30 seconds. It skips what your notes already answer, and ends at 100%.
 - **Two lines under it in the side panel.** Interview, with how complete your twin is, and Daily log, with today's count. A click starts that one in a new chat.
-- **A daily log.** Daily log, in the side panel or next to Twin test, opens a chat of its own and asks about today, one question at a time: where you were, what you wanted, what blocked it, what changed, the result, the day around the work, the lesson and the why. A vague answer gets one follow-up for the number or the name. Each answer goes into your notes. Daily log reopens today's chat when there is one.
+- **A daily log.** Daily log, in the side panel or next to Twin test, opens a chat of its own and asks about today, one question at a time: where you were, what you wanted, what blocked it, what changed, the result, the day around the work, the lesson and the why. A vague answer gets one follow-up for the number or the name. The change and the result always get one question more that digs in: what led to it, what it cost, what you do with it tomorrow. Each answer goes into your notes. Daily log reopens today's chat when there is one.
 - **Your twin, tested.** 5 situations built from your notes. Your twin replies first, then you do, and the two are compared on the decision, the facts and the voice. Your replies go into your notes.
 - **Any language in, English kept.** Write or talk in any language. Notes are kept in English, your own words beside each line.
 - **Private.** Its own chat is its only reader.
@@ -257,7 +257,7 @@ The app's source sits in `web/chat/`, one file a screen. `npm run build` joins i
 
 ```bash
 npm run build     # web/chat into app/chat.html
-npm run check     # the build first, then 1988 checks
+npm run check     # the build first, then 1991 checks
 npm run deploy    # the server, to Convex
 ```
 
@@ -271,7 +271,7 @@ skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a folder
 ```
 
-`npm run check` runs 1988 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
+`npm run check` runs 1991 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 

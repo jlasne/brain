@@ -166,7 +166,10 @@ The daily log is an add-on of the personal folder, next to the twin test. It
 asks about today, one question at a time, in a chat of its own: 8 beats,
 situation, desire, conflict, change and result, then the day around the work,
 the lesson and the why. A vague answer (a mood, a summary or a range, with no
-figure, name or moment) gets one follow-up. Each answer is filed as notes,
+figure, name or moment) gets one follow-up. The change and the result always
+get one question more that digs into the answer (what led to it, what it cost,
+what comes of it); a reply that moves on instead asks that question in plain
+words. Each answer is filed as notes,
 kind `daily`, under the day's own source "Daily log, {date}", with the
 question as its context. "skip", "stop" and "start" work as in the interview,
 and one runs at a time: starting either pauses the other. A reply that names

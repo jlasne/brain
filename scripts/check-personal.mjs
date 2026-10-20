@@ -353,7 +353,8 @@ const TODAY = "2026-09-30";
   const step = async (q, reply, opening = false, date = TODAY) => daily.dailyStep(ctx, { space: "acme", brain: "me", cards, row: row(), q, opening, date, file,
     model: async m => { prompts.push(m); return typeof reply === "string" ? reply : JSON.stringify(reply); } });
 
-  check("8 beats, the day's story first", daily.BEATS.length === 8 && daily.BEATS.slice(0, 5).map(b => b.id).join() === "situation,desire,conflict,change,result");
+  check("8 beats, the day's story first, the change and the result dug into", daily.BEATS.length === 8 && daily.BEATS.slice(0, 5).map(b => b.id).join() === "situation,desire,conflict,change,result"
+    && daily.DIG_BEATS.join() === "change,result");
   const s1 = await step("", { ack: "A few quick questions about today.", question: "Where were you today, and what were you building?", next: "situation" }, true);
   check("opening asks the first beat and files nothing", row().daily.on === true && row().daily.pending.beat === "situation" && files.length === 0
     && s1.reply.endsWith("what were you building?"), JSON.stringify(row().daily));
@@ -379,8 +380,15 @@ const TODAY = "2026-09-30";
   const back = await step("", { question: "never asked" }, true);
   check("opened again, the question waiting comes back with no model call", row().daily.on === true && prompts.length === calls && /^Back to today\.\n\nWhat did you decide today\?$/.test(back.reply), back.reply);
 
+  /* The change and the result are dug into: one question more on each answer, even a clear one. */
   await step("I cut the list to creators with 50k followers", { question: "What is true tonight that was not this morning?", next: "result", covered: [] });
-  await step("3 replies out of 10, 1 call booked", { question: "Where did you go today?", next: "life" });
+  check("a clear answer on the change still gets one question that digs into it: a reply that moved on asks it plainly", row().daily.pending.beat === "change" && row().daily.pending.follow === 1
+    && row().daily.pending.text === daily.digBeat("change") && !row().daily.marks.change && /DIG DEEPER/.test(prompts.at(-1)[0].content), JSON.stringify(row().daily.pending));
+  await step("Under 50k they never answer: 0 of 12 last week", { question: "What is true tonight that was not this morning?", next: "result" });
+  check("its answer closes the beat, and the next comes", row().daily.marks.change === "a" && row().daily.pending.beat === "result" && !/DIG DEEPER/.test(prompts.at(-1)[0].content));
+  await step("3 replies out of 10, 1 call booked", { question: "Which line in your message got the 3 replies?", follow: true });
+  check("the result is dug into with the model's own question", row().daily.pending.beat === "result" && row().daily.pending.text === "Which line in your message got the 3 replies?" && row().daily.pending.follow === 1);
+  await step("The one naming their last video", { question: "Where did you go today?", next: "life" });
   check("four beats answered so far", daily.answered(row().daily.marks) === 4);
   await step("Lunch with Marc at the English Market", { question: "One thing someone a month behind you could use?", next: "lesson" });
   const v = daily.dailyView(row().daily, TODAY);
