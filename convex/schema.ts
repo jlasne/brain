@@ -318,7 +318,7 @@ export default defineSchema({
     full: v.optional(v.boolean()),
     /* A person's lines still open: the app counts them without reading a file. */
     open: v.optional(v.number()),
-    /* Open conflicts, not judged unreal. A card written before it was kept has none, and health then reads the concepts. */
+    /* Open conflicts, not judged unreal. A card written before it was kept has none, and the clash count then reads the concepts. */
     clash: v.optional(v.number()),
     updated: v.string(),
     /* A print of what an answer reads of the concept, so a saved answer knows when it is stale. */

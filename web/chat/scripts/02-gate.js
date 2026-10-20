@@ -165,17 +165,17 @@ async function refresh(){
   paintWorkspace();
   render();
   /* The rings and the chats follow, so the brains never wait on them. */
-  loadHealth(); loadChats(); autoAudit(); loadStill();
+  loadClashCount(); loadChats(); autoAudit(); loadStill();
 }
 
-/** Each brain's health, then the rings repaint. */
-async function loadHealth(){
+/** The open clashes of each folder, for the inbox and each folder's counts. */
+async function loadClashCount(){
   try {
-    const d = await api("/api/health");
-    S.health = Object.fromEntries((d.health || []).map(h => [h.slug, h]));
+    const d = await api("/api/clashes");
+    S.clashCount = d.open || {};
     S.conflicted = new Set(d.conflicted || []);
   } catch { return; }
-  renderSide(); paintInbox();
+  paintInbox();
   loadClashes();
 }
 /** The open clashes, each with its suggested ruling, for the inbox's decisions. */

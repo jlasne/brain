@@ -242,9 +242,8 @@
     .fv-t h2{ font-size:26px; }
   }
 
-  /* Health in grey shades: the fuller the ring, the darker. */
+  /* A ring in grey shades: the fuller, the darker. */
   .h-hi{ stroke:var(--ring-hi); } .h-mid{ stroke:var(--ring-mid); } .h-lo{ stroke:var(--ring-lo); }
-  .hb-bar .h-hi{ background:var(--ring-hi); } .hb-bar .h-mid{ background:var(--ring-mid); } .hb-bar .h-lo{ background:var(--ring-lo); }
 
   /* On a phone the open bar keeps one row of controls under the field: the
      folders, the three levels as icons, the mic and send. The folder name

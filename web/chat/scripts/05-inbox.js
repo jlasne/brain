@@ -66,8 +66,8 @@ function dropSettled(){
   dropState(last?.querySelector(".err") ? "failed" : last?.querySelector("button") ? "waiting" : "ended");
 }
 
-/** The open clashes across the folders, from the health check. */
-function openClashes(){ return Object.values(S.health || {}).reduce((n, h) => n + (Number(h.open) || 0), 0); }
+/** The open clashes across the folders. */
+function openClashes(){ return Object.values(S.clashCount || {}).reduce((n, x) => n + (Number(x) || 0), 0); }
 function ago(t){ const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h`; }
 
 /** The bubble's count, and the panel when it is open. */
@@ -185,7 +185,7 @@ function openInbox(){
   paintInboxPanel();
   clearInterval(inboxTimer); inboxTimer = setInterval(() => { if (box.hidden) clearInterval(inboxTimer); else tickInbox(box); }, 1000);
   /* The open clashes and the open lines are read again as it opens. */
-  loadHealth().then(paintInbox);
+  loadClashCount().then(paintInbox);
   loadStill();
 }
 function closeInbox(){ $("inbox").hidden = true; $("inboxBtn").setAttribute("aria-expanded","false"); clearInterval(inboxTimer); }
@@ -402,7 +402,7 @@ async function applyDecision(d, pick){
     const r = await api("/api/conflicts/settle", { id: d.c.id, a: d.c.a, b: d.c.b, pick });
     if (r.error || r.ok === false) throw new Error(r.error || r.why);
     S.clashes = (S.clashes || []).filter(c => c !== d.c);
-    if (S.health[d.brain]) S.health[d.brain].open = Math.max(0, (S.health[d.brain].open || 0) - 1);
+    if (S.clashCount[d.brain]) S.clashCount[d.brain] = Math.max(0, S.clashCount[d.brain] - 1);
     return { a: "A holds. Position written again.", b: "B holds. Position written again.", both: "Both hold." }[pick] || "Settled.";
   }
   if (d.kind === "same" || d.kind === "person"){

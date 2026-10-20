@@ -7,12 +7,13 @@ const IC_IV = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H1
 const IC_TEST = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6M10 4v5l-5 9a1.5 1.5 0 0 0 1.3 2h11.4a1.5 1.5 0 0 0 1.3-2l-5-9V4"/><path d="M7.5 14h9"/></svg>`;
 const IC_DAY = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4"/></svg>`;
 const IC_PROFILE = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg>`;
-/** A share out of 100 as a ring, the way a folder's health is drawn. */
+/** A share out of 100 as a ring: its tone darker as it fills. */
+const ringTone = x => x >= 7 ? "h-hi" : x >= 4 ? "h-mid" : "h-lo";
 function pctRing(pct){
   const r = el("span","hring");
   const C = 2 * Math.PI * 9, fill = Math.max(0, Math.min(1, (pct || 0) / 100)) * C;
   r.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="tr" cx="12" cy="12" r="9"/>
-    <circle class="ar ${healthTone((pct || 0) / 10)}" cx="12" cy="12" r="9" stroke-dasharray="${fill.toFixed(2)} ${C.toFixed(2)}"/>
+    <circle class="ar ${ringTone((pct || 0) / 10)}" cx="12" cy="12" r="9" stroke-dasharray="${fill.toFixed(2)} ${C.toFixed(2)}"/>
     <text x="12" y="12.4">${Math.round(pct || 0)}</text></svg>`;
   return r;
 }
@@ -34,8 +35,8 @@ function fileDay(d, noYear){
 }
 
 /**
- * A folder in the main area: its name, scope and counts, its health and the
- * next move, then every concept, newest first, and the one open beside them.
+ * A folder in the main area: its name, scope and counts, then every concept,
+ * newest first, and the one open beside them.
  * The bar below asks this folder, and the answer lands in a new chat.
  */
 function openFolder(b, openId, opts = {}){
@@ -51,12 +52,12 @@ function openFolder(b, openId, opts = {}){
   /* What changes while the screen is open, shared with its parts below. */
   const live = {};
   live.cs = sorted();
-  const reads = sourcesOf(b.slug).length, h = S.health[b.slug];
-  const clashes = h ? (h.open || 0) : [...(S.conflicted || [])].filter(id => id.split("/")[0] === b.slug).length;
+  const reads = sourcesOf(b.slug).length;
+  const clashes = S.clashCount[b.slug] ?? [...(S.conflicted || [])].filter(id => id.split("/")[0] === b.slug).length;
 
   /* A personal folder's panes are made further down; the buttons of the head reach them here once made. */
   const panes = {};
-  const { head } = folderHead({ b, self, live, reads, clashes, h, ro, panes });
+  const { head } = folderHead({ b, self, live, reads, clashes, ro, panes });
 
   const cols = el("div","fv-cols");
   const list = el("div","fv-list");
@@ -272,8 +273,8 @@ function openFolder(b, openId, opts = {}){
   render();
 }
 
-/** The head of a folder screen: its name and counts, its health or twin card, and its actions. */
-function folderHead({ b, self, live, reads, clashes, h, ro, panes }){
+/** The head of a folder screen: its name and counts, its twin card, and its actions. */
+function folderHead({ b, self, live, reads, clashes, ro, panes }){
   const head = el("header","fv-h");
   const t = el("div","fv-t");
   t.append(el("h2",null,b.name));
@@ -282,15 +283,7 @@ function folderHead({ b, self, live, reads, clashes, h, ro, panes }){
   t.append(el("p","fv-n", self ? `${nNotes} note${nNotes===1?"":"s"} · ${nPeople} ${nPeople===1?"person":"people"} · only its own chat reads it`
     : `${live.cs.length} concept${live.cs.length===1?"":"s"} · ${reads} source${reads===1?"":"s"} · ${clashes} clash${clashes===1?"":"es"}`));
   head.append(t);
-  if (h && !self){
-    const hl = el("button","fv-hl"); hl.type = "button"; hl.id = "fvHealth";
-    const ring = healthRing(h, b); ring.removeAttribute("aria-label");
-    const txt = el("div"); txt.append(el("b",null,`Health ${fmtScore(h.score)} / 10`), el("span","say",`Next: ${h.best}`));
-    hl.append(ring, txt);
-    hl.onclick = () => openHealthSheet(b);
-    head.append(hl);
-  }
-  /* A personal folder shows how well it knows you in place of a health score. */
+  /* A personal folder shows how well it knows you. */
   if (self && !S.demo){
     const tw = el("button","fv-hl"); tw.type = "button"; tw.id = "fvTwin";
     const fillCard = iv => {

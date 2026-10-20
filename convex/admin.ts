@@ -380,7 +380,7 @@ export const VECTORS_FOLLOW = "upkeep:vectors-follow:v1", REMOVED_CLEARED = "upk
  * 2. The tables of removed features are emptied, so their definitions can
  *    leave schema.ts.
  * 3. Every card is written again from its concept, so it carries its count of
- *    open conflicts, and health reads cards instead of concepts.
+ *    open conflicts, and the clash count reads cards instead of concepts.
  *
  *     npx convex run admin:upkeep --prod      (to run it now, not at 05:40 UTC)
  */

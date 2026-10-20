@@ -573,7 +573,7 @@ The documents, tables and pages a workspace keeps for its chats. They are the fi
 | The settle write | Positions must be rewritten in one pass, atomically |
 | The weekly digest | It runs on a schedule, with no browser open. `crons.ts` calls `digest:send` every Monday at 06:00 UTC and mails `DIGEST_TO` |
 | The daily model check | It runs on a schedule too. `crons.ts` calls `admin:pickCheapest` every day at 05:30 UTC: each workspace with favourite models is set to the cheapest of them |
-| Upkeep | `crons.ts` calls `admin:upkeep` every day at 05:40 UTC. It runs each one-time repair it has not finished, a page at a time, then marks it done in `config`: every vector pointed at its concept's folder again (a rename or a merge once left them behind), the tables of removed features emptied, and every card written again so it carries its count of open conflicts, which health then reads instead of the concepts. Once all three are done it reads three rows and stops |
+| Upkeep | `crons.ts` calls `admin:upkeep` every day at 05:40 UTC. It runs each one-time repair it has not finished, a page at a time, then marks it done in `config`: every vector pointed at its concept's folder again (a rename or a merge once left them behind), the tables of removed features emptied, and every card written again so it carries its count of open conflicts, which the clash count then reads instead of the concepts. Once all three are done it reads three rows and stops |
 
 Reading brains and rendering the card can stay client side, because that data is already yours.
 

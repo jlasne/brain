@@ -596,7 +596,7 @@ async function openPager(page) {
       if (s.includes("/api/brain/merge")) { s0 = { ...s0, brains: s0.brains.filter(b => b.slug !== body.from) };
         return Response.json({ from: body.from, into: body.into, fromName: "Content", intoName: "Wealth", merged: true, moved: 3, joined: 1, sources: 2 }); }
       if (s.includes("/api/state")) return Response.json(s0);
-      return Response.json({ chats: [], health: [] });
+      return Response.json({ chats: [] });
     };
   }, two);
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Content/.test(r.textContent)).querySelector(".ed.op").click());
@@ -631,7 +631,7 @@ async function openPager(page) {
         return Response.json({ more: false, name: "Content", concepts: 42, sources: 12, chats: 3, links: 4, topics: 2, insights: 1, candidates: 0 });
       }
       if (s.includes("/api/state")) return Response.json(s0);
-      return Response.json({ chats: [], health: [] });
+      return Response.json({ chats: [] });
     };
   }, two);
   await page.evaluate(() => [...document.querySelectorAll("#brains .brain-row")].find(r => /Content/.test(r.textContent)).querySelector(".ed.op").click());
@@ -1217,7 +1217,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/health")) return Response.json({ conflicted: ["content/ai-rates", "content/paywall"], health: [{ slug: "content", score: 7, open: 2, best: "x", parts: {} }] });
+      if (s.includes("/api/clashes")) return Response.json({ conflicted: ["content/ai-rates", "content/paywall"], open: { content: 2 } });
       if (s.includes("/api/conflicts")) return Response.json({ others: 8, conflicts: [
         { id: "content/ai-rates", brain: "content", title: "Financing AI", a: "AI pushes rates up", aDate: "", b: "Rates fell around AI releases", bDate: "2026-09-01",
           why: "Crowding out implies higher rates", hint: { pick: "b", why: "The later claim: 2026-09-01" } },
@@ -1265,7 +1265,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}");
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/health")) return Response.json({ conflicted: ["content/ai-rates", "content/paywall"], health: [{ slug: "content", score: 7, open: 2, best: "x", parts: {} }] });
+      if (s.includes("/api/clashes")) return Response.json({ conflicted: ["content/ai-rates", "content/paywall"], open: { content: 2 } });
       if (s.includes("/api/conflicts/settle")) { window.__settles.push(body);
         return Response.json(body.pick === "both" ? { ok: true } : { ok: true, position: "P.", summaryLine: "S." }); }
       if (s.includes("/api/conflicts")) return Response.json({ others: 3, conflicts: [
@@ -1434,7 +1434,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.close();
 }
 
-/* ---- health: a ring per brain, each part against the best brain ---- */
+/* ---- the open clashes: counted on each folder's page, no score ---- */
 {
   const two = { ...STATE, brains: [...STATE.brains, { slug: "gave", name: "Charles Gave", type: "person", scope: "Gave", owner: null }] };
   const { page, bad } = await boot("/chat.html", state => {
@@ -1442,42 +1442,18 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     window.fetch = async (u, opt) => {
       const s = String(u);
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/health")) return Response.json({ conflicted: ["content/offer"], health: [
-        { slug: "content", score: 6.5, top: false, person: false, open: 1,
-          best: "Back more concepts with a second source: 30% here, 100% in Charles Gave.",
-          parts: { variety: { counted: true, pct: 83, say: "5 named authors, 9 unsigned. The most of any brain" },
-                   depth: { counted: true, pct: 30, say: "30% of 40 concepts rest on 2+ sources. Best: Charles Gave, 100%" },
-                   fresh: { counted: true, pct: 60, say: "Last source 9 days ago. Best: Charles Gave, today" },
-                   conflicts: { counted: true, pct: 80, say: "1 open conflict in 40 concepts" } } },
-        { slug: "gave", score: 10, top: true, person: true, open: 0, best: "The best folder: every other score is measured against it.",
-          parts: { variety: { counted: false, pct: 100, say: "Not counted: a person brain is one voice, fed from the same channels." },
-                   depth: { counted: true, pct: 100, say: "100% of 12 concepts rest on 2+ sources" },
-                   fresh: { counted: true, pct: 100, say: "Last source today" }, conflicts: { counted: true, pct: 100, say: "No open conflict" } } }] });
+      if (s.includes("/api/clashes")) return Response.json({ conflicted: ["content/offer"], open: { content: 1 } });
       return Response.json({});
     };
   }, two);
   await page.waitForTimeout(250);
   const openOf = name => page.evaluate(n => [...document.querySelectorAll("#brains .brain-row")].find(r => r.querySelector(".nm").textContent === n).querySelector(".ed.op").click(), name);
-  check("the side list carries no ring", await page.evaluate(() => !document.querySelector("#brains .hring")));
   await openOf("Content"); await page.waitForTimeout(250);
-  check("a folder's page carries its score ring", await page.evaluate(() => document.querySelector("#fvHealth .hring text")?.textContent) === "6.5");
-  await page.click("#fvHealth"); await page.waitForTimeout(150);
-  const sheet = await page.evaluate(() => ({ h: document.querySelector(".sheet h3")?.textContent, p: document.querySelector(".sheet header p")?.textContent,
-    parts: [...document.querySelectorAll(".hb-row")].map(r => r.querySelector(".hb-top").textContent + " | " + r.querySelector(".hb-say").textContent),
-    bar: document.querySelectorAll(".hb-row")[1]?.querySelector(".hb-bar i")?.style.width,
-    best: document.querySelector(".hb-best")?.textContent, settle: !!document.getElementById("hbSettle"), scope: !!document.querySelector(".brain-row.on") }));
-  check("tapping the ring shows each part as a share of the best, and the move", sheet.h === "Content: 6.5/10" && /best folder, Charles Gave, which reads 10/.test(sheet.p)
-    && sheet.parts.length === 4 && /^Depth30% of the best \| 30% of 40 concepts/.test(sheet.parts[1]) && sheet.bar === "30%"
-    && /Best moveBack more concepts with a second source/.test(sheet.best) && sheet.settle, JSON.stringify(sheet));
-  await page.click("#hbDone");
+  const head = await page.evaluate(() => ({ n: document.querySelector(".fv-n")?.textContent, ring: !!document.querySelector(".fv-h .hring, #fvHealth") }));
+  check("a folder's page counts its open clashes, and shows no score", /· 1 clash$/.test(head.n || "") && !head.ring, JSON.stringify(head));
   await openOf("Charles Gave"); await page.waitForTimeout(250);
-  check("the best one reads 10", await page.evaluate(() => document.querySelector("#fvHealth .hring text")?.textContent) === "10");
-  await page.click("#fvHealth"); await page.waitForTimeout(150);
-  const person = await page.evaluate(() => ({ p: document.querySelector(".sheet header p")?.textContent,
-    v: document.querySelector(".hb-row")?.textContent }));
-  check("the best brain says it sets the bar, and a person skips variety", /The best folder here/.test(person.p) && /Variety\s*not counted/.test(person.v)
-    && /one voice/.test(person.v), JSON.stringify(person));
-  check("nothing threw on health", !bad.length, bad.join(" | "));
+  check("a folder with none says 0 clashes", /· 0 clashes$/.test(await page.evaluate(() => document.querySelector(".fv-n")?.textContent) || ""));
+  check("nothing threw around the clash count", !bad.length, bad.join(" | "));
   await page.close();
 }
 
@@ -3543,7 +3519,7 @@ for (const space of ["octopus", "squidgy"]) {
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}");
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/health")) return Response.json({ conflicted: [], health: [{ slug: "content", score: 5, top: true, person: false, open: 3, best: "x", parts: {} }] });
+      if (s.includes("/api/clashes")) return Response.json({ conflicted: [], open: { content: 3 } });
       if (s.includes("/api/ask")) {
         window.__asks.push(body);
         await new Promise(ok => setTimeout(ok, body.q === "slow one" ? 1200 : 100));
@@ -3858,7 +3834,7 @@ for (const space of ["octopus", "squidgy"]) {
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/health")) return Response.json({ conflicted: open ? ["content/a"] : [], health: [{ slug: "content", score: 7, open, best: "x", parts: {} }] });
+      if (s.includes("/api/clashes")) return Response.json({ conflicted: open ? ["content/a"] : [], open: { content: open } });
       if (s.includes("/api/conflicts/settle")){ open = 0; return Response.json({ ok: true }); }
       if (s.includes("/api/conflicts")) return Response.json({ others: 0, conflicts: open ? [{ id: "content/a", brain: "content", title: "Offer first", a: "Offers win", aDate: "2025-01-01",
         b: "Audience wins", bDate: "2026-03-01", why: "", hint: { pick: "b", why: "The later claim: 2026-03-01 over 2025-01-01" } }] : [] });
@@ -3930,7 +3906,7 @@ for (const space of ["octopus", "squidgy"]) {
     window.fetch = async (u, opt) => {
       const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
       if (s.includes("/api/state")) return Response.json(state);
-      if (s.includes("/api/health")) return Response.json({ conflicted: [], health: [] });
+      if (s.includes("/api/clashes")) return Response.json({ conflicted: [], open: {} });
       if (s.includes("/api/personal/contact") && body.action === "peek") return Response.json({ people: body.ids.slice(0, 1).map(id => ({ id, title: "Paul", aliases: [], line: "Your brother", summary: "", facts: [{ label: "Born in", value: "Brest" }], moments: [], mentions: 9, open: 1, seen: "", updated: "" })) });
       if (s.includes("/api/personal/contact")){ state.concepts = state.concepts.filter(c => !body.from.includes(`${c.brain}/${c.slug}`)); return Response.json({ into: body.into, joined: 1 }); }
       return Response.json({ chats: [] });
@@ -3976,7 +3952,7 @@ for (const space of ["octopus", "squidgy"]) {
       window.__calls.push({ s: path, body });
       const J = x => Response.json(x);
       if (path === "/api/state") return J(state);
-      if (path === "/api/health") return J({ conflicted: [], health: [] });
+      if (path === "/api/clashes") return J({ conflicted: [], open: {} });
       if (path === "/api/ask") {
         if (body.brain === "me") return J({ answer: "Noted.", sources: 0, level: "normal", personal: true, filed: { new: 0, updated: 0, titles: [] }, called: body.tags?.length ? ["Pricing"] : [], chat: "c1" });
         return J({ answer: "From the folders.", sources: 3, level: "normal", ...(body.tags?.length ? { tagged: ["Pricing review", "Health"] } : {}), chat: "c2" });
@@ -4298,7 +4274,7 @@ for (const space of ["octopus", "squidgy"]) {
         window.__calls.push({ s: path, body });
         const J = x => Response.json(x);
         if (path === "/api/state") return J(arg.state);
-        if (path === "/api/health") return J({ conflicted: [], health: [] });
+        if (path === "/api/clashes") return J({ conflicted: [], open: {} });
         if (path === "/api/spend") return arg.spend === "old" ? new Response("<html>not found</html>", { status: 200 }) : J(arg.spend);
         return J({ chats: [] });
       };
@@ -4354,7 +4330,7 @@ for (const space of ["octopus", "squidgy"]) {
       window.fetch = async (u, opt) => {
         const path = String(u).replace(/^https?:\/\/[^/]+/, ""), J = x => Response.json(x);
         if (path === "/api/state") return J(arg.state);
-        if (path === "/api/health") return J({ conflicted: [], health: arg.state.brains.map(b => ({ slug: b.slug, score: 7.4, best: "Keep feeding it.", parts: {} })) });
+        if (path === "/api/clashes") return J({ conflicted: [], open: {} });
         if (path === "/api/restore") { window.__restore = JSON.parse(opt?.body || "{}"); return J({ brains: { added: 1, kept: 2, skipped: 0 }, concepts: { added: 40, kept: 3, skipped: 0 }, sources: { added: 12, kept: 0 }, linking: 40 }); }
         if (path === "/api/models") { window.__models = JSON.parse(opt?.body || "{}"); return J({ chat: "m/x", reply: "same", voice: null, depth: window.__models.depth }); }
         return J({ chats: [{ id: "c1", title: "A chat", brain: "all", pinned: false, updated: Date.now(), n: 1 }] });

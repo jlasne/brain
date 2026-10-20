@@ -1,4 +1,4 @@
-/* 03-side.js: A workspace's look, and the side panel: folders, chats, health rings, the folder picker. */
+/* 03-side.js: A workspace's look, and the side panel: folders, chats, the folder picker. */
 
 /* ============ a workspace's own look ============ */
 /**
@@ -173,14 +173,14 @@ function brainRow(b){
   const on = self ? S.scope === b.slug : S.picks.includes(b.slug);
   const home = b.space || "octopus", label = x => x.charAt(0).toUpperCase() + x.slice(1);
   const out = [...(b.shared || []), ...(b.viewers || [])].map(label), from = home !== S.space ? label(home) : "";
-  /* A row that holds two buttons of its own (its health and open) cannot be a button itself: it is one to the keyboard and to a
+  /* A row that holds a button of its own (open) cannot be a button itself: it is one to the keyboard and to a
      screen reader, and Enter or Space ticks it. */
   const row = el("div","brain-row" + (on ? " on" : "") + (self ? " self" : "") + (out.length || from ? " shared" : ""));
   row.setAttribute("role","button"); row.tabIndex = 0;
   if (!self) row.setAttribute("aria-pressed", String(on));
   row.onkeydown = e => { if (e.target === row && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); row.click(); } };
   const ideas = conceptsOf(b.slug).length, read = sourcesOf(b.slug).length;
-  /* A row is its name: the counts sit in its title, the health on the folder's page. */
+  /* A row is its name: the counts sit in its title and on the folder's page. */
   const tick = el("span","tick");
   tick.append(brainIcon(b));
   if (!self){ const box = el("span","tbox"); box.innerHTML = TICK_SVG; tick.append(box); }
@@ -490,66 +490,8 @@ function renameChat(c){
   t.onkeydown = e => { if (e.key === "Enter") save(); if (e.key === "Escape") shut(); };
 }
 
-/* ---- health ---- */
-function healthTone(x){ return x >= 7 ? "h-hi" : x >= 4 ? "h-mid" : "h-lo"; }
-function fmtScore(x){ return Number.isInteger(x) ? String(x) : x.toFixed(1); }
-/** The ring on a folder's page: it fills with the score. The button that holds it opens the breakdown. */
-function healthRing(h, b){
-  const r = el("span","hring");
-  const C = 2 * Math.PI * 9, fill = Math.max(0, Math.min(1, h.score / 10)) * C;
-  r.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="tr" cx="12" cy="12" r="9"/>
-    <circle class="ar ${healthTone(h.score)}" cx="12" cy="12" r="9" stroke-dasharray="${fill.toFixed(2)} ${C.toFixed(2)}"/>
-    <text x="12" y="12.4">${fmtScore(h.score)}</text></svg>`;
-  r.title = `Health ${fmtScore(h.score)}/10 against the best folder. ${h.best}`;
-  r.setAttribute("aria-label", `Health of ${b.name}: ${fmtScore(h.score)} out of 10`);
-  return r;
-}
-
 /**
- * The four parts of a brain's score, each against the best brain on it, and
- * the move that closes the widest gap.
- */
-function openHealthSheet(b){
-  const h = S.health[b.slug]; if (!h) return;
-  closeSide();
-  const veil = el("div","veil");
-  const NAMES = { variety: "Variety", depth: "Depth", fresh: "Freshness", conflicts: "Conflicts", tidy: "Tidiness" };
-  const messy = !!h.parts.tidy && /to tidy/.test(h.parts.tidy.say);
-  const lead = Object.values(S.health).find(x => x.top);
-  const leadName = lead ? (S.brains.find(x => x.slug === lead.slug)?.name || lead.slug) : "";
-  veil.innerHTML = `
-    <div class="sheet" role="dialog" aria-modal="true">
-      <header><h3>${esc(b.name)}: ${fmtScore(h.score)}/10</h3>
-        <p>${h.top ? "The best folder here. Every other score is measured against it."
-                   : `Measured against the best folder${leadName ? `, ${esc(leadName)},` : ""} which reads 10.`}</p></header>
-      <div class="f" id="hbParts"></div>
-      <div class="f"><div class="hb-best"><b>Best move</b>${esc(h.best)}</div></div>
-      <footer>${h.open ? `<button class="ghost" id="hbSettle">Settle conflicts</button>` : ""}${messy && !S.demo ? `<button class="ghost" id="hbTidy">Tidy it</button>` : ""}<button class="ghost" id="hbOpen">Open the folder</button><button class="go" id="hbDone">Done</button></footer>
-    </div>`;
-  document.body.append(veil);
-  const parts = veil.querySelector("#hbParts");
-  for (const k of ["variety","depth","fresh","conflicts","tidy"]){
-    const p = h.parts[k]; if (!p) continue;
-    const row = el("div","hb-row");
-    row.innerHTML = p.counted
-      ? `<div class="hb-top">${NAMES[k]}<span>${p.pct}% of the best</span></div>
-         <div class="hb-bar"><i class="${healthTone(p.pct / 10)}" style="width:${p.pct}%"></i></div>
-         <div class="hb-say">${esc(p.say)}</div>`
-      : `<div class="hb-top">${NAMES[k]}<span>not counted</span></div><div class="hb-say">${esc(p.say)}</div>`;
-    parts.append(row);
-  }
-  const shut = () => { veil.remove(); };
-  veil.querySelector("#hbDone").onclick = shut;
-  veil.onclick = e => { if (e.target === veil) shut(); };
-  veil.querySelector("#hbOpen").onclick = () => { shut(); openFolder(b); };
-  const st = veil.querySelector("#hbSettle");
-  if (st) st.onclick = () => { shut(); settleFrom(null, b.slug); };
-  const td = veil.querySelector("#hbTidy");
-  if (td) td.onclick = () => { shut(); runAudit(b); };
-}
-
-/**
- * The conflict deck, opened from a health sheet or the Decisions: this concept's
+ * The conflict deck, opened from the Decisions: this concept's
  * clashes first, or this brain's.
  */
 async function settleFrom(id, brain){
@@ -558,7 +500,7 @@ async function settleFrom(id, brain){
   const list = (r.conflicts || []).slice();
   const rank = c => (id && c.id === id) ? 2 : (brain && c.brain === brain) ? 1 : 0;
   list.sort((x, y) => rank(y) - rank(x));
-  if (!list.length){ loadHealth(); return; }
+  if (!list.length){ loadClashCount(); return; }
   openConflictDeck(list, r.others || 0);
 }
 

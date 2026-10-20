@@ -31,7 +31,6 @@ import { colNames, downloadText, csvOf, parseCsv, splitKey, fileKey, assetsSlug 
 import { readAsset, assetSketch, ASSET_RULES, readCreate, createPreview, ASSETS_A_MESSAGE, announcesOnly } from "./assets";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
-import { healthOf } from "./health";
 import { rederive, tidyScan } from "./tidy";
 import { embed, nearest } from "./graph";
 import {
@@ -2404,7 +2403,7 @@ route("/api/chats/edit", async (ctx, _req, b) => {
     ...(b.remove === true ? { remove: true } : {}) });
 });
 
-/* ---------- health ---------- */
+/* ---------- open clashes ---------- */
 
 /** Open conflicts per brain, and the concepts holding one. No model call:
     a clash the check has not read yet counts as open. */
@@ -2446,12 +2445,12 @@ function cardConflicts(space: string, brains: any[], cards: any[]) {
   return { open, conflicted };
 }
 
-/** Each brain's health out of 10, and the concepts with an open conflict. */
-route("/api/health", async (ctx, _req, b) => {
+/** The open clashes of each folder, by its slug, and the concepts holding one: the inbox and each folder's counts read them. */
+route("/api/clashes", async (ctx, _req, b) => {
   const who = await gate(ctx, b);
-  const { brains, cards, sources } = await loadSpace(ctx, who.space);
+  const { brains, cards } = await loadSpace(ctx, who.space);
   const { open, conflicted } = cardConflicts(who.space, brains, cards) ?? await openConflicts(ctx, who.space, brains);
-  return { health: healthOf(brains, cards, sources, open), conflicted };
+  return { open: Object.fromEntries(open), conflicted };
 });
 
 /* ---------- one page ---------- */

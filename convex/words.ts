@@ -618,7 +618,7 @@ export function cardOf(c: any) {
     ...(Array.isArray(c.aliases) && c.aliases.length ? { aliases: c.aliases.slice(0, 12).map(String) } : {}),
     /* A person's file: the last day you were with them, whether it is built, and how many lines are still open. */
     ...(c.tag === "contact" ? { seen: String(c.file?.seen ?? ""), full: !!c.file, open: (c.file?.open ?? []).filter((x: any) => x && !x.done).length } : {}),
-    /* The open conflicts, not judged unreal: health counts them from the cards, without reading a concept. */
+    /* The open conflicts, not judged unreal: the clash count reads them from the cards, without reading a concept. */
     clash: (c.conflicts ?? []).filter((x: any) => x?.real !== false).length,
     updated: String(c.updated ?? ""),
     /* A short print of everything an answer reads of it: a change to any of it changes the print, which lets a saved answer go stale. */
