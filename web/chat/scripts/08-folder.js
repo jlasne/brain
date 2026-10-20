@@ -160,8 +160,8 @@ function openFolder(b, openId, opts = {}){
         `${n} mention${n === 1 ? "" : "s"}`].filter(Boolean).join(" · ")));
     }
     inner.append(el("p","fv-pos", c.position || c.summaryLine || "No position yet."));
-    /* A person's card is yours to correct: edit it, or merge it with the
-       card of the same person under another name. */
+    /* A person's card is yours to correct: edit it, merge it with the
+       card of the same person under another name, or delete it. */
     if (person && !S.demo){
       const acts = el("div","ct-acts");
       const ed = el("button","mini","Edit"); ed.type = "button"; ed.id = "ctEdit";
@@ -169,7 +169,20 @@ function openFolder(b, openId, opts = {}){
       const pick = el("div","ct-pick"); pick.hidden = true;
       ed.onclick = () => editCard(c, id);
       mg.onclick = () => { pick.hidden = !pick.hidden; if (!pick.hidden) mergePick(pick, c, id); };
-      acts.append(ed, mg); inner.append(acts, pick);
+      /* Delete asks once more on the button itself; the second click deletes. */
+      const del = el("button","mini bad","Delete"); del.type = "button"; del.id = "ctDel";
+      let armed = false;
+      del.onclick = async () => {
+        if (!armed){ armed = true; del.textContent = `Yes, delete ${c.title} for good`; del.classList.add("armed"); return; }
+        del.disabled = true; del.textContent = "Deleting";
+        try {
+          await api("/api/personal/contact", { action: "remove", id });
+          await reload();
+          cols.classList.remove("reading"); live.openNow = null; paint();
+          doc.innerHTML = ""; const gone = el("div","fv-in"); gone.append(el("div","fv-none",`${c.title} is deleted.`)); doc.append(gone);
+        } catch (e) { del.disabled = false; armed = false; del.classList.remove("armed"); del.textContent = e.message; }
+      };
+      acts.append(ed, mg, del); inner.append(acts, pick);
     }
     /* A person is a folder: an overview, then their facts, history by year,
        people, and raw notes by month, each a page of its own. */

@@ -615,6 +615,21 @@ const TODAY = "2026-09-30";
     && pm.evidence.length === 2 && pm.sources.includes("s-paul") && JSON.stringify(pm.aliases) === '["PM","Paul"]', JSON.stringify(pm));
   check("both cards' text is kept side by side until written again as one", pm.position === "Paul Martin's card.\n\nPaul's card.", JSON.stringify(pm.position));
   check("the list cards follow: the folded card's card is gone", !(T.cards ?? []).some(c => c.slug === "paul") && (T.cards ?? []).find(c => c.slug === "paul-martin")?.aliases?.includes("Paul"));
+  /* a card deleted for good: what rests on it goes, the links to it are cut, the notes stay */
+  const mc = T.concepts.find(c => c.slug === "marc"); mc.related = ["me/paul-martin", "me/trip"]; mc.kinds = [{ to: "me/paul-martin", type: "causes" }];
+  await store.syncCard(ctx, mc._id);
+  T.moments = [{ _id: "m1", brain: "me", slug: "paul-martin", d: "2026-10-01", text: "Met Paul" }, { _id: "m2", brain: "me", slug: "marc", d: "2026-10-02", text: "Met Marc" }];
+  T.rawNotes = [{ _id: "r1", brain: "me", slug: "paul-martin", at: 1, text: "Paul said hi" }];
+  T.insights = [{ _id: "i1", space: "acme", key: "k", a: "me/marc", b: "me/paul-martin", type: "t", title: "t", text: "t", at: "2026-10-01" }];
+  for (const [id, sp] of [["me/trip", "acme"], ["me/paul-martin", "other"]]) {
+    threw = ""; try { await run("contactDelete", { space: sp, id }); } catch (e) { threw = e.message; }
+    check(`only a contact of your own personal folder is deleted (${id} in ${sp})`, /not in your personal folder/.test(threw) && T.concepts.some(c => `${c.brain}/${c.slug}` === id), threw);
+  }
+  const del = await run("contactDelete", { space: "acme", id: "me/paul-martin" });
+  check("a contact is deleted with its card, moments, raw notes and insights, and the links to it are cut", !T.concepts.some(c => c.slug === "paul-martin") && !(T.cards ?? []).some(c => c.slug === "paul-martin")
+    && JSON.stringify(T.moments.map(x => x._id)) === '["m2"]' && !T.rawNotes.length && !T.insights.length && JSON.stringify(mc.related) === '["me/trip"]' && !mc.kinds.length
+    && (T.cards ?? []).find(c => c.slug === "marc")?.related.join() === "me/trip" && T.concepts.some(c => c.slug === "trip")
+    && del.title === "Paul Martin" && del.moments === 1 && del.notes === 1 && del.links === 1 && del.insights === 1, JSON.stringify(del));
 }
 
 /* ---- a person's file: a summary on top, then everything, and it only grows ---- */

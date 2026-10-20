@@ -2622,6 +2622,13 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click(".ct-row .mini"); await page.waitForTimeout(300);
   const merged = await page.evaluate(() => window.__calls.filter(x => x.body?.action === "merge").pop()?.body);
   check("the second merges that card into this one", merged?.into === "me/marc" && JSON.stringify(merged.from) === '["me/paul"]', JSON.stringify(merged));
+  /* Delete it: the button asks once more, the second tap deletes and goes back to the list. */
+  await page.click("#ctDel"); await page.waitForTimeout(60);
+  const delArmed = await page.evaluate(() => ({ t: document.getElementById("ctDel")?.textContent, calls: window.__calls.filter(x => x.body?.action === "remove").length }));
+  check("Delete on a contact asks once more on the button, and deletes nothing yet", delArmed.t === "Yes, delete Marc Dupont for good" && delArmed.calls === 0, JSON.stringify(delArmed));
+  await page.click("#ctDel"); await page.waitForTimeout(300);
+  const deleted = await page.evaluate(() => ({ call: window.__calls.filter(x => x.body?.action === "remove").pop()?.body, open: !!document.getElementById("ctDel"), say: document.querySelector(".fv-doc .fv-none")?.textContent }));
+  check("the second tap deletes the contact and closes its card", deleted.call?.id === "me/marc" && !deleted.open && deleted.say === "Marc Dupont is deleted.", JSON.stringify(deleted));
   await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(200);
   await page.click("#auditBlock > summary");
   await page.click('#auditList .au-row[data-slug="me"] button'); await page.waitForTimeout(500);

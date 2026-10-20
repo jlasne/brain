@@ -239,6 +239,9 @@
   @media (max-width:520px){ .pf-fact{ grid-template-columns:minmax(0,1fr) 22px; } .pf-v{ grid-column:1 / 2; } .pf-was{ grid-column:1 / -1; } .pf-fact .pf-x{ grid-row:1; grid-column:2; } }
   /* A person's card: edit it, or merge it with another card of the same person. */
   .ct-acts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  /* Delete reads red, and once armed asks on the button itself. */
+  .ct-acts .mini.bad{ color:var(--bad); }
+  .ct-acts .mini.bad.armed{ border-color:var(--bad); background:var(--surface); font-weight:600; }
   .ct-pick{ margin-top:10px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--side); animation:tdIn .3s ease both; }
   .ct-pick[hidden]{ display:none; }
   .ct-pick .tw-key{ margin-top:0; }

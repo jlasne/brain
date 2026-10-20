@@ -1760,6 +1760,36 @@ export const contactEdit = internalMutation({
 });
 
 /**
+ * A contact deleted for good: its card, its moments and raw notes, the links
+ * other cards hold to it and the insights that rest on it. The dated notes
+ * that named the person stay in the folder: they hold other things too.
+ */
+export const contactDelete = internalMutation({
+  args: { space: v.string(), id: v.string() },
+  handler: async (ctx, a) => {
+    const space = readSpace(a.space);
+    const c = await ownContact(ctx, space, a.id);
+    if (!c) throw new Error("that person is not in your personal folder");
+    const id = `${c.brain}/${c.slug}`, done = { moments: 0, notes: 0, links: 0, insights: 0 };
+    /* Links to it are cut from the other cards of the folder, found on the slim cards. */
+    for (const card of await ctx.db.query("cards").withIndex("by_brain", (q: any) => q.eq("brain", c.brain)).collect()) {
+      if (card.cid === c._id || (!(card.related ?? []).includes(id) && !(card.kinds ?? []).some((k: any) => k.to === id))) continue;
+      const o = await ctx.db.get(card.cid);
+      if (!o) continue;
+      await ctx.db.patch(o._id, { related: (o.related ?? []).filter((r: string) => r !== id), ...(o.kinds ? { kinds: o.kinds.filter((k: any) => k.to !== id) } : {}) });
+      await syncCard(ctx, o._id); done.links++;
+    }
+    for (const r of await momentRows(ctx, c.brain, c.slug)) { await ctx.db.delete(r._id); done.moments++; }
+    for (const r of await ctx.db.query("rawNotes").withIndex("by_contact", (q: any) => q.eq("brain", c.brain).eq("slug", c.slug)).collect()) { await ctx.db.delete(r._id); done.notes++; }
+    const hit = [...await ctx.db.query("insights").withIndex("by_a", (q: any) => q.eq("a", id)).collect(), ...await ctx.db.query("insights").withIndex("by_b", (q: any) => q.eq("b", id)).collect()];
+    for (const x of new Set(hit.map((y: any) => y._id))) { await ctx.db.delete(x); done.insights++; }
+    await ctx.db.delete(c._id);
+    await syncCard(ctx, c._id);
+    return { id, title: c.title, ...done };
+  },
+});
+
+/**
  * Two cards that are one person, folded into the one kept: every dated
  * mention and source joins it, the other's names become its other names, and
  * the two cards' text is kept side by side until it is written again as one.
