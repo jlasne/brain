@@ -2463,7 +2463,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const mine = { ...STATE, brains: [...STATE.brains, { slug: "me", name: "Me", type: "personal", scope: "", owner: null }],
     concepts: [{ brain: "me", slug: "lisbon", n: 1, title: "Moving abroad", summaryLine: "Lisbon in 2027", updated: "2026-10-01" },
       { brain: "me", slug: "marc", n: 2, title: "Marc Dupont", summaryLine: "Your co-founder, now at Revolut", tag: "contact", aliases: ["Marc", "my co-founder"], ev: 4, updated: "2026-10-04" },
-      { brain: "me", slug: "paul", n: 3, title: "Paul", summaryLine: "Someone you will introduce to Marc", tag: "contact", ev: 1, updated: "2026-10-02" }] };
+      { brain: "me", slug: "paul", n: 3, title: "Paul", summaryLine: "Someone you will introduce to Marc, an investor in fintech from Lisbon who backs teams at seed stage and wants the deck by Friday", tag: "contact", ev: 1, updated: "2026-10-02" }] };
   const { page, bad } = await boot("/chat.html", state => {
     sessionStorage.setItem("octopus.token.v1", "test");
     window.__calls = []; window.__parts = [];
@@ -2578,6 +2578,23 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   const parts = await page.evaluate(() => window.__parts);
   check("a promise is ticked done, and a wrong moment taken out, one line at a time", JSON.stringify(parts.map(p => [p.part, p.key, p.done ?? null])) === '[["open","o1",true],["event","e1",null]]'
     && parts.every(p => p.id === "me/marc"), JSON.stringify(parts));
+  /* On a phone: the open card takes the screen, the list fits it, the actions sit on one row. */
+  await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(250);
+  const phCard = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, vw: innerWidth, head: getComputedStyle(document.querySelector(".fv-h")).display,
+    date: (() => { const t = document.querySelector(".fv-doc .pf-open time"), x = document.querySelector(".fv-doc .pf-open .pf-orow span"); return t && x ? t.getBoundingClientRect().top > x.getBoundingClientRect().top : null; })() }));
+  check("on a phone a person's card takes the whole screen, nothing wider than it, the date under the line it dates", phCard.sw <= phCard.vw && phCard.head === "none" && phCard.date === true, JSON.stringify(phCard));
+  await page.click(".fv-back"); await page.waitForTimeout(200);
+  const phList = await page.evaluate(() => { const a = document.querySelector(".fv-acts"), bs = [...a.querySelectorAll(".fv-b:not(.fv-x)")];
+    return { sw: document.documentElement.scrollWidth, vw: innerWidth, head: getComputedStyle(document.querySelector(".fv-h")).display,
+      oneRow: new Set(bs.map(b => Math.round(b.getBoundingClientRect().top))).size === 1, scrolls: a.scrollWidth > a.clientWidth, n: bs.length }; });
+  check("back on the list, the head returns with its actions on one row that scrolls sideways, and a long line never widens the page", phList.sw <= phList.vw && phList.head !== "none"
+    && phList.oneRow && phList.scrolls && phList.n >= 4, JSON.stringify(phList));
+  await page.setViewportSize({ width: 1280, height: 860 }); await page.waitForTimeout(200);
+  await page.click(".fv-row >> nth=0"); await page.waitForTimeout(250);
+  /* Something still open, added by hand. */
+  await page.fill("#pfAddOpen", "Send Marc the deck by Friday"); await page.press("#pfAddOpen", "Enter"); await page.waitForTimeout(300);
+  const added = await page.evaluate(() => window.__calls.filter(x => x.body?.action === "addOpen").pop()?.body);
+  check("Still open takes a line written by hand, sent for that person", added?.id === "me/marc" && added.text === "Send Marc the deck by Friday", JSON.stringify(added));
   /* Edit it by hand. */
   await page.click("#ctEdit"); await page.waitForTimeout(150);
   const form = await page.evaluate(() => ({ name: document.getElementById("ctName")?.value, aka: document.getElementById("ctAka")?.value, pos: document.getElementById("ctPos")?.value }));

@@ -186,6 +186,12 @@
   .pf-orow time{ font:400 12px/1 var(--mono); color:var(--ink-4); white-space:nowrap; }
   .pf-tick{ flex:none; width:18px; height:18px; border:1.5px solid var(--ink-4); border-radius:5px; background:var(--surface); cursor:pointer; }
   .pf-tick:hover{ border-color:var(--accent-solid); background:var(--accent-soft); }
+  /* A line of Still open, written by hand. */
+  .pf-add{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:8px; }
+  .pf-add input{ flex:1 1 200px; min-width:0; padding:9px 11px; border:1px solid var(--line-2); border-radius:9px; background:var(--surface); font:400 14px/1.3 var(--sans); }
+  .pf-add input:focus{ outline:none; border-color:var(--ink-4); }
+  .pf-add-say{ flex:1 0 100%; font:400 12.5px/1.4 var(--sans); color:var(--bad); }
+  .pf-add-say:empty{ display:none; }
   .pf-sec{ margin-top:4px; }
   .pf-fact{ position:relative; display:grid; grid-template-columns:minmax(0,150px) minmax(0,1fr) 22px; gap:4px 14px; align-items:baseline; padding:7px 0; border-top:1px solid var(--line); }
   .pf-fact:first-of-type{ border-top:0; }
@@ -386,6 +392,24 @@
     .fv-row{ padding:12px 16px; }
     .fv-x{ width:44px; height:44px; }
     .fv-filter{ font-size:16px; min-height:44px; margin:10px 16px 6px; }
+    /* The list is as wide as the screen: a long line is cut at its edge, never pushing the page wider. */
+    .fv-list, .fv-rows, .fv-row{ min-width:0; }
+    /* The actions on one row that scrolls sideways, so the head stays short and the list starts high. */
+    .fv-acts{ flex:1 1 100%; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; margin:0 -16px; padding:2px 16px; }
+    .fv-acts::-webkit-scrollbar{ display:none; }
+    .fv-acts .fv-b{ flex:none; }
+    .fv-acts .fv-x{ flex:none; }
+    /* A concept or a person open takes the whole screen: the folder's head waits behind "← All". */
+    .folder-view:has(.fv-cols.reading) .fv-h{ display:none; }
+    /* Dates sit above what they date, so the words get the full width. */
+    .fv-ev{ grid-template-columns:minmax(0,1fr); gap:2px; }
+    .pf-open .pf-orow{ flex-wrap:wrap; align-items:flex-start; gap:4px 12px; }
+    .pf-open .pf-orow span{ flex:1 1 calc(100% - 40px); }
+    .pf-open .pf-orow time{ flex:1 0 100%; padding-left:28px; }
+    .pf-open .pf-tick{ margin-top:2px; position:relative; }
+    .pf-open .pf-tick::after{ content:""; position:absolute; inset:-12px; }
+    .pf-add input{ font-size:16px; min-height:44px; }
+    .pf-add .mini{ min-height:44px; padding:0 16px; }
   }
   .panel-h{ display:flex; align-items:center; gap:6px; }
   .panel .fold-t b{ margin-left:0; }

@@ -1946,6 +1946,26 @@ export const contactPart = internalMutation({
   },
 });
 
+/**
+ * A line written by hand into a person's Still open: a promise or a follow-up.
+ * One already open that says the same is that line, reworded. A card with no
+ * file yet gets one, holding that line.
+ */
+export const contactOpenAdd = internalMutation({
+  args: { space: v.string(), id: v.string(), text: v.string() },
+  handler: async (ctx, a) => {
+    const c0 = await ownContact(ctx, readSpace(a.space), a.id);
+    if (!c0) throw new Error("that person is not in your personal folder");
+    const t = a.text.replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, 300);
+    if (t.length < 3) throw new Error("that line needs a few words");
+    const c = await splitFile(ctx, c0);
+    const file = await withNewMoments(ctx, c.brain, c.slug, mergeFile(c.file ?? null, { open: [{ t }], events: [] }, today(), [c.title, ...(c.aliases ?? [])]), [], today());
+    await ctx.db.patch(c._id, { file, updated: today() });
+    await syncCard(ctx, c._id);
+    return { ok: true, open: (file.open ?? []).filter((x: any) => !x.done).length };
+  },
+});
+
 /** The other people whose files link to this one, by any name it goes by. */
 export const contactsLinking = internalQuery({
   args: { space: v.string(), id: v.string() },

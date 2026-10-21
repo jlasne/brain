@@ -378,7 +378,24 @@ function folderPeople({ live, show }){
   const personFile = (pp, c, id, linkedFrom, pg) => {
     const { panes, pick } = pp;
     const f = c.file;
+    /* A line of Still open, written by hand: a promise, a follow-up, what to bring up next time. */
+    const addOpen = box => {
+      if (S.demo) return;
+      const form = el("form","pf-add"), inp = el("input"), go = el("button","mini","Add");
+      inp.placeholder = "Add a promise or a follow-up"; inp.maxLength = 300; inp.id = "pfAddOpen";
+      inp.setAttribute("aria-label", `Add something still open with ${c.title}`); go.type = "submit";
+      const say = el("span","pf-add-say"); say.setAttribute("role","status");
+      form.onsubmit = async e => {
+        e.preventDefault();
+        const t = inp.value.trim(); if (t.length < 3){ inp.focus(); return; }
+        go.disabled = true; say.textContent = "";
+        try { await api("/api/personal/contact", { action: "addOpen", id, text: t }); await show(id); }
+        catch (err){ go.disabled = false; say.textContent = err.message; }
+      };
+      form.append(inp, go, say); box.append(form);
+    };
     if (!f){
+      const box = el("section","pf-open"); box.append(el("h4",null,"Still open")); addOpen(box); panes.overview.append(box);
       panes.overview.append(el("p","tw-key","This card has no full file yet. In Settings, Audit writes one from everything you said about them."));
       return;
     }
@@ -390,8 +407,8 @@ function folderPeople({ live, show }){
       x.onclick = () => fix(part, key); return x; };
 
     const open = (f.open || []).filter(x => !x.done);
-    if (open.length){
-      const box = el("section","pf-open"); box.append(el("h4",null,`Still open (${open.length})`));
+    if (open.length || !S.demo){
+      const box = el("section","pf-open"); box.append(el("h4",null, open.length ? `Still open (${open.length})` : "Still open"));
       for (const x of open){
         const r = el("div","pf-orow");
         const tick = el("button","pf-tick"); tick.type = "button"; tick.title = "Done"; tick.setAttribute("aria-label", `Mark done: ${x.t}`);
@@ -399,6 +416,7 @@ function folderPeople({ live, show }){
         r.append(tick, el("span",null,x.t), el("time",null,`since ${fileDay(x.at)}`));
         box.append(r);
       }
+      addOpen(box);
       inner.append(box);
     }
 

@@ -1996,7 +1996,7 @@ Reply with only JSON: {"position":"","summaryLine":""}`;
 
 /**
  * A person's card in a personal brain, by action: "edit" sets its name,
- * other names, card and line by hand; "remove" deletes it for good; "merge" folds other cards of the same
+ * other names, card and line by hand; "addOpen" writes a line into its Still open; "remove" deletes it for good; "merge" folds other cards of the same
  * person into it, then writes the joined card again as one.
  */
 route("/api/personal/contact", async (ctx, _req, b) => {
@@ -2020,6 +2020,7 @@ route("/api/personal/contact", async (ctx, _req, b) => {
         ...(typeof b.summaryLine === "string" ? { summaryLine: b.summaryLine } : {}) });
     }
     if (b.action === "remove") return await ctx.runMutation(internal.store.contactDelete, { space: who.space, id: String(b.id ?? "") });
+    if (b.action === "addOpen") return await ctx.runMutation(internal.store.contactOpenAdd, { space: who.space, id: String(b.id ?? ""), text: String(b.text ?? "") });
     if (b.action === "part") {
       return await ctx.runMutation(internal.store.contactPart, { space: who.space, id: String(b.id ?? ""), part: String(b.part ?? ""),
         key: String(b.key ?? ""), ...(typeof b.done === "boolean" ? { done: b.done } : {}) });

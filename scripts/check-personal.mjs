@@ -638,6 +638,18 @@ const TODAY = "2026-09-30";
     && JSON.stringify(T.moments.map(x => x._id)) === '["m2"]' && !T.rawNotes.length && !T.insights.length && JSON.stringify(mc.related) === '["me/trip"]' && !mc.kinds.length
     && (T.cards ?? []).find(c => c.slug === "marc")?.related.join() === "me/trip" && T.concepts.some(c => c.slug === "trip")
     && del.title === "Paul Martin" && del.moments === 1 && del.notes === 1 && del.links === 1 && del.insights === 1, JSON.stringify(del));
+  /* a line of Still open written by hand */
+  const add1 = await run("contactOpenAdd", { space: "acme", id: "me/marc", text: "  Send Marc   the  deck — by Friday " });
+  const mf = () => T.concepts.find(c => c.slug === "marc").file;
+  check("a line added by hand opens in Still open, tidy, dated today, on a card that had no file", add1.open === 1 && mf()?.open?.length === 1 && mf().open[0].t === "Send Marc the deck, by Friday" && !!mf().open[0].k && !!mf().open[0].at
+    && (T.cards ?? []).find(c => c.slug === "marc")?.open === 1, JSON.stringify(mf()));
+  await run("contactOpenAdd", { space: "acme", id: "me/marc", text: "Send Marc the deck, by Friday" });
+  await run("contactOpenAdd", { space: "acme", id: "me/marc", text: "Call his sister about the flat" });
+  check("the same line twice is one line; another is a second", mf().open.length === 2, JSON.stringify(mf().open));
+  threw = ""; try { await run("contactOpenAdd", { space: "acme", id: "me/marc", text: " x " }); } catch (e) { threw = e.message; }
+  check("a line of no words is refused", /needs a few words/.test(threw), threw);
+  threw = ""; try { await run("contactOpenAdd", { space: "acme", id: "me/trip", text: "Book it" }); } catch (e) { threw = e.message; }
+  check("only a person's file takes one", /not in your personal folder/.test(threw), threw);
 }
 
 /* ---- a person's file: a summary on top, then everything, and it only grows ---- */
