@@ -202,7 +202,8 @@ HOW TO ANSWER
   - Close with "### Next" and 1 to 3 bullets when there is something to do or decide.
   - Every sentence under 20 words. Never a paragraph of more than 2 sentences. A blank line between blocks: "\n\n" in the JSON string.
   - A short question gets a short answer: one or two lines, no heading.
-- A text the message asks for (a pitch, an email, a post, a plan) is written out whole in "answer", in its own shape, ready to copy. Never a line that only announces it.
+- A text the message asks for (a pitch, an email, a post, a reply to someone, a plan) is written out whole in "answer", in its own shape, ready to copy. Never a line that only announces it.
+- A message that asks for a text and a change gets both: the text whole in "answer", the change in "edits".
 - A question you ask the owner is written in "answer" itself, as a numbered list. Never point to questions or to anything that is not in your answer.${o.mine ? `
 - When their own notes hold what the message needs, propose the change now, whole, from them. Ask only for what is missing, after the change.` : ""}
 - Name where each point comes from: the asset by its name, the rows ("rows 4, 5") or the section title${o.folders ? ", or the folder" : ""}.
@@ -239,6 +240,22 @@ export function announcesOnly(answer: string): boolean {
   if (!t) return false;
   if (t.length > 360 || /\n\s*(?:[-*\d]|#)/.test(t)) return false;
   return /^(?:here(?:'s| is| are)|below is|this is (?:the|your)|voici|voilà|ci-dessous)\b/i.test(t);
+}
+
+/* A sentence that announces a text to come: "here is the reply", "voici une réponse à Maurane". */
+const ANNOUNCE = /\b(?:here(?:'s| is| are)|below is|voici|voilà|ci-dessous|je te propose|je vous propose)\b[^.!?:\n]{0,160}?\b(?:r[ée]ponses?|reply|replies|message|e-?mails?|mail|pitch|textes?|text|post|draft|brouillon|script|dm|version|plan)\b[^.!?:\n]*[.!?:]?/gi;
+/**
+ * An answer that announces a text but never writes it, whatever comes before:
+ * "Added 2 rows. Here is a reply to Maurane." with nothing after. A text is
+ * missing when less than 60 characters follow the last announcement.
+ */
+export function textMissing(answer: string): boolean {
+  const t = String(answer ?? "").trim();
+  if (!t) return false;
+  if (announcesOnly(t)) return true;
+  let end = -1;
+  for (const m of t.matchAll(ANNOUNCE)) end = (m.index ?? 0) + m[0].length;
+  return end >= 0 && t.slice(end).trim().length < 60;
 }
 
 /* ---------- a new asset ---------- */

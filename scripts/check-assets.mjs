@@ -234,6 +234,7 @@ globalThis.fetch = async (_u, opt) => {
     out = JSON.stringify({ lines: secs.map(m => ({ n: +m[1], title: "About " + m[2].split(/\s+/).slice(0, 2).join(" "), summary: "Covers " + m[2].split(/\s+/).slice(0, 5).join(" ") + "." })) }); }
   else if (/You turn questions about a table into a filter/.test(sys)) { if (reply.filterFail) return new Response("busy", { status: 503 }); out = JSON.stringify({ query: reply.filter ?? null }); }
   else if (/You route questions to the right entries/.test(sys)) { if (reply.routerFail) return new Response("busy", { status: 503 }); out = JSON.stringify(reply.folders ?? { picks: [], terms: [] }); }
+  else if (/You work on the owner's assets/.test(sys) && /Reply with only the text the message asks for/.test(sys)) out = reply.textOnly ?? "";
   else if (/You work on the owner's assets/.test(sys)) out = typeof reply.asset === "function" ? reply.asset(user) : JSON.stringify(reply.asset ?? { answer: "Read.", edits: [], create: null });
   else if (/You write the guide an AI reads/.test(sys)) out = "```\nMy portfolio. Asset: its name. Return: a percent a year.\n```";
   else if (/You file notes into a person's own knowledge base/.test(sys)) out = JSON.stringify({ notes: [], people: [] });
@@ -635,7 +636,10 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   const field = await call("/api/ask", { q: "give me the pitch", brain: "all", assets: [2], chat: null });
   check("a text the reply put in a field of its own joins the answer, with no second call", /^Here is the pitch\.\n\nI am Jeremy Lasne\./.test(field.answer) && sent.slice(n3).length === 1, JSON.stringify(field.answer.slice(0, 60)));
   check("the rules ask for the text written out whole, never announced", /written out whole in "answer"/.test(last(/You work on the owner's assets/).sys));
-  const { announcesOnly } = await build("assets");
+  const { announcesOnly, textMissing } = await build("assets");
+  check("a text announced after a change, and never written, is told apart", textMissing("Ajouté 2 lignes à CM-crm : Alan et Maurane. Voici une réponse à Maurane en français, selon les règles de messaging.")
+    && textMissing("Added 2 rows. Here's the reply to Maurane:") && !textMissing("Added 2 rows. Here is the reply to Maurane:\n\nSalut Maurane, merci pour ton oui ! Je t'envoie le lien de notre travail ce soir.")
+    && !textMissing("Added 2 rows to CM-crm: Alan and Maurane.") && textMissing("Voici le plan."));
   check("an announcement alone is told from an answer", announcesOnly("Here is the reworked pitch for The Influencer OS.") && announcesOnly("Voici le plan.")
     && !announcesOnly("Here is the pitch:\n- One\n- Two") && !announcesOnly("Dr. Dana is the closest to signing."));
   check("the rules offer removing columns, and forbid rebuilding a table for it", /"op":"dropcols"/.test(last(/You work on the owner's assets/).sys) && /Never rebuild a table with "table" to remove columns/.test(last(/You work on the owner's assets/).sys));
@@ -734,6 +738,15 @@ check("an asset belongs to its workspace alone", /not in this workspace/.test(St
   const told = sent.filter(x => /You work on the owner's assets/.test(x.sys)).pop();
   check("a saved guide is read with its asset by the next message", (await listed()).find(x => x.id === 2)?.guide === drafted.draft && (told?.sys + told?.user).includes("THE OWNER'S GUIDE TO THIS ASSET, written by them: follow it when you read or change it\nMy portfolio. Asset: its name."),
     String(told?.user).slice(0, 300));
+  /* a reply asked for with a change: the change is proposed, and the reply announced is written under the answer */
+  reply = { asset: { answer: "Added a row to the table. Voici une réponse à Maurane en français.", edits: [{ asset: 2, ops: [{ op: "add", sheet: 1, values: { Asset: "Tin" } }] }], create: null },
+    textOnly: "Salut Maurane, merci pour ton oui ! Voici notre travail : https://www.creatormatch.app/work/" };
+  const both = await call("/api/ask", { q: "add Tin, and write my reply to Maurane", brain: "all", assets: [2], chat: null });
+  check("a message asking for a change and a reply gets both: the change proposed, the reply written out", (both.edits ?? []).length === 1
+    && /^Added a row to the table\. Voici une réponse à Maurane en français\.\n\nSalut Maurane, merci pour ton oui !/.test(both.answer ?? ""), JSON.stringify({ a: both.answer, e: (both.edits ?? []).length }));
+  reply = { asset: { answer: "Added a row to the table.", edits: [{ asset: 2, ops: [{ op: "add", sheet: 1, values: { Asset: "Lead" } }] }], create: null }, textOnly: "never asked" };
+  const sentBefore = sent.length, plain = await call("/api/ask", { q: "add Lead", brain: "all", assets: [2], chat: null });
+  check("a change with no text announced is asked nothing more", plain.answer === "Added a row to the table." && !sent.slice(sentBefore).some(x => /Reply with only the text/.test(x.sys)), plain.answer);
   check("the demo cannot set a guide", !!(await call("/api/assets/file", { action: "guide", file: 2, guide: "x" }, "demo-token")).error);
 
   /* rename, remove, the other workspace, the demo */

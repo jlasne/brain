@@ -123,6 +123,12 @@
     <section class="folder-view" id="folderView" hidden></section>
     <section class="asset-view" id="assetView" hidden></section>
     <div class="thread" id="thread"></div>
+    <!-- What a chat proposes, to decide: beside the chat on a wide screen, a sheet over it on a phone. -->
+    <div class="rv-scrim" id="rvScrim" hidden></div>
+    <aside class="rv" id="reviewPanel" aria-label="Changes to review" hidden>
+      <header class="rv-h"><h3 id="rvTitle"></h3><button class="mini" id="rvLater" type="button" title="Close it: each change waits in the chat, under Review">Later</button></header>
+      <div class="rv-list" id="rvList"></div>
+    </aside>
     <div class="thread" id="dropThread" hidden></div>
 
     <div class="composer-wrap">

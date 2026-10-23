@@ -1873,9 +1873,10 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("10 seconds with nothing new heard end it, and every word heard stays", quiet.value === "bonjour à tous et merci" && !quiet.on && !quiet.strip, JSON.stringify(quiet));
   const before = await page.evaluate(() => window.__voice.length);
   await page.click("#micBtn"); await page.waitForTimeout(40);
-  await page.click("#micBtn"); await page.waitForTimeout(250);
+  /* A run may end and the next start in the 40 ms before the tap: what counts is that none starts after it. */
+  await page.click("#micBtn"); const atStop = await page.evaluate(() => window.__voice.length); await page.waitForTimeout(600);
   const stopped = await page.evaluate(() => ({ starts: window.__voice.length, on: document.getElementById("micBtn").classList.contains("on") }));
-  check("a tap on the mic stops it for good: it never starts again by itself", stopped.starts === before + 1 && !stopped.on, JSON.stringify({ before, ...stopped }));
+  check("a tap on the mic stops it for good: it never starts again by itself", atStop > before && stopped.starts === atStop && !stopped.on, JSON.stringify({ before, atStop, ...stopped }));
   check("nothing threw on the phone's mic", !bad.length, bad.join(" | "));
   await page.close();
 }
@@ -4128,22 +4129,34 @@ for (const space of ["octopus", "squidgy"]) {
   await page.keyboard.press("Enter"); await page.waitForTimeout(500);
   const asked = await page.evaluate(() => window.__calls.filter(x => x.s === "/api/ask").pop()?.body);
   check("the message carries the asset by its number, apart from the folders", JSON.stringify(asked?.assets) === "[2]" && !asked?.tags, JSON.stringify(asked));
-  const ans = await page.evaluate(() => { const m = [...document.querySelectorAll(".msg.ai")].pop(); return { read: [...m.querySelectorAll(".filed.called")].map(x => x.textContent),
-    cards: [...m.querySelectorAll(".pj-edit")].map(c => [c.querySelector(".pj-ek").textContent, c.querySelector(".pj-ef").textContent, [...c.querySelectorAll(".pj-tact button")].map(b => b.textContent).join("/")]),
-    del: m.querySelector(".as-edit del")?.textContent, ins: m.querySelector(".as-edit ins")?.textContent }; });
+  const ans = await page.evaluate(() => { const m = [...document.querySelectorAll(".msg.ai")].pop(), pn = document.getElementById("reviewPanel");
+    return { read: [...m.querySelectorAll(".filed.called")].map(x => x.textContent), inAnswer: m.querySelectorAll(".pj-edit").length,
+      lines: [...m.querySelectorAll(".as-sum")].map(r => [r.querySelector(".as-sum-t").textContent, r.querySelector(".as-sum-s").textContent, [...r.querySelectorAll("button:not(.as-to)")].map(b => b.textContent).join("/")]),
+      open: !!pn && !pn.hidden, title: document.getElementById("rvTitle")?.textContent,
+      cards: [...document.querySelectorAll("#rvList .pj-edit")].map(c => [c.querySelector(".pj-ek").textContent, c.querySelector(".pj-ef").textContent, [...c.querySelectorAll(".pj-tact button")].map(b => b.textContent).join("/")]),
+      del: document.querySelector("#rvList .as-edit del")?.textContent, ins: document.querySelector("#rvList .as-edit ins")?.textContent,
+      beside: pn && m ? pn.getBoundingClientRect().right <= m.querySelector(".body").getBoundingClientRect().left : false }; });
   const shape = await page.evaluate(() => { const a = [...document.querySelectorAll(".msg.ai .as-answer")].pop(); return a ? { h: a.querySelector("h2,h3,h4")?.textContent, li: a.querySelectorAll("li").length, b: a.querySelector("strong")?.textContent, td: a.querySelectorAll("td").length } : null; });
   check("an answer about assets reads as laid out: a heading, bullets, bold numbers and a table", shape?.h === "Why" && shape.li === 2 && shape.b === "9" && shape.td === 2, JSON.stringify(shape));
-  check("the answer says what it read, and shows the change it proposes and the page it would make, nothing done yet", JSON.stringify(ans.read) === '["Read @invest-assets.csv"]'
-    && JSON.stringify(ans.cards) === '[["Proposed change","In invest-assets.csv","Apply/Turn down"],["New page","Portfolio.html","Create it/Turn down"]]' && ans.del === "misfit" && ans.ins === "fit"
+  check("the answer says what it read, and keeps a line for each proposal, to review; nothing done yet", JSON.stringify(ans.read) === '["Read @invest-assets.csv"]' && ans.inAnswer === 0
+    && JSON.stringify(ans.lines) === '[["1 change to invest-assets.csv","to review","Review"],["New page: Portfolio.html","to review","Review"]]'
     && !(await page.evaluate(() => window.__calls.some(x => x.s === "/api/assets/edit" || x.s === "/api/assets/make"))), JSON.stringify(ans));
-  await page.click(".as-edit .go"); await page.waitForTimeout(250);
-  const applied = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/assets/edit").pop()?.body, kind: document.querySelector(".as-edit .pj-ek").textContent, btn: [...document.querySelectorAll(".as-edit .pj-tact button")].map(b => b.textContent).join("/") }));
-  check("Apply writes the change to that asset, then offers Undo", applied.call?.file === 2 && applied.call.id === "e1" && applied.call.action === "apply" && applied.kind === "Applied" && applied.btn === "Undo", JSON.stringify(applied));
-  await page.click(".as-make .go"); await page.waitForTimeout(300);
-  const made = await page.evaluate(() => ({ call: window.__calls.filter(x => x.s === "/api/assets/make").pop()?.body, kind: document.querySelector(".as-make .pj-ek").textContent, btn: [...document.querySelectorAll(".as-make .pj-tact button")].map(b => b.textContent).join("/"),
-    listed: [...document.querySelectorAll("#brains .as-row .nm")].map(x => x.textContent) }));
-  check("Create it makes the asset, lists it, and offers Open it and Undo", made.call?.id === "c1" && made.call.action === "apply" && made.kind === "Made" && made.btn === "Open it/Undo" && made.listed[0] === "Portfolio.html", JSON.stringify(made));
-  await page.click(".as-make .go"); await page.waitForTimeout(500);
+  check("the changes to decide open in a panel beside the chat, on its left, word for word", ans.open && ans.beside && ans.title === "To review: 2"
+    && JSON.stringify(ans.cards) === '[["Proposed change","In invest-assets.csv","Apply/Turn down"],["New page","Portfolio.html","Create it/Turn down"]]' && ans.del === "misfit" && ans.ins === "fit", JSON.stringify(ans));
+  await page.click("#rvList .as-edit .go"); await page.waitForTimeout(250);
+  const applied = await page.evaluate(() => { const r = [...document.querySelectorAll(".msg.ai .as-sum")][0];
+    return { call: window.__calls.filter(x => x.s === "/api/assets/edit").pop()?.body, state: r.querySelector(".as-sum-s").textContent, btn: [...r.querySelectorAll(".pj-tact button")].map(b => b.textContent).join("/") }; });
+  check("Apply writes the change to that asset, and the answer's line says so, with Undo", applied.call?.file === 2 && applied.call.id === "e1" && applied.call.action === "apply" && applied.state === "applied" && applied.btn === "Undo", JSON.stringify(applied));
+  await page.waitForTimeout(800);
+  check("a decided change leaves the panel, and the panel counts what is left", await page.evaluate(() => document.querySelectorAll("#rvList .pj-edit").length === 1 && document.getElementById("rvTitle").textContent === "To review: 1"));
+  await page.click("#rvList .as-make .go"); await page.waitForTimeout(300);
+  const made = await page.evaluate(() => { const r = [...document.querySelectorAll(".msg.ai .as-sum")][1];
+    return { call: window.__calls.filter(x => x.s === "/api/assets/make").pop()?.body, state: r.querySelector(".as-sum-s").textContent, btn: [...r.querySelectorAll(".pj-tact button")].map(b => b.textContent).join("/"),
+      listed: [...document.querySelectorAll("#brains .as-row .nm")].map(x => x.textContent) }; });
+  check("Create it makes the asset, lists it, and its line offers Open it and Undo", made.call?.id === "c1" && made.call.action === "apply" && made.state === "made" && made.btn === "Open it/Undo" && made.listed[0] === "Portfolio.html", JSON.stringify(made));
+  await page.waitForTimeout(1000);
+  check("with every change decided, the panel closes and the chat takes the width again", await page.evaluate(() => document.getElementById("reviewPanel").hidden && !document.querySelector("main").classList.contains("reviewing")));
+  await page.evaluate(() => [...document.querySelectorAll(".msg.ai .as-sum")][1].querySelector(".pj-tact button").click()); await page.waitForTimeout(500);
   check("Open it shows the page it made", await page.evaluate(() => document.querySelector(".pj .pj-t h2")?.textContent === "Portfolio.html" && !!document.querySelector(".pj .pj-frame")));
   /* assets ticked in the chat bar's picker, read with every message */
   await page.click("#startBtn"); await page.waitForTimeout(150);
@@ -4278,6 +4291,37 @@ for (const space of ["octopus", "squidgy"]) {
   await demo.page.waitForTimeout(150);
   check("the demo lists no asset", await demo.page.evaluate(() => !document.querySelector("#brains .as-row")));
   await demo.page.close();
+}
+
+/* ---- on a phone: the changes to decide come up as a sheet, gone once decided ---- */
+{
+  const { page, bad } = await boot("/chat.html", () => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    const assets = [{ id: 2, name: "CM-crm", kind: "table", made: false, chars: 900, sections: 1, status: "ready", at: 3, rows: 4 }];
+    window.__calls = [];
+    window.fetch = async (u, opt) => {
+      const path = String(u).replace(/^https?:\/\/[^/]+/, ""), body = JSON.parse(opt?.body || "{}"), J = x => Response.json(x);
+      window.__calls.push({ s: path, body });
+      if (path === "/api/state") return J({ brains: [{ slug: "content", name: "Content", type: "subject", scope: "s", owner: null }], concepts: [], sources: [], model: "m", chunk: 18000, mentions: 1,
+        account: null, kind: "owner", owner: true, space: "octopus", spaceName: "Octopus", hasKey: false, keyHint: "", assets });
+      if (path === "/api/assets/list") return J({ assets });
+      if (path === "/api/ask") return J({ answer: "Added Maurane.\n\nSalut Maurane, merci pour ton oui !", sources: 0, level: "normal", assets: ["CM-crm"],
+        edits: [{ id: "e7", fid: 2, name: "CM-crm", status: "open", preview: [{ label: "New row at the end", before: "", after: "Maurane | 38k | ONGOING" }] }] });
+      if (path === "/api/assets/edit") return J({ ok: true });
+      return J({ chats: [] });
+    };
+  });
+  await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(200);
+  await page.fill("#input", "@CM-crm add Maurane and write my reply"); await page.keyboard.press("Enter"); await page.waitForTimeout(500);
+  const sheet = await page.evaluate(() => { const pn = document.getElementById("reviewPanel"), r = pn?.getBoundingClientRect();
+    return { open: !!pn && !pn.hidden, bottom: r ? Math.round(r.bottom) : 0, width: r ? Math.round(r.width) : 0, vh: innerHeight, vw: innerWidth, scrim: !document.getElementById("rvScrim").hidden,
+      reply: [...document.querySelectorAll(".msg.ai .body")].pop()?.textContent.includes("Salut Maurane"), sw: document.documentElement.scrollWidth }; });
+  check("on a phone the change comes up as a sheet over the chat, the reply written in the answer behind it", sheet.open && sheet.bottom === sheet.vh && sheet.width === sheet.vw && sheet.scrim && sheet.reply && sheet.sw <= sheet.vw, JSON.stringify(sheet));
+  await page.click("#rvList .as-edit .go"); await page.waitForTimeout(1300);
+  const after = await page.evaluate(() => ({ open: !document.getElementById("reviewPanel").hidden, scrim: !document.getElementById("rvScrim").hidden, line: document.querySelector(".msg.ai .as-sum .as-sum-s")?.textContent }));
+  check("once decided the sheet goes, and the answer's line says it is applied", !after.open && !after.scrim && after.line === "applied", JSON.stringify(after));
+  check("nothing threw around the review sheet", !bad.length, bad.join(" | "));
+  await page.close();
 }
 
 /* ---- Settings: what the workspace cost this month, kind by kind ---- */

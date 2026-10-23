@@ -429,6 +429,7 @@ function renderChats(){
 
 /** A clean screen, and the next question starts a new chat. */
 function newChat(){
+  closeReview();
   S.thread = []; S.chatId = null; S.mode = "ask"; S.folder = null; S.concept = null;
   /* A question still on its way in the chat left behind lands there, unread. */
   S.draft = "d" + (++draftSeq);
@@ -444,6 +445,7 @@ async function openChat(id){
   try { c = (await api("/api/chats/get", { id })).chat; }
   catch (e) { chatMsg(e.message); loadChats(); return; }
   if (!c) return;
+  closeReview();
   S.chatId = c.id;
   const asked = String(c.brain || "").split(",").filter(x => S.brains.some(b => b.slug === x));
   if (asked.length === 1 && isPersonal(asked[0])){ S.picks = []; S.scope = asked[0]; S.into = []; }

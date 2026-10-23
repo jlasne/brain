@@ -492,8 +492,18 @@ function openConvert(){
   };
 }
 
-/* ---- in a chat: the cards of what it proposes ---- */
+/* ---- in a chat: what it proposes ----
+   The answer keeps a line for each proposal, with where it stands. The cards to decide sit in the review panel: beside the chat on
+   a wide screen, a sheet over it on a phone. A card decided leaves the panel, and the panel closes once none is left. */
 const CARD_KIND = { open: "Proposed change", applied: "Applied", undone: "Undone", dismissed: "Turned down", gone: "Earlier change" };
+/** Each proposal shown, by its kind and id: its card and its lines read it, so a decision anywhere shows everywhere. */
+const PROPOSED = new Map();
+function proposalOf(kind, x){
+  const k = `${kind}:${x.id}`, had = PROPOSED.get(k);
+  /* Seen before: where it stands here is newer than what a saved answer says. */
+  if (had){ const status = had.x.status; Object.assign(had.x, x, { status }); return had; }
+  const p = { k, kind, x }; PROPOSED.set(k, p); return p;
+}
 /** The words before and after, a line each place a change touches. */
 function previewLines(c, preview){
   for (const p of preview || []){
@@ -509,84 +519,111 @@ function assetLink(fid, name){
   b.onclick = () => { if (assetById(fid)) openAsset(fid); };
   return b;
 }
-/** A change a chat proposed to an asset: Apply or Turn down, then Undo. Nothing changes until Apply. */
-function assetEditCard(e){
-  const c = el("div","pj-edit as-edit " + e.status); c.dataset.id = e.id; c.dataset.fid = String(e.fid);
-  c.append(el("div","pj-ek", CARD_KIND[e.status] || e.status));
-  const where = el("div","pj-ef"); where.append("In ", assetLink(e.fid, e.name)); c.append(where);
-  previewLines(c, e.preview);
-  const act = async (action, btns) => {
-    btns.forEach(b => { b.disabled = true; });
-    c.querySelector(".pj-msg")?.remove();
-    try {
-      await api("/api/assets/edit", { file: e.fid, id: e.id, action });
-      e.status = action === "apply" ? "applied" : action === "undo" ? "undone" : "dismissed";
-      c.replaceWith(assetEditCard(e));
-      if (action !== "dismiss"){ syncAssets(); if (S.pj?.fid === e.fid) refreshAsset().catch(() => {}); }
-    } catch (err){
-      btns.forEach(b => { b.disabled = false; });
-      c.append(el("div","pj-msg",err.message));
-    }
-  };
-  if (e.status === "open"){
-    const row = el("div","pj-tact"), yes = el("button","go","Apply"), no = el("button","ghost","Turn down");
-    yes.type = no.type = "button";
-    yes.onclick = () => act("apply", [yes, no]); no.onclick = () => act("dismiss", [yes, no]);
-    row.append(yes, no); c.append(row);
-  } else if (e.status === "applied"){
-    const row = el("div","pj-tact"), undo = el("button","ghost","Undo"); undo.type = "button";
-    undo.onclick = () => act("undo", [undo]);
-    row.append(undo); c.append(row);
+/** A decision on a proposal: apply, turn down or undo. Every card and line of it is drawn again. */
+async function decide(p, action){
+  const x = p.x;
+  if (p.kind === "edit"){
+    await api("/api/assets/edit", { file: x.fid, id: x.id, action });
+    x.status = action === "apply" ? "applied" : action === "undo" ? "undone" : "dismissed";
+    if (action !== "dismiss"){ syncAssets(); if (S.pj?.fid === x.fid) refreshAsset().catch(() => {}); }
+  } else {
+    const r = await api("/api/assets/make", { id: x.id, action });
+    x.status = r.status; if (r.fid) x.fid = r.fid;
+    await syncAssets();
   }
+  proposalMoved(p);
+}
+/** Buttons that decide, each disabled while its call runs; a refusal is said under them. */
+function decideRow(p, host, list){
+  const row = el("div","pj-tact");
+  for (const [label, cls, act] of list){
+    const b = el("button", cls, label); b.type = "button";
+    b.onclick = async () => {
+      if (act === "open"){ if (p.x.fid) openAsset(p.x.fid); closeReview(); return; }
+      row.querySelectorAll("button").forEach(y => { y.disabled = true; });
+      host.querySelector(".pj-msg")?.remove();
+      try { await decide(p, act); }
+      catch (err){ row.querySelectorAll("button").forEach(y => { y.disabled = false; }); host.append(el("div","pj-msg",err.message)); }
+    };
+    row.append(b);
+  }
+  return row;
+}
+/** A proposal's card, to decide in the review panel: what changes, word for word. */
+function proposalCard(p){
+  const x = p.x, edit = p.kind === "edit";
+  const c = el("div","pj-edit " + (edit ? "as-edit " : "as-make ") + x.status); c.dataset.id = x.id; c.dataset.prop = p.k;
+  if (edit) c.dataset.fid = String(x.fid);
+  c.append(el("div","pj-ek", edit ? CARD_KIND[x.status] || x.status : x.status === "open" ? `New ${pjNoun(x.kind)}` : x.status === "applied" ? "Made" : CARD_KIND[x.status] || x.status));
+  const where = el("div","pj-ef");
+  if (edit) where.append("In ", assetLink(x.fid, x.name)); else if (x.status === "applied" && x.fid) where.append(assetLink(x.fid, x.name)); else where.append(x.name);
+  c.append(where);
+  previewLines(c, x.preview);
+  if (x.status === "open") c.append(decideRow(p, c, edit ? [["Apply","go","apply"], ["Turn down","ghost","dismiss"]] : [["Create it","go","apply"], ["Turn down","ghost","dismiss"]]));
+  else if (x.status === "applied") c.append(decideRow(p, c, edit ? [["Undo","ghost","undo"]] : [["Open it","go","open"], ["Undo","ghost","undo"]]));
   return c;
 }
-/** A new asset a chat proposed: Create or Turn down; once made, Open it or Undo. */
-function assetMakeCard(m){
-  const c = el("div","pj-edit as-make " + m.status); c.dataset.id = m.id;
-  c.append(el("div","pj-ek", m.status === "open" ? `New ${pjNoun(m.kind)}` : m.status === "applied" ? "Made" : CARD_KIND[m.status] || m.status));
-  const name = el("div","pj-ef");
-  if (m.status === "applied" && m.fid) name.append(assetLink(m.fid, m.name)); else name.append(m.name);
-  c.append(name);
-  previewLines(c, m.preview);
-  const act = async (action, btns) => {
-    btns.forEach(b => { b.disabled = true; });
-    c.querySelector(".pj-msg")?.remove();
-    try {
-      const r = await api("/api/assets/make", { id: m.id, action });
-      m.status = r.status; if (r.fid) m.fid = r.fid;
-      c.replaceWith(assetMakeCard(m));
-      await syncAssets();
-    } catch (err){
-      btns.forEach(b => { b.disabled = false; });
-      c.append(el("div","pj-msg",err.message));
-    }
-  };
-  if (m.status === "open"){
-    const row = el("div","pj-tact"), yes = el("button","go","Create it"), no = el("button","ghost","Turn down");
-    yes.type = no.type = "button";
-    yes.onclick = () => act("apply", [yes, no]); no.onclick = () => act("dismiss", [yes, no]);
-    row.append(yes, no); c.append(row);
-  } else if (m.status === "applied"){
-    const row = el("div","pj-tact"), open = el("button","go","Open it"), undo = el("button","ghost","Undo");
-    open.type = undo.type = "button";
-    open.onclick = () => { if (m.fid) openAsset(m.fid); };
-    undo.onclick = () => act("undo", [open, undo]);
-    row.append(open, undo); c.append(row);
-  }
-  return c;
+/** A proposal's line in the answer: what it is, where it stands, and the one thing to do now. */
+function proposalLine(p){
+  const x = p.x, edit = p.kind === "edit", n = (x.preview || []).length;
+  const r = el("div","as-sum " + x.status); r.dataset.prop = p.k;
+  const what = el("span","as-sum-t");
+  if (edit) what.append(`${n || 1} change${n === 1 ? "" : "s"} to `, assetLink(x.fid, x.name));
+  else what.append(`New ${pjNoun(x.kind)}: `, x.status === "applied" && x.fid ? assetLink(x.fid, x.name) : x.name);
+  const state = el("span","as-sum-s", x.status === "open" ? "to review" : edit ? (CARD_KIND[x.status] || x.status).toLowerCase() : x.status === "applied" ? "made" : (CARD_KIND[x.status] || x.status).toLowerCase());
+  r.append(what, state);
+  if (x.status === "open"){ const b = el("button","mini go","Review"); b.type = "button"; b.onclick = () => openReview([p], p); r.append(b); }
+  else if (x.status === "applied") r.append(decideRow(p, r, edit ? [["Undo","ghost","undo"]] : [["Open it","ghost","open"], ["Undo","ghost","undo"]]));
+  return r;
 }
-/** The cards of an answer: its changes, and a new asset. A chat opened again asks where they stand now. */
+/** A proposal decided: its lines are drawn again; its card says so a moment, then leaves the panel. */
+function proposalMoved(p){
+  for (const n of document.querySelectorAll(`.as-sum[data-prop="${p.k}"]`)) n.replaceWith(proposalLine(p));
+  const pn = $("reviewPanel");
+  for (const n of document.querySelectorAll(`.pj-edit[data-prop="${p.k}"]`)){
+    const fresh = proposalCard(p); n.replaceWith(fresh);
+    if (pn?.contains(fresh) && p.x.status !== "open") setTimeout(() => { fresh.remove(); paintReview(); }, 900);
+  }
+  paintReview();
+}
+
+/* The review panel closes on Later, or on a tap beside it on a phone: each change waits in the chat, under Review. */
+$("rvLater").onclick = () => closeReview();
+$("rvScrim").onclick = () => closeReview();
+/** The panel opened on some proposals, the one asked for in view. Only the ones still to decide go in. */
+function openReview(ps, focus){
+  if (S.demo) return;
+  const pn = $("reviewPanel"), list = $("rvList");
+  for (const p of ps) if (p.x.status === "open" && !list.querySelector(`[data-prop="${p.k}"]`)) list.append(proposalCard(p));
+  if (!list.children.length) return;
+  pn.hidden = false; $("rvScrim").hidden = false;
+  document.querySelector("main").classList.add("reviewing");
+  paintReview();
+  if (focus) list.querySelector(`[data-prop="${focus.k}"]`)?.scrollIntoView({ block: "nearest" });
+}
+/** Its title counts what is left; with nothing left, it closes. */
+function paintReview(){
+  const pn = $("reviewPanel"); if (!pn || pn.hidden) return;
+  const left = [...$("rvList").children].filter(c => c.classList.contains("open")).length;
+  $("rvTitle").textContent = left ? `To review: ${left}` : "All decided";
+  if (!$("rvList").children.length) closeReview();
+}
+function closeReview(){
+  const pn = $("reviewPanel"); if (!pn) return;
+  pn.hidden = true; $("rvScrim").hidden = true; $("rvList").innerHTML = "";
+  document.querySelector("main").classList.remove("reviewing");
+}
+/** An answer's proposals: a line each in the answer, and a new answer's open ones in the panel. A chat opened again asks where they stand now. */
 function assetCards(body, r, fresh){
-  const cards = [];
-  for (const e of r.edits || []) cards.push(assetEditCard({ ...e }));
-  if (r.create) cards.push(assetMakeCard({ ...r.create }));
-  if (!cards.length) return;
-  body.append(...cards);
-  if (fresh) return;
+  const ps = [...(r.edits || []).map(e => proposalOf("edit", { ...e })), ...(r.create ? [proposalOf("make", { ...r.create })] : [])];
+  if (!ps.length) return;
+  const box = el("div","as-sums");
+  box.append(...ps.map(proposalLine));
+  body.append(box);
+  if (fresh){ openReview(ps, ps[0]); return; }
   const list = [...(r.edits || []).map(e => ({ fid: e.fid, id: e.id })), ...(r.create ? [{ fid: 0, id: r.create.id }] : [])];
   api("/api/assets/state", { list }).then(({ state }) => {
-    for (const e of r.edits || []){ const now = state?.[e.id]; const card = body.querySelector(`.as-edit[data-id="${e.id}"]`); if (now && card && now !== e.status) card.replaceWith(assetEditCard({ ...e, status: now })); }
-    if (r.create){ const now = state?.[r.create.id]; const card = body.querySelector(`.as-make[data-id="${r.create.id}"]`); if (now && card && now !== r.create.status) card.replaceWith(assetMakeCard({ ...r.create, status: now })); }
+    for (const p of ps){ const now = state?.[p.x.id]; if (now && now !== p.x.status){ p.x.status = now; proposalMoved(p); } }
   }).catch(() => {});
 }
 /** An asset the question names without @: a chip that asks again with it called. */

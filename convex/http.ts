@@ -28,7 +28,7 @@ import { addDocPiece, addRowPiece, finishFile, readBlocks } from "./reader";
 import { withChatSpend } from "./spend";
 import { parseExport, RESTORE_CHARS } from "./restore";
 import { colNames, downloadText, csvOf, parseCsv, splitKey, fileKey, assetsSlug } from "./sheet";
-import { readAsset, assetSketch, ASSET_RULES, readCreate, createPreview, ASSETS_A_MESSAGE, announcesOnly } from "./assets";
+import { readAsset, assetSketch, ASSET_RULES, readCreate, createPreview, ASSETS_A_MESSAGE, announcesOnly, textMissing } from "./assets";
 import { remember, REPLY_RULES, MAX_CHARS, calledBrains, conceptDump, conceptRules, applyChange, fileVerbatim, plainReply, openByPerson, OPEN_RULES, readOpenUpdates, oneLine, personPeek } from "./personal";
 import { listConflicts, settleConflict } from "./conflicts";
 import { rederive, tidyScan } from "./tidy";
@@ -1036,6 +1036,16 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
     const words = String(again.text ?? "").replace(/^```(?:markdown)?|```$/g, "").trim();
     return words.startsWith("{") ? answerIn(words) : words;
   };
+  /* Asked again for the text alone (the reply, the email) when the answer proposed a change and only announced the text. */
+  const textAgain = async () => {
+    const again = await ask([
+      { role: "system", content: ASSET_RULES(english, { folders: pool.some((x: any) => !mine || x.slug !== mine.slug), ...(mine ? { mine: mine.name } : {}) }).replace(/Reply with only JSON:[^\n]*$/, "Reply with only the text the message asks for (the reply, the message, the email, the post), written out whole and ready to copy, in the language it is meant for. No JSON, no comment on it, no change.") },
+      { role: "user", content: `${read.join("\n\n")}\n\n${pool.length ? `THEIR FOLDERS\n${dossier}\n\n` : ""}${earlier ? `EARLIER IN THIS CHAT\n${earlier}\n\n` : ""}TODAY: ${today()}\nMESSAGE: ${q}` },
+    ], { maxTokens: 3000, temperature: 0.3, key: mKey, model: mName, timeout: 120000 });
+    tally(again.usage);
+    const words = String(again.text ?? "").replace(/^```(?:markdown)?|```$/g, "").trim();
+    return words.startsWith("{") ? answerIn(words) : words;
+  };
   try { d = parseJson(String(text), finish); }
   catch {
     /* A reply cut off or broken: its answer is kept as far as it got, a change it was writing goes, and no code is ever shown. */
@@ -1073,6 +1083,13 @@ async function assetChat(ctx: any, who: Caller, b: any, every: any, tally: (u: a
     if (!proposes && !extra.length && announcesOnly(String(d.answer ?? d.reply ?? ""))) {
       const words = await wordsAgain();
       if (words.length > String(d.answer ?? "").length) d = { ...d, answer: words };
+    }
+    /* A change proposed and a text only announced: the change stands, and the text is written under the answer. */
+    else if (proposes && !extra.length && textMissing(String(d.answer ?? d.reply ?? ""))) {
+      try {
+        const words = await textAgain();
+        if (words.length >= 20) d = { ...d, answer: `${String(d.answer ?? d.reply ?? "").trim()}\n\n${words}` };
+      } catch { /* the answer stands as it came */ }
     }
   }
   let answer = String(d?.answer ?? d?.reply ?? "").replace(/\s*—\s*/g, ", ").trim();
