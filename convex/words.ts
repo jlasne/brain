@@ -241,16 +241,39 @@ export function planDossier(pool: any[], concepts: any[], q: string, history?: a
   const seeds = picked.length ? [...new Set([...picked, ...named, ...near])]
     : [...new Set([...titleHits.slice(0, 10), ...near, ...prior])];
   const linked = neighbours(seeds, inPool).slice(0, 10);
+  /* A question that asks why, how or in what order goes one link further: from what it reached, along "causes" and "needs" only. */
+  const chained = CHAIN_Q.test(q) ? chainNext([...seeds, ...linked], inPool, new Set<any>([...seeds, ...linked])) : [];
   /* The seeds lead: the picks, or with none the best word matches. Then what
      they link to, then the rest of the matches: with picks, only as many as it
      takes to open MIN_OPEN concepts. */
-  const firm = new Set<any>([...seeds, ...linked]);
+  const firm = new Set<any>([...seeds, ...linked, ...chained]);
   const fill = picked.length ? titleHits.filter((c: any) => !firm.has(c)).slice(0, Math.max(0, MIN_OPEN - firm.size)) : titleHits;
-  const lead0 = [...seeds, ...linked, ...fill];
+  const lead0 = [...seeds, ...linked, ...chained, ...fill];
   /* With nothing to go on, the fullest positions open, unless a router read the titles: one that saw them and picked none (on the whole list,
      or on the nearest in meaning, `ran`) leaves nothing to open, rather than thirty concepts that only happen to hold the most evidence. */
   const lead = [...new Set(lead0.length || judgedEmpty || opts.ran ? lead0 : ranked.map(r => r.c))];
-  return { lead, ranked, inPool, hits, picked, linked, words, titled: named.length };
+  return { lead, ranked, inPool, hits, picked, linked, chained, words, titled: named.length };
+}
+
+/* A question asking why, how, or in what order, in the languages the app is asked in most. */
+export const CHAIN_Q = /(?:^|[^\p{L}])(why|how|order|steps?|leads? to|because|causes?|pourquoi|comment|ordre|étapes?|por qué|cómo|warum|wie)(?=$|[^\p{L}])/iu;
+/* The most concepts a chain adds past the first links. */
+export const CHAIN_MAX = 4;
+/**
+ * The second step of a chain: what the concepts already reached cause or need,
+ * when it is not read yet. A reads B, B causes C, and C is read too.
+ */
+export function chainNext(from: any[], all: any[], taken: Set<any>): any[] {
+  const byId = new Map<string, any>();
+  for (const c of all) { byId.set(`${c.brain}/${conceptSlug(c.title)}`, c); byId.set(idOf(c), c); }
+  const out: any[] = [];
+  for (const c of from) for (const k of kindsOf(c)) {
+    if (k.type !== "causes" && k.type !== "needs") continue;
+    const n = byId.get(k.to);
+    if (n && !taken.has(n) && !out.includes(n)) out.push(n);
+    if (out.length >= CHAIN_MAX) return out;
+  }
+  return out;
 }
 
 /* How many of the leading concepts a caller reads whole: the 30 that can

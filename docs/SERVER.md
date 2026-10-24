@@ -228,7 +228,9 @@ What a drop adds, in the background after it links:
 
 A question is turned into numbers too, so a concept worded differently, or in
 another language, can still answer it. "Needs" links tell a concept what to
-learn first and what follows it. All of it runs on the deployment's key, so a
+learn first and what follows it. A question reads what its concepts link to; one that asks
+why, how or in what order goes one link further along "causes" and "needs",
+up to 4 more concepts. All of it runs on the deployment's key, so a
 bring-your-own-key workspace and the demo skip it, the same as linking.
 
 PowerShell strips the double quotes inside an argument, which leaves

@@ -133,6 +133,17 @@ const tokens = s => Math.round(s.length / 4);
   const r = dossierFor(kb, [a, b, c, d], "what is net present value?");
   const order = r.opened.map(x => x.slug);
   check("an answer opens what its concept links to, next", order[0] === "npv" && order.slice(1, 3).sort().join(",") === "discount-rate,irr", order.join(","));
+
+  /* A why or how question goes one link further, along causes and needs: A links B, B causes C, and C is read too. */
+  const ca = { brain: "k", slug: "niche", title: "Niche content", related: ["k/buyers"], evidence: [] };
+  const cb = { brain: "k", slug: "buyers", title: "Buyers over views", related: ["k/roi", "k/logo"], kinds: [{ to: "k/roi", type: "needs" }, { to: "k/logo", type: "related" }], evidence: [] };
+  const cc = { brain: "k", slug: "roi", title: "Tracking returns per post", related: [], evidence: [] };
+  const cd = { brain: "k", slug: "logo", title: "Brand colours", related: [], evidence: [] };
+  const why = planDossier(kb, [ca, cb, cc, cd], "why does niche content sell?").lead.map(x => x.slug);
+  const what = planDossier(kb, [ca, cb, cc, cd], "what is niche content?").lead.map(x => x.slug);
+  check("a why question follows a chain a second step, along needs and causes only", JSON.stringify(why) === '["niche","buyers","roi"]', why.join(","));
+  check("a plain question stops at the first links", JSON.stringify(what) === '["niche","buyers"]', what.join(","));
+  check("why, how and order are heard in French too", planDossier(kb, [ca, cb, cc, cd], "pourquoi le contenu niche vend ?").lead.some(x => x.slug === "roi") && planDossier(kb, [ca, cb, cc, cd], "étapes du contenu niche").lead.some(x => x.slug === "roi"));
   check("and leaves out what it does not link to", !order.includes("gold") || order.indexOf("gold") > 2, order.join(","));
 }
 
