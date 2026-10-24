@@ -3399,14 +3399,14 @@ for (const space of ["octopus", "squidgy"]) {
   }, PUB);
   await page.waitForTimeout(250);
   const l = await page.evaluate(() => ({ h1: document.querySelector("h1").textContent, sub: document.querySelector(".sub").textContent,
-    nav: [...document.querySelectorAll(".nav a")].map(a => `${a.textContent.trim()}:${a.getAttribute("href")}`),
+    nav: [...document.querySelectorAll(".nav a, .nav button")].filter(x => !x.closest(".ws-menu")).map(x => `${x.textContent.trim()}:${x.getAttribute("href") || "menu"}`),
     pass: !!document.getElementById("pass"), bg: getComputedStyle(document.querySelector(".bg")).backgroundImage,
     font: getComputedStyle(document.body).fontFamily, page: getComputedStyle(document.body).backgroundColor, logo: document.querySelector(".logo").textContent.trim(),
     mark: document.querySelector(".logo img").getAttribute("src"), title: document.title, text: document.body.textContent,
     rows: [...document.querySelectorAll("#rows .row")].map(r => r.querySelector(".who b").textContent + " | " + r.querySelector(".who small").textContent),
     count: document.getElementById("count").textContent, cats: [...document.querySelectorAll("#cats .chip")].map(c => c.textContent) }));
   check("the landing says what it is: the smartest knowledge, in an MCP", l.h1 === "The smartest knowledge, in an MCP." && /^Public brains compiled from/.test(l.sub) && /^Tasu: the smartest knowledge/.test(l.title), l.h1);
-  check("the bar holds the mark and one way in: Open a workspace, to the app", JSON.stringify(l.nav) === '["tasu:/","Open a workspace:/chat"]' && !l.pass, JSON.stringify(l.nav));
+  check("the bar holds the mark and one way in: Open a workspace, a menu", JSON.stringify(l.nav) === '["tasu:/","Open a workspace:menu"]' && !l.pass, JSON.stringify(l.nav));
   check("it keeps the Tasu look: the pencil landscape, Geist on near-white, the folder mark", /\/brand\/landing\.webp/.test(l.bg) && /^"?Geist/.test(l.font) && l.page === "rgb(250, 250, 250)"
     && l.logo === "tasu" && l.mark === "/brand/tasu.svg", `${l.font} ${l.page}`);
   check("the page is the list of public brains, the fullest first, each with its counts", JSON.stringify(l.rows) === '["Hormozi | Business · 376 concepts · 60 sources · fed 23 Oct","Y Combinator | Business · 214 concepts · 41 sources · fed 19 Oct"]'
@@ -3425,6 +3425,25 @@ for (const space of ["octopus", "squidgy"]) {
   check("the demo opens in one click from below the list", await page.evaluate(() => sessionStorage.getItem("octopus.token.v1")) === "tDemo" && new URL(page.url()).pathname === "/chat", page.url());
   check("nothing threw on the landing", !bad.length, bad.join(" | "));
   await page.close();
+
+  /* Open a workspace lists them: Octopus, Squidgy, the ones made for someone with their own logo, then any by its passphrase. */
+  const ws = await boot("/", () => {
+    const px = "data:image/png;base64,iVBORw0KGgo=";
+    window.fetch = async u => String(u).includes("/api/status") ? Response.json({ demo: true, hosted: [{ slug: "pandaaahh", name: "PandAAAHH" }, { slug: "bad slug<", name: "x" }],
+      logos: { pandaaahh: px, octopus: "javascript:alert(1)" } }) : Response.json({ brains: [] });
+  });
+  await ws.page.waitForTimeout(200);
+  check("the workspaces wait behind the button", await ws.page.evaluate(() => document.getElementById("wsMenu").hidden));
+  await ws.page.click("#openWs"); await ws.page.waitForTimeout(80);
+  const wl = await ws.page.evaluate(() => ({ open: !document.getElementById("wsMenu").hidden,
+    items: [...document.querySelectorAll("#wsMenu a")].map(a => `${a.textContent.trim()}:${a.getAttribute("href")}`),
+    panda: document.querySelector('#wsMenu a[href="/chat?w=pandaaahh"] img')?.getAttribute("src"), oct: document.querySelector("#goOctopus img").getAttribute("src") }));
+  check("Open a workspace lists each one, then any by its passphrase, and a bad slug never", wl.open
+    && JSON.stringify(wl.items) === '["Octopus:/chat?w=octopus","Squidgy:/chat?w=squidgy","PandAAAHH:/chat?w=pandaaahh","Another workspace, by its passphrase:/chat"]', JSON.stringify(wl.items));
+  check("each wears the logo its owner set, and one that is not an image is never used", wl.panda?.startsWith("data:image/png") && wl.oct === "/brand/logo-mark.png", JSON.stringify(wl));
+  await ws.page.keyboard.press("Escape"); await ws.page.waitForTimeout(60);
+  check("Escape closes it", await ws.page.evaluate(() => document.getElementById("wsMenu").hidden));
+  await ws.page.close();
 
   const none = await boot("/", () => { window.fetch = async u => String(u).includes("/api/public") ? Response.json({ brains: [] }) : Response.json({ demo: true }); });
   await none.page.waitForTimeout(200);

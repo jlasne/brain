@@ -60,6 +60,17 @@
   .open{ margin-left:auto; display:inline-flex; align-items:center; height:36px; padding:0 14px; border-radius:9px; background:var(--dark); color:#fff;
     font:500 14px/1 var(--sans); white-space:nowrap; transition:background .15s var(--ease); }
   .open:hover{ background:var(--dark-2); }
+  .open svg{ width:12px; height:12px; margin-left:6px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  /* The workspaces, under the one button: each opens on its own page, which asks for its passphrase. */
+  .ws{ margin-left:auto; position:relative; }
+  .ws .open{ margin-left:0; border:0; cursor:pointer; }
+  .ws-menu{ position:absolute; right:0; top:calc(100% + 8px); min-width:250px; padding:6px; background:var(--card); border:1px solid var(--line); border-radius:12px;
+    box-shadow:0 16px 40px -10px rgba(0,0,0,.16); display:grid; gap:2px; }
+  .ws-menu #wsMore{ display:contents; }
+  .ws-menu a{ display:flex; align-items:center; gap:10px; min-height:40px; padding:0 10px; border-radius:8px; font:500 14px/1.2 var(--sans); color:var(--ink); }
+  .ws-menu a:hover, .ws-menu a:focus-visible{ background:var(--line-2); outline:none; }
+  .ws-menu img{ width:18px; height:18px; border-radius:4px; object-fit:contain; }
+  .ws-menu a.any{ margin-top:4px; padding-top:2px; border-top:1px solid var(--line-2); border-radius:0 0 8px 8px; font-weight:400; color:var(--muted); }
 
   /* ---- the hero ---- */
   .hero{ position:relative; overflow:hidden; padding:calc(60px + 11vh) 20px 36px; }
@@ -165,7 +176,15 @@
 
 <header class="nav"><div class="in">
   <a class="logo" href="/" aria-label="Tasu"><img src="/brand/tasu.svg" alt="" width="26" height="26"><span>tasu</span></a>
-  <a class="open" href="/chat" id="openWs">Open a workspace</a>
+  <div class="ws">
+    <button class="open" type="button" id="openWs" aria-haspopup="menu" aria-expanded="false">Open a workspace<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
+    <div class="ws-menu" id="wsMenu" role="menu" hidden>
+      <a role="menuitem" href="/chat?w=octopus" id="goOctopus"><img src="/brand/logo-mark.png" alt="" width="18" height="18">Octopus</a>
+      <a role="menuitem" href="/chat?w=squidgy" id="goSquidgy"><img src="/brand/squidgy-icon.png" alt="" width="18" height="18">Squidgy</a>
+      <span id="wsMore"></span>
+      <a role="menuitem" href="/chat" class="any">Another workspace, by its passphrase</a>
+    </div>
+  </div>
 </div></header>
 
 <main>
@@ -343,7 +362,27 @@
     try { const r = await post("/api/workspace/create", { name, pass, key }); enter(r.token, r.space, key); }
     catch (e) { $("cGo").disabled = false; msg.textContent = e.message; say(""); }
   });
-  post("/api/status").then(st => { if (st.demo === false) { demoOpen = false; $("demoGo").disabled = true; $("demoGo").title = "The demo opens soon"; } }).catch(() => {});
+  /* Open a workspace: the list of them, Octopus and Squidgy first, then the ones made for someone, then any by its passphrase. */
+  const wsOpen = on => { $("wsMenu").hidden = !on; $("openWs").setAttribute("aria-expanded", String(on)); if (on) $("wsMenu").querySelector("a")?.focus(); };
+  $("openWs").onclick = e => { e.stopPropagation(); wsOpen($("wsMenu").hidden); };
+  document.addEventListener("click", e => { if (!e.target.closest(".ws")) wsOpen(false); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("wsMenu").hidden){ wsOpen(false); $("openWs").focus(); } });
+  post("/api/status").then(st => {
+    if (st.demo === false) { demoOpen = false; $("demoGo").disabled = true; $("demoGo").title = "The demo opens soon"; }
+    /* Each workspace wears the logo its owner set, when it is an image. */
+    const logos = st.logos && typeof st.logos === "object" ? st.logos : {};
+    const mark = (img, slug) => { const src = String(logos[slug] ?? ""); if (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(src)) img.src = src; };
+    mark($("goOctopus").querySelector("img"), "octopus"); mark($("goSquidgy").querySelector("img"), "squidgy");
+    for (const w of Array.isArray(st.hosted) ? st.hosted : []) {
+      if (!/^[a-z0-9][a-z0-9-]{1,31}$/.test(String(w.slug))) continue;
+      const a = document.createElement("a");
+      a.setAttribute("role", "menuitem"); a.href = "/chat?w=" + w.slug; a.dataset.slug = w.slug;
+      const img = document.createElement("img"); img.src = "/brand/tasu.svg"; img.alt = ""; img.width = img.height = 18;
+      mark(img, w.slug);
+      a.append(img, String(w.name ?? w.slug));
+      $("wsMore").append(a);
+    }
+  }).catch(() => {});
 </script>
 </body>
 </html>
