@@ -325,6 +325,23 @@ I run a marathon in May.
   check("a folder whose name another workspace holds is left out, with its concepts", other.brains.skipped === 1 && other.concepts.skipped === 1 && !T.concepts.some(c => c.title === "Z"), JSON.stringify(other));
 }
 
+/* ---- a folder made public: listed for anyone, with its counts ---- */
+{
+  const { T, ctx } = seed();
+  for (const c of T.concepts) await store.syncCard(ctx, c._id);
+  check("nothing is public until its owner says so", (await run(store.publicBrains, ctx, {})).length === 0);
+  check("another workspace cannot make it public", /no such folder/.test(await throws(run(store.publicSet, ctx, { space: "squidgy", slug: "wealth", on: true }))));
+  await run(store.publicSet, ctx, { space: "octopus", slug: "wealth", on: true });
+  const pub = await run(store.publicBrains, ctx, {});
+  const held = T.concepts.filter(c => c.brain === "wealth").length, srcs = T.sources.filter(s => (s.brains ?? []).includes("wealth")).length;
+  check("a public folder is listed with its scope and counts, and no other", pub.length === 1 && pub[0].slug === "wealth" && pub[0].concepts === held && pub[0].sources === srcs, JSON.stringify(pub));
+  check("an MCP address finds it by its slug, in its workspace", JSON.stringify(await run(store.publicBrain, ctx, { slug: "wealth" })) === '{"slug":"wealth","space":"octopus"}');
+  await run(store.publicSet, ctx, { space: "octopus", slug: "wealth", on: false });
+  check("private again, it leaves the list and its address reads nothing", (await run(store.publicBrains, ctx, {})).length === 0 && (await run(store.publicBrain, ctx, { slug: "wealth" })) === null);
+  T.brains.push({ _id: "bp", slug: "me", name: "Me", type: "personal", scope: "", space: "octopus" });
+  check("a personal folder is never public", /never public/.test(await throws(run(store.publicSet, ctx, { space: "octopus", slug: "me", on: true }))));
+}
+
 /* ---- a rename in steps: a large folder moves a batch a call ---- */
 {
   const { T, ctx } = seed();

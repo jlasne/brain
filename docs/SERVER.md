@@ -357,6 +357,8 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/concept/merge` | Folds concepts of one folder into the one kept, then writes its position again from the joined evidence | Yes, owner |
 | `/api/concept/rename` | Changes a concept's title. Its id and links stay | Yes, owner |
 | `/api/concept/rederive` | Writes positions again from the evidence each concept holds, eight per call | Yes |
+| `/api/brain/public` | A folder made public, or private again: `{slug, on}`. Never a personal folder, only the home workspace's own | Owner |
+| `/api/public` | The public folders, for the landing page: name, scope, category, concepts, sources and the day last fed. 60 reads per 10 minutes from one address | No |
 | `/api/brain/groups` | The categories of the folders. `set: [{slug, group}]` puts each folder of this workspace in a category, or in none with `""`. `action: "suggest"` returns a category per folder from its name and scope line, one model call, nothing saved. Owner only, never the personal folder | Suggest only |
 | `/api/brain/merge` | Merges one folder into another in the same workspace, then deletes the first. Owner only, never the personal folder | Yes |
 | `/api/brain/delete` | Deletes a folder of this workspace. With `dry`, counts what would go: its concepts, its sources and those it alone holds, the chats that asked it, the workspaces it is shared with. Otherwise 150 concepts a call, with their cards and meaning, then once: links from other folders into it cut, its topics, the insights resting on it and its candidates gone, a source it alone held gone with its note, a chat that asked it asking the rest (or every folder). The folder row goes last, so a stop half way finishes when asked again. Never the personal folder, a project, or a folder shared in from another workspace | Yes |
@@ -379,7 +381,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/assets/state` | Where the changes and new assets of a chat opened again stand now | Yes |
 | `/api/assets/adopt` | A project made before the assets, deleted whole with `drop: true`, or turned into assets, once: its files move with all they hold (a name an asset holds gets the project's name after it), its Brief, State of play, open questions and memory become one document, "Notes of" the project, and the project goes with its thread | Owner. Runs a model for the notes |
 | `/api/spend` | What the workspace cost this month, kind by kind (folder chat, personal chat, assets, drops, upkeep, one-pagers, voice): the dollars the model host reported, the calls it gave a price for and all the calls, the tokens in, out and reused, and the answers given again for free; and the month before in all | Owner |
-| `/mcp`, and any path under `/mcp/` | The public MCP server, read only. `/mcp/v0` reaches the same handler | No, by design |
+| `/mcp`, and any path under `/mcp/` | The public MCP server, read only: the public folders alone, or one with `?b=<slug>`. `/mcp/v0` reaches the same handler | No, by design |
 
 ## Why the key has to be server side
 
@@ -591,8 +593,11 @@ reach both. The key belongs to the project's holder account, `owner` for
 Octopus and `owner-squidgy` for Squidgy, and any other account's key opens
 nothing.
 
-With no key, `/mcp` reads the Octopus brains, as a custom connector anyone can
-add. It carries no passphrase. Three properties make that safe:
+With no key, `/mcp` reads only the folders their owner made public: those of
+Octopus, or with `?b=<slug>` that one public folder, whatever its workspace.
+It is a custom connector anyone can add, and carries no passphrase. A private
+folder, its concepts and its sources never reach it. The landing page lists the
+public folders, each with its `?b=` address. Three properties make that safe:
 
 | Property | Why it holds |
 |---|---|

@@ -10,7 +10,7 @@ Folders learn from what you drop. Assets keep your docs and tables. Call any wit
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
-<img alt="2010 checks passing" src="https://img.shields.io/badge/checks-2010%20passing-52525b?style=flat-square&labelColor=18181b">
+<img alt="2021 checks passing" src="https://img.shields.io/badge/checks-2021%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
 <img alt="Installs on phone and desktop" src="https://img.shields.io/badge/app-phone%20and%20desktop-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
@@ -97,6 +97,7 @@ A classic AI chat answers from its training data. Karpathy's LLM wiki compiles y
 
 - **A drop keeps everything.** Every number, date and name of the source is checked against what was filed, and anything missing goes in word for word. The card says it: "All of it kept: 7,020 words, 145 numbers, dates and names, 23 topics, filed into 18 concepts".
 - **Categories.** Wealth, Business, Life: each folder and each asset sits in one, or in none. Set them in one sheet, the grid next to +, with a suggestion from the model. A new version of an asset keeps its category.
+- **Public folders.** Edit, Public: anyone adds the folder to Claude, ChatGPT or Cursor with its own address, and the home page lists it with its counts. It reads only; you alone feed it. A private folder never reaches the public connector.
 - **One +.** It asks first: Knowledge, a new folder, or Asset: files, a link, a blank doc, page or table. A file dropped on the list becomes an asset.
 - **A folder, open.** Its scope and counts (concepts, sources, open clashes), then every concept, newest first. Chat in it, drop into it, rename it, merge it into another, or delete it with its Delete button. Delete first counts what goes: "Content holds 42 concepts and 12 sources, 9 of them only here".
 - **Every drop grows the graph.** Each new idea links to its 6 nearest in meaning, in any language: needs, causes, supports, contradicts or example. A question reads what its ideas link to; a why, how or in-what-order question follows "causes" and "needs" one step further, up to 4 more. Folders sort themselves into topics.
@@ -257,7 +258,7 @@ The app's source sits in `web/chat/`, one file a screen. `npm run build` joins i
 
 ```bash
 npm run build     # web/chat into app/chat.html
-npm run check     # the build first, then 2010 checks
+npm run check     # the build first, then 2021 checks
 npm run deploy    # the server, to Convex
 ```
 
@@ -271,7 +272,7 @@ skill/brain/    the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a folder
 ```
 
-`npm run check` runs 2010 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
+`npm run check` runs 2021 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 

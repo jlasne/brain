@@ -590,6 +590,11 @@ function openBrainSheet(b){
       <div class="f"><label for="rScope">Scope, in one line</label><textarea id="rScope"></textarea></div>
       <div class="f" id="rGroupF"><label for="rGroup">Category</label><input id="rGroup" list="rGroups" maxlength="40" autocomplete="off" placeholder="No category">
         <datalist id="rGroups"></datalist></div>
+      <div class="f" id="rPubF" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px">
+        <label class="pub-row" for="rPub"><input type="checkbox" id="rPub"> Public</label>
+        <div class="hint" style="margin:4px 0 8px">Anyone can read it from their AI through its own address, and it is listed on the Tasu home page. Only you feed it.</div>
+        <div class="pub-line" id="rPubLine" hidden><code id="rPubUrl"></code><button class="ghost" id="rPubCopy" type="button">Copy</button></div>
+        <div class="hint" id="rPubSay" role="status"></div></div>
       <div class="f" id="rMergeF" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px">
         <label for="rInto">Merge into another folder</label>
         <div class="hint" style="margin:0 0 8px">Every concept, source and link moves there, and this folder goes. A concept with the same title joins its twin.</div>
@@ -610,6 +615,27 @@ function openBrainSheet(b){
   groupI.value = groupOf(b);
   veil.querySelector("#rGroups").innerHTML = groupNames().map(n => `<option value="${esc(n)}"></option>`).join("");
   veil.querySelector("#rGroupF").hidden = b.type === "personal" || (b.space || S.space) !== S.space || readOnly(b);
+  /* Public: a switch that applies at once, and the address anyone adds to their AI. */
+  const pubF = veil.querySelector("#rPubF"), pub = veil.querySelector("#rPub"), pubLine = veil.querySelector("#rPubLine"), pubSay = veil.querySelector("#rPubSay");
+  pubF.hidden = S.demo || b.type === "personal" || (b.space || S.space) !== S.space || readOnly(b);
+  const pubUrl = `${location.origin}/mcp/v1?b=${b.slug}`;
+  veil.querySelector("#rPubUrl").textContent = pubUrl;
+  const paintPub = () => { pub.checked = !!b.public; pubLine.hidden = !b.public; };
+  paintPub();
+  pub.onchange = async () => {
+    const on = pub.checked; pub.disabled = true; pubSay.className = "hint spin"; pubSay.textContent = on ? "Making it public" : "Making it private";
+    try {
+      const r = await api("/api/brain/public", { slug: b.slug, on });
+      if (r.error) throw new Error(r.error);
+      b.public = on; const live = S.brains.find(x => x.slug === b.slug); if (live) live.public = on;
+      pubSay.className = "hint"; pubSay.textContent = on ? "Public. Anyone can add the address below to their AI." : "Private. Its address reads nothing now.";
+    } catch (e) { pubSay.className = "bad"; pubSay.textContent = e.message; }
+    pub.disabled = false; paintPub();
+  };
+  veil.querySelector("#rPubCopy").onclick = e => {
+    const btn = e.currentTarget;
+    try { navigator.clipboard.writeText(pubUrl).then(() => { btn.textContent = "Copied"; }, () => { btn.textContent = "Select it"; }); } catch { btn.textContent = "Select it"; }
+  };
   const shut = () => veil.remove();
   veil.querySelector("#rCancel").onclick = shut;
 

@@ -42,7 +42,7 @@ const { findByTitle, cardOf } = await import(pathToFileURL(join(dir, "bundle-wor
 
 const DB = {
   brains: [
-    { slug:"content", name:"Content", type:"subject", scope:"How a brand publishes content and turns attention into buyers", owner:"octopus" },
+    { slug:"content", name:"Content", type:"subject", scope:"How a brand publishes content and turns attention into buyers", owner:"octopus", public:true },
     { slug:"health",  name:"Health",  type:"subject", scope:"sleep, recovery and training load", owner:"octopus" },
     { slug:"other",   name:"Other",   type:"subject", scope:"a brain of the other space", space:"squidgy" },
   ],
@@ -67,6 +67,10 @@ const ctx = {
   scheduler: { runAfter: async (_ms, fn, a) => { DB.scheduled.push({ fn, ...a }); } },
   runQuery: async (fn, a) => {
     /* The slim copies, made from the concepts the way the store makes them. */
+    if (fn === "store.publicBrain") {
+      const b = DB.brains.find(x => x.slug === a.slug);
+      return b?.public ? { slug: b.slug, space: b.space ?? "octopus" } : null;
+    }
     if (fn === "store.spaceHead") {
       DB.spacesRead.push(a?.space ?? null);
       return { brains: DB.brains.filter(b => (b.space ?? "octopus") === a.space), sources: DB.sources, ready: true };
@@ -142,6 +146,19 @@ const ME = { account:"octopus", name:"Octopus" };
   const an = anon.result.tools.map(t => t.name), sn = signed.result.tools.map(t => t.name);
   check("anonymous sees 7 read tools, one_pager among them", an.length === 7 && an.includes("one_pager") && !an.includes("drop_store"), an.join(","));
   check("signed sees 13 tools", sn.length === 13 && sn.includes("drop_store"), sn.join(","));
+}
+
+/* ---- an address with no token reads the public folders alone ---- */
+{
+  const one = async (name, args, only) => { const r = await handleRpc(ctx, { jsonrpc:"2.0", id:1, method:"tools/call", params:{ name, arguments:args } }, null, only);
+    return r.result?.content?.[0]?.text ?? JSON.stringify(r); };
+  const anon = await call("list_brains", {}, null), signed = await call("list_brains", {}, ME);
+  check("an anonymous reader lists the public folders alone; a signed address lists them all", /Content/.test(anon) && !/Health/.test(anon) && /Health/.test(signed), anon);
+  check("a private folder cannot be named by an anonymous reader", /No brain matches/.test(await call("read_brain", { brain: "health" }, null)));
+  check("?b= reads that one public folder", /Content/.test(await one("list_brains", {}, "content")));
+  check("?b= on a private folder reads nothing", /No public brain is at "health"/.test(await one("list_brains", {}, "health")));
+  const srcs = await call("list_sources", {}, null);
+  check("an anonymous reader sees the sources of public folders alone", !/Sleep Doc/.test(srcs), srcs);
 }
 
 /* ---- the space a read asks for ---- */

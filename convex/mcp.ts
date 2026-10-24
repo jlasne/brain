@@ -4,7 +4,9 @@
  *
  * Each project, Octopus and Squidgy, hands out its own address from Setup. It
  * carries a token, and it reads and feeds that project and no other. An
- * address with no token reads the Octopus brains, which are published.
+ * address with no token reads only the folders their owner made public:
+ * those of Octopus, or with ?b=<slug> that one public folder, whatever its
+ * workspace.
  * Three properties make that safe to leave open:
  *
  *   1. No model call happens here, so no OpenRouter credit is ever spent. The
@@ -700,7 +702,7 @@ function rulings(args: any): Record<string, string> {
 
 /* ---------- dispatch ---------- */
 
-export async function runTool(ctx: any, name: string, args: any, caller: Caller = null) {
+export async function runTool(ctx: any, name: string, args: any, caller: Caller = null, only = "") {
   if (WRITE_TOOLS.some(t => t.name === name)) return await runWriteTool(ctx, caller, name, args);
 
   /**
@@ -710,9 +712,20 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
    * Octopus, whose brains are published. Squidgy is read only through its own
    * address, so a client pointed anywhere else never sees it.
    */
-  const space = spaceOf(caller);
+  /* An anonymous address naming one public folder reads it in its own workspace. */
+  const pub = !caller && only ? await ctx.runQuery(internal.store.publicBrain, { slug: only }) : null;
+  if (!caller && only && !pub) return text(`No public brain is at "${only}". The owner may have made it private again.`);
+  const space = pub ? pub.space : spaceOf(caller);
   /* Slim copies for every list; a concept is read whole only when opened. */
-  const { brains, cards: concepts, sources } = await loadSpace(ctx, space);
+  let { brains, cards: concepts, sources } = await loadSpace(ctx, space);
+  /* An anonymous reader sees the public folders alone, or the one it named, and the concepts and sources of those alone. */
+  if (!caller) {
+    brains = brains.filter((b: any) => b.public && (!only || b.slug === only));
+    const keep = new Set(brains.map((b: any) => b.slug));
+    concepts = concepts.filter((c: any) => keep.has(c.brain));
+    sources = sources.filter((s: any) => (s.brains ?? []).some((x: string) => keep.has(x)))
+      .map((s: any) => ({ ...s, brains: (s.brains ?? []).filter((x: string) => keep.has(x)) }));
+  }
   /* Only concepts of the brains listed: a personal brain's never reach a client. */
   const whole = async (ids: string[]) => ids.length
     ? (await ctx.runQuery(internal.store.conceptsByIds, { space, ids })).filter((c: any) => brains.some((x: any) => x.slug === c.brain)) : [];
@@ -941,7 +954,7 @@ export async function runTool(ctx: any, name: string, args: any, caller: Caller 
 }
 
 /** One JSON-RPC message in, one reply out. Null means the caller sent a notification. */
-export async function handleRpc(ctx: any, msg: any, caller: Caller = null): Promise<any | null> {
+export async function handleRpc(ctx: any, msg: any, caller: Caller = null, only = ""): Promise<any | null> {
   const { id, method, params } = msg ?? {};
   const isNotification = id === undefined || id === null;
 
@@ -986,7 +999,7 @@ export async function handleRpc(ctx: any, msg: any, caller: Caller = null): Prom
       return ok(id, { ...text(`This server has no tool named "${name}".`), isError: true });
     }
     try {
-      const out = await runTool(ctx, name, params?.arguments ?? {}, caller);
+      const out = await runTool(ctx, name, params?.arguments ?? {}, caller, only);
       if (!out) return ok(id, { ...text(`Tool "${name}" returned nothing.`), isError: true });
       return ok(id, out);
     } catch (e: any) {

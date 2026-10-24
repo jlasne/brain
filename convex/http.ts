@@ -787,6 +787,20 @@ ${all.map((x: any) => `- ${x.slug}: ${x.name}. ${String(x.scope ?? "").slice(0, 
   return await ctx.runMutation(internal.store.groupsSet, { space: who.space, set });
 });
 
+/** The public folders, for the landing page: no sign-in. 60 reads per 10 minutes from one address. */
+route("/api/public", async (ctx, req) => {
+  const addr = await addressOf(req);
+  const r = await ctx.runMutation(internal.store.mcpRate, { who: `public:${addr ?? "unknown"}`, max: 60, windowMs: RATE_WINDOW_MS });
+  if (!r.allowed) return { error: `Too many reads. Try again in ${r.retryAfter} seconds.` };
+  return { brains: await ctx.runQuery(internal.store.publicBrains, {}) };
+});
+
+/** A folder made public, or private again: `{slug, on}`. Owner only. */
+route("/api/brain/public", async (ctx, _req, b) => {
+  const who = await gate(ctx, b, { ownerOnly: true });
+  return await ctx.runMutation(internal.store.publicSet, { space: who.space, slug: String(b.slug ?? ""), on: b.on === true });
+});
+
 route("/api/brain/rename", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   const r: any = await ctx.runMutation(internal.store.renameBrain, {
@@ -2594,7 +2608,10 @@ const mcpPost = httpAction(async (ctx, req) => {
        token instead, which no log keeps. No token is an anonymous reader,
        which is the default and needs no account. An unknown token is also just
        a reader: saying which tokens exist would be a way to hunt for one. */
-    const sent = new URL(req.url).searchParams.get("k") || (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+    const params = new URL(req.url).searchParams;
+    const sent = params.get("k") || (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+    /* ?b=<slug> names one public folder: an anonymous reader then reads that folder alone. */
+    const only = String(params.get("b") ?? "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 60);
     const caller = sent
       ? await ctx.runQuery(internal.store.accountByMcpToken, { token: sent })
       : null;
@@ -2641,10 +2658,10 @@ const mcpPost = httpAction(async (ctx, req) => {
             429, { "Retry-After": String(more.retryAfter) });
         }
       }
-      const out = (await Promise.all(msg.map((m: any) => handleRpc(ctx, m, caller)))).filter(Boolean);
+      const out = (await Promise.all(msg.map((m: any) => handleRpc(ctx, m, caller, only)))).filter(Boolean);
       return out.length ? mcpJson(out) : mcpJson(null, 202);
     }
-    const reply = await handleRpc(ctx, msg, caller);
+    const reply = await handleRpc(ctx, msg, caller, only);
     return reply ? mcpJson(reply) : mcpJson(null, 202);
 });
 

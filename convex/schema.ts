@@ -115,6 +115,9 @@ export default defineSchema({
     /* The category it sits under in the side panel and the picker: Wealth,
        Business, Life. Absent: no category. Never on a personal brain. */
     group: v.optional(v.string()),
+    /* Made public by the owner of its home workspace: anyone reads it through its own MCP address, and it is listed on the
+       landing page. Absent: private. Never on a personal folder. */
+    public: v.optional(v.boolean()),
   }).index("by_slug", ["slug"]),
 
   concepts: defineTable({

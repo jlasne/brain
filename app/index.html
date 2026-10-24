@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Tasu: your knowledge and your files, in one chat</title>
-<meta name="description" content="Folders learn from what you drop. Assets keep your docs and tables. Call any with @, and every answer cites it.">
+<title>Tasu: the smartest knowledge, in an MCP</title>
+<meta name="description" content="Public brains compiled from the talks, essays and posts of founders and investors, each idea dated and cited. Add one to your AI in one line.">
 <meta name="theme-color" content="#fafafa">
-<meta property="og:title" content="Tasu: your knowledge and your files, in one chat">
-<meta property="og:description" content="Folders learn from what you drop. Assets keep your docs and tables. Call any with @, and every answer cites it.">
+<meta property="og:title" content="Tasu: the smartest knowledge, in an MCP">
+<meta property="og:description" content="Public brains compiled from the talks, essays and posts of founders and investors, each idea dated and cited. Add one to your AI in one line.">
 <meta property="og:image" content="https://tasu.ai/og.jpg?v=2">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
@@ -19,7 +19,7 @@
 <link rel="apple-touch-icon" href="/brand/tasu-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500&family=Geist:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
 
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
@@ -27,16 +27,18 @@
   /* ======================================================================
      TASU
 
-     One screen: the workspaces along the top, a serif headline, and one
-     field that takes a passphrase. Greys on near-white, one dark button,
-     and a pencil landscape fading in from the edges.
+     The public brains. A bar with one way in, a serif headline over the
+     pencil landscape, a search field, then the folders their owners made
+     public, each with the line that adds it to an AI. Greys on near-white,
+     one dark button.
      ====================================================================== */
   *{ margin:0; padding:0; box-sizing:border-box; }
   :root{
     --page:#fafafa; --card:#ffffff; --ink:#09090b; --head:#171717; --sub:rgba(0,0,0,.70);
-    --muted:#71717a; --hint:#a1a1aa; --line:#e4e4e7; --line-2:#f4f4f5; --dark:#09090b; --dark-2:#27272a;
+    --muted:#71717a; --hint:#a1a1aa; --line:#e4e4e7; --line-2:#f4f4f5; --dark:#09090b; --dark-2:#27272a; --good:#3f7d5c;
     --serif:"Frank Ruhl Libre","Iowan Old Style","Apple Garamond",Georgia,serif;
     --sans:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+    --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     --ease:cubic-bezier(.22,1,.36,1);
     color-scheme:light;
   }
@@ -44,67 +46,83 @@
   body{ min-height:100dvh; background:var(--page); color:var(--ink); font:400 16px/1.55 var(--sans);
     -webkit-font-smoothing:antialiased; overflow-x:hidden; }
   a{ color:inherit; text-decoration:none; }
-  button,input{ font:inherit; color:inherit; }
+  button,input,select{ font:inherit; color:inherit; }
   [hidden]{ display:none !important; }
   :focus-visible{ outline:2px solid var(--dark); outline-offset:2px; border-radius:8px; }
 
-  /* ---- the workspaces, along the top ---- */
+  /* ---- the bar: the mark, and one way in ---- */
   .nav{ position:fixed; inset:0 0 auto; z-index:10; height:60px; background:rgba(250,250,250,.86);
     -webkit-backdrop-filter:saturate(1.4) blur(10px); backdrop-filter:saturate(1.4) blur(10px); }
   .nav .in{ max-width:1300px; height:100%; margin:0 auto; padding:0 24px; display:flex; align-items:center; gap:24px; }
   .logo{ display:flex; align-items:center; gap:9px; flex:none; }
   .logo img{ width:26px; height:26px; display:block; }
   .logo span{ font:500 23px/1 var(--serif); letter-spacing:-.02em; color:var(--head); }
-  .spaces{ margin-left:auto; display:flex; align-items:center; gap:8px; min-width:0; overflow-x:auto; scrollbar-width:none;
-    -webkit-mask-image:linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent);
-            mask-image:linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent); padding:0 14px; }
-  .spaces::-webkit-scrollbar{ display:none; }
-  .sp{ flex:none; display:inline-flex; align-items:center; gap:7px; height:36px; padding:0 13px; border-radius:9px;
-    border:1px solid var(--line); background:var(--card); font:500 14px/1 var(--sans); color:#3f3f46; cursor:pointer;
-    transition:background .15s var(--ease), border-color .15s var(--ease), color .15s var(--ease); white-space:nowrap; }
-  .sp:hover{ background:var(--line-2); color:var(--ink); }
-  .sp img{ width:16px; height:16px; border-radius:4px; object-fit:contain; filter:grayscale(1); opacity:.85; }
-  .sp.dark{ background:var(--dark); border-color:var(--dark); color:#fff; }
-  .sp.dark:hover{ background:var(--dark-2); color:#fff; }
-  .sp[disabled]{ opacity:.5; cursor:default; }
+  .open{ margin-left:auto; display:inline-flex; align-items:center; height:36px; padding:0 14px; border-radius:9px; background:var(--dark); color:#fff;
+    font:500 14px/1 var(--sans); white-space:nowrap; transition:background .15s var(--ease); }
+  .open:hover{ background:var(--dark-2); }
 
   /* ---- the hero ---- */
-  .hero{ position:relative; min-height:100dvh; display:flex; flex-direction:column; align-items:center; overflow:hidden;
-    padding:calc(60px + 13vh) 20px 56px; }
+  .hero{ position:relative; overflow:hidden; padding:calc(60px + 11vh) 20px 36px; }
   .bg{ position:absolute; inset:0; z-index:0; pointer-events:none;
-    background:url("/brand/landing.webp") center 62% / cover no-repeat; opacity:.62;
-    -webkit-mask-image:radial-gradient(ellipse 62% 54% at 50% 40%, rgba(0,0,0,.18) 0%, rgba(0,0,0,.55) 55%, #000 100%);
-            mask-image:radial-gradient(ellipse 62% 54% at 50% 40%, rgba(0,0,0,.18) 0%, rgba(0,0,0,.55) 55%, #000 100%); }
-  .in-hero{ position:relative; z-index:1; width:100%; max-width:820px; display:flex; flex-direction:column; align-items:center; text-align:center; }
-  h1{ font:400 clamp(40px, 6.2vw, 84px)/1.02 var(--serif); letter-spacing:-.025em; color:var(--head); text-wrap:balance; }
-  .sub{ margin-top:22px; max-width:620px; font:400 clamp(16px, 1.6vw, 19px)/1.55 var(--sans); color:var(--sub); text-wrap:pretty; }
+    background:url("/brand/landing.webp") center 62% / cover no-repeat; opacity:.55;
+    -webkit-mask-image:linear-gradient(to bottom, rgba(0,0,0,.2) 10%, #000 55%, transparent 100%);
+            mask-image:linear-gradient(to bottom, rgba(0,0,0,.2) 10%, #000 55%, transparent 100%); }
+  .in-hero{ position:relative; z-index:1; max-width:820px; margin:0 auto; text-align:center; }
+  h1{ font:400 clamp(40px, 6.2vw, 80px)/1.02 var(--serif); letter-spacing:-.025em; color:var(--head); text-wrap:balance; }
+  .sub{ margin:22px auto 0; max-width:600px; font:400 clamp(16px, 1.6vw, 19px)/1.55 var(--sans); color:var(--sub); text-wrap:pretty; }
+  .works{ margin-top:14px; font:400 13px/1.5 var(--sans); color:var(--muted); }
+  .find{ margin:28px auto 0; max-width:620px; background:var(--card); border:1px solid var(--line); border-radius:16px; display:flex; align-items:center; gap:12px;
+    padding:10px 12px 10px 18px; box-shadow:0 4px 16px -2px rgba(0,0,0,.05), 0 2px 6px rgba(0,0,0,.025); text-align:left; }
+  .find:focus-within{ border-color:#d4d4d8; }
+  .find svg{ width:18px; height:18px; flex:none; fill:none; stroke:var(--hint); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .find input{ flex:1; min-width:0; height:40px; border:0; outline:none; background:transparent; font-size:16px; }
+  .find input::placeholder{ color:var(--hint); }
+  .find kbd{ font:500 12px/1 var(--mono); color:var(--hint); border:1px solid var(--line); border-radius:6px; padding:4px 7px; }
 
-  /* ---- the one field ---- */
-  /* What a chat can use, in three: the folders, the assets, the personal folder. */
-  .points{ list-style:none; margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:8px; max-width:680px; }
-  .points a{ display:flex; align-items:baseline; gap:7px; padding:6px 12px; border:1px solid var(--line); border-radius:999px; background:rgba(255,255,255,.72);
-    font:400 13.5px/1.35 var(--sans); color:var(--sub); transition:border-color .15s var(--ease), background .15s var(--ease); }
-  .points a:hover{ border-color:var(--hint); background:#fff; }
-  .points b{ font-weight:600; color:var(--ink); }
-  .card{ margin-top:32px; width:100%; max-width:620px; background:var(--card); border:1px solid var(--line); border-radius:16px; text-align:left;
-    box-shadow:0 4px 16px -2px rgba(0,0,0,.05), 0 2px 6px rgba(0,0,0,.025); transition:box-shadow .2s var(--ease), border-color .2s var(--ease); }
-  .card:focus-within{ border-color:#d4d4d8; box-shadow:0 8px 30px -4px rgba(0,0,0,.07), 0 4px 10px rgba(0,0,0,.03); }
-  .row{ display:flex; align-items:center; gap:12px; padding:14px 14px 14px 18px; }
-  .row svg{ width:18px; height:18px; flex:none; fill:none; stroke:var(--hint); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
-  .row input{ flex:1; min-width:0; height:40px; border:0; outline:none; background:transparent; font:400 16px/1 var(--sans); color:var(--ink); }
-  .row input::placeholder{ color:var(--hint); }
-  .go{ flex:none; display:inline-flex; align-items:center; gap:6px; height:38px; padding:0 15px; border:0; border-radius:12px;
-    background:var(--dark); color:#fff; font:500 14px/1 var(--sans); cursor:pointer; transition:background .15s var(--ease); }
-  .go:hover{ background:#3f3f46; }
-  .go[disabled]{ background:var(--line); color:var(--hint); cursor:default; }
-  .go svg{ width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-  .help{ border-top:1px solid var(--line-2); padding:11px 18px 13px; font:400 13px/1.5 var(--sans); color:var(--muted); }
-  .help b{ font-weight:500; color:#3f3f46; }
-  .say{ min-height:20px; margin-top:14px; font:400 13.5px/1.5 var(--sans); color:#3f3f46; }
-  .say.bad{ color:#b3372a; }
-  .more{ margin-top:6px; display:flex; flex-wrap:wrap; justify-content:center; gap:6px 18px; font:400 13px/1.5 var(--sans); color:var(--muted); }
+  /* ---- the public brains ---- */
+  .list{ position:relative; z-index:1; max-width:880px; margin:0 auto; padding:0 20px 24px; }
+  .tools{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 6px; padding:20px 0 12px; border-bottom:1px solid var(--line); }
+  .cats{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{ height:32px; padding:0 12px; border:1px solid var(--line); border-radius:999px; background:var(--card); font:500 13px/1 var(--sans); color:var(--muted); cursor:pointer; }
+  .chip[aria-pressed="true"]{ background:var(--dark); border-color:var(--dark); color:#fff; }
+  .sort{ margin-left:auto; display:flex; align-items:center; gap:8px; font:400 13px/1 var(--sans); color:var(--muted); }
+  .sort select{ height:32px; padding:0 8px; border:1px solid var(--line); border-radius:8px; background:var(--card); font:500 13px/1 var(--sans); color:var(--ink); }
+  .count{ padding-top:14px; font:400 12.5px/1 var(--mono); color:var(--hint); }
+  .row{ border-bottom:1px solid var(--line); }
+  .head{ width:100%; display:grid; grid-template-columns:40px minmax(0,1fr) auto; gap:14px; align-items:center; padding:16px 0; cursor:pointer; }
+  .ic{ width:40px; height:40px; border-radius:10px; border:1px solid var(--line); background:var(--card); display:grid; place-items:center; }
+  .ic svg{ width:18px; height:18px; fill:none; stroke:var(--muted); stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .who{ min-width:0; }
+  .who b{ display:block; font:500 21px/1.2 var(--serif); letter-spacing:-.01em; color:var(--head); }
+  .who span{ display:block; margin-top:3px; font-size:14.5px; color:var(--sub); }
+  .who small{ display:block; margin-top:5px; font:400 12px/1.4 var(--mono); color:var(--hint); font-variant-numeric:tabular-nums; }
+  .copy{ height:34px; padding:0 13px; border:1px solid var(--line); border-radius:9px; background:var(--card); font:500 13px/1 var(--sans); cursor:pointer; white-space:nowrap; }
+  .copy:hover{ border-color:var(--hint); }
+  .copy.done{ color:var(--good); border-color:var(--good); }
+  .more-of{ display:grid; grid-template-rows:0fr; transition:grid-template-rows .3s var(--ease); }
+  .row.shown .more-of{ grid-template-rows:1fr; }
+  .more-of > div{ overflow:hidden; }
+  .inner{ margin:0 0 18px 54px; padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:var(--card); display:grid; gap:10px; }
+  .inner .lbl{ font:500 11.5px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--hint); }
+  .line{ display:flex; align-items:center; gap:8px; min-width:0; padding:6px 6px 6px 12px; border:1px solid var(--line); border-radius:10px; background:var(--page); }
+  .line code{ flex:1; min-width:0; overflow-x:auto; white-space:nowrap; font:400 13px/1.4 var(--mono); }
+  .inner p{ font-size:13.5px; color:var(--muted); }
+  .note{ padding:32px 0; text-align:center; color:var(--muted); font-size:15px; }
+  .skel{ height:86px; border-bottom:1px solid var(--line); background:linear-gradient(90deg, transparent, var(--line-2), transparent); background-size:200% 100%; animation:sh 1.4s linear infinite; }
+  @keyframes sh{ from{ background-position:200% 0; } to{ background-position:-200% 0; } }
+
+  /* ---- your own ---- */
+  .own{ max-width:880px; margin:0 auto; padding:40px 20px 8px; }
+  .own div{ border:1px solid var(--line); border-radius:16px; background:var(--card); padding:22px; display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; }
+  .own h2{ font:400 26px/1.15 var(--serif); letter-spacing:-.02em; color:var(--head); }
+  .own p{ flex:1 1 300px; color:var(--sub); font-size:15px; }
+  .more{ max-width:880px; margin:0 auto; padding:22px 20px 44px; display:flex; flex-wrap:wrap; gap:6px 18px; font:400 13px/1.5 var(--sans); color:var(--muted); }
   .more a, .more button{ color:var(--muted); background:none; border:0; cursor:pointer; text-decoration:underline; text-decoration-color:var(--line); text-underline-offset:3px; }
   .more a:hover, .more button:hover{ color:var(--ink); text-decoration-color:currentColor; }
+  .more button[disabled]{ cursor:default; opacity:.5; }
+  .more .fine{ flex:1 0 100%; }
+  .say{ max-width:880px; margin:0 auto; padding:0 20px; min-height:20px; font:400 13.5px/1.5 var(--sans); color:#3f3f46; }
+  .say.bad{ color:#b3372a; }
 
   /* ---- make your own, in a sheet ---- */
   dialog{ margin:auto; width:min(440px, calc(100vw - 32px)); border:1px solid var(--line); border-radius:18px; background:var(--card); color:var(--ink);
@@ -119,25 +137,27 @@
   dialog .fine a{ text-decoration:underline; text-underline-offset:2px; }
   dialog .acts{ margin-top:18px; display:flex; justify-content:flex-end; gap:8px; }
   dialog .ghost{ height:38px; padding:0 14px; border:1px solid var(--line); border-radius:10px; background:var(--card); cursor:pointer; font:500 14px/1 var(--sans); }
+  dialog .go{ height:38px; padding:0 15px; border:0; border-radius:12px; background:var(--dark); color:#fff; font:500 14px/1 var(--sans); cursor:pointer; }
+  dialog .go[disabled]{ background:var(--line); color:var(--hint); cursor:default; }
   dialog .msg{ margin-top:10px; min-height:18px; font:400 13px/1.45 var(--sans); color:#b3372a; }
 
   /* ---- arrival ---- */
-  @keyframes up{ from{ opacity:0; transform:translateY(20px); } to{ opacity:1; transform:none; } }
+  @keyframes up{ from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:none; } }
   .rise{ animation:up .5s var(--ease) both; animation-delay:calc(var(--d, 0) * 1ms); }
-  @media (prefers-reduced-motion:reduce){ .rise{ animation:none; } }
+  @media (prefers-reduced-motion:reduce){ .rise, .skel{ animation:none; } .more-of{ transition:none; } }
 
   @media (max-width:640px){
-    .nav .in{ padding:0 0 0 16px; gap:8px; }
+    .nav .in{ padding:0 16px; gap:10px; }
     .logo span{ font-size:21px; }
-    .spaces{ padding:0 16px 0 10px; }
-    .sp{ height:34px; padding:0 11px; font-size:13.5px; }
-    .hero{ padding:calc(60px + 9vh) 16px 40px; }
-    /* A phone shows the whole lake along the bottom, the gate and the temple at its edges. */
-    .bg{ background-size:165% auto; background-position:50% 100%;
-      -webkit-mask-image:linear-gradient(to bottom, rgba(0,0,0,.15) 30%, #000 75%); mask-image:linear-gradient(to bottom, rgba(0,0,0,.15) 30%, #000 75%); }
-    .card{ margin-top:30px; }
-    .row{ padding:10px 10px 10px 14px; gap:10px; }
-    .go{ height:40px; }
+    .hero{ padding:calc(60px + 7vh) 16px 28px; }
+    .bg{ background-size:165% auto; background-position:50% 100%; }
+    .list, .own, .more, .say{ padding-left:16px; padding-right:16px; }
+    .find kbd{ display:none; }
+    .sort{ margin-left:0; width:100%; }
+    .head{ grid-template-columns:36px minmax(0,1fr); }
+    .ic{ width:36px; height:36px; }
+    .head .copy{ grid-column:2; justify-self:start; height:40px; }
+    .inner{ margin-left:0; }
   }
 </style>
 </head>
@@ -145,38 +165,47 @@
 
 <header class="nav"><div class="in">
   <a class="logo" href="/" aria-label="Tasu"><img src="/brand/tasu.svg" alt="" width="26" height="26"><span>tasu</span></a>
-  <nav class="spaces" id="spaces" aria-label="Workspaces">
-    <button class="sp dark" id="demoGo" type="button">Demo</button>
-    <a class="sp" href="/chat?w=octopus" id="goOctopus"><img src="/brand/logo-mark.png" alt="" width="16" height="16">Octopus</a>
-    <a class="sp" href="/chat?w=squidgy" id="goSquidgy"><img src="/brand/squidgy-icon.png" alt="" width="16" height="16">Squidgy</a>
-  </nav>
+  <a class="open" href="/chat" id="openWs">Open a workspace</a>
 </div></header>
 
-<main class="hero">
-  <div class="bg" aria-hidden="true"></div>
-  <div class="in-hero">
-    <h1 class="rise">Your knowledge and your files, in one chat.</h1>
-    <p class="sub rise" style="--d:80">Folders learn from what you drop. Assets keep your docs and tables. Call any with @, and every answer cites it.</p>
-    <ul class="points rise" style="--d:120" aria-label="What a chat can use">
-      <li><a href="/about#drop"><b>Knowledge</b>folders that learn from each drop</a></li>
-      <li><a href="/about#assets"><b>Assets</b>docs and tables a chat updates</a></li>
-      <li><a href="/about#personal"><b>Personal</b>your notes, a daily log, your twin</a></li>
-    </ul>
-    <form class="card rise" style="--d:160" id="enter" autocomplete="on">
-      <div class="row">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>
-        <input id="pass" type="password" autocomplete="current-password" placeholder="Enter your passphrase" aria-label="Passphrase">
-        <button class="go" id="go" type="submit">Open<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
-      </div>
-      <div class="help">Your passphrase opens <b>your workspace</b>. Any other, or none, opens <b>the demo</b>.</div>
-    </form>
-    <p class="say" id="say" role="status"></p>
-    <p class="more rise" style="--d:240">
-      <button type="button" id="makeOpen">Make your own workspace</button>
-      <a href="/about">How it works</a>
-      <a href="https://github.com/jlasne/brain">Open source</a>
-    </p>
-  </div>
+<main>
+  <section class="hero">
+    <div class="bg" aria-hidden="true"></div>
+    <div class="in-hero">
+      <h1 class="rise">The smartest knowledge, in an MCP.</h1>
+      <p class="sub rise" style="--d:80">Public brains compiled from the talks, essays and posts of founders and investors. Each idea holds one position, dated and cited. Add one to your AI in one line.</p>
+      <p class="works rise" style="--d:140">Works in Claude, ChatGPT and Cursor</p>
+      <label class="find rise" style="--d:200" for="q">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>
+        <input id="q" type="search" placeholder="Find a brain or a topic: try pricing" autocomplete="off">
+        <kbd>/</kbd>
+      </label>
+    </div>
+  </section>
+
+  <section class="list" aria-label="Public brains">
+    <div class="tools">
+      <div class="cats" id="cats" role="group" aria-label="Categories"></div>
+      <label class="sort" for="sort">Sort
+        <select id="sort"><option value="concepts">Most concepts</option><option value="sources">Most sources</option><option value="fed">Recently fed</option><option value="az">A to Z</option></select>
+      </label>
+    </div>
+    <p class="count" id="count"></p>
+    <div id="rows"><div class="skel"></div><div class="skel"></div></div>
+  </section>
+
+  <section class="own" aria-label="Your own brain">
+    <div><h2>Your own brain</h2><p>Drop the sources you trust into a private workspace. Make any folder public, and it gets its own line here.</p>
+      <a class="open" href="/chat" style="margin-left:0">Open a workspace</a></div>
+  </section>
+  <p class="say" id="say" role="status"></p>
+  <p class="more">
+    <a href="/about">How it works</a>
+    <button type="button" id="demoGo">Try the demo</button>
+    <button type="button" id="makeOpen">Make your own workspace</button>
+    <a href="https://github.com/jlasne/brain">Open source</a>
+    <span class="fine">Public brains are compiled from public content and every answer cites its source. A brain named after a person is unofficial.</span>
+  </p>
 </main>
 
 <dialog id="make" aria-labelledby="makeT">
@@ -195,12 +224,12 @@
 
 <script>
   /**
-   * The landing.
+   * The landing: the public brains.
    *
-   * One field: a passphrase opens the workspace it belongs to. Any other, or
-   * none, opens the demo. Each workspace along the top opens on its own page,
-   * which asks for its passphrase there. The session token lives in
-   * sessionStorage, per tab, so closing the tab ends it.
+   * The folders their owners made public, read live, each with the address
+   * that adds it to an AI. Open a workspace goes to the app, which asks for a
+   * passphrase. The demo and a new workspace stay one click away, below. The
+   * session token lives in sessionStorage, per tab, so closing the tab ends it.
    */
   const API = window.OCTOPUS_API;
   const TOKEN_KEY = "octopus.token.v1";
@@ -226,35 +255,78 @@
     location.assign("/chat");
   };
   const say = (t, bad) => { $("say").textContent = t; $("say").classList.toggle("bad", !!bad); };
-  let demoOpen = true;
 
-  /** The demo opens with no passphrase and no key. */
-  async function openDemo(){
-    if (!demoOpen) throw new Error("the demo is closed for now.");
-    const r = await post("/api/demo");
-    enter(r.token, r.space);
+  /* ---- the public brains ---- */
+  const PERSON = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg>';
+  const BOOK = '<svg viewBox="0 0 24 24"><path d="M5 4.5h10.5a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h10.5"/></svg>';
+  const addressOf = slug => `${location.origin}/mcp/v1?b=${encodeURIComponent(slug)}`;
+  const dayOf = d => { const t = Date.parse(d + "T12:00:00Z"); return isNaN(t) ? "" : new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
+  let brains = [], cat = "all";
+
+  /** A copy that says it copied, or asks to select the line where the browser refuses. */
+  function copy(btn, text){
+    const label = btn.dataset.label;
+    const back = () => setTimeout(() => { btn.textContent = label; btn.classList.remove("done"); }, 1600);
+    try { navigator.clipboard.writeText(text).then(() => { btn.textContent = "Copied"; btn.classList.add("done"); back(); }, () => { btn.textContent = "Select the line"; back(); }); }
+    catch { btn.textContent = "Select the line"; back(); }
   }
+  function paintCats(){
+    const names = [...new Set(brains.map(b => b.group).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    $("cats").innerHTML = "";
+    if (names.length < 1) return;
+    for (const n of ["all", ...names]){
+      const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = n === "all" ? "All" : n;
+      b.setAttribute("aria-pressed", String(cat === n));
+      b.onclick = () => { cat = n; paintCats(); paint(); };
+      $("cats").append(b);
+    }
+  }
+  function paint(){
+    const q = $("q").value.trim().toLowerCase(), by = $("sort").value;
+    const list = brains.filter(b => (cat === "all" || b.group === cat) && (!q || `${b.name} ${b.scope} ${b.group}`.toLowerCase().includes(q)))
+      .sort((a, b) => by === "az" ? a.name.localeCompare(b.name) : by === "sources" ? b.sources - a.sources || a.name.localeCompare(b.name)
+        : by === "fed" ? String(b.fed).localeCompare(String(a.fed)) : b.concepts - a.concepts || a.name.localeCompare(b.name));
+    $("count").textContent = brains.length ? `${list.length} public brain${list.length === 1 ? "" : "s"}` : "";
+    const host = $("rows"); host.innerHTML = "";
+    if (!brains.length){ host.innerHTML = '<p class="note">No brain is public yet. Open a workspace and make one of your folders public.</p>'; return; }
+    if (!list.length){ host.innerHTML = '<p class="note">No public brain holds that yet.</p>'; return; }
+    for (const b of list){
+      const url = addressOf(b.slug);
+      const row = document.createElement("div"); row.className = "row"; row.dataset.slug = b.slug;
+      row.innerHTML = `<div class="head" role="button" tabindex="0" aria-expanded="false">
+          <span class="ic" aria-hidden="true">${b.type === "person" ? PERSON : BOOK}</span>
+          <span class="who"><b></b><span></span><small></small></span>
+          <button class="copy" type="button" data-label="Copy MCP">Copy MCP</button></div>
+        <div class="more-of"><div><div class="inner">
+          <span class="lbl">Add it to your AI</span>
+          <div class="line"><code></code><button class="copy" type="button" data-label="Copy">Copy</button></div>
+          <p>In Claude: Settings, Connectors, Add custom connector, then paste the address. In Cursor or ChatGPT, add it as an MCP server.</p></div></div></div>`;
+      row.querySelector(".who b").textContent = b.name;
+      row.querySelector(".who span").textContent = b.scope;
+      row.querySelector(".who small").textContent = [b.group, `${b.concepts} concepts`, `${b.sources} sources`, b.fed ? `fed ${dayOf(b.fed)}` : ""].filter(Boolean).join(" · ");
+      row.querySelector(".line code").textContent = url;
+      const head = row.querySelector(".head");
+      const toggle = () => head.setAttribute("aria-expanded", String(row.classList.toggle("shown")));
+      head.addEventListener("click", e => { if (!e.target.closest(".copy")) toggle(); });
+      head.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target === head){ e.preventDefault(); toggle(); } });
+      row.querySelectorAll(".copy").forEach(c => c.addEventListener("click", e => { e.stopPropagation(); copy(c, url); }));
+      host.append(row);
+    }
+  }
+  $("q").addEventListener("input", paint);
+  $("sort").addEventListener("change", paint);
+  document.addEventListener("keydown", e => { if (e.key === "/" && document.activeElement !== $("q") && !$("make").open){ e.preventDefault(); $("q").focus(); } });
+  post("/api/public").then(r => { brains = Array.isArray(r.brains) ? r.brains : []; paintCats(); paint(); })
+    .catch(e => { $("rows").innerHTML = ""; const p = document.createElement("p"); p.className = "note"; p.textContent = `The public brains did not load: ${e.message}`; $("rows").append(p); });
+
+  /* ---- the demo, and a workspace of your own ---- */
+  let demoOpen = true;
   $("demoGo").onclick = async () => {
+    if (!demoOpen) return;
     $("demoGo").disabled = true; say("Opening the demo");
-    try { await openDemo(); } catch (e) { $("demoGo").disabled = false; say(e.message, true); }
+    try { const r = await post("/api/demo"); enter(r.token, r.space); }
+    catch (e) { $("demoGo").disabled = false; say(e.message, true); }
   };
-
-  /* The field: the workspace this passphrase opens, or else the demo. */
-  $("enter").addEventListener("submit", async ev => {
-    ev.preventDefault();
-    const pass = $("pass").value;
-    $("go").disabled = true;
-    try {
-      if (pass) {
-        say("Opening");
-        const r = await post("/api/enter", { pass });
-        if (r.token) { enter(r.token, r.space); return; }
-        say("No workspace has that passphrase. Opening the demo.");
-      } else say("Opening the demo");
-      await openDemo();
-    } catch (e) { $("go").disabled = false; say(e.message, true); }
-  });
-
   /* Make your own: a sheet over the page. The app's demo bar links to #create. */
   const make = $("make");
   $("makeOpen").onclick = () => { make.showModal(); $("cName").focus(); };
@@ -271,26 +343,7 @@
     try { const r = await post("/api/workspace/create", { name, pass, key }); enter(r.token, r.space, key); }
     catch (e) { $("cGo").disabled = false; msg.textContent = e.message; say(""); }
   });
-
-  /* The workspaces made for someone join the list, with their own marks. */
-  post("/api/status").then(st => {
-    const logos = st.logos && typeof st.logos === "object" ? st.logos : {};
-    const mark = (img, slug) => {
-      const src = String(logos[slug] ?? "");
-      if (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(src)) img.src = src;
-    };
-    mark($("goOctopus").querySelector("img"), "octopus"); mark($("goSquidgy").querySelector("img"), "squidgy");
-    for (const w of Array.isArray(st.hosted) ? st.hosted : []) {
-      if (!/^[a-z0-9][a-z0-9-]{1,31}$/.test(String(w.slug))) continue;
-      const a = document.createElement("a");
-      a.className = "sp"; a.href = "/chat?w=" + w.slug; a.dataset.slug = w.slug;
-      const img = document.createElement("img"); img.src = "/brand/tasu.svg"; img.alt = ""; img.width = img.height = 16;
-      mark(img, w.slug);
-      a.append(img, String(w.name ?? w.slug));
-      $("spaces").append(a);
-    }
-    if (st.demo === false) { demoOpen = false; $("demoGo").disabled = true; $("demoGo").title = "The demo opens soon"; }
-  }).catch(() => {});
+  post("/api/status").then(st => { if (st.demo === false) { demoOpen = false; $("demoGo").disabled = true; $("demoGo").title = "The demo opens soon"; } }).catch(() => {});
 </script>
 </body>
 </html>

@@ -1227,6 +1227,53 @@ export const groupsSet = internalMutation({
   },
 });
 
+/** A folder made public, or private again. Only the home workspace's own subject or person folder. */
+export const publicSet = internalMutation({
+  args: { space: v.string(), slug: v.string(), on: v.boolean() },
+  handler: async (ctx, a) => {
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    if (!b || readSpace(b.space) !== readSpace(a.space)) throw new Error("no such folder in this workspace");
+    if (b.type === "personal" || b.type === "project") throw new Error("a personal folder is never public");
+    if (!!b.public !== a.on) await ctx.db.patch(b._id, { public: a.on || undefined });
+    return { slug: b.slug, public: a.on };
+  },
+});
+
+/**
+ * The public folders, for the landing page: each with its scope, its category and its counts. No concept is read: the counts come
+ * from the slim cards, and the day last fed from the newest source.
+ */
+export const publicBrains = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const brains = (await ctx.db.query("brains").collect()).filter(b => b.public && b.type !== "personal" && b.type !== "project");
+    if (!brains.length) return [];
+    const slugs = new Set(brains.map(b => b.slug));
+    const src = new Map<string, { n: number; fed: string }>();
+    for (const s of await ctx.db.query("sources").collect()) for (const x of s.brains ?? []) {
+      if (!slugs.has(x)) continue;
+      const had = src.get(x) ?? { n: 0, fed: "" };
+      src.set(x, { n: had.n + 1, fed: String(s.stored ?? "") > had.fed ? String(s.stored ?? "") : had.fed });
+    }
+    const out = [];
+    for (const b of brains) {
+      const concepts = (await ctx.db.query("cards").withIndex("by_brain", q => q.eq("brain", b.slug)).collect()).length;
+      out.push({ slug: b.slug, name: b.name, type: b.type, scope: b.scope, group: b.group ?? "", concepts,
+        sources: src.get(b.slug)?.n ?? 0, fed: (src.get(b.slug)?.fed ?? "").slice(0, 10) });
+    }
+    return out;
+  },
+});
+
+/** One public folder by its slug, or null: the brain an anonymous MCP address names with ?b=. */
+export const publicBrain = internalQuery({
+  args: { slug: v.string() },
+  handler: async (ctx, a) => {
+    const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
+    return b?.public && b.type !== "personal" && b.type !== "project" ? { slug: b.slug, space: readSpace(b.space) } : null;
+  },
+});
+
 /** What an audit of a folder found, kept on the folder for the inbox. */
 export const findingsSet = internalMutation({
   args: { space: v.string(), brain: v.string(), findings: v.any() },
