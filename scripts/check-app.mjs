@@ -3381,7 +3381,7 @@ for (const space of ["octopus", "squidgy"]) {
   await sw.page.close();
 }
 
-/* ---- the landing: the public brains, one way in at the top ---- */
+/* ---- the landing: the public folders, one way in at the top ---- */
 {
   const PUB = [
     { slug: "y-combinator", name: "Y Combinator", type: "subject", scope: "Starting a company and raising a seed round.", group: "Business", concepts: 214, sources: 41, fed: "2026-10-19" },
@@ -3405,22 +3405,22 @@ for (const space of ["octopus", "squidgy"]) {
     mark: document.querySelector(".logo img").getAttribute("src"), title: document.title, text: document.body.textContent,
     rows: [...document.querySelectorAll("#rows .row")].map(r => r.querySelector(".who b").textContent + " | " + r.querySelector(".who small").textContent),
     count: document.getElementById("count").textContent, cats: [...document.querySelectorAll("#cats .chip")].map(c => c.textContent) }));
-  check("the landing says what it is: the smartest knowledge, in an MCP", l.h1 === "The smartest knowledge, in an MCP." && /^Public brains compiled from/.test(l.sub) && /^Tasu: the smartest knowledge/.test(l.title), l.h1);
+  check("the landing says what it is: the smartest knowledge, in an MCP", l.h1 === "The smartest knowledge, in an MCP." && /^Public folders compiled from/.test(l.sub) && /^Tasu: the smartest knowledge/.test(l.title), l.h1);
   check("the bar holds the mark and one way in: Open a workspace, a menu", JSON.stringify(l.nav) === '["tasu:/","Open a workspace:menu"]' && !l.pass, JSON.stringify(l.nav));
   check("it keeps the Tasu look: the pencil landscape, Geist on near-white, the folder mark", /\/brand\/landing\.webp/.test(l.bg) && /^"?Geist/.test(l.font) && l.page === "rgb(250, 250, 250)"
     && l.logo === "tasu" && l.mark === "/brand/tasu.svg", `${l.font} ${l.page}`);
-  check("the page is the list of public brains, the fullest first, each with its counts", JSON.stringify(l.rows) === '["Hormozi | Business · 376 concepts · 60 sources · fed 23 Oct","Y Combinator | Business · 214 concepts · 41 sources · fed 19 Oct"]'
-    && l.count === "2 public brains" && JSON.stringify(l.cats) === '["All","Business"]', JSON.stringify(l));
+  check("the page is the list of public folders, the fullest first, each with its counts", JSON.stringify(l.rows) === '["Hormozi | Business · 376 concepts · 60 sources · fed 23 Oct","Y Combinator | Business · 214 concepts · 41 sources · fed 19 Oct"]'
+    && l.count === "2 public folders" && JSON.stringify(l.cats) === '["All","Business"]', JSON.stringify(l));
   check("no em-dash on the landing", !/—/.test(l.text));
   await page.fill("#q", "seed round"); await page.waitForTimeout(80);
-  check("the search finds a brain by its scope", await page.evaluate(() => [...document.querySelectorAll("#rows .who b")].map(b => b.textContent).join()) === "Y Combinator");
+  check("the search finds a folder by its scope", await page.evaluate(() => [...document.querySelectorAll("#rows .who b")].map(b => b.textContent).join()) === "Y Combinator");
   await page.fill("#q", "zzz"); await page.waitForTimeout(80);
-  check("and says so when none holds it", /No public brain holds that yet/.test(await page.textContent("#rows")));
+  check("and says so when none holds it", /No public folder holds that yet/.test(await page.textContent("#rows")));
   await page.fill("#q", ""); await page.selectOption("#sort", "az"); await page.waitForTimeout(80);
   check("A to Z sorts by name", await page.evaluate(() => [...document.querySelectorAll("#rows .who b")].map(b => b.textContent).join()) === "Hormozi,Y Combinator");
   await page.click('#rows .row[data-slug="hormozi"] .who'); await page.waitForTimeout(350);
   const opened = await page.evaluate(() => { const r = document.querySelector('#rows .row[data-slug="hormozi"]'); return { open: r.classList.contains("shown"), url: r.querySelector(".line code").textContent, h: r.querySelector(".more-of").getBoundingClientRect().height }; });
-  check("a brain opens on the address that adds it to an AI: its own MCP line", opened.open && opened.url === ORIGIN + "/mcp/v1?b=hormozi" && opened.h > 40, JSON.stringify(opened));
+  check("a folder opens on the address that adds it to an AI: its own MCP line", opened.open && opened.url === ORIGIN + "/mcp/v1?b=hormozi" && opened.h > 40, JSON.stringify(opened));
   await Promise.all([page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), page.click("#demoGo")]);
   check("the demo opens in one click from below the list", await page.evaluate(() => sessionStorage.getItem("octopus.token.v1")) === "tDemo" && new URL(page.url()).pathname === "/chat", page.url());
   check("nothing threw on the landing", !bad.length, bad.join(" | "));
@@ -3447,7 +3447,7 @@ for (const space of ["octopus", "squidgy"]) {
 
   const none = await boot("/", () => { window.fetch = async u => String(u).includes("/api/public") ? Response.json({ brains: [] }) : Response.json({ demo: true }); });
   await none.page.waitForTimeout(200);
-  check("with no brain public yet, it says how to make one", /No brain is public yet\. Open a workspace and make one of your folders public\./.test(await none.page.textContent("#rows")));
+  check("with no folder public yet, it says how to make one", /No folder is public yet\. Open a workspace and make one of yours public\./.test(await none.page.textContent("#rows")));
   await none.page.close();
 
   /* Make your own workspace, from a sheet. */

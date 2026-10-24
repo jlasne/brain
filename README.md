@@ -4,36 +4,47 @@
 
 # Tasu
 
-**Your knowledge and your files, in one chat.**
+**The smartest knowledge, in an MCP.**
 
-Folders learn from what you drop. Assets keep your docs and tables. Call any with @, and every answer cites it.
+Folders compiled from the talks, essays and posts you trust. Each idea holds one position, dated and cited.
+Add a public folder to your AI in one line, or open a workspace for your own.
 
 [**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
 <img alt="2025 checks passing" src="https://img.shields.io/badge/checks-2025%20passing-52525b?style=flat-square&labelColor=18181b">
-<img alt="Live demo, no sign-up" src="https://img.shields.io/badge/demo-no%20sign--up-52525b?style=flat-square&labelColor=18181b">
+<img alt="Works in Claude, ChatGPT and Cursor" src="https://img.shields.io/badge/MCP-Claude%20·%20ChatGPT%20·%20Cursor-52525b?style=flat-square&labelColor=18181b">
 <img alt="Installs on phone and desktop" src="https://img.shields.io/badge/app-phone%20and%20desktop-52525b?style=flat-square&labelColor=18181b">
 <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-52525b?style=flat-square&labelColor=18181b">
 
 <br><br>
 
-<img src="docs/img/landing.jpg" alt="The Tasu landing page: knowledge, assets and personal, one passphrase field over a pencil landscape" width="100%">
+<img src="docs/img/landing.jpg" alt="The Tasu home page: the public folders, each with its MCP address, under the headline The smartest knowledge, in an MCP" width="100%">
 
 </div>
 
 <br>
 
-[What it does](#what-it-does) · [Why it holds up](#why-it-holds-up) · [Compared](#compared) · [Inside the app](#inside-the-app) · [Personal folder](#the-personal-folder-alpha) · [Assets](#assets) · [Workspaces](#workspaces) · [Run your own](#run-your-own) · [Work on it](#work-on-it)
+[Two ways in](#two-ways-in) · [What it does](#what-it-does) · [Why it holds up](#why-it-holds-up) · [Compared](#compared) · [Inside the app](#inside-the-app) · [Personal folder](#the-personal-folder-alpha) · [Assets](#assets) · [Workspaces](#workspaces) · [Run your own](#run-your-own) · [Work on it](#work-on-it)
+
+## Two ways in
+
+| | A public folder | Your own workspace |
+|---|---|---|
+| What it is | A folder its owner made public, such as Hormozi or Y Combinator | Your folders, assets and personal folder, private |
+| How you use it | Copy its MCP address from tasu.ai into Claude, ChatGPT or Cursor | Open a workspace with its passphrase, on the web or as an app |
+| What you get | Answers from its positions, each claim with its author and date | Everything below: drop, ask, assets, your people, your twin |
+| What it costs | Nothing: your own AI does the thinking | The model calls, on your OpenRouter key |
+| Who feeds it | Its owner only | You |
 
 ## What it does
-
-<img src="docs/img/goods.jpg" alt="Drop and Ask, and why it holds up" width="100%">
 
 **Drop.** A link, a PDF, a Word file, a video or a transcript. Each idea is filed under a concept with its numbers, signed with author and date. A claim that clashes with what you hold waits for your call.
 
 **Ask.** Ask anything, at 3 levels: the answer, a lesson from zero, or guided steps. It answers from your sources only, and the last line names who said it and when.
 
 **Use.** Assets keep your docs, tables and pages. A chat reads them, and proposes changes you apply in one click.
+
+**Share.** Make a folder public, and anyone adds it to their AI with its own address. It reads only; you alone feed it.
 
 Drop compiles each source once. Ask reads what was compiled. The [white paper](https://tasu.ai/about) walks through both, step by step.
 
@@ -42,41 +53,46 @@ Drop compiles each source once. Ask reads what was compiled. The [white paper](h
 | | |
 |---|---|
 | **Zero duplicates** | A source dropped twice is caught on arrival. A new idea joins the concept it belongs to. |
-| **Zero hidden contradictions** | Every clash is caught at drop and waits for your call, one swipe each. Each concept keeps one position. |
+| **Zero hidden contradictions** | Every clash is caught at drop and waits for your call. Each concept keeps one position. |
+| **Linked ideas** | Each idea links to its nearest by meaning: needs, causes, supports, contradicts. A why or how question follows the links 2 steps. |
 | **Light** | It keeps the claims and drops the raw transcript. Search reads a 1 KB card per concept. |
-| **Fast search** | The router reads the 120 titles nearest in meaning, then opens 30 concepts at most. 1,000 concepts cost it 1,750 tokens, down from 12,700. |
 | **Flat cost** | A question reads 69,000 characters at most, at any size. A thank-you reads none. |
 | **Your data** | In your own database or as markdown files. Exported in one click, restored in one. Open source, on your own key. |
 
 ## Compared
 
-A classic AI chat answers from its training data. Karpathy's LLM wiki compiles your files into pages. Tasu compiles them into **positions**, each backed by dated evidence you can open, and asks you when two sources clash.
+Most AI tools search your files for the closest passages. Tasu reads each source once and compiles it into **positions**, each backed by dated evidence, and asks you when two sources clash.
 
-| | Classic AI chat | Karpathy's LLM wiki | **Tasu** |
+| | Classic AI chat | Passage search (a chat over your files) | **Tasu** |
 |---|---|---|---|
-| Answers from | Its training data | Your files, as pages | **Your sources, as positions with their evidence** |
-| Proof | None, or a link it made up | A summary per page | **Author and date on every claim** |
-| When sources disagree | Blended into one answer | Left side by side | **Flagged at each drop; you rule in a swipe** |
-| New information | Frozen at the training date | Added when you run the agent | **Filed the day you drop it** |
-| Whose view | An average of the internet | Your topics | **One folder per subject, per expert, or for you** |
-| Setup | A chat box | Scripts, Obsidian, a coding agent | **A web page, or an app on phone and desktop** |
-| What you get | A reply | Pages, slides, charts | **Answers at 3 levels, one-pagers in 9 languages, clashes to rule on** |
+| Answers from | Its training data | 4 to 6 pieces of your files | **Positions merged from up to 20 sources** |
+| Proof | None, or a link it made up | The piece it found | **Author and date on every claim** |
+| When sources disagree | Blended into one answer | Both pieces, unflagged | **Flagged at each drop; you rule** |
+| Tables | Pasted as text | Read as text pieces | **Totals over every row, up to 40,000** |
+| In your own AI | No | Inside its own app | **Any public folder, by MCP** |
+| What you get | A reply | A reply | **Answers at 3 levels, one-pagers in 9 languages, clashes to rule on** |
 
 ## Inside the app
 
 <table>
 <tr>
-<td width="33%" valign="top">
-<img src="docs/img/demo.jpg" alt="An answer with its sources">
-<br><b>Answers with receipts.</b> Every line comes from a source you fed it. The sources line names each author and date. Newer evidence wins on the same question.
+<td width="50%" valign="top">
+<img src="docs/img/answer.jpg" alt="An answer laid out in headings and bullets, with its sources line">
+<br><b>Answers with receipts.</b> Every line comes from a source you fed it. The sources line names each author and date.
 </td>
-<td width="33%" valign="top">
-<img src="docs/img/deck.jpg" alt="Settling a clash, one card at a time">
-<br><b>It argues back.</b> A source that contradicts what you hold waits for your call. Swipe: A holds, B holds, or both. The position is rewritten from all its evidence.
+<td width="50%" valign="top">
+<img src="docs/img/folder.jpg" alt="A folder open: its concepts on the left, one concept with its evidence, figures and links">
+<br><b>A folder, open.</b> Every concept with its position, dated evidence, figures and the ideas it links to.
 </td>
-<td width="33%" valign="top">
-<img src="docs/img/personal.jpg" alt="A personal folder filing what you say">
-<br><b>It learns you.</b> A personal folder files what you tell it as dated notes, and says what it filed. Your other folders never read it.
+</tr>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/img/review.jpg" alt="A proposed change to a table, waiting in the review panel beside the chat">
+<br><b>Nothing changes without you.</b> Ask for a reply and a table change in one message. The reply is in the chat, the change waits in the panel.
+</td>
+<td width="50%" valign="top">
+<img src="docs/img/personal.jpg" alt="A person's card in the personal folder, with what is still open">
+<br><b>It learns your people.</b> One card per person: facts, history, and what is still open, ticked when done.
 </td>
 </tr>
 </table>
@@ -175,7 +191,7 @@ A workspace holds its own folders and chats, apart from every other.
 | | Octopus, Squidgy | The demo | Your own |
 |---|---|---|---|
 | Whose | The builder's, and someone's | Anyone's | Yours |
-| Enter | Its own page, or the passphrase alone on the landing | One click | Made on the landing, then the passphrase alone |
+| Enter | Open a workspace, then its passphrase | One click, under the list | Made from the landing, then its passphrase |
 | Model calls paid by | The deployment's key | A separate demo key | **Your OpenRouter key** |
 | Limits | None | 30 drops and 300 questions a month, shared | Your key's own |
 | New folders, personal folders | Yes | No | Yes |
@@ -220,7 +236,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 | `DIGEST_TO` | Where the Monday digest goes: the week's sources, new concepts and open conflicts. |
 | `FEEDBACK_TO` | Where Send feedback mails an error. Unset, it goes to `DIGEST_TO`. |
 
-`admin:copyBrain '{"slug":"...","space":"demo"}'` adds one more folder to the demo. `digest:send '{"dry":true}'` previews the digest.
+`digest:send '{"dry":true}'` previews the digest.
 
 </details>
 
@@ -229,9 +245,11 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 
 <br>
 
-**Connector.** In an owner's workspace, Settings gives an MCP address. Paste it into Claude, ChatGPT or any MCP client: it reads and feeds that workspace's folders, and the client's own model does the thinking. `/doc` has the steps.
+**A public folder.** Its line on tasu.ai gives its address, `tasu.ai/mcp/v1?b=<folder>`. Paste it into Claude, ChatGPT or any MCP client: it reads that folder only, and the client's own model does the thinking.
 
-**Claude Code.** Copy `skill/brain/` into `~/.claude/skills/brain/`. The folders are then plain markdown files under `brains/`, following [the 41 rules](docs/PROTOCOL.md).
+**Your workspace.** Settings gives an MCP address carrying your key. It reads and feeds that workspace's folders. `/doc` has the steps.
+
+**Claude Code.** Copy the skill folder under `skill/` into `~/.claude/skills/`. The folders are then plain markdown files, following [the 41 rules](docs/PROTOCOL.md).
 
 </details>
 
@@ -268,11 +286,11 @@ web/chat/       the app's source: page.html, 10 stylesheets and 21 scripts, one 
 convex/         the server: routes, store, drop, one-pager, conflicts, personal, assets
 scripts/        the build and the checks, the app driven in a real browser included
 docs/           the 41 rules (PROTOCOL.md), the server build (SERVER.md), the screenshots
-skill/brain/    the same behaviour, as a Claude Code skill
+skill/          the same behaviour, as a Claude Code skill
 templates/      the markdown shape of a folder
 ```
 
-`npm run check` runs 2025 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the Claude connector, the store and its workspaces, one-pagers, asking, linking, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
+`npm run check` runs 2025 checks: the build matches its source, the pages parse and bind, the install manifest and its icons, the MCP connector, the store and its workspaces, public folders, one-pagers, asking, linking, the personal folder, assets, and the app itself in a real browser at 9 screen sizes.
 
 <br>
 
