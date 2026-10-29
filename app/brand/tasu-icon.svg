@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>*{fill:#18181b;stroke:#18181b}@media (prefers-color-scheme:dark){*{fill:#fff;stroke:#fff}}</style>
+  <path d="M15 16h34M15 16l17 31M49 16 32 47" fill="none" stroke-width="4" stroke-linecap="round" style="fill:none"/>
+  <rect x="4" y="5" width="22" height="22" rx="6" stroke="none" style="stroke:none"/>
+  <rect x="38" y="5" width="22" height="22" rx="6" style="stroke:none"/>
+  <rect x="21" y="37" width="22" height="22" rx="6" style="stroke:none"/>
+</svg>

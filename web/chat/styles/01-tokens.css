@@ -76,6 +76,9 @@
     --focus-line:#4a4a52; --ring-hi:#e4e4e7; --ring-mid:#8e8e98; --ring-lo:#4a4a52;
     color-scheme:dark;
   }
+  /* The Tasu mark is drawn dark for light pages; on a dark page it turns white. */
+  :root[data-theme="dark"]:not([data-space="octopus"]):not([data-space="squidgy"]){ --mark:url("/brand/tasu-light.svg"); }
+  :root[data-theme="dark"] img[src="/brand/tasu.svg"]{ filter:invert(1); }
   :root[data-theme="dark"][data-space="octopus"]{
     --accent:#ef9e7f; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#ffffff;
     --accent-soft:rgba(217,119,87,.15); --accent-line:rgba(217,119,87,.45);

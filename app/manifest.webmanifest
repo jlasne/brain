@@ -10,7 +10,6 @@
   "icons": [
     { "src": "/brand/tasu-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/brand/tasu-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/brand/tasu-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "/brand/tasu.svg", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "/brand/tasu-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

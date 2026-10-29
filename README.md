@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="app/brand/tasu.svg" width="76" alt="">
+<picture><source media="(prefers-color-scheme: dark)" srcset="app/brand/tasu-light.svg"><img src="app/brand/tasu.svg" width="76" alt=""></picture>
 
 # Tasu
 
