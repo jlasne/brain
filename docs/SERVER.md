@@ -336,7 +336,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/conflicts` | The open conflicts that are real contradictions. Each clash is checked once and marked. With `hints`, each gets a suggested ruling and its reason, 20 clashes to a model call, kept on the clash so it is asked once; with no answer, the later date suggests one | Yes |
 | `/api/conflicts/settle` | Settles one: the side that holds rewrites the position, or both hold and it only leaves the list | Yes |
 | `/api/passphrase` | Changes the workspace's passphrase: the current one is checked against the same tries an hour as the door, the new one takes 12 characters, the others are signed out | Owner |
-| `/api/share` | Share brain: the owner of a brain's workspace puts it in one more workspace, or takes it back, one workspace at a time. The owner's other workspace can feed it; the demo only reads it. A workspace can leave a brain it was given. Never a personal brain | Owner |
+| `/api/share` | Share brain: the owner of a brain's workspace puts it in one more workspace, or takes it back, one workspace at a time. The owner's other workspace can feed it; the demo only reads it. A workspace can leave a brain it was given. `{group, to, on}` does every folder of a category at once. Never a personal brain | Owner |
 | `/api/brain` | Creates one | Yes |
 | `/api/drop/check` | The duplicate check, an index lookup. No model call, so the test button is free | Yes |
 | `/api/drop/read` | One extraction pass over one chunk. With `gaps`, a second look at the passages whose numbers, dates and names the first read never mentioned | Yes |
@@ -357,7 +357,7 @@ Export runs the other way, from the app's sidebar, in the same markdown shape.
 | `/api/concept/merge` | Folds concepts of one folder into the one kept, then writes its position again from the joined evidence | Yes, owner |
 | `/api/concept/rename` | Changes a concept's title. Its id and links stay | Yes, owner |
 | `/api/concept/rederive` | Writes positions again from the evidence each concept holds, eight per call | Yes |
-| `/api/brain/public` | A folder made public, or private again: `{slug, on}`. Never a personal folder, only the home workspace's own | Owner |
+| `/api/brain/public` | A folder made public, or private again: `{slug, on}`, or every folder of a category with `{group, on}`. Never a personal folder, only the home workspace's own | Owner |
 | `/api/public` | The public folders, for the landing page: name, scope, category, concepts, sources and the day last fed. 60 reads per 10 minutes from one address | No |
 | `/api/brain/groups` | The categories of the folders. `set: [{slug, group}]` puts each folder of this workspace in a category, or in none with `""`. `action: "suggest"` returns a category per folder from its name and scope line, one model call, nothing saved. Owner only, never the personal folder | Suggest only |
 | `/api/brain/merge` | Merges one folder into another in the same workspace, then deletes the first. Owner only, never the personal folder | Yes |

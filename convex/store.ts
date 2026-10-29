@@ -199,7 +199,7 @@ export const shareState = internalQuery({
     return {
       targets,
       brains: all.filter(b => readSpace(b.space) === space && b.type !== "personal" && b.type !== "project")
-        .map(b => ({ slug: b.slug, name: b.name, type: b.type, to: [...(b.shared ?? []), ...(b.viewers ?? [])] })),
+        .map(b => ({ slug: b.slug, name: b.name, type: b.type, group: b.group ?? "", public: !!b.public, to: [...(b.shared ?? []), ...(b.viewers ?? [])] })),
       joined: all.filter(b => readSpace(b.space) !== space && inSpace(b, space))
         .map(b => ({ slug: b.slug, name: b.name, type: b.type, from: readSpace(b.space), fromName: name(readSpace(b.space)),
                      readOnly: isViewer(b, space) })),
@@ -218,20 +218,46 @@ export const shareState = internalQuery({
 export const shareBrain = internalMutation({
   args: { slug: v.string(), space: v.string(), to: v.string(), on: v.boolean() },
   handler: async (ctx, a) => {
-    const home = readSpace(a.space);
     const b = await ctx.db.query("brains").withIndex("by_slug", q => q.eq("slug", a.slug)).unique();
-    if (!b || readSpace(b.space) !== home) throw new Error("that brain does not live in this workspace");
-    if (b.type === "personal") throw new Error("a personal brain is never shared");
-    if (b.type === "project") throw new Error("a folder that holds files is never shared");
-    const to = String(a.to).trim().toLowerCase();
-    const editor = to !== home && ((SPACES as readonly string[]).includes(to) || (await hostedSpaces(ctx)).some(h => h.slug === to));
-    const viewer = !editor && to !== home && to === (await demoSlug(ctx));
-    if (!editor && !viewer) throw new Error(`a brain cannot be shared with "${to}"`);
-    const without = (list: string[] | undefined) => (list ?? []).filter(s => s !== to);
-    const shared = editor ? (a.on ? [...without(b.shared), to] : without(b.shared)) : (b.shared ?? []);
-    const viewers = viewer ? (a.on ? [...without(b.viewers), to] : without(b.viewers)) : (b.viewers ?? []);
-    await ctx.db.patch(b._id, { shared, viewers });
-    return { slug: b.slug, shared, viewers };
+    return await shareOne(ctx, b, a.space, a.to, a.on);
+  },
+});
+
+/** One brain in or out of one more workspace: the rule shareBrain and shareGroup both follow. */
+async function shareOne(ctx: any, b: any, space: string, toRaw: string, on: boolean) {
+  const home = readSpace(space);
+  if (!b || readSpace(b.space) !== home) throw new Error("that brain does not live in this workspace");
+  if (b.type === "personal") throw new Error("a personal brain is never shared");
+  if (b.type === "project") throw new Error("a folder that holds files is never shared");
+  const to = String(toRaw).trim().toLowerCase();
+  const editor = to !== home && ((SPACES as readonly string[]).includes(to) || (await hostedSpaces(ctx)).some(h => h.slug === to));
+  const viewer = !editor && to !== home && to === (await demoSlug(ctx));
+  if (!editor && !viewer) throw new Error(`a brain cannot be shared with "${to}"`);
+  const without = (list: string[] | undefined) => (list ?? []).filter(s => s !== to);
+  const shared = editor ? (on ? [...without(b.shared), to] : without(b.shared)) : (b.shared ?? []);
+  const viewers = viewer ? (on ? [...without(b.viewers), to] : without(b.viewers)) : (b.viewers ?? []);
+  await ctx.db.patch(b._id, { shared, viewers });
+  return { slug: b.slug, shared, viewers };
+}
+
+/** The folders of one category in this workspace: its own subject and person folders, never a personal one or one that holds files. */
+async function groupBrains(ctx: any, space: string, group: string) {
+  const name = cleanGroup(group).toLowerCase();
+  if (!name) throw new Error("name a category");
+  const home = readSpace(space);
+  const list = (await ctx.db.query("brains").collect())
+    .filter((b: any) => readSpace(b.space) === home && b.type !== "personal" && b.type !== "project" && cleanGroup(b.group).toLowerCase() === name);
+  if (!list.length) throw new Error(`no folder of this workspace sits in "${cleanGroup(group)}"`);
+  return list;
+}
+
+/** Every folder of a category in one more workspace, or out of it. A folder put in the category later is not shared until asked. */
+export const shareGroup = internalMutation({
+  args: { space: v.string(), group: v.string(), to: v.string(), on: v.boolean() },
+  handler: async (ctx, a) => {
+    const list = await groupBrains(ctx, a.space, a.group);
+    for (const b of list) await shareOne(ctx, b, a.space, a.to, a.on);
+    return { slugs: list.map((b: any) => b.slug), on: a.on };
   },
 });
 
@@ -1236,6 +1262,16 @@ export const publicSet = internalMutation({
     if (b.type === "personal" || b.type === "project") throw new Error("a personal folder is never public");
     if (!!b.public !== a.on) await ctx.db.patch(b._id, { public: a.on || undefined });
     return { slug: b.slug, public: a.on };
+  },
+});
+
+/** Every folder of a category made public, or private again. A folder put in the category later stays private until asked. */
+export const publicGroup = internalMutation({
+  args: { space: v.string(), group: v.string(), on: v.boolean() },
+  handler: async (ctx, a) => {
+    const list = await groupBrains(ctx, a.space, a.group);
+    for (const b of list) if (!!b.public !== a.on) await ctx.db.patch(b._id, { public: a.on || undefined });
+    return { slugs: list.map((b: any) => b.slug), public: a.on };
   },
 });
 

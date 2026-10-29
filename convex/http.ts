@@ -377,7 +377,9 @@ route("/api/share", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
   if (!owners.includes(who.space)) return { error: "sharing brains is not open for this workspace" };
   const slug = String(b.brain ?? "");
-  if (slug && b.leave === true) await ctx.runMutation(internal.store.leaveBrain, { slug, space: who.space });
+  /* A whole category: every folder of it shared with that workspace, or taken out. */
+  if (b.group != null) await ctx.runMutation(internal.store.shareGroup, { space: who.space, group: String(b.group), to: String(b.to ?? ""), on: b.on === true });
+  else if (slug && b.leave === true) await ctx.runMutation(internal.store.leaveBrain, { slug, space: who.space });
   else if (slug) await ctx.runMutation(internal.store.shareBrain,
     { slug, space: who.space, to: String(b.to ?? ""), on: b.on === true });
   return await ctx.runQuery(internal.store.shareState, { space: who.space });
@@ -795,9 +797,10 @@ route("/api/public", async (ctx, req) => {
   return { brains: await ctx.runQuery(internal.store.publicBrains, {}) };
 });
 
-/** A folder made public, or private again: `{slug, on}`. Owner only. */
+/** A folder made public, or private again: `{slug, on}`. A whole category at once: `{group, on}`. Owner only. */
 route("/api/brain/public", async (ctx, _req, b) => {
   const who = await gate(ctx, b, { ownerOnly: true });
+  if (b.group != null) return await ctx.runMutation(internal.store.publicGroup, { space: who.space, group: String(b.group), on: b.on === true });
   return await ctx.runMutation(internal.store.publicSet, { space: who.space, slug: String(b.slug ?? ""), on: b.on === true });
 });
 

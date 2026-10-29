@@ -301,10 +301,11 @@ function setupMarkup(){
 
       <details class="f sh-fold" id="shareBlock" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px" ${ownerWs() ? "" : "hidden"}>
         <summary><span>Share folders</span><b id="shareCount" class="sh-count"></b></summary>
-        <div class="hint" style="margin:8px 0 10px">Pick a workspace, then which folders go to it. It stays one folder, not a copy. A personal folder is never shared.</div>
+        <div class="hint" style="margin:8px 0 10px">Pick a workspace, or Public, then which folders or whole categories go to it. It stays one folder, not a copy. A personal folder is never shared.</div>
         <label for="shareTo">Workspace</label>
         <select class="pick" id="shareTo" aria-label="The workspace to share with"></select>
         <div class="hint" id="shareNote" style="margin:7px 0 4px"></div>
+        <div id="shareCats"></div>
         <div id="shareSlot"><div class="hint">Loading</div></div>
         <div class="hint" id="shareMsg" role="status"></div>
       </details>
@@ -416,41 +417,74 @@ function setupShare({ veil }){
   const shareSlot = veil.querySelector("#shareSlot"), shareMsg = veil.querySelector("#shareMsg");
   const shareTo = veil.querySelector("#shareTo"), shareNote = veil.querySelector("#shareNote"), shareCount = veil.querySelector("#shareCount");
   let shareData = null;
+  /* Public sits last in the list: anyone reads those folders from their own AI and on the Tasu home page. */
+  const PUBLIC = { slug: "@public", name: "Public, read by anyone", mode: "public" };
+  const shareCats = veil.querySelector("#shareCats");
   const paintShare = r => {
     shareData = r;
     const was = shareTo.value;
     shareTo.innerHTML = "";
-    for (const t of r.targets){
+    for (const t of [...r.targets, PUBLIC]){
       const o = el("option", null, t.mode === "read" ? `${t.name} (read only)` : t.name); o.value = t.slug; shareTo.append(o);
     }
-    if (r.targets.some(t => t.slug === was)) shareTo.value = was;
+    if ([...r.targets, PUBLIC].some(t => t.slug === was)) shareTo.value = was;
     const n = r.brains.filter(b => b.to.length).length;
     shareCount.textContent = n ? `${n} shared` : "";
     paintRows();
   };
+  /** Whether a folder already goes to the chosen workspace, or is public. */
+  const isOn = (b, t) => t.mode === "public" ? !!b.public : b.to.includes(t.slug);
+  /** One call to the server, then the list painted again from what it says now. */
+  const send = async (call, said, btn) => {
+    btn.disabled = true; shareMsg.textContent = "Saving";
+    try {
+      const r = await call();
+      paintShare(r && Array.isArray(r.brains) ? r : await api("/api/share", {}));
+      shareMsg.textContent = said;
+      refresh().catch(() => {});
+    } catch (e) { btn.disabled = false; shareMsg.textContent = e.message; }
+  };
   const paintRows = () => {
-    const r = shareData, t = r.targets.find(x => x.slug === shareTo.value);
-    shareSlot.innerHTML = "";
-    shareNote.textContent = !t ? "There is no other workspace to share with." : t.mode === "read"
+    const r = shareData, t = shareTo.value === PUBLIC.slug ? PUBLIC : r.targets.find(x => x.slug === shareTo.value);
+    shareSlot.innerHTML = ""; shareCats.innerHTML = "";
+    shareNote.textContent = !t ? "There is no other workspace to share with." : t.mode === "public"
+      ? "Anyone can read the folders you make public, from their own AI and on the Tasu home page. Only you feed them."
+      : t.mode === "read"
       ? `Everyone who opens ${t.name} can read the folders you share there. Nobody there can change them.`
       : `${t.name} can read these folders and feed them. A drop there fills them here too.`;
     if (t && !r.brains.length) shareSlot.append(el("div","hint","No folder here to share yet."));
+    /* Whole categories first: one tap shares, or makes public, every folder of it here. A folder put in the category later waits for its own tap. */
+    const cats = t ? [...new Set(r.brains.map(b => String(b.group || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)) : [];
+    if (cats.length) shareCats.append(el("div","sh-sub","Whole categories"));
+    for (const g of cats){
+      const rows = r.brains.filter(b => String(b.group || "").trim() === g), k = rows.filter(b => isOn(b, t)).length, all = k === rows.length;
+      const row = el("div","sh-row sh-cat");
+      const nm = el("span","sh-name",g); nm.append(el("span","sh-from",` ${k} of ${rows.length} ${t.mode === "public" ? "public" : "shared"}`));
+      row.append(nm);
+      const chip = el("button","sh-chip" + (all ? " on" : ""),
+        all ? (t.mode === "public" ? "Public" : "Shared") : t.mode === "public" ? (k ? "Make the rest public" : "Make all public") : (k ? "Share the rest" : "Share all"));
+      chip.type = "button"; chip.setAttribute("aria-pressed", all ? "true" : "false");
+      chip.setAttribute("aria-label", all ? `${t.mode === "public" ? "Make private" : "Stop sharing"} every folder of ${g}` : `${t.mode === "public" ? "Make public" : "Share"} every folder of ${g}${t.mode === "public" ? "" : ` with ${t.name}`}`);
+      chip.title = rows.map(b => b.name).join(", ");
+      chip.onclick = () => send(
+        () => t.mode === "public" ? api("/api/brain/public", { group: g, on: !all }) : api("/api/share", { group: g, to: t.slug, on: !all }),
+        t.mode === "public" ? (all ? `The ${rows.length} folders of ${g} are private again.` : `The ${rows.length} folders of ${g} are public. Anyone can add them to their AI.`)
+          : all ? `The ${rows.length} folders of ${g} are no longer in ${t.name}.` : `The ${rows.length} folders of ${g} are now in ${t.name}${t.mode === "read" ? ", read only" : " too"}.`,
+        chip);
+      row.append(chip); shareCats.append(row);
+    }
+    if (cats.length && t) shareSlot.append(el("div","sh-sub","Folders"));
     for (const b of t ? r.brains : []){
-      const on = b.to.includes(t.slug);
+      const on = isOn(b, t);
       const row = el("div","sh-row");
       row.append(el("span","sh-name",b.name));
-      const chip = el("button","sh-chip" + (on ? " on" : ""), on ? "Shared" : "Share");
+      const chip = el("button","sh-chip" + (on ? " on" : ""), t.mode === "public" ? (on ? "Public" : "Make public") : on ? "Shared" : "Share");
       chip.type = "button"; chip.setAttribute("aria-pressed", on ? "true" : "false");
-      chip.setAttribute("aria-label", `${on ? "Stop sharing" : "Share"} ${b.name} with ${t.name}`);
-      chip.onclick = async () => {
-        chip.disabled = true; shareMsg.textContent = "Saving";
-        try {
-          paintShare(await api("/api/share", { brain: b.slug, to: t.slug, on: !on }));
-          shareMsg.textContent = on ? `${b.name} is no longer in ${t.name}.`
-            : t.mode === "read" ? `${b.name} is now readable in ${t.name}.` : `${b.name} is now in ${t.name} too. A drop in either fills both.`;
-          refresh().catch(() => {});
-        } catch (e) { chip.disabled = false; shareMsg.textContent = e.message; }
-      };
+      chip.setAttribute("aria-label", t.mode === "public" ? `${on ? "Make private" : "Make public"} ${b.name}` : `${on ? "Stop sharing" : "Share"} ${b.name} with ${t.name}`);
+      chip.onclick = () => t.mode === "public"
+        ? send(() => api("/api/brain/public", { slug: b.slug, on: !on }), on ? `${b.name} is private again.` : `${b.name} is public. Anyone can add it to their AI.`, chip)
+        : send(() => api("/api/share", { brain: b.slug, to: t.slug, on: !on }), on ? `${b.name} is no longer in ${t.name}.`
+          : t.mode === "read" ? `${b.name} is now readable in ${t.name}.` : `${b.name} is now in ${t.name} too. A drop in either fills both.`, chip);
       row.append(chip); shareSlot.append(row);
     }
     if (r.joined.length){

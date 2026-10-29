@@ -340,6 +340,20 @@ I run a marathon in May.
   check("private again, it leaves the list and its address reads nothing", (await run(store.publicBrains, ctx, {})).length === 0 && (await run(store.publicBrain, ctx, { slug: "wealth" })) === null);
   T.brains.push({ _id: "bp", slug: "me", name: "Me", type: "personal", scope: "", space: "octopus" });
   check("a personal folder is never public", /never public/.test(await throws(run(store.publicSet, ctx, { space: "octopus", slug: "me", on: true }))));
+
+  /* A whole category at once: its folders here, never a personal one, never another workspace's. */
+  T.brains.push({ _id: "bg1", slug: "gave", name: "Gave", type: "person", scope: "", space: "octopus", group: "Invest" },
+    { _id: "bg2", slug: "dogs2", name: "Dogs", type: "subject", scope: "", space: "squidgy", group: "Invest" });
+  T.brains.find(b => b.slug === "wealth").group = "Invest";
+  T.brains.find(b => b.slug === "me").group = "Invest";
+  const g = await run(store.publicGroup, ctx, { space: "octopus", group: " invest ", on: true });
+  const pubNow = (await run(store.publicBrains, ctx, {})).map(b => b.slug).sort().join(",");
+  check("a category made public opens each folder of it in this workspace, in any case, and no other", g.slugs.sort().join(",") === "gave,wealth" && pubNow === "gave,wealth", pubNow);
+  check("each listed folder carries its category", (await run(store.publicBrains, ctx, {})).every(b => b.group === "Invest"));
+  await run(store.publicGroup, ctx, { space: "octopus", group: "Invest", on: false });
+  check("and private again in one call", (await run(store.publicBrains, ctx, {})).length === 0);
+  check("a category with no folder here says so", /no folder of this workspace/.test(await throws(run(store.publicGroup, ctx, { space: "octopus", group: "Life", on: true }))));
+  check("a blank category is refused", /name a category/.test(await throws(run(store.publicGroup, ctx, { space: "octopus", group: "  ", on: true }))));
 }
 
 /* ---- a rename in steps: a large folder moves a batch a call ---- */
@@ -928,6 +942,17 @@ I run a marathon in May.
   check("the demo lists it as read only, with a way out", dm.joined.length === 1 && dm.joined[0].readOnly === true);
   await share("wealth", "demo", false);
   check("and the owner takes it back", !(await names("demo")).includes("wealth"));
+
+  /* A whole category shared at once. */
+  T.brains.find(b => b.slug === "wealth").group = "Invest";
+  T.brains.find(b => b.slug === "me").group = "Invest";
+  const sg = await run(store.shareGroup, ctx, { space: "octopus", group: "invest", to: "squidgy", on: true });
+  check("a category shared with a workspace shares its folders here, the personal one left out", sg.slugs.join(",") === "wealth" && (await names("squidgy")).includes("wealth"), JSON.stringify(sg));
+  const stg = await run(store.shareState, ctx, { space: "octopus" });
+  check("Share brain lists each folder with its category and whether it is public", stg.brains[0].group === "Invest" && stg.brains[0].public === false, JSON.stringify(stg.brains));
+  await run(store.shareGroup, ctx, { space: "octopus", group: "Invest", to: "squidgy", on: false });
+  check("and taken back in one call", !(await names("squidgy")).includes("wealth"));
+  check("only a workspace of the owner's, or the demo, takes a category", /cannot be shared/.test(await throws(run(store.shareGroup, ctx, { space: "octopus", group: "Invest", to: "acme", on: true }))));
 
   await share("wealth", "squidgy");
   await share("wealth", "demo");

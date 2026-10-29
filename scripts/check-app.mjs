@@ -1580,7 +1580,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     open: document.getElementById("shareBlock").open, count: document.getElementById("shareCount").textContent,
     opts: [...document.querySelectorAll("#shareTo option")].map(o => o.textContent).join("|") }));
   check("Setup offers a passphrase to change, and Share brain folded shut with how many are shared", ui.pass && ui.share && !ui.open && ui.count === "1 shared"
-    && ui.opts === "Squidgy|Demo (read only)", JSON.stringify(ui));
+    && ui.opts === "Squidgy|Demo (read only)|Public, read by anyone", JSON.stringify(ui));
   await page.click("#shareBlock > summary"); await page.waitForTimeout(80);
   const rows = () => page.evaluate(() => [...document.querySelectorAll("#shareSlot .sh-row")].map(r => r.querySelector(".sh-name").textContent + ":" + r.querySelector(".sh-chip").textContent).join("|"));
   check("it opens on a tap, and lists the brains here for the first workspace, the personal one left out", await page.evaluate(() => document.getElementById("shareBlock").open)
@@ -1622,6 +1622,59 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("the change is sent, says who was signed out, and clears both fields", done.body?.current === "right one" && done.body?.next === "a longer passphrase"
     && /2 other sessions are signed out/.test(done.msg) && !done.cur && !done.next, JSON.stringify(done));
   check("nothing threw", !bad.length, bad.join(" | "));
+  await page.close();
+}
+
+/* ---- Setup: share or make public a whole category ---- */
+{
+  const shareState = { targets: [{ slug: "squidgy", name: "Squidgy", mode: "edit" }, { slug: "demo", name: "Demo", mode: "read" }],
+    brains: [{ slug: "wealth", name: "Wealth", type: "subject", group: "Invest", public: false, to: [] },
+      { slug: "gave", name: "Charles Gave", type: "person", group: "Invest", public: true, to: [] },
+      { slug: "content", name: "Content", type: "subject", group: "Business", public: false, to: ["squidgy"] }],
+    joined: [] };
+  const owner = { ...STATE, space: "octopus", spaceName: "Octopus", brains: shareState.brains.map(b => ({ ...b, scope: "s", owner: null })) };
+  const { page, bad } = await boot("/chat.html", ([state, share]) => {
+    sessionStorage.setItem("octopus.token.v1", "test");
+    window.__calls = []; window.__share = share;
+    window.fetch = async (u, opt) => {
+      const s = String(u), body = JSON.parse(opt?.body || "{}"); window.__calls.push({ s, body });
+      if (s.includes("/api/state")) return Response.json(state);
+      if (s.includes("/api/brain/public")) {
+        for (const b of window.__share.brains) if (body.group ? b.group === body.group : b.slug === body.slug) b.public = body.on;
+        return Response.json({ slugs: window.__share.brains.filter(b => b.group === body.group).map(b => b.slug), public: body.on });
+      }
+      if (s.includes("/api/share")) {
+        for (const b of window.__share.brains) if (body.group ? b.group === body.group : b.slug === body.brain)
+          b.to = body.on ? [...b.to.filter(x => x !== body.to), body.to] : b.to.filter(x => x !== body.to);
+        return Response.json(window.__share);
+      }
+      return Response.json({ chats: [], conflicts: [], others: 0, health: [] });
+    };
+  }, [owner, shareState]);
+  await page.waitForTimeout(250);
+  await page.evaluate(() => document.getElementById("keyBtn").click()); await page.waitForTimeout(300);
+  await page.click("#shareBlock > summary"); await page.waitForTimeout(80);
+  const cats = () => page.evaluate(() => [...document.querySelectorAll("#shareCats .sh-cat")].map(r => r.querySelector(".sh-name").textContent.trim() + ":" + r.querySelector(".sh-chip").textContent).join("|"));
+  check("the categories sit above the folders, each with how many of its folders go there", (await cats()) === "Business 1 of 1 shared:Shared|Invest 0 of 2 shared:Share all", await cats());
+  await page.click('#shareCats .sh-cat:last-child .sh-chip'); await page.waitForTimeout(300);
+  const shared = await page.evaluate(() => ({ call: window.__calls.filter(c => c.s.includes("/api/share") && c.body.group).pop()?.body, said: document.getElementById("shareMsg").textContent }));
+  check("one tap shares every folder of a category with the chosen workspace", shared.call?.group === "Invest" && shared.call?.to === "squidgy" && shared.call?.on === true
+    && /The 2 folders of Invest are now in Squidgy too/.test(shared.said), JSON.stringify(shared));
+  check("and the category then reads as shared", /Invest 2 of 2 shared:Shared/.test(await cats()), await cats());
+
+  await page.selectOption("#shareTo", "@public"); await page.waitForTimeout(80);
+  const pub = await page.evaluate(() => ({ note: document.getElementById("shareNote").textContent, rows: [...document.querySelectorAll("#shareSlot .sh-row")].map(r => r.querySelector(".sh-name").textContent + ":" + r.querySelector(".sh-chip").textContent).join("|") }));
+  check("Public says anyone reads them and only you feed them, and shows which folders are public", /Anyone can read the folders you make public/.test(pub.note) && /Only you feed them/.test(pub.note)
+    && pub.rows === "Wealth:Make public|Charles Gave:Public|Content:Make public", JSON.stringify(pub));
+  check("a half-public category offers to make the rest public", /Invest 1 of 2 public:Make the rest public/.test(await cats()), await cats());
+  await page.click('#shareCats .sh-cat:last-child .sh-chip'); await page.waitForTimeout(300);
+  const made = await page.evaluate(() => ({ call: window.__calls.filter(c => c.s.includes("/api/brain/public")).pop()?.body, said: document.getElementById("shareMsg").textContent }));
+  check("one tap makes the whole category public", made.call?.group === "Invest" && made.call?.on === true && /The 2 folders of Invest are public/.test(made.said), JSON.stringify(made));
+  check("and it reads as public, every folder of it", /Invest 2 of 2 public:Public/.test(await cats()) && await page.inputValue("#shareTo") === "@public", await cats());
+  await page.locator('#shareSlot .sh-row .sh-chip').first().click(); await page.waitForTimeout(300);
+  const one = await page.evaluate(() => window.__calls.filter(c => c.s.includes("/api/brain/public")).pop()?.body);
+  check("a single folder still goes private on its own tap", one?.slug === "wealth" && one?.on === false, JSON.stringify(one));
+  check("nothing threw while sharing a category", !bad.length, bad.join(" | "));
   await page.close();
 }
 {
