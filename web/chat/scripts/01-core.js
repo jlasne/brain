@@ -55,7 +55,7 @@ const S = {
   level: "normal",
   /* Which space this session reads, and what it calls itself. The passphrase at
      the door decided it, and the app only reports it. */
-  space: document.documentElement.dataset.space || "", spaceName: "Tasu",
+  space: document.documentElement.dataset.space || "", spaceName: "Knowledge",
 };
 
 /* One screen at a time: opening a folder, or going back to the chat, leaves the open asset. */

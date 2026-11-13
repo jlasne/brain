@@ -1487,7 +1487,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
     asked: window.__calls.filter(c => /\/api\/(account\/mcp|usage)/.test(c.s)).length }));
   check("Setup in the demo keeps the default model, and leaves out the connector and transcripts", set.model && set.mcp && set.use && set.key && set.asked === 0,
     JSON.stringify(set));
-  check("the demo keeps Tasu's greys: no logo or colours to set", await page.evaluate(() => document.getElementById("lookBlock").hidden)
+  check("the demo keeps Knowledge's greys: no logo or colours to set", await page.evaluate(() => document.getElementById("lookBlock").hidden)
     && await page.evaluate(() => document.documentElement.dataset.space === "demo" && getComputedStyle(document.body).backgroundColor === "rgb(255, 255, 255)"));
   await page.click("#kDone");
   await openPager(page); await page.waitForTimeout(100);
@@ -1541,7 +1541,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click("#lookReset"); await page.waitForTimeout(150);
   const back = await page.evaluate(() => ({ fill: document.documentElement.style.getPropertyValue("--accent-fill"), mark: document.getElementById("spaceMark").getAttribute("src"),
     kept: localStorage.getItem("octopus.look.acme"), reset: window.__calls.filter(c => c.s.includes("/api/brand")).pop()?.body.reset }));
-  check("Back to the default clears the look everywhere", back.fill === "" && back.kept === null && back.reset === true && back.mark === "/knowledge/brand/tasu.svg", JSON.stringify(back));
+  check("Back to the default clears the look everywhere", back.fill === "" && back.kept === null && back.reset === true && back.mark === "/knowledge/brand/knowledge.svg", JSON.stringify(back));
   await page.$eval("#lookAccent", i => { i.value = "#aa0000"; i.dispatchEvent(new Event("input", { bubbles: true })); });
   await page.click("#kDone"); await page.waitForTimeout(100);
   check("a look previewed and not saved goes back on close", await page.evaluate(() => document.documentElement.style.getPropertyValue("--accent-fill")) === "");
@@ -2151,7 +2151,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   check("a concept says what to learn first", pane.first === "Holding cost|Ordering cost", pane.first);
   check("each link says what it is, and a link to another folder names it", /needsHolding cost/.test(pane.links) && /causesInterest rates · Macro/.test(pane.links)
     && /thenSafety stock/.test(pane.links), pane.links);
-  check("what follows is shown, marked as drawn by Tasu, not a source", pane.ins === "Higher rates shrink orders" && /not a source/.test(pane.note || ""), JSON.stringify(pane));
+  check("what follows is shown, marked as drawn by Knowledge, not a source", pane.ins === "Higher rates shrink orders" && /not a source/.test(pane.note || ""), JSON.stringify(pane));
 
   check("and a folder offers no learning path of its own", !(await page.$("#fvPath")) && !(await page.$(".lp-step")));
   check("nothing threw on the graph", !bad.length, bad.join(" | "));
@@ -3370,7 +3370,7 @@ for (const space of ["octopus", "squidgy"]) {
     h: document.getElementById("gateH")?.textContent, locked: document.getElementById("app").classList.contains("locked"),
     theme: document.documentElement.dataset.space || "", bg: getComputedStyle(document.body).backgroundColor }));
   check("a tab with no session asks for the passphrase alone, over the app", g.gate && !g.name && g.locked && g.h === "Open your workspace", JSON.stringify(g));
-  check("and it wears Tasu's greys, not Octopus's", g.theme === "" && g.bg === "rgb(255, 255, 255)", JSON.stringify(g));
+  check("and it wears Knowledge's greys, not Octopus's", g.theme === "" && g.bg === "rgb(255, 255, 255)", JSON.stringify(g));
   await page.fill("#gPass", "short");
   await page.click("#gGo"); await page.waitForTimeout(100);
   check("a short passphrase is caught before anything is sent", /8 characters/.test(await page.textContent("#gMsg")) && !(await page.evaluate(() => sessionStorage.getItem("test.unlock"))));
@@ -3459,10 +3459,10 @@ for (const space of ["octopus", "squidgy"]) {
     mark: document.querySelector(".logo img").getAttribute("src"), title: document.title, text: document.body.textContent,
     rows: [...document.querySelectorAll("#rows .row")].map(r => r.querySelector(".who b").textContent + " | " + r.querySelector(".who small").textContent),
     count: document.getElementById("count").textContent, cats: [...document.querySelectorAll("#cats .chip")].map(c => c.textContent) }));
-  check("the landing says what it is: the smartest knowledge, in an MCP", l.h1 === "The smartest knowledge, in an MCP." && /^Public folders compiled from/.test(l.sub) && /^Tasu: the smartest knowledge/.test(l.title), l.h1);
-  check("the bar holds the mark and one way in: Open a workspace, a menu", JSON.stringify(l.nav) === '["tasu:/knowledge/","Open a workspace:menu"]' && !l.pass, JSON.stringify(l.nav));
-  check("it keeps the Tasu look: the pencil landscape, Geist on near-white, the folder mark", /\/brand\/landing\.webp/.test(l.bg) && /^"?Geist/.test(l.font) && l.page === "rgb(250, 250, 250)"
-    && l.logo === "tasu" && l.mark === "/knowledge/brand/tasu.svg", `${l.font} ${l.page}`);
+  check("the landing says what it is: the smartest knowledge, in an MCP", l.h1 === "The smartest knowledge, in an MCP." && /^Public folders compiled from/.test(l.sub) && /^Knowledge: the smartest sources/.test(l.title), l.h1);
+  check("the bar holds the mark and one way in: Open a workspace, a menu", JSON.stringify(l.nav) === '["knowledge:/knowledge/","Open a workspace:menu"]' && !l.pass, JSON.stringify(l.nav));
+  check("it keeps the Knowledge look: the pencil landscape, Geist on near-white, the folder mark", /\/brand\/landing\.webp/.test(l.bg) && /^"?Geist/.test(l.font) && l.page === "rgb(250, 250, 250)"
+    && l.logo === "knowledge" && l.mark === "/knowledge/brand/knowledge.svg", `${l.font} ${l.page}`);
   check("the page is the list of public folders, the fullest first, each with its counts", JSON.stringify(l.rows) === '["Hormozi | Business · 376 concepts · 60 sources · fed 23 Oct","Y Combinator | Business · 214 concepts · 41 sources · fed 19 Oct"]'
     && l.count === "2 public folders" && JSON.stringify(l.cats) === '["All","Business"]', JSON.stringify(l));
   check("no em-dash on the landing", !/—/.test(l.text));
@@ -3557,7 +3557,7 @@ for (const space of ["octopus", "squidgy"]) {
       dash: /—/.test(text), wide: document.documentElement.scrollWidth };
   });
   check("the white paper opens on its own address with thirteen sections, assets and the personal folder among them, each in the contents",
-    paper.title === "Tasu: the white paper" && paper.sections.length === 13 && paper.sections.includes("assets") && paper.sections.includes("personal") && JSON.stringify(paper.sections) === JSON.stringify(paper.toc), JSON.stringify(paper.sections));
+    paper.title === "Knowledge: the white paper" && paper.sections.length === 13 && paper.sections.includes("assets") && paper.sections.includes("personal") && JSON.stringify(paper.sections) === JSON.stringify(paper.toc), JSON.stringify(paper.sections));
   check("it keeps the house rules: no em-dash", !paper.dash);
   check("and it fits a phone, its tables scrolling in their own frame", paper.wide <= 390, String(paper.wide));
   await ctx.close();
@@ -4481,7 +4481,7 @@ for (const space of ["octopus", "squidgy"]) {
   await page.evaluate(() => { const e = new Event("beforeinstallprompt"); e.prompt = async () => { window.__prompted = true; }; e.userChoice = Promise.resolve({ outcome: "accepted" }); window.dispatchEvent(e); });
   await page.click("#setInstall"); await page.waitForTimeout(150);
   const ins = await page.evaluate(() => ({ prompted: !!window.__prompted, msg: document.getElementById("restoreMsg").textContent }));
-  check("App with the browser's prompt opens it and says where Tasu now opens", ins.prompted && /^Installed\. Tasu opens from your home screen or dock/.test(ins.msg), JSON.stringify(ins));
+  check("App with the browser's prompt opens it and says where Knowledge now opens", ins.prompted && /^Installed\. Knowledge opens from your home screen or dock/.test(ins.msg), JSON.stringify(ins));
   await page.keyboard.press("Escape"); await page.waitForTimeout(150);
   check("Escape closes Settings and the focus goes back to the button that opened it", await page.evaluate(() => !document.querySelector(".veil") && document.activeElement?.id === "keyBtn"));
 

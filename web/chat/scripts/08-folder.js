@@ -1111,7 +1111,7 @@ function insightsBlock(list, id, onOpen, nameOf){
     it.append(w);
     box.append(it);
   }
-  box.append(el("div","ins-note","Drawn by Tasu from two linked concepts. It is a conclusion, not a source."));
+  box.append(el("div","ins-note","Drawn by Knowledge from two linked concepts. It is a conclusion, not a source."));
   return box;
 }
 

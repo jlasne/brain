@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Tasu: the smartest knowledge, in an MCP</title>
+<title>Knowledge: the smartest sources, in an MCP</title>
 <meta name="description" content="Public folders compiled from the talks, essays and posts of founders and investors, each idea dated and cited. Add one to your AI in one line.">
 <meta name="theme-color" content="#fafafa">
-<meta property="og:title" content="Tasu: the smartest knowledge, in an MCP">
+<meta property="og:title" content="Knowledge: the smartest sources, in an MCP">
 <meta property="og:description" content="Public folders compiled from the talks, essays and posts of founders and investors, each idea dated and cited. Add one to your AI in one line.">
 <meta property="og:image" content="https://www.jeremylasne.com/knowledge/og.jpg?v=2">
 <meta property="og:image:width" content="1280">
@@ -15,9 +15,9 @@
 <link rel="canonical" href="https://www.jeremylasne.com/knowledge/">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://www.jeremylasne.com/knowledge/og.jpg?v=2">
-<link rel="icon" href="/knowledge/brand/tasu.svg" type="image/svg+xml">
-<link rel="icon" href="/knowledge/brand/tasu-64.png" type="image/png" sizes="64x64">
-<link rel="apple-touch-icon" href="/knowledge/brand/tasu-180.png">
+<link rel="icon" href="/knowledge/brand/knowledge.svg" type="image/svg+xml">
+<link rel="icon" href="/knowledge/brand/knowledge-64.png" type="image/png" sizes="64x64">
+<link rel="apple-touch-icon" href="/knowledge/brand/knowledge-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
@@ -26,7 +26,7 @@
 
 <style>
   /* ======================================================================
-     TASU
+     KNOWLEDGE
 
      The public folders. A bar with one way in, a serif headline over the
      pencil landscape, a search field, then the folders their owners made
@@ -176,7 +176,7 @@
 <body>
 
 <header class="nav"><div class="in">
-  <a class="logo" href="/knowledge/" aria-label="Tasu"><img src="/knowledge/brand/tasu.svg" alt="" width="26" height="26"><span>tasu</span></a>
+  <a class="logo" href="/knowledge/" aria-label="Knowledge"><img src="/knowledge/brand/knowledge.svg" alt="" width="26" height="26"><span>knowledge</span></a>
   <div class="ws">
     <button class="open" type="button" id="openWs" aria-haspopup="menu" aria-expanded="false">Open a workspace<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
     <div class="ws-menu" id="wsMenu" role="menu" hidden>
@@ -378,7 +378,7 @@
       if (!/^[a-z0-9][a-z0-9-]{1,31}$/.test(String(w.slug))) continue;
       const a = document.createElement("a");
       a.setAttribute("role", "menuitem"); a.href = "/knowledge/chat?w=" + w.slug; a.dataset.slug = w.slug;
-      const img = document.createElement("img"); img.src = "/knowledge/brand/tasu.svg"; img.alt = ""; img.width = img.height = 18;
+      const img = document.createElement("img"); img.src = "/knowledge/brand/knowledge.svg"; img.alt = ""; img.width = img.height = 18;
       mark(img, w.slug);
       a.append(img, String(w.name ?? w.slug));
       $("wsMore").append(a);

@@ -7,13 +7,13 @@
  * and what the transcript service has cost. The deployment's key pays for
  * every model call, so there is no key to set here.
  */
-/** Where to tap to install Tasu, for a browser that gives no prompt of its own. */
+/** Where to tap to install Knowledge, for a browser that gives no prompt of its own. */
 function installSteps(){
   const ua = navigator.userAgent;
   if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return "On iPhone and iPad: in Safari, tap Share, then Add to Home Screen.";
   if (/Android/.test(ua)) return "On Android: in Chrome, open the menu, then Install app or Add to Home screen.";
   if (/Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome|Edg/.test(ua)) return "On a Mac: in Safari, open File, then Add to Dock.";
-  return "In Chrome or Edge: the install icon at the right of the address bar, or the menu, then Install Tasu.";
+  return "In Chrome or Edge: the install icon at the right of the address bar, or the menu, then Install Knowledge.";
 }
 async function openSetupSheet(opts = {}){
   if (opts instanceof Event) opts = {};
@@ -237,7 +237,7 @@ function setupMarkup(){
           <span class="lbl">Export</span><span class="val">markdown</span></button>
         <button class="foot-btn" id="setRestore" title="Read an export back: the folders, concepts and sources this workspace is missing are added, and what it holds is kept" ${S.demo ? "hidden" : ""}>
           <span class="lbl">Restore</span><span class="val">from an export</span></button>
-        <button class="foot-btn" id="setInstall" title="Tasu on this device's home screen or dock, in a window of its own">
+        <button class="foot-btn" id="setInstall" title="Knowledge on this device's home screen or dock, in a window of its own">
           <span class="lbl">App</span><span class="val">${INSTALLED ? "installed" : "install"}</span></button>
       </div>
       <div class="hint" id="restoreMsg" role="status" style="margin:4px 0 0"></div>
@@ -417,7 +417,7 @@ function setupShare({ veil }){
   const shareSlot = veil.querySelector("#shareSlot"), shareMsg = veil.querySelector("#shareMsg");
   const shareTo = veil.querySelector("#shareTo"), shareNote = veil.querySelector("#shareNote"), shareCount = veil.querySelector("#shareCount");
   let shareData = null;
-  /* Public sits last in the list: anyone reads those folders from their own AI and on the Tasu home page. */
+  /* Public sits last in the list: anyone reads those folders from their own AI and on the Knowledge home page. */
   const PUBLIC = { slug: "@public", name: "Public, read by anyone", mode: "public" };
   const shareCats = veil.querySelector("#shareCats");
   const paintShare = r => {
@@ -448,7 +448,7 @@ function setupShare({ veil }){
     const r = shareData, t = shareTo.value === PUBLIC.slug ? PUBLIC : r.targets.find(x => x.slug === shareTo.value);
     shareSlot.innerHTML = ""; shareCats.innerHTML = "";
     shareNote.textContent = !t ? "There is no other workspace to share with." : t.mode === "public"
-      ? "Anyone can read the folders you make public, from their own AI and on the Tasu home page. Only you feed them."
+      ? "Anyone can read the folders you make public, from their own AI and on the Knowledge home page. Only you feed them."
       : t.mode === "read"
       ? `Everyone who opens ${t.name} can read the folders you share there. Nobody there can change them.`
       : `${t.name} can read these folders and feed them. A drop there fills them here too.`;
@@ -538,13 +538,13 @@ function setupPrefs({ veil, langSum }){
   /* Install: the browser's own prompt where it gives one; elsewhere, where to tap; once installed, where it is. */
   const inst = veil.querySelector("#setInstall"), instMsg = veil.querySelector("#restoreMsg");
   inst.onclick = async () => {
-    if (INSTALLED){ instMsg.textContent = "Tasu runs as an app on this device, from its home screen or dock."; return; }
+    if (INSTALLED){ instMsg.textContent = "Knowledge runs as an app on this device, from its home screen or dock."; return; }
     if (installAsk){
       const ask = installAsk; installAsk = null;
       try {
         await ask.prompt();
         const r = await ask.userChoice;
-        instMsg.textContent = r?.outcome === "accepted" ? "Installed. Tasu opens from your home screen or dock, in a window of its own." : "Install skipped. Tap App again when you want it.";
+        instMsg.textContent = r?.outcome === "accepted" ? "Installed. Knowledge opens from your home screen or dock, in a window of its own." : "Install skipped. Tap App again when you want it.";
       } catch { instMsg.textContent = installSteps(); }
       return;
     }

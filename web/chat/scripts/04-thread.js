@@ -151,7 +151,7 @@ const RETRYABLE = /did not answer|ran past|unreachable|timed out|still\s(thinkin
 /**
  * The error, and what to do about it: Try again when the failure was the
  * connection or the clock and the caller can send it again, and Send
- * feedback, which mails the error to the people who run Tasu.
+ * feedback, which mails the error to the people who run Knowledge.
  */
 function fail(body, msg, o = {}){
   tabTitle("");
@@ -172,7 +172,7 @@ function fail(body, msg, o = {}){
 /** Send feedback: the error, where it happened and the message behind it, mailed once. */
 function feedbackButton(error, o){
   const b = el("button","mini err-fb","Send feedback"); b.type = "button";
-  b.title = "Mails this error to the people who run Tasu";
+  b.title = "Mails this error to the people who run Knowledge";
   b.onclick = async () => {
     b.disabled = true; b.textContent = "Sending";
     try {
