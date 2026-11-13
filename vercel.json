@@ -71,7 +71,11 @@
     },
     {
       "source": "/knowledge",
-      "destination": "/"
+      "destination": "/index.html"
+    },
+    {
+      "source": "/knowledge/",
+      "destination": "/index.html"
     },
     {
       "source": "/knowledge/:path*",
