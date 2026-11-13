@@ -50,7 +50,8 @@ let chromium;
 const TYPES = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
                 ".png": "image/png", ".svg": "image/svg+xml" };
 const server = createServer(async (rq, rs) => {
-  const asked = rq.url.split("?")[0];
+  /* The site lives under /knowledge on www.jeremylasne.com; vercel.json maps it back to the files, as here. */
+  const asked = rq.url.split("?")[0].replace(/^\/knowledge(?=\/|$)/, "") || "/";
   /* The type comes from the file served, not the path asked for. "/" is
      index.html, and typed from the path it would be an octet stream, which a
      browser downloads instead of rendering. Vercel's cleanUrls makes the same
@@ -1540,7 +1541,7 @@ for (const found of ["Charles Gave", "", "youtube"]) {
   await page.click("#lookReset"); await page.waitForTimeout(150);
   const back = await page.evaluate(() => ({ fill: document.documentElement.style.getPropertyValue("--accent-fill"), mark: document.getElementById("spaceMark").getAttribute("src"),
     kept: localStorage.getItem("octopus.look.acme"), reset: window.__calls.filter(c => c.s.includes("/api/brand")).pop()?.body.reset }));
-  check("Back to the default clears the look everywhere", back.fill === "" && back.kept === null && back.reset === true && back.mark === "/brand/tasu.svg", JSON.stringify(back));
+  check("Back to the default clears the look everywhere", back.fill === "" && back.kept === null && back.reset === true && back.mark === "/knowledge/brand/tasu.svg", JSON.stringify(back));
   await page.$eval("#lookAccent", i => { i.value = "#aa0000"; i.dispatchEvent(new Event("input", { bubbles: true })); });
   await page.click("#kDone"); await page.waitForTimeout(100);
   check("a look previewed and not saved goes back on close", await page.evaluate(() => document.documentElement.style.getPropertyValue("--accent-fill")) === "");
@@ -3459,9 +3460,9 @@ for (const space of ["octopus", "squidgy"]) {
     rows: [...document.querySelectorAll("#rows .row")].map(r => r.querySelector(".who b").textContent + " | " + r.querySelector(".who small").textContent),
     count: document.getElementById("count").textContent, cats: [...document.querySelectorAll("#cats .chip")].map(c => c.textContent) }));
   check("the landing says what it is: the smartest knowledge, in an MCP", l.h1 === "The smartest knowledge, in an MCP." && /^Public folders compiled from/.test(l.sub) && /^Tasu: the smartest knowledge/.test(l.title), l.h1);
-  check("the bar holds the mark and one way in: Open a workspace, a menu", JSON.stringify(l.nav) === '["tasu:/","Open a workspace:menu"]' && !l.pass, JSON.stringify(l.nav));
+  check("the bar holds the mark and one way in: Open a workspace, a menu", JSON.stringify(l.nav) === '["tasu:/knowledge/","Open a workspace:menu"]' && !l.pass, JSON.stringify(l.nav));
   check("it keeps the Tasu look: the pencil landscape, Geist on near-white, the folder mark", /\/brand\/landing\.webp/.test(l.bg) && /^"?Geist/.test(l.font) && l.page === "rgb(250, 250, 250)"
-    && l.logo === "tasu" && l.mark === "/brand/tasu.svg", `${l.font} ${l.page}`);
+    && l.logo === "tasu" && l.mark === "/knowledge/brand/tasu.svg", `${l.font} ${l.page}`);
   check("the page is the list of public folders, the fullest first, each with its counts", JSON.stringify(l.rows) === '["Hormozi | Business · 376 concepts · 60 sources · fed 23 Oct","Y Combinator | Business · 214 concepts · 41 sources · fed 19 Oct"]'
     && l.count === "2 public folders" && JSON.stringify(l.cats) === '["All","Business"]', JSON.stringify(l));
   check("no em-dash on the landing", !/—/.test(l.text));
@@ -3473,9 +3474,9 @@ for (const space of ["octopus", "squidgy"]) {
   check("A to Z sorts by name", await page.evaluate(() => [...document.querySelectorAll("#rows .who b")].map(b => b.textContent).join()) === "Hormozi,Y Combinator");
   await page.click('#rows .row[data-slug="hormozi"] .who'); await page.waitForTimeout(350);
   const opened = await page.evaluate(() => { const r = document.querySelector('#rows .row[data-slug="hormozi"]'); return { open: r.classList.contains("shown"), url: r.querySelector(".line code").textContent, h: r.querySelector(".more-of").getBoundingClientRect().height }; });
-  check("a folder opens on the address that adds it to an AI: its own MCP line", opened.open && opened.url === ORIGIN + "/mcp/v1?b=hormozi" && opened.h > 40, JSON.stringify(opened));
-  await Promise.all([page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), page.click("#demoGo")]);
-  check("the demo opens in one click from below the list", await page.evaluate(() => sessionStorage.getItem("octopus.token.v1")) === "tDemo" && new URL(page.url()).pathname === "/chat", page.url());
+  check("a folder opens on the address that adds it to an AI: its own MCP line", opened.open && opened.url === ORIGIN + "/knowledge/mcp/v1?b=hormozi" && opened.h > 40, JSON.stringify(opened));
+  await Promise.all([page.waitForURL(u => new URL(u).pathname === "/knowledge/chat", { timeout: 5000 }).catch(() => {}), page.click("#demoGo")]);
+  check("the demo opens in one click from below the list", await page.evaluate(() => sessionStorage.getItem("octopus.token.v1")) === "tDemo" && new URL(page.url()).pathname === "/knowledge/chat", page.url());
   check("nothing threw on the landing", !bad.length, bad.join(" | "));
   await page.close();
 
@@ -3490,10 +3491,10 @@ for (const space of ["octopus", "squidgy"]) {
   await ws.page.click("#openWs"); await ws.page.waitForTimeout(80);
   const wl = await ws.page.evaluate(() => ({ open: !document.getElementById("wsMenu").hidden,
     items: [...document.querySelectorAll("#wsMenu a")].map(a => `${a.textContent.trim()}:${a.getAttribute("href")}`),
-    panda: document.querySelector('#wsMenu a[href="/chat?w=pandaaahh"] img')?.getAttribute("src"), oct: document.querySelector("#goOctopus img").getAttribute("src") }));
+    panda: document.querySelector('#wsMenu a[href="/knowledge/chat?w=pandaaahh"] img')?.getAttribute("src"), oct: document.querySelector("#goOctopus img").getAttribute("src") }));
   check("Open a workspace lists each one, then any by its passphrase, and a bad slug never", wl.open
-    && JSON.stringify(wl.items) === '["Octopus:/chat?w=octopus","Squidgy:/chat?w=squidgy","PandAAAHH:/chat?w=pandaaahh","Another workspace, by its passphrase:/chat"]', JSON.stringify(wl.items));
-  check("each wears the logo its owner set, and one that is not an image is never used", wl.panda?.startsWith("data:image/png") && wl.oct === "/brand/logo-mark.png", JSON.stringify(wl));
+    && JSON.stringify(wl.items) === '["Octopus:/knowledge/chat?w=octopus","Squidgy:/knowledge/chat?w=squidgy","PandAAAHH:/knowledge/chat?w=pandaaahh","Another workspace, by its passphrase:/knowledge/chat"]', JSON.stringify(wl.items));
+  check("each wears the logo its owner set, and one that is not an image is never used", wl.panda?.startsWith("data:image/png") && wl.oct === "/knowledge/brand/logo-mark.png", JSON.stringify(wl));
   await ws.page.keyboard.press("Escape"); await ws.page.waitForTimeout(60);
   check("Escape closes it", await ws.page.evaluate(() => document.getElementById("wsMenu").hidden));
   await ws.page.close();
@@ -3523,10 +3524,10 @@ for (const space of ["octopus", "squidgy"]) {
   await c.page.click("#cGo"); await c.page.waitForTimeout(150);
   check("a taken name says so", /taken/.test(await c.page.textContent("#cMsg")));
   await c.page.fill("#cName", "Acme Research");
-  await Promise.all([c.page.waitForURL(u => new URL(u).pathname === "/chat", { timeout: 5000 }).catch(() => {}), c.page.click("#cGo")]);
+  await Promise.all([c.page.waitForURL(u => new URL(u).pathname === "/knowledge/chat", { timeout: 5000 }).catch(() => {}), c.page.click("#cGo")]);
   const made = await c.page.evaluate(() => ({ token: sessionStorage.getItem("octopus.token.v1"), key: localStorage.getItem("octopus.key.acme-research") }));
   check("a new workspace opens in the app, its key kept in this browser only", made.token === "tNew" && made.key === "sk-or-v1-0123456789abcdef0123456789abcdef"
-    && new URL(c.page.url()).pathname === "/chat", JSON.stringify(made) + " " + c.page.url());
+    && new URL(c.page.url()).pathname === "/knowledge/chat", JSON.stringify(made) + " " + c.page.url());
   await c.page.close();
 
   const o = await boot("/", () => {
@@ -3544,7 +3545,7 @@ for (const space of ["octopus", "squidgy"]) {
   await ph.goto(ORIGIN + "/", { waitUntil: "domcontentloaded" }); await ph.waitForTimeout(400);
   const wide = await ph.evaluate(() => document.documentElement.scrollWidth);
   check("the landing fits a phone", wide <= 390, String(wide));
-  check("it links the white paper", await ph.evaluate(() => [...document.querySelectorAll(".more a")].some(a => a.getAttribute("href") === "/about")));
+  check("it links the white paper", await ph.evaluate(() => [...document.querySelectorAll(".more a")].some(a => a.getAttribute("href") === "/knowledge/about")));
 
   /* The white paper: eleven numbered sections, the house rules kept, and its
      tables scroll in their frame on a phone. */

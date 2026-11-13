@@ -15,7 +15,7 @@
      ====================================================================== */
   :root{
     /* The mark the loader turns. */
-    --mark:url("/brand/tasu.svg");
+    --mark:url("/knowledge/brand/tasu.svg");
     --bg:#ffffff; --side:#f7f7f8; --surface:#ffffff; --surface-2:#f4f4f5; --surface-3:#e9e9ec;
     --ink:#09090b; --ink-2:#27272a; --ink-3:#52525b; --ink-4:#6b6b74;
     --line:#ececef; --line-2:#e1e1e5;
@@ -40,14 +40,14 @@
   }
   /* Octopus keeps its orange, as its accent only. */
   :root[data-space="octopus"]{
-    --mark:url("/brand/logo-mark.png");
+    --mark:url("/knowledge/brand/logo-mark.png");
     --accent:#a54b2f; --accent-fill:#d97757; --accent-solid:#d97757; --accent-on:#ffffff;
     --accent-soft:rgba(217,119,87,.09); --accent-line:rgba(217,119,87,.34);
   }
 
   /* Squidgy keeps its brown, as its accent only. */
   :root[data-space="squidgy"]{
-    --mark:url("/brand/squidgy-mark.png");
+    --mark:url("/knowledge/brand/squidgy-mark.png");
     --accent:#7a4e36; --accent-fill:#A8704E; --accent-solid:#9c6849; --accent-on:#ffffff;
     --accent-soft:rgba(168,112,78,.09); --accent-line:rgba(168,112,78,.36);
   }

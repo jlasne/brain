@@ -164,10 +164,8 @@ export const canDrop = (b: any, who: Who) => !!b && who.kind === "owner" && !isV
 
 /* CORS: the app is served from your own domain, the API from convex.site */
 const ORIGINS = [
-  "https://tasu.ai",
-  "https://www.tasu.ai",
-  "https://brain.jeremylasne.com",
   "https://www.jeremylasne.com",
+  "https://jeremylasne.com",
   "http://localhost:3000",
   "http://localhost:5173",
 ];
@@ -285,7 +283,7 @@ export async function ask(
     headers: {
       Authorization: "Bearer " + key,
       "Content-Type": "application/json",
-      "HTTP-Referer": "https://brain.jeremylasne.com",
+      "HTTP-Referer": "https://www.jeremylasne.com/knowledge",
       "X-Title": "Octopus",
     },
     body: JSON.stringify({

@@ -64,7 +64,7 @@ function gateScreen(w, st = {}){
         <input id="gPass" type="password" autocomplete="current-password" spellcheck="false">
         <p class="hint gmsg" id="gMsg" role="alert">${shut ? "Shut until its owner sets a passphrase." : ""}</p>
       </div>
-      <footer><a class="ghost" href="/">All workspaces</a><button class="go" id="gGo" type="submit">Enter</button></footer>
+      <footer><a class="ghost" href="/knowledge/">All workspaces</a><button class="go" id="gGo" type="submit">Enter</button></footer>
     </form>`;
   document.body.append(veil);
   if (w) openCall("/api/brand/public", { space: w }).then(r => {
