@@ -77,10 +77,10 @@ async function toLogo(file){
   } finally { URL.revokeObjectURL(url); }
 }
 
-/** The workspace's mark: its own logo, the octopus, the dog's head, or Tasu's folder. */
+/** The workspace's mark: its own logo, the octopus, the dog's head, or Knowledge's folder. */
 function markOf(){
   if (S.logo) return S.logo;
-  return S.space === "octopus" ? "/knowledge/brand/logo-mark.png" : S.space === "squidgy" ? "/knowledge/brand/squidgy-icon.png" : "/knowledge/brand/tasu.svg";
+  return S.space === "octopus" ? "/knowledge/brand/logo-mark.png" : S.space === "squidgy" ? "/knowledge/brand/squidgy-icon.png" : "/knowledge/brand/knowledge.svg";
 }
 
 function paintSpace(){
@@ -592,7 +592,7 @@ function openBrainSheet(b){
         <datalist id="rGroups"></datalist></div>
       <div class="f" id="rPubF" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px">
         <label class="pub-row" for="rPub"><input type="checkbox" id="rPub"> Public</label>
-        <div class="hint" style="margin:4px 0 8px">Anyone can read it from their AI through its own address, and it is listed on the Tasu home page. Only you feed it.</div>
+        <div class="hint" style="margin:4px 0 8px">Anyone can read it from their AI through its own address, and it is listed on the Knowledge home page. Only you feed it.</div>
         <div class="pub-line" id="rPubLine" hidden><code id="rPubUrl"></code><button class="ghost" id="rPubCopy" type="button">Copy</button></div>
         <div class="hint" id="rPubSay" role="status"></div></div>
       <div class="f" id="rMergeF" style="border-top:1px solid var(--line); margin-top:14px; padding-top:14px">

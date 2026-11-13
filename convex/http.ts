@@ -1239,7 +1239,7 @@ async function folderChat(ctx: any, who: Caller, b: any, every: any, only: strin
      folders: derived, and said so. */
   const derived: any[] = pick.opened.length ? await ctx.runQuery(internal.graph.insightsFor, { space: who.space, ids: pick.opened.map(idOf) }) : [];
   const dossier = pick.dossier + (derived.length
-    ? `\n\nWHAT FOLLOWS, Tasu's own conclusions from two linked concepts, never a source:\n` +
+    ? `\n\nWHAT FOLLOWS, the app's own conclusions from two linked concepts, never a source:\n` +
       derived.slice(0, 6).map((x: any) => `- ${x.title}: ${x.text}`).join("\n")
     : "");
   const reading = pool.filter((x: any) => pick.opened.some((c: any) => c.brain === x.slug));
@@ -2397,7 +2397,7 @@ route("/api/feedback", async (ctx, _req, b) => {
   const said = b.personal && !owners.includes(who.space) ? "(a personal message: its words stay private)" : flat(b.q, 1500);
   const at = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
   const page = {
-    title: `Tasu error: ${error.slice(0, 70)}`,
+    title: `Knowledge error: ${error.slice(0, 70)}`,
     line: `${who.wsName}, ${where}, ${at}`,
     sections: [{ head: "", bullets: [
       { k: "Error", say: error },

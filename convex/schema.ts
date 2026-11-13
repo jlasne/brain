@@ -355,7 +355,7 @@ export default defineSchema({
   }).index("by_brain", ["brain"]),
 
   /* What follows from two linked concepts of two folders: a conclusion neither
-     states alone. Tasu's own, never a source, always shown as derived. */
+     states alone. the app's own, never a source, always shown as derived. */
   insights: defineTable({
     space: v.string(),
     key: v.string(),

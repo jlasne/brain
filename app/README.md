@@ -13,10 +13,10 @@ file name becomes its path.
 
 ## The colours
 
-The landing wears Tasu's greys: near-white `#fafafa`, near-black `#09090b`
+The landing wears Knowledge's greys: near-white `#fafafa`, near-black `#09090b`
 for text and its one button, Frank Ruhl Libre for the headline and Geist for
 the rest, over the pencil landscape in `brand/landing.webp`. The mark is the
-folder in `brand/tasu.svg`.
+folder in `brand/knowledge.svg`.
 
 Inside the app, `:root` holds the same greys, with the side panel a step off
 white. Octopus keeps its orange and Squidgy its brown, as the accent only. A

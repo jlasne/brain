@@ -1,4 +1,4 @@
-# Tasu audit, October 2026
+# Knowledge audit, October 2026
 
 Scope: the whole repository at commit `f5ac864`. Read only: no code changed.
 State at audit time: `npm run check` passes all 1,974 checks. No critical issue found.

@@ -1,6 +1,6 @@
 {
-  "name": "Tasu",
-  "short_name": "Tasu",
+  "name": "Knowledge",
+  "short_name": "Knowledge",
   "description": "Folders that get smarter every time you feed them.",
   "start_url": "/knowledge/chat",
   "scope": "/knowledge/",
@@ -8,9 +8,9 @@
   "background_color": "#ffffff",
   "theme_color": "#ffffff",
   "icons": [
-    { "src": "/knowledge/brand/tasu-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/knowledge/brand/tasu-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/knowledge/brand/tasu-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "/knowledge/brand/tasu.svg", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "/knowledge/brand/knowledge-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/knowledge/brand/knowledge-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/knowledge/brand/knowledge-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/knowledge/brand/knowledge.svg", "sizes": "any", "type": "image/svg+xml" }
   ]
 }

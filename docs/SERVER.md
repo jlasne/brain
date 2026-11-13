@@ -223,7 +223,7 @@ What a drop adds, in the background after it links:
 |---|---|---|
 | Meaning | Each new concept is turned into numbers and its 6 nearest by meaning join the word matches as link candidates, 8 at most | Under $0.0001 |
 | Kinds | Each link says how: needs, causes, supports, contradicts or example. A plain link stays "related" and is never stored as a kind | Inside the link call |
-| What follows | Up to 5 linked pairs across folders, strongest kind first, each read for the conclusion the two make together. Marked as Tasu's own, never a source | About $0.001 |
+| What follows | Up to 5 linked pairs across folders, strongest kind first, each read for the conclusion the two make together. Marked as the app's own, never a source | About $0.001 |
 | Topics | The folders it touched are grouped again by their links and shared sources. Only a new or reshaped group is named, 12 a folder at most | About $0.001 |
 
 A question is turned into numbers too, so a concept worded differently, or in
@@ -286,7 +286,7 @@ convex/
 app/
   home.html        the landing, pointed at the deployment
   chat.html        the app, built from web/chat: never edited by hand
-  manifest.webmanifest, brand/   what a phone or a computer reads to install Tasu as an app
+  manifest.webmanifest, brand/   what a phone or a computer reads to install Knowledge as an app
 web/chat/
   page.html        the page, with a marker where the styles go and one where the scripts go
   styles/          10 stylesheets, one a screen, joined in the order of their numbers
@@ -551,7 +551,7 @@ Settings, Export writes every folder of the workspace as one markdown file: a MA
 
 ## Install as an app
 
-Tasu installs from the browser, with no app store. `app/manifest.webmanifest` names it, opens it on `/chat` in a window of its own, and gives the icons: 192 and 512 pixels, a 512 one with room to be cut round, and the SVG, all drawn from the brand mark on white. Settings, App does the rest. Where the browser offers its own install prompt (Chrome and Edge on a computer, Chrome on Android), App opens it and says what was chosen. Where it offers none, App says where to tap: on an iPhone or an iPad, Share then Add to Home Screen; on a Mac in Safari, File then Add to Dock. Installed, it says so, and the app opens on the workspace used last. Nothing is sent to the server: the page check reads the manifest, its icons and their sizes.
+Knowledge installs from the browser, with no app store. `app/manifest.webmanifest` names it, opens it on `/chat` in a window of its own, and gives the icons: 192 and 512 pixels, a 512 one with room to be cut round, and the SVG, all drawn from the brand mark on white. Settings, App does the rest. Where the browser offers its own install prompt (Chrome and Edge on a computer, Chrome on Android), App opens it and says what was chosen. Where it offers none, App says where to tap: on an iPhone or an iPad, Share then Add to Home Screen; on a Mac in Safari, File then Add to Dock. Installed, it says so, and the app opens on the workspace used last. Nothing is sent to the server: the page check reads the manifest, its icons and their sizes.
 
 ## Assets
 

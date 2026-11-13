@@ -1,15 +1,15 @@
 <div align="center">
 
-<img src="app/brand/tasu.svg" width="76" alt="">
+<img src="app/brand/knowledge.svg" width="76" alt="">
 
-# Tasu
+# Knowledge
 
 **The smartest knowledge, in an MCP.**
 
 Folders compiled from the talks, essays and posts you trust. Each idea holds one position, dated and cited.
 Add a public folder to your AI in one line, or open a workspace for your own.
 
-[**Open Tasu**](https://www.jeremylasne.com/knowledge/) &nbsp;·&nbsp; [Read the white paper](https://www.jeremylasne.com/knowledge/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
+[**Open Knowledge**](https://www.jeremylasne.com/knowledge/) &nbsp;·&nbsp; [Read the white paper](https://www.jeremylasne.com/knowledge/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
 <img alt="2025 checks passing" src="https://img.shields.io/badge/checks-2025%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Works in Claude, ChatGPT and Cursor" src="https://img.shields.io/badge/MCP-Claude%20·%20ChatGPT%20·%20Cursor-52525b?style=flat-square&labelColor=18181b">
@@ -18,7 +18,7 @@ Add a public folder to your AI in one line, or open a workspace for your own.
 
 <br><br>
 
-<img src="docs/img/landing.jpg" alt="The Tasu home page: the public folders, each with its MCP address, under the headline The smartest knowledge, in an MCP" width="100%">
+<img src="docs/img/landing.jpg" alt="The Knowledge home page: the public folders, each with its MCP address, under the headline The smartest knowledge, in an MCP" width="100%">
 
 </div>
 
@@ -61,9 +61,9 @@ Drop compiles each source once. Ask reads what was compiled. The [white paper](h
 
 ## Compared
 
-Most AI tools search your files for the closest passages. Tasu reads each source once and compiles it into **positions**, each backed by dated evidence, and asks you when two sources clash.
+Most AI tools search your files for the closest passages. Knowledge reads each source once and compiles it into **positions**, each backed by dated evidence, and asks you when two sources clash.
 
-| | Classic AI chat | Passage search (a chat over your files) | **Tasu** |
+| | Classic AI chat | Passage search (a chat over your files) | **Knowledge** |
 |---|---|---|---|
 | Answers from | Its training data | 4 to 6 pieces of your files | **Positions merged from up to 20 sources** |
 | Proof | None, or a link it made up | The piece it found | **Author and date on every claim** |
@@ -118,10 +118,10 @@ Most AI tools search your files for the closest passages. Tasu reads each source
 - **One +.** It asks first: Knowledge, a new folder, or Asset: files, a link, a blank doc, page or table. A file dropped on the list becomes an asset.
 - **A folder, open.** Its scope and counts (concepts, sources, open clashes), then every concept, newest first. Chat in it, drop into it, rename it, merge it into another, or delete it with its Delete button. Delete first counts what goes: "Content holds 42 concepts and 12 sources, 9 of them only here".
 - **Every drop grows the graph.** Each new idea links to its 6 nearest in meaning, in any language: needs, causes, supports, contradicts or example. A question reads what its ideas link to; a why, how or in-what-order question follows "causes" and "needs" one step further, up to 4 more. Folders sort themselves into topics.
-- **What follows.** Two linked ideas from different folders can add up to a third. A drop writes up to 5, marked as Tasu's own conclusion.
+- **What follows.** Two linked ideas from different folders can add up to a third. A drop writes up to 5, marked as Knowledge's own conclusion.
 - **One-pager, above Drop.** Folders, a category, up to 4 assets, or a question become a summary, a quiz, a deep dive or use cases, in 9 languages. Assets alone are read alone.
 - **Decisions, with a call ready.** Clashes, concepts filed twice, titles not in English, empty positions and the same person on two cards sit in one list, grouped by folder. Each has a suggested call and its reason: "B holds. The later claim: September 2026 over February 2026". Accept one, or all in one tap.
-- **Audit.** After 50 new sources, a folder is audited on its own the next time you open Tasu. The personal folder asks every 7 days.
+- **Audit.** After 50 new sources, a folder is audited on its own the next time you open Knowledge. The personal folder asks every 7 days.
 
 ### Inbox
 
@@ -133,7 +133,7 @@ A bubble at the top right counts what waits for you: answers ready, questions on
 |---|---|
 | **Model** | GLM 5.3 Flash by default, for the whole workspace. Or a list of favourites: each morning the cheapest runs, when it is at least 10% cheaper. `admin:addFavourite` adds one more to the list. |
 | **Answers** | Short reads the 12 best concepts, for about a third less a question. Long reads up to 30. Educational and Learning answers read in full either way. |
-| **App** | Installs Tasu on the home screen or the dock. See [Install as an app](#install-as-an-app). |
+| **App** | Installs Knowledge on the home screen or the dock. See [Install as an app](#install-as-an-app). |
 | **Appearance** | System, Light or Dark, kept in this browser. |
 | **Languages** | The language of answers (as you write, or English). Voice: Whisper (any length, any language) or the browser (free, 2 minutes). The mic language: 27, or Detect. |
 | **Cost** | This month in dollars for each kind of work: folder chat, personal chat, assets, drops, upkeep, one-pagers and voice, and last month in all. |
@@ -142,7 +142,7 @@ A bubble at the top right counts what waits for you: answers ready, questions on
 
 ### Install as an app
 
-Tasu installs from the browser. The app stores play no part.
+Knowledge installs from the browser. The app stores play no part.
 
 | Device | Where to tap |
 |---|---|
@@ -151,7 +151,7 @@ Tasu installs from the browser. The app stores play no part.
 | Mac | Safari, File, then Add to Dock |
 | Windows, Mac, Linux | Chrome or Edge, the install icon in the address bar |
 
-Settings, App opens the browser's own prompt where there is one, and shows these steps everywhere else. Installed, Tasu opens in a window of its own, on the workspace used last, with the Tasu icon.
+Settings, App opens the browser's own prompt where there is one, and shows these steps everywhere else. Installed, Knowledge opens in a window of its own, on the workspace used last, with the Knowledge icon.
 
 ## The personal folder <sup>alpha</sup>
 
