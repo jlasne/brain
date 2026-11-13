@@ -84,36 +84,69 @@
   ],
   "redirects": [
     {
-      "source": "/:path*",
+      "source": "/knowledge/(.*)",
       "has": [
         {
           "type": "host",
           "value": "tasu.ai"
         }
       ],
-      "destination": "https://www.jeremylasne.com/knowledge/:path*",
+      "destination": "https://www.jeremylasne.com/knowledge/$1",
       "permanent": true
     },
     {
-      "source": "/:path*",
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "tasu.ai"
+        }
+      ],
+      "destination": "https://www.jeremylasne.com/knowledge/$1",
+      "permanent": true
+    },
+    {
+      "source": "/knowledge/(.*)",
       "has": [
         {
           "type": "host",
           "value": "www.tasu.ai"
         }
       ],
-      "destination": "https://www.jeremylasne.com/knowledge/:path*",
+      "destination": "https://www.jeremylasne.com/knowledge/$1",
       "permanent": true
     },
     {
-      "source": "/:path*",
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.tasu.ai"
+        }
+      ],
+      "destination": "https://www.jeremylasne.com/knowledge/$1",
+      "permanent": true
+    },
+    {
+      "source": "/knowledge/(.*)",
       "has": [
         {
           "type": "host",
           "value": "brain.jeremylasne.com"
         }
       ],
-      "destination": "https://www.jeremylasne.com/knowledge/:path*",
+      "destination": "https://www.jeremylasne.com/knowledge/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "brain.jeremylasne.com"
+        }
+      ],
+      "destination": "https://www.jeremylasne.com/knowledge/$1",
       "permanent": true
     },
     {
