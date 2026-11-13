@@ -71,11 +71,11 @@
     },
     {
       "source": "/knowledge",
-      "destination": "/index.html"
+      "destination": "/home"
     },
     {
       "source": "/knowledge/",
-      "destination": "/index.html"
+      "destination": "/home"
     },
     {
       "source": "/knowledge/:path*",

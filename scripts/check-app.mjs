@@ -53,13 +53,13 @@ const server = createServer(async (rq, rs) => {
   /* The site lives under /knowledge on www.jeremylasne.com; vercel.json maps it back to the files, as here. */
   const asked = rq.url.split("?")[0].replace(/^\/knowledge(?=\/|$)/, "") || "/";
   /* The type comes from the file served, not the path asked for. "/" is
-     index.html, and typed from the path it would be an octet stream, which a
+     home.html, and typed from the path it would be an octet stream, which a
      browser downloads instead of rendering. Vercel's cleanUrls makes the same
      substitution, so /octopus and /squidgy resolve here too. */
   /* vercel.json sends the owner's two doors to their workspace page. */
   const door = { "/octopus": "/chat?w=octopus", "/squidgy": "/chat?w=squidgy" }[asked];
   if (door) { rs.writeHead(302, { Location: door }).end(); return; }
-  const file = asked === "/" ? "index.html"
+  const file = asked === "/" ? "home.html"
     : /\.[a-z]+$/i.test(asked) ? asked.slice(1)
     : asked.slice(1) + ".html";
   try {

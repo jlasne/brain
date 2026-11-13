@@ -260,7 +260,7 @@ npx convex deploy
 
 The `--prod` flag matters. Without it the key lands on the dev deployment, and the live site reads production.
 
-To test locally against dev, set it there too and point `window.OCTOPUS_API` in `app/index.html` at the dev URL that `convex dev` printed.
+To test locally against dev, set it there too and point `window.OCTOPUS_API` in `app/home.html` at the dev URL that `convex dev` printed.
 
 ## Why it exists
 
@@ -284,7 +284,7 @@ convex/
   restore.ts       an export read back into folders, concepts and sources
   voice.ts         a piece of speech written by Whisper large-v3 turbo through OpenRouter
 app/
-  index.html       the landing, pointed at the deployment
+  home.html        the landing, pointed at the deployment
   chat.html        the app, built from web/chat: never edited by hand
   manifest.webmanifest, brand/   what a phone or a computer reads to install Tasu as an app
 web/chat/
