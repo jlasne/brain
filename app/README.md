@@ -5,7 +5,7 @@ file name becomes its path.
 
 | File | Path | What it is |
 |---|---|---|
-| `index.html` | `/` | The landing: the demo and the live workspaces, then what it does, Drop and Ask. The system font and the colours of jeremylasne.com |
+| `home.html` | `/knowledge` | The landing: the demo and the live workspaces, then what it does, Drop and Ask. The system font and the colours of jeremylasne.com |
 | `about.html` | `/about` | The white paper: the model, Drop, Ask, clashes, the ceilings that keep it fast, and who holds your data. Linked from the footer |
 | `chat.html` | `/chat`, `/chat?w=octopus` | The app: drop, ask, one-pager, create a brain. With no session, it asks for the passphrase on top of the workspace the address names. `/octopus` and `/squidgy` redirect here |
 | `doc.html` | `/doc` | The connector. The page holds no words: they arrive from the deployment, so an unsigned request gets a refusal |

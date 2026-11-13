@@ -5,8 +5,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="icon" href="/brand/logo-mark.png">
-<link rel="stylesheet" href="/octopus.css">
+<link rel="icon" href="/knowledge/brand/logo-mark.png">
+<link rel="stylesheet" href="/knowledge/octopus.css">
 
 <script>window.OCTOPUS_API = "https://uncommon-wolf-174.eu-west-1.convex.site";</script>
 
@@ -26,11 +26,11 @@
 </style>
 
 <header class="top"><div class="wrap">
-  <span class="mark"><img src="/brand/logo-mark.png" alt="Octopus" width="48" height="48"></span>
-  <a class="wordmark" href="/" style="color:var(--ink)">Octopus</a>
+  <span class="mark"><img src="/knowledge/brand/logo-mark.png" alt="Octopus" width="48" height="48"></span>
+  <a class="wordmark" href="/knowledge/" style="color:var(--ink)">Octopus</a>
   <nav class="links">
-    <a href="/doc" aria-current="page">Doc</a>
-    <a href="/chat" class="cta">Open the app</a>
+    <a href="/knowledge/doc" aria-current="page">Doc</a>
+    <a href="/knowledge/chat" class="cta">Open the app</a>
   </nav>
 </div></header>
 
@@ -80,7 +80,7 @@
        Vercel proxies /mcp/v0 to the deployment. */
     const inp = document.getElementById("docUrl"), btn = document.getElementById("docCopy");
     if (!inp || !btn) return;
-    const url = location.origin + "/mcp/v0";
+    const url = location.origin + "/knowledge/mcp/v0";
     inp.value = url;
     btn.onclick = async () => {
       inp.select();

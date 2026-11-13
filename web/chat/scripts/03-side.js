@@ -80,7 +80,7 @@ async function toLogo(file){
 /** The workspace's mark: its own logo, the octopus, the dog's head, or Tasu's folder. */
 function markOf(){
   if (S.logo) return S.logo;
-  return S.space === "octopus" ? "/brand/logo-mark.png" : S.space === "squidgy" ? "/brand/squidgy-icon.png" : "/brand/tasu.svg";
+  return S.space === "octopus" ? "/knowledge/brand/logo-mark.png" : S.space === "squidgy" ? "/knowledge/brand/squidgy-icon.png" : "/knowledge/brand/tasu.svg";
 }
 
 function paintSpace(){
@@ -618,7 +618,7 @@ function openBrainSheet(b){
   /* Public: a switch that applies at once, and the address anyone adds to their AI. */
   const pubF = veil.querySelector("#rPubF"), pub = veil.querySelector("#rPub"), pubLine = veil.querySelector("#rPubLine"), pubSay = veil.querySelector("#rPubSay");
   pubF.hidden = S.demo || b.type === "personal" || (b.space || S.space) !== S.space || readOnly(b);
-  const pubUrl = `${location.origin}/mcp/v1?b=${b.slug}`;
+  const pubUrl = `${location.origin}/knowledge/mcp/v1?b=${b.slug}`;
   veil.querySelector("#rPubUrl").textContent = pubUrl;
   const paintPub = () => { pub.checked = !!b.public; pubLine.hidden = !b.public; };
   paintPub();
@@ -1030,10 +1030,10 @@ function dropHint(src, content){
 function octopusLoop(){
   const ua = navigator.userAgent;
   const webkit = /iPhone|iPad|iPod/.test(ua) || (/Safari\//.test(ua) && !/Chrome|Chromium|Edg|OPR|Firefox/.test(ua));
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return `<img class="zero-mark" src="/brand/logo-mark.png" alt="">`;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return `<img class="zero-mark" src="/knowledge/brand/logo-mark.png" alt="">`;
   return webkit
-    ? `<img class="zero-loop" src="/brand/octopus-loop.webp" alt="">`
-    : `<video class="zero-loop" src="/brand/octopus-loop.webm" autoplay loop muted playsinline disablepictureinpicture aria-hidden="true"></video>`;
+    ? `<img class="zero-loop" src="/knowledge/brand/octopus-loop.webp" alt="">`
+    : `<video class="zero-loop" src="/knowledge/brand/octopus-loop.webm" autoplay loop muted playsinline disablepictureinpicture aria-hidden="true"></video>`;
 }
 
 function renderZero(){
@@ -1047,7 +1047,7 @@ function renderZero(){
   const z = el("div","zero");
   z.dataset.space = S.space; z.dataset.mark = mark; z.dataset.ex = ex.join("|");
   z.innerHTML = `
-    ${S.space === "octopus" && !logo ? octopusLoop() : `<img class="zero-mark" src="${esc(S.space === "squidgy" && !logo ? "/brand/squidgy-mark.png" : mark)}" alt="">`}
+    ${S.space === "octopus" && !logo ? octopusLoop() : `<img class="zero-mark" src="${esc(S.space === "squidgy" && !logo ? "/knowledge/brand/squidgy-mark.png" : mark)}" alt="">`}
     <h2>A folder that gets smarter every time you feed it.</h2>
     <p class="lede">Feed it any source and it reads the whole thing, files each idea under the right subject, flags every claim that clashes with what you already hold, then answers from dated evidence.</p>`;
   if (ex.length){

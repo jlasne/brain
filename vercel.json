@@ -4,7 +4,7 @@
   "cleanUrls": true,
   "headers": [
     {
-      "source": "/((?!mcp/v|api/).*)",
+      "source": "/((?!knowledge/mcp/v|mcp/v|api/).*)",
       "headers": [
         {
           "key": "X-Content-Type-Options",
@@ -33,7 +33,7 @@
       ]
     },
     {
-      "source": "/brand/(.*)",
+      "source": "/knowledge/brand/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -62,38 +62,88 @@
   ],
   "rewrites": [
     {
-      "source": "/mcp/v0",
+      "source": "/knowledge/mcp/v0",
       "destination": "https://uncommon-wolf-174.eu-west-1.convex.site/mcp/v0"
     },
     {
-      "source": "/mcp/v1",
+      "source": "/knowledge/mcp/v1",
       "destination": "https://uncommon-wolf-174.eu-west-1.convex.site/mcp/v1"
+    },
+    {
+      "source": "/knowledge",
+      "destination": "/home"
+    },
+    {
+      "source": "/knowledge/",
+      "destination": "/home"
+    },
+    {
+      "source": "/knowledge/:path*",
+      "destination": "/:path*"
     }
   ],
   "redirects": [
     {
-      "source": "/octopus",
-      "destination": "/chat?w=octopus",
-      "permanent": false
-    },
-    {
-      "source": "/squidgy",
-      "destination": "/chat?w=squidgy",
-      "permanent": false
-    },
-    {
-      "source": "/mcp",
-      "destination": "/doc",
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "tasu.ai"
+        }
+      ],
+      "destination": "https://www.jeremylasne.com/knowledge/:path*",
       "permanent": true
     },
     {
-      "source": "/feed",
-      "destination": "/doc",
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.tasu.ai"
+        }
+      ],
+      "destination": "https://www.jeremylasne.com/knowledge/:path*",
       "permanent": true
     },
     {
-      "source": "/brains",
-      "destination": "/",
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "brain.jeremylasne.com"
+        }
+      ],
+      "destination": "https://www.jeremylasne.com/knowledge/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/knowledge/octopus",
+      "destination": "/knowledge/chat?w=octopus",
+      "permanent": false
+    },
+    {
+      "source": "/knowledge/squidgy",
+      "destination": "/knowledge/chat?w=squidgy",
+      "permanent": false
+    },
+    {
+      "source": "/knowledge/mcp",
+      "destination": "/knowledge/doc",
+      "permanent": true
+    },
+    {
+      "source": "/knowledge/feed",
+      "destination": "/knowledge/doc",
+      "permanent": true
+    },
+    {
+      "source": "/knowledge/brains",
+      "destination": "/knowledge/",
+      "permanent": false
+    },
+    {
+      "source": "/",
+      "destination": "/knowledge/",
       "permanent": false
     }
   ]

@@ -51,7 +51,7 @@ export async function transcribe(o: { audio: string; format: string; lang?: stri
   const seconds = Math.max(0, Math.min(VOICE_MAX_SECONDS, Number(o.seconds) || 0));
   const r = await fetch(`${OPENROUTER}/audio/transcriptions`, {
     method: "POST",
-    headers: { Authorization: "Bearer " + key, "Content-Type": "application/json", "HTTP-Referer": "https://brain.jeremylasne.com", "X-Title": "Octopus" },
+    headers: { Authorization: "Bearer " + key, "Content-Type": "application/json", "HTTP-Referer": "https://www.jeremylasne.com/knowledge", "X-Title": "Octopus" },
     body: JSON.stringify({ model: VOICE_MODEL, input_audio: { data, format }, ...(lang ? { language: lang } : {}), temperature: 0 }),
     signal: AbortSignal.timeout(75000),
   }).catch((e: any) => { throw new Error(/abort|timeout/i.test(String(e?.name ?? e)) ? "Whisper took too long on this piece. Talk again." : "Whisper could not be reached. Check the connection and talk again."); });

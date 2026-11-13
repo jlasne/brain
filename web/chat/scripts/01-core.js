@@ -193,7 +193,7 @@ async function api(path, body = {}) {
   } finally { clearTimeout(cap); }
   if (r.status === 401) {
     sessionStorage.removeItem(TOKEN_KEY);
-    location.replace("/chat?w=" + encodeURIComponent(S.space || "")); throw new Error("locked");
+    location.replace("/knowledge/chat?w=" + encodeURIComponent(S.space || "")); throw new Error("locked");
   }
   const d = await r.json().catch(() => ({ error: "the server sent something unreadable" }));
   if (d.error) throw new Error(d.error);

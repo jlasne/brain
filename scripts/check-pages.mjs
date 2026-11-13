@@ -22,6 +22,8 @@ import { tmpdir } from "node:os";
 
 const APP = join(dirname(fileURLToPath(import.meta.url)), "..", "app");
 const pages = readdirSync(APP).filter(f => f.endsWith(".html"));
+/* The site is served under this path on www.jeremylasne.com: every link the pages give starts with it. */
+const BASE = "/knowledge/";
 
 let failures = 0;
 const fail = (page, msg) => { failures++; console.log(`  FAIL ${page}: ${msg}`); };
@@ -122,7 +124,7 @@ for (const page of pages) {
     const size = file => { const b = readFileSync(file); return `${b.readUInt32BE(16)}x${b.readUInt32BE(20)}`; };
     for (const need of ["192x192", "512x512"]) if (!icons.some(i => i.sizes === need && i.type === "image/png")) { ok = false; fail(at, `has no ${need} PNG icon`); }
     for (const i of icons) {
-      const file = join(APP, i.src.replace(/^\//, ""));
+      const file = join(APP, i.src.startsWith(BASE) ? i.src.slice(BASE.length) : i.src.replace(/^\//, ""));
       let real = null;
       try { real = i.type === "image/png" ? size(file) : (readFileSync(file), i.sizes); }
       catch { ok = false; fail(at, `points at ${i.src}, which is missing`); continue; }
@@ -130,7 +132,7 @@ for (const page of pages) {
     }
   }
   const chat = readFileSync(join(APP, "chat.html"), "utf8");
-  if (!chat.includes(`<link rel="manifest" href="/${at}">`)) { ok = false; fail("chat.html", "does not link the install manifest"); }
+  if (!chat.includes(`<link rel="manifest" href="${BASE}${at}">`)) { ok = false; fail("chat.html", "does not link the install manifest"); }
   if (ok) console.log(`  ok   ${at}  (${m.icons.length} icons)`);
 }
 

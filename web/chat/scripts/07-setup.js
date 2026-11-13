@@ -165,7 +165,7 @@ async function openSetupSheet(opts = {}){
   /* ---- the address ---- */
   const paint = (st) => {
     slot.innerHTML = st.has ? `
-      <div class="urlbox"><input id="mcpFeed" readonly spellcheck="false" value="${esc(location.origin + "/mcp/v0?k=" + st.token)}"><button id="mcpFeedCopy">Copy</button></div>
+      <div class="urlbox"><input id="mcpFeed" readonly spellcheck="false" value="${esc(location.origin + "/knowledge/mcp/v0?k=" + st.token)}"><button id="mcpFeedCopy">Copy</button></div>
       <div class="hint">Made ${esc(st.made || "earlier")}.${st.made && Date.now() - Date.parse(st.made) > 90 * 864e5 ? " It is over 90 days old: replace it." : ""} Paste it into Claude, ChatGPT or any MCP client.
         Keep it private: whoever holds it can read and feed every ${esc(S.spaceName)} brain. The thinking
         runs on that client's own model, so nothing is spent here.</div>
@@ -331,7 +331,7 @@ function setupMarkup(){
       </div>
 
       <div class="f"><div id="kMsg" class="bad" role="alert"></div></div>
-      <footer><a class="ghost" href="/doc" style="text-decoration:none">MCP setup</a><button class="go" id="kDone">Done</button></footer>
+      <footer><a class="ghost" href="/knowledge/doc" style="text-decoration:none">MCP setup</a><button class="go" id="kDone">Done</button></footer>
     </div>`;
 }
 
@@ -582,7 +582,7 @@ function setupPrefs({ veil, langSum }){
 function usageLines(u){
   if (!u.configured){
     return `<div class="hint">No transcript service is set, so a video link asks you to paste.
-      <a href="/doc">How to turn it on</a>.</div>`;
+      <a href="/knowledge/doc">How to turn it on</a>.</div>`;
   }
   const m = u.mine || {}, p = u.plan;
   const mine = `<div class="meter">${m.got || 0} fetched through Octopus in the last ${m.days || 30} days` +

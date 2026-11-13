@@ -9,7 +9,7 @@
 Folders compiled from the talks, essays and posts you trust. Each idea holds one position, dated and cited.
 Add a public folder to your AI in one line, or open a workspace for your own.
 
-[**Open tasu.ai**](https://tasu.ai) &nbsp;·&nbsp; [Read the white paper](https://tasu.ai/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
+[**Open Tasu**](https://www.jeremylasne.com/knowledge/) &nbsp;·&nbsp; [Read the white paper](https://www.jeremylasne.com/knowledge/about) &nbsp;·&nbsp; [Run your own](#run-your-own)
 
 <img alt="2025 checks passing" src="https://img.shields.io/badge/checks-2025%20passing-52525b?style=flat-square&labelColor=18181b">
 <img alt="Works in Claude, ChatGPT and Cursor" src="https://img.shields.io/badge/MCP-Claude%20·%20ChatGPT%20·%20Cursor-52525b?style=flat-square&labelColor=18181b">
@@ -31,7 +31,7 @@ Add a public folder to your AI in one line, or open a workspace for your own.
 | | A public folder | Your own workspace |
 |---|---|---|
 | What it is | A folder its owner made public, such as Hormozi or Y Combinator | Your folders, assets and personal folder, private |
-| How you use it | Copy its MCP address from tasu.ai into Claude, ChatGPT or Cursor | Open a workspace with its passphrase, on the web or as an app |
+| How you use it | Copy its MCP address from jeremylasne.com/knowledge into Claude, ChatGPT or Cursor | Open a workspace with its passphrase, on the web or as an app |
 | What you get | Answers from its positions, each claim with its author and date | Everything below: drop, ask, assets, your people, your twin |
 | What it costs | Nothing: your own AI does the thinking | The model calls, on your OpenRouter key |
 | Who feeds it | Its owner only | You |
@@ -46,7 +46,7 @@ Add a public folder to your AI in one line, or open a workspace for your own.
 
 **Share.** Make a folder public, and anyone adds it to their AI with its own address. It reads only; you alone feed it.
 
-Drop compiles each source once. Ask reads what was compiled. The [white paper](https://tasu.ai/about) walks through both, step by step.
+Drop compiles each source once. Ask reads what was compiled. The [white paper](https://www.jeremylasne.com/knowledge/about) walks through both, step by step.
 
 ## Why it holds up
 
@@ -246,7 +246,7 @@ Point `window.OCTOPUS_API` in the pages under `app/` at your deployment's `.conv
 
 <br>
 
-**A public folder.** Its line on tasu.ai gives its address, `tasu.ai/mcp/v1?b=<folder>`. Paste it into Claude, ChatGPT or any MCP client: it reads that folder only, and the client's own model does the thinking.
+**A public folder.** Its line on jeremylasne.com/knowledge gives its address, `www.jeremylasne.com/knowledge/mcp/v1?b=<folder>`. Paste it into Claude, ChatGPT or any MCP client: it reads that folder only, and the client's own model does the thinking.
 
 **Your workspace.** Settings gives an MCP address carrying your key. It reads and feeds that workspace's folders. `/doc` has the steps.
 

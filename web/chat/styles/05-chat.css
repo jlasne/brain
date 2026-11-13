@@ -81,7 +81,7 @@
      workspace turns its own mark. */
   :root[data-space="octopus"] .spinner{
     width:36px; height:36px; animation:none;
-    background-image:url("/brand/octopus-loop-64.webp");
+    background-image:url("/knowledge/brand/octopus-loop-64.webp");
   }
 
   /* A workspace with its own logo waits with it turning, Octopus included. */
